@@ -1,0 +1,39 @@
+<p>
+  my-modal works!
+</p>
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Add Data</ion-title>
+  </ion-toolbar>
+</ion-header>
+<ion-content>
+  <form [formGroup]="modalForm">
+    <ion-list>
+      <ion-item *ngFor="let input of inputs">
+        <ion-label position="stacked">{{ input.label }}</ion-label>
+        <ion-select
+          *ngIf="input.type === 'select'"
+          formControlName="{{ input.name }}"
+        >
+          <ion-select-option *ngFor="let option of input.options" [value]="option.value">
+            {{ option.label }}
+          </ion-select-option>
+        </ion-select>
+        <ion-input
+          *ngIf="input.type === 'input'"
+          type="text"
+          formControlName="{{ input.name }}"
+        ></ion-input>
+      </ion-item>
+    </ion-list>
+  </form>
+</ion-content>
+<ion-footer>
+  <ion-toolbar>
+    <ion-buttons slot="end">
+      <ion-button (click)="saveData()">Save</ion-button>
+      <ion-button (click)="dismiss()">Cancel</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-footer>
+

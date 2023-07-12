@@ -1,0 +1,26 @@
+<app-custom-toolbar></app-custom-toolbar>
+<app-sort-date></app-sort-date>
+<!-- <div class="inputs-sort-date-storage">
+  
+  <div class="filter-box">
+    <ion-input id="month" type="month" placeholder="בחר חודש"></ion-input>
+    <label class="month-label" for="month">תאריך</label>
+  </div> -->
+  <!-- <div class="filter-box">
+    <select class="labels" id="year" name="year">
+      <option *ngFor="let year of chooseYear " value="year">{{year}}</option>
+    </select>
+    <label for="year">בחר שנה</label>
+  </div> -->
+  <!-- <div class="filter-box">
+    <ion-input  label="ספק" label-placement="floating"  id="provider" type="text"></ion-input>
+  </div>
+  <div class="filter-box">
+    <ion-input  label="סוג הוצאה" label-placement="floating" id="outcome" type="text"></ion-input>
+  </div>
+  
+</div> -->
+<ion-content [fullscreen]="true">
+<app-table *ngIf="columns && rows.length" [columns]="columns" [mockRows]="rows"></app-table>
+
+</ion-content>

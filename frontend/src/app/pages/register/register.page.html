@@ -1,0 +1,133 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <p class="regidter-toolbar">עצמאי בעצמי - לחסוך כסף להרוויח זמן!</p>
+  </ion-toolbar>
+</ion-header>
+
+
+<ion-content [fullscreen]="true">
+    <form class="form-register" [formGroup]="myForm" (ngSubmit)="handleFormRegister()">
+      <!-----------------------------------------------PERSONAL DETAILS----------------------------------->
+      <ion-card class="register-card">
+        <ion-card-header>
+          <ion-card-title><b>פרטים אישיים</b></ion-card-title>
+        </ion-card-header>
+
+        <ion-card-content>
+          <!---------first name----->
+              <ion-input class="input-register" label="שם פרטי" class="input-register" clear-input="true"  spellcheck="true" slot="end" type="text"
+               label-placement="floating" fill="outline" placeholder="הכנס שם פרטי" formControlName="fName"></ion-input>
+          <!--------last name------->
+          <ion-input class="input-register" type="text" label="שם משפחה" label-placement="floating" fill="outline" placeholder="הכנס שם משפחה"
+            formControlName="lName"></ion-input>
+          <!-------id number------->
+          <ion-input type="text" label="תעודת זהות" label-placement="floating" fill="outline"
+            placeholder="הכנס תעודת זהות" formControlName="id"></ion-input>
+          <!-----date of birth----->
+          <ion-item>
+            <ion-label position="floating">תאריך לידה</ion-label>
+            <ion-input size="5" type="date" [max]="today" lable="תאריך לידה" label-placement="floating" fill="outline"
+              placeholder="בחר תאריך" formControlName="dateOfBirth"></ion-input>
+          </ion-item>
+          <!-----email address---->
+          <ion-input  type="email" label="כתובת מייל" label-placement="floating" fill="outline"
+            placeholder="Enter your email" formControlName="email"></ion-input>
+          <!----phone nember----->
+          <ion-input type="tel" label="מספר פלאפון" label-placement="floating" fill="outline"
+            placeholder="הכנס מספר פלאפון" formControlName="phone"></ion-input>
+        </ion-card-content>
+      </ion-card>
+
+      <!----------------------------------------------------CHILDREN------------------------------------------->
+      <ion-card class="register-card">
+        <ion-card-header>
+          <ion-card-title><b>ילדים</b></ion-card-title>
+        </ion-card-header>
+
+        <ion-card-content>
+          <!-------yse || not------>
+          <ion-radio-group>
+            <ion-item>
+              <ion-label>יש ילדים מתחת גיל 18</ion-label>
+              <ion-radio value="haveChild" (click)="onOptionChange($event)"></ion-radio>
+            </ion-item>
+            <ion-item>
+              <ion-label>אין ילדים מתחת גיל 18</ion-label>
+              <ion-radio value="noHaveChild" (click)="onOptionChange($event)"></ion-radio>
+            </ion-item>
+          </ion-radio-group>
+
+          <div *ngIf="selectedOption === 'haveChild'">
+            <div *ngFor="let child of children; let i = index" class="child-row">
+              <!-------name of child----->
+              <div class="input-container">
+                <ion-input type="text" lable="שם הילד" placeholder="שם הילד" label-placement="floating" fill="outline"
+                  formControlName="childName" (ionInput)="saveChildName($event,i)"></ion-input>
+              </div>
+              
+              <!-------dateBirth of child----->
+              <div class="input-container">
+                <ion-input lable="תאריך לידה" type="date" [max]="today" formControlName="childDate"
+                  (ionInput)="saveChildDate($event,i)" fill="outline"></ion-input>
+              </div>
+              <!------- buttons add or remove child----->
+              <div class="add-icon" (click)="addChild()"><ion-icon name="add-circle"></ion-icon></div>
+              <div class="add-icon" (click)="removeChild(i)"><ion-icon name="remove-circle"></ion-icon></div>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+      <!--------------------------------------------SPOUSE DETAILS-------------------------------------------------->
+      <ion-card class="register-card">
+        <ion-card-header>
+          <ion-card-title><b>פרטי בן/ת הזוג</b></ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <!-------first name------>
+          <ion-input type="text" label="שם פרטי" label-placement="floating" fill="outline" placeholder="הכנס שם פרטי"
+            formControlName="spouseFName"></ion-input>
+          <!-------id number------->
+          <ion-input type="text" label="תעודת זהות" label-placement="floating" fill="outline"
+            placeholder="הכנס תעודת זהות" formControlName="spouseId"></ion-input>
+          <!-----date of birth----->
+          <ion-item>
+            <ion-label position="floating">תאריך לידה</ion-label>
+            <ion-input type="date" [max]="today" lable="תאריך לידה" label-placement="floating" fill="outline"
+              placeholder="בחר תאריך" formControlName="spouseDateOfBirth"></ion-input>
+          </ion-item>
+          <!---independet || employee---->
+          <ion-radio-group formControlName="Independent">
+            <ion-item>
+              <ion-label>עצמאי/ת</ion-label>
+              <ion-radio value="Independent"></ion-radio>
+            </ion-item>
+            <ion-item>
+              <ion-label>שכיר/ה</ion-label>
+              <ion-radio value="employee"></ion-radio>
+            </ion-item>
+          </ion-radio-group>
+        </ion-card-content>
+      </ion-card>
+       <!--------------------------------------------USER NAME & PASSWORD--------------------------------------------->
+       <ion-card class="register-card">
+        <ion-card-header>
+          <ion-card-title><b>שם משתמש וסיסמא</b></ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <!---------user name-------->
+          <ion-input type="text" label="שם משתמש" label-placement="floating" fill="outline" placeholder="בחר שם משתמש"
+            formControlName="userName"></ion-input>
+          <!---------password--------->
+          <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
+          <ion-input (ionInput)="checkPassword()" type="text" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
+            formControlName="password"></ion-input>
+          <ion-label *ngIf="!(passwordValid)">סיסמאות לא זהות</ion-label>
+            <ion-input  (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()" type="text" label="אימות סיסמא" label-placement="floating" fill="outline" placeholder="הכנס את הסיסמא פעם נוספת"
+            ></ion-input>
+        </ion-card-content>
+      </ion-card>
+      <ion-button  [disabled]="!(myForm.valid) " type="submit">הירשם</ion-button>
+    </form>
+  
+    <ion-button href="/login">אני כבר רשום</ion-button>
+</ion-content>

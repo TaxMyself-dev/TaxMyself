@@ -1,0 +1,33 @@
+<!--Select month if bimonthly report-->
+<div class="wrapp-sort-date">
+  <div class="inouts-select">
+    <ion-item *ngIf="!(oneMonth$ | async)">
+      <ion-select class="custom-select-label" label=":טווח חודשים" label-placement="end" interface="popover" placeholder="בחר חודשים"
+        (ionChange)="saveValue($event, 'month')">
+        <ng-container *ngFor="let month of doubleMonths">
+          <ion-select-option value="{{month.value}}">{{month.name}}</ion-select-option>
+        </ng-container>
+      </ion-select>
+    </ion-item>
+    <!--Select month if monthly report-->
+    <ion-item class="ion-select" *ngIf="oneMonth$ | async">
+      <ion-select  label=":חודש" label-placement="end" interface="popover" placeholder="בחר חודשים"
+        (ionChange)="saveValue($event, 'month')">
+        <ng-container *ngFor="let month of singleMonths">
+          <ion-select-option value="{{month.value}}">{{month.name}}</ion-select-option>
+        </ng-container>
+      </ion-select>
+    </ion-item>
+    <!--Select year-->
+    <ion-item>
+      <ion-select  label=":שנה" label-placement="end" interface="popover" placeholder="בחר שנה"
+      (ionChange)="saveValue($event, 'year')">
+        <ion-select-option *ngFor="let y of years" [value]="y">{{ y }}</ion-select-option>
+      </ion-select>
+    </ion-item>
+  </div>
+  <div class="checkbox-button">
+    <ion-button type="submit" [disabled]="!(dateData.month && dateData.year)" (click)="confirm()">אישור</ion-button>
+    <ion-checkbox (ionChange)="onCheckboxChange($event)">חד חודשי</ion-checkbox>
+  </div>
+</div>

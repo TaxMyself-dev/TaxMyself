@@ -1,0 +1,67 @@
+import { Component, inject, OnInit } from '@angular/core';
+import { ActivatedRoute, Route } from '@angular/router';
+import { Location } from '@angular/common';
+
+
+@Component({
+  selector: 'app-custom-toolbar',
+  templateUrl: './custom-toolbar.component.html',
+  styleUrls: ['./custom-toolbar.component.scss'],
+})
+export class CustomToolbarComponent implements OnInit {
+
+  constructor(private location: Location,) { };
+
+  public folder!: string;
+
+  public name: string = "";
+  ngOnInit() {
+    this.folder = this.location.path().slice(1);
+    console.log(this.folder);
+
+    switch (this.folder) {
+      case "my-account":
+        this.folder = "איזור אישי";
+        this.name = "person-circle-outline";
+        break;
+
+      case "home":
+        this.folder = "בית";
+        this.name = "home-outline";
+        break;
+
+      case "register":
+        this.folder = "הרשמה"
+        break;
+      
+      case "my-storage":
+        this.folder = "הענן שלי"
+        break;
+
+      case "reports":
+          this.folder = "הגשת דוחות"
+        break;
+
+        case "login":
+          this.folder = "כניסה"
+        break;
+
+        case "vat-report":
+          this.folder = 'דו"ח מע"מ'
+        break;
+
+        case "annual-report":
+          this.folder = 'דו"ח שנתי'
+        break;
+
+        case "advance-income-tax-report":
+          this.folder = 'דו"ח מקדמות מס הכנסה'
+        break;
+
+        case "income-statement":
+          this.folder = 'דו"ח רווח והפסד'
+        break;
+      }
+  };
+}
+

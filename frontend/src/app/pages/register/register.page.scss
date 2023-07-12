@@ -1,0 +1,33 @@
+.regidter-toolbar{
+  display: flex;
+  justify-content: center;
+  font-size: xx-large;
+}
+
+.register-card{
+  border:1px solid gray;
+  margin: auto;
+  margin-top: 10px;
+  max-width: 360px;
+  ion-input{
+    margin-top: 10px;
+  }
+}
+//css of add child button
+.child-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .input-container {
+    flex: 1;
+    margin-right: 10px;
+  }
+  
+  .add-icon {
+    font-size: 24px;
+    color: blue;
+    cursor: pointer;
+  }
+//----------------

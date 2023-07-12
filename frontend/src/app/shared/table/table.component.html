@@ -1,0 +1,34 @@
+<p class="table-title">
+  {{tableTitle}}
+</p>
+<div class="table-wrapper">
+    <div *ngFor="let row of mockRows" class="receipt-wrapper">
+      <table>
+        <div *ngFor="let col of columns | keyvalue">
+          <tr>
+            <th>
+              {{col.value}}
+            </th>
+            <td>
+              <ng-container *ngIf="col.key === 'date'; else defaultCell">{{ row[col.key] | date }}</ng-container>
+              <ng-template #defaultCell>{{ row[col.key] }}</ng-template>
+            </td>
+          </tr>
+        </div>
+      </table>
+    </div>
+  </div>
+  <!-- <ion-button (click)="openPopup()" shape="round">הוסף הוצאה</ion-button> -->
+
+
+  <!-- 
+<ion-grid class="table-container">
+  <ion-row class="table-header">
+    <ion-col *ngFor="let col of columns | keyvalue" class="table-header" >{{ col.value }}</ion-col>
+  </ion-row>
+  <ion-row *ngFor="let row of mockRows" class="table-row-wrapper">
+    <ng-container *ngFor="let column of columns | keyvalue">
+    <ion-col class="table-row" > {{ row[column.key]}}</ion-col>
+  </ng-container>
+  </ion-row>
+</ion-grid> -->

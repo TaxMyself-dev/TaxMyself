@@ -1,0 +1,85 @@
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { FormGroup, FormBuilder, FormControl, Validators } from '@angular/forms';
+import { BehaviorSubject, Observable, map } from 'rxjs';
+import { VatReportService } from 'src/app/pages/vat-report/vat-report.service';
+import { IMonthData, ISortDate, IVatReportTableData } from '../interface';
+
+@Component({
+  selector: 'app-sort-date',
+  templateUrl: './sort-date.component.html',
+  styleUrls: ['./sort-date.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class SortDateComponent {
+
+  readonly doubleMonths: IMonthData[] = [
+    { name: 'ינואר - פברואר', value: [1, 2] },
+    { name: 'מרץ - אפריל', value: [3, 4] },
+    { name: 'מאי - יוני', value: [5, 6] },
+    { name: 'יולי - אוגוסט', value: [7, 8] },
+    { name: 'ספטמבר - אוקטובר', value: [9, 10] },
+    { name: 'נובמבר - דצמבר', value: [11, 12] },
+  ];
+  readonly singleMonths: IMonthData[] = [
+    { name: 'ינואר', value: [1] },
+    { name: 'פברואר', value: [2] },
+    { name: 'מרץ', value: [3] },
+    { name: 'אפריל', value: [4] },
+    { name: 'מאי', value: [5] },
+    { name: 'יוני', value: [6] },
+    { name: 'יולי', value: [7] },
+    { name: 'אוגוסט', value: [8] },
+    { name: 'ספטמבר', value: [9] },
+    { name: 'אוקטובר', value: [10] },
+    { name: 'נובמבר', value: [11] },
+    { name: 'דצמבר', value: [12] },
+
+  ];
+  readonly years: number[] = Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i);
+
+  @Output() onSubmit: EventEmitter<ISortDate> = new EventEmitter();
+
+  // Array of years. @length: the number of years that will be displayed.
+
+  oneMonth$ = new BehaviorSubject<boolean>(false); //Subject to choose if report on one or two months.
+  dateData: ISortDate = {};
+
+  //Func of checkbox.Updates the variable oneMonth if selected or not.
+  onCheckboxChange(event: any) {
+    this.oneMonth$.next(event.detail.checked);
+  };
+
+  saveValue(event: any, type: string) {
+    switch (type) {
+      case 'month':
+        this.dateData.month = event.detail.value;
+        break;
+      case 'year':
+        this.dateData.year = event.detail.value;
+        break;
+    }
+  }
+
+  // Func of button confirm.
+  confirm() {
+    this.onSubmit.emit(this.dateData);
+    //this.dateData
+    // const formData = this.myForm.value;
+    // console.log(formData);
+    // this.vatReportService.setvatReportData(formData);//Set incomes.
+    // //Receives the data according to the selected months and display them.
+    // this.vatReportData$ = this.vatReportService.getVatReportdata().pipe(
+    //   map(data => {
+    //     return {
+    //       'עסקאות חייבות לפני מע"מ': data.transactionVAT,
+    //       'עסקאות פטורות ממע"מ או בשיעור 0': data.transactionFreeVAT,
+    //       'מע"מ הכנסות': data.transactionVAT * 0.17,
+    //       'החזר מע"מ רכוש קבוע:': data.equipmentVatRefund,
+    //       'החזר מע"מ הוצאות משתנות': data.generalVatRefund,
+    //       'מע"מ הכנסות:': 1236,
+    //       'תשלום מע"מ': 1236
+    //     }
+    //   })
+    // )
+  }
+}

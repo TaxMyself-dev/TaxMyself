@@ -1,0 +1,33 @@
+.inputs-sort-date-storage{
+    display: flex;
+    justify-content: space-evenly;
+    position: absolute;
+    top: 62px;
+    width: 100%;
+
+    .filter-box {
+        width: 100%;
+        display: flex;
+        flex-grow: 1;
+        align-items: center;
+        justify-content: space-evenly;
+        border-bottom: 2px solid black;
+        margin-right: 20px;
+        margin-left: 20px;
+        border-color: black;
+    }
+
+    ion-input{
+        text-align: end;
+    }
+
+    .labels {
+        border: none;
+        padding: 10px;
+        background-color: transparent;
+    }
+
+    .month-label {
+        padding: 10px;
+    }
+}
