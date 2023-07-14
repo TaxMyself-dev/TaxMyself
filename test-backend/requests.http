@@ -1,0 +1,29 @@
+### 
+# Create new bubuItem
+POST http://localhost:3000/bubuItem
+Content-Type: application/json
+
+{
+    "name": "Item1",
+    "price": 23,
+    "nickname": "Nick1"
+}
+
+###
+# Create new bubuItem2
+POST http://localhost:3000/bubuItem
+Content-Type: application/json
+
+{
+    "name": "Item2",
+    "price": 25,
+    "nickname": "Nick2"
+}
+
+### 
+# Get all bubuItems
+GET http://localhost:3000/bubuItems
+
+### 
+# Get specific bubuItem (Replace :id with actual id generated during creation)
+GET http://localhost:3000/bubuItem/3
