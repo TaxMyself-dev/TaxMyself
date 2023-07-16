@@ -1,6 +1,6 @@
 ### 
 # Create new bubuItem
-POST http://localhost:3000/bubuItem
+POST http://localhost:3000/bubuItems
 Content-Type: application/json
 
 {
@@ -11,7 +11,7 @@ Content-Type: application/json
 
 ###
 # Create new bubuItem2
-POST http://localhost:3000/bubuItem
+POST http://localhost:3000/bubuItems
 Content-Type: application/json
 
 {
@@ -26,4 +26,35 @@ GET http://localhost:3000/bubuItems
 
 ### 
 # Get specific bubuItem (Replace :id with actual id generated during creation)
-GET http://localhost:3000/bubuItem/3
+GET http://localhost:3000/bubuItems/3
+
+### 
+# Get all users
+GET http://localhost:3000/users
+
+### 
+# Get specific user (Replace :id with actual id generated during creation)
+GET http://localhost:3000/users/1
+
+
+### 
+# signup new user
+POST http://localhost:3000/auth/signup
+Content-Type: application/json
+
+{
+    "firstName": "asdew",
+    "lastName": "fas",
+    "password": "12345",
+    "email": "haps@pasu"
+}
+
+### 
+# login user
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+    "password": "shisma7",
+    "email": "hapsu@pasu"
+}

@@ -6,9 +6,9 @@ export const datasource = new DataSource(
     host: "localhost",
     port: 5432,
     username: "bubu-user",
-    password: "mysecretpassword",
+    password: "sdlkjdhsak325fas",
     database: "bubu-db",
-    logging: true,
+    logging: false,
     synchronize: true,
     entities: ["dist/entity/*.js"],
 })

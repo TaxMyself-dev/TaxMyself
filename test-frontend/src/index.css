@@ -1,0 +1,21 @@
+.top-nav {
+  background-color: aliceblue;
+  padding: 0.5vw;
+}
+
+.nav-element {
+  padding: 0.5vw;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  width: 50%;
+}
+
+.error-label {
+  color: red;
+}

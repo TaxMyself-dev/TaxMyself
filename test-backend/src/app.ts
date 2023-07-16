@@ -1,45 +1,37 @@
 import "reflect-metadata";
-import express, { Request, Response } from 'express';
+import express from 'express';
+import cors from 'cors';
+import { expressjwt } from 'express-jwt';
 import { datasource } from './datasource';
-import { BubuItem } from './entity/BubuItem';
+import bubuItemsRouter from './routes/bubuItemsRoute'
+import usersRoute from './routes/usersRoute'
+import authRoute from './routes/authRoute'
+import expensesRoute from './routes/expensesRoute'
+import incomesRoute from './routes/incomesRoute'
+
 
 const app = express();
+app.use(cors());
+const jwtCheck = expressjwt({
+  secret: '32r9oisdfaO(IJNWEHNasdfkas lkjasjhfe89ou:LKJD',
+  algorithms: ['HS256']
+}).unless({ path: ['/auth/login', '/auth/signup'] });
+app.use(jwtCheck);
 app.use(express.json());
 
+app.use('/bubuItems', bubuItemsRouter);
+app.use('/users', usersRoute);
+app.use('/auth', authRoute);
+app.use('/expenses', expensesRoute);
+app.use('/incomes', incomesRoute);
+
 datasource.initialize()
-    .then(() => {
-        console.log("Data Source has been initialized!")
-    })
-    .catch((err) => {
-        console.error("Error during Data Source initialization:", err)
-    })
+  .then(() => {
+    console.log("Data Source has been initialized!")
+  })
+  .catch((err) => {
+    console.error("Error during Data Source initialization:", err)
+  })
 
-  app.post('/bubuItem', async (req: Request, res: Response) => {
-    const bubuItem = await datasource.getRepository(BubuItem).create(req.body)
-    const results = await datasource.getRepository(BubuItem).save(bubuItem)
-    return res.send(results)
-  });
-
-  app.get('/bubuItems', async (req: Request, res: Response) => {
-    const bubuItems = await datasource.getRepository(BubuItem).find();
-
-    res.status(200).json(bubuItems);
-  });
-
-  app.get('/bubuItem/:id', async (req: Request, res: Response) => {
-    const wantedId = req.params.id;
-    const bubuItem = await datasource.getRepository(BubuItem).findOne({
-      where: {
-          id: wantedId,
-      }
-  });
-
-    if (!bubuItem) {
-      res.status(404).send('BubuItem not found');
-    } else {
-      res.status(200).json(bubuItem);
-    }
-  });
-
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => console.log(`Server running on port ${port}`));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server running on port ${port}`));
