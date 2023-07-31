@@ -27,7 +27,7 @@ GET http://localhost:3000/auth/whoami
 
 
 ### Find a particular user with a given ID
-GET http://localhost:3000/auth/3
+GET http://localhost:3000/auth/8
 
 
 ### Find all users with a given email

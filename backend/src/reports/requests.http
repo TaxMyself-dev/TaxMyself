@@ -9,7 +9,7 @@ content-type: application/json
     "mileage": 100000,
     "lng": 0,
     "lat": 0,
-    "price": 50000
+    "price": 3000
 }
 
 
