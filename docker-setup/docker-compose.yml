@@ -1,0 +1,34 @@
+version: '3'
+
+services:
+  postgresdb:
+    image: postgres
+    container_name: postgresdb
+    environment:
+      POSTGRES_PASSWORD: n8B0pL2cN3n09
+    volumes:
+      - ../../postgres-files:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@taxmyself.com
+      PGADMIN_DEFAULT_PASSWORD: j7YU13neaa9V
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgresdb
+
+  # nodeserver:
+  #   image: node
+  #   container_name: nodeserver
+  #   volumes:
+  #     - ../nest-backend:/home/nest-backend
+  #   ports:
+  #     - "3000:3000"
+  #   command: tail -f /dev/null
+  #   depends_on:
+  #     - postgresdb
