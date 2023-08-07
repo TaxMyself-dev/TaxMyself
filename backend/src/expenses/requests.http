@@ -1,0 +1,17 @@
+
+POST http://localhost:3000/expenses
+content-type: application/json
+
+{
+    "price": 300,
+    "date": "2021-04-19",
+    "supplier": "Rami Levi",
+    "category": "food",
+    "tax_percent": 25,
+    "vat_percent": 45,
+    "equipment": false
+}
+
+
+###
+GET http://localhost:3000/expenses/8
