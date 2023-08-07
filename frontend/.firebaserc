@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "taxmyself-5d8a0"
+  },
+  "targets": {
+    "taxmyself-5d8a0": {
+      "hosting": {
+        "app": [
+          "taxmyself-5d8a0"
+        ]
+      }
+    }
+  }
+}

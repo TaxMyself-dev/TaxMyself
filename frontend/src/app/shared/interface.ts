@@ -45,3 +45,10 @@ export interface IMonthData {
     name: string;
     value: number[];
 }
+export interface User {
+    uid: string;
+    email: string;
+    displayName: string;
+    photoURL: string;
+    emailVerified: boolean;
+ }

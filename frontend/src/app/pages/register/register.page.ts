@@ -2,6 +2,7 @@ import { Component, OnInit, NgModule } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
 import { RegisterService } from './register.service';
 import { IChildren } from 'src/app/shared/interface';
+import axios from 'axios';
 
 @Component({
   selector: 'app-register',
@@ -85,10 +86,25 @@ export class RegisterPage implements OnInit {
 
   handleFormRegister() {
     const formData = this.myForm.value;
-    console.log(formData);
-    console.log(this.myForm.get('fName')?.errors);
-    console.log(this.myForm.get('Independent')?.errors);
+    console.log("form  data:",formData.password);
+    console.log(this.myForm.get('password')?.value);
+    console.log(this.myForm.get('email')?.value);
+    const url = "http://localhost:3000/auth/signup";
+    const data = {password:formData.password,email:formData.email};
+    console.log(data);
     
+    //axios.post("http://localhost:3000/auth/signup",this.myForm.get('password')?.value);
+    axios.post(url, data)
+  .then(response => {
+    // Request was successful, handle the response data.
+    console.log('Response:', response.data);
+  })
+  .catch(error => {
+    // An error occurred during the request.
+    console.log('Error:', error.response.data.message);
+    console.error('Error:', error);
+    
+  });
   }
 
   saveChildName(data: any, index: number) {
