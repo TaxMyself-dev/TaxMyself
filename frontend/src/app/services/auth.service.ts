@@ -46,6 +46,8 @@ export class AuthService {
     return from(this.afAuth
       .signInWithEmailAndPassword(email, password))
       .pipe(switchMap((result) => {
+        console.log("uid:",result.user.uid);
+        
           return from(result.user.getIdToken());
       }),
       catchError((err) => {
@@ -132,10 +134,16 @@ sendTokenToServer(data: any) {
       });
   }
   // Sign up with email/password
-  async SignUp(email: string, password: string) {
+  async SignUp(formData: any) {
     return this.afAuth
-      .createUserWithEmailAndPassword(email, password)
+      .createUserWithEmailAndPassword(formData.email, formData.password)
       .then((result) => {
+        console.log(result.user.uid);
+        const uid = result.user.uid;
+        axios.post("http://localhost:3000/auth/signup",{formData:formData,uid:uid}).then((response)=>{
+          console.log(response.data);
+          
+        })
         /* Call the SendVerificaitonMail() function when new user sign 
         up and returns promise */
         this.SendVerificationMail();
