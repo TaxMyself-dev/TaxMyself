@@ -3,7 +3,7 @@ POST http://localhost:3000/expenses
 content-type: application/json
 
 {
-    "price": 300,
+    "price": 480,
     "date": "2021-04-19",
     "supplier": "Rami Levi",
     "category": "food",
@@ -14,4 +14,11 @@ content-type: application/json
 
 
 ###
-GET http://localhost:3000/expenses/8
+GET http://localhost:3000/expenses?userId=8&price=450&tax_percent=25
+
+
+### Get an estimate for an existing vehicle
+#GET http://localhost:3000/reports?make=toyota&model=corolla&lng=0&lat=0&mileage=20000&year=1980
+
+### Delete a user with a given ID
+DELETE http://localhost:3000/expenses/1

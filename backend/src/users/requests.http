@@ -18,6 +18,15 @@ content-type: application/json
 }
 
 
+
+### SignFire
+POST http://localhost:3000/auth/signfire
+content-type: application/json
+
+{
+    "id": "David"
+}
+
 ### Sign out
 POST http://localhost:3000/auth/signout
 

@@ -24,6 +24,10 @@ export class UsersController {
     //    return this.userService.findOne(session.userId);
     //}
 
+    @Post('/signfire')
+    async signFire(@Body() body: string) {
+        this.authService.signFire(body);
+    }
 
     @Get('/whoami')
     @UseGuards(AuthGuard)

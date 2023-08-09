@@ -6,9 +6,15 @@ import {
     IsDateString,
     IsBoolean
 } from 'class-validator'
+import { Transform } from 'class-transformer';
 
-export class CreateExpenseDto {
+export class GetExpenseDto {
 
+    @Transform(({ value }) => parseInt(value) )
+    @IsNumber()
+    userId: number;
+
+    @Transform(({ value }) => parseInt(value) )
     @IsNumber()
     @Min(0)
     @Max(1000000)
@@ -23,6 +29,7 @@ export class CreateExpenseDto {
     //@IsString()
     //category: string;
 
+    @Transform(({ value }) => parseInt(value) )
     @IsNumber()
     @Min(0)
     @Max(100)
