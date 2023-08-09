@@ -2,6 +2,8 @@ import { Component, OnInit, NgModule } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
 import { RegisterService } from './register.service';
 import { IChildren } from 'src/app/shared/interface';
+import axios from 'axios';
+import { AuthService } from 'src/app/services/auth.service';
 
 @Component({
   selector: 'app-register',
@@ -19,9 +21,9 @@ export class RegisterPage implements OnInit {
 
 
 
-  
 
-  constructor(private formBuilder: FormBuilder, private registerService: RegisterService) {
+
+  constructor(private authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     const currentDate = new Date();
     this.today = currentDate.toISOString().substring(0, 10);
 
@@ -33,13 +35,13 @@ export class RegisterPage implements OnInit {
         '', Validators.required,
       ),
       id: new FormControl(
-        '', [Validators.required,Validators.pattern(/^\d{9}$/)]
+        '', [Validators.required, Validators.pattern(/^\d{9}$/)]
       ),
       email: new FormControl(
-        '', [Validators.required,Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       phone: new FormControl(
-        '',[Validators.required,Validators.pattern(/^\d{10}$/)]
+        '', [Validators.required, Validators.pattern(/^\d{10}$/)]
       ),
       dateOfBirth: new FormControl(
         '', Validators.required,
@@ -48,7 +50,7 @@ export class RegisterPage implements OnInit {
         '', Validators.required,
       ),
       password: new FormControl(
-        '',[Validators.required,Validators.pattern(/^(?=.*[A-Za-z])(?=.*\d).{8,}$/)]
+        '', [Validators.required, Validators.pattern(/^(?=.*[A-Za-z])(?=.*\d).{8,}$/)]
       ),
       children: new FormControl(
         [], Validators.requiredTrue,
@@ -73,7 +75,7 @@ export class RegisterPage implements OnInit {
   ngOnInit() {
   };
 
-  
+
   addChild() {
     this.children = [...this.children, { name: '', dateOfBirth: '' }];
   }
@@ -85,10 +87,7 @@ export class RegisterPage implements OnInit {
 
   handleFormRegister() {
     const formData = this.myForm.value;
-    console.log(formData);
-    console.log(this.myForm.get('fName')?.errors);
-    console.log(this.myForm.get('Independent')?.errors);
-    
+    this.authService.SignUp(formData);
   }
 
   saveChildName(data: any, index: number) {
@@ -105,18 +104,18 @@ export class RegisterPage implements OnInit {
     this.selectedOption = event.target.value
   }
 
-  changePasswordValidinput(event : any){
+  changePasswordValidinput(event: any) {
     this.passwordValidInput = event.target.value;
     console.log(this.passwordValidInput);
   }
 
-  checkPassword(){
-   const realPass = this.myForm.get('password')?.value;
-   console.log(realPass);
-   if (this.passwordValidInput === realPass){
-    this.passwordValid = true;
-   }else{
-    this.passwordValid = false;
-   }
+  checkPassword() {
+    const realPass = this.myForm.get('password')?.value;
+    console.log(realPass);
+    if (this.passwordValidInput === realPass) {
+      this.passwordValid = true;
+    } else {
+      this.passwordValid = false;
+    }
   }
 }

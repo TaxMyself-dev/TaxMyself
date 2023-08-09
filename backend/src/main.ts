@@ -23,6 +23,8 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
+  app.use(
+    require('cors')());
   await app.listen(3000);
 }
 bootstrap();
