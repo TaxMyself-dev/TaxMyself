@@ -26,12 +26,12 @@ export class AuthService {
 
     private defaultApp: any;
 
-//     constructor() {
-//         this.defaultApp = firebase.initializeApp({
-//             credential: firebase.credential.cert(firebase_params),
-//             databaseURL: "https://fir-auth-bd895.firebaseio.com"
-//         });
-//     }
+    //     constructor() {
+    //         this.defaultApp = firebase.initializeApp({
+    //             credential: firebase.credential.cert(firebase_params),
+    //             databaseURL: "https://fir-auth-bd895.firebaseio.com"
+    //         });
+    //     }
     constructor(private userService: UsersService) {
         this.defaultApp = firebase.initializeApp({
             credential: firebase.credential.cert(firebase_params),
@@ -40,17 +40,21 @@ export class AuthService {
     }
 
     async signFire(token: string) {
-        console.log("Debug") 
+        console.log("Debug")
+        console.log(token)
         if (token != null && token != '') {
             this.defaultApp.auth().verifyIdToken(token)
-                .then(async decodedToken => {
-                    console.log("token")     
+                .then(decodedToken => {
+                    const uid = decodedToken.uid;
+                    console.log('User ID:', uid);
+                    console.log("token")
+                    console.log(token)
                 }).catch(error => {
                     console.error(error);
                 });
         }
     }
-    
+
 
     async signup(email: string, password: string) {
         // See if email is in use
@@ -88,7 +92,7 @@ export class AuthService {
         if (storedHash !== hash.toString('hex')) {
             throw new BadRequestException('bad password');
         }
-            
+
         return user;
     }
 

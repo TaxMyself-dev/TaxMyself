@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { User } from './user.entity';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { log } from 'console';
 
 @Controller('auth')
 @Serialize(UserDto)
@@ -50,11 +51,20 @@ export class UsersController {
     }
 
     @Post('/signin')
-    async signin(@Body() body: CreateUserDto, @Session() session: any) {
-        const user = await this.authService.signin(body.email, body.password);
-        session.userId = user.id;
-        return user;
+    async signin(@Body() body: any) {
+        console.log(body);
+        this.authService.signFire(body.data);
+        //const user = await this.authService.signin(body.email, body.password);
+        //session.userId = user.id;
+        return body;
     }
+
+    // @Post('/signin')
+    // async signin(@Body() body: CreateUserDto, @Session() session: any) {
+    //     const user = await this.authService.signin(body.email, body.password);
+    //     session.userId = user.id;
+    //     return user;
+    // }
 
     @Get('/:id')
     async findUser(@Param('id') id: string) {
