@@ -2,25 +2,38 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
+import { CreateUserDto } from './dtos/create-user.dto';
 
 @Injectable()
 export class UsersService {
     constructor(@InjectRepository(User) private repo: Repository<User>) {}
 
-    create(email: string, password: string) {
-        const user = this.repo.create({ email, password});
+    create(userDto: CreateUserDto): Promise<User> {
+        const user = this.repo.create(userDto);
         return this.repo.save(user);
     }
 
-    findOne(id: number) {
-        if (!id) {
+
+    async findUser(firebaseId: string) {
+        if (!firebaseId) {
             return null;
         }
-        return this.repo.findOneBy({id});
+        return this.repo.findOneBy({firebaseId});
+    }
+
+    findOne(index: number) {
+        if (!index) {
+            return null;
+        }
+        return this.repo.findOneBy({index});
     }
 
     find(email: string) {
         return this.repo.find({ where: {email} })
+    }
+
+    findFireUser(firebaseId: string) {
+        return this.repo.find({ where: {firebaseId} })
     }
 
     async update(id: number, attrs: Partial<User>) {

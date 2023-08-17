@@ -8,7 +8,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
 import { User } from './users/user.entity';
 import { Report } from './reports/report.entity';
-//import { PreauthMiddleware } from './auth/preauth.middleware';
+import { PreauthMiddleware } from './auth/preauth.middleware';
 import { Expense } from './expenses/expenses.entity';
 const cookieSession = require('cookie-session');
 

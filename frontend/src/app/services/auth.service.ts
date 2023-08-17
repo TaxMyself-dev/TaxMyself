@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { Observable, of, concatMap, catchError, from, switchMap, EMPTY, tap } from 'rxjs';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import axios from 'axios';
+import { log } from 'console';
 @Injectable({
   providedIn: 'root'
 })
@@ -135,6 +136,8 @@ sendTokenToServer(data: any) {
   }
   // Sign up with email/password
   async SignUp(formData: any) {
+    console.log("signup");
+    
     return this.afAuth
       .createUserWithEmailAndPassword(formData.email, formData.password)
       .then((result) => {
@@ -142,6 +145,10 @@ sendTokenToServer(data: any) {
         const uid = result.user.uid;
         axios.post("http://localhost:3000/auth/signup",{formData:formData,uid:uid}).then((response)=>{
           console.log(response.data);
+          
+        })
+        .catch((err)=>{
+          console.log(err);
           
         })
         /* Call the SendVerificaitonMail() function when new user sign 
