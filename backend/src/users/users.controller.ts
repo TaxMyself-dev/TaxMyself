@@ -13,8 +13,10 @@ import { log } from 'console';
 import { request } from 'http';
 //import { Request } from 'express';
 import { Request } from '@nestjs/common';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 @Controller('auth')
+@UseGuards(FirebaseAuthGuard)
 @Serialize(UserDto)
 export class UsersController {
 
