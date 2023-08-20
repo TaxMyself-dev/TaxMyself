@@ -12,32 +12,58 @@ import { Report } from 'src/reports/report.entity';
 @Entity()
 export class User {
     @PrimaryGeneratedColumn()
-    id: number;
+    index: number;
+
+    @Column()
+    fName: string;
+    
+    @Column()
+    lName: string;
+
+    @Column()
+    id: string;
 
     @Column()
     email: string;
 
     @Column()
-    password: string;
+    phone: string;
 
-    @Column({ default: true})
-    admin: boolean;
+    @Column()
+    dateOfBirth: string;
+
+    //children
+
+    @Column()
+    spouseFName: string;
+
+    @Column()
+    spouseLName: string;
+
+    @Column()
+    spouseId: string;
+
+    @Column()
+    spouseDateOfBirth: string;
+
+    @Column()
+    firebaseId: string;
 
     @OneToMany(() => Report, (report) => report.user)
     reports: Report[];
 
     @AfterInsert()
     logInsert() {
-        console.log('Inserted user with id', this.id);
+        console.log('Inserted user with id', this.index);
     }
 
     @AfterUpdate()
     logUpdate() {
-        console.log('Updated user with id', this.id);
+        console.log('Updated user with id', this.index);
     }
 
     @AfterRemove()
     logRemove() {
-        console.log('Removed user with id', this.id);
+        console.log('Removed user with id', this.index);
     }
 }

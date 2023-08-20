@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Patch, Delete,
-         Param, Query, NotFoundException, Session, UseGuards} from '@nestjs/common';
+         Param, Query, NotFoundException, Session, UseGuards, Req} from '@nestjs/common';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { UsersService } from './users.service';
@@ -10,14 +10,57 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { User } from './user.entity';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { log } from 'console';
+import { request } from 'http';
+//import { Request } from 'express';
+import { Request } from '@nestjs/common';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 @Controller('auth')
+@UseGuards(FirebaseAuthGuard)
 @Serialize(UserDto)
 export class UsersController {
+
+    private defaultApp: any;
+
     constructor(
         private userService: UsersService,
         private authService: AuthService
     ) {}
+
+    @Post('/signup')
+    async createUser(@Body() body: any) {
+        console.log("debug_0");
+        console.log(body);
+        const user = await this.authService.signup(body.formData, body.uid);
+        return body;
+    }
+
+    @Post('/signin')
+    async signin(@Body() body: any) {
+        console.log(body);
+        const uid = await this.authService.signFire(body.data);
+        console.log("firebase is " + uid);
+        const user = await this.userService.findFireUser(uid);
+        console.log("user is ", user);
+        return user;
+    }
+
+    // @Get('/:uid')
+    // async findUser(@Param('uid') uid: string) {
+    //     const user = await this.userService.findOne(uid);
+    //     if (!user) {
+    //         throw new NotFoundException('user not found');
+    //     }
+    //     return user;
+    // }
+
+    // @Post('/signin')
+    // getHello(@Req() request: Request): string {
+    //     console.log("aeaeaeae");
+    //     const my_email = request['user']?.email;
+    //     console.log("my email is " + my_email);
+    //     return ('Hello' + request['user']?.email);
+    // }
 
     //@Get('/whoami')
     //whoAmI(@Session() session: any) {
@@ -25,16 +68,17 @@ export class UsersController {
     //    return this.userService.findOne(session.userId);
     //}
 
-    @Post('/signfire')
-    async signFire(@Body() body: string) {
-        this.authService.signFire(body);
-    }
+    // @UseGuards(AuthGuard)
+    // @Post('/signfire')
+    // async signFire(@Body() body: string) {
+    //     this.authService.signFire(body);
+    // }
 
-    @Get('/whoami')
-    @UseGuards(AuthGuard)
-    whoAmI(@CurrentUser() user: User) {
-        return user;
-    }
+    // @Get('/whoami')
+    // @UseGuards(AuthGuard)
+    // whoAmI(@CurrentUser() user: User) {
+    //     return user;
+    // }
 
 
     @Post('/signout')
@@ -43,22 +87,6 @@ export class UsersController {
     }
 
 
-    @Post('/signup')
-    async createUser(@Body() body: CreateUserDto, @Session() session: any) {
-        const user = await this.authService.signup(body.email, body.password);
-        session.userId = user.id;
-        return user;
-    }
-
-    @Post('/signin')
-    async signin(@Body() body: any) {
-        console.log(body);
-        this.authService.signFire(body.data);
-        //const user = await this.authService.signin(body.email, body.password);
-        //session.userId = user.id;
-        return body;
-    }
-
     // @Post('/signin')
     // async signin(@Body() body: CreateUserDto, @Session() session: any) {
     //     const user = await this.authService.signin(body.email, body.password);
@@ -66,14 +94,14 @@ export class UsersController {
     //     return user;
     // }
 
-    @Get('/:id')
-    async findUser(@Param('id') id: string) {
-        const user = await this.userService.findOne(parseInt(id));
-        if (!user) {
-            throw new NotFoundException('user not found');
-        }
-        return user;
-    }
+    // @Get('/:id')
+    // async findUser(@Param('id') id: string) {
+    //     const user = await this.userService.findOne(parseInt(id));
+    //     if (!user) {
+    //         throw new NotFoundException('user not found');
+    //     }
+    //     return user;
+    // }
 
     @Get()
     findAllUsers(@Query('email') email: string) {
