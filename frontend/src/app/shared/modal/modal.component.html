@@ -6,7 +6,7 @@
         </ion-toolbar>
       </ion-header>
       <ion-content class="ion-padding">
-        <form [formGroup]="myForm">
+        <form [formGroup]="myForm" (ngSubmit)="confirm()">
           <ion-list>
             <ng-container *ngFor="let col of columns | keyvalue">
               <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
@@ -27,26 +27,22 @@
                 <ion-input *ngIf="col.key === 'file'; else input"   label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
                 </ion-input>
               </ng-template>
-               <!-----------category & provider & sum--------------->
+               <!----------- category & provider & sum --------------->
               <ng-template #input>
                 <ion-input   label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
                 </ion-input>
               </ng-template>
+              <!--TODO: add option to write note-->
             </ion-item>
           </ng-container>
           <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox>
           </ion-list>
+          <ion-button type="submit" [strong]="true">הוסף</ion-button>
+          <ion-button color="medium" (click)="cancel()">ביטול</ion-button>
         </form>
       </ion-content>
+      
 
 
-      <ion-footer>
-        <ion-buttons slot="start">
-          <ion-button color="medium" (click)="cancel()">Cancel</ion-button>
-        </ion-buttons>
-        <ion-buttons slot="end">
-          <ion-button (click)="confirm()" [strong]="true">Confirm</ion-button>
-        </ion-buttons>
-      </ion-footer>
  
 

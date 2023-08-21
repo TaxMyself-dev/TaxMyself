@@ -44,23 +44,23 @@ export class AuthService {
 //================================== signin by rxjs =========================================
 //================================== signin by rxjs =========================================
 // Sign in with email/password Observable
-signInWithEmailAndPassword(email: string, password: string) {
-  return from(this.afAuth
-    .signInWithEmailAndPassword(email, password))
-    .pipe(switchMap((result) => {
-      console.log("uid:", result.user.uid);
+// signInWithEmailAndPassword(email: string, password: string) {
+//   return from(this.afAuth
+//     .signInWithEmailAndPassword(email, password))
+//     .pipe(switchMap((result) => {
+//       console.log("uid:", result.user.uid);
 
-        return from(result.user.getIdToken());
-      }),
-        catchError((err) => {
-          // Handle errors
-          window.alert(err.message);
-          return EMPTY;
-        })).pipe(tap((res) => {
-          console.log("55555 ", res);
-          this.sendTokenToServer(res);
-        }))
-      }
+//         return from(result.user.getIdToken());
+//       }),
+//         catchError((err) => {
+//           // Handle errors
+//           window.alert(err.message);
+//           return EMPTY;
+//         })).pipe(tap((res) => {
+//           console.log("55555 ", res);
+//           this.sendTokenToServer(res);
+//         }))
+//       }
       //     }).pipe(concatMap(res => {
   //       return this.srcObservable;
   //   //     return new Observable((observer) => {
@@ -70,18 +70,18 @@ signInWithEmailAndPassword(email: string, password: string) {
   //   //       // this.uid = res.user.uid;
   //   // })
   // }) 
-  sendTokenToServer(data: any) {
-    const headers = { 'content-type': 'application/json' };
-    const url = 'http://localhost:3000/auth/signin';
-    axios.post(url, { data })
-    .then((res) => {
-      console.log(res);
-        //TODO: navigate to home and check these func:1. this.SetUserData(result.user);
-        //   2.this.afAuth.authState.subscribe((user) 
-      })
-      .catch((err) => {
-        console.log(err);
-      })
+  // sendTokenToServer(data: any) {
+  //   const headers = { 'content-type': 'application/json' };
+  //   const url = 'http://localhost:3000/auth/signin';
+  //   axios.post(url, { data })
+  //   .then((res) => {
+  //     console.log(res);
+  //       //TODO: navigate to home and check these func:1. this.SetUserData(result.user);
+  //       //   2.this.afAuth.authState.subscribe((user) 
+  //     })
+  //     .catch((err) => {
+  //       console.log(err);
+  //     })
       // return this.http.post(url,{data: JSON.stringify(data)},{headers:headers})
       //   .pipe(
       //     catchError((error) => {
@@ -91,7 +91,7 @@ signInWithEmailAndPassword(email: string, password: string) {
     //       throw error;
     //     })
     //   );
-  }
+  //}
   //   this.SetUserData(result.user);
   //   this.afAuth.authState.subscribe((user) => {
   //     if (user) {

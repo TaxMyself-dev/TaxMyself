@@ -6,6 +6,7 @@ import { IonDatetime } from '@ionic/angular';
 import { OverlayEventDetail } from '@ionic/core/components';
 import { TableService } from 'src/app/services/table.service';
 import { IColumnDataTable } from '../interface';
+import axios from 'axios';
 
 @Component({
   selector: 'app-modal',
@@ -53,6 +54,13 @@ export class ModalComponent implements OnInit {
     this.modalCtrl.dismiss(this.name, 'confirm');
     const formData = this.myForm.value;
     console.log(formData);
+    axios.post('http://localhost:3000/expenses/add',formData)
+    .then((response)=>{
+      console.log(response);
+    })
+    .catch((err)=>{
+      console.log(err);
+    })
     this.rowsService.addRow(formData).subscribe(
       (response) => {
         if (response) {
