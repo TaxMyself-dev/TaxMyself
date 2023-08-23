@@ -29,12 +29,21 @@
             <ion-input size="5" type="date" [max]="today" lable="תאריך לידה" label-placement="floating" fill="outline"
               placeholder="בחר תאריך" formControlName="dateOfBirth"></ion-input>
           </ion-item>
-          <!-----email address---->
-          <ion-input  type="email" label="כתובת מייל" label-placement="floating" fill="outline"
-            placeholder="Enter your email" formControlName="email"></ion-input>
           <!----phone nember----->
           <ion-input type="tel" label="מספר פלאפון" label-placement="floating" fill="outline"
-            placeholder="הכנס מספר פלאפון" formControlName="phone"></ion-input>
+            placeholder="הכנס מספר פלאפון" formControlName="phone">
+          </ion-input>
+          <!-----email address---->
+          <ion-input  type="email" label="כתובת מייל" label-placement="floating" fill="outline"
+            placeholder="Enter your email" formControlName="email">
+          </ion-input>
+            <!-- password---------->
+            <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
+            <ion-input (ionInput)="checkPassword()" type="text" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
+              formControlName="password"></ion-input>
+            <ion-label *ngIf="!(passwordValid)">סיסמאות לא זהות</ion-label>
+              <ion-input  (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()" type="text" label="אימות סיסמא" label-placement="floating" fill="outline" placeholder="הכנס את הסיסמא פעם נוספת"
+              ></ion-input>
         </ion-card-content>
       </ion-card>
 
@@ -106,24 +115,6 @@
               <ion-radio value="employee"></ion-radio>
             </ion-item>
           </ion-radio-group>
-        </ion-card-content>
-      </ion-card>
-       <!--------------------------------------------USER NAME & PASSWORD--------------------------------------------->
-       <ion-card class="register-card">
-        <ion-card-header>
-          <ion-card-title><b>שם משתמש וסיסמא</b></ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <!---------user name-------->
-          <ion-input type="text" label="שם משתמש" label-placement="floating" fill="outline" placeholder="בחר שם משתמש"
-            formControlName="userName"></ion-input>
-          <!---------password--------->
-          <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
-          <ion-input (ionInput)="checkPassword()" type="text" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
-            formControlName="password"></ion-input>
-          <ion-label *ngIf="!(passwordValid)">סיסמאות לא זהות</ion-label>
-            <ion-input  (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()" type="text" label="אימות סיסמא" label-placement="floating" fill="outline" placeholder="הכנס את הסיסמא פעם נוספת"
-            ></ion-input>
         </ion-card-content>
       </ion-card>
       <ion-button   type="submit">הירשם</ion-button>

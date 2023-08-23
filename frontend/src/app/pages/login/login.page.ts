@@ -26,22 +26,27 @@ export class LoginPage implements OnInit {
   ngOnInit() {
   }
 
-  handleFormRegister() {
+  // handleFormRegister() {
+  //   const formData = this.myForm.value;
+  //   console.log(formData);
+  // }
+
+  signin(){
     const formData = this.myForm.value;
-    console.log(formData);
+    this.authService.SignIn(formData.userName,formData.password);
   }
 
-  signInWithFireBase() {
-    const formData = this.myForm.value;
-    this.authService.signInWithEmailAndPassword(formData.userName, formData.password).subscribe();
-  
+  // signInWithFireBase() {
+  //   const formData = this.myForm.value;
+  //   this.authService.signInWithEmailAndPassword(formData.userName, formData.password).subscribe();
+    
     // const url = "http://localhost:3000/auth/signin";
     // console.log("in sign in firebase", formData.userName, formData.password);
-
+    
     // console.log("token in login:", this.authService.token);
     // const data = { token: this.authService.token, uid: this.authService.uid };
     // console.log(data.uid);
-
+    
     // axios.post(url, data)
     //   .then(response => {
     //     // Request was successful, handle the response data.
@@ -52,7 +57,7 @@ export class LoginPage implements OnInit {
     //     console.log('Error:', error.response.data.message);
     //     console.error('Error:', error);
     //   });
-  }
+  // }
 
 
 
