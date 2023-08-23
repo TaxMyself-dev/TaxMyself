@@ -11,11 +11,14 @@ export class Expense {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column()
+    @Column({ type: 'date' })
+    date_added: Date;
+  
+    @Column({ type: 'float', precision: 10, scale: 2 })
     price: number;
-
-    @Column()
-    date: string;
+  
+    @Column({ type: 'date' })
+    date: Date;
 
     @Column()
     supplier: string;
@@ -32,6 +35,6 @@ export class Expense {
     @Column()
     equipment: boolean;
 
-    @ManyToOne(() => User, (user) => user.reports)
-    user: User;
+    // @ManyToOne(() => User, (user) => user.expenses)
+    // user: User;
 }

@@ -8,6 +8,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Report } from 'src/reports/report.entity';
+import { Expense } from 'src/expenses/expenses.entity';
 
 @Entity()
 export class User {
@@ -49,8 +50,8 @@ export class User {
     @Column()
     firebaseId: string;
 
-    @OneToMany(() => Report, (report) => report.user)
-    reports: Report[];
+    //@OneToMany(() => Expense, (expense) => expense.user)
+    //expenses: Expense[];
 
     @AfterInsert()
     logInsert() {
