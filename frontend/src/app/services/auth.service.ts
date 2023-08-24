@@ -29,11 +29,25 @@ export class AuthService {
   ) {
     /* Saving user data in localstorage when 
    logged in and setting up null when logged out */
-    this.afAuth.authState.subscribe((user) => {
+    this.afAuth.authState.subscribe(async (user) => {
       if (user) {
         this.userData = user;
-        localStorage.setItem('user', JSON.stringify(this.userData));
-        JSON.parse(localStorage.getItem('user')!);
+        
+        try{
+          const token = await this.userData.getIdToken();
+          console.log("aaaa",token);
+          
+          localStorage.setItem('user', JSON.stringify(this.userData));
+          localStorage.setItem('token', token);
+          console.log("token from loc",localStorage.getItem('token'));
+          //const parsedUserData = JSON.parse(localStorage.getItem('user')!);
+        }
+        catch(error) {
+          console.error("Error getting token:", error);
+          console.log("Error getting token:", error);
+          
+        }
+
       } else {
         localStorage.setItem('user', 'null');
         JSON.parse(localStorage.getItem('user')!);
