@@ -55,7 +55,6 @@ export class ModalComponent implements OnInit {
     const formData = this.myForm.value;
     console.log(formData);
     const token = localStorage.getItem('token');
-
     console.log("token from local storage",token);
     
     axios.post('http://localhost:3000/expenses/add',{formData,token})
