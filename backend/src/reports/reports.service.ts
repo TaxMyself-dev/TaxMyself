@@ -18,11 +18,11 @@ export class ReportsService {
         .getRawMany()
     }
 
-    create(reportDto: CreateReportDto, user: User) {
-        const report = this.repo.create(reportDto);
-        report.user = user;
-        return this.repo.save(report);
-    }
+    // create(reportDto: CreateReportDto, user: User) {
+    //     const report = this.repo.create(reportDto);
+    //     report.user = user;
+    //     return this.repo.save(report);
+    // }
 
     async changeApproval(id: string, approved: boolean) {
         const report = await this.repo.findOne({where: { id: parseInt(id)} });

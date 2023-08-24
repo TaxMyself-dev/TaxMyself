@@ -9,31 +9,32 @@ import {
 
 export class CreateExpenseDto {
 
+    @IsDateString()
+    date_added: Date;
+
     @IsNumber()
-    @Min(0)
-    @Max(1000000)
     price: number;
 
-    //@IsDateString()
-    //date: string;
+    @IsDateString()
+    date: Date;
 
-    //@IsString()
-    //supplier: string;
+    @IsString()
+    supplier: string;
 
-    //@IsString()
-    //category: string;
+    @IsString()
+    category: string;
 
     @IsNumber()
     @Min(0)
     @Max(100)
     tax_percent: number;
 
-    //@IsNumber()
-    //@Min(0)
-    //@Max(100)
-    //vat_percent: number;
+    @IsNumber()
+    @Min(0)
+    @Max(100)
+    vat_percent: number;
 
-    //@IsBoolean()
-    //equipment: boolean;
+    @IsBoolean()
+    equipment: boolean;
 
 }

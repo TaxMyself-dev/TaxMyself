@@ -35,6 +35,6 @@ export class Report {
     @Column()
     milage: number;
 
-    @ManyToOne(() => User, (user) => user.reports)
-    user: User;
+    //@ManyToOne(() => User, (user) => user.reports)
+    //user: User;
 }

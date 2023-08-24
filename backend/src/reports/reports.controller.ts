@@ -21,12 +21,12 @@ export class ReportsController {
         console.log(query);
     }
 
-    @Post()
-    @UseGuards(AuthGuard)
-    @Serialize(ReportDto)
-    createReport(@Body() body: CreateReportDto, @CurrentUser() user: User) {
-        return this.reportsService.create(body, user);
-    }
+    // @Post()
+    // @UseGuards(AuthGuard)
+    // @Serialize(ReportDto)
+    // createReport(@Body() body: CreateReportDto, @CurrentUser() user: User) {
+    //     return this.reportsService.create(body, user);
+    // }
 
     @Patch('/:id')
     @UseGuards(AdminGuard)

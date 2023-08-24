@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { Expense } from './expenses.entity';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { User } from 'src/users/user.entity';
@@ -12,11 +12,48 @@ export class ExpensesService {
         @InjectRepository(Expense) private repo: Repository<Expense>
     ) {}
 
-    create(exportDto: CreateExpenseDto, user: User) {
-        const expense = this.repo.create(exportDto);
-        expense.user = user;
-        return this.repo.save(expense);
+    // async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
+    //     const newExpense = this.repo.create(expense);
+    //     newExpense.user = { id: userId } as any;
+    //     return await this.repo.save(newExpense);
+    // }
+
+    async addTempExpense(createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
+        console.log(createExpenseDto);
+        const expense = this.repo.create(createExpenseDto);
+        return await this.repo.save(expense);
+        return createExpenseDto;
     }
+
+    async getExpensesBySupplier(supplier: string): Promise<Expense[]> {
+        return await this.repo.find({ where: { supplier: supplier } });
+    }
+
+    async getExpensesWithinDateRange(startDate: string, endDate: string): Promise<Expense[]> {
+        const parsedStartDate = new Date(startDate);
+        const parsedEndDate = new Date(endDate);
+        return await this.repo.find({
+            where: {
+                date: Between(parsedStartDate, parsedEndDate),
+            },
+        });
+    }
+   
+
+    //async addTempExpense(expense: CreateExpenseDto) {
+    //    console.log(expense);
+        
+        //const newExpense = this.repo.create(expense);
+        //newExpense.user = { id: userId } as any;
+        //return await this.repo.save(newExpense);
+        //return expense;
+    //}
+
+    // create(exportDto: CreateExpenseDto, userId: string) {
+    //     const expense = this.repo.create(exportDto);
+    //     expense.user = userId;
+    //     return this.repo.save(expense);
+    // }
 
     findOne(id: number) {
         if (!id) {

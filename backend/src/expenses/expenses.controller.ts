@@ -1,4 +1,4 @@
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 import { ExpensesService } from './expenses.service';
@@ -10,28 +10,38 @@ import { Expense } from './expenses.entity';
 import { Serialize } from 'src/interceptors/serialize.interceptor';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { query } from 'express';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+
 
 @Controller('expenses')
+//@UseGuards(FirebaseAuthGuard)
 export class ExpensesController {
     constructor(private expensesService: ExpensesService) {}
 
-    @Post()
-    @UseGuards(AuthGuard)
-    @Serialize(ExpenseDto)
-    createExpense(@Body() body: CreateExpenseDto, @CurrentUser() user: User) {
-        return this.expensesService.create(body, user);
+    // @Post('/new')
+    // async addExpense(
+    //   @Body() expense: Partial<Expense>,
+    //   @Req() request: any,
+    // ): Promise<Expense> {
+    //   const userId = request.user.uid;
+    //   return await this.expensesService.addExpense(expense, userId);
+    // }
+
+    @Post('/temp_new')
+    async addTempExpense(@Body() createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
+      console.log(createExpenseDto);
+      console.log(createExpenseDto.price);
+      return await this.expensesService.addTempExpense(createExpenseDto);
     }
 
-    @Get()
-    async getAllExpenses(@Query() query: GetExpenseDto) {
-        const expenses_list = await this.expensesService.getUserExpensesByDates(query);
-        //console.log(expenses_list);
-        return this.expensesService.getSumOfExpenses(expenses_list);
+    @Get('get_by_supplier')
+    async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
+      return await this.expensesService.getExpensesBySupplier(supplier);
     }
 
-    @Delete('/:id')
-    removeExpense(@Param('id') id: string) {
-        return this.expensesService.remove(parseInt(id));
+    @Get('get_by_date')
+    async getExpensesWithinDateRange(@Query('startDate') startDate: string, @Query('endDate') endDate: string): Promise<Expense[]> {
+      return await this.expensesService.getExpensesWithinDateRange(startDate, endDate);
     }
 
 }
