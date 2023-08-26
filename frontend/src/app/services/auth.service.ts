@@ -128,10 +128,10 @@ export class AuthService {
       .then((result) => {
         result.user.getIdToken()
           .then((token) => {
-            axios.post('http://localhost:3000/auth/signin', token)
+            axios.post('http://localhost:3000/auth/signin', {token})
             .then((response)=>{
             })
-            console.log("token:", token);
+            console.log("data:", token);
           })
           .catch((err) => {
             console.log(err);
