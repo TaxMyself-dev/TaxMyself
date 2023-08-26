@@ -2,14 +2,17 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Expense } from './expenses.entity';
+import { Supplier } from './supplier.entity';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
+import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { User } from 'src/users/user.entity';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 
 @Injectable()
 export class ExpensesService {
     constructor(
-        @InjectRepository(Expense) private repo: Repository<Expense>
+        @InjectRepository(Expense) private expense_repo: Repository<Expense>,
+        @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
     // async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
@@ -20,23 +23,28 @@ export class ExpensesService {
 
     async addTempExpense(createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
         console.log(createExpenseDto);
-        const expense = this.repo.create(createExpenseDto);
-        return await this.repo.save(expense);
-        return createExpenseDto;
+        const expense = this.expense_repo.create(createExpenseDto);
+        return await this.expense_repo.save(expense);
     }
 
     async getExpensesBySupplier(supplier: string): Promise<Expense[]> {
-        return await this.repo.find({ where: { supplier: supplier } });
+        return await this.expense_repo.find({ where: { supplier: supplier } });
     }
 
     async getExpensesWithinDateRange(startDate: string, endDate: string): Promise<Expense[]> {
         const parsedStartDate = new Date(startDate);
         const parsedEndDate = new Date(endDate);
-        return await this.repo.find({
+        return await this.expense_repo.find({
             where: {
                 date: Between(parsedStartDate, parsedEndDate),
             },
         });
+    }
+
+    async addNewSupplier(createSupplierDto: CreateSupplierDto): Promise<CreateSupplierDto> {
+        console.log(createSupplierDto);
+        const supplier = this.supplier_repo.create(createSupplierDto);
+        return await this.supplier_repo.save(supplier);
     }
    
 
@@ -59,11 +67,11 @@ export class ExpensesService {
         if (!id) {
             return null;
         }
-        return this.repo.findOneBy({id});
+        return this.expense_repo.findOneBy({id});
     }
 
     find(id: number) {
-        return this.repo.find({ where: {id} })
+        return this.expense_repo.find({ where: {id} })
     }
 
     async remove(id: number) {
@@ -71,19 +79,19 @@ export class ExpensesService {
         if (!expense) {
             throw new NotFoundException('expense not found');
         }
-        return this.repo.remove(expense);
+        return this.expense_repo.remove(expense);
     }
 
-    getUserExpensesByDates({userId, price, tax_percent}: GetExpenseDto) {
-        console.log(userId);
-        return this.repo
-        .createQueryBuilder()
-        .select('*')
-        .where('userId = :userId', { userId})
-        //.andWhere('price = :price', { price})
-        //.andWhere('tax_percent = :tax_percent', { tax_percent})
-        .getRawMany()
-    }
+    // getUserExpensesByDates({userId, price, tax_percent}: GetExpenseDto) {
+    //     console.log(userId);
+    //     return this.repo
+    //     .createQueryBuilder()
+    //     .select('*')
+    //     .where('userId = :userId', { userId})
+    //     //.andWhere('price = :price', { price})
+    //     //.andWhere('tax_percent = :tax_percent', { tax_percent})
+    //     .getRawMany()
+    // }
 
     getSumOfExpenses(expenses_arr: GetExpenseDto[]): number {
         let sum: number = 0;
@@ -94,8 +102,8 @@ export class ExpensesService {
     }
 
     async findAllByUserId(id: string): Promise<Expense[]> {
-        const expenses_list = await this.repo.find({ where: { id: parseInt(id) } });
-        return this.repo.find({ where: { id: parseInt(id) } });
+        const expenses_list = await this.expense_repo.find({ where: { id: parseInt(id) } });
+        return this.expense_repo.find({ where: { id: parseInt(id) } });
         const variableType1 = typeof id;
         const id1 = parseInt(id);
         const variableType2 = typeof id1;

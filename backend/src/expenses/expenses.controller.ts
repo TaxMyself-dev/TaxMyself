@@ -7,6 +7,7 @@ import { CurrentUser } from 'src/users/decorators/current-user.decorator';
 import { User } from 'src/users/user.entity';
 import { ExpenseDto } from './dtos/expense.dto';
 import { Expense } from './expenses.entity';
+import { Supplier } from './supplier.entity';
 import { Serialize } from 'src/interceptors/serialize.interceptor';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { query } from 'express';
@@ -26,6 +27,12 @@ export class ExpensesController {
     //   const userId = request.user.uid;
     //   return await this.expensesService.addExpense(expense, userId);
     // }
+
+    @Post('/add')
+    examCreate(@Body() body: any){
+        console.log(body);
+        return body;
+    }
 
     @Post('/temp_new')
     async addTempExpense(@Body() createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
