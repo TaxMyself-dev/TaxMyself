@@ -16,7 +16,7 @@ import { Request } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 @Controller('auth')
-@UseGuards(FirebaseAuthGuard)
+//@UseGuards(FirebaseAuthGuard)
 @Serialize(UserDto)
 export class UsersController {
 
@@ -36,9 +36,12 @@ export class UsersController {
     }
 
     @Post('/signin')
+    @UseGuards(FirebaseAuthGuard)
     async signin(@Body() body: any) {
+        console.log("asdf");
+        
         console.log(body);
-        const uid = await this.authService.signFire(body.data);
+        const uid = await this.authService.signFire(body.token);
         console.log("firebase is " + uid);
         const user = await this.userService.findFireUser(uid);
         console.log("user is ", user);
