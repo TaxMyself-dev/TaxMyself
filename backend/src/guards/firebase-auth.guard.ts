@@ -1,3 +1,35 @@
+// import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+// import * as admin from 'firebase-admin';
+
+// @Injectable()
+// export class FirebaseAuthGuard implements CanActivate {
+//   async canActivate(context: ExecutionContext): Promise<boolean> {
+//     const request = context.switchToHttp().getRequest();
+//     console.log("ababababababab");
+//     console.log(request);
+//     console.log("ababababababab");
+//     const { token } = request.body;
+
+//     if (!token) {
+//       console.log("there is no token");
+//       throw new UnauthorizedException('Token is missing');
+//     }
+
+//     try {
+//       const decodedToken = await admin.auth().verifyIdToken(token);
+//       // Attach user information to request object
+//       request.user = decodedToken;
+//       return true;
+//     } catch (error) {
+//       console.log("there is no valid token");
+//       throw new UnauthorizedException('Invalid token');
+//     }
+//   }
+// }
+
+
+
+
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { Observable } from 'rxjs';
@@ -8,9 +40,16 @@ export class FirebaseAuthGuard implements CanActivate {
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest();
-    let token = this.getTokenFromBody(request) || this.getTokenFromHeader(request) || this.getTokenFromQuery(request) || this.getTokenFromCookie(request);
+    console.log("ababababababab");
+    console.log(request);
+    console.log("ababababababab");
+    
+    let token = request.body.token;
+
+    //let token = this.getTokenFromBody(request) || this.getTokenFromHeader(request) || this.getTokenFromQuery(request);// || this.getTokenFromCookie(request);
 
     if (!token) {
+      console.log("there is no token");
       throw new UnauthorizedException('No authorization token provided');
     }
 
@@ -38,11 +77,14 @@ export class FirebaseAuthGuard implements CanActivate {
   }
 
   async validateToken(token: string): Promise<boolean> {
+    console.log("this is my token:");
+    console.log(token);
     try {
       await admin.auth().verifyIdToken(token);
       console.log("protected data!!!!!!!!!!!!!!!!!!!!!!!!!!");
       return true;
     } catch (error) {
+      console.log("token is not valid");
       throw new UnauthorizedException('Invalid authorization token');
     }
   }

@@ -15,7 +15,7 @@ import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 
 @Controller('expenses')
-//@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard)
 export class ExpensesController {
     constructor(private expensesService: ExpensesService) {}
 
