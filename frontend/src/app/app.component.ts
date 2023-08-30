@@ -3,7 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { TableService } from './services/table.service';
 import { IColumnDataTable, IRowDataTable } from './shared/interface';
 import { Location } from '@angular/common';
-import { AddInvoicePage } from './pages/add-invoice/add-invoice.page';
+import { AddInvoicePage } from './pages/add-expenses/add-expenses.page';
 
 @Component({
   selector: 'app-root',

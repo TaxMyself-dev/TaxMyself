@@ -8,7 +8,7 @@ import { SidebarNavComponent } from './core/sidebar-nav/sidebar-nav.component';
 import { RegisterPageModule } from './pages/register/register.module';
 import { TableComponent } from './shared/table/table.component';
 import { ButtonComponent } from './shared/button/button.component';
-import { ModalComponent } from './shared/modal/modal.component';
+import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ReactiveFormsModule } from '@angular/forms';
 import { TableService } from './services/table.service';
 import { initializeApp,provideFirebaseApp } from '@angular/fire/app';

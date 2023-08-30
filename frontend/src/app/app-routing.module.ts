@@ -22,8 +22,8 @@ const routes: Routes = [
     loadChildren: () => import('./pages/home/home.module').then( m => m.HomePageModule)
   },
   {
-    path: 'add-invoice',
-    loadChildren: () => import('./pages/add-invoice/add-invoice.module').then( m => m.AddInvoicePageModule)
+    path: 'add-expenses',
+    loadChildren: () => import('./pages/add-expenses/add-expenses.module').then( m => m.AddInvoicePageModule)
   },
   {
     path: 'register',
