@@ -8,6 +8,7 @@ import { User } from 'src/users/user.entity';
 
 @Entity()
 export class Supplier {
+    
     @PrimaryGeneratedColumn()
     id: number;
 
@@ -15,16 +16,16 @@ export class Supplier {
     name: string;
 
     @Column()
-    supplier: string;
-
-    @Column()
     category: string;
 
-    @Column()
-    tax_percent: number;
+    @Column('decimal')
+    taxPercent: number;
+  
+    @Column('decimal')
+    vatPercent: number;
 
     @Column()
-    vat_percent: number;
+    userId: string;
 
     // @ManyToOne(() => User, (user) => user.expenses)
     // user: User;

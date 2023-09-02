@@ -1,4 +1,3 @@
-
 POST http://localhost:3000/expenses/add
 content-type: application/json
 
@@ -10,6 +9,17 @@ content-type: application/json
   "vatPercent": 45,
   "date": "2023-08-25T10:00:00Z",
   "equipment": false
+}
+
+###
+POST  http://localhost:3000/expenses/add_supplier
+content-type: application/json
+
+{
+  "name": "sdfsf",
+  "category": "sdfasdg",
+  "taxPercent": 25,
+  "vatPercent": 45
 }
 
 

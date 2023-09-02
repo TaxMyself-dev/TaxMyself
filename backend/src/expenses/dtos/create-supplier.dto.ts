@@ -16,11 +16,11 @@ export class CreateSupplierDto {
     @IsNumber()
     @Min(0)
     @Max(100)
-    tax_percent: number;
-
+    taxPercent: number;
+  
     @IsNumber()
     @Min(0)
     @Max(100)
-    vat_percent: number;
+    vatPercent: number;
 
 }

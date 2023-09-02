@@ -1,5 +1,6 @@
 import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
+import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 import { ExpensesService } from './expenses.service';
 import { AuthGuard } from 'src/guards/auth.guard';
@@ -21,42 +22,20 @@ export class ExpensesController {
 
     @Post('add')
     async addExpense(@Body() body: CreateExpenseDto) {
+      //Add getUserIdFromToken()
       const userId = "yh1ovqmsP2O6gAdYtMlBbw"
       console.log(body);
       console.log(userId);
       return await this.expensesService.addExpense(body, userId);
     }
 
-    // @Post('/new')
-    // async addExpense(
-    //   @Body() expense: Partial<Expense>,
-    //   @Req() request: any,
-    // ): Promise<Expense> {
-    //   const userId = request.user.uid;
-    //   return await this.expensesService.addExpense(expense, userId);
-    // }
-
-    // @Post('/add')
-    // examCreate(@Body() body: any){
-    //     console.log(body);
-    //     return body;
-    // }
-
-    @Post('/add')
-    async create(@Body() createExpenseDto: CreateExpenseDto) {
-    //async create(@Body() createExpenseDto: any) {
-      console.log("my expense:", createExpenseDto);
-      return this.expensesService.create(createExpenseDto);
-    }
-
-    //async addTempExpense(@Body() createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
-      async addTempExpense(@Body() body: any) {
-      console.log("add!!!!");
-      console.log("my body is:", body);
-      
-      //console.log(createExpenseDto);
-      //console.log(createExpenseDto.price);
-      //return await this.expensesService.addTempExpense(createExpenseDto);
+    @Post('add_supplier')
+    async addSupplier(@Body() body: CreateSupplierDto) {
+      //Add getUserIdFromToken()
+      const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+      console.log(body);
+      console.log(userId);
+      return await this.expensesService.addSupplier(body, userId);
     }
 
     @Get('get_by_supplier')
