@@ -16,7 +16,7 @@ export class AppComponent  {
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
     { title: 'הענן שלי', url: 'my-storage', icon: 'cloud-download'},
     { title: ' הגשת דוחות', url: 'reports', icon: 'documents' },
-    { title: 'הוספת חשבונית', url: 'add-invoice', icon: 'cloud-upload' },
+    { title: 'הוספת חשבונית', url: 'add-expenses', icon: 'cloud-upload' },
     { title: 'יעוץ פיננסי', url: 'spam', icon: 'chatbubbles' },
     { title: 'הרשמה', url: 'register', icon: 'chatbubbles' },
     { title: 'כניסה', url: 'login', icon: 'chatbubbles' },

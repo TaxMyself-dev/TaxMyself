@@ -2,7 +2,7 @@ import { Component, Input, OnInit, Output, EventEmitter } from '@angular/core';
 import { IColumnDataTable, IRowDataTable } from '../interface';
 import { AlertController, NavController, ModalController } from '@ionic/angular';
 import { TableService } from 'src/app/services/table.service';
-import { ModalComponent } from '../modal/modal.component';
+import { ModalExpensesComponent } from '../modal-add-expenses/modal.component';
 import { Router } from '@angular/router';
 
 
@@ -34,7 +34,7 @@ export class TableComponent implements OnInit {
   
   async openPopup() {
     const modal = await this.modalController.create({
-      component: ModalComponent,
+      component: ModalExpensesComponent,
       //showBackdrop: false,
       componentProps: {
         columns: this.columns,
