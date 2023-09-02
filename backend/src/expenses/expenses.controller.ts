@@ -19,6 +19,14 @@ import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 export class ExpensesController {
     constructor(private expensesService: ExpensesService) {}
 
+    @Post('add')
+    async addExpense(@Body() body: CreateExpenseDto) {
+      const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+      console.log(body);
+      console.log(userId);
+      return await this.expensesService.addExpense(body, userId);
+    }
+
     // @Post('/new')
     // async addExpense(
     //   @Body() expense: Partial<Expense>,
@@ -28,17 +36,27 @@ export class ExpensesController {
     //   return await this.expensesService.addExpense(expense, userId);
     // }
 
+    // @Post('/add')
+    // examCreate(@Body() body: any){
+    //     console.log(body);
+    //     return body;
+    // }
+
     @Post('/add')
-    examCreate(@Body() body: any){
-        console.log(body);
-        return body;
+    async create(@Body() createExpenseDto: CreateExpenseDto) {
+    //async create(@Body() createExpenseDto: any) {
+      console.log("my expense:", createExpenseDto);
+      return this.expensesService.create(createExpenseDto);
     }
 
-    @Post('/temp_new')
-    async addTempExpense(@Body() createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
-      console.log(createExpenseDto);
-      console.log(createExpenseDto.price);
-      return await this.expensesService.addTempExpense(createExpenseDto);
+    //async addTempExpense(@Body() createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
+      async addTempExpense(@Body() body: any) {
+      console.log("add!!!!");
+      console.log("my body is:", body);
+      
+      //console.log(createExpenseDto);
+      //console.log(createExpenseDto.price);
+      //return await this.expensesService.addTempExpense(createExpenseDto);
     }
 
     @Get('get_by_supplier')

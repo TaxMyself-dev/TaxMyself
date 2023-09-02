@@ -6,35 +6,79 @@ import {
 } from 'typeorm'
 import { User } from 'src/users/user.entity';
 
+//import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+
 @Entity()
 export class Expense {
-    @PrimaryGeneratedColumn()
-    id: number;
 
-    @Column({ type: 'date' })
-    date_added: Date;
-  
-    @Column({ type: 'float', precision: 10, scale: 2 })
-    price: number;
-  
-    @Column({ type: 'date' })
-    date: Date;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column()
-    supplier: string;
+  @Column()
+  supplier: string;
 
-    @Column()
-    category: string;
+  @Column()
+  category: string;
 
-    @Column()
-    tax_percent: number;
+  @Column('decimal')
+  sum: number;
 
-    @Column()
-    vat_percent: number;
+  @Column('decimal')
+  taxPercent: number;
 
-    @Column()
-    equipment: boolean;
+  @Column('decimal')
+  vatPercent: number;
 
-    // @ManyToOne(() => User, (user) => user.expenses)
-    // user: User;
+  @Column('date')
+  date: Date;
+
+  @Column({ nullable: true })
+  note: string;
+
+  @Column({ nullable: true })
+  file: string;
+
+  @Column('boolean')
+  equipment: boolean;
+
+  @Column()
+  userId: string;
+
+  //@ManyToOne(() => User, (user) => user.expenses)
+  //user: string;
+
 }
+
+
+// @Entity()
+// export class Expense {
+//     @PrimaryGeneratedColumn()
+//     id: number;
+
+//     @Column({ type: 'date' })
+//     date_added: Date;
+  
+//     @Column({ type: 'float', precision: 10, scale: 2 })
+//     price: number;
+  
+//     @Column({ type: 'date' })
+//     date: Date;
+
+//     @Column()
+//     supplier: string;
+
+//     @Column()
+//     category: string;
+
+//     @Column()
+//     tax_percent: number;
+
+//     @Column()
+//     vat_percent: number;
+
+//     @Column()
+//     equipment: boolean;
+
+//     // @ManyToOne(() => User, (user) => user.expenses)
+//     // user: User;
+// }

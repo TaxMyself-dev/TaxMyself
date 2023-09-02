@@ -15,16 +15,17 @@ export class ExpensesService {
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
-    // async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
-    //     const newExpense = this.repo.create(expense);
-    //     newExpense.user = { id: userId } as any;
-    //     return await this.repo.save(newExpense);
-    // }
+    async create(createFormDto: CreateExpenseDto): Promise<Expense> {
+        const form = this.expense_repo.create(createFormDto);
+        return await this.expense_repo.save(form);
+    }
 
-    async addTempExpense(createExpenseDto: CreateExpenseDto): Promise<CreateExpenseDto> {
-        console.log(createExpenseDto);
-        const expense = this.expense_repo.create(createExpenseDto);
-        return await this.expense_repo.save(expense);
+    async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
+        console.log("addExpense - start");
+        const newExpense = this.expense_repo.create(expense);
+        newExpense.userId = userId;
+        console.log(newExpense);
+        return await this.expense_repo.save(newExpense);
     }
 
     async getExpensesBySupplier(supplier: string): Promise<Expense[]> {

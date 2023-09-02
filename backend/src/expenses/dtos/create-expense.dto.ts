@@ -4,37 +4,76 @@ import {
     Min,
     Max,
     IsDateString,
-    IsBoolean
+    IsBoolean,
+    IsOptional
 } from 'class-validator'
+
+
+// create-form.dto.ts
+
+//import { IsString, IsNumber, IsBoolean, IsOptional, IsDate } from 'class-validator';
 
 export class CreateExpenseDto {
 
-    @IsDateString()
-    date_added: Date;
+  @IsString()
+  supplier: string;
 
-    @IsNumber()
-    price: number;
+  @IsString()
+  category: string;
 
-    @IsDateString()
-    date: Date;
+  @IsNumber()
+  sum: number;
 
-    @IsString()
-    supplier: string;
+  @IsNumber()
+  taxPercent: number;
 
-    @IsString()
-    category: string;
+  @IsNumber()
+  vatPercent: number;
 
-    @IsNumber()
-    @Min(0)
-    @Max(100)
-    tax_percent: number;
+  @IsDateString()
+  date: Date;
 
-    @IsNumber()
-    @Min(0)
-    @Max(100)
-    vat_percent: number;
+  @IsOptional()
+  @IsString()
+  note: string;
 
-    @IsBoolean()
-    equipment: boolean;
+  @IsOptional()
+  @IsString()
+  file: string;
 
+  @IsOptional()
+  @IsBoolean()
+  equipment: boolean;
 }
+
+//export class CreateExpenseDto {
+
+//     @IsDateString()
+//     date_added: Date;
+
+//     @IsNumber()
+//     price: number;
+
+//     @IsDateString()
+//     date: Date;
+
+//     @IsString()
+//     supplier: string;
+
+//     @IsString()
+//     category: string;
+
+//     @IsNumber()
+//     @Min(0)
+//     @Max(100)
+//     tax_percent: number;
+
+//     @IsNumber()
+//     @Min(0)
+//     @Max(100)
+//     vat_percent: number;
+
+//     @IsBoolean()
+//     equipment: boolean;
+
+// }
