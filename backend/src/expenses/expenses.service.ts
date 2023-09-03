@@ -31,6 +31,23 @@ export class ExpensesService {
         return await this.supplier_repo.save(newSupplier);
     }
 
+    // async getSupplierDetail(name: string, userid: number): Promise<Supplier | null> {
+    //     return await this.supplierRepository.findOne({
+    //       where: { name, userid },
+    //     });
+    //   }
+
+    async getSupplier(name: string, userId: string): Promise<Supplier> {
+        console.log("getSupplier - start");
+        if (!name || !userId) {
+            console.log("getSupplier - error");
+            throw new Error('Invalid parameters');
+          }
+        return await this.supplier_repo.findOne({
+            where: { name, userId},
+        });
+    }
+
     async getExpensesBySupplier(supplier: string): Promise<Expense[]> {
         return await this.expense_repo.find({ where: { supplier: supplier } });
     }

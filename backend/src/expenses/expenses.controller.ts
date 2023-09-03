@@ -38,6 +38,15 @@ export class ExpensesController {
       return await this.expensesService.addSupplier(body, userId);
     }
 
+    @Get('get_supplier')
+    async getSupplier(@Query('name') name: string) {
+      //Add getUserIdFromToken()
+      const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+      console.log(name);
+      console.log(userId);
+      return await this.expensesService.getSupplier(name, userId);
+    }
+
     @Get('get_by_supplier')
     async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
       return await this.expensesService.getExpensesBySupplier(supplier);
