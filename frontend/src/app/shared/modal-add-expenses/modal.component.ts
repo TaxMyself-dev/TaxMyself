@@ -8,6 +8,7 @@ import { TableService } from 'src/app/services/table.service';
 import { IColumnDataTable } from '../interface';
 import axios from 'axios';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
+import { KeyValue } from '@angular/common';
 
 @Component({
   selector: 'app-modal',
@@ -15,7 +16,21 @@ import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-pr
   styleUrls: ['./modal.component.scss'],
 })
 export class ModalExpensesComponent implements OnInit {
-  
+  // private readonly columnsOrder = [
+  //   'provider',
+  //   'date',
+  //   'sum',
+  //   'category',
+  //   'expenseNumber',
+  //   'percentVat',
+  //   'percentTax',
+  //   'idSupply',
+  //   'file',
+  //   'note',
+  //   'totalTax',
+  //   'totalVat'
+  // ]
+
   myForm: FormGroup;
   
   @Input() columns: IColumnDataTable = {};
@@ -42,7 +57,6 @@ export class ModalExpensesComponent implements OnInit {
       note: ['', Validators.required],
       file: ['', Validators.required],
       equipment: [false,Validators.required]
-     
     });
   }
   
@@ -110,6 +124,10 @@ export class ModalExpensesComponent implements OnInit {
     this.myForm.get('percentVat').setValue(prov.vat);
   }
 
+  valueAscOrder(a: KeyValue<string,string>, b: KeyValue<string,string>): number {
+    return 0;
+  }
+  
   //func to open the modal of search provider
   async openSearchProvider() {
     const modal = await this.modalCtrl.create({
