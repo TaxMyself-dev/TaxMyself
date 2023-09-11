@@ -9,6 +9,8 @@ import { IColumnDataTable } from '../interface';
 import axios from 'axios';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
+import { NgxImageCompressService } from 'ngx-image-compress';
+
 
 @Component({
   selector: 'app-modal',
@@ -16,20 +18,6 @@ import { KeyValue } from '@angular/common';
   styleUrls: ['./modal.component.scss'],
 })
 export class ModalExpensesComponent implements OnInit {
-  // private readonly columnsOrder = [
-  //   'provider',
-  //   'date',
-  //   'sum',
-  //   'category',
-  //   'expenseNumber',
-  //   'percentVat',
-  //   'percentTax',
-  //   'idSupply',
-  //   'file',
-  //   'note',
-  //   'totalTax',
-  //   'totalVat'
-  // ]
 
   myForm: FormGroup;
   
@@ -44,8 +32,9 @@ export class ModalExpensesComponent implements OnInit {
   matches = [];
   selectedProvider = {name: "", vat: "", tax: ""};
   provInput = "";
+  selctedFile: File | null = null;
   
-  constructor(private formBuilder: FormBuilder, private rowsService: TableService,private modalCtrl: ModalController) {
+  constructor(private formBuilder: FormBuilder, private rowsService: TableService,private modalCtrl: ModalController,private imageCompress: NgxImageCompressService) {
 
     this.myForm = this.formBuilder.group({
       category: ['', Validators.required],
@@ -55,11 +44,53 @@ export class ModalExpensesComponent implements OnInit {
       percentVat: ['', Validators.required],
       date: ['', Validators.required],
       note: ['', Validators.required],
+      expenseNumber: ['', Validators.required],
+      idSupply: ['', Validators.required],
       file: ['', Validators.required],
       equipment: [false,Validators.required]
     });
   }
-  
+
+
+  fileSelected(event: any) {
+    console.log("in file selected");
+    let file = event.target.files[0];
+    this.imageCompress.compressFile(file, -1, 50, 50)
+    .then((res)=>{
+      const compressedImage = res;
+      //this.selctedFile  =compressedImage;
+      file = compressedImage
+
+    })
+    console.log(file);
+    console.log(file.name);
+    
+    
+    if (file) {
+      console.log("in file ");
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          const base64String = reader.result as string;
+          this.uploadFileToSrever(base64String, file.name);
+        }
+    }
+  }
+
+  async uploadFileToSrever (base64String: string, fileName: string) {
+    try {
+      console.log("in upload file");
+      const res = await axios.post('http://localhost:3000/expenses/upload',{file:base64String, fileName})
+      if(!res) {
+        throw ("my error: upload file faild");
+      }
+      console.log(res);
+      
+    } catch (error) {
+      console.log("my error:" , error);
+      
+    }
+  }  
   // לא הבנתי איך להשתמש בפונקיצה הזאת.
   onFormValueChanged(value: any) {
     console.log(value);

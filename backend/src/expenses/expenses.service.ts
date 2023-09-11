@@ -7,13 +7,46 @@ import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { User } from 'src/users/user.entity';
 import { GetExpenseDto } from './dtos/get-expense.dto';
+import * as admin from 'firebase-admin';
 
 @Injectable()
 export class ExpensesService {
-    constructor(
+    
+    constructor
+    (
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
-        @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
-    ) {}
+        @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
+    ) 
+        {// this.storageBucket = admin.storage();
+        }
+        //private storageBucket: admin.storage.Storage;
+
+    async saveFileToStorage(base64String: string, fileName: string, type: string){
+        const bucket  = admin.storage().bucket();
+        // Decode the base64 data
+        const buffer = Buffer.from(base64String, 'base64');
+        const name = `try/${fileName}`;
+        const fileUpload = bucket.file(name);
+        const stream = fileUpload.createWriteStream({
+            metadata: {
+                contentType: type, // Set the content type appropriately
+              },
+        })
+
+        return new Promise<string>((resolve, reject) => {
+            stream.on('error', (error) => {
+              reject(error);
+            });
+      
+            stream.on('finish', () => {
+              const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileUpload.name}`;
+              resolve(publicUrl);
+            });
+      
+            stream.end(buffer);
+          });
+
+    }
 
     async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
         console.log("addExpense - start");
@@ -140,5 +173,7 @@ export class ExpensesService {
 
         return expenses_list;
     }
+
+
 
 }

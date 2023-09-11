@@ -24,7 +24,7 @@
               </ng-template>
                <!-----------add file--------------->
               <ng-template #file>
-                <ion-input *ngIf="col.key === 'file'; else input"   label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
+                <ion-input *ngIf="col.key === 'file'; else input"  (input)=fileSelected($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
                 </ion-input>
               </ng-template>
                <!----------- category & sum --------------->
@@ -37,7 +37,6 @@
                 <ion-input   [(ngModel)] = provInput (input) = checkIfProviderExist($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
                 </ion-input>
               </ng-template>
-              <!--TODO: add option to write note-->
             </ion-item>
           </ng-container>
           <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
