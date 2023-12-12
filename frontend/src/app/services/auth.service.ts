@@ -1,7 +1,7 @@
 import { Injectable, NgZone } from '@angular/core';
 import { User } from '../shared/interface';
 import { authState } from 'rxfire/auth';
-import { AngularFirestore, AngularFirestoreDocument} from '@angular/fire/compat/firestore';
+import { AngularFirestore, AngularFirestoreDocument } from '@angular/fire/compat/firestore';
 import * as auth from 'firebase/auth';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
@@ -9,10 +9,13 @@ import { Observable, of, concatMap, catchError, from, switchMap, EMPTY, tap } fr
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import axios from 'axios';
 import { log } from 'console';
+
+
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
+
   userData: any; // Save logged in user data
   public token: string;
   public uid: string;
@@ -23,56 +26,63 @@ export class AuthService {
     public router: Router,
     private http: HttpClient,
     public ngZone: NgZone // NgZone service to remove outside scope warning
-  ) {
+  ) 
+  {
+
     /* Saving user data in localstorage when 
-   logged in and setting up null when logged out */
+   logged in and setting up null when logged out */ 
+  }
+   async SaveDataUserInLocalStorage () {
     this.afAuth.authState.subscribe(async (user) => {
+      console.log("checking: ", user);
+      
       if (user) {
         this.userData = user;
         
-        try{
+        try {
           const token = await this.userData.getIdToken();
-          console.log("aaaa",token);
+          console.log(",aaabbbbccccdddd", token);
           
           localStorage.setItem('user', JSON.stringify(this.userData));
           localStorage.setItem('token', token);
-          console.log("token from loc",localStorage.getItem('token'));
+          console.log("token from localStorage", localStorage.getItem('token'));
           //const parsedUserData = JSON.parse(localStorage.getItem('user')!);
         }
-        catch(error) {
+        catch (error) {
           console.error("Error getting token:", error);
           console.log("Error getting token:", error);
           
         }
-
+        
       } else {
         localStorage.setItem('user', 'null');
+        localStorage.setItem('token', 'null');
         JSON.parse(localStorage.getItem('user')!);
       }
     });
-  }
-  srcObservable = of(1, 2, 3, 4)
-//================================== signin by rxjs =========================================
-//================================== signin by rxjs =========================================
-// Sign in with email/password Observable
-// signInWithEmailAndPassword(email: string, password: string) {
-//   return from(this.afAuth
-//     .signInWithEmailAndPassword(email, password))
-//     .pipe(switchMap((result) => {
-//       console.log("uid:", result.user.uid);
+}
+  //srcObservable = of(1, 2, 3, 4)
+  //================================== signin by rxjs =========================================
+  //================================== signin by rxjs =========================================
+  // Sign in with email/password Observable
+  // signInWithEmailAndPassword(email: string, password: string) {
+  //   return from(this.afAuth
+  //     .signInWithEmailAndPassword(email, password))
+  //     .pipe(switchMap((result) => {
+  //       console.log("uid:", result.user.uid);
 
-//         return from(result.user.getIdToken());
-//       }),
-//         catchError((err) => {
-//           // Handle errors
-//           window.alert(err.message);
-//           return EMPTY;
-//         })).pipe(tap((res) => {
-//           console.log("55555 ", res);
-//           this.sendTokenToServer(res);
-//         }))
-//       }
-      //     }).pipe(concatMap(res => {
+  //         return from(result.user.getIdToken());
+  //       }),
+  //         catchError((err) => {
+  //           // Handle errors
+  //           window.alert(err.message);
+  //           return EMPTY;
+  //         })).pipe(tap((res) => {
+  //           console.log("55555 ", res);
+  //           this.sendTokenToServer(res);
+  //         }))
+  //       }
+  //     }).pipe(concatMap(res => {
   //       return this.srcObservable;
   //   //     return new Observable((observer) => {
   //   //       observer.next('here'+res);
@@ -93,15 +103,15 @@ export class AuthService {
   //     .catch((err) => {
   //       console.log(err);
   //     })
-      // return this.http.post(url,{data: JSON.stringify(data)},{headers:headers})
-      //   .pipe(
-      //     catchError((error) => {
-      //       // Handle errors
-      //       console.log('Error:', error?.response?.data?.message);
-      //       console.error('Error:', error);
-    //       throw error;
-    //     })
-    //   );
+  // return this.http.post(url,{data: JSON.stringify(data)},{headers:headers})
+  //   .pipe(
+  //     catchError((error) => {
+  //       // Handle errors
+  //       console.log('Error:', error?.response?.data?.message);
+  //       console.error('Error:', error);
+  //       throw error;
+  //     })
+  //   );
   //}
   //   this.SetUserData(result.user);
   //   this.afAuth.authState.subscribe((user) => {
@@ -116,18 +126,21 @@ export class AuthService {
   // });
   //=================================================================================
   //=================================================================================
-  
-  
+
+
   // Sign in with email/password
+
   async SignIn(email: string, password: string) {
+    console.log("in sign innnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn");
+
     return this.afAuth
       .signInWithEmailAndPassword(email, password)
       .then((result) => {
         result.user.getIdToken()
           .then((token) => {
-            axios.post('http://localhost:3000/auth/signin', {token})
-            .then((response)=>{
-            })
+            axios.post('http://localhost:3000/auth/signin', { token })
+              .then((response) => {
+              })
             console.log("data:", token);
           })
           .catch((err) => {
@@ -137,6 +150,7 @@ export class AuthService {
         console.log("uid:", this.uid);
 
         this.SetUserData(result.user);
+        this.SaveDataUserInLocalStorage()
         this.afAuth.authState.subscribe((user) => {
           if (user) {
             this.router.navigate(['home']);
@@ -152,7 +166,7 @@ export class AuthService {
   // Sign up with email/password
   async SignUp(formData: any) {
     console.log("signup");
-    
+
     return this.afAuth
       .createUserWithEmailAndPassword(formData.email, formData.password)
       .then((result) => {
@@ -162,10 +176,10 @@ export class AuthService {
           .then((response) => {
             console.log(response.data);
           })
-        .catch((err)=>{
-          console.log(err);
-          
-        })
+          .catch((err) => {
+            console.log(err);
+
+          })
         /* Call the SendVerificaitonMail() function when new user sign 
         up and returns promise */
         this.SendVerificationMail();
@@ -221,24 +235,30 @@ export class AuthService {
   sign up with username/password and sign in with social auth  
   provider in Firestore database using AngularFirestore + AngularFirestoreDocument service */
   SetUserData(user: any) {
+    console.log("i am in set user data");
+    
     const userRef: AngularFirestoreDocument<any> = this.afs.doc(
       `users/${user.uid}`
     );
-    const userData: User = {
+    this.userData = 
+    {
+      //TODO: add all the fields of user 
       uid: user.uid,
       email: user.email,
       displayName: user.displayName,
       photoURL: user.photoURL,
       emailVerified: user.emailVerified,
     };
-    return userRef.set(userData, {
+    return userRef.set(this.userData, {
       merge: true,
     });
   }
+
   // Sign out
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
       this.router.navigate(['login']);
     });
   }
