@@ -3,7 +3,7 @@
   this page display the personal account.
   table of receipt, add receipt, charts ets.
   @columns
-*/ 
+*/
 
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -11,6 +11,7 @@ import { ModalController } from '@ionic/angular';
 import { TableService } from 'src/app/services/table.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
+import { getStorage, ref, getDownloadURL } from "@angular/fire/storage";
 
 @Component({
   selector: 'app-add-invoice',
@@ -22,9 +23,10 @@ export class AddInvoicePage implements OnInit {
   columns: IColumnDataTable = {};//Titles of table
   rows: IRowDataTable[] = [];//Data of table
   tableTitle = "הוצאות אחרונות";
+  urlFile: string;
 
-  constructor(private formBuilder: FormBuilder, private modalCtrl: ModalController, private rowDataService: TableService,) { 
-    
+  constructor(private formBuilder: FormBuilder, private modalCtrl: ModalController, private rowDataService: TableService,) {
+
   }
 
   ngOnInit() {
@@ -38,11 +40,11 @@ export class AddInvoicePage implements OnInit {
         }
       })
 
-      this.openPopup();
+    this.openPopup();
 
 
   }
-// Get the data from server and update columns
+  // Get the data from server and update columns
   setColumns(): void {
     this.rowDataService.getColumns().subscribe(
       (data) => {
@@ -51,13 +53,13 @@ export class AddInvoicePage implements OnInit {
         }
       });
   }
-// Get the data from server and update rows
+  // Get the data from server and update rows
   setRowsData(): void {
     this.rowDataService.getRowData().subscribe(
       (data) => {
         if (data) {
           this.rows = data;
-         
+
         }
       });
   }
@@ -73,5 +75,17 @@ export class AddInvoicePage implements OnInit {
     })
     //.then(modal => modal.present());
     await modal.present();
+  }
+
+  async downloadFile() {
+    const storage = getStorage();
+    const pathReference = ref(storage, 'try/space.pdf');
+    try {
+      const url = await getDownloadURL(pathReference);
+      console.log(url);
+      this.urlFile = url;
+    } catch (error) {
+      console.error(error);
+    }
   }
 }

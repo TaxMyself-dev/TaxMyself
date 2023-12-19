@@ -8,6 +8,8 @@ import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { User } from 'src/users/user.entity';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 import * as admin from 'firebase-admin';
+import { Storage } from '@google-cloud/storage';
+
 
 @Injectable()
 export class ExpensesService {
@@ -17,10 +19,8 @@ export class ExpensesService {
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
     ) 
-        {// this.storageBucket = admin.storage();
+        {
         }
-        //private storageBucket: admin.storage.Storage;
-
     async saveFileToStorage(base64String: string, fileName: string, type: string){
         const bucket  = admin.storage().bucket();
         // Decode the base64 data
@@ -47,6 +47,7 @@ export class ExpensesService {
           });
 
     }
+
 
     async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
         console.log("addExpense - start");

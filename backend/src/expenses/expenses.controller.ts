@@ -26,6 +26,7 @@ export class ExpensesController {
   async uploadFile(@Body() {file, fileName}) {
     console.log("in upload file");
     const contentType = file.split(";")[0].slice(5);
+    console.log("content-type", contentType);
     const fileUrl = await this.expensesService.saveFileToStorage(file,fileName,contentType);
     //TODO: add id for each file for us data
     return { message: 'File uploaded successfully',url:fileUrl };
