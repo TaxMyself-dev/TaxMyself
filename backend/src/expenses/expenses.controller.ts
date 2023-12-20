@@ -23,17 +23,19 @@ import { request } from 'http';
 @Controller('expenses')
 //@UseGuards(FirebaseAuthGuard)
 export class ExpensesController {
-  constructor(private expensesService: ExpensesService) { }
+  constructor(
+    private expensesService: ExpensesService,
+    private authService: AuthService) { }
 
-  @Post('upload')
-  async uploadFile(@Body() {file, fileName}) {
-    console.log("in upload file");
-    const contentType = file.split(";")[0].slice(5);
-    console.log("content-type", contentType);
-    const fileUrl = await this.expensesService.saveFileToStorage(file,fileName,contentType);
-    //TODO: add id for each file for us data
-    return { message: 'File uploaded successfully',url:fileUrl };
-  }
+  // @Post('upload')
+  // async uploadFile(@Body() {file, fileName}) {
+  //   console.log("in upload file");
+  //   const contentType = file.split(";")[0].slice(5);
+  //   console.log("content-type", contentType);
+  //   //const fileUrl = await this.expensesService.saveFileToStorage(file,fileName,contentType);
+  //   //TODO: add id for each file for us data
+  //   return { message: 'File uploaded successfully',url:fileUrl };
+  // }
 
     @Post('add')
     async addExpense(@Body() body) {
