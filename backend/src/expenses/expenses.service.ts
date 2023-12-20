@@ -17,7 +17,7 @@ export class ExpensesService {
     constructor
     (
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
-        @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
+        //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
 
         //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}

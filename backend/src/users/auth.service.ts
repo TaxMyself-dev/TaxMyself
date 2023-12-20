@@ -37,11 +37,11 @@ export class AuthService {
     constructor(@InjectRepository(User) private repo: Repository<User>, private userService: UsersService) {
         this.firebaseAuth = admin.auth();
           
-        this.defaultApp = firebase.initializeApp({
-            credential: firebase.credential.cert(firebase_params),
-            databaseURL: "https://fir-auth-bd895.firebaseio.com",
-            storageBucket: "gs://taxmyself-5d8a0.appspot.com"
-        });
+        // this.defaultApp = firebase.initializeApp({
+        //     credential: firebase.credential.cert(firebase_params),
+        //     databaseURL: "https://fir-auth-bd895.firebaseio.com",
+        //     storageBucket: "gs://taxmyself-5d8a0.appspot.com"
+        // });
     }
 
     async signup(createUserDto: User, firebase_id: string) {

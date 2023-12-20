@@ -54,7 +54,8 @@ export class AppModule {
   constructor() {
     this.defaultApp = firebase.initializeApp({
         credential: firebase.credential.cert(firebase_params),
-        databaseURL: "https://fir-auth-bd895.firebaseio.com"
+        databaseURL: "https://fir-auth-bd895.firebaseio.com",
+        storageBucket: "gs://taxmyself-5d8a0.appspot.com"
     });
   }
 }
