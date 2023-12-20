@@ -15,16 +15,35 @@ import { IColumnDataTable, IRowDataTable } from '../shared/interface';
 export class TableService {
 
   private readonly columns = {//mock data 
-    date: 'תאריך',
-    category: 'קטגוריה',
     provider: 'ספק',
+    date: 'תאריך',
     sum: 'סכום',
-    percentTax: 'אחוז מוכר למס',
+    category: 'קטגוריה',
+    expenseNumber: 'מספר חשבונית',
     percentVat: 'אחוז מוכר למעמ',
+    percentTax: 'אחוז מוכר למס',
+    idSupply: 'ח.פ. ספק',
+    file: 'קובץ',
+    note: 'הערה',
     totalTax: 'מוכר למס',
     totalVat: 'מוכר למעמ',
-    file: 'קובץ',
   } as IColumnDataTable;
+
+  private readonly columnsOrder = [
+    'provider',
+    'date',
+    'sum',
+    'category',
+    'expenseNumber',
+    'percentVat',
+    'percentTax',
+    'idSupply',
+    'file',
+    'note',
+    'totalTax',
+    'totalVat'
+  ]
+
   private readonly rows = [//mock data. 
     {
       date: new Date(),
@@ -91,4 +110,7 @@ export class TableService {
     return of(true);
   }
   
+  public getColomnsOrder(): string[] {
+    return this.columnsOrder;
+  }
 }

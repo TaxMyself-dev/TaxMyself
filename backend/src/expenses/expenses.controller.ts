@@ -16,17 +16,24 @@ import { AdminGuard } from 'src/guards/admin.guard';
 import { query } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { request } from 'http';
+//import { FirebaseService } from './firebase.service';
+
 
 
 @Controller('expenses')
-@UseGuards(FirebaseAuthGuard)
+//@UseGuards(FirebaseAuthGuard)
 export class ExpensesController {
+  constructor(private expensesService: ExpensesService) { }
 
-  constructor(
-    private expensesService: ExpensesService,
-    private userService: UsersService,
-    private authService: AuthService,
-  ) {}
+  @Post('upload')
+  async uploadFile(@Body() {file, fileName}) {
+    console.log("in upload file");
+    const contentType = file.split(";")[0].slice(5);
+    console.log("content-type", contentType);
+    const fileUrl = await this.expensesService.saveFileToStorage(file,fileName,contentType);
+    //TODO: add id for each file for us data
+    return { message: 'File uploaded successfully',url:fileUrl };
+  }
 
     @Post('add')
     async addExpense(@Body() body) {
@@ -38,32 +45,33 @@ export class ExpensesController {
       return await this.expensesService.addExpense(body, userId);
     }
 
-    // @Post('add_supplier')
-    // async addSupplier(@Body() body: CreateSupplierDto) {
-    //   //Add getUserIdFromToken()
-    //   const userId = "yh1ovqmsP2O6gAdYtMlBbw"
-    //   console.log(body);
-    //   console.log(userId);
-    //   return await this.expensesService.addSupplier(body, userId);
-    // }
+  // @Post('add_supplier')
+  // async addSupplier(@Body() body: CreateSupplierDto) {
+  //   //Add getUserIdFromToken()
+  //   const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+  //   console.log(body);
+  //   console.log(userId);
+  //   return await this.expensesService.addSupplier(body, userId);
+  // }
 
-    // @Get('get_supplier')
-    // async getSupplier(@Query('name') name: string) {
-    //   //Add getUserIdFromToken()
-    //   const userId = "yh1ovqmsP2O6gAdYtMlBbw"
-    //   console.log(name);
-    //   console.log(userId);
-    //   return await this.expensesService.getSupplier(name, userId);
-    // }
+  // @Get('get_supplier')
+  // async getSupplier(@Query('name') name: string) {
+  //   //Add getUserIdFromToken()
+  //   const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+  //   console.log(name);
+  //   console.log(userId);
+  //   return await this.expensesService.getSupplier(name, userId);
+  // }
 
-    @Get('get_by_supplier')
-    async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
-      return await this.expensesService.getExpensesBySupplier(supplier);
-    }
+  @Get('get_by_supplier')
+  async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
+    return await this.expensesService.getExpensesBySupplier(supplier);
+  }
 
-    @Get('get_by_date')
-    async getExpensesWithinDateRange(@Query('startDate') startDate: string, @Query('endDate') endDate: string): Promise<Expense[]> {
-      return await this.expensesService.getExpensesWithinDateRange(startDate, endDate);
-    }
+  @Get('get_by_date')
+  async getExpensesWithinDateRange(@Query('startDate') startDate: string, @Query('endDate') endDate: string): Promise<Expense[]> {
+    return await this.expensesService.getExpensesWithinDateRange(startDate, endDate);
+  }
+
 
 }

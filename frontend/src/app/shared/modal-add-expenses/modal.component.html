@@ -8,7 +8,7 @@
       <ion-content class="ion-padding">
         <form [formGroup]="myForm" (ngSubmit)="confirm()">
           <ion-list>
-            <ng-container *ngFor="let col of columns | keyvalue">
+            <ng-container *ngFor="let col of columns | keyvalue: valueAscOrder">
               <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
                <!--percentTax && percentVat-->
                 <ion-select *ngIf="col.key === 'percentTax' || col.key === 'percentVat';else datetime"  label="{{col.value}}" formControlName="{{col.key}}"
@@ -24,20 +24,19 @@
               </ng-template>
                <!-----------add file--------------->
               <ng-template #file>
-                <ion-input *ngIf="col.key === 'file'; else input"   label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
+                <ion-input *ngIf="col.key === 'file'; else input"  (input)=fileSelected($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
                 </ion-input>
               </ng-template>
                <!----------- category & sum --------------->
               <ng-template #input>
-                <ion-input *ngIf="col.key === 'category' || col.key == 'sum'; else provider"  label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
+                <ion-input *ngIf="col.key === 'category' || col.key === 'sum' || col.key === note || col.key === expenseNumber; else provider"  label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
                 </ion-input>
               </ng-template>
                <!----------- provider --------------->
               <ng-template #provider>
-                <ion-input  [(ngModel)] = provInput (input) = checkIfProviderExist($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
+                <ion-input   [(ngModel)] = provInput (input) = checkIfProviderExist($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
                 </ion-input>
               </ng-template>
-              <!--TODO: add option to write note-->
             </ion-item>
           </ng-container>
           <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
