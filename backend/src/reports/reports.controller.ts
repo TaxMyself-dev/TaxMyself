@@ -15,11 +15,11 @@ import { query } from 'express';
 export class ReportsController {
     constructor(private reportsService: ReportsService) {}
 
-    @Get()
-    getEstimate(@Query() query: GetEstimateDto) {
-        return this.reportsService.createEstimate(query);
-        console.log(query);
-    }
+    //@Get()
+    //getEstimate(@Query() query: GetEstimateDto) {
+    //    return this.reportsService.createEstimate(query);
+    //    console.log(query);
+    //}
 
     // @Post()
     // @UseGuards(AuthGuard)
@@ -28,11 +28,11 @@ export class ReportsController {
     //     return this.reportsService.create(body, user);
     // }
 
-    @Patch('/:id')
-    @UseGuards(AdminGuard)
-    approveReport(@Param('id') id: string, @Body() body: ApproveReportDto) {
-        return this.reportsService.changeApproval(id, body.approved);
-    }
+    //@Patch('/:id')
+    //@UseGuards(AdminGuard)
+    //approveReport(@Param('id') id: string, @Body() body: ApproveReportDto) {
+    //    return this.reportsService.changeApproval(id, body.approved);
+    //}
 
 
 

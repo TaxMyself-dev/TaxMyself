@@ -3,6 +3,8 @@ import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 import { ExpensesService } from './expenses.service';
+import { AuthService } from 'src/users/auth.service';
+import { UsersService } from 'src/users/users.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { CurrentUser } from 'src/users/decorators/current-user.decorator';
 import { User } from 'src/users/user.entity';
@@ -13,39 +15,46 @@ import { Serialize } from 'src/interceptors/serialize.interceptor';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { query } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { request } from 'http';
 
 
 @Controller('expenses')
 @UseGuards(FirebaseAuthGuard)
 export class ExpensesController {
-    constructor(private expensesService: ExpensesService) {}
+
+  constructor(
+    private expensesService: ExpensesService,
+    private userService: UsersService,
+    private authService: AuthService,
+  ) {}
 
     @Post('add')
-    async addExpense(@Body() body: CreateExpenseDto) {
-      //Add getUserIdFromToken()
-      const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+    async addExpense(@Body() body) {
+    //async addExpense(@Body() body: CreateExpenseDto) {
+      const userId = await this.authService.getFirbsaeIdByToken(body.token)
+      console.log("debug_123");
       console.log(body);
       console.log(userId);
       return await this.expensesService.addExpense(body, userId);
     }
 
-    @Post('add_supplier')
-    async addSupplier(@Body() body: CreateSupplierDto) {
-      //Add getUserIdFromToken()
-      const userId = "yh1ovqmsP2O6gAdYtMlBbw"
-      console.log(body);
-      console.log(userId);
-      return await this.expensesService.addSupplier(body, userId);
-    }
+    // @Post('add_supplier')
+    // async addSupplier(@Body() body: CreateSupplierDto) {
+    //   //Add getUserIdFromToken()
+    //   const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+    //   console.log(body);
+    //   console.log(userId);
+    //   return await this.expensesService.addSupplier(body, userId);
+    // }
 
-    @Get('get_supplier')
-    async getSupplier(@Query('name') name: string) {
-      //Add getUserIdFromToken()
-      const userId = "yh1ovqmsP2O6gAdYtMlBbw"
-      console.log(name);
-      console.log(userId);
-      return await this.expensesService.getSupplier(name, userId);
-    }
+    // @Get('get_supplier')
+    // async getSupplier(@Query('name') name: string) {
+    //   //Add getUserIdFromToken()
+    //   const userId = "yh1ovqmsP2O6gAdYtMlBbw"
+    //   console.log(name);
+    //   console.log(userId);
+    //   return await this.expensesService.getSupplier(name, userId);
+    // }
 
     @Get('get_by_supplier')
     async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
