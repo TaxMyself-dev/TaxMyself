@@ -11,6 +11,7 @@ import { Request, Response } from 'express';
 import * as firebase from 'firebase-admin';
 import * as serviceAccount from '../auth/firebaseServiceAccount.json';
 import { log } from 'console';
+import * as admin from 'firebase-admin';
 
 const firebase_params = {
     type: serviceAccount.type,
@@ -31,12 +32,16 @@ export class AuthService {
 
     public defaultApp: any;
 
+    private readonly firebaseAuth: admin.auth.Auth;
+
     constructor(@InjectRepository(User) private repo: Repository<User>, private userService: UsersService) {
-        this.defaultApp = firebase.initializeApp({
-            credential: firebase.credential.cert(firebase_params),
-            databaseURL: "https://fir-auth-bd895.firebaseio.com",
-            storageBucket: "gs://taxmyself-5d8a0.appspot.com"
-        });
+        this.firebaseAuth = admin.auth();
+          
+        // this.defaultApp = firebase.initializeApp({
+        //     credential: firebase.credential.cert(firebase_params),
+        //     databaseURL: "https://fir-auth-bd895.firebaseio.com",
+        //     storageBucket: "gs://taxmyself-5d8a0.appspot.com"
+        // });
     }
 
     async signup(createUserDto: User, firebase_id: string) {
@@ -52,7 +57,8 @@ export class AuthService {
         console.log("Debug");
         let uid: string;
         if (token != null && token != '') {
-            const firebaseUserData = await this.defaultApp.auth().verifyIdToken(token);
+            //const firebaseUserData = await this.defaultApp.auth().verifyIdToken(token);
+            const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
             uid = firebaseUserData.uid;
             if (uid != null && uid != '') {
                 console.log('User ID:', uid);
@@ -60,25 +66,25 @@ export class AuthService {
             } else {
                 throw new NotFoundException('Not a valid token');
             }
-            //this.defaultApp.auth().verifyIdToken(token)
-            //    .then((decodedToken: { uid: any; }) => {
-                    //uid = decodedToken.uid;
-             //       console.log('User ID:', decodedToken.uid);
-             //       return decodedToken.uid;
-
-                    //return uid;
-                    //console.log("token")
-                    //console.log(token)
-                    //const user = this.userService.findUser(uid);
-                    //console.log(user);
-                    
-              //  }).catch((error: any) => {
-                //    console.error(error);
-                //});
         }
         console.log("uid is ", uid);
-        
-        //return uid;
+    }
+
+    async getFirbsaeIdByToken(token: string): Promise<string> {
+        console.log("getFirbsaeIdByToken - Start");
+        let uid: string;
+        if (token != null && token != '') {
+            const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
+            uid = firebaseUserData.uid;
+            if (uid != null && uid != '') {
+                console.log('User ID:', uid);
+                return uid
+            } else {
+                throw new NotFoundException('Not a valid token');
+            }
+           
+        }
+        console.log("getFirbsaeIdByToken - End");
     }
 
 

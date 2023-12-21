@@ -17,36 +17,38 @@ export class ExpensesService {
     constructor
     (
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
-        @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
-    ) 
-        {
-        }
-    async saveFileToStorage(base64String: string, fileName: string, type: string){
-        const bucket  = admin.storage().bucket();
-        // Decode the base64 data
-        const buffer = Buffer.from(base64String, 'base64');
-        const name = `try/${fileName}`;
-        const fileUpload = bucket.file(name);
-        const stream = fileUpload.createWriteStream({
-            metadata: {
-                contentType: type, // Set the content type appropriately
-              },
-        })
+        //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
 
-        return new Promise<string>((resolve, reject) => {
-            stream.on('error', (error) => {
-              reject(error);
-            });
-      
-            stream.on('finish', () => {
-              const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileUpload.name}`;
-              resolve(publicUrl);
-            });
-      
-            stream.end(buffer);
-          });
+        //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
+    ) {}
 
-    }
+   
+    // async saveFileToStorage(base64String: string, fileName: string, type: string){
+    //     const bucket  = admin.storage().bucket();
+    //     // Decode the base64 data
+    //     const buffer = Buffer.from(base64String, 'base64');
+    //     const name = `try/${fileName}`;
+    //     const fileUpload = bucket.file(name);
+    //     const stream = fileUpload.createWriteStream({
+    //         metadata: {
+    //             contentType: type, // Set the content type appropriately
+    //           },
+    //     })
+
+    //     return new Promise<string>((resolve, reject) => {
+    //         stream.on('error', (error) => {
+    //           reject(error);
+    //         });
+      
+    //         stream.on('finish', () => {
+    //           const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileUpload.name}`;
+    //           resolve(publicUrl);
+    //         });
+      
+    //         stream.end(buffer);
+    //       });
+
+    // }
 
 
     async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
@@ -57,13 +59,13 @@ export class ExpensesService {
         return await this.expense_repo.save(newExpense);
     }
 
-    async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
-        console.log("addSupplier - start");
-        const newSupplier = this.supplier_repo.create(supplier);
-        newSupplier.userId = userId;
-        console.log(newSupplier);
-        return await this.supplier_repo.save(newSupplier);
-    }
+    // async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
+    //     console.log("addSupplier - start");
+    //     const newSupplier = this.supplier_repo.create(supplier);
+    //     newSupplier.userId = userId;
+    //     console.log(newSupplier);
+    //     return await this.supplier_repo.save(newSupplier);
+    // }
 
     // async getSupplierDetail(name: string, userid: number): Promise<Supplier | null> {
     //     return await this.supplierRepository.findOne({
@@ -71,16 +73,16 @@ export class ExpensesService {
     //     });
     //   }
 
-    async getSupplier(name: string, userId: string): Promise<Supplier> {
-        console.log("getSupplier - start");
-        if (!name || !userId) {
-            console.log("getSupplier - error");
-            throw new Error('Invalid parameters');
-          }
-        return await this.supplier_repo.findOne({
-            where: { name, userId},
-        });
-    }
+    // async getSupplier(name: string, userId: string): Promise<Supplier> {
+    //     console.log("getSupplier - start");
+    //     if (!name || !userId) {
+    //         console.log("getSupplier - error");
+    //         throw new Error('Invalid parameters');
+    //       }
+    //     return await this.supplier_repo.findOne({
+    //         where: { name, userId},
+    //     });
+    // }
 
     async getExpensesBySupplier(supplier: string): Promise<Expense[]> {
         return await this.expense_repo.find({ where: { supplier: supplier } });
@@ -96,11 +98,11 @@ export class ExpensesService {
         });
     }
 
-    async addNewSupplier(createSupplierDto: CreateSupplierDto): Promise<CreateSupplierDto> {
-        console.log(createSupplierDto);
-        const supplier = this.supplier_repo.create(createSupplierDto);
-        return await this.supplier_repo.save(supplier);
-    }
+    // async addNewSupplier(createSupplierDto: CreateSupplierDto): Promise<CreateSupplierDto> {
+    //     console.log(createSupplierDto);
+    //     const supplier = this.supplier_repo.create(createSupplierDto);
+    //     return await this.supplier_repo.save(supplier);
+    // }
    
 
     //async addTempExpense(expense: CreateExpenseDto) {
