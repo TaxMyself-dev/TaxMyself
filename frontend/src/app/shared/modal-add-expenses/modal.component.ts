@@ -11,6 +11,8 @@ import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-pr
 import { KeyValue } from '@angular/common';
 import { NgxImageCompressService } from 'ngx-image-compress';
 import { getStorage, ref, uploadString } from "@angular/fire/storage";
+import { nanoid } from 'nanoid';
+
 
 
 @Component({
@@ -34,6 +36,8 @@ export class ModalExpensesComponent implements OnInit {
   selectedProvider = { name: "", vat: "", tax: "" };
   provInput = "";
   selctedFile: File | null = null;
+  uniqueId: string;
+  arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
 
   constructor(private formBuilder: FormBuilder, private rowsService: TableService, private modalCtrl: ModalController, private imageCompress: NgxImageCompressService) {
 
@@ -56,16 +60,9 @@ export class ModalExpensesComponent implements OnInit {
   fileSelected(event: any) {
     console.log("in file selected");
     let file = event.target.files[0];
-    // this.imageCompress.compressFile(file, -1, 50, 50)
-    // .then((res)=>{
-    //   const compressedImage = res;
-    //   //this.selctedFile  =compressedImage;
-    //   file = compressedImage
-    // })
     console.log(file);
     console.log(file.name);
     const name = file.name;
-
 
     if (file) {
       console.log("in file ");
@@ -74,11 +71,26 @@ export class ModalExpensesComponent implements OnInit {
       reader.onload = () => {
         const base64String = reader.result as string;
         // console.log(base64String);
-        
         //this.uploadFileToSrever(base64String, file.name);
         this.uploadFileViaFront(base64String, name);
       }
     }
+  }
+
+  async uploadFileViaFront(base64String: string ,name: string) {
+    console.log("in uploadFileViaFront ");
+    const i = Math.floor((Math.random() * 100) % 3);
+    console.log("i of array: ", i);
+    
+    this.uniqueId = nanoid();
+    const storage = getStorage(); // bucket root
+    const fileRef = ref(storage, this.arrayFolder[i] + "/" + this.uniqueId); // full path relative to bucket's root
+    console.log(fileRef);
+    console.log("uuid: ",this.uniqueId);
+    uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
+      console.log('Uploaded a data_url string!');
+      console.log(snapshot.metadata.fullPath);
+    });
   }
 
   async uploadFileToSrever(base64String: string, fileName: string) {
@@ -96,17 +108,6 @@ export class ModalExpensesComponent implements OnInit {
     }
   }
 
-  async uploadFileViaFront(base64String,name) {
-    console.log("in uploadFileViaFront ");
-    const storage = getStorage(); // bucket root
-    const fileRef = ref(storage, 'try/' + name); // full path relative to bucket's root
-    console.log(fileRef);
-    uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
-      console.log('Uploaded a data_url string!');
-      console.log(snapshot.metadata.fullPath);
-
-});
-  }
   
   // לא הבנתי איך להשתמש בפונקיצה הזאת.
   onFormValueChanged(value: any) {

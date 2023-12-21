@@ -5,7 +5,7 @@ import { AngularFirestore, AngularFirestoreDocument } from '@angular/fire/compat
 import * as auth from 'firebase/auth';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, of, concatMap, catchError, from, switchMap, EMPTY, tap } from 'rxjs';
+import { Observable, of, concatMap, catchError, from, switchMap, EMPTY, tap, Subject, BehaviorSubject } from 'rxjs';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import axios from 'axios';
 import { log } from 'console';
@@ -28,10 +28,15 @@ export class AuthService {
     public ngZone: NgZone // NgZone service to remove outside scope warning
   ) 
   {
-
+    
+    
     /* Saving user data in localstorage when 
-   logged in and setting up null when logged out */ 
+    logged in and setting up null when logged out */ 
   }
+  
+  public isLoggedIn$ = new BehaviorSubject<string>("") ;
+
+
    async SaveDataUserInLocalStorage () {
     this.afAuth.authState.subscribe(async (user) => {
       console.log("checking: ", user);
@@ -150,7 +155,8 @@ export class AuthService {
         console.log("uid:", this.uid);
 
         this.SetUserData(result.user);
-        this.SaveDataUserInLocalStorage()
+        this.SaveDataUserInLocalStorage();
+        this.isLoggedIn$.next(localStorage.getItem('token'))
         this.afAuth.authState.subscribe((user) => {
           if (user) {
             this.router.navigate(['home']);

@@ -32,6 +32,7 @@
     "bootstrap": "^5.3.1",
     "firebase": "^9.16.0",
     "ionicons": "^7.0.0",
+    "nanoid": "^5.0.4",
     "ngx-image-compress": "^15.1.6",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
