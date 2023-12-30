@@ -7,5 +7,5 @@
 
   <ion-button class="menu-button" (click)="openPopup()">הוסף הוצאה</ion-button>
   <ion-button (click)="downloadFile()"> הורד קובץ</ion-button>
-  <ion-img *ngIf="urlFile" src= "https://firebasestorage.googleapis.com/v0/b/taxmyself-5d8a0.appspot.com/o/try%2Fspace.pdf?alt=media&token=52603e86-6284-4d69-8a97-38cf414a08cf" alt="blabla"></ion-img>
+  <ion-img *ngIf="urlFile" [src]= "urlFile" alt="blabla"></ion-img>
 </div>

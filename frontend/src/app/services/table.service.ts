@@ -54,6 +54,7 @@ export class TableService {
       percentVat: 25,
       totalTax: 87.5,
       totalVat: 0,
+      filePath: "gs://taxmyself-5d8a0.appspot.com/2222/COWD44Re4km1TEccCE4z"
     },
     {
       date: new Date(),
@@ -64,6 +65,7 @@ export class TableService {
       percentVat: 25,
       totalTax: 0,
       totalVat: 0,
+      filePath: "gs://taxmyself-5d8a0.appspot.com/2222/bP8l1rYmMiSP1JR1NrFWW"
     },
     {
       date: new Date(),
@@ -74,6 +76,7 @@ export class TableService {
       percentVat: 33,
       totalTax: 0,
       totalVat: 0,
+      filePath: "gs://taxmyself-5d8a0.appspot.com/2222/asgjfg8q8CJDasZ0t5FL3"
     },
   ] as IRowDataTable[];
 

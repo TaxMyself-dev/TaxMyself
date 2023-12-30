@@ -9,14 +9,15 @@ import { ModalExpensesComponent } from './modal-add-expenses/modal.component';
 import { TableComponent } from './table/table.component';
 import { SortDateComponent } from './sort-date/sort-date.component';
 import { ModalSortProviderComponent } from './modal-sort-provider/modal-sort-provider.component';
+import { ModalPreviewComponent } from './modal-preview/modal-preview.component';
 
 @NgModule({
-  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent],
+  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent],
   imports: [
     CommonModule,
     IonicModule,
     ReactiveFormsModule
     ],
-  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent]
+  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent]
 })
 export class SharedModule { }

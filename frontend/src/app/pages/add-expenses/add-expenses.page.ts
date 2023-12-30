@@ -12,6 +12,9 @@ import { TableService } from 'src/app/services/table.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { getStorage, ref, getDownloadURL } from "@angular/fire/storage";
+import { FilesService } from 'src/app/services/files.service';
+//import { getStorage, ref, getDownloadURL } from "firebase/storage";
+
 
 @Component({
   selector: 'app-add-invoice',
@@ -25,7 +28,7 @@ export class AddInvoicePage implements OnInit {
   tableTitle = "הוצאות אחרונות";
   urlFile: string;
 
-  constructor(private formBuilder: FormBuilder, private modalCtrl: ModalController, private rowDataService: TableService,) {
+  constructor(private filesService: FilesService, private formBuilder: FormBuilder, private modalCtrl: ModalController, private rowDataService: TableService,) {
 
   }
 
@@ -41,9 +44,8 @@ export class AddInvoicePage implements OnInit {
       })
 
     this.openPopup();
-
-
   }
+
   // Get the data from server and update columns
   setColumns(): void {
     this.rowDataService.getColumns().subscribe(
@@ -77,15 +79,13 @@ export class AddInvoicePage implements OnInit {
     await modal.present();
   }
 
+  
   async downloadFile() {
-    const storage = getStorage();
-    const pathReference = ref(storage, 'try/space.pdf');
-    try {
-      const url = await getDownloadURL(pathReference);
-      console.log(url);
-      this.urlFile = url;
-    } catch (error) {
-      console.error(error);
+
+    this.urlFile = await this.filesService.downloadFile('2222/O7rWwmIEnfzHrp-AErXvJ')
     }
-  }
+
+
+
+
 }

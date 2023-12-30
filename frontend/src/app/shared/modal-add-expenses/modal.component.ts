@@ -38,6 +38,7 @@ export class ModalExpensesComponent implements OnInit {
   selctedFile: File | null = null;
   uniqueId: string;
   arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
+  selectedFile: string;
 
   constructor(private formBuilder: FormBuilder, private rowsService: TableService, private modalCtrl: ModalController, private imageCompress: NgxImageCompressService) {
 
@@ -69,15 +70,11 @@ export class ModalExpensesComponent implements OnInit {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        const base64String = reader.result as string;
-        // console.log(base64String);
-        //this.uploadFileToSrever(base64String, file.name);
-        this.uploadFileViaFront(base64String, name);
-      }
+        this.selectedFile = reader.result as string;      }
     }
   }
 
-  async uploadFileViaFront(base64String: string ,name: string) {
+  async uploadFileViaFront(base64String: string) {
     console.log("in uploadFileViaFront ");
     const i = Math.floor((Math.random() * 100) % 3);
     console.log("i of array: ", i);
@@ -87,26 +84,14 @@ export class ModalExpensesComponent implements OnInit {
     const fileRef = ref(storage, this.arrayFolder[i] + "/" + this.uniqueId); // full path relative to bucket's root
     console.log(fileRef);
     console.log("uuid: ",this.uniqueId);
-    uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
+    const filePath = uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
       console.log('Uploaded a data_url string!');
-      console.log(snapshot.metadata.fullPath);
+      console.log("fullPath :", snapshot.metadata.fullPath);
+      return snapshot.metadata.fullPath;
     });
+    return filePath;
   }
 
-  async uploadFileToSrever(base64String: string, fileName: string) {
-    try {
-      console.log("in upload file");
-      const res = await axios.post('http://localhost:3000/expenses/upload', { file: base64String, fileName })
-      if (!res) {
-        throw ("my error: upload file faild");
-      }
-      console.log(res);
-
-    } catch (error) {
-      console.log("my error:", error);
-
-    }
-  }
 
   
   // לא הבנתי איך להשתמש בפונקיצה הזאת.
@@ -118,14 +103,16 @@ export class ModalExpensesComponent implements OnInit {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
-  confirm() {
+  async confirm() {
     this.modalCtrl.dismiss(this.name, 'confirm');
     const formData = this.myForm.value;
     console.log(formData);
     const token = localStorage.getItem('token');
     console.log("token from local storage", token);
-
-    axios.post('http://localhost:3000/expenses/add', { formData, token })
+    const filePath = await this.uploadFileViaFront(this.selectedFile);
+    console.log("file path from coonfirm :", filePath);
+    
+    axios.post('http://localhost:3000/expenses/add', { formData, token, filePath })
       .then((response) => {
         console.log(response);
       })

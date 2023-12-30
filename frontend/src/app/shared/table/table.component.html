@@ -10,15 +10,19 @@
               {{col.value}}
             </th>
             <td>
-              <ng-container *ngIf="col.key === 'date'; else defaultCell">{{ row[col.key] | date }}</ng-container>
-              <ng-template #defaultCell>{{ row[col.key] }}</ng-template>
+              <ng-container *ngIf="col.key === 'date'; else file">{{ row[col.key] | date }}</ng-container>
+              <ng-container #file *ngIf="col.key === 'file'; else defaultField">{{ row[col.key] }}
+                <ion-button (click)="previewFile()">הצג</ion-button>
+                <ion-button>הורד</ion-button>
+              </ng-container>
+              <ng-template #defaultField>{{ row[col.key] }}</ng-template>
             </td>
           </tr>
         </div>
       </table>
     </div>
   </div>
-  <!-- <ion-button (click)="openPopup()" shape="round">הוסף הוצאה</ion-button> -->
+  <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>
 
 
   <!-- 
