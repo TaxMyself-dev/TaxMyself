@@ -1,17 +1,16 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonModal, ModalController } from '@ionic/angular';
-//import { ViewController } from 'ionic-angular';
 import { IonDatetime } from '@ionic/angular';
 import { OverlayEventDetail } from '@ionic/core/components';
-import { TableService } from 'src/app/services/table.service';
 import { IColumnDataTable } from '../interface';
 import axios from 'axios';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
-import { NgxImageCompressService } from 'ngx-image-compress';
 import { getStorage, ref, uploadString } from "@angular/fire/storage";
 import { nanoid } from 'nanoid';
+import { PopupMessageComponent } from '../popup-message/popup-message.component';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 
 
 
@@ -40,18 +39,18 @@ export class ModalExpensesComponent implements OnInit {
   arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
   selectedFile: string;
 
-  constructor(private formBuilder: FormBuilder, private rowsService: TableService, private modalCtrl: ModalController, private imageCompress: NgxImageCompressService) {
+  constructor(private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController) {
 
     this.myForm = this.formBuilder.group({
       category: ['', Validators.required],
-      provider: ['', [Validators.required, Validators.email]],
+      supplier: ['', [Validators.required]],
       sum: ['', Validators.required],
-      percentTax: ['', Validators.required],
-      percentVat: ['', Validators.required],
+      taxPercent: ['', Validators.required],
+      vatPercent: ['', Validators.required],
       date: ['', Validators.required],
       note: ['', Validators.required],
       expenseNumber: ['', Validators.required],
-      idSupply: ['', Validators.required],
+      supplierID: ['', Validators.required],
       file: ['', Validators.required],
       equipment: [false, Validators.required]
     });
@@ -70,7 +69,8 @@ export class ModalExpensesComponent implements OnInit {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        this.selectedFile = reader.result as string;      }
+        this.selectedFile = reader.result as string;
+      }
     }
   }
 
@@ -78,12 +78,12 @@ export class ModalExpensesComponent implements OnInit {
     console.log("in uploadFileViaFront ");
     const i = Math.floor((Math.random() * 100) % 3);
     console.log("i of array: ", i);
-    
+
     this.uniqueId = nanoid();
     const storage = getStorage(); // bucket root
     const fileRef = ref(storage, this.arrayFolder[i] + "/" + this.uniqueId); // full path relative to bucket's root
     console.log(fileRef);
-    console.log("uuid: ",this.uniqueId);
+    console.log("uuid: ", this.uniqueId);
     const filePath = uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
       console.log('Uploaded a data_url string!');
       console.log("fullPath :", snapshot.metadata.fullPath);
@@ -93,7 +93,7 @@ export class ModalExpensesComponent implements OnInit {
   }
 
 
-  
+
   // לא הבנתי איך להשתמש בפונקיצה הזאת.
   onFormValueChanged(value: any) {
     console.log(value);
@@ -105,27 +105,37 @@ export class ModalExpensesComponent implements OnInit {
 
   async confirm() {
     this.modalCtrl.dismiss(this.name, 'confirm');
-    const formData = this.myForm.value;
-    console.log(formData);
     const token = localStorage.getItem('token');
     console.log("token from local storage", token);
     const filePath = await this.uploadFileViaFront(this.selectedFile);
+    this.myForm.get('file').setValue(filePath);
+    const formData = this.myForm.value;
+    console.log(formData);
     console.log("file path from coonfirm :", filePath);
-    
-    axios.post('http://localhost:3000/expenses/add', { formData, token, filePath })
+    console.log("file path from formData :", formData.file);
+    axios.post('http://localhost:3000/expenses/add', { formData, token})
       .then((response) => {
         console.log(response);
+        if (response.data.message == "invalid user") {
+          console.log(response.data.message);
+          this.openPopupMessage(response.data.message);
+        }
+        else {
+          this.expenseDataServise.getExpenseByUser().subscribe(
+            (response) => {
+              if (response) {
+                this.expenseDataServise.updateTable$.next(true);//I need to check what updateTable does
+              }
+            }
+          )
+        }
       })
       .catch((err) => {
-        console.log(err);
+        console.log("this is error :", err);
+        console.log("err.data.message ;",err.response.data.message);
+        this.openPopupMessage(err.response.data.message);
+        
       })
-    this.rowsService.addRow(formData).subscribe(
-      (response) => {
-        if (response) {
-          this.rowsService.updateTable$.next(true);//I need to check what updateTable does
-        }
-      }
-    )
 
   }
 
@@ -155,9 +165,9 @@ export class ModalExpensesComponent implements OnInit {
     this.selectedProvider = prov;
     console.log(this.selectedProvider);
     this.matches = [];  // Hide the dropdown
-    this.myForm.get('provider').setValue(prov.name);
-    this.myForm.get('percentTax').setValue(prov.tax);
-    this.myForm.get('percentVat').setValue(prov.vat);
+    this.myForm.get('supplier').setValue(prov.name);
+    this.myForm.get('taxPercent').setValue(prov.tax);
+    this.myForm.get('vatPercent').setValue(prov.vat);
   }
 
   valueAscOrder(a: KeyValue<string, string>, b: KeyValue<string, string>): number {// stay the list of fields in the original order
@@ -177,16 +187,30 @@ export class ModalExpensesComponent implements OnInit {
     modal.onDidDismiss().then((result) => {
       if (result.data.role === 'success') {
         this.selectedProvider = result.data.data; // This is the value returned from the modal
-        this.myForm.get('provider').setValue(this.selectedProvider.name);
-        this.myForm.get('percentTax').setValue(this.selectedProvider.tax);
-        this.myForm.get('percentVat').setValue(this.selectedProvider.vat);
+        this.myForm.get('supplier').setValue(this.selectedProvider.name);
+        this.myForm.get('taxPercent').setValue(this.selectedProvider.tax);
+        this.myForm.get('vatPercent').setValue(this.selectedProvider.vat);
       }
     });
     await modal.present();
   }
-  ngOnInit() {
 
-    console.log(this.columns);
+  async openPopupMessage(message: string) {
+    const modal = await this.modalCtrl.create({
+      component: PopupMessageComponent,
+      //showBackdrop: false,
+      componentProps: {
+        message: message,
+        // Add more props as needed
+      }
+    })
+    //.then(modal => modal.present());
+    await modal.present();
+  }
+
+  ngOnInit() {
+    console.log("columns of form: ", this.columns);
+    
   }
 }
 

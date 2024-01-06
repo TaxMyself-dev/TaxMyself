@@ -32,10 +32,13 @@ export class Expense {
   @Column('date')
   date: Date;
 
+  @Column('date')
+  loadingDate: Date;
+
   @Column({ nullable: true })
   note: string;
 
-  @Column({ nullable: true })
+  @Column()
   file: string;
 
   @Column('boolean')
@@ -43,6 +46,12 @@ export class Expense {
 
   @Column()
   userId: string;
+
+  @Column('decimal')
+  expenseNumber: number;
+
+  @Column('decimal')
+  supplierID: number;
 
   //@ManyToOne(() => User, (user) => user.expenses)
   //user: string;

@@ -1,6 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { TableService } from './services/table.service';
 import { IColumnDataTable, IRowDataTable } from './shared/interface';
 import { Location } from '@angular/common';
 import { AddInvoicePage } from './pages/add-expenses/add-expenses.page';

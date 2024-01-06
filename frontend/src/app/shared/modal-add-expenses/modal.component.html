@@ -10,8 +10,8 @@
           <ion-list>
             <ng-container *ngFor="let col of columns | keyvalue: valueAscOrder">
               <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
-               <!--percentTax && percentVat-->
-                <ion-select *ngIf="col.key === 'percentTax' || col.key === 'percentVat';else datetime"  label="{{col.value}}" formControlName="{{col.key}}"
+               <!--taxPercent && vatPercent-->
+                <ion-select *ngIf="col.key === 'taxPercent' || col.key === 'vatPercent';else datetime"  label="{{col.value}}" formControlName="{{col.key}}"
                 label-placement="floating" interface="popover">
                 <ion-select-option value="25">25%</ion-select-option>
                 <ion-select-option value="33">33%</ion-select-option>
@@ -27,14 +27,24 @@
                 <ion-input *ngIf="col.key === 'file'; else input"  (input)=fileSelected($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
                 </ion-input>
               </ng-template>
-               <!----------- category & sum --------------->
+               <!----------- all the rest --------------->
               <ng-template #input>
-                <ion-input *ngIf="col.key === 'category' || col.key === 'sum' || col.key === note || col.key === expenseNumber; else provider"  label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
+                <ion-input *ngIf="col.key === 'sum' || col.key === 'note' || col.key === 'expenseNumber'; else supplier"  label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
                 </ion-input>
               </ng-template>
-               <!----------- provider --------------->
-              <ng-template #provider>
-                <ion-input   [(ngModel)] = provInput (input) = checkIfProviderExist($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
+               <!----------- supplier --------------->
+              <ng-template #supplier>
+                <ion-input *ngIf="col.key === 'supplier';else category"  [(ngModel)] = provInput (input) = checkIfProviderExist($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
+                </ion-input>
+              </ng-template>
+              <!----------- category --------------->
+              <ng-template #category>
+                <ion-input *ngIf="col.key === 'category';else supplierID" label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
+                </ion-input>
+              </ng-template>
+              <!----------- supplierID --------------->
+              <ng-template #supplierID>
+                <ion-input *ngIf="col.key === 'supplierID'" label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
                 </ion-input>
               </ng-template>
             </ion-item>

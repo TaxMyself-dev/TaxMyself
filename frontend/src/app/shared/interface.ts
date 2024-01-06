@@ -1,24 +1,9 @@
 export interface IRowDataTable {
     [key: string]: string | number | Date;
-    // category : String,
-    // provider?: String,
-    // sum: number,
-    // percentTax: number,
-    // percentVat: number,
-    // totalTax: number,
-    // totalVat?: number,
 }
 
 export interface IColumnDataTable {
     [key: string]: string;
-
-    // category: String,
-    // provider?: String,
-    // sum: string,
-    // percentTax: string,
-    // percentVat: number,
-    // totalTax: number,
-    // totalVat?: number,
 }
 export interface IChildren{
     name: string,

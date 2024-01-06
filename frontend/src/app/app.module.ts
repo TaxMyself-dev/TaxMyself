@@ -10,7 +10,6 @@ import { TableComponent } from './shared/table/table.component';
 import { ButtonComponent } from './shared/button/button.component';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ReactiveFormsModule } from '@angular/forms';
-import { TableService } from './services/table.service';
 import { initializeApp} from '@angular/fire/app';
 import { environment } from '../environments/environment';
 import { getAuth } from '@angular/fire/auth';
@@ -35,7 +34,7 @@ import { HttpClientModule } from  '@angular/common/http';
     AngularFireDatabaseModule,
     HttpClientModule
   ],
-  providers: [{ provide: RouteReuseStrategy, useClass: IonicRouteStrategy },TableService],
+  providers: [{ provide: RouteReuseStrategy, useClass: IonicRouteStrategy }],
   bootstrap: [AppComponent],
 })
 

@@ -77,14 +77,14 @@ export class AuthService {
             const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
             uid = firebaseUserData.uid;
             if (uid != null && uid != '') {
-                console.log('User ID:', uid);
+                console.log('User ID in getFirbsaeIdByToken :', uid);
+                console.log("getFirbsaeIdByToken - End");
                 return uid
             } else {
                 throw new NotFoundException('Not a valid token');
             }
            
         }
-        console.log("getFirbsaeIdByToken - End");
     }
 
 

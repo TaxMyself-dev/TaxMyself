@@ -8,11 +8,11 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
-import { TableService } from 'src/app/services/table.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { getStorage, ref, getDownloadURL } from "@angular/fire/storage";
 import { FilesService } from 'src/app/services/files.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 //import { getStorage, ref, getDownloadURL } from "firebase/storage";
 
 
@@ -23,20 +23,23 @@ import { FilesService } from 'src/app/services/files.service';
 })
 export class AddInvoicePage implements OnInit {
 
-  columns: IColumnDataTable = {};//Titles of table
-  rows: IRowDataTable[] = [];//Data of table
+  columns: IColumnDataTable = {};//Titles of expense
+  rows: IRowDataTable[] = [];//Data of expense
   tableTitle = "הוצאות אחרונות";
   urlFile: string;
 
-  constructor(private filesService: FilesService, private formBuilder: FormBuilder, private modalCtrl: ModalController, private rowDataService: TableService,) {
+  constructor(private filesService: FilesService, private formBuilder: FormBuilder, private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService,) {
 
   }
 
   ngOnInit() {
 
-    this.setColumns();
+    this.columns = this.expenseDataServise.getShowExpenseColumns()
+
+    //this.setColumns();
+    //this.columns = this.expenseDataServise.getAddExpenseColumns();
     this.setRowsData();
-    this.rowDataService.updateTable$.subscribe(
+    this.expenseDataServise.updateTable$.subscribe(
       (data) => {
         if (data) {
           this.setRowsData();
@@ -47,17 +50,17 @@ export class AddInvoicePage implements OnInit {
   }
 
   // Get the data from server and update columns
-  setColumns(): void {
-    this.rowDataService.getColumns().subscribe(
-      (data) => {
-        if (data) {
-          this.columns = data;
-        }
-      });
-  }
+  // setColumns(): void {
+  //   this.expenseDataServise.getColumns().subscribe(
+  //     (data) => {
+  //       if (data) {
+  //         this.columns = data;
+  //       }
+  //     });
+  // }
   // Get the data from server and update rows
   setRowsData(): void {
-    this.rowDataService.getRowData().subscribe(
+    this.expenseDataServise.getExpenseByUser().subscribe(
       (data) => {
         if (data) {
           this.rows = data;
@@ -82,7 +85,7 @@ export class AddInvoicePage implements OnInit {
   
   async downloadFile() {
 
-    this.urlFile = await this.filesService.downloadFile('2222/O7rWwmIEnfzHrp-AErXvJ')
+    this.urlFile = await this.filesService.downloadFile('2222/O7rWwmIEnfzHrp-AErXvJ.png')
     }
 
 
