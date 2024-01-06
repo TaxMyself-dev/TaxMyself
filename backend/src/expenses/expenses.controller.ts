@@ -40,7 +40,6 @@ export class ExpensesController {
     @Post('add')
     async addExpense(@Body() body) {
     //async addExpense(@Body() body: CreateExpenseDto) {
-    try {
       const userId = await this.authService.getFirbsaeIdByToken(body.token)
       console.log("debug_123");
       console.log("body of expense :", body);
@@ -52,7 +51,7 @@ export class ExpensesController {
       console.log("this is errorrrrrrrr :",error);
       return {message: "invalid user"};  
     }
-    }
+    
 
   // @Post('add_supplier')
   // async addSupplier(@Body() body: CreateSupplierDto) {

@@ -15,6 +15,7 @@ import * as firebase from 'firebase-admin';
 import * as serviceAccount from './auth/firebaseServiceAccount.json';
 import { randomBytes, scrypt as _scrypt } from 'crypto';
 import { promisify } from 'util';
+import { ExcelModule } from './excel/excel.module';
 
 const cookieSession = require('cookie-session');
 
@@ -43,7 +44,7 @@ const scrypt = promisify(_scrypt);
         database: 'fintaxco_taxmyself_dev',
         entities: [User, Report, Expense, Supplier],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule],
+      UsersModule, ReportsModule, ExpensesModule, ExcelModule],
     controllers: [AppController],
     providers: [AppService],
 })
