@@ -28,7 +28,9 @@ export class ExpensesService {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
-        console.log(newExpense);
+        newExpense.loadingDate = new Date();
+        console.log("this is a newExpense :", newExpense);
+        console.log("addExpense - end");
         return await this.expense_repo.save(newExpense);
     }
 
@@ -59,6 +61,10 @@ export class ExpensesService {
 
     async getExpensesBySupplier(supplier: string): Promise<Expense[]> {
         return await this.expense_repo.find({ where: { supplier: supplier } });
+    }
+
+    async getExpensesByUserID(userId: string): Promise<Expense[]> {
+        return await this.expense_repo.find({ where: { userId: userId } });
     }
 
     async getExpensesWithinDateRange(startDate: string, endDate: string): Promise<Expense[]> {

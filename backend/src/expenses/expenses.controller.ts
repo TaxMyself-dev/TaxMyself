@@ -40,13 +40,18 @@ export class ExpensesController {
     @Post('add')
     async addExpense(@Body() body) {
     //async addExpense(@Body() body: CreateExpenseDto) {
-      //const userId = await this.authService.getFirbsaeIdByToken(body.token)
-      const userId = "wB4PAZnlFsdSMnBvgfKDQS9far62"
+      const userId = await this.authService.getFirbsaeIdByToken(body.token)
       console.log("debug_123");
-      console.log(body);
-      console.log(userId);
-      return await this.expensesService.addExpense(body, userId);
+      console.log("body of expense :", body);
+      console.log("user id in addExpense :", userId);
+      return await this.expensesService.addExpense(body.formData, userId); 
+    } 
+    catch (error) {
+      console.log("משתמש לא חוקי");
+      console.log("this is errorrrrrrrr :",error);
+      return {message: "invalid user"};  
     }
+    
 
   // @Post('add_supplier')
   // async addSupplier(@Body() body: CreateSupplierDto) {
@@ -69,6 +74,13 @@ export class ExpensesController {
   @Get('get_by_supplier')
   async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
     return await this.expensesService.getExpensesBySupplier(supplier);
+  }
+
+  @Get('get_by_userID')
+  async getExpensesByUserID(@Query('userID') userID: string): Promise<Expense[]> {
+    console.log("this is user id that i send: ", userID);
+    
+    return await this.expensesService.getExpensesByUserID(userID);
   }
 
   @Get('get_by_date')

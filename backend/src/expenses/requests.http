@@ -31,6 +31,10 @@ GET http://localhost:3000/expenses/get_supplier?name=sdfsf&userId=yh1ovqmsP2O6gA
 ### Get expenses by supplier
 GET http://localhost:3000/expenses/get_by_supplier?supplier=Fox
 
+### Get expenses by userID
+GET http://localhost:3000/expenses/get_by_userID?userID=g5ShQuCNS8hldigE7YQTO8Sv3ml1
+
+
 
 ### Get expenses within date range
 GET http://localhost:3000/expenses/get_by_date?startDate=2023-08-01&endDate=2023-08-31

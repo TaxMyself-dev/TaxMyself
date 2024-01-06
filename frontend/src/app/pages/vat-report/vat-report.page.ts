@@ -1,6 +1,5 @@
 import { Component, OnInit } from '@angular/core';
 import { VatReportService } from './vat-report.service';
-import { TableService } from 'src/app/services/table.service';
 import { IRowDataTable, ISortDate, IVatReportTableData } from 'src/app/shared/interface';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Observable, map, tap } from 'rxjs';
