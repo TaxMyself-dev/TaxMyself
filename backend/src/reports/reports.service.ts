@@ -12,10 +12,21 @@ import { ExpensesService } from 'src/expenses/expenses.service';
 @Injectable()
 export class ReportsService {
     constructor(
-        private expensesService: ExpensesService 
-        //@InjectRepository(Report) private repo: Repository<Report>,
-        //@InjectRepository(Expense) private expense_repo: Repository<Expense>,
+        private expensesService: ExpensesService,
+        @InjectRepository(Expense) private expense_repo: Repository<Expense>
     ) {}
+
+    async getTotalExpenses(startDate: Date, endDate: Date, userId: number): Promise<number> {
+        const result = await this.expense_repo.createQueryBuilder('expense')
+            .select("SUM(expense.sum)", "total")
+            .where('expense.userId = :userId', { userId })
+            .andWhere('expense.equipment = :equipment', { equipment: false })
+            .andWhere('expense.date >= :startDate AND expense.date <= :endDate', { startDate, endDate })
+            .getRawOne();
+    
+        return result ? result.total : 0;
+    }
+    
 
     // async createVatReport(startDate: string, endDate: string, userId: string): Promise<VatReportDto> {
     //     const expenseList = this.expensesService.getExpensesWithinDateRange(startDate, endDate)

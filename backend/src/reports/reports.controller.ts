@@ -15,6 +15,26 @@ import { query } from 'express';
 export class ReportsController {
     constructor(private reportsService: ReportsService) {}
 
+    @Get('total')
+    async getTotalExpenses(
+        @Query('startDate') startDate: string,
+        @Query('endDate') endDate: string,
+        @Query('userId') userId: number,
+    ): Promise<number> {
+    // Parse or convert dates as necessary
+    console.log("total - start");
+    
+    const parsedStartDate = new Date(startDate);
+    const parsedEndDate = new Date(endDate);
+
+    const total = await this.reportsService.getTotalExpenses(parsedStartDate, parsedEndDate, userId);
+
+    console.log('total = ', total);
+    
+    return total;
+    }
+
+
     //@Get()
     //getEstimate(@Query() query: GetEstimateDto) {
     //    return this.reportsService.createEstimate(query);
