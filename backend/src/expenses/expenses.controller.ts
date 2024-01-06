@@ -40,7 +40,8 @@ export class ExpensesController {
     @Post('add')
     async addExpense(@Body() body) {
     //async addExpense(@Body() body: CreateExpenseDto) {
-      const userId = await this.authService.getFirbsaeIdByToken(body.token)
+      //const userId = await this.authService.getFirbsaeIdByToken(body.token)
+      const userId = "wB4PAZnlFsdSMnBvgfKDQS9far62"
       console.log("debug_123");
       console.log(body);
       console.log(userId);
