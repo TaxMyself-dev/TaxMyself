@@ -27,6 +27,7 @@ async function bootstrap() {
   app.use(require('cors')());
 
   app.use(bodyParser.json({ limit: '50mb' }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(3000);
 
 }

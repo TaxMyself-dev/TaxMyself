@@ -15,7 +15,9 @@ import * as firebase from 'firebase-admin';
 import * as serviceAccount from './auth/firebaseServiceAccount.json';
 import { randomBytes, scrypt as _scrypt } from 'crypto';
 import { promisify } from 'util';
-import { ExcelModule } from './excel/excel.module';
+//import { ExcelModule } from './excel/excel.module';
+
+import { VAT_RATE_2023 } from './constants';
 
 const cookieSession = require('cookie-session');
 
@@ -44,7 +46,7 @@ const scrypt = promisify(_scrypt);
         database: 'fintaxco_taxmyself_dev',
         entities: [User, Report, Expense, Supplier],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule, ExcelModule],
+      UsersModule, ReportsModule, ExpensesModule],
     controllers: [AppController],
     providers: [AppService],
 })
