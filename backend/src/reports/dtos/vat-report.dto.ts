@@ -8,24 +8,18 @@ import {
 export class VatReportDto {
 
     @IsNumber()
-    taxableTrans17: number;
+    vatableTurnover: number;
 
     @IsNumber()
-    taxableTrans18: number;
+    nonVatableTurnover: number;
 
     @IsNumber()
-    exemptTrans: number;
+    vatRefundOnAssets: number;
 
     @IsNumber()
-    recognizeExpenses17: number;
+    vatRefundOnExpenses: number;
 
     @IsNumber()
-    recognizeExpenses18: number;
-
-    @IsNumber()
-    recognizeEquipExpenses17: number;
-
-    @IsNumber()
-    recognizeEquipExpenses18: number;
+    vatPayment: number;
 
 }

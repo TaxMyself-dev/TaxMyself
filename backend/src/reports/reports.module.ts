@@ -7,7 +7,7 @@ import { ExpensesService } from 'src/expenses/expenses.service';
 import { Expense } from 'src/expenses/expenses.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report,Expense])],
+  imports: [TypeOrmModule.forFeature([Report, Expense])],
   controllers: [ReportsController],
   providers: [ReportsService, ExpensesService]
 })
