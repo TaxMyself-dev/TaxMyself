@@ -38,13 +38,12 @@ export class ExpensesController {
   // }
 
     @Post('add')
-    async addExpense(@Body() body) {
-    //async addExpense(@Body() body: CreateExpenseDto) {
+    async addExpense(@Body() body: CreateExpenseDto) {
       const userId = await this.authService.getFirbsaeIdByToken(body.token)
       console.log("debug_123");
       console.log("body of expense :", body);
       console.log("user id in addExpense :", userId);
-      return await this.expensesService.addExpense(body.formData, userId); 
+      return await this.expensesService.addExpense(body, userId); 
     } 
     catch (error) {
       console.log("משתמש לא חוקי");

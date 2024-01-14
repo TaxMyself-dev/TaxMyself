@@ -1,5 +1,5 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup,FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonModal, ModalController } from '@ionic/angular';
 import { IonDatetime } from '@ionic/angular';
 import { OverlayEventDetail } from '@ionic/core/components';
@@ -56,7 +56,6 @@ export class ModalExpensesComponent implements OnInit {
     });
   }
 
-
   fileSelected(event: any) {
     console.log("in file selected");
     let file = event.target.files[0];
@@ -106,14 +105,17 @@ export class ModalExpensesComponent implements OnInit {
   async confirm() {
     this.modalCtrl.dismiss(this.name, 'confirm');
     const token = localStorage.getItem('token');
-    console.log("token from local storage", token);
+    console.log("token from local storage in confirm", token);
     const filePath = await this.uploadFileViaFront(this.selectedFile);
     this.myForm.get('file').setValue(filePath);
+    this.myForm.addControl('token',this.formBuilder.control(token));
     const formData = this.myForm.value;
+    formData.sum = parseInt(formData.sum, 10); 
+    formData.taxPercent = parseInt(formData.taxPercent, 10); 
+    formData.vatPercent = parseInt(    formData.vatPercent, 10); 
+    formData.date = formData.date ? new Date(formData.date).toISOString() : null;
     console.log(formData);
-    console.log("file path from coonfirm :", filePath);
-    console.log("file path from formData :", formData.file);
-    axios.post('http://localhost:3000/expenses/add', { formData, token})
+    axios.post('http://localhost:3000/expenses/add', formData)
       .then((response) => {
         console.log(response);
         if (response.data.message == "invalid user") {

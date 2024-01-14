@@ -47,11 +47,11 @@ export class Expense {
   @Column()
   userId: string;
 
-  @Column('decimal')
-  expenseNumber: number;
+  @Column()
+  expenseNumber: string;
 
-  @Column('decimal')
-  supplierID: number;
+  @Column()
+  supplierID: string
 
   //@ManyToOne(() => User, (user) => user.expenses)
   //user: string;

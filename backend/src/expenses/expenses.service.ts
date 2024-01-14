@@ -26,6 +26,7 @@ export class ExpensesService {
 
     async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
         console.log("addExpense - start");
+        console.log("expense in addEaxpense: ", expense);
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
         newExpense.loadingDate = new Date();
@@ -72,7 +73,7 @@ export class ExpensesService {
         const parsedEndDate = new Date(endDate);
         return await this.expense_repo.find({
             where: {
-                date: Between(parsedStartDate, parsedEndDate),
+               // date: Between(parsedStartDate, parsedEndDate),
             },
         });
     }

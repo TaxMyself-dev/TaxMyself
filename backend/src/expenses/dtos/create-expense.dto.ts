@@ -5,39 +5,47 @@ import {
     Max,
     IsDateString,
     IsBoolean,
-    IsOptional
+    IsOptional,
+    IsDate
 } from 'class-validator'
 
 
 export class CreateExpenseDto {
 
-  @IsString()
-  supplier: string;
 
-  @IsString()
-  category: string;
+    @IsString()
+    token: string;
 
-  @IsNumber()
-  sum: number;
+    @IsString()
+    supplier: string;
 
-  @IsNumber()
-  taxPercent: number;
+    @IsString()
+    supplierID: string;
+    
+    @IsString()
+    category: string;
 
-  @IsNumber()
-  vatPercent: number;
-
-  @IsDateString()
-  date: Date;
-
-  @IsOptional()
-  @IsString()
-  note: string;
-
-  @IsOptional()
-  @IsString()
-  file: string;
-
-  @IsOptional()
-  @IsBoolean()
-  equipment: boolean;
+    @IsNumber()
+    sum: number;
+    
+    @IsNumber()
+    taxPercent: number;
+    
+    @IsNumber()
+    vatPercent: number;
+    
+    @IsString()
+    date: Date
+    
+    @IsOptional()
+    @IsString()
+    note: string;
+    
+    @IsOptional()
+    @IsString()
+    file: string;
+    
+    @IsOptional()
+    @IsBoolean()
+    equipment: boolean;
 }

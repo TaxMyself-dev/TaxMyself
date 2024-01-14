@@ -1,5 +1,6 @@
 import { Component, Input, OnInit } from '@angular/core';
 
+
 @Component({
   selector: 'app-modal-preview',
   templateUrl: './modal-preview.component.html',
