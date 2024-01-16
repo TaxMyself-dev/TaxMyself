@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Expense } from './expenses.entity';
@@ -9,6 +9,7 @@ import { User } from 'src/users/user.entity';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 import * as admin from 'firebase-admin';
 import { Storage } from '@google-cloud/storage';
+import { UpdateExpenseDto } from './dtos/update-expense.dto';
 
 
 @Injectable()
@@ -33,6 +34,46 @@ export class ExpensesService {
         console.log("this is a newExpense :", newExpense);
         console.log("addExpense - end");
         return await this.expense_repo.save(newExpense);
+    }
+
+    async updateExpense(id: number, userId: string, updateExpenseDto: UpdateExpenseDto): Promise<Expense> {
+
+        console.log("service update expense - Start");
+        console.log("body of update expense :", updateExpenseDto);
+        const expense = await this.expense_repo.findOne({ where: { id } });
+    
+        if (!expense) {
+            throw new NotFoundException(`Expense with ID ${id} not found`);
+        }
+
+        // Check if the user making the request is the owner of the expense
+        if (expense.userId !== userId) {
+            throw new UnauthorizedException(`You do not have permission to update this expense`);
+        }
+
+        return this.expense_repo.save({
+            ...expense,
+            ...updateExpenseDto,
+        });
+    
+    }
+
+    async deleteExpense(id: number, userId: string): Promise<void> {
+
+        const expense = await this.expense_repo.findOne({ where: { id } });
+    
+        if (!expense) {
+          throw new NotFoundException(`Expense with ID ${id} not found`);
+        }
+    
+        // Check if the user making the request is the owner of the expense
+        if (expense.userId !== userId) {
+          throw new UnauthorizedException(`You do not have permission to delete this expense`);
+        }
+    
+        // Delete the expense from the database
+        await this.expense_repo.remove(expense);
+
     }
 
     // async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
