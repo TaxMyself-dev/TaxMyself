@@ -4,7 +4,6 @@ import {
     PrimaryGeneratedColumn,
     ManyToOne 
 } from 'typeorm'
-import { User } from 'src/users/user.entity';
 
 @Entity()
 export class Supplier {
@@ -27,6 +26,4 @@ export class Supplier {
     @Column()
     userId: string;
 
-    // @ManyToOne(() => User, (user) => user.expenses)
-    // user: User;
 }

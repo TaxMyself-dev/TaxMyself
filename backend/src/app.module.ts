@@ -10,7 +10,7 @@ import { User } from './users/user.entity';
 import { Report } from './reports/report.entity';
 import { PreauthMiddleware } from './auth/preauth.middleware';
 import { Expense } from './expenses/expenses.entity';
-import { Supplier } from './expenses/supplier.entity';
+import { Supplier } from './suppliers/supplier.entity';
 import * as firebase from 'firebase-admin';
 import * as serviceAccount from './auth/firebaseServiceAccount.json';
 import { randomBytes, scrypt as _scrypt } from 'crypto';
@@ -18,6 +18,7 @@ import { promisify } from 'util';
 //import { ExcelModule } from './excel/excel.module';
 
 import { VAT_RATE_2023 } from './constants';
+import { SuppliersModule } from './suppliers/suppliers.module';
 
 const cookieSession = require('cookie-session');
 
@@ -46,7 +47,7 @@ const scrypt = promisify(_scrypt);
         database: 'fintaxco_taxmyself_dev',
         entities: [User, Report, Expense, Supplier],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule],
+      UsersModule, ReportsModule, ExpensesModule, SuppliersModule],
     controllers: [AppController],
     providers: [AppService],
 })

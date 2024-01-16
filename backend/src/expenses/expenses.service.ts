@@ -2,9 +2,7 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Expense } from './expenses.entity';
-import { Supplier } from './supplier.entity';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
-import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { User } from 'src/users/user.entity';
 import { GetExpenseDto } from './dtos/get-expense.dto';
 import * as admin from 'firebase-admin';
