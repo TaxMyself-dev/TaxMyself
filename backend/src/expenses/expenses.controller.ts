@@ -1,4 +1,6 @@
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { GetExpenseDto } from './dtos/get-expense.dto';
@@ -14,8 +16,7 @@ import { Serialize } from 'src/interceptors/serialize.interceptor';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { query } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import { request } from 'http';
-//import { FirebaseService } from './firebase.service';
+import * as tesseract from 'tesseract.js';
 
 
 
@@ -61,24 +62,50 @@ export class ExpensesController {
     return this.expensesService.deleteExpense(id, userId);
 
   }
-    
 
-  @Get('get_by_supplier')
-  async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
-    return await this.expensesService.getExpensesBySupplier(supplier);
-  }
+  // @Post('extract-invoice')
+  // @UseInterceptors(FileInterceptor('invoice', { dest: './uploads' }))
+  // async extractInvoiceData(@UploadedFile() file: Express.Multer.File) {
+  //   if (!file) {
+  //     throw new BadRequestException('No invoice file uploaded.');
+  //   }
 
-  @Get('get_by_userID')
-  async getExpensesByUserID(@Query('userID') userID: string): Promise<Expense[]> {
-    console.log("this is user id that i send: ", userID);
-    
-    return await this.expensesService.getExpensesByUserID(userID);
-  }
+  //   // Use Tesseract.js to process the uploaded file
+  //   const result = await tesseract.recognize(file.path, 'eng', {
+  //     logger: (m) => console.log(m),
+  //   });
 
-  @Get('get_by_date')
-  async getExpensesWithinDateRange(@Query('startDate') startDate: string, @Query('endDate') endDate: string): Promise<Expense[]> {
-    return await this.expensesService.getExpensesWithinDateRange(startDate, endDate);
-  }
+  //   // Extract relevant data from the OCR result
+  //   const extractedData = extractDataFromOCRResult(result);
 
+  //   // Return the extracted data
+  //   return extractedData;
+  // }
 
 }
+
+// function extractDataFromOCRResult(result) {
+//   // Implement logic to extract the sum, invoice number, and date from the OCR result
+//   // This will depend on the structure of your invoices and the text content
+//   // You may need to use regular expressions or specific keywords to identify and extract the data
+
+//   // For example:
+//   const sum = extractSum(result.text);
+//   const invoiceNumber = extractInvoiceNumber(result.text);
+//   const date = extractDate(result.text);
+
+//   return { sum, invoiceNumber, date };
+// }
+
+// function extractSum(text) {
+//   // Implement logic to extract the sum from the text
+//   // Example: Use regular expressions to find a currency symbol and numeric value
+// }
+
+// function extractInvoiceNumber(text) {
+//   // Implement logic to extract the invoice number from the text
+// }
+
+// function extractDate(text) {
+//   // Implement logic to extract the date from the text
+// }
