@@ -20,6 +20,10 @@ export class UpdateSupplierDto {
     category: string;
 
     @IsOptional()
+    @IsString()
+    subCategory: string;
+
+    @IsOptional()
     @IsNumber()
     @Min(0)
     @Max(100)

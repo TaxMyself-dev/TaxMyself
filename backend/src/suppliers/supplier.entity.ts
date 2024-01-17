@@ -17,6 +17,9 @@ export class Supplier {
     @Column()
     category: string;
 
+    @Column()
+    subCategory: string;
+
     @Column('decimal')
     taxPercent: number;
   

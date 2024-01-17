@@ -1,8 +1,10 @@
 import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
+import { SupplierResponseDto } from './dtos/supplier-response.dto';
 import { SuppliersService } from './suppliers.service';
 import { AuthService } from 'src/users/auth.service';
+import { Supplier } from './supplier.entity';
 
 @Controller('suppliers')
 export class SuppliersController {
@@ -21,13 +23,22 @@ export class SuppliersController {
     return {message: "invalid user"};  
   }
 
+  @Get('get-suppliers-list')
+  async getSupplierNamesByUserId(@Body() body: UpdateSupplierDto): Promise<SupplierResponseDto[]> {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return this.supplierService.getSupplierNamesByUserId(userId);
+  }
+
+  @Get('get-supplier/:id')
+  async getSupplierById(@Param('id') id: number, @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return this.supplierService.getSupplierById(id, userId);
+  }
+
   @Patch('update-supplier/:id')
   async updateExpense(@Param('id') id: number, @Body() body: UpdateSupplierDto) {
-
     const userId = await this.authService.getFirbsaeIdByToken(body.token)
-
     return this.supplierService.updateSupplier(id, userId, body);
-
   }
 
   @Delete('delete-supplier/:id')

@@ -16,6 +16,9 @@ export class CreateSupplierDto {
     @IsString()
     category: string;
 
+    @IsString()
+    subCategory: string;
+
     @IsNumber()
     @Min(0)
     @Max(100)
