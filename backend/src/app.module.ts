@@ -6,16 +6,17 @@ import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
+import { ExcelModule } from './transactions/transactions.module';
 import { User } from './users/user.entity';
 import { Report } from './reports/report.entity';
 import { PreauthMiddleware } from './auth/preauth.middleware';
 import { Expense } from './expenses/expenses.entity';
 import { Supplier } from './suppliers/supplier.entity';
+import { Transactions } from './transactions/transactions.entity';
 import * as firebase from 'firebase-admin';
 import * as serviceAccount from './auth/firebaseServiceAccount.json';
 import { randomBytes, scrypt as _scrypt } from 'crypto';
 import { promisify } from 'util';
-//import { ExcelModule } from './excel/excel.module';
 
 import { VAT_RATE_2023 } from './constants';
 import { SuppliersModule } from './suppliers/suppliers.module';
@@ -45,9 +46,9 @@ const scrypt = promisify(_scrypt);
         username: 'fintaxco_taxmyself_dev',
         password: 'Fc3usTsjA3WG',
         database: 'fintaxco_taxmyself_dev',
-        entities: [User, Report, Expense, Supplier],
+        entities: [User, Report, Expense, Supplier, Transactions],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule, SuppliersModule],
+      UsersModule, ReportsModule, ExpensesModule, SuppliersModule, ExcelModule],
     controllers: [AppController],
     providers: [AppService],
 })
