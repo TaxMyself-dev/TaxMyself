@@ -7,8 +7,7 @@ import {
     PrimaryGeneratedColumn,
     OneToMany
  } from 'typeorm';
-import { Report } from 'src/reports/report.entity';
-import { Expense } from 'src/expenses/expenses.entity';
+import { UserRole } from 'src/enum';
 
 @Entity()
 export class User {
@@ -50,8 +49,12 @@ export class User {
     @Column()
     firebaseId: string;
 
-    //@OneToMany(() => Expense, (expense) => expense.user)
-    //expenses: Expense[];
+    @Column({
+        type: 'enum',
+        enum: UserRole,
+        default: UserRole.FREE_USER,
+      })
+      role: UserRole;
 
     @AfterInsert()
     logInsert() {

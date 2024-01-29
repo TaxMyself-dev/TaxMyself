@@ -12,6 +12,8 @@ import * as firebase from 'firebase-admin';
 import * as serviceAccount from '../auth/firebaseServiceAccount.json';
 import { log } from 'console';
 import * as admin from 'firebase-admin';
+import { getAuth, onAuthStateChanged, getIdTokenResult } from "firebase/auth";
+
 
 const firebase_params = {
     type: serviceAccount.type,
@@ -83,9 +85,61 @@ export class AuthService {
             } else {
                 throw new NotFoundException('Not a valid token');
             }
-           
         }
     }
+
+    // async setFirbsaeUserAsAdmin(userId: string) {
+    //     console.log("setFirbsaeUserAsAdmin - Start");
+    //     admin.auth().setCustomUserClaims(userId, { role: 'admin' })
+    //     .then(() => {
+    //       console.log('Custom claims set for user', userId);
+    //     })
+    //     .catch(error => {
+    //       console.log(error);
+    //     });
+    // }
+
+    // async checkIfUserIsAdmin(userId) {
+    //     try {
+    //       const userRecord = await admin.auth().getUser(userId);
+    //       const isAdmin = userRecord.customClaims && userRecord.customClaims.admin === true;
+    //       console.log(`Is user ${userId} an admin?`, isAdmin);
+    //       return isAdmin;
+    //     } catch (error) {
+    //       console.error('Error fetching user data:', error);
+    //       throw error; // Or handle error as needed
+    //     }
+    //   }
+      
+
+    // async checkAdminStatus() {
+    //     const auth = getAuth();
+    //     const user = auth.currentUser;
+      
+    //     if (user) {
+    //       getIdTokenResult(user).then((idTokenResult) => {
+    //         if (idTokenResult.claims.admin) {
+    //           console.log("The user is an admin.");
+    //           // Handle admin user
+    //         } else {
+    //           console.log("The user is not an admin.");
+    //           // Handle non-admin user
+    //         }
+    //       }).catch((error) => {
+    //         console.error("Error getting ID token result:", error);
+    //       });
+    //     } else {
+    //       console.log("No user is currently signed in.");
+    //       // Handle signed out state
+    //     }
+    //   }
+      
+
+
+
+
+
+
 
 
 

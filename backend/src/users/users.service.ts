@@ -9,33 +9,33 @@ export class UsersService {
 
     private defaultApp: any;
 
-    constructor(@InjectRepository(User) private repo: Repository<User>) {}
+    constructor(@InjectRepository(User) private user_repo: Repository<User>) {}
 
     create(userDto: CreateUserDto): Promise<User> {
-        const user = this.repo.create(userDto);
-        return this.repo.save(user);
+        const user = this.user_repo.create(userDto);
+        return this.user_repo.save(user);
     }
 
     async findUser(firebaseId: string) {
         if (!firebaseId) {
             return null;
         }
-        return this.repo.findOneBy({firebaseId});
+        return this.user_repo.findOneBy({firebaseId});
     }
 
     findOne(index: number) {
         if (!index) {
             return null;
         }
-        return this.repo.findOneBy({index});
+        return this.user_repo.findOneBy({index});
     }
 
     find(email: string) {
-        return this.repo.find({ where: {email} })
+        return this.user_repo.find({ where: {email} })
     }
 
     findFireUser(firebaseId: string) {
-        return this.repo.find({ where: {firebaseId} })
+        return this.user_repo.find({ where: {firebaseId} })
     }
 
     async update(id: number, attrs: Partial<User>) {
@@ -44,7 +44,7 @@ export class UsersService {
             throw new NotFoundException('user not found');
         }
         Object.assign(user, attrs);
-        return this.repo.save(user);
+        return this.user_repo.save(user);
     }
 
     async remove(id: number) {
@@ -52,7 +52,7 @@ export class UsersService {
         if (!user) {
             throw new NotFoundException('user not found');
         }
-        return this.repo.remove(user);
+        return this.user_repo.remove(user);
     }
 
     async getUserIdFromToken(token: string): Promise<string> {
@@ -67,21 +67,6 @@ export class UsersService {
             } else {
                 throw new NotFoundException('Not a valid token');
             }
-            //this.defaultApp.auth().verifyIdToken(token)
-            //    .then((decodedToken: { uid: any; }) => {
-                    //uid = decodedToken.uid;
-             //       console.log('User ID:', decodedToken.uid);
-             //       return decodedToken.uid;
-
-                    //return uid;
-                    //console.log("token")
-                    //console.log(token)
-                    //const user = this.userService.findUser(uid);
-                    //console.log(user);
-                    
-              //  }).catch((error: any) => {
-                //    console.error(error);
-                //});
         }
         console.log("uid is ", uid);
         

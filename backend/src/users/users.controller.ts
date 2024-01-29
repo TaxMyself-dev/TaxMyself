@@ -37,9 +37,7 @@ export class UsersController {
 
     @Post('/signin')
     @UseGuards(FirebaseAuthGuard)
-    async signin(@Body() body: any) {
-        console.log("asdf");
-        
+    async signin(@Body() body: any) {        
         console.log(body);
         const uid = await this.authService.signFire(body.token);
         console.log("firebase is " + uid);
@@ -48,63 +46,10 @@ export class UsersController {
         return user;
     }
 
-    // @Get('/:uid')
-    // async findUser(@Param('uid') uid: string) {
-    //     const user = await this.userService.findOne(uid);
-    //     if (!user) {
-    //         throw new NotFoundException('user not found');
-    //     }
-    //     return user;
-    // }
-
-    // @Post('/signin')
-    // getHello(@Req() request: Request): string {
-    //     console.log("aeaeaeae");
-    //     const my_email = request['user']?.email;
-    //     console.log("my email is " + my_email);
-    //     return ('Hello' + request['user']?.email);
-    // }
-
-    //@Get('/whoami')
-    //whoAmI(@Session() session: any) {
-    //    console.log('debug');
-    //    return this.userService.findOne(session.userId);
-    //}
-
-    // @UseGuards(AuthGuard)
-    // @Post('/signfire')
-    // async signFire(@Body() body: string) {
-    //     this.authService.signFire(body);
-    // }
-
-    // @Get('/whoami')
-    // @UseGuards(AuthGuard)
-    // whoAmI(@CurrentUser() user: User) {
-    //     return user;
-    // }
-
-
     @Post('/signout')
     signOut(@Session() session: any) {
         session.userId = null;
     }
-
-
-    // @Post('/signin')
-    // async signin(@Body() body: CreateUserDto, @Session() session: any) {
-    //     const user = await this.authService.signin(body.email, body.password);
-    //     session.userId = user.id;
-    //     return user;
-    // }
-
-    // @Get('/:id')
-    // async findUser(@Param('id') id: string) {
-    //     const user = await this.userService.findOne(parseInt(id));
-    //     if (!user) {
-    //         throw new NotFoundException('user not found');
-    //     }
-    //     return user;
-    // }
 
     @Get()
     findAllUsers(@Query('email') email: string) {
