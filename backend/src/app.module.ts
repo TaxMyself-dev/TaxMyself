@@ -15,7 +15,7 @@ import { PreauthMiddleware } from './auth/preauth.middleware';
 import { Expense } from './expenses/expenses.entity';
 import { Supplier } from './suppliers/supplier.entity';
 import { Transactions } from './transactions/transactions.entity';
-import { Category } from './expenses/categories.entity';
+import { DefaultCategory } from './expenses/categories.entity';
 
 import * as firebase from 'firebase-admin';
 import * as serviceAccount from './auth/firebaseServiceAccount.json';
@@ -50,7 +50,7 @@ const scrypt = promisify(_scrypt);
         username: 'fintaxco_taxmyself_dev',
         password: 'Fc3usTsjA3WG',
         database: 'fintaxco_taxmyself_dev',
-        entities: [User, Report, Expense, Supplier, Transactions, Category],
+        entities: [User, Report, Expense, Supplier, Transactions, DefaultCategory],
         synchronize: true}), // remove on production!!
       UsersModule, ReportsModule, ExpensesModule, SuppliersModule, ExcelModule],
     controllers: [AppController],

@@ -18,7 +18,13 @@ export class Expense {
   supplier: string;
 
   @Column()
+  supplierID: number;
+
+  @Column()
   category: string;
+
+  @Column()
+  subCategory: string;
 
   @Column('decimal')
   sum: number;
@@ -32,9 +38,6 @@ export class Expense {
   @Column('date')
   date: Date;
 
-  @Column('date')
-  loadingDate: Date;
-
   @Column({ nullable: true })
   note: string;
 
@@ -42,52 +45,15 @@ export class Expense {
   file: string;
 
   @Column('boolean')
-  equipment: boolean;
+  isEquipment: boolean;
 
   @Column()
   userId: string;
 
+  @Column('date')
+  loadingDate: Date;
+
   @Column()
   expenseNumber: string;
 
-  @Column()
-  supplierID: string
-
-  //@ManyToOne(() => User, (user) => user.expenses)
-  //user: string;
-
 }
-
-
-// @Entity()
-// export class Expense {
-//     @PrimaryGeneratedColumn()
-//     id: number;
-
-//     @Column({ type: 'date' })
-//     date_added: Date;
-  
-//     @Column({ type: 'float', precision: 10, scale: 2 })
-//     price: number;
-  
-//     @Column({ type: 'date' })
-//     date: Date;
-
-//     @Column()
-//     supplier: string;
-
-//     @Column()
-//     category: string;
-
-//     @Column()
-//     tax_percent: number;
-
-//     @Column()
-//     vat_percent: number;
-
-//     @Column()
-//     equipment: boolean;
-
-//     // @ManyToOne(() => User, (user) => user.expenses)
-//     // user: User;
-// }

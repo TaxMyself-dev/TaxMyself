@@ -51,22 +51,4 @@ export class SuppliersController {
   }
     
 
-//   @Get('get_by_supplier')
-//   async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
-//     return await this.expensesService.getExpensesBySupplier(supplier);
-//   }
-
-//   @Get('get_by_userID')
-//   async getExpensesByUserID(@Query('userID') userID: string): Promise<Expense[]> {
-//     console.log("this is user id that i send: ", userID);
-    
-//     return await this.expensesService.getExpensesByUserID(userID);
-//   }
-
-//   @Get('get_by_date')
-//   async getExpensesWithinDateRange(@Query('startDate') startDate: string, @Query('endDate') endDate: string): Promise<Expense[]> {
-//     return await this.expensesService.getExpensesWithinDateRange(startDate, endDate);
-//   }
-
-
 }

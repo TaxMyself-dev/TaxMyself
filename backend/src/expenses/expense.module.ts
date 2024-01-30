@@ -5,10 +5,11 @@ import { ExpensesService } from './expenses.service';
 import { AuthService } from 'src/users/auth.service';
 import { Expense } from './expenses.entity';
 import { User } from 'src/users/user.entity';
+import { DefaultCategory } from './categories.entity';
 import { UsersService } from 'src/users/users.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User])],
+  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory])],
   controllers: [ExpensesController],
   providers: [
     ExpensesService,

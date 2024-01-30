@@ -15,12 +15,16 @@ export class UpdateExpenseDto {
     supplier: string;
 
     @IsOptional()
-    @IsString()
-    supplierID: string;
+    @IsNumber()
+    supplierId: number;
     
     @IsOptional()
     @IsString()
     category: string;
+
+    @IsOptional()
+    @IsString()
+    subCategory: string;
 
     @IsOptional()
     @IsNumber()
@@ -48,6 +52,6 @@ export class UpdateExpenseDto {
     
     @IsOptional()
     @IsBoolean()
-    equipment: boolean;
+    isEquipment: boolean;
     
 }

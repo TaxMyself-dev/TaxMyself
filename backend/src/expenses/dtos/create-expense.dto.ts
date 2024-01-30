@@ -19,11 +19,14 @@ export class CreateExpenseDto {
     @IsString()
     supplier: string;
 
-    @IsString()
-    supplierID: string;
+    @IsNumber()
+    supplierId: number;
     
     @IsString()
     category: string;
+
+    @IsString()
+    subCategory: string;
 
     @IsNumber()
     sum: number;
@@ -47,5 +50,5 @@ export class CreateExpenseDto {
     
     @IsOptional()
     @IsBoolean()
-    equipment: boolean;
+    isEquipment: boolean;
 }

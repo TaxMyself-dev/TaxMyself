@@ -4,10 +4,10 @@ import { Repository, Between } from 'typeorm';
 import { Expense } from './expenses.entity';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { User } from 'src/users/user.entity';
-import { GetExpenseDto } from './dtos/get-expense.dto';
 import * as admin from 'firebase-admin';
 import { Storage } from '@google-cloud/storage';
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
+import { DefaultCategory } from './categories.entity';
 
 
 @Injectable()
@@ -16,8 +16,7 @@ export class ExpensesService {
     constructor
     (
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
-        //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
-
+        @InjectRepository(DefaultCategory) private category_repo: Repository<DefaultCategory>,
         //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
@@ -72,6 +71,13 @@ export class ExpensesService {
         // Delete the expense from the database
         await this.expense_repo.remove(expense);
 
+    }
+
+
+    async addDefaultCategory(category: Partial<DefaultCategory>): Promise<DefaultCategory> {
+        console.log("addCategory - start");
+        const newCategory = this.category_repo.create(category);
+        return await this.category_repo.save(newCategory);
     }
 
     // async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
@@ -158,24 +164,6 @@ export class ExpensesService {
         return this.expense_repo.remove(expense);
     }
 
-    // getUserExpensesByDates({userId, price, tax_percent}: GetExpenseDto) {
-    //     console.log(userId);
-    //     return this.repo
-    //     .createQueryBuilder()
-    //     .select('*')
-    //     .where('userId = :userId', { userId})
-    //     //.andWhere('price = :price', { price})
-    //     //.andWhere('tax_percent = :tax_percent', { tax_percent})
-    //     .getRawMany()
-    // }
-
-    getSumOfExpenses(expenses_arr: GetExpenseDto[]): number {
-        let sum: number = 0;
-        expenses_arr.forEach(element => {
-            sum += element.price;
-        });
-        return sum;
-    }
 
     async findAllByUserId(id: string): Promise<Expense[]> {
         const expenses_list = await this.expense_repo.find({ where: { id: parseInt(id) } });
