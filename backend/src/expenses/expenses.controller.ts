@@ -1,9 +1,10 @@
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { AuthService } from 'src/users/auth.service';
 import { query } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import * as tesseract from 'tesseract.js';
+import { throwError } from 'rxjs';
 
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
@@ -13,6 +14,7 @@ import { UpdateCategoryDto } from './dtos/update-category.dto';
 
 //Guards
 import { AdminGuard } from 'src/guards/admin.guard';
+import { Expense } from './expenses.entity';
 
 
 @Controller('expenses')
@@ -20,20 +22,25 @@ import { AdminGuard } from 'src/guards/admin.guard';
 export class ExpensesController {
   constructor(
     private expensesService: ExpensesService,
-    private authService: AuthService) {}
+    private authService: AuthService) { }
 
 
   @Post('add')
   async addExpense(@Body() body: CreateExpenseDto) {
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
-    console.log("body of expense :", body);
-    console.log("user id in addExpense :", userId);
-    return await this.expensesService.addExpense(body, userId); 
-  } 
-  catch (error) {
-    console.log("משתמש לא חוקי");
-    console.log("this is errorrrrrrrr :",error);
-    return {message: "invalid user"};  
+    try {
+      console.log("nbhjbklmmlkjlkmm");
+      const userId = await this.authService.getFirbsaeIdByToken(body.token)
+      console.log("afterafter");
+      console.log("body of expense :", body);
+      console.log("user id in addExpense :", userId);
+      const res = await this.expensesService.addExpense(body, userId);
+      return res;
+    }
+    catch (error) {
+      console.log("invalid user");
+      console.log("this is errorrrrrrrr :", error);
+      throw new NotFoundException(error.message);
+    }
   }
 
 
@@ -51,6 +58,13 @@ export class ExpensesController {
     console.log("controller delete expense - Start");
     const userId = await this.authService.getFirbsaeIdByToken(body.token)
     return this.expensesService.deleteExpense(id, userId);
+  }
+
+  @Get('get_by_userID')
+  async getExpensesByUserID(@Query('userID') userID: string): Promise<Expense[]> {
+    console.log("this is user id that i send: ", userID);
+
+    return await this.expensesService.getExpensesByUserID(userID);
   }
 
 

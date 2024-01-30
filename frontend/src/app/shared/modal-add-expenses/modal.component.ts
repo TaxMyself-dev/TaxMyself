@@ -1,5 +1,5 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter } from '@angular/core';
-import { FormBuilder, FormGroup,FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IonModal, ModalController } from '@ionic/angular';
 import { IonDatetime } from '@ionic/angular';
 import { OverlayEventDetail } from '@ionic/core/components';
@@ -7,10 +7,14 @@ import { IColumnDataTable } from '../interface';
 import axios from 'axios';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
-import { getStorage, ref, uploadString } from "@angular/fire/storage";
-import { nanoid } from 'nanoid';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { FilesService } from 'src/app/services/files.service';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { EMPTY, Observable, throwError } from 'rxjs';
+import { catchError, delay, finalize, map, startWith, switchMap, tap } from 'rxjs/operators';
+
+
 
 
 
@@ -35,24 +39,25 @@ export class ModalExpensesComponent implements OnInit {
   selectedProvider = { name: "", vat: "", tax: "" };
   provInput = "";
   selctedFile: File | null = null;
-  uniqueId: string;
-  arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
-  selectedFile: string;
+  // uniqueId: string;
+  // arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
+  selectedFile: string = "";
 
-  constructor(private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController) {
+  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private http: HttpClient) {
 
     this.myForm = this.formBuilder.group({
-      category: ['', Validators.required],
-      supplier: ['', [Validators.required]],
+      category: ['',],
+      subCategory: ['',],
+      supplier: ['',],
       sum: ['', Validators.required],
       taxPercent: ['', Validators.required],
       vatPercent: ['', Validators.required],
       date: ['', Validators.required],
-      note: ['', Validators.required],
-      expenseNumber: ['', Validators.required],
-      supplierID: ['', Validators.required],
+      note: ['',],
+      expenseNumber: ['',],
+      supplierID: ['',],
       file: ['', Validators.required],
-      equipment: [false, Validators.required]
+      equipment: [false,]
     });
   }
 
@@ -60,9 +65,6 @@ export class ModalExpensesComponent implements OnInit {
     console.log("in file selected");
     let file = event.target.files[0];
     console.log(file);
-    console.log(file.name);
-    const name = file.name;
-
     if (file) {
       console.log("in file ");
       const reader = new FileReader();
@@ -71,24 +73,6 @@ export class ModalExpensesComponent implements OnInit {
         this.selectedFile = reader.result as string;
       }
     }
-  }
-
-  async uploadFileViaFront(base64String: string) {
-    console.log("in uploadFileViaFront ");
-    const i = Math.floor((Math.random() * 100) % 3);
-    console.log("i of array: ", i);
-
-    this.uniqueId = nanoid();
-    const storage = getStorage(); // bucket root
-    const fileRef = ref(storage, this.arrayFolder[i] + "/" + this.uniqueId); // full path relative to bucket's root
-    console.log(fileRef);
-    console.log("uuid: ", this.uniqueId);
-    const filePath = uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
-      console.log('Uploaded a data_url string!');
-      console.log("fullPath :", snapshot.metadata.fullPath);
-      return snapshot.metadata.fullPath;
-    });
-    return filePath;
   }
 
 
@@ -102,43 +86,53 @@ export class ModalExpensesComponent implements OnInit {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
-  async confirm() {
-    this.modalCtrl.dismiss(this.name, 'confirm');
-    const token = localStorage.getItem('token');
-    console.log("token from local storage in confirm", token);
-    const filePath = await this.uploadFileViaFront(this.selectedFile);
-    this.myForm.get('file').setValue(filePath);
-    this.myForm.addControl('token',this.formBuilder.control(token));
-    const formData = this.myForm.value;
-    formData.sum = parseInt(formData.sum, 10); 
-    formData.taxPercent = parseInt(formData.taxPercent, 10); 
-    formData.vatPercent = parseInt(    formData.vatPercent, 10); 
-    formData.date = formData.date ? new Date(formData.date).toISOString() : null;
-    console.log(formData);
-    axios.post('http://localhost:3000/expenses/add', formData)
-      .then((response) => {
-        console.log(response);
-        if (response.data.message == "invalid user") {
-          console.log(response.data.message);
-          this.openPopupMessage(response.data.message);
-        }
-        else {
-          this.expenseDataServise.getExpenseByUser().subscribe(
-            (response) => {
-              if (response) {
-                this.expenseDataServise.updateTable$.next(true);//I need to check what updateTable does
-              }
-            }
-          )
-        }
+ 
+  confirm() {
+    let filePath = '';
+    this.fileService.uploadFileViaFront(this.selectedFile).pipe(
+      finalize(() => this.modalCtrl.dismiss(this.name, 'confirm')),
+      catchError((err) => {
+        alert('Something Went Wrong in first catchError: ' + err.error.message.join(', '))
+        return EMPTY;
+      }),
+      map((res) => {
+        console.log('Uploaded a data_url string! this is the response: ', res);
+        filePath = res.metadata.fullPath;
+        const token = localStorage.getItem('token');
+        return this.setFormData(filePath, token);
+      }),
+      switchMap((res) => this.addExpenseData(res)),
+      catchError((err) => {
+        alert('Something Went Wrong in second catchError ' + err.error.message)
+        this.fileService.deleteFile(filePath);
+        return EMPTY; // of('error')
       })
-      .catch((err) => {
-        console.log("this is error :", err);
-        console.log("err.data.message ;",err.response.data.message);
-        this.openPopupMessage(err.response.data.message);
-        
-      })
+    ).subscribe((res) => {
+      console.log('Saved expense data in DB. The response is: ', res);
+      if (res) { // TODO: why returning this object from BE?
+        this.expenseDataServise.updateTable$.next(true); 
+      }
+    });
+  }
 
+
+  setFormData(filePath: string, token: string) {
+    const formData = this.myForm.value;
+    console.log("my-form: ", this.myForm);
+    // TODO: chsnge from string to number in Form Builder to void casting here
+    formData.sum = parseInt(formData.sum, 10);
+    formData.taxPercent = parseInt(formData.taxPercent, 10);
+    formData.vatPercent = parseInt(formData.vatPercent, 10);
+    formData.date = formData.date ? new Date(formData.date).toISOString() : null;
+    formData.file = filePath;
+    formData.token = this.formBuilder.control(token).value; // TODO: check when token is invalid
+    console.log(formData);
+    return formData;
+  }
+
+  // TODO: change <any> , add type to data param
+  addExpenseData(data: any): Observable<any> {
+    return this.http.post('http://localhost:3000/expenses/add', data);
   }
 
   onWillDismiss(event: Event) {
@@ -212,7 +206,7 @@ export class ModalExpensesComponent implements OnInit {
 
   ngOnInit() {
     console.log("columns of form: ", this.columns);
-    
+
   }
 }
 

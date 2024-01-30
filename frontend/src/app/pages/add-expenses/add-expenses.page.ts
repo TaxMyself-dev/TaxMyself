@@ -34,7 +34,7 @@ export class AddInvoicePage implements OnInit {
 
   ngOnInit() {
 
-    this.columns = this.expenseDataServise.getShowExpenseColumns()
+    this.columns = this.expenseDataServise.getAddExpenseColumns()
 
     //this.setColumns();
     //this.columns = this.expenseDataServise.getAddExpenseColumns();

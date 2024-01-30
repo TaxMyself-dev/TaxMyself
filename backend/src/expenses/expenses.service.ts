@@ -30,7 +30,11 @@ export class ExpensesService {
         newExpense.loadingDate = new Date();
         console.log("this is a newExpense :", newExpense);
         console.log("addExpense - end");
-        return await this.expense_repo.save(newExpense);
+        const resAddExpense = await this.expense_repo.save(newExpense);
+        if (!resAddExpense || Object.keys(resAddExpense).length === 0){
+            throw new Error ("expense not saved");
+        }
+        return resAddExpense;
     }
 
     async updateExpense(id: number, userId: string, updateExpenseDto: UpdateExpenseDto): Promise<Expense> {

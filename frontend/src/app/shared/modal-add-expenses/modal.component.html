@@ -1,65 +1,134 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>הוסף הוצאה</ion-title>
+    <div>* שדות שמסומנים בכוכבית הם שדות חובה</div>
+  </ion-toolbar>
+</ion-header>
+<ion-content class="ion-padding">
+  <form [formGroup]="myForm" (ngSubmit)="confirm()">
+    <ion-list>
+      <ng-container *ngFor="let col of columns | keyvalue: valueAscOrder">
+      <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
+        <!--taxPercent && vatPercent-->
+        <ion-select *ngIf="col.key === 'taxPercent' || col.key === 'vatPercent'; else datetime" label="* {{col.value}}"
+          formControlName="{{col.key}}" label-placement="floating" interface="popover">
+          <ion-select-option value="">נא לבחור</ion-select-option>
+          <ion-select-option value="25">25%</ion-select-option>
+          <ion-select-option value="33">33%</ion-select-option>
+          <ion-select-option value="66">66%</ion-select-option>
+        </ion-select>
+        <!-----------date--------------->
+        <ng-template #datetime>
+          <ion-input *ngIf="col.key === 'date'; else file" label="* {{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="date">
+          </ion-input>
+        </ng-template>
+        <!-----------add file--------------->
+        <ng-template #file>
+          <ion-input *ngIf="col.key === 'file'; else input" (input)=fileSelected($event) label="* {{col.value}}"
+            label-placement="floating" formControlName="{{col.key}}" type="file">
+          </ion-input>
+        </ng-template>
+        <!----------- all the rest --------------->
+        <ng-template #input>
+          <ion-input *ngIf="col.key === 'note' || col.key === 'expenseNumber'; else sum" label="{{col.value}}"
+            label-placement="floating" formControlName="{{col.key}}" type="text">
+          </ion-input>
+        </ng-template>
+        <!----------- sum --------------->
+        <ng-template #sum>
+          <ion-input *ngIf="col.key === 'sum'; else supplier" label="* {{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="number">
+          </ion-input>
+        </ng-template>
+        <!----------- supplier --------------->
+        <ng-template #supplier>
+          <ion-input *ngIf="col.key === 'supplier';else category" [(ngModel)]=provInput
+            (input)=checkIfProviderExist($event) label="{{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="text">
+          </ion-input>
+        </ng-template>
+        <!----------- category --------------->
+        <ng-template #category>
+          <ion-input *ngIf="col.key === 'category';else subCategory" label="{{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="text">
+          </ion-input>
+        </ng-template>
+        <!----------- sub-category --------------->
+        <ng-template #subCategory>
+          <ion-input *ngIf="col.key === 'subCategory';else supplierID" label="{{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="text">
+          </ion-input>
+        </ng-template>
+        <!----------- supplierID --------------->
+        <ng-template #supplierID>
+          <ion-input *ngIf="col.key === 'supplierID'" label="{{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="text">
+          </ion-input>
+        </ng-template>
+      </ion-item>
+      </ng-container>
+      <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
+        <ion-item *ngFor="let provider of matches" (click)="selectProvider(provider)">{{ provider.name }}</ion-item>
+      </ion-list>
+      <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox>
+    </ion-list>
+    <ion-button type="submit" [strong]="true">הוסף</ion-button>
+    <ion-button color="medium" (click)="cancel()">ביטול</ion-button>
+  </form>
+</ion-content>
 
 
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>הוסף הוצאה</ion-title>
-        </ion-toolbar>
-      </ion-header>
-      <ion-content class="ion-padding">
-        <form [formGroup]="myForm" (ngSubmit)="confirm()">
-          <ion-list>
-            <ng-container *ngFor="let col of columns | keyvalue: valueAscOrder">
-              <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
-               <!--taxPercent && vatPercent-->
-                <ion-select *ngIf="col.key === 'taxPercent' || col.key === 'vatPercent';else datetime"  label="{{col.value}}" formControlName="{{col.key}}"
-                label-placement="floating" interface="popover">
-                <ion-select-option value="25">25%</ion-select-option>
-                <ion-select-option value="33">33%</ion-select-option>
-                <ion-select-option value="66">66%</ion-select-option>
-              </ion-select>
-              <!-----------date--------------->
-              <ng-template #datetime>
-                <ion-input *ngIf="col.key === 'date'; else file"  label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="date">
-                </ion-input>
-              </ng-template>
-               <!-----------add file--------------->
-              <ng-template #file>
-                <ion-input *ngIf="col.key === 'file'; else input"  (input)=fileSelected($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="file">
-                </ion-input>
-              </ng-template>
-               <!----------- all the rest --------------->
-              <ng-template #input>
-                <ion-input *ngIf="col.key === 'sum' || col.key === 'note' || col.key === 'expenseNumber'; else supplier"  label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
-                </ion-input>
-              </ng-template>
-               <!----------- supplier --------------->
-              <ng-template #supplier>
-                <ion-input *ngIf="col.key === 'supplier';else category"  [(ngModel)] = provInput (input) = checkIfProviderExist($event) label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
-                </ion-input>
-              </ng-template>
-              <!----------- category --------------->
-              <ng-template #category>
-                <ion-input *ngIf="col.key === 'category';else supplierID" label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
-                </ion-input>
-              </ng-template>
-              <!----------- supplierID --------------->
-              <ng-template #supplierID>
-                <ion-input *ngIf="col.key === 'supplierID'" label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text">
-                </ion-input>
-              </ng-template>
-            </ion-item>
-          </ng-container>
-          <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
-            <ion-item *ngFor="let provider of matches" (click)="selectProvider(provider)">{{ provider.name }}</ion-item>
-          </ion-list>
-          <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox>
-          </ion-list>
-          <ion-button type="submit" [strong]="true">הוסף</ion-button>
-          <ion-button color="medium" (click)="cancel()">ביטול</ion-button>
-        </form>
-      </ion-content>
-      
 
 
- 
 
+
+
+<ng-template>
+  <ion-list>
+    <!----------- supplier --------------->
+    <ion-item><ion-input formControlName="supplier" label="ספק" label-placement="floating" type="text"
+        [(ngModel)]=provInput (input)=checkIfProviderExist($event)></ion-input></ion-item>
+    <!-----------date--------------->
+    <ion-item><ion-input formControlName="date" label="תאריך *" label-placement="floating"
+        type="date"></ion-input></ion-item>
+    <!----------- sum --------------->
+    <ion-item><ion-input formControlName="sum" label="סכום *" label-placement="floating"
+        type="number"></ion-input></ion-item>
+    <!----------- category --------------->
+    <ion-item><ion-input formControlName="category" label="קטגוריה" label-placement="floating"
+        type="text"></ion-input></ion-item>
+    <!----------- expenseNumber --------------->
+    <ion-item><ion-input formControlName="expenseNumber" label="{{col.value}}" label-placement="floating"
+        type="text"></ion-input></ion-item>
+    <!------------vatPercent----------->
+    <ion-item><ion-select formControlName="vatPercent" label="* {{col.value}}" label-placement="floating"
+        interface="popover">
+        <ion-select-option value="">נא לבחור</ion-select-option>
+        <ion-select-option value="25">25%</ion-select-option>
+        <ion-select-option value="33">33%</ion-select-option>
+        <ion-select-option value="66">66%</ion-select-option>
+      </ion-select></ion-item>
+    <!---------taxPercent--------->
+    <ion-item><ion-select formControlName="taxPercent" label="* {{col.value}}" label-placement="floating"
+        interface="popover">
+        <ion-select-option value="">נא לבחור</ion-select-option>
+        <ion-select-option value="25">25%</ion-select-option>
+        <ion-select-option value="33">33%</ion-select-option>
+        <ion-select-option value="66">66%</ion-select-option>
+      </ion-select></ion-item>
+    <!----------- supplierID --------------->
+    <ion-item><ion-input formControlName="supplierID" label="{{col.value}}" label-placement="floating"
+        type="text"></ion-input></ion-item>
+    <!-----------add file--------------->
+    <ion-item><ion-input formControlName="file" label="* {{col.value}}" label-placement="floating" type="file"
+        (input)=fileSelected($event)></ion-input></ion-item>
+    <!----------- note --------------->
+    <ion-item><ion-input formControlName="note" label="{{col.value}}" label-placement="floating"
+        type="text"></ion-input></ion-item>
+    <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
+      <ion-item *ngFor="let provider of matches" (click)="selectProvider(provider)">{{ provider.name }}</ion-item>
+    </ion-list>
+    <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox>
+  </ion-list>
+</ng-template>

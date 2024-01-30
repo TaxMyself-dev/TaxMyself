@@ -51,4 +51,17 @@ export class SuppliersController {
   }
     
 
+//   @Get('get_by_supplier')
+//   async getExpensesBySupplier(@Query('supplier') supplier: string): Promise<Expense[]> {
+//     return await this.expensesService.getExpensesBySupplier(supplier);
+//   }
+
+
+
+//   @Get('get_by_date')
+//   async getExpensesWithinDateRange(@Query('startDate') startDate: string, @Query('endDate') endDate: string): Promise<Expense[]> {
+//     return await this.expensesService.getExpensesWithinDateRange(startDate, endDate);
+//   }
+
+
 }

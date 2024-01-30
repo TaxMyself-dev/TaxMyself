@@ -38,7 +38,7 @@ export class AuthService {
 
     constructor(@InjectRepository(User) private repo: Repository<User>, private userService: UsersService) {
         this.firebaseAuth = admin.auth();
-          
+
         // this.defaultApp = firebase.initializeApp({
         //     credential: firebase.credential.cert(firebase_params),
         //     databaseURL: "https://fir-auth-bd895.firebaseio.com",
@@ -54,7 +54,7 @@ export class AuthService {
         const user = this.repo.create(createUserDto);
         return this.repo.save(createUserDto);
     }
-    
+
     async signFire(token: string): Promise<string> {
         console.log("Debug");
         let uid: string;
@@ -75,6 +75,20 @@ export class AuthService {
     async getFirbsaeIdByToken(token: string): Promise<string> {
         console.log("getFirbsaeIdByToken - Start");
         let uid: string;
+        if (token == null && token == '' && token == undefined) {
+            throw new Error("invalid token");
+        }
+        
+        const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
+        uid = firebaseUserData.uid;
+        console.log("this is uid after verify" ,uid);
+        
+        if (uid == null && uid == '' && uid == undefined) {
+            throw new Error("invalid token");
+        }
+        console.log('User ID in getFirbsaeIdByToken :', uid);
+        console.log("getFirbsaeIdByToken - End");
+        return uid
         if (token != null && token != '') {
             const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
             uid = firebaseUserData.uid;
@@ -87,6 +101,63 @@ export class AuthService {
             }
         }
     }
+        
+    // async setFirbsaeUserAsAdmin(userId: string) {
+    //     console.log("setFirbsaeUserAsAdmin - Start");
+    //     admin.auth().setCustomUserClaims(userId, { role: 'admin' })
+    //     .then(() => {
+    //       console.log('Custom claims set for user', userId);
+    //     })
+    //     .catch(error => {
+    //       console.log(error);
+    //     });
+    // }
+
+    // async checkIfUserIsAdmin(userId) {
+    //     try {
+    //       const userRecord = await admin.auth().getUser(userId);
+    //       const isAdmin = userRecord.customClaims && userRecord.customClaims.admin === true;
+    //       console.log(`Is user ${userId} an admin?`, isAdmin);
+    //       return isAdmin;
+    //     } catch (error) {
+    //       console.error('Error fetching user data:', error);
+    //       throw error; // Or handle error as needed
+    //     }
+    //   }
+      
+
+    // async checkAdminStatus() {
+    //     const auth = getAuth();
+    //     const user = auth.currentUser;
+      
+    //     if (user) {
+    //       getIdTokenResult(user).then((idTokenResult) => {
+    //         if (idTokenResult.claims.admin) {
+    //           console.log("The user is an admin.");
+    //           // Handle admin user
+    //         } else {
+    //           console.log("The user is not an admin.");
+    //           // Handle non-admin user
+    //         }
+    //       }).catch((error) => {
+    //         console.error("Error getting ID token result:", error);
+    //       });
+    //     } else {
+    //       console.log("No user is currently signed in.");
+    //       // Handle signed out state
+    //     }
+    //   }
+      
+
+
+
+
+
+
+
+
+
+    
 
     // async setFirbsaeUserAsAdmin(userId: string) {
     //     console.log("setFirbsaeUserAsAdmin - Start");

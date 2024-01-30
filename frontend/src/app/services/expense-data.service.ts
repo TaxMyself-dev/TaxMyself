@@ -10,11 +10,12 @@ export class ExpenseDataService {
   
   constructor(private http: HttpClient) { }
 
-  private readonly columnsShowExpense = {//mock data 
+  private readonly columnsAddExpense = {//mock data 
     supplier: 'ספק',
     date: 'תאריך',
     sum: 'סכום',
     category: 'קטגוריה',
+    subCategory: 'תת-קטגוריה',
     expenseNumber: 'מספר חשבונית',
     vatPercent: 'אחוז מוכר למעמ',
     taxPercent: 'אחוז מוכר למס',
@@ -25,11 +26,12 @@ export class ExpenseDataService {
     totalVat: 'מוכר למעמ',
   } as IColumnDataTable;
 
-  private readonly columnsShowExpenseOrder = [
+  private readonly columnsAddExpenseOrder = [
     'supplier',
     'date',
     'sum',
     'category',
+    'subCategory',
     'expenseNumber',
     'vatPercent',
     'taxPercent',
@@ -40,9 +42,10 @@ export class ExpenseDataService {
     'totalVat'
   ];
 
-  private readonly columnsAddExpense = {//mock data 
+  private readonly columnsShowExpense = {//mock data 
     date: 'תאריך',
     category: 'קטגוריה',
+    subCategory: 'תת-קטגוריה',
     supplier: 'ספק',
     sum: 'סכום',
     taxPercent: 'אחוז מוכר למס',
@@ -56,7 +59,7 @@ export class ExpenseDataService {
 
 
   public getColomnsOrder(): string[] {
-    return this.columnsShowExpenseOrder;
+    return this.columnsAddExpenseOrder;
   }
 
   public getExpenseByUser(userID?: string): Observable<IRowDataTable[]>{
@@ -64,7 +67,7 @@ export class ExpenseDataService {
     const options = {
       params: new HttpParams().set("userID",userID),
     }
-    return this.http.get(url,options) as Observable<IRowDataTable[]>;
+    return this.http.get<IRowDataTable[]>(url,options);
   }
 
   public addExpense(){

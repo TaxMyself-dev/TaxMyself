@@ -146,7 +146,7 @@ export class AuthService {
             axios.post('http://localhost:3000/auth/signin', { token })
               .then((response) => {
               })
-            console.log("data:", token);
+            //console.log("data:", token);
           })
           .catch((err) => {
             console.log(err);

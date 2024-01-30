@@ -19,8 +19,11 @@ export class CreateExpenseDto {
     @IsString()
     supplier: string;
 
-    @IsNumber()
-    supplierId: number;
+    @IsString()
+    supplierID: string;
+
+    @IsString()
+    expenseNumber:string;
     
     @IsString()
     category: string;

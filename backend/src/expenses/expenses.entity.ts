@@ -18,7 +18,7 @@ export class Expense {
   supplier: string;
 
   @Column()
-  supplierID: number;
+  supplierID: string;
 
   @Column()
   category: string;
