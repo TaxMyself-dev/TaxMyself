@@ -9,17 +9,11 @@ export class ReportsController {
     constructor(private reportsService: ReportsService) {}
 
     @Get('vat-report')
-    
         async getVatReport(@Query() query: VatReportRequestDto): Promise<VatReportDto> {
-
         console.log("getVarReport - start");
-
         console.log(query);
-
         const vatReport = await this.reportsService.createVatReport(query);
-    
         console.log(vatReport);
-    
         return vatReport;
     }
 

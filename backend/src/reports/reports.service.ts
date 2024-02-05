@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Report } from './report.entity'; 
 import { Expense } from 'src/expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';

@@ -5,7 +5,6 @@ import { TypeOrmModule } from '@nestjs/typeorm'
 import { Expense } from 'src/expenses/expenses.entity';
 import { DefaultCategory } from 'src/expenses/categories.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
-import { Report } from './report.entity';
 //Controllers
 import { ReportsController } from './reports.controller';
 //Services
@@ -14,7 +13,7 @@ import { ExpensesService } from 'src/expenses/expenses.service';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report, Expense, DefaultCategory, Supplier])],
+  imports: [TypeOrmModule.forFeature([Expense, DefaultCategory, Supplier])],
   controllers: [ReportsController],
   providers: [ReportsService, ExpensesService]
 })

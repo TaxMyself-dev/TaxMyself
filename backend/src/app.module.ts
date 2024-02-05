@@ -8,7 +8,6 @@ import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
 import { ExcelModule } from './transactions/transactions.module';
 import { User } from './users/user.entity';
-import { Report } from './reports/report.entity';
 import { PreauthMiddleware } from './auth/preauth.middleware';
 
 //Entities
@@ -49,7 +48,7 @@ const scrypt = promisify(_scrypt);
         username: 'fintaxco_taxmyself_dev',
         password: 'Fc3usTsjA3WG',
         database: 'fintaxco_taxmyself_dev',
-        entities: [User, Report, Expense, Supplier, Transactions, DefaultCategory],
+        entities: [User, Expense, Supplier, Transactions, DefaultCategory],
         synchronize: true}), // remove on production!!
       UsersModule, ReportsModule, ExpensesModule, ExcelModule],
     controllers: [AppController],
@@ -67,11 +66,3 @@ export class AppModule {
     });
   }
 }
-
-// export class AppModule implements NestModule {
-//   configure(consumer: MiddlewareConsumer) {
-//     consumer.apply(PreauthMiddleware).forRoutes({
-//       path: '*', method: RequestMethod.ALL
-//     });
-//   }
-// }
