@@ -1,21 +1,26 @@
+//General
 import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { AuthService } from 'src/users/auth.service';
-import { query } from 'express';
-import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import * as tesseract from 'tesseract.js';
-import { throwError } from 'rxjs';
-
+//Entities
+import { Expense } from './expenses.entity';
+import { DefaultCategory } from './categories.entity';
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { CreateCategoryDto } from './dtos/create-category.dto';
 import { UpdateCategoryDto } from './dtos/update-category.dto';
-
+import { CreateSupplierDto } from './dtos/create-supplier.dto';
+import { UpdateSupplierDto } from './dtos/update-supplier.dto';
+import { SupplierResponseDto } from './dtos/response-supplier.dto';
 //Guards
 import { AdminGuard } from 'src/guards/admin.guard';
-import { Expense } from './expenses.entity';
 
+
+import { query } from 'express';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import * as tesseract from 'tesseract.js';
+import { throwError } from 'rxjs';
 
 @Controller('expenses')
 //@UseGuards(FirebaseAuthGuard)
@@ -68,11 +73,75 @@ export class ExpensesController {
   }
 
 
+///////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////               Categories            /////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+
   @Post('add-default-category')
   @UseGuards(AdminGuard)
   async addDefaultCategory(@Body() body: CreateCategoryDto) {
     return await this.expensesService.addDefaultCategory(body); 
   } 
+
+
+  @Get('get-categories-list')
+  async getAllCategories(): Promise<string[]> {
+    return this.expensesService.getAllCategories();
+  }
+
+
+  @Get('get-sub-categories-list')
+  async getSubCategoriesByCategory(@Query('category') category: string): Promise<DefaultCategory[]> {
+    return this.expensesService.getSubcategoriesByCategory(category);
+  }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////               Suppliers             /////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+
+  @Post('add-supplier')
+  async addSupplier(@Body() body: CreateSupplierDto) {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return await this.expensesService.addSupplier(body, userId); 
+  } 
+  catch (error) {
+    return {message: "invalid user"};  
+  }
+
+
+  @Patch('update-supplier/:id')
+  async updateSupplier(@Param('id') id: number, @Body() body: UpdateSupplierDto) {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return this.expensesService.updateSupplier(id, userId, body);
+  }
+
+
+  @Delete('delete-supplier/:id')
+  async deleteSupplier(@Param('id') id: number, @Body() body: UpdateSupplierDto) {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return this.expensesService.deleteSupplier(id, userId);
+  }
+
+
+  @Get('get-suppliers-list')
+  async getSupplierNamesByUserId(@Body() body: UpdateSupplierDto): Promise<SupplierResponseDto[]> {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return this.expensesService.getSupplierNamesByUserId(userId);
+  }
+
+
+  @Get('get-supplier/:id')
+  async getSupplierById(@Param('id') id: number, @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
+    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    return this.expensesService.getSupplierById(id, userId);
+  }
+
+
+
+
 
  
 }

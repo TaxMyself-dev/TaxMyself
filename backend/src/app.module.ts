@@ -13,7 +13,7 @@ import { PreauthMiddleware } from './auth/preauth.middleware';
 
 //Entities
 import { Expense } from './expenses/expenses.entity';
-import { Supplier } from './suppliers/supplier.entity';
+import { Supplier } from './expenses/suppliers.entity';
 import { Transactions } from './transactions/transactions.entity';
 import { DefaultCategory } from './expenses/categories.entity';
 
@@ -23,7 +23,6 @@ import { randomBytes, scrypt as _scrypt } from 'crypto';
 import { promisify } from 'util';
 
 import { VAT_RATE_2023 } from './constants';
-import { SuppliersModule } from './suppliers/suppliers.module';
 
 const cookieSession = require('cookie-session');
 
@@ -52,7 +51,7 @@ const scrypt = promisify(_scrypt);
         database: 'fintaxco_taxmyself_dev',
         entities: [User, Report, Expense, Supplier, Transactions, DefaultCategory],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule, SuppliersModule, ExcelModule],
+      UsersModule, ReportsModule, ExpensesModule, ExcelModule],
     controllers: [AppController],
     providers: [AppService],
 })

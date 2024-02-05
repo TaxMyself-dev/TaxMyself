@@ -1,13 +1,20 @@
+//General
 import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository} from 'typeorm';
+//Entities
 import { Expense } from './expenses.entity';
-import { CreateExpenseDto } from './dtos/create-expense.dto';
+import { Supplier } from './suppliers.entity';
+import { DefaultCategory } from './categories.entity';
+//DTOs
+import { UpdateExpenseDto } from './dtos/update-expense.dto';
+import { UpdateSupplierDto } from './dtos/update-supplier.dto';
+import { SupplierResponseDto } from './dtos/response-supplier.dto';
+
 import { User } from 'src/users/user.entity';
 import * as admin from 'firebase-admin';
 import { Storage } from '@google-cloud/storage';
-import { UpdateExpenseDto } from './dtos/update-expense.dto';
-import { DefaultCategory } from './categories.entity';
+import { CreateCategoryDto } from './dtos/create-category.dto';
 
 
 @Injectable()
@@ -17,9 +24,8 @@ export class ExpensesService {
     (
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
         @InjectRepository(DefaultCategory) private category_repo: Repository<DefaultCategory>,
-        //@InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
+        @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
-
 
 
     async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
@@ -78,36 +84,98 @@ export class ExpensesService {
     }
 
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////               Categories            /////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+
     async addDefaultCategory(category: Partial<DefaultCategory>): Promise<DefaultCategory> {
         console.log("addCategory - start");
         const newCategory = this.category_repo.create(category);
         return await this.category_repo.save(newCategory);
     }
 
-    // async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
-    //     console.log("addSupplier - start");
-    //     const newSupplier = this.supplier_repo.create(supplier);
-    //     newSupplier.userId = userId;
-    //     console.log(newSupplier);
-    //     return await this.supplier_repo.save(newSupplier);
-    // }
 
-    // async getSupplierDetail(name: string, userid: number): Promise<Supplier | null> {
-    //     return await this.supplierRepository.findOne({
-    //       where: { name, userid },
-    //     });
-    //   }
+    async getAllCategories(): Promise<string[]> {
+        const categories = await this.category_repo.find({
+            select: ['category']
+        });
 
-    // async getSupplier(name: string, userId: string): Promise<Supplier> {
-    //     console.log("getSupplier - start");
-    //     if (!name || !userId) {
-    //         console.log("getSupplier - error");
-    //         throw new Error('Invalid parameters');
-    //       }
-    //     return await this.supplier_repo.findOne({
-    //         where: { name, userId},
-    //     });
-    // }
+        const uniqueCategoryNames = [...new Set(categories.map(category => category.category))];
+        return uniqueCategoryNames;
+    }
+
+    async getSubcategoriesByCategory(categoryName: string): Promise<DefaultCategory[]> {
+        return this.category_repo.find({
+          where: { category: categoryName }
+        });
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////               Suppliers             /////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
+        console.log("addSupplier - start");
+        const newSupplier = this.supplier_repo.create(supplier);
+        newSupplier.userId = userId;
+        return await this.supplier_repo.save(newSupplier);
+    }
+
+
+    async updateSupplier(id: number, userId: string, updateSupplierDto: UpdateSupplierDto): Promise<Supplier> {
+        const supplier = await this.supplier_repo.findOne({ where: { id } });
+        if (!supplier) {
+            throw new NotFoundException(`Supplier with ID ${id} not found`);
+        }
+        // Check if the user making the request is the owner of the expense
+        if (supplier.userId !== userId) {
+            throw new UnauthorizedException(`You do not have permission to update this supplier`);
+        }
+        return this.supplier_repo.save({
+            ...supplier,
+            ...updateSupplierDto,
+        });
+    }
+
+
+    async deleteSupplier(id: number, userId: string): Promise<void> {
+        const supplier = await this.supplier_repo.findOne({ where: { id } });
+        if (!supplier) {
+          throw new NotFoundException(`Supplier with ID ${id} not found`);
+        }
+        //Check if the user making the request is the owner of the expense
+        if (supplier.userId !== userId) {
+          throw new UnauthorizedException(`You do not have permission to delete this supplier`);
+        }
+        await this.supplier_repo.remove(supplier);
+    }
+
+
+async getSupplierNamesByUserId(userId: string): Promise<SupplierResponseDto[]> {
+    const suppliers = await this.supplier_repo.find({where: { userId }});
+    return suppliers.map((supplier) => {
+        const { userId, ...supplierData } = supplier; // Exclude userId
+        return supplierData;
+    });
+}
+
+async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> {
+    const supplier = await this.supplier_repo.findOne({where: { id }});
+    if (!supplier) {
+      throw new NotFoundException(`Supplier with ID ${id} not found`);
+    }
+    if (supplier.userId !== userId) {
+      throw new UnauthorizedException(`You do not have permission to access this supplier`);
+    }
+    const { userId: omitUserId, ...supplierData } = supplier;
+    return supplierData;
+}
+
+
+
+   
 
     async getExpensesBySupplier(supplier: string): Promise<Expense[]> {
         return await this.expense_repo.find({ where: { supplier: supplier } });
@@ -127,27 +195,6 @@ export class ExpensesService {
         });
     }
 
-    // async addNewSupplier(createSupplierDto: CreateSupplierDto): Promise<CreateSupplierDto> {
-    //     console.log(createSupplierDto);
-    //     const supplier = this.supplier_repo.create(createSupplierDto);
-    //     return await this.supplier_repo.save(supplier);
-    // }
-   
-
-    //async addTempExpense(expense: CreateExpenseDto) {
-    //    console.log(expense);
-        
-        //const newExpense = this.repo.create(expense);
-        //newExpense.user = { id: userId } as any;
-        //return await this.repo.save(newExpense);
-        //return expense;
-    //}
-
-    // create(exportDto: CreateExpenseDto, userId: string) {
-    //     const expense = this.repo.create(exportDto);
-    //     expense.user = userId;
-    //     return this.repo.save(expense);
-    // }
 
     findOne(id: number) {
         if (!id) {
