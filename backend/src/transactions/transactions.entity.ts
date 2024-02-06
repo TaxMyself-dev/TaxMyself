@@ -13,11 +13,17 @@ export class Transactions {
   @Column()
   name: string;
 
+  @Column('date')
+  billDate: Date;
+
+  @Column('date')
+  payDate: Date;
+
   @Column('decimal')
   sum: number;
 
-  @Column('date')
-  date: Date;
+  @Column()
+  category: string;
 
   @Column()
   userId: string;

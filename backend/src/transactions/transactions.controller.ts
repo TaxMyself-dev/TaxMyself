@@ -9,6 +9,6 @@ export class TransactionsController {
   @Post('save')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    return this.excelService.processExcelFile(file);
+    return this.excelService.saveTransactions(file);
   }
 }
