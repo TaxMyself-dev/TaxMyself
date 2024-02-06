@@ -21,6 +21,11 @@
   
 </div> -->
 <ion-content [fullscreen]="true">
-<app-table *ngIf="columns && rows.length" [columns]="columns" [rows]="rows"></app-table>
+  <div *ngIf="items$ | async as items" class="table-wrapper" >
+    <app-table *ngFor="let item of items" [data]="item" [fieldsNames]="fieldsNames" (updateClicked)="onUpdateClicked(item)" (deleteClicked)="onDeleteClicked(item)"></app-table>
+  </div>
+  <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button> 
+
+  <!-- <app-table *ngIf="columns && rows.length" [columns]="columns" [rows]="rows"></app-table> -->
 
 </ion-content>

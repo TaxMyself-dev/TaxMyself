@@ -1,6 +1,10 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
+import { ModalController } from '@ionic/angular';
+import { EMPTY, Observable, catchError, filter, from, map, switchMap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
+import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 
 @Component({
   selector: 'app-my-storage',
@@ -9,34 +13,98 @@ import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 })
 export class MyStoragePage implements OnInit {
 
-  columns: IColumnDataTable = {};//Titles of table
-  rows: IRowDataTable[] = [];//Data of table
+  // columns: IColumnDataTable = {};//Titles of table
+  items$: Observable<IRowDataTable[]>;//Data of expenses
+  item: IRowDataTable;
   uid: string;
- 
+  fieldsNames: IColumnDataTable;
+  isOnUpdate: boolean = false;
+
   // tableTitle = "הוצאות אחרונות";
   public chooseYear = [
-    1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,
-    2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017
+    1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
+    2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017
   ]
 
-  constructor(private expenseDataService: ExpenseDataService) { }
+  constructor(private http: HttpClient, private expenseDataService: ExpenseDataService, private modalController: ModalController) { }
 
   ngOnInit() {
-    const tempA = localStorage.getItem('user');
-    const tempB = JSON.parse(tempA)
-    this.uid = tempB.uid;
-    console.log(this.uid);
-    
-    this.columns = this.expenseDataService.getShowExpenseColumns(); 
+    this.fieldsNames = this.expenseDataService.getAddExpenseColumns();
+    this.setUserId();
     this.setRowsData();
     this.expenseDataService.updateTable$.subscribe(
-    
-    (data) => {
-      if (data) {
+      (data) => {
+        if (data) {
           this.setRowsData();
         }
       })
   }
+
+  private setUserId(): void {
+    const tempA = localStorage.getItem('user');
+    const tempB = JSON.parse(tempA)
+    this.uid = tempB.uid;
+    console.log(this.uid);
+  }
+
+  // Get the data from server and update items
+  setRowsData(): void {
+    this.items$ = this.expenseDataService.getExpenseByUser(this.uid);
+  }
+
+  openPopupAddExpense(data: IRowDataTable = {}): void {
+      from(this.modalController.create({
+        component: ModalExpensesComponent,
+        //showBackdrop: false,
+        componentProps: {
+          columns: this.fieldsNames,
+          editMode: !!Object.keys(data).length,
+          data
+        }
+      })).pipe(catchError((err) => {
+        alert("openPopupAddExpense error");
+        return EMPTY;
+      }), switchMap((modal) => from(modal.present())), catchError((err) => {
+        alert("openPopupAddExpense switchMap error");
+        return EMPTY;
+      })).subscribe();
+  }
+
+  onUpdateClicked(tableData: IRowDataTable): void {
+    //alert("open modal for: !!"+(event.toString()));
+    const id = tableData.id;
+    this.openPopupAddExpense(tableData);
+    // this.myForm.reset();
+    // let updateExpense: IRowDataTable;
+    // for (const expense of this.rows) {
+    //   if (expense.id == this.id) {
+    //     updateExpense = expense;
+    //     //onsole.log(updateExpense);
+    //   }
+    // }
+    // for (const controlName in this.columns) {
+    //   if (controlName != "totalTax" && controlName != "totalVat") {
+    //     //controlName = 
+    //   }
+    // }
+    // console.log(this.id);
+  }
+
+  onDeleteClicked(event: any): void {
+    const token = localStorage.getItem('token');
+    const options = {
+      params: new HttpParams().set("token",token),
+    }
+    const url = 'http://localhost:3000/expenses/delete-expense/' + event.id
+    this.http.delete(url,options).pipe(
+      catchError((err) => {
+        console.log("The expense cannot be deleted", err);
+        return EMPTY;
+      })).subscribe((res) => {
+        console.log("resfrom delete: ", res);
+      })
+  }
+
 
   // Get the data from server and update columns
   // setColumns(): void {
@@ -47,13 +115,4 @@ export class MyStoragePage implements OnInit {
   //       }
   //     });
   // }
-// Get the data from server and update rows
-  setRowsData(): void {
-    this.expenseDataService.getExpenseByUser(this.uid).subscribe(
-      (data) => {
-        if (data) {
-          this.rows = data;
-        }
-      });
-  }
 }

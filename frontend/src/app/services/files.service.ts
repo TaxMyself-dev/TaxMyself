@@ -1,3 +1,4 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@angular/fire/storage";
 import { log } from 'console';
@@ -13,7 +14,7 @@ export class FilesService {
   arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
 
 
-  constructor() { }
+  constructor(private http: HttpClient) { }
 
   public async downloadFile(urlFile: string) {
     const storage = getStorage();
@@ -41,21 +42,33 @@ export class FilesService {
   }
 
   uploadFileViaFront(base64String: string): Observable<any> {
-    console.log("in uploadFileViaFront ");
     const i = Math.floor((Math.random() * 100) % 3);
-    console.log("i of array: ", i);
     this.uniqueId = nanoid();
     const storage = getStorage(); // bucket root
     const fileRef = ref(storage, this.arrayFolder[i] + "/" + this.uniqueId); // full path relative to bucket's root
-    console.log(fileRef);
-    console.log("uuid: ", this.uniqueId);
-    // return throwError('error in uploadFileViaFront'); // check error handlling
     return from(uploadString(fileRef, base64String, 'data_url'));
-  // const filePath = uploadString(fileRef, base64String, 'data_url').then((snapshot) => {
-    //console.log('Uploaded a data_url string!');
-    //console.log("fullPath :", snapshot.metadata.fullPath);
-    // return snapshot.metadata.fullPath;
-  // });
-  // return filePath;
+  }
+
+  addExpenseData(data: any): Observable<any> {
+    console.log(data);
+    return this.http.post('http://localhost:3000/expenses/add-expense', data);
+  }
+
+  updateExpenseData(data: any, id: number): Observable<any> {
+    console.log(data);
+    return this.http.patch('http://localhost:3000/expenses/update-expense/' + id, data);
+  }
+
+  getSuppliersList(token: string): Observable<any>{
+    const url = "http://localhost:3000/expenses/get-suppliers-list";
+    const options = {
+      params: new HttpParams().set("token",token),
+    }
+    return this.http.get(url,options);
+  }
+
+  addSupplier(formData: any): Observable<any>{
+    const url = "http://localhost:3000/expenses/add-supplier";
+    return this.http.post(url,formData);
   }
 }

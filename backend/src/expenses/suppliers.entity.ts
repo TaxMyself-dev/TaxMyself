@@ -18,6 +18,9 @@ export class Supplier {
     category: string;
 
     @Column()
+    supplierID: string;
+
+    @Column()
     subCategory: string;
 
     @Column('decimal')

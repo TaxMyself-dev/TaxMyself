@@ -1,19 +1,16 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
-import { IonModal, ModalController } from '@ionic/angular';
-import { IonDatetime } from '@ionic/angular';
-import { OverlayEventDetail } from '@ionic/core/components';
-import { IColumnDataTable } from '../interface';
-import axios from 'axios';
+import { ModalController } from '@ionic/angular';
+import { IColumnDataTable, IRowDataTable } from '../interface';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { EMPTY, Observable, throwError } from 'rxjs';
-import { catchError, delay, finalize, map, startWith, switchMap, tap } from 'rxjs/operators';
-
+import { cloneDeep, isEqual } from 'lodash';
+import { PopoverController } from '@ionic/angular';
+import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
+import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of } from 'rxjs';
 
 
 
@@ -24,49 +21,53 @@ import { catchError, delay, finalize, map, startWith, switchMap, tap } from 'rxj
   styleUrls: ['./modal.component.scss'],
 })
 export class ModalExpensesComponent implements OnInit {
-
-  myForm: FormGroup;
-
   @Input() columns: IColumnDataTable = {};
-  //@Input() trigger!: string;
-  @Output() onAddRowDataTable: EventEmitter<number> = new EventEmitter();
+  @Input() editMode: boolean = false;
+  @Input() set data(val: IRowDataTable) {
+    this.initForm(val);
+    this.id = +val.id;
+  };
 
+  initialForm: FormGroup;
+  myForm: FormGroup;
   message = '';
-  public name: string = "";
-  public tempcolumns: IColumnDataTable = {};
-  public tempArrProv = [{ name: "עולם הדפוס", vat: "25", tax: "25" }, { name: "מיני מרקט צדוק", vat: "33", tax: "33" }, { name: "מקורות" }, { name: "חברת חשמל", vat: "66", tax: "66" }]; //need to get from server
+  name: string = "";
+  tempcolumns: IColumnDataTable = {};
+  tempArrProv = [{ name: "עולם הדפוס", vat: "25", tax: "25" }, { name: "מיני מרקט צדוק", vat: "33", tax: "33" }, { name: "מקורות" }, { name: "חברת חשמל", vat: "66", tax: "66" }]; //need to get from server
   matches = [];
   selectedProvider = { name: "", vat: "", tax: "" };
   provInput = "";
-  selctedFile: File | null = null;
-  // uniqueId: string;
-  // arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
   selectedFile: string = "";
+  id: number;
+  isCustomUserVat = 0;
+  isCustomUserTax = 0;
 
-  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private http: HttpClient) {
+  constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController) {
+  }
 
+  initForm(data: IRowDataTable): void {
+    console.log(data.supplier);
     this.myForm = this.formBuilder.group({
-      category: ['',],
-      subCategory: ['',],
-      supplier: ['',],
-      sum: ['', Validators.required],
-      taxPercent: ['', Validators.required],
-      vatPercent: ['', Validators.required],
-      date: ['', Validators.required],
-      note: ['',],
-      expenseNumber: ['',],
-      supplierID: ['',],
-      file: ['', Validators.required],
-      equipment: [false,]
+      category: [data.category || ''],
+      subCategory: [data.subCategory || ''],
+      supplier: [data.supplier || ''],
+      sum: [data.sum || '', Validators.required],
+      taxPercent: [data.taxPercent || '', Validators.required],
+      vatPercent: [data.vatPercent || '', Validators.required],
+      date: [data.date || '', Validators.required],
+      note: [data.note || ''],
+      expenseNumber: [data.expenseNumber || ''],
+      supplierID: [data.supplierID || ''],
+      file: [data.file || File, Validators.required],// TODO: what to show in edit mode
+      isEquipment: [data.isEquipment || false] // TODO
     });
+
+    this.initialForm = cloneDeep(this.myForm);
   }
 
   fileSelected(event: any) {
-    console.log("in file selected");
     let file = event.target.files[0];
-    console.log(file);
     if (file) {
-      console.log("in file ");
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
@@ -75,120 +76,153 @@ export class ModalExpensesComponent implements OnInit {
     }
   }
 
-
-
-  // לא הבנתי איך להשתמש בפונקיצה הזאת.
-  onFormValueChanged(value: any) {
-    console.log(value);
+  disableSave(): boolean {
+    return !this.myForm.valid && (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : true)
   }
 
   cancel() {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
- 
   confirm() {
+    this.editMode ? this.update() : this.add();
+  }
+
+  add(): void {
     let filePath = '';
-    this.fileService.uploadFileViaFront(this.selectedFile).pipe(
+    this.getFileData().pipe(
       finalize(() => this.modalCtrl.dismiss(this.name, 'confirm')),
       catchError((err) => {
         alert('Something Went Wrong in first catchError: ' + err.error.message.join(', '))
         return EMPTY;
       }),
       map((res) => {
-        console.log('Uploaded a data_url string! this is the response: ', res);
-        filePath = res.metadata.fullPath;
+        if (res) {
+          filePath = res.metadata.fullPath;
+        }
         const token = localStorage.getItem('token');
         return this.setFormData(filePath, token);
       }),
-      switchMap((res) => this.addExpenseData(res)),
+      switchMap((res) => this.fileService.addExpenseData(res)),
       catchError((err) => {
         alert('Something Went Wrong in second catchError ' + err.error.message)
-        this.fileService.deleteFile(filePath);
-        return EMPTY; // of('error')
+        if (filePath !== ''){
+          this.fileService.deleteFile(filePath);
+        }
+        return EMPTY;
       })
     ).subscribe((res) => {
       console.log('Saved expense data in DB. The response is: ', res);
       if (res) { // TODO: why returning this object from BE?
-        this.expenseDataServise.updateTable$.next(true); 
+        this.expenseDataServise.updateTable$.next(true);
+      }
+    });
+  }
+
+  getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path and if not returns null
+    return this.selectedFile ? this.fileService.uploadFileViaFront(this.selectedFile) : of(null);
+  }
+
+  update(): void {
+    let filePath = '';
+    const previousFile = this.myForm.get('file').value;
+    this.getFileData().pipe(
+      finalize(() => this.modalCtrl.dismiss(this.name, 'confirm')),
+      catchError((err) => {
+        alert('File upload failed, please try again ' + err.error.message.join(', '));
+        return EMPTY;
+      }),
+      map((res) => {
+        if (res) { //if a file is selected 
+          filePath = res.metadata.fullPath;
+        }
+        else {
+          filePath = this.myForm.get('file').value;
+        }
+        const token = localStorage.getItem('token');
+        return this.setFormData(filePath, token);
+      }),
+      switchMap((res) => this.fileService.updateExpenseData(res, this.id)),
+      catchError((err) => {
+        alert('Something Went Wrong in second catchError ' + err.error.message)
+        this.fileService.deleteFile(filePath);
+        return EMPTY; 
+      })
+    ).subscribe((res) => {
+      if (previousFile !== "") {
+        this.fileService.deleteFile(previousFile);
+      }
+      if (res) { // TODO: why returning this object from BE?
+        this.expenseDataServise.updateTable$.next(true);
       }
     });
   }
 
 
+
   setFormData(filePath: string, token: string) {
     const formData = this.myForm.value;
-    console.log("my-form: ", this.myForm);
-    // TODO: chsnge from string to number in Form Builder to void casting here
-    formData.sum = parseInt(formData.sum, 10);
-    formData.taxPercent = parseInt(formData.taxPercent, 10);
-    formData.vatPercent = parseInt(formData.vatPercent, 10);
-    formData.date = formData.date ? new Date(formData.date).toISOString() : null;
+    formData.taxPercent = +formData.taxPercent;
+    formData.vatPercent = +formData.vatPercent;
     formData.file = filePath;
     formData.token = this.formBuilder.control(token).value; // TODO: check when token is invalid
     console.log(formData);
     return formData;
-  }
-
-  // TODO: change <any> , add type to data param
-  addExpenseData(data: any): Observable<any> {
-    return this.http.post('http://localhost:3000/expenses/add', data);
-  }
-
-  onWillDismiss(event: Event) {
-    const ev = event as CustomEvent<OverlayEventDetail<string>>;
-    if (ev.detail.role === 'confirm') {
-      this.message = `Hello, ${ev.detail.data}!`;
-    }
-  }
+  }  
 
   // closeCalendar() {
   //   this.datetimePicker.dismiss();
   // }
 
 
-  checkIfProviderExist(event: any) {
-    // Logic to check for matches between inputValue and tempArrProv
-    console.log(this.provInput);
-
-    const inputValue = event.target.value;
-    this.matches = this.tempArrProv.filter(item => item.name.toLowerCase().includes(this.provInput.toLowerCase()));
-    console.log('Matches:', this.matches);
-    //this.openSearchProvider();
-  }
-
-  selectProvider(prov: any) {
-    this.selectedProvider = prov;
-    console.log(this.selectedProvider);
-    this.matches = [];  // Hide the dropdown
-    this.myForm.get('supplier').setValue(prov.name);
-    this.myForm.get('taxPercent').setValue(prov.tax);
-    this.myForm.get('vatPercent').setValue(prov.vat);
+  openSelectSupplier() {
+    from(this.popoverController.create({
+      component: selectSupplierComponent,
+      //event: ev,
+      // translucent: false,
+      componentProps: {
+      }
+    })).pipe(
+      catchError((err) => {
+        console.error("openSelectSupplier failed in create ", err);
+        return EMPTY;
+      }),
+      switchMap((popover) => {
+        if (popover) {
+          return from(popover.present()).pipe(
+            switchMap(() => from(popover.onDidDismiss())),
+            catchError((err) => {
+              console.error("openSelectSupplier failed in present ", err);
+              return EMPTY;
+            })
+          );
+        }
+        else {
+          console.error('Popover modal is null');
+          return EMPTY;
+        }
+      })
+    ).subscribe((res) => {
+      if (res.role !== 'backdrop') {// if the popover closed due to onblur dont change values 
+        if (res !== null && res !== undefined) {
+          if (typeof (res.data) == "string") {
+            this.myForm.patchValue({ supplier: res.data });
+          }
+          else {
+            this.myForm.patchValue({ supplier: res?.data?.name });
+            this.myForm.patchValue({ supplierID: res?.data?.supplierID });
+            this.myForm.patchValue({ category: res?.data?.category });
+            this.myForm.patchValue({ subCategory: res?.data?.subCategory });
+            this.myForm.patchValue({ taxPercent: res?.data?.taxPercent });
+            this.myForm.patchValue({ vatPercent: res?.data?.vatPercent });
+          }
+        }
+      }
+    })
   }
 
   valueAscOrder(a: KeyValue<string, string>, b: KeyValue<string, string>): number {// stay the list of fields in the original order
     return 0;
-  }
-
-  //func to open the modal of search provider
-  async openSearchProvider() {
-    const modal = await this.modalCtrl.create({
-      component: ModalSortProviderComponent,
-      cssClass: 'modal-wrapper',
-      componentProps: {
-        matches: this.matches,
-        // Add more props as needed
-      }
-    });
-    modal.onDidDismiss().then((result) => {
-      if (result.data.role === 'success') {
-        this.selectedProvider = result.data.data; // This is the value returned from the modal
-        this.myForm.get('supplier').setValue(this.selectedProvider.name);
-        this.myForm.get('taxPercent').setValue(this.selectedProvider.tax);
-        this.myForm.get('vatPercent').setValue(this.selectedProvider.vat);
-      }
-    });
-    await modal.present();
   }
 
   async openPopupMessage(message: string) {
@@ -206,7 +240,18 @@ export class ModalExpensesComponent implements OnInit {
 
   ngOnInit() {
     console.log("columns of form: ", this.columns);
+  }
 
+  customUserVat(ev: any): void {
+    if (ev.detail.value == "other") {
+      this.isCustomUserVat = 1;
+    }
+  }
+
+  customUserTax(ev: any): void {
+    if (ev.detail.value == "other") {
+      this.isCustomUserTax = 1;
+    }
   }
 }
 

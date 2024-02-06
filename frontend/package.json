@@ -35,9 +35,11 @@
     "bootstrap": "^5.3.1",
     "cordova-plugin-file": "^8.0.1",
     "firebase": "^9.16.0",
+    "ionic-select-searchable": "^2.10.0",
     "ionicons": "^7.0.0",
     "nanoid": "^5.0.4",
     "ngx-image-compress": "^15.1.6",
+    "ngx-pipes": "^3.2.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.13.0"
