@@ -9,14 +9,37 @@
     <ion-list>
       <ng-container *ngFor="let col of columns | keyvalue: valueAscOrder">
       <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
-        <!--taxPercent && vatPercent-->
-        <ion-select *ngIf="col.key === 'taxPercent' || col.key === 'vatPercent'; else datetime" label="* {{col.value}}"
-          formControlName="{{col.key}}" label-placement="floating" interface="popover">
+        <!-- vatPercent-->
+        <ng-container *ngIf="col.key === 'vatPercent'; else taxPercent">
+        <ion-select label="* {{col.value}}"
+          formControlName="{{col.key}}" (ionChange)="customUserVat($event)" label-placement="floating" interface="popover">
           <ion-select-option value="">נא לבחור</ion-select-option>
-          <ion-select-option value="25">25%</ion-select-option>
-          <ion-select-option value="33">33%</ion-select-option>
-          <ion-select-option value="66">66%</ion-select-option>
+          <ion-select-option value=0>0%</ion-select-option>
+          <ion-select-option value=25 >25%</ion-select-option>
+          <ion-select-option value=33>33%</ion-select-option>
+          <ion-select-option value=66>66%</ion-select-option>
+          <ion-select-option value=100>100%</ion-select-option>
+          <ion-select-option value="other">אחר</ion-select-option>
         </ion-select>
+        <ion-input *ngIf="isCustomUserVat" type="number" formControlName="{{col.key}}" label="הכנס מספר" label-placement="floating"></ion-input>
+      </ng-container>
+        <!--taxPercent-->
+        <ng-template #taxPercent>
+          <ng-container *ngIf="(col.key === 'taxPercent'); else datetime">
+          <ion-select  label="* {{col.value}}"
+          formControlName="{{col.key}}" (ionChange)="customUserTax($event)" label-placement="floating" interface="popover">
+          <ion-select-option value="">נא לבחור</ion-select-option>
+          <ion-select-option value=0>0%</ion-select-option>
+          <ion-select-option value=25 >25%</ion-select-option>
+          <ion-select-option value=33>33%</ion-select-option>
+          <ion-select-option value=66>66%</ion-select-option>
+          <ion-select-option value=100>100%</ion-select-option>
+          <ion-select-option value="other">אחר</ion-select-option>
+        </ion-select>
+        <ion-input *ngIf="isCustomUserTax" type="number" formControlName="{{col.key}}" label="הכנס מספר" label-placement="floating"></ion-input>
+      </ng-container>
+      </ng-template>
+        <!-- <ion-input *ngIf="this.isUserSelectTax" type="text" formControlName="{{col.key}}" label="* {{col.value}}" label-placement="floating"></ion-input> -->
         <!-----------date--------------->
         <ng-template #datetime>
           <ion-input *ngIf="col.key === 'date'; else file" label="* {{col.value}}" label-placement="floating"
@@ -43,10 +66,10 @@
         </ng-template>
         <!----------- supplier --------------->
         <ng-template #supplier>
-          <ion-input *ngIf="col.key === 'supplier';else category" [(ngModel)]=provInput
-            (input)=checkIfProviderExist($event) label="{{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="text">
+          <ion-input *ngIf="col.key === 'supplier';else category" (ionFocus)="openSelectSupplier()" label="{{col.value}}" label-placement="floating"
+            formControlName="{{col.key}}" type="text" [(ngModel)]="this.myForm.get('supplier').value">
           </ion-input>
+          <!-- <ion-button expand="full" (click)="openSelectSupplier()">בחר ספק</ion-button> -->
         </ng-template>
         <!----------- category --------------->
         <ng-template #category>
@@ -62,73 +85,24 @@
         </ng-template>
         <!----------- supplierID --------------->
         <ng-template #supplierID>
-          <ion-input *ngIf="col.key === 'supplierID'" label="{{col.value}}" label-placement="floating"
+          <ion-input *ngIf="col.key === 'supplierID'; else isEquipment" label="{{col.value}}" label-placement="floating"
             formControlName="{{col.key}}" type="text">
           </ion-input>
+        </ng-template>
+        <!----------- equipment --------------->
+        <ng-template #isEquipment>
+          <ion-checkbox *ngIf="col.key === 'isEquipment'" label="{{col.value}}" label-placement="floating" ng-model="myForm.get('isEquipment')"
+            formControlName="{{col.key}}">מוגדר כציוד
+          </ion-checkbox>
         </ng-template>
       </ion-item>
       </ng-container>
       <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
         <ion-item *ngFor="let provider of matches" (click)="selectProvider(provider)">{{ provider.name }}</ion-item>
       </ion-list>
-      <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox>
+      <!-- <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox> -->
     </ion-list>
-    <ion-button type="submit" [strong]="true">הוסף</ion-button>
+    <ion-button type="submit" [strong]="true" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>
     <ion-button color="medium" (click)="cancel()">ביטול</ion-button>
   </form>
 </ion-content>
-
-
-
-
-
-
-
-<ng-template>
-  <ion-list>
-    <!----------- supplier --------------->
-    <ion-item><ion-input formControlName="supplier" label="ספק" label-placement="floating" type="text"
-        [(ngModel)]=provInput (input)=checkIfProviderExist($event)></ion-input></ion-item>
-    <!-----------date--------------->
-    <ion-item><ion-input formControlName="date" label="תאריך *" label-placement="floating"
-        type="date"></ion-input></ion-item>
-    <!----------- sum --------------->
-    <ion-item><ion-input formControlName="sum" label="סכום *" label-placement="floating"
-        type="number"></ion-input></ion-item>
-    <!----------- category --------------->
-    <ion-item><ion-input formControlName="category" label="קטגוריה" label-placement="floating"
-        type="text"></ion-input></ion-item>
-    <!----------- expenseNumber --------------->
-    <ion-item><ion-input formControlName="expenseNumber" label="{{col.value}}" label-placement="floating"
-        type="text"></ion-input></ion-item>
-    <!------------vatPercent----------->
-    <ion-item><ion-select formControlName="vatPercent" label="* {{col.value}}" label-placement="floating"
-        interface="popover">
-        <ion-select-option value="">נא לבחור</ion-select-option>
-        <ion-select-option value="25">25%</ion-select-option>
-        <ion-select-option value="33">33%</ion-select-option>
-        <ion-select-option value="66">66%</ion-select-option>
-      </ion-select></ion-item>
-    <!---------taxPercent--------->
-    <ion-item><ion-select formControlName="taxPercent" label="* {{col.value}}" label-placement="floating"
-        interface="popover">
-        <ion-select-option value="">נא לבחור</ion-select-option>
-        <ion-select-option value="25">25%</ion-select-option>
-        <ion-select-option value="33">33%</ion-select-option>
-        <ion-select-option value="66">66%</ion-select-option>
-      </ion-select></ion-item>
-    <!----------- supplierID --------------->
-    <ion-item><ion-input formControlName="supplierID" label="{{col.value}}" label-placement="floating"
-        type="text"></ion-input></ion-item>
-    <!-----------add file--------------->
-    <ion-item><ion-input formControlName="file" label="* {{col.value}}" label-placement="floating" type="file"
-        (input)=fileSelected($event)></ion-input></ion-item>
-    <!----------- note --------------->
-    <ion-item><ion-input formControlName="note" label="{{col.value}}" label-placement="floating"
-        type="text"></ion-input></ion-item>
-    <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
-      <ion-item *ngFor="let provider of matches" (click)="selectProvider(provider)">{{ provider.name }}</ion-item>
-    </ion-list>
-    <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox>
-  </ion-list>
-</ng-template>

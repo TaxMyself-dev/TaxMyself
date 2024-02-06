@@ -34,6 +34,7 @@ export class ExpensesService {
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
         newExpense.loadingDate = new Date();
+        newExpense.reductionDone = false;
         console.log("this is a newExpense :", newExpense);
         console.log("addExpense - end");
         const resAddExpense = await this.expense_repo.save(newExpense);
@@ -65,8 +66,10 @@ export class ExpensesService {
     
     }
 
-    async deleteExpense(id: number, userId: string): Promise<void> {
-
+    async deleteExpense(id: number, userId: string): Promise<any> {
+        console.log("delete - start");
+        console.log("id: ", id);
+        
         const expense = await this.expense_repo.findOne({ where: { id } });
     
         if (!expense) {
@@ -79,7 +82,7 @@ export class ExpensesService {
         }
     
         // Delete the expense from the database
-        await this.expense_repo.remove(expense);
+        return await this.expense_repo.remove(expense);
 
     }
 

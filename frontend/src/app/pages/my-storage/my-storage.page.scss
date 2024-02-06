@@ -31,3 +31,32 @@
         padding: 10px;
     }
 }
+
+.table-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    direction: rtl;
+    // border-radius: 20px;
+    // width: fit-content;
+    // border: 1px solid #6A6A6A;
+    // padding: 20px;
+    // margin: 20px;
+  
+    tr:first-child {
+      padding-top:50px;
+    }
+  
+    td:first-child {
+      border-radius: 0 20px 20px 0;
+    }
+  
+    td:last-child {
+      border-radius: 20px 0 0 20px;
+    }
+  
+  }
+  .table-title {
+    font-weight: 700;
+    font-size: 30px;
+    margin: 0;
+  }

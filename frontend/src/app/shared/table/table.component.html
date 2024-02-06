@@ -1,8 +1,13 @@
+<ng-template>
 <p class="table-title">
   {{tableTitle}}
 </p>
 <div class="table-wrapper">
-    <div *ngFor="let row of rows" class="receipt-wrapper">
+  <div *ngFor="let row of rows" class="receipt-wrapper">
+
+    <!-- html of update -->
+    <div *ngIf="row.id === idSelectedExpense;else notUpdate">
+      <form [formGroup]="myForm" (ngSubmit)="confirm()">
       <table>
         <div *ngFor="let col of columns | keyvalue">
           <tr>
@@ -10,7 +15,73 @@
               {{col.value}}
             </th>
             <td>
-              <!-- <ng-container *ngIf="col.key === 'date'; else file"></ng-container> -->
+              <!-- category -->
+              <ng-container>
+                <input *ngIf="col.key === 'category'; else date" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-container>
+              <!-- date -->
+              <ng-template #date>
+                <input *ngIf="col.key === 'date'; else file" type="text" placeholder={{row[col.key]}}
+                  onfocus="(this.type='date')" onblur="(this.type='text')" formControlName="{{col.key}}">
+              </ng-template>
+              <!-- file -->
+              <ng-template #file>
+                <input *ngIf="col.key === 'file'; else subCategory" type="text" placeholder="בחר קובץ חדש"
+                  onfocus="(this.type='file')" onblur="(this.type='text')" formControlName="{{col.key}}"/>
+              </ng-template>
+              <!-- sub-category -->
+              <ng-template #subCategory>
+                <input *ngIf="col.key === 'subCategory'; else sum" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- sum -->
+              <ng-template #sum>
+                <input *ngIf="col.key === 'sum'; else supplier" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- supplier -->
+              <ng-template #supplier>
+                <input *ngIf="col.key === 'supplier'; else taxPercent" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- tax-percent -->
+              <ng-template #taxPercent>
+                <input *ngIf="col.key === 'taxPercent'; else vatPercent" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- vat-percent -->
+              <ng-template #vatPercent>
+                <input *ngIf="col.key === 'vatPercent'; else expenseNumber" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- expenseNumber -->
+              <ng-template #expenseNumber>
+                <input *ngIf="col.key === 'expenseNumber'; else note" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- note -->
+              <ng-template #note>
+                <input *ngIf="col.key === 'note'; else supplierID" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- supplierID -->
+              <ng-template #supplierID>
+                <input *ngIf="col.key === 'supplierID'; else isEquipment" type="text" placeholder={{row[col.key]}} formControlName="{{col.key}}">
+              </ng-template>
+              <!-- isEquipment -->
+              <ng-template #isEquipment>
+                <input *ngIf="col.key === 'isEquipment'" type="text" onfocus="(this.type='checkbox')" onblur="(this.type='text')" placeholder={{row[col.key]}} formControlName="{{col.key}}"/>
+              </ng-template>
+            </td>
+          </tr>
+        </div>
+        <ion-button type="submit">אישור</ion-button>
+        <ion-button (click)="cancel()">ביטול</ion-button>
+      </table>
+    </form>
+    </div>
+    <!-- html of rest -->
+    <ng-template #notUpdate>
+      <table>
+        <div *ngFor="let field of columns | keyvalue">
+          <tr>
+            <th>
+              {{col.value}}
+            </th>
+            <td>
               <ng-container *ngIf="col.key === 'file'; else defaultField">
                 <ion-button (click)="previewFile(row[col.key])">הצג</ion-button>
                 <ion-button>הורד</ion-button>
@@ -19,20 +90,42 @@
             </td>
           </tr>
         </div>
+        <ion-button (click)="updateExpense(row.id)">ערוך</ion-button>
+        <ion-button>מחק</ion-button>
       </table>
-    </div>
+    </ng-template>
   </div>
-  <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>
+</div>
+
+<ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button> 
+</ng-template>
 
 
-  <!-- 
-<ion-grid class="table-container">
-  <ion-row class="table-header">
-    <ion-col *ngFor="let col of columns | keyvalue" class="table-header" >{{ col.value }}</ion-col>
-  </ion-row>
-  <ion-row *ngFor="let row of mockRows" class="table-row-wrapper">
-    <ng-container *ngFor="let column of columns | keyvalue">
-    <ion-col class="table-row" > {{ row[column.key]}}</ion-col>
-  </ng-container>
-  </ion-row>
-</ion-grid> -->
+
+
+  <table *ngIf="data" class="receipt-wrapper">
+    <div *ngFor="let field of data | keyvalue">
+      <tr>
+        <th>
+          {{fieldsNames[field.key]}}
+        </th>
+        <td>
+          <ng-container *ngIf="field.key === 'file'; else defaultField">
+            <ion-button (click)="previewFile(field.value)">הצג</ion-button>
+            <ion-button (click)="downloadFile(field.value)">הורד</ion-button>
+          </ng-container>
+          <ng-template #defaultField>{{ field.value }}</ng-template>
+        </td>
+      </tr>
+    </div>
+    <ion-button (click)="updateExpense()">ערוך</ion-button>
+    <ion-button (click)="deleteExpense()">מחק</ion-button>
+  </table>
+
+
+
+
+
+
+
+

@@ -1,0 +1,14 @@
+<ion-toolbar>
+   <ion-searchbar animated="true" (ionInput)="changeSearchTerm($event)" ></ion-searchbar>
+</ion-toolbar>
+
+<ion-list *ngIf="suppliers && (suppliers | filterBy: ['name']: searchTerm).length > 0; else showAddSupplier">
+  <ion-item class="ion-border" *ngFor="let supplier of suppliers | filterBy: ['name']: searchTerm" (click)="selectItem(supplier)" tappable>
+    <ion-icon (click)="editSupplier(supplier)" slot="end" name="create-outline"></ion-icon> 
+    <ion-label > {{ supplier.name }}</ion-label>
+  </ion-item>
+</ion-list>
+  <ng-template #showAddSupplier>
+  <ion-button (click)="addSupplier()">הוסף ספק קבוע</ion-button>
+  <ion-button (click)="casualSupplier()">ספק מזדמן</ion-button>
+</ng-template>

@@ -14,6 +14,9 @@ export class CreateSupplierDto {
     name: string;
 
     @IsString()
+    supplierID: string;
+
+    @IsString()
     category: string;
 
     @IsString()

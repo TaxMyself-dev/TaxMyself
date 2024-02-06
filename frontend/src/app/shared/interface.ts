@@ -1,4 +1,4 @@
-export interface IRowDataTable {
+    export interface IRowDataTable {
     [key: string]: string | number | Date;
 }
 

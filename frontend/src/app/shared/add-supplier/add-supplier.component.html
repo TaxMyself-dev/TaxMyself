@@ -1,0 +1,13 @@
+<form [formGroup]="myForm" (ngSubmit)="saveSupplier()">
+  <ion-list *ngFor="let field of arrFields">
+    <ion-item *ngIf="field.key === 'name' || field.key === 'category' || field.key === 'subCategory'; else inputNumber ">
+      <ion-input label="{{field.value}}" label-placement="floating" formControlName="{{field.key}}" type="text"></ion-input>
+    </ion-item>
+    <ng-template #inputNumber>
+      <ion-item >
+        <ion-input label="{{field.value}}" label-placement="floating" formControlName="{{field.key}}" type="number"></ion-input>
+      </ion-item>
+    </ng-template>
+  </ion-list>
+  <ion-button type="submit">הוסף</ion-button>
+</form>

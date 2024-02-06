@@ -10,7 +10,7 @@ export class ExpenseDataService {
   
   constructor(private http: HttpClient) { }
 
-  private readonly columnsAddExpense = {//mock data 
+  private readonly columnsAddExpense = {
     supplier: 'ספק',
     date: 'תאריך',
     sum: 'סכום',
@@ -24,6 +24,7 @@ export class ExpenseDataService {
     note: 'הערה',
     totalTax: 'מוכר למס',
     totalVat: 'מוכר למעמ',
+    isEquipment: 'מוגדר כציוד'
   } as IColumnDataTable;
 
   private readonly columnsAddExpenseOrder = [
@@ -39,21 +40,22 @@ export class ExpenseDataService {
     'file',
     'note',
     'totalTax',
-    'totalVat'
+    'totalVat',
+    'isEquipment'
   ];
 
-  private readonly columnsShowExpense = {//mock data 
-    date: 'תאריך',
-    category: 'קטגוריה',
-    subCategory: 'תת-קטגוריה',
-    supplier: 'ספק',
-    sum: 'סכום',
-    taxPercent: 'אחוז מוכר למס',
-    vatPercent: 'אחוז מוכר למעמ',
-    totalTax: 'מוכר למס',
-    totalVat: 'מוכר למעמ',
-    file: 'קובץ',
-  } as IColumnDataTable;
+  // private readonly columnsShowExpense = {//mock data 
+  //   date: 'תאריך',
+  //   category: 'קטגוריה',
+  //   subCategory: 'תת-קטגוריה',
+  //   supplier: 'ספק',
+  //   sum: 'סכום',
+  //   taxPercent: 'אחוז מוכר למס',
+  //   vatPercent: 'אחוז מוכר למעמ',
+  //   totalTax: 'מוכר למס',
+  //   totalVat: 'מוכר למעמ',
+  //   file: 'קובץ',
+  // } as IColumnDataTable;
 
   public updateTable$: Subject<boolean> = new Subject();//I need to check what is do
 
@@ -74,11 +76,11 @@ export class ExpenseDataService {
     this.http.post
   }
 
-  public getShowExpenseColumns(){
-    return this.columnsShowExpense;
-  }
+  // public getShowExpenseColumns(){
+  //   return this.columnsShowExpense;
+  // }
 
-  public getAddExpenseColumns(){
+  getAddExpenseColumns(){
     return this.columnsAddExpense;
   }
 

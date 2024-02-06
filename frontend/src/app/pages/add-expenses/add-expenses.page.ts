@@ -49,16 +49,6 @@ export class AddInvoicePage implements OnInit {
     this.openPopup();
   }
 
-  // Get the data from server and update columns
-  // setColumns(): void {
-  //   this.expenseDataServise.getColumns().subscribe(
-  //     (data) => {
-  //       if (data) {
-  //         this.columns = data;
-  //       }
-  //     });
-  // }
-  // Get the data from server and update rows
   setRowsData(): void {
     this.expenseDataServise.getExpenseByUser().subscribe(
       (data) => {
@@ -75,6 +65,7 @@ export class AddInvoicePage implements OnInit {
       //showBackdrop: false,
       componentProps: {
         columns: this.columns,
+        data: {}
         // Add more props as needed
       }
     })

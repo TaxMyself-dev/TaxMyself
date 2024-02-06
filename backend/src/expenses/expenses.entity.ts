@@ -56,4 +56,7 @@ export class Expense {
   @Column()
   expenseNumber: string;
 
+  @Column()
+  reductionDone: boolean
+
 }

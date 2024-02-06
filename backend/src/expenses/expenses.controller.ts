@@ -30,9 +30,9 @@ export class ExpensesController {
     private authService: AuthService) { }
 
 
-  @Post('add')
+  @Post('add-expense')
   async addExpense(@Body() body: CreateExpenseDto) {
-    try {
+    try {      
       console.log("nbhjbklmmlkjlkmm");
       const userId = await this.authService.getFirbsaeIdByToken(body.token)
       console.log("afterafter");
@@ -50,7 +50,9 @@ export class ExpensesController {
 
 
   @Patch('update-expense/:id')
-  async updateExpense(@Param('id') id: number, @Body() body: UpdateExpenseDto) {
+  async updateExpense(@Param('id') id: number, @Body() body: any) {
+    console.log("in update");
+    
     const userId = await this.authService.getFirbsaeIdByToken(body.token)
     console.log("controller update expense - Start");
     console.log("body of update expense :", body);
@@ -59,9 +61,11 @@ export class ExpensesController {
 
 
   @Delete('delete-expense/:id')
-  async deleteExpense(@Param('id') id: number, @Body() body: UpdateExpenseDto) {
+  async deleteExpense(@Param('id') id: number, @Query('token') token: string) {
     console.log("controller delete expense - Start");
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    console.log(token);
+    
+    const userId = await this.authService.getFirbsaeIdByToken(token)
     return this.expensesService.deleteExpense(id, userId);
   }
 
@@ -104,6 +108,8 @@ export class ExpensesController {
 
   @Post('add-supplier')
   async addSupplier(@Body() body: CreateSupplierDto) {
+    console.log("add supplier call", body);
+    
     const userId = await this.authService.getFirbsaeIdByToken(body.token)
     return await this.expensesService.addSupplier(body, userId); 
   } 
@@ -127,8 +133,9 @@ export class ExpensesController {
 
 
   @Get('get-suppliers-list')
-  async getSupplierNamesByUserId(@Body() body: UpdateSupplierDto): Promise<SupplierResponseDto[]> {
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+  async getSupplierNamesByUserId(@Query('token') token: string): Promise<SupplierResponseDto[]> {
+    console.log(token);
+    const userId = await this.authService.getFirbsaeIdByToken(token)
     return this.expensesService.getSupplierNamesByUserId(userId);
   }
 
