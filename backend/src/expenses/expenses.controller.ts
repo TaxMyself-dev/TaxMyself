@@ -1,10 +1,11 @@
 //General
 import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException } from '@nestjs/common';
-import { ExpensesService } from './expenses.service';
-import { AuthService } from 'src/users/auth.service';
 //Entities
 import { Expense } from './expenses.entity';
 import { DefaultCategory } from './categories.entity';
+//Services
+import { ExpensesService } from './expenses.service';
+import { UsersService } from 'src/users/users.service';
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -27,14 +28,14 @@ import { throwError } from 'rxjs';
 export class ExpensesController {
   constructor(
     private expensesService: ExpensesService,
-    private authService: AuthService) { }
+    private usersService: UsersService) {}
 
 
   @Post('add-expense')
   async addExpense(@Body() body: CreateExpenseDto) {
     try {      
       console.log("nbhjbklmmlkjlkmm");
-      const userId = await this.authService.getFirbsaeIdByToken(body.token)
+      const userId = await this.usersService.getFirbsaeIdByToken(body.token)
       console.log("afterafter");
       console.log("body of expense :", body);
       console.log("user id in addExpense :", userId);
@@ -53,7 +54,7 @@ export class ExpensesController {
   async updateExpense(@Param('id') id: number, @Body() body: any) {
     console.log("in update");
     
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     console.log("controller update expense - Start");
     console.log("body of update expense :", body);
     return this.expensesService.updateExpense(id, userId, body);
@@ -65,7 +66,7 @@ export class ExpensesController {
     console.log("controller delete expense - Start");
     console.log(token);
     
-    const userId = await this.authService.getFirbsaeIdByToken(token)
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.deleteExpense(id, userId);
   }
 
@@ -107,10 +108,10 @@ export class ExpensesController {
 
 
   @Post('add-supplier')
-  async addSupplier(@Body() body: CreateSupplierDto) {
+  async addSupplier(@Body() body: any) {
     console.log("add supplier call", body);
     
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return await this.expensesService.addSupplier(body, userId); 
   } 
   catch (error) {
@@ -120,14 +121,14 @@ export class ExpensesController {
 
   @Patch('update-supplier/:id')
   async updateSupplier(@Param('id') id: number, @Body() body: UpdateSupplierDto) {
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return this.expensesService.updateSupplier(id, userId, body);
   }
 
 
   @Delete('delete-supplier/:id')
   async deleteSupplier(@Param('id') id: number, @Body() body: UpdateSupplierDto) {
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return this.expensesService.deleteSupplier(id, userId);
   }
 
@@ -135,14 +136,14 @@ export class ExpensesController {
   @Get('get-suppliers-list')
   async getSupplierNamesByUserId(@Query('token') token: string): Promise<SupplierResponseDto[]> {
     console.log(token);
-    const userId = await this.authService.getFirbsaeIdByToken(token)
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.getSupplierNamesByUserId(userId);
   }
 
 
   @Get('get-supplier/:id')
   async getSupplierById(@Param('id') id: number, @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
-    const userId = await this.authService.getFirbsaeIdByToken(body.token)
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return this.expensesService.getSupplierById(id, userId);
   }
 

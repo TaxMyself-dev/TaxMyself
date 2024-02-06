@@ -11,16 +11,12 @@ import { User } from './user.entity';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { log } from 'console';
 import { request } from 'http';
-//import { Request } from 'express';
 import { Request } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 @Controller('auth')
-//@UseGuards(FirebaseAuthGuard)
 @Serialize(UserDto)
 export class UsersController {
-
-    private defaultApp: any;
 
     constructor(
         private userService: UsersService,
@@ -29,41 +25,34 @@ export class UsersController {
 
     @Post('/signup')
     async createUser(@Body() body: any) {
-        console.log("debug_0");
         console.log(body);
-        const user = await this.authService.signup(body.formData, body.uid);
-        return body;
+        const user = await this.userService.signup(body.formData, body.uid);
+        return body; //TODO: Elazar - check if it's necessary to return the body
     }
 
     @Post('/signin')
     @UseGuards(FirebaseAuthGuard)
-    async signin(@Body() body: any) {        
-        console.log(body);
-        const uid = await this.authService.signFire(body.token);
-        console.log("firebase is " + uid);
-        const user = await this.userService.findFireUser(uid);
+    async signin(@Body() body: any) {     
+        const user = await this.userService.signin(body.token);  
+        //const uid = await this.authService.getFirbsaeIdByToken(body.token);
+        //const user = await this.userService.findFireUser(uid);
         console.log("user is ", user);
         return user;
     }
 
-    @Post('/signout')
-    signOut(@Session() session: any) {
-        session.userId = null;
-    }
+    // @Post('/signout')
+    // signOut(@Session() session: any) {
+    //     session.userId = null;
+    // }
 
-    @Get()
-    findAllUsers(@Query('email') email: string) {
-        return this.userService.find(email);
-    }
+    // @Delete('/:id')
+    // removeUser(@Param('id') id: string) {
+    //     return this.userService.remove(parseInt(id));
+    // }
 
-    @Delete('/:id')
-    removeUser(@Param('id') id: string) {
-        return this.userService.remove(parseInt(id));
-    }
-
-    @Patch('/:id')
-    updateUser(@Param('id') id: string, @Body() body: UpdateUserDto) {
-        return this.userService.update(parseInt(id), body);
-    }
+    // @Patch('/:id')
+    // updateUser(@Param('id') id: string, @Body() body: UpdateUserDto) {
+    //     return this.userService.update(parseInt(id), body);
+    // }
 
 }
