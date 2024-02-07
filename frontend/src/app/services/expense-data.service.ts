@@ -24,7 +24,7 @@ export class ExpenseDataService {
     note: 'הערה',
     totalTax: 'מוכר למס',
     totalVat: 'מוכר למעמ',
-    isEquipment: 'מוגדר כציוד'
+    isEquipment: 'מוגדר כציוד?'
   } as IColumnDataTable;
 
   private readonly columnsAddExpenseOrder = [

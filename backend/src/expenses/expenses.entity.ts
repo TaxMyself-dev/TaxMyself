@@ -59,4 +59,10 @@ export class Expense {
   @Column()
   reductionDone: boolean
 
+  @Column()
+  equipmentCategory: string;
+
+  @Column()
+  reductionPercent: number;
+
 }

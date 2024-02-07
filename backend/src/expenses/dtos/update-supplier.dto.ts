@@ -24,6 +24,10 @@ export class UpdateSupplierDto {
     subCategory: string;
 
     @IsOptional()
+    @IsString()
+    supplierID: string;
+
+    @IsOptional()
     @IsNumber()
     @Min(0)
     @Max(100)

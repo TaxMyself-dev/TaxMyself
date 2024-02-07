@@ -1,5 +1,5 @@
 <ion-toolbar>
-   <ion-searchbar animated="true" (ionInput)="changeSearchTerm($event)" ></ion-searchbar>
+   <ion-searchbar placeholder="הכנס / חפש ספק" animated="true" (ionInput)="changeSearchTerm($event)" ></ion-searchbar>
 </ion-toolbar>
 
 <ion-list *ngIf="suppliers && (suppliers | filterBy: ['name']: searchTerm).length > 0; else showAddSupplier">

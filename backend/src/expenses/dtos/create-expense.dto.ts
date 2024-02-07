@@ -54,4 +54,12 @@ export class CreateExpenseDto {
     @IsOptional()
     @IsBoolean()
     isEquipment: boolean;
+
+    @IsOptional()
+    @IsString()
+    equipmentCategory: string;
+
+    @IsOptional()
+    @IsNumber()
+    reductionPercent: number;
 }

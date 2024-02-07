@@ -37,3 +37,12 @@ export interface User {
     photoURL: string;
     emailVerified: boolean;
  }
+ export interface ICreateSupplier{
+    category: string,
+    subCategory: string,
+    name: string,
+    taxPercent: string,
+    vatPercent: string,
+    supplierID: string,
+    id: number
+}

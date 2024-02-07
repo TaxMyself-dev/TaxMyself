@@ -1,9 +1,11 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { PopoverController } from '@ionic/angular';
-import { EMPTY, catchError } from 'rxjs';
+import { EMPTY, Observable, catchError } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
+import { ICreateSupplier } from '../interface';
+import { cloneDeep, isEqual } from 'lodash';
 
 @Component({
   selector: 'app-add-supplier',
@@ -12,30 +14,53 @@ import { FilesService } from 'src/app/services/files.service';
 })
 export class addSupplierComponent  implements OnInit {
 
+  @Input() set supplier(val: ICreateSupplier) {
+    console.log("in add sup", val);
+    this.id = val.id;
+    this.initForm(val);
+  };
+  @Input() editMode: boolean;
+
+  initialForm: FormGroup;
   myForm: FormGroup;
   arrFields = [{key:"name", value: "שם ספק" }, {key: "supplierID", value:"ח.פ. ספק"}, {key: "category", value:"קטגוריה"}, {key: "subCategory", value: "תת-קטגוריה"}, {key: "taxPercent", value: "אחוז מוכר למס"}, {key: "vatPercent", value:"אחוז מוכר למעמ"}]
-  
+  id: number;
+  listPercent = [{key:"נא לבחור", value:""},{key:"0", value:0},{key:"25", value:25},{key:"33", value:33},{key:"66", value:66},{key:"100", value:100},{key:"אחר", value:"other"}]
+  isCustomUserVat = false;
+  isCustomUserTax = false;
   constructor(private fileService: FilesService, private formBuilder: FormBuilder, private popoverController: PopoverController) { }
 
   ngOnInit() {
-    this.initForm();
   }
 
-  initForm(): void {
+  initForm(data: ICreateSupplier): void {
     this.myForm = this.formBuilder.group({
-      category: ['', Validators.required],
-      subCategory: ['', Validators.required],
-      name: ['', Validators.required],
-      taxPercent: [Number, Validators.required],
-      vatPercent: [Number, Validators.required],
-      supplierID: [Number, Validators.required],
+      category: [data.category || '', Validators.required],
+      subCategory: [data.subCategory || '', Validators.required],
+      name: [data.name || '', Validators.required],
+      taxPercent: [data.taxPercent || '', Validators.required],
+      vatPercent: [data.vatPercent || '', Validators.required],
+      supplierID: [data.supplierID || '',],
     })
+    this.initialForm = cloneDeep(this.myForm);
   }
+
+  confirm(data:any): Observable<any>{
+   return this.editMode? this.fileService.editSupplier(data, this.id) : this.fileService.addSupplier(data);
+  };
+
+  disableSave(): boolean {
+    return !this.myForm.valid || (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
+  }
+
+
 
   saveSupplier(): void{
+    console.log("save");
+    console.log("edit?",this.editMode);
     this.popoverController.dismiss(this.myForm);
     const formData = this.setFormData();
-    this.fileService.addSupplier(formData).pipe(
+    this.confirm(formData).pipe(
       catchError((err) => {
         console.log("somthing faild", err);
         return EMPTY;
@@ -48,7 +73,21 @@ export class addSupplierComponent  implements OnInit {
     const formData = this.myForm.value;
     const token = localStorage.getItem('token');
     formData.token = this.formBuilder.control(token).value;
+    formData.taxPercent = +formData.taxPercent;
+    formData.vatPercent = +formData.vatPercent;
     console.log("fornData send: ", formData);
     return formData;
+  }
+
+  customUserVat(ev: any): void {
+    if (ev.detail.value == "other") {
+      this.isCustomUserVat = !this.isCustomUserVat;
+    }
+  }
+
+  customUserTax(ev: any): void {
+    if (ev.detail.value == "other") {
+      this.isCustomUserTax = !this.isCustomUserTax;
+    }
   }
 }

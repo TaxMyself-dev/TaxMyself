@@ -74,20 +74,6 @@ export class MyStoragePage implements OnInit {
     //alert("open modal for: !!"+(event.toString()));
     const id = tableData.id;
     this.openPopupAddExpense(tableData);
-    // this.myForm.reset();
-    // let updateExpense: IRowDataTable;
-    // for (const expense of this.rows) {
-    //   if (expense.id == this.id) {
-    //     updateExpense = expense;
-    //     //onsole.log(updateExpense);
-    //   }
-    // }
-    // for (const controlName in this.columns) {
-    //   if (controlName != "totalTax" && controlName != "totalVat") {
-    //     //controlName = 
-    //   }
-    // }
-    // console.log(this.id);
   }
 
   onDeleteClicked(event: any): void {
@@ -104,15 +90,4 @@ export class MyStoragePage implements OnInit {
         console.log("resfrom delete: ", res);
       })
   }
-
-
-  // Get the data from server and update columns
-  // setColumns(): void {
-  //   this.dataTableService.getColumns().subscribe(
-  //     (data) => {
-  //       if (data) {
-  //         this.columns = data;
-  //       }
-  //     });
-  // }
 }

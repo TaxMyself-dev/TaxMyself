@@ -22,36 +22,33 @@ import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, 
 })
 export class ModalExpensesComponent implements OnInit {
   @Input() columns: IColumnDataTable = {};
-  @Input() editMode: boolean = false;
+  @Input() set editMode(val: boolean){
+    val? this.title = "עריכת הוצאה" : this.title = "הוסף הוצאה"
+  }
   @Input() set data(val: IRowDataTable) {
     this.initForm(val);
     this.id = +val.id;
   };
 
+  listPercent = [{key:"נא לבחור", value:""},{key:"0", value:0},{key:"25", value:25},{key:"33", value:33},{key:"66", value:66},{key:"100", value:100},{key:"אחר", value:"other"}]
+  title: string;
   initialForm: FormGroup;
   myForm: FormGroup;
-  message = '';
-  name: string = "";
-  tempcolumns: IColumnDataTable = {};
-  tempArrProv = [{ name: "עולם הדפוס", vat: "25", tax: "25" }, { name: "מיני מרקט צדוק", vat: "33", tax: "33" }, { name: "מקורות" }, { name: "חברת חשמל", vat: "66", tax: "66" }]; //need to get from server
-  matches = [];
-  selectedProvider = { name: "", vat: "", tax: "" };
-  provInput = "";
   selectedFile: string = "";
   id: number;
-  isCustomUserVat = 0;
-  isCustomUserTax = 0;
+  isCustomUserVat = false;
+  isCustomUserTax = false;
+  equipmentList = [{key:"לא", value: "not"},{key:"רכב", value: "car"},{key:"מחשב", value:"computer"},{key: "שולחן", value: "table"}, {key: "כיסא", value: "cheir"}, {key: "מנורה", value: "lamp"},];
 
   constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController) {
   }
 
   initForm(data: IRowDataTable): void {
-    console.log(data.supplier);
     this.myForm = this.formBuilder.group({
       category: [data.category || ''],
       subCategory: [data.subCategory || ''],
       supplier: [data.supplier || ''],
-      sum: [data.sum || '', Validators.required],
+      sum: [data.sum || Number, Validators.required],
       taxPercent: [data.taxPercent || '', Validators.required],
       vatPercent: [data.vatPercent || '', Validators.required],
       date: [data.date || '', Validators.required],
@@ -59,7 +56,9 @@ export class ModalExpensesComponent implements OnInit {
       expenseNumber: [data.expenseNumber || ''],
       supplierID: [data.supplierID || ''],
       file: [data.file || File, Validators.required],// TODO: what to show in edit mode
-      isEquipment: [data.isEquipment || false] // TODO
+      isEquipment: [data.isEquipment || false], // TODO
+      equipmentCategory: [data.equipmentCategory || ''],
+      reductionPercent: [data.reductionPercent || Number],
     });
 
     this.initialForm = cloneDeep(this.myForm);
@@ -77,7 +76,7 @@ export class ModalExpensesComponent implements OnInit {
   }
 
   disableSave(): boolean {
-    return !this.myForm.valid && (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : true)
+    return !this.myForm.valid || (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
   }
 
   cancel() {
@@ -91,7 +90,7 @@ export class ModalExpensesComponent implements OnInit {
   add(): void {
     let filePath = '';
     this.getFileData().pipe(
-      finalize(() => this.modalCtrl.dismiss(this.name, 'confirm')),
+      finalize(() => this.modalCtrl.dismiss()),
       catchError((err) => {
         alert('Something Went Wrong in first catchError: ' + err.error.message.join(', '))
         return EMPTY;
@@ -127,7 +126,7 @@ export class ModalExpensesComponent implements OnInit {
     let filePath = '';
     const previousFile = this.myForm.get('file').value;
     this.getFileData().pipe(
-      finalize(() => this.modalCtrl.dismiss(this.name, 'confirm')),
+      finalize(() => this.modalCtrl.dismiss()),
       catchError((err) => {
         alert('File upload failed, please try again ' + err.error.message.join(', '));
         return EMPTY;
@@ -184,7 +183,7 @@ export class ModalExpensesComponent implements OnInit {
       }
     })).pipe(
       catchError((err) => {
-        console.error("openSelectSupplier failed in create ", err);
+        console.log("openSelectSupplier failed in create ", err);
         return EMPTY;
       }),
       switchMap((popover) => {
@@ -192,17 +191,19 @@ export class ModalExpensesComponent implements OnInit {
           return from(popover.present()).pipe(
             switchMap(() => from(popover.onDidDismiss())),
             catchError((err) => {
-              console.error("openSelectSupplier failed in present ", err);
+              console.log("openSelectSupplier failed in present ", err);
               return EMPTY;
             })
           );
         }
         else {
-          console.error('Popover modal is null');
+          console.log('Popover modal is null');
           return EMPTY;
         }
       })
     ).subscribe((res) => {
+      console.log('res in modal comp: ',res);
+      console.log("res.role: ", res.role);
       if (res.role !== 'backdrop') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
           if (typeof (res.data) == "string") {
@@ -244,16 +245,51 @@ export class ModalExpensesComponent implements OnInit {
 
   customUserVat(ev: any): void {
     if (ev.detail.value == "other") {
-      this.isCustomUserVat = 1;
+      this.isCustomUserVat = !this.isCustomUserVat;
     }
   }
 
   customUserTax(ev: any): void {
     if (ev.detail.value == "other") {
-      this.isCustomUserTax = 1;
+      this.isCustomUserTax = !this.isCustomUserTax;
     }
   }
-}
+
+  setValueEquipment(event: any): void{
+    const value = event.detail.value;
+    console.log("in set value", event.detail.value);
+    
+    if (value == "not") {
+      this.myForm.patchValue({isEquipment:false});
+      this.myForm.patchValue({equipmentCategory:value});
+    }
+    else{
+      this.myForm.patchValue({isEquipment:true});
+      switch(value) {
+        case 'car':
+          this.myForm.patchValue({equipmentCategory:value});
+          this.myForm.patchValue({reductionPercent:15});
+          break;
+          case 'computer':
+            this.myForm.patchValue({equipmentCategory:value});
+            this.myForm.patchValue({reductionPercent:25});
+            break;
+            case 'cheir':
+              this.myForm.patchValue({equipmentCategory:value});
+              this.myForm.patchValue({reductionPercent:35});
+              break;
+              case 'table':
+                this.myForm.patchValue({equipmentCategory:value});
+                this.myForm.patchValue({reductionPercent:45});
+                break;
+                case 'lamp':
+                  this.myForm.patchValue({equipmentCategory:value});
+                  this.myForm.patchValue({reductionPercent:55});
+                  break;
+                }    
+              }
+            }
+          }
 
 
 

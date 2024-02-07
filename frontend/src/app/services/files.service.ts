@@ -71,4 +71,11 @@ export class FilesService {
     const url = "http://localhost:3000/expenses/add-supplier";
     return this.http.post(url,formData);
   }
+
+  editSupplier(formData: any, id: number): Observable<any> {
+    console.log("id in edit to server", id);
+    
+    const url = "http://localhost:3000/expenses/update-supplier/"+id;
+    return this.http.patch(url,formData);
+  }
 }

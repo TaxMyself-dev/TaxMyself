@@ -1,6 +1,6 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>הוסף הוצאה</ion-title>
+    <ion-title>{{title}}</ion-title>
     <div>* שדות שמסומנים בכוכבית הם שדות חובה</div>
   </ion-toolbar>
 </ion-header>
@@ -8,99 +8,86 @@
   <form [formGroup]="myForm" (ngSubmit)="confirm()">
     <ion-list>
       <ng-container *ngFor="let col of columns | keyvalue: valueAscOrder">
-      <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
-        <!-- vatPercent-->
-        <ng-container *ngIf="col.key === 'vatPercent'; else taxPercent">
-        <ion-select label="* {{col.value}}"
-          formControlName="{{col.key}}" (ionChange)="customUserVat($event)" label-placement="floating" interface="popover">
-          <ion-select-option value="">נא לבחור</ion-select-option>
-          <ion-select-option value=0>0%</ion-select-option>
-          <ion-select-option value=25 >25%</ion-select-option>
-          <ion-select-option value=33>33%</ion-select-option>
-          <ion-select-option value=66>66%</ion-select-option>
-          <ion-select-option value=100>100%</ion-select-option>
-          <ion-select-option value="other">אחר</ion-select-option>
-        </ion-select>
-        <ion-input *ngIf="isCustomUserVat" type="number" formControlName="{{col.key}}" label="הכנס מספר" label-placement="floating"></ion-input>
+        <ion-item *ngIf="col.key !== 'totalTax' && col.key !== 'totalVat'">
+          <!-- vatPercent-->
+          <ng-container *ngIf="col.key === 'vatPercent'; else taxPercent">
+            <ion-select  label="* {{col.value}}" formControlName="{{col.key}}" (ionChange)="customUserTax($event)"
+            label-placement="floating" interface="popover">
+            <ion-select-option *ngFor="let option of listPercent" [value]="option.value">{{option.key}}</ion-select-option>
+          </ion-select>
+            <ion-input *ngIf="isCustomUserVat" type="number" formControlName="{{col.key}}" label="הכנס מספר"
+              label-placement="floating"></ion-input>
+          </ng-container>
+          <!--taxPercent-->
+          <ng-template #taxPercent>
+            <ng-container *ngIf="(col.key === 'taxPercent'); else datetime">
+              <ion-select  label="* {{col.value}}" formControlName="{{col.key}}" (ionChange)="customUserTax($event)"
+                label-placement="floating" interface="popover">
+                <ion-select-option *ngFor="let option of listPercent" [value]="option.value">{{option.key}}</ion-select-option>
+              </ion-select>
+              <ion-input *ngIf="isCustomUserTax" type="number" formControlName="{{col.key}}" label="הכנס מספר"
+                label-placement="floating"></ion-input>
+            </ng-container>
+          </ng-template>
+          <!-----------date--------------->
+          <ng-template #datetime>
+            <ion-input *ngIf="col.key === 'date'; else file" label="* {{col.value}}" label-placement="floating"
+              formControlName="{{col.key}}" type="date">
+            </ion-input>
+          </ng-template>
+          <!-----------add file--------------->
+          <ng-template #file>
+            <ion-input *ngIf="col.key === 'file'; else input" (input)=fileSelected($event) label="* {{col.value}}"
+              label-placement="floating" formControlName="{{col.key}}" type="file">
+            </ion-input>
+          </ng-template>
+          <!----------- all the rest --------------->
+          <ng-template #input>
+            <ion-input *ngIf="col.key === 'note' || col.key === 'expenseNumber'; else sum" label="{{col.value}}"
+              label-placement="floating" formControlName="{{col.key}}" type="text">
+            </ion-input>
+          </ng-template>
+          <!----------- sum --------------->
+          <ng-template #sum>
+            <ion-input *ngIf="col.key === 'sum'; else supplier" label="* {{col.value}}" label-placement="floating"
+              formControlName="{{col.key}}" type="number">
+            </ion-input>
+          </ng-template>
+          <!----------- supplier --------------->
+          <ng-template #supplier>
+            <ion-input *ngIf="col.key === 'supplier';else category" (ionFocus)="openSelectSupplier()"
+              label="{{col.value}}" label-placement="floating" formControlName="{{col.key}}" type="text"
+              [(ngModel)]="this.myForm.get('supplier').value">
+            </ion-input>
+            <!-- <ion-button expand="full" (click)="openSelectSupplier()">בחר ספק</ion-button> -->
+          </ng-template>
+          <!----------- category --------------->
+          <ng-template #category>
+            <ion-input *ngIf="col.key === 'category';else subCategory" label="{{col.value}}" label-placement="floating"
+              formControlName="{{col.key}}" type="text">
+            </ion-input>
+          </ng-template>
+          <!----------- sub-category --------------->
+          <ng-template #subCategory>
+            <ion-input *ngIf="col.key === 'subCategory';else supplierID" label="{{col.value}}"
+              label-placement="floating" formControlName="{{col.key}}" type="text">
+            </ion-input>
+          </ng-template>
+          <!----------- supplierID --------------->
+          <ng-template #supplierID>
+            <ion-input *ngIf="col.key === 'supplierID'; else isEquipment" label="{{col.value}}"
+              label-placement="floating" formControlName="{{col.key}}" type="text">
+            </ion-input>
+          </ng-template>
+          <!----------- equipment --------------->
+          <ng-template #isEquipment>
+            <ion-select  label="* {{col.value}}" formControlName="{{col.key}}" (ionChange)="setValueEquipment($event)" label-placement="floating"
+              interface="popover" [(ngModel)]="this.myForm.get('equipmentCategory').value">
+              <ion-select-option *ngFor="let option of equipmentList" [value]="option.value">{{option.key}}</ion-select-option>
+            </ion-select>
+          </ng-template>
+        </ion-item>
       </ng-container>
-        <!--taxPercent-->
-        <ng-template #taxPercent>
-          <ng-container *ngIf="(col.key === 'taxPercent'); else datetime">
-          <ion-select  label="* {{col.value}}"
-          formControlName="{{col.key}}" (ionChange)="customUserTax($event)" label-placement="floating" interface="popover">
-          <ion-select-option value="">נא לבחור</ion-select-option>
-          <ion-select-option value=0>0%</ion-select-option>
-          <ion-select-option value=25 >25%</ion-select-option>
-          <ion-select-option value=33>33%</ion-select-option>
-          <ion-select-option value=66>66%</ion-select-option>
-          <ion-select-option value=100>100%</ion-select-option>
-          <ion-select-option value="other">אחר</ion-select-option>
-        </ion-select>
-        <ion-input *ngIf="isCustomUserTax" type="number" formControlName="{{col.key}}" label="הכנס מספר" label-placement="floating"></ion-input>
-      </ng-container>
-      </ng-template>
-        <!-- <ion-input *ngIf="this.isUserSelectTax" type="text" formControlName="{{col.key}}" label="* {{col.value}}" label-placement="floating"></ion-input> -->
-        <!-----------date--------------->
-        <ng-template #datetime>
-          <ion-input *ngIf="col.key === 'date'; else file" label="* {{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="date">
-          </ion-input>
-        </ng-template>
-        <!-----------add file--------------->
-        <ng-template #file>
-          <ion-input *ngIf="col.key === 'file'; else input" (input)=fileSelected($event) label="* {{col.value}}"
-            label-placement="floating" formControlName="{{col.key}}" type="file">
-          </ion-input>
-        </ng-template>
-        <!----------- all the rest --------------->
-        <ng-template #input>
-          <ion-input *ngIf="col.key === 'note' || col.key === 'expenseNumber'; else sum" label="{{col.value}}"
-            label-placement="floating" formControlName="{{col.key}}" type="text">
-          </ion-input>
-        </ng-template>
-        <!----------- sum --------------->
-        <ng-template #sum>
-          <ion-input *ngIf="col.key === 'sum'; else supplier" label="* {{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="number">
-          </ion-input>
-        </ng-template>
-        <!----------- supplier --------------->
-        <ng-template #supplier>
-          <ion-input *ngIf="col.key === 'supplier';else category" (ionFocus)="openSelectSupplier()" label="{{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="text" [(ngModel)]="this.myForm.get('supplier').value">
-          </ion-input>
-          <!-- <ion-button expand="full" (click)="openSelectSupplier()">בחר ספק</ion-button> -->
-        </ng-template>
-        <!----------- category --------------->
-        <ng-template #category>
-          <ion-input *ngIf="col.key === 'category';else subCategory" label="{{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="text">
-          </ion-input>
-        </ng-template>
-        <!----------- sub-category --------------->
-        <ng-template #subCategory>
-          <ion-input *ngIf="col.key === 'subCategory';else supplierID" label="{{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="text">
-          </ion-input>
-        </ng-template>
-        <!----------- supplierID --------------->
-        <ng-template #supplierID>
-          <ion-input *ngIf="col.key === 'supplierID'; else isEquipment" label="{{col.value}}" label-placement="floating"
-            formControlName="{{col.key}}" type="text">
-          </ion-input>
-        </ng-template>
-        <!----------- equipment --------------->
-        <ng-template #isEquipment>
-          <ion-checkbox *ngIf="col.key === 'isEquipment'" label="{{col.value}}" label-placement="floating" ng-model="myForm.get('isEquipment')"
-            formControlName="{{col.key}}">מוגדר כציוד
-          </ion-checkbox>
-        </ng-template>
-      </ion-item>
-      </ng-container>
-      <ion-list *ngIf="matches.length > 0 && provInput.length > 0">
-        <ion-item *ngFor="let provider of matches" (click)="selectProvider(provider)">{{ provider.name }}</ion-item>
-      </ion-list>
-      <!-- <ion-checkbox formControlName="equipment">מוגדר כציוד</ion-checkbox> -->
     </ion-list>
     <ion-button type="submit" [strong]="true" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>
     <ion-button color="medium" (click)="cancel()">ביטול</ion-button>

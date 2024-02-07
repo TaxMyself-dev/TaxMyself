@@ -1,13 +1,35 @@
 <form [formGroup]="myForm" (ngSubmit)="saveSupplier()">
   <ion-list *ngFor="let field of arrFields">
-    <ion-item *ngIf="field.key === 'name' || field.key === 'category' || field.key === 'subCategory'; else inputNumber ">
+    <!-- vatPercent-->
+    <ng-container *ngIf="field.key === 'vatPercent'; else taxPercent">
+      <ion-select  label="* {{field.value}}" formControlName="{{field.key}}" (ionChange)="customUserTax($event)"
+      label-placement="floating" interface="popover">
+      <ion-select-option *ngFor="let option of listPercent" [value]="option.value">{{option.key}}</ion-select-option>
+    </ion-select>
+      <ion-input *ngIf="isCustomUserVat" type="number" formControlName="{{col.key}}" label="הכנס מספר"
+        label-placement="floating"></ion-input>
+    </ng-container>
+    <!--taxPercent-->
+    <ng-template #taxPercent>
+      <ng-container *ngIf="(field.key === 'taxPercent'); else string">
+        <ion-select  label="* {{field.value}}" formControlName="{{field.key}}" (ionChange)="customUserTax($event)"
+          label-placement="floating" interface="popover">
+          <ion-select-option *ngFor="let option of listPercent" [value]="option.value">{{option.key}}</ion-select-option>
+        </ion-select>
+        <ion-input *ngIf="isCustomUserTax" type="number" formControlName="{{col.key}}" label="הכנס מספר"
+          label-placement="floating"></ion-input>
+      </ng-container>
+    </ng-template>
+    <ng-template #string>
+    <ion-item >
       <ion-input label="{{field.value}}" label-placement="floating" formControlName="{{field.key}}" type="text"></ion-input>
     </ion-item>
-    <ng-template #inputNumber>
+  </ng-template>
+    <!-- <ng-template #inputNumber>
       <ion-item >
         <ion-input label="{{field.value}}" label-placement="floating" formControlName="{{field.key}}" type="number"></ion-input>
       </ion-item>
-    </ng-template>
+    </ng-template> -->
   </ion-list>
-  <ion-button type="submit">הוסף</ion-button>
+  <ion-button type="submit" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>
 </form>
