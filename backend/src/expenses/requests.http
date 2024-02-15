@@ -1,18 +1,44 @@
-POST http://localhost:3000/expenses/add
+POST http://localhost:3000/expenses/add-expense
 content-type: application/json
 
 {
-  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjY5NjI5NzU5NmJiNWQ4N2NjOTc2Y2E2YmY0Mzc3NGE3YWE5OTMxMjkiLCJ0eXAiOiJKV1QifQ.eyJyb2xlIjoiYWRtaW4iLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vdGF4bXlzZWxmLTVkOGEwIiwiYXVkIjoidGF4bXlzZWxmLTVkOGEwIiwiYXV0aF90aW1lIjoxNzA2NTk0MTgyLCJ1c2VyX2lkIjoiTDVnSmtyZFFaNWdHbXRlNVh4UmdhZ2txcE9MMiIsInN1YiI6Ikw1Z0prcmRRWjVnR210ZTVYeFJnYWdrcXBPTDIiLCJpYXQiOjE3MDY1OTQxODIsImV4cCI6MTcwNjU5Nzc4MiwiZW1haWwiOiJoYXJlbGF6YXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImhhcmVsYXphckBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.buIWmXusdTU4ovPJqD2sTURvcvyaK51ScP_MAr6sLxnuzS3uhRmGFQTPbuz7-73mjNSKfvQ-zNxJCc3iLkkQ4k2j2LryrwkrOmBzIaBb__E-HhO6RFju593VR1xhLdqX8SQ_34YXFBjxJmg0v4QxxNabRz4qHKSB9ZSauUHi2ZKo2orb9ovgjk1hXGci5wXq7Kf7-QQGjDFRkSoHyLHhcmaX63ZzrRwPt03e9OPDuOdEZsX45lPh_Z_S0end7pcOW12xtKfm0y8ycMdgrQN1sVqMZgDz7Ied459wluDeT-v0R3Q3ykh90d02HLGqa9URSAua9Cx8hmOQMZI2kFatww",
+  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImFlYzU4NjcwNGNhOTZiZDcwMzZiMmYwZDI4MGY5NDlmM2E5NzZkMzgiLCJ0eXAiOiJKV1QifQ.eyJyb2xlIjoiYWRtaW4iLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vdGF4bXlzZWxmLTVkOGEwIiwiYXVkIjoidGF4bXlzZWxmLTVkOGEwIiwiYXV0aF90aW1lIjoxNzA4MDA3NjAzLCJ1c2VyX2lkIjoiTDVnSmtyZFFaNWdHbXRlNVh4UmdhZ2txcE9MMiIsInN1YiI6Ikw1Z0prcmRRWjVnR210ZTVYeFJnYWdrcXBPTDIiLCJpYXQiOjE3MDgwMDc2MDMsImV4cCI6MTcwODAxMTIwMywiZW1haWwiOiJoYXJlbGF6YXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImhhcmVsYXphckBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.JUPmVWbcrI3nDL_1P7t5Nwq7MCnWWrdomJ9zGjEfYHYmjk8KqIEFqjKL1u6aXhzlWAuOPwpIH6rE2T1qlVs6iNzSyRmyynWeJHvZEYgG1L8Wlx0VSxBH2_z-p1cqmc9kNXIMVK0FiEU7HrkxzstD99LIggUJoxiCPSNrz1GBuXvRZQ4IT43laYdB2sYCdqmnKXgL1Mym1-pycwBnfYtcvTYY7p57ZEMvZDr4kwYPKYwj4mazClRD910qdNBcSC_gWQhd-CMDk73yS7dxtHjuelGRIFKJGp1hz56LUSrivQhMVDaxf3lUPzSP8Oj3iUQLLATqmYf3ccKibxkst4zoMg",
   "supplier": "הוצאות דלק",
-  "supplierId": 239458,
+  "supplierId": "239458",
+  "expenseNumber": "324234",
   "category": "רכב",
   "subCategory": "דלק",
-  "sum": 450,
+  "sum": 850,
   "taxPercent": 25,
   "vatPercent": 45,
   "date": "2023-08-25T10:00:00Z",
   "isEquipment": false
 }
+
+###
+PATCH http://localhost:3000/expenses/update-expense/90
+content-type: application/json
+
+{
+  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImFlYzU4NjcwNGNhOTZiZDcwMzZiMmYwZDI4MGY5NDlmM2E5NzZkMzgiLCJ0eXAiOiJKV1QifQ.eyJyb2xlIjoiYWRtaW4iLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vdGF4bXlzZWxmLTVkOGEwIiwiYXVkIjoidGF4bXlzZWxmLTVkOGEwIiwiYXV0aF90aW1lIjoxNzA4MDA3NjAzLCJ1c2VyX2lkIjoiTDVnSmtyZFFaNWdHbXRlNVh4UmdhZ2txcE9MMiIsInN1YiI6Ikw1Z0prcmRRWjVnR210ZTVYeFJnYWdrcXBPTDIiLCJpYXQiOjE3MDgwMDc2MDMsImV4cCI6MTcwODAxMTIwMywiZW1haWwiOiJoYXJlbGF6YXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImhhcmVsYXphckBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.JUPmVWbcrI3nDL_1P7t5Nwq7MCnWWrdomJ9zGjEfYHYmjk8KqIEFqjKL1u6aXhzlWAuOPwpIH6rE2T1qlVs6iNzSyRmyynWeJHvZEYgG1L8Wlx0VSxBH2_z-p1cqmc9kNXIMVK0FiEU7HrkxzstD99LIggUJoxiCPSNrz1GBuXvRZQ4IT43laYdB2sYCdqmnKXgL1Mym1-pycwBnfYtcvTYY7p57ZEMvZDr4kwYPKYwj4mazClRD910qdNBcSC_gWQhd-CMDk73yS7dxtHjuelGRIFKJGp1hz56LUSrivQhMVDaxf3lUPzSP8Oj3iUQLLATqmYf3ccKibxkst4zoMg"",
+  "supplier": "הוצאות דלק",
+  "supplierId": "239458",
+  "expenseNumber": "33333",
+  "category": "רכב",
+  "subCategory": "דלק",
+  "sum": 500,
+  "taxPercent": 25,
+  "vatPercent": 25,
+  "date": "2023-08-25T10:00:00Z",
+  "isEquipment": false
+}
+
+###
+GET http://localhost:3000/expenses/search?userId=1&startDate=2022-01-01&endDate=2022-12-31&supplier=SomeSupplier&category=SomeCategory
+
+###
+GET http://localhost:3000/expenses/search
+
 
 ###
 POST http://localhost:3000/expenses/add-default-category

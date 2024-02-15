@@ -53,5 +53,11 @@ export class UpdateExpenseDto {
     @IsOptional()
     @IsBoolean()
     isEquipment: boolean;
+
+    @IsNumber()
+    taxSumRec: number;
+
+    @IsNumber()
+    vatSumRec: number;
     
 }

@@ -1,5 +1,6 @@
 //General
 import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException } from '@nestjs/common';
+import { Request } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
 import { DefaultCategory } from './categories.entity';
@@ -17,11 +18,6 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 //Guards
 import { AdminGuard } from 'src/guards/admin.guard';
 
-
-import { query } from 'express';
-import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import * as tesseract from 'tesseract.js';
-import { throwError } from 'rxjs';
 
 @Controller('expenses')
 //@UseGuards(FirebaseAuthGuard)

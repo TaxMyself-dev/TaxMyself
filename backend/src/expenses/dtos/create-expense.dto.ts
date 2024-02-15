@@ -20,7 +20,7 @@ export class CreateExpenseDto {
     supplier: string;
 
     @IsString()
-    supplierID: string;
+    supplierId: string;
 
     @IsString()
     expenseNumber:string;

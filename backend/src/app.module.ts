@@ -1,20 +1,19 @@
 import { Module, ValidationPipe, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
-import { APP_PIPE } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+//Modules
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
 import { ExcelModule } from './transactions/transactions.module';
-import { User } from './users/user.entity';
-import { PreauthMiddleware } from './auth/preauth.middleware';
-
+import { CloudModule } from './cloud/cloud.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Supplier } from './expenses/suppliers.entity';
 import { Transactions } from './transactions/transactions.entity';
 import { DefaultCategory } from './expenses/categories.entity';
+import { User } from './users/user.entity';
 
 import * as firebase from 'firebase-admin';
 import * as serviceAccount from './auth/firebaseServiceAccount.json';
@@ -22,8 +21,6 @@ import { randomBytes, scrypt as _scrypt } from 'crypto';
 import { promisify } from 'util';
 
 import { VAT_RATE_2023 } from './constants';
-
-const cookieSession = require('cookie-session');
 
 const firebase_params = {
   type: serviceAccount.type,
@@ -50,7 +47,7 @@ const scrypt = promisify(_scrypt);
         database: 'fintaxco_taxmyself_dev',
         entities: [User, Expense, Supplier, Transactions, DefaultCategory],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule, ExcelModule],
+      UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule],
     controllers: [AppController],
     providers: [AppService],
 })

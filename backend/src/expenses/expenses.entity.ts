@@ -2,11 +2,9 @@ import {
     Entity, 
     Column, 
     PrimaryGeneratedColumn,
-    ManyToOne 
+    BeforeInsert,
+    BeforeUpdate
 } from 'typeorm'
-import { User } from 'src/users/user.entity';
-
-//import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
 @Entity()
 export class Expense {
@@ -60,9 +58,19 @@ export class Expense {
   reductionDone: boolean
 
   @Column()
-  equipmentCategory: string;
-
-  @Column()
   reductionPercent: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  totalTaxPayable: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  totalVatPayable: number;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  calculateSums() {
+    this.totalTaxPayable = this.sum * (this.taxPercent/100);
+    this.totalVatPayable = (this.sum/1.17) * 0.17 * (this.vatPercent/100);
+  }
 
 }

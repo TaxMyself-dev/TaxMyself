@@ -1,0 +1,5 @@
+###
+GET http://localhost:3000/expenses/search?userId=1&startDate=2022-01-01&endDate=2022-12-31&supplier=SomeSupplier&category=SomeCategory
+
+###
+GET http://localhost:3000/my-cloud/search

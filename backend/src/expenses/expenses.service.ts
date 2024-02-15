@@ -11,11 +11,6 @@ import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 
-import { User } from 'src/users/user.entity';
-import * as admin from 'firebase-admin';
-import { Storage } from '@google-cloud/storage';
-import { CreateCategoryDto } from './dtos/create-category.dto';
-
 
 @Injectable()
 export class ExpensesService {
@@ -57,6 +52,15 @@ export class ExpensesService {
         // Check if the user making the request is the owner of the expense
         if (expense.userId !== userId) {
             throw new UnauthorizedException(`You do not have permission to update this expense`);
+        }
+
+        // Explicitly update the vatPercent and taxPercent in the expense_repo and 
+        // then call to the calculate function so the sums will update accordingly.
+        if (updateExpenseDto.vatPercent !== undefined) expense.vatPercent = updateExpenseDto.vatPercent;
+        if (updateExpenseDto.taxPercent !== undefined) expense.taxPercent = updateExpenseDto.taxPercent;
+        if (updateExpenseDto.sum !== undefined) expense.sum = updateExpenseDto.sum;
+        if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
+            expense.calculateSums();
         }
 
         return this.expense_repo.save({
