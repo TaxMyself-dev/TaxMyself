@@ -21,4 +21,7 @@ export class DefaultCategory {
     @Column('boolean')
     isEquipment: boolean;
 
+    @Column('decimal')
+    reductionPercent: number;
+
 }

@@ -99,18 +99,22 @@ export class ExpensesService {
     }
 
 
-    async getAllCategories(): Promise<string[]> {
+    async getAllCategories(isEquipment: boolean): Promise<string[]> {
         const categories = await this.category_repo.find({
-            select: ['category']
+            select: ['category'],
+            where: { isEquipment: isEquipment}
         });
 
         const uniqueCategoryNames = [...new Set(categories.map(category => category.category))];
         return uniqueCategoryNames;
     }
 
-    async getSubcategoriesByCategory(categoryName: string): Promise<DefaultCategory[]> {
+    async getSubcategoriesByCategory(categoryName: string, isEquipment: boolean): Promise<DefaultCategory[]> {
         return this.category_repo.find({
-          where: { category: categoryName }
+          where: { 
+                    category: categoryName,
+                    isEquipment: isEquipment 
+                }
         });
     }
 

@@ -91,14 +91,17 @@ export class ExpensesController {
 
 
   @Get('get-categories-list')
-  async getAllCategories(): Promise<string[]> {
-    return this.expensesService.getAllCategories();
+  async getAllCategories(@Query('isEquipment') isEquipment: boolean): Promise<string[]> {
+    return this.expensesService.getAllCategories(isEquipment);
   }
 
 
   @Get('get-sub-categories-list')
-  async getSubCategoriesByCategory(@Query('category') category: string): Promise<DefaultCategory[]> {
-    return this.expensesService.getSubcategoriesByCategory(category);
+  async getSubCategoriesByCategory(
+          @Query('category') categoryQuery: string,
+          @Query('isEquipment') isEquipmentQuery: boolean,
+        ): Promise<DefaultCategory[]> {
+    return this.expensesService.getSubcategoriesByCategory(categoryQuery, isEquipmentQuery);
   }
 
 

@@ -29,11 +29,11 @@ content-type: application/json
 
 
 ### Get categories
-GET http://localhost:3000/expenses/get-categories-list
+GET http://localhost:3000/expenses/get-categories-list?isEquipment=true
 
 
 ### Get sub categories
-GET http://localhost:3000/expenses/get-sub-categories-list?category=רכב
+GET http://localhost:3000/expenses/get-sub-categories-list?category=ציוד אלקטרוני&isEquipment=true
 
 
 
