@@ -17,4 +17,10 @@ export class ReportsController {
         return vatReport;
     }
 
+    @Get('tax-report')
+    async getTaxReport(){
+        const reductionReport = await this.reportsService.createReductionReport("L5gJkrdQZ5gGmte5XxRgagkqpOL2", 2023);
+        //console.log(reductionReport);
+    }
+
 }

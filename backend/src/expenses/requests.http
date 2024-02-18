@@ -1,3 +1,7 @@
+
+POST http://localhost:3000/expenses/try
+
+###
 POST http://localhost:3000/expenses/add-expense
 content-type: application/json
 

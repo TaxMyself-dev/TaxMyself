@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Expense } from 'src/expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
+import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
+import { ReductionReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from 'src/expenses/expenses.service';
 import { VAT_RATE_2023 } from 'src/constants';
 
@@ -68,4 +70,61 @@ export class ReportsService {
 
         return vatReport;
     }
+
+
+    async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {
+    //async createReductionReport(userId: string, year: number): Promise<any[]> {
+
+        const startDate = new Date(year, 0, 1); // 1st January of the year
+        const endDate = new Date(year, 11, 31); // 31st December of the year
+    
+        const expenses = await this.expense_repo
+          .createQueryBuilder("expense")
+          .select(["expense.date", "expense.sum", "expense.category", "expense.reductionPercent"])
+          .where("expense.userId = :userId", { userId })
+          .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
+          .andWhere("expense.date BETWEEN :startDate AND :endDate", { startDate, endDate })
+          .getMany();
+
+        console.log(expenses);
+        const reductionList =  expenses.map(expense => {
+            const calculatedValue = expense.sum * (expense.reductionPercent / 100);
+            return {
+                category: expense.category,
+                billDate: expense.date,
+                activeDate: expense.date,
+                redunctionPercnet: expense.reductionPercent,
+                redunctionForPeriod: calculatedValue
+            } as unknown as ReductionReportDto;
+          });
+
+        console.log("reductionList:", reductionList);
+        return reductionList;
+
+    }
+
+
+
+//     async findUserEquipmentExpensesForYear(userId: number, year: number): Promise<ExpenseSummaryDTO[]> {
+
+//     const startDate = new Date(year, 0, 1); // 1st January of the year
+//     const endDate = new Date(year, 11, 31); // 31st December of the year
+
+//     const expenses = await this.expenseRepository
+//       .createQueryBuilder("expense")
+//       .select(["expense.date", "expense.sum", "expense.reductionPercent"])
+//       .where("expense.userId = :userId", { userId })
+//       .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
+//       .andWhere("expense.date BETWEEN :startDate AND :endDate", { startDate, endDate })
+//       .getMany();
+
+//     return expenses.map(expense => {
+//       const calculatedValue = expense.sum * (expense.reductionPercent / 100);
+//       return {
+//         date: expense.date,
+//         sum: expense.sum,
+//         calculatedValue: calculatedValue
+//       } as ExpenseSummaryDTO;
+//     });
+//   }
 }

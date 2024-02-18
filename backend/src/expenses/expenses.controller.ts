@@ -7,6 +7,7 @@ import { DefaultCategory } from './categories.entity';
 //Services
 import { ExpensesService } from './expenses.service';
 import { UsersService } from 'src/users/users.service';
+import { SharedService } from 'src/shared/shared.service';
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -18,19 +19,29 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 //Guards
 import { AdminGuard } from 'src/guards/admin.guard';
 
+import { parse } from 'date-fns';
+import { getDayOfYear } from 'date-fns';
+
 
 @Controller('expenses')
 //@UseGuards(FirebaseAuthGuard)
 export class ExpensesController {
   constructor(
     private expensesService: ExpensesService,
-    private usersService: UsersService) {}
+    private usersService: UsersService,
+    private sharedService: SharedService) {}
+
+
+  // @Post('try')
+  // async try() {
+  //   const dayOfYear = this.sharedService.getDayOfYearFromDate(Date("31.12.2023"))
+  //   console.log(dayOfYear);  
+  // }
 
 
   @Post('add-expense')
   async addExpense(@Body() body: CreateExpenseDto) {
     try {      
-      console.log("nbhjbklmmlkjlkmm");
       const userId = await this.usersService.getFirbsaeIdByToken(body.token)
       console.log("afterafter");
       console.log("body of expense :", body);

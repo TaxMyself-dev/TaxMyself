@@ -22,6 +22,7 @@ import { randomBytes, scrypt as _scrypt } from 'crypto';
 import { promisify } from 'util';
 
 import { VAT_RATE_2023 } from './constants';
+import { SharedModule } from './shared/shared.module';
 
 const firebase_params = {
   type: serviceAccount.type,
@@ -48,7 +49,7 @@ const scrypt = promisify(_scrypt);
         database: 'fintaxco_taxmyself_dev',
         entities: [User, Child, Expense, Supplier, Transactions, DefaultCategory],
         synchronize: true}), // remove on production!!
-      UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule],
+      UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
     controllers: [AppController],
     providers: [AppService],
 })
