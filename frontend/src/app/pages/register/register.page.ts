@@ -4,6 +4,7 @@ import { RegisterService } from './register.service';
 import { IChildren } from 'src/app/shared/interface';
 import axios from 'axios';
 import { AuthService } from 'src/app/services/auth.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-register',
@@ -13,17 +14,19 @@ import { AuthService } from 'src/app/services/auth.service';
 export class RegisterPage implements OnInit {
 
   myForm: FormGroup;
-  children: IChildren[] = [{ name: "", dateOfBirth: "" }];
+  children: IChildren[] = [{ fName: "", lName: "", id: "", dateOfBirth: "" }];
   selectedOption!: string;
   today!: string;
+  registerMode: boolean = true;
   passwordValid = true;
   passwordValidInput!: string;
+  listBusinessField = [{key:"build", value:"בניין"},{key:"electric", value:"חשמל"}, {key:"photo", value:"צילום"}, {key:"architecture", value:"אדריכלות"}]
+  listBusinessType = [{key:"licensed", value:"עוסק מורשה"}, {key:"exempt", value:"עוסק פטור"}, {key:"company", value:"חברה"}]
 
 
 
 
-
-  constructor(private authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
+  constructor(private router: Router, private authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     const currentDate = new Date();
     this.today = currentDate.toISOString().substring(0, 10);
 
@@ -52,7 +55,13 @@ export class RegisterPage implements OnInit {
       children: new FormControl(
         [], Validators.requiredTrue,
       ),
+      haveChild: new FormControl(
+        false, Validators.required,
+      ),
       spouseFName: new FormControl(
+        '', Validators.required,
+      ),
+      spouseLName: new FormControl(
         '', Validators.required,
       ),
       spouseId: new FormControl(
@@ -61,20 +70,39 @@ export class RegisterPage implements OnInit {
       spouseDateOfBirth: new FormControl(
         '', Validators.required,
       ),
-      Independent: new FormControl(
+      spouseIndependet: new FormControl(
         false, Validators.requiredTrue,
       ),
-
+      businessType: new FormControl(
+        '', Validators.required,
+      ),
+      businessField: new FormControl(
+        '', Validators.required,
+      ),
+      businessName: new FormControl(
+        '', Validators.required,
+      ),
+      employee: new FormControl(
+        false, Validators.requiredTrue,
+      ),
+      city: new FormControl(
+        '', Validators.required,
+      ),
     });
   }
 
 
   ngOnInit() {
+    this.authService.isVerfyEmail$.subscribe((value)=>{//TODO: unsubscribe
+      if (value){
+        this.registerMode = false;
+      }
+    })
   };
 
 
   addChild() {
-    this.children = [...this.children, { name: '', dateOfBirth: '' }];
+    this.children = [...this.children, {  fName: "", lName: "", id: "", dateOfBirth: ""  }];
   }
 
   removeChild(index: number) {
@@ -82,23 +110,47 @@ export class RegisterPage implements OnInit {
       this.children.splice(index, 1);
   }
 
-  handleFormRegister() {
+  async handleFormRegister() {
     const formData = this.myForm.value;
+    const data = {fromReg: false, email: formData.email};
+    formData.spouseIndependet == "true" ? formData.spouseIndependet = true : formData.spouseIndependet = false
+    formData.employee == "true" ? formData.employee = true : formData.employee = false
+    console.log(formData);
+    
     this.authService.SignUp(formData);
+    this.router.navigate(['login'],{queryParams: data});
   }
 
-  saveChildName(data: any, index: number) {
-    this.children[index].name = data.target.value;
+  saveFirstNameChild(data: any, index: number) {
+    this.children[index].fName = data.target.value;
     this.myForm.get('children')?.setValue(this.children);
   }
 
+  saveLastNameChild(data: any, index: number) {
+    this.children[index].lName = data.target.value;
+    this.myForm.get('children')?.setValue(this.children);
+  }
+
+  saveIdChild(data: any, index: number) {
+    this.children[index].id = data.target.value;
+    this.myForm.get('children')?.setValue(this.children);
+  }
+  
   saveChildDate(data: any, index: number) {
     this.children[index].dateOfBirth = data.target.value;
-    this.myForm.get('children')?.setValue(this.children);
+    this.myForm.get('children')?.setValue([this.children]);
   }
-
+  
   onOptionChange(event: any) {
-    this.selectedOption = event.target.value
+    this.selectedOption = event.target.value;
+    if (this.selectedOption == "noHaveChild") {
+      this.children = [{ fName: "", lName: "", id: "", dateOfBirth: "" }];
+      this.myForm.get('children')?.setValue([]);
+      this.myForm.get('haveChild')?.setValue(false);
+    }
+    else{
+      this.myForm.get('haveChild')?.setValue(true);
+    }
   }
 
   changePasswordValidinput(event: any) {

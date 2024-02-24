@@ -13,10 +13,11 @@ import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
 import { AuthService } from 'src/users/auth.service';
 import { UsersService } from 'src/users/users.service';
+import { Child } from 'src/users/child.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory, Supplier ]),
+  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory, Supplier, Child ]),
             SharedModule],
   controllers: [ExpensesController],
   providers: [

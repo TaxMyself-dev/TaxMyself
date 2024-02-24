@@ -6,7 +6,9 @@ export interface IColumnDataTable {
     [key: string]: string;
 }
 export interface IChildren{
-    name: string,
+    fName: string,
+    lName: string,
+    id: string,
     dateOfBirth: string
 };
 

@@ -1,11 +1,7 @@
 import { 
-    AfterInsert, 
-    AfterRemove, 
-    AfterUpdate, 
     Entity, 
     Column, 
     PrimaryGeneratedColumn,
-    OneToMany
  } from 'typeorm';
 import { UserRole } from 'src/enum';
 
@@ -23,14 +19,20 @@ export class User {
     @Column()
     id: string;
 
-    @Column()
-    email: string;
+    @Column('date')
+    dateOfBirth: Date;
 
     @Column()
     phone: string;
 
     @Column()
-    dateOfBirth: string;
+    email: string;
+
+    @Column()
+    city: string;
+
+    @Column()
+    haveChild: boolean;
 
     //children
 
@@ -43,11 +45,28 @@ export class User {
     @Column()
     spouseId: string;
 
-    @Column()
-    spouseDateOfBirth: string;
+    @Column('date')
+    spouseDateOfBirth: Date;
+
+     @Column()
+    spouseIndependet: boolean;
 
     @Column()
     firebaseId: string;
+
+    @Column()
+    businessName: string;
+
+    @Column()
+    businessField: string;
+
+    @Column()
+    businessType: string;
+
+    @Column()
+    employee: boolean;
+
+    
 
     @Column({
         type: 'enum',
@@ -55,19 +74,4 @@ export class User {
         default: UserRole.FREE_USER,
       })
       role: UserRole;
-
-    @AfterInsert()
-    logInsert() {
-        console.log('Inserted user with id', this.index);
-    }
-
-    @AfterUpdate()
-    logUpdate() {
-        console.log('Updated user with id', this.index);
-    }
-
-    @AfterRemove()
-    logRemove() {
-        console.log('Removed user with id', this.index);
-    }
 }

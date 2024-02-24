@@ -1,7 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import axios from 'axios';
 import { AuthService } from 'src/app/services/auth.service';
+import { UserCredential } from '@firebase/auth-types';
+import {  sendEmailVerification,} from '@angular/fire/auth';
 
 @Component({
   selector: 'app-login',
@@ -9,8 +12,14 @@ import { AuthService } from 'src/app/services/auth.service';
   styleUrls: ['./login.page.scss'],
 })
 export class LoginPage implements OnInit {
+
+  emailVerify: boolean = true;
+  userEmail: string = "";
+  userCredential: UserCredential;
   myForm: FormGroup;
-  constructor(private formBuilder: FormBuilder, private authService: AuthService) {
+
+
+  constructor(private router: Router, private activatedRoute: ActivatedRoute, private formBuilder: FormBuilder, private authService: AuthService) {
 
     this.myForm = this.formBuilder.group({
 
@@ -24,41 +33,44 @@ export class LoginPage implements OnInit {
   }
 
   ngOnInit() {
+    this.activatedRoute.queryParams.subscribe( params => {
+      this.emailVerify = params['fromReg']
+      this.userEmail = params['email']
+      console.log(this.emailVerify);
+      console.log(this.userEmail);
+    })
   }
-
-  // handleFormRegister() {
-  //   const formData = this.myForm.value;
-  //   console.log(formData);
-  // }
 
   signin(){
+    console.log(this.myForm);
+    
     const formData = this.myForm.value;
-    this.authService.SignIn(formData.userName,formData.password);
+    this.authService.userVerify(formData.userName,formData.password)
+    .subscribe((res) => {
+      if (res) {
+        this.userCredential = res;
+      }
+      if (res.user.emailVerified) {
+        this.authService.signIn(res);
+        console.log(res)
+      
+      }
+      else{
+        this.emailVerify = res.user.emailVerified;
+        alert("please verify email");
+        console.log(res);
+        
+      }
+    });
   }
 
-  // signInWithFireBase() {
-  //   const formData = this.myForm.value;
-  //   this.authService.signInWithEmailAndPassword(formData.userName, formData.password).subscribe();
-    
-    // const url = "http://localhost:3000/auth/signin";
-    // console.log("in sign in firebase", formData.userName, formData.password);
-    
-    // console.log("token in login:", this.authService.token);
-    // const data = { token: this.authService.token, uid: this.authService.uid };
-    // console.log(data.uid);
-    
-    // axios.post(url, data)
-    //   .then(response => {
-    //     // Request was successful, handle the response data.
-    //     console.log('Response:', response.data.body);
-    //   })
-    //   .catch(error => {
-    //     // An error occurred during the request.
-    //     console.log('Error:', error.response.data.message);
-    //     console.error('Error:', error);
-    //   });
-  // }
+  sendVerficaitonEmail(): void {
+    this.authService.SendVerificationMail();
+  }
 
+  navigateToRegister(): void {
+    this.router.navigate(['register'])
+  }
 
 
 }

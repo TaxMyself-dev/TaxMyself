@@ -19,7 +19,10 @@ export class Child {
     @Column()
     id: string;
 
+    @Column('date')
+    dateOfBirth: Date;
+
     @Column()
-    dateOfBirth: string;
+    fatherID: string;
 
 }

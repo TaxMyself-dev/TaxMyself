@@ -16,6 +16,7 @@
 //css of add child button
 .child-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     margin-bottom: 10px;
   }
@@ -23,6 +24,7 @@
   .input-container {
     flex: 1;
     margin-right: 10px;
+    width: 50px;
   }
   
   .add-icon {

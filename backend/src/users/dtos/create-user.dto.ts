@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNumber, IsPhoneNumber, IsDateString} from "class-validator";
+import { IsEmail, IsString, IsNumber, IsPhoneNumber, IsDateString, IsBoolean, IsArray} from "class-validator";
 import { LargeNumberLike } from "crypto";
 
 export class CreateUserDto {
@@ -9,22 +9,30 @@ export class CreateUserDto {
     @IsString()
     lName: string;
 
-    @IsNumber()
-    idCard: string;
-
-    @IsEmail()
-    email: string;
+    @IsString()
+    id: string;
+    
+    @IsString()
+    date: Date
 
     @IsPhoneNumber()
     phone: string;
 
-    @IsDateString()
-    dateOfBirth: string;
+    @IsEmail()
+    email: string;
 
     @IsString()
-    password: string;
+    city: string;
 
-    //children
+    @IsArray()
+    children:[];
+
+    //password?
+    
+
+
+    @IsBoolean()
+    haveChild: boolean;
 
     @IsString()
     spouseFName: string;
@@ -35,10 +43,30 @@ export class CreateUserDto {
     @IsNumber()
     spouseId: string;
 
-    @IsDateString()
-    spouseDateOfBirth: string;
+    @IsString()
+    spouseDateOfBirth: Date;
+
+    @IsBoolean()
+    spouseIndependet: boolean;
 
     @IsString()
     firebaseId: string;
+
+    @IsString()
+    businessName: string;
+
+    @IsString()
+    businessField: string;
+
+    @IsString()
+    businessType: string;
+
+    @IsBoolean()
+    employee: boolean;
+
+
+    // @IsDateString()
+    // spouseDateOfBirth: string;
+
 
 }

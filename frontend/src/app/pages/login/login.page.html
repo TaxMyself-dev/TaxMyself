@@ -1,27 +1,35 @@
 <ion-header [translucent]="true">
-  <ion-toolbar>
+  <!-- <ion-toolbar>
     <p class="login-toolbar">עצמאי בעצמי - לחסוך כסף להרוויח זמן!</p>
-  </ion-toolbar>
+  </ion-toolbar> -->
 </ion-header>
+<div *ngIf="!this.emailVerify && this.emailVerify !== undefined ">
+  <p>עדיין לא אימתת את המייל, בבקשה כנס למייל שהזנת בהרשמה כדי לאמת חשבון</p>
+  <p (click)="sendVerficaitonEmail()">לחץ כאן לשליחת מייל חדש לאימות</p>
+</div>
 
 <form class="flex-center" [formGroup]="myForm" (ngSubmit)="signin()">
   <ion-card class="login-card">
     <ion-card-header>
-      <ion-card-title class="custom-title"><b>שם משתמש וסיסמא</b></ion-card-title>
+      <ion-card-title class="custom-title"><b>עצמאי בעצמי</b></ion-card-title>
+    </ion-card-header>
+    <div class="line"></div>
+    <ion-card-header>
+      <ion-card-title class="custom-title"><b>להרוויח זמן - לחסוך כסף</b></ion-card-title>
     </ion-card-header>
 
-    <ion-card-content>
+    <ion-card-content class="login-card-content">
       <!---------user name-------->
-      <ion-input type="text" label="שם משתמש" label-placement="floating" fill="outline" placeholder="בחר שם משתמש"
+      <ion-input class="login-input" type="text" label="אימייל" label-placement="floating" fill="outline" placeholder="אימייל"
         formControlName="userName"></ion-input>
       <!---------password--------->
-      <ion-input type="password" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
+      <ion-input class="login-input" type="password" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
         formControlName="password"></ion-input>
-    </ion-card-content>
-    <ion-button class="login-submit-button" type="submit">כניסה</ion-button>
+        <ion-button [disabled]="this.myForm.invalid" class="login-submit-button" type="submit">התחבר</ion-button>
+        
+        <p>
+          משתמש חדש? לחץ <span (click)="navigateToRegister()" class="blue-link">כאן</span> להרשמה.
+        </p>
+      </ion-card-content>
   </ion-card>
-  <div class="login-button">
-
-    <ion-button href="/register">עדיין לא נרשמתי</ion-button>
-  </div>
 </form>

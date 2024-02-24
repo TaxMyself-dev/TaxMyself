@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
+import { Child } from './child.entity';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { UserRole } from 'src/enum';
 import { AuthService } from './auth.service';
@@ -13,15 +14,24 @@ export class UsersService {
 
     public defaultApp: any;
     private readonly firebaseAuth: admin.auth.Auth;
-    constructor(@InjectRepository(User) private user_repo: Repository<User>)
+    constructor
+    (
+        @InjectRepository(User) private user_repo: Repository<User>, 
+        @InjectRepository(Child) private child_repo: Repository<Child>
+    )
     {
         this.firebaseAuth = admin.auth();
     }
                               
 
-    async signup(createUserDto: User, firebase_id: string) {
+    async signup(children: Child[], createUserDto: User, firebase_id: string) {
         createUserDto.firebaseId = firebase_id;
-        console.log(createUserDto);
+        console.log("CREATE USER DTO: ", createUserDto);
+        children.forEach(child => {
+            const newChild = this.child_repo.create(child);
+            newChild.fatherID = firebase_id
+            this.child_repo.save(newChild);
+        });
         const user = this.user_repo.create(createUserDto);
         return this.user_repo.save(user);
     }
