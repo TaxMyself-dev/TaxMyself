@@ -27,13 +27,6 @@ export class CreateUserDto {
     @IsArray()
     children:[];
 
-    //password?
-    
-
-
-    @IsBoolean()
-    haveChild: boolean;
-
     @IsString()
     spouseFName: string;
 

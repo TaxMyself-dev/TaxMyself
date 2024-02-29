@@ -5,7 +5,10 @@ import { Component, OnInit } from '@angular/core';
   templateUrl: './my-status.page.html',
   styleUrls: ['./my-status.page.scss'],
 })
+
 export class MyStatusPage implements OnInit {
+
+  aaa: string = "good";
 
   constructor() { }
 

@@ -24,5 +24,14 @@ ion-button {
     letter-spacing: 0;
     margin-bottom: 0;
     padding-top: 21px;
+    --color: black;
+    --box-shadow: 0;
 
+    &.primary {
+      --background: rgb(79, 171, 79);
+    }
+
+    &.clear {
+      --background: transparent;
+    }
   }

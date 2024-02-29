@@ -44,12 +44,11 @@ export class AuthService {
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
 
 
-  SaveDataUserInLocalStorage(user: UserCredential) {
-    from(user.user.getIdToken())
-      .subscribe((token) => {
-        localStorage.setItem('token', token);
-      });
-    localStorage.setItem('user', JSON.stringify(user));
+  // SaveDataUserInLocalStorage(token: string) {
+  //   localStorage.setItem('token', token);
+  //   console.log("token in save local: ", token);
+    
+    //localStorage.setItem('user', JSON.stringify(user));
     // this.afAuth.authState.subscribe(async (user) => {
     //   console.log("checking: ", user);
 
@@ -75,7 +74,7 @@ export class AuthService {
     //     JSON.parse(localStorage.getItem('user')!);
     //   }
     // });
-  }
+  // }
 
 
   //srcObservable = of(1, 2, 3, 4)
@@ -152,9 +151,10 @@ export class AuthService {
     return from(this.afAuth.signInWithEmailAndPassword(email, password))
       .pipe(
         catchError((err) => {
-          console.log("err in sign in with email: ", err);
-          return EMPTY;
+          console.log("err in sign in with email: ", err.message);
+          return of(err);
         }),
+        tap((user) => {localStorage.setItem('user', JSON.stringify(user.user));})
       )
   }
 
@@ -167,7 +167,7 @@ export class AuthService {
           console.log("err in get id token: ", err);
           return EMPTY;
         }),
-        tap((token) => console.log("token in sign in: ",token)),
+        tap((token) =>localStorage.setItem('token', token)),
         switchMap((token) => this.http.post(url, {token: token})),
         catchError((err) => {
           console.log("err in post request: ", err);

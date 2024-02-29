@@ -7,6 +7,8 @@ import { Component, OnInit } from '@angular/core';
 })
 export class MyAccountPage implements OnInit {
 
+str: string = "good";
+
   constructor() { }
 
   ngOnInit() {

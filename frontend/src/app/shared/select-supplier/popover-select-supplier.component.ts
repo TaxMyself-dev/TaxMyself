@@ -1,9 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { PopoverController } from '@ionic/angular';
-import { EMPTY, catchError, finalize, from, switchMap } from 'rxjs';
+import { EMPTY, catchError, delay, finalize, from, switchMap } from 'rxjs';
 import { addSupplierComponent } from '../add-supplier/add-supplier.component';
 import { cloneDeep } from 'lodash';
 import { FilesService } from 'src/app/services/files.service';
+import { ISuppliers } from '../interface';
 
 
 @Component({
@@ -14,7 +15,7 @@ import { FilesService } from 'src/app/services/files.service';
 export class selectSupplierComponent implements OnInit {
 
   searchTerm = '';
-  suppliers: {};
+  suppliers: ISuppliers[];
   // editMode: boolean = false;
 
   constructor(private fileService: FilesService, private popoverController: PopoverController) { }
@@ -26,7 +27,8 @@ export class selectSupplierComponent implements OnInit {
         return EMPTY;
       })).subscribe((res) => {
         console.log("suppliers from server: ", res);
-        this.suppliers = cloneDeep(res)
+        this.suppliers =  res;
+        console.log(this.suppliers);
       })
     
   }

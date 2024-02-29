@@ -7,7 +7,6 @@ import { AppRoutingModule } from './app-routing.module';
 import { SidebarNavComponent } from './core/sidebar-nav/sidebar-nav.component';
 import { RegisterPageModule } from './pages/register/register.module';
 import { TableComponent } from './shared/table/table.component';
-import { ButtonComponent } from './shared/button/button.component';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ReactiveFormsModule } from '@angular/forms';
 import { initializeApp} from '@angular/fire/app';

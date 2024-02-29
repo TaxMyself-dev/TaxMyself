@@ -23,10 +23,11 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 })
 export class AddInvoicePage implements OnInit {
 
-  columns: IColumnDataTable = {};//Titles of expense
+  columns: IColumnDataTable[];//Titles of expense
   rows: IRowDataTable[] = [];//Data of expense
   tableTitle = "הוצאות אחרונות";
-  urlFile: string;
+  // urlFile: string;
+  isOpen: boolean = true;
 
   constructor(private filesService: FilesService, private formBuilder: FormBuilder, private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService,) {
 
@@ -65,19 +66,20 @@ export class AddInvoicePage implements OnInit {
       //showBackdrop: false,
       componentProps: {
         columns: this.columns,
-        data: {}
+        data: {},
         // Add more props as needed
-      }
+      },
+      cssClass: 'custom-modal'
     })
     //.then(modal => modal.present());
     await modal.present();
   }
 
   
-  async downloadFile() {
+  // async downloadFile() {
 
-    this.urlFile = await this.filesService.downloadFile('2222/O7rWwmIEnfzHrp-AErXvJ.png')
-    }
+  //   this.urlFile = await this.filesService.downloadFile('2222/O7rWwmIEnfzHrp-AErXvJ.png')
+  //   }
 
 
 

@@ -17,7 +17,8 @@ export class MyStoragePage implements OnInit {
   items$: Observable<IRowDataTable[]>;//Data of expenses
   item: IRowDataTable;
   uid: string;
-  fieldsNames: IColumnDataTable;
+  fieldsNamesToAdd: IColumnDataTable[];
+  fieldsNamesToShow: IColumnDataTable[];
   isOnUpdate: boolean = false;
 
   // tableTitle = "הוצאות אחרונות";
@@ -29,7 +30,12 @@ export class MyStoragePage implements OnInit {
   constructor(private http: HttpClient, private expenseDataService: ExpenseDataService, private modalController: ModalController) { }
 
   ngOnInit() {
-    this.fieldsNames = this.expenseDataService.getAddExpenseColumns();
+    this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
+    console.log("this.fieldsNames", this.fieldsNamesToAdd) ;
+
+    this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
+    console.log("this.fieldsNames", this.fieldsNamesToShow) ;
+    
     this.setUserId();
     this.setRowsData();
     this.expenseDataService.updateTable$.subscribe(
@@ -53,12 +59,15 @@ export class MyStoragePage implements OnInit {
   }
 
   openPopupAddExpense(data: IRowDataTable = {}): void {
+    console.log("this.fieldsNames in open", this.fieldsNamesToAdd) ;
+    console.log("data in open", data) ;
       from(this.modalController.create({
+
         component: ModalExpensesComponent,
         //showBackdrop: false,
         componentProps: {
-          columns: this.fieldsNames,
-          editMode: !!Object.keys(data).length,
+          columns: this.fieldsNamesToAdd,
+          // editMode: !!Object.keys(data).length,
           data
         }
       })).pipe(catchError((err) => {

@@ -10,6 +10,7 @@ import {  sendEmailVerification,} from '@angular/fire/auth';
   selector: 'app-login',
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
+
 })
 export class LoginPage implements OnInit {
 
@@ -48,6 +49,8 @@ export class LoginPage implements OnInit {
     this.authService.userVerify(formData.userName,formData.password)
     .subscribe((res) => {
       if (res) {
+        console.log("res: ", res);
+        
         this.userCredential = res;
       }
       if (res.user.emailVerified) {

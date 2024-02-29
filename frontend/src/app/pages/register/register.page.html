@@ -1,182 +1,173 @@
-<ion-header [translucent]="true">
+<!-- <ion-header [translucent]="true">
   <ion-toolbar>
     <p class="regidter-toolbar">עצמאי בעצמי - לחסוך כסף להרוויח זמן!</p>
   </ion-toolbar>
-</ion-header>
+</ion-header> -->
 
 <ion-content [fullscreen]="true">
-  <ng-container *ngIf="this.registerMode">
-  
-    <form class="form-register" [formGroup]="myForm" (ngSubmit)="handleFormRegister()">
-      <!-----------------------------------------------PERSONAL DETAILS----------------------------------->
-      <ion-card class="register-card">
-        <ion-card-header>
-          <ion-card-title><b>פרטים אישיים</b></ion-card-title>
-        </ion-card-header>
+  <div class="register-content">
+  <app-item-navigate class="navigate-item-container" [navigationItems]="itemsNavigate"
+    (onNavButtonClicked)="navigateclicked($event)"></app-item-navigate>
 
-        <ion-card-content>
+    <!-------------- PRESONAL MODULE ------------->
+    <ng-container [ngSwitch]="selectedFormModule">
+
+      <ng-container *ngSwitchCase="registerFormModules.PERSONAL">
+        <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm">
           <!---------first name----->
-              <ion-input class="input-register" label="שם פרטי" class="input-register" clear-input="true"  spellcheck="true" slot="end" type="text"
-               label-placement="floating" fill="outline" placeholder="הכנס שם פרטי" formControlName="fName"></ion-input>
+          <ion-input class="input-register" label="שם פרטי" clear-input="true" spellcheck="true"
+            slot="end" type="text" label-placement="floating" fill="outline" placeholder="שם פרטי"
+            [formControlName]="registerFormControls.FIRSTNAME"></ion-input>
           <!--------last name------->
-          <ion-input class="input-register" type="text" label="שם משפחה" label-placement="floating" fill="outline" placeholder="הכנס שם משפחה"
-            formControlName="lName"></ion-input>
+          <ion-input class="input-register" type="text" label="שם משפחה" label-placement="floating" fill="outline"
+            placeholder="שם משפחה" [formControlName]="registerFormControls.LASTNAME"></ion-input>
           <!-------id number------->
-          <ion-input type="text" label="תעודת זהות" label-placement="floating" fill="outline"
-            placeholder="הכנס תעודת זהות" formControlName="id"></ion-input>
+          <ion-input class="input-register" type="text" label="תעודת זהות" label-placement="floating" fill="outline"
+            placeholder="תעודת זהות" [formControlName]="registerFormControls.ID"></ion-input>
+          <!-----email ---->
+          <ion-input class="input-register" type="email" label="כתובת מייל" label-placement="floating" fill="outline"
+            placeholder="אימייל" [formControlName]="registerFormControls.EMAIL">
+          </ion-input>
+          <!----phone ----->
+          <ion-input class="input-register" type="tel" label="מספר פלאפון" label-placement="floating" fill="outline"
+            placeholder="מספר פלאפון" [formControlName]="registerFormControls.PHONE">
+          </ion-input>
           <!-----date of birth----->
-          <ion-item>
-            <ion-label position="floating">תאריך לידה</ion-label>
-            <ion-input size="5" type="date" [max]="today" lable="תאריך לידה" label-placement="floating" fill="outline"
-              placeholder="בחר תאריך" formControlName="dateOfBirth"></ion-input>
+          <ion-item class="custom-date-input">
+            <ion-label> תאריך לידה</ion-label>
+            <ion-input type="date" [max]="today" placeholder="בחר תאריך" [formControlName]="registerFormControls.DATEOFBIRTH"></ion-input>
           </ion-item>
           <!---------city  TODO: list from the net----->
-          <ion-input class="input-register" label="עיר" clear-input="true"  spellcheck="true" slot="end" type="text"
-          label-placement="floating" fill="outline" placeholder="הכנס עיר" formControlName="city"></ion-input>
-          <!----phone nember----->
-          <ion-input type="tel" label="מספר פלאפון" label-placement="floating" fill="outline"
-            placeholder="הכנס מספר פלאפון" formControlName="phone">
-          </ion-input>
-          <!-----email address---->
-          <ion-input  type="email" label="כתובת מייל" label-placement="floating" fill="outline"
-            placeholder="Enter your email" formControlName="email">
-          </ion-input>
-            <!-- password---------->
-            <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
-            <ion-input (ionInput)="checkPassword()" type="text" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
-              formControlName="password"></ion-input>
-            <ion-label *ngIf="!(passwordValid)">סיסמאות לא זהות</ion-label>
-              <ion-input  (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()" type="text" label="אימות סיסמא" label-placement="floating" fill="outline" placeholder="הכנס את הסיסמא פעם נוספת"
-              ></ion-input>
-        </ion-card-content>
-      </ion-card>
-
-      <!----------------------------------------------------CHILDREN------------------------------------------->
-      <ion-card class="register-card">
-        <ion-card-header>
-          <ion-card-title><b>ילדים</b></ion-card-title>
-        </ion-card-header>
-
-        <ion-card-content>
-          <!-------yse || not------>
-          <ion-radio-group>
-            <ion-item>
-              <ion-label>יש ילדים מתחת גיל 18</ion-label>
-              <ion-radio value="haveChild" (click)="onOptionChange($event)"></ion-radio>
-            </ion-item>
-            <ion-item>
-              <ion-label>אין ילדים מתחת גיל 18</ion-label>
-              <ion-radio value="noHaveChild" (click)="onOptionChange($event)"></ion-radio>
-            </ion-item>
-          </ion-radio-group>
-
-          <div *ngIf="selectedOption === 'haveChild'">
-            <div *ngFor="let child of children; let i = index" class="child-row">
-              <!-------Fname of child----->
-              <div class="input-container">
-                <ion-input type="text" lable="שם פרטי" placeholder="שם פרטי" label-placement="floating" fill="outline"
-                   (ionInput)="saveFirstNameChild($event,i)"></ion-input>
-              </div>
-               <!-------Lname of child----->
-               <div class="input-container">
-                <ion-input type="text" lable="שם משפחה" placeholder="שם משפחה" label-placement="floating" fill="outline"
-                   (ionInput)="saveLastNameChild($event,i)"></ion-input>
-              </div>
-              <!-------id of child----->
-              <div class="input-container">
-                <ion-input type="text" lable="תעודת זהות" placeholder="תעודת זהות" label-placement="floating" fill="outline"
-                   (ionInput)="saveIdChild($event,i)"></ion-input>
-              </div>
-              
-              <!-------dateBirth of child----->
-              <div class="input-container">
-                <ion-input lable="תאריך לידה" type="date" [max]="today" 
-                  (ionInput)="saveChildDate($event,i)" fill="outline"></ion-input>
-              </div>
-              <!------- buttons add or remove child----->
-              <div class="add-icon" (click)="addChild()"><ion-icon name="add-circle"></ion-icon></div>
-              <div class="add-icon" (click)="removeChild(i)"><ion-icon name="remove-circle"></ion-icon></div>
-            </div>
-          </div>
-        </ion-card-content>
-      </ion-card>
-      <!--------------------------------------------SPOUSE DETAILS-------------------------------------------------->
-      <ion-card class="register-card">
-        <ion-card-header>
-          <ion-card-title><b>פרטי בן/ת הזוג</b></ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <!-------first name------>
-          <ion-input type="text" label="שם פרטי" label-placement="floating" fill="outline" placeholder="הכנס שם פרטי"
-            formControlName="spouseFName"></ion-input>
-            <!--------last name------->
-          <ion-input class="input-register" type="text" label="שם משפחה" label-placement="floating" fill="outline" placeholder="הכנס שם משפחה"
-          formControlName="spouseLName"></ion-input>
-          <!-------id number------->
-          <ion-input type="text" label="תעודת זהות" label-placement="floating" fill="outline"
-            placeholder="הכנס תעודת זהות" formControlName="spouseId"></ion-input>
-          <!-----date of birth----->
-          <ion-item>
-            <ion-label position="floating">תאריך לידה</ion-label>
-            <ion-input type="date" [max]="today" lable="תאריך לידה" label-placement="floating" fill="outline"
-              placeholder="בחר תאריך" formControlName="spouseDateOfBirth"></ion-input>
-          </ion-item>
-          <!---independet || employee---->
-          <ion-radio-group formControlName="spouseIndependet">
-            <ion-item>
-              <ion-label>עצמאי/ת</ion-label>
-              <ion-radio value="true"></ion-radio>
-            </ion-item>
-            <ion-item>
-              <ion-label>שכיר/ה</ion-label>
-              <ion-radio value="false"></ion-radio>
-            </ion-item>
-          </ion-radio-group>
-        </ion-card-content>
-      </ion-card>
-      <!-------------------------- Business details ------------------------------->
-      <ion-card class="register-card">
-        <ion-card-header>
-          <ion-card-title><b>פרטי עסק </b></ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <!-------Business name------>
-          <ion-input type="text" label="שם עסק" label-placement="floating" fill="outline" placeholder="הכנס שם עסק"
-            formControlName="businessName"></ion-input>
-            <!--------------- Business fiels ------------->
-            <ion-select  label="תחום עסק" formControlName="businessField"
+          <ion-input class="input-register" label="עיר" clear-input="true" spellcheck="true" slot="end" type="text"
+            label-placement="floating" fill="outline" placeholder="עיר" formControlName="city"></ion-input>
+          <!--------------- employee ------------->
+          <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="האם אתה גם שכיר?" fill="outline"
             label-placement="floating" interface="popover">
-            <ion-select-option *ngFor="let option of listBusinessField" [value]="option.key">{{option.value}}</ion-select-option>
+            <ion-select-option value="1">כן</ion-select-option>
+            <ion-select-option value="0">לא</ion-select-option>
+          </ion-select>
+          <!--------- family status----->
+          <ion-select [formControlName]="registerFormControls.FAMILYSTATUS" class="input-register" label="מצב משפחתי" fill="outline"
+            label-placement="floating" interface="popover">
+            <ion-select-option value="0">רווק</ion-select-option>
+            <ion-select-option value="1">נשוי</ion-select-option>
+            <ion-select-option value="2">גרוש</ion-select-option>
+          </ion-select>
+        </form>
+      </ng-container>
+
+      <!-------------- SPOUSE MODULE ------------->
+      <ng-container *ngSwitchCase="registerFormModules.SPOUSE">
+        <form *ngIf="spouseForm" class="form-register" [formGroup]="spouseForm">
+          <!-------first name------>
+          <ion-input class="input-register" type="text" label="שם פרטי" label-placement="floating" fill="outline"
+            placeholder="שם פרטי בן / בת הזוג" [formControlName]="registerFormControls.SPOUSEFIRSTNAME"></ion-input>
+          <!--------last name------->
+          <ion-input class="input-register" type="text" label="שם משפחה בן / בת הזוג" label-placement="floating"
+            fill="outline" placeholder="הכנס שם משפחה" [formControlName]="registerFormControls.SPOUSELASTNAME"></ion-input>
+          <!-------id number------->
+          <ion-input class="input-register" type="text" label="תעודת זהות בן / בת הזוג" label-placement="floating"
+            fill="outline" placeholder="הכנס תעודת זהות" [formControlName]="registerFormControls.SPOUSEID"></ion-input>
+          <!-----date of birth----->
+          <ion-item class="custom-date-input">
+            <ion-label position="floating">תאריך לידה</ion-label>
+            <ion-input type="date" [max]="today" lable="תאריך לידה בן / בת הזוג" label-placement="floating"
+              fill="outline" placeholder="בחר תאריך" [formControlName]="registerFormControls.SPOUSEDATEOFBIRTH"></ion-input>
+          </ion-item>
+          <!-------- phone------->
+          <ion-input class="input-register" type="text" label="מספר פלאפון" label-placement="floating" fill="outline"
+            placeholder="פלאפון בן / בת הזוג" [formControlName]="registerFormControls.SPOUSEPHONE"></ion-input>
+          <!---independet || employee---->
+          <ion-select [formControlName]="registerFormControls.SPOUSEINDEPENDET" class="input-register" label="בן/בת הזוג עצמאי או שכיר"
+            fill="outline" label-placement="floating" interface="popover">
+            <ion-select-option value="0">שכיר</ion-select-option>
+            <ion-select-option value="1">עצמאי</ion-select-option>
+          </ion-select>
+        </form>
+      </ng-container>
+
+      <!-------------- CHILDREN MODULE ------------->
+      <ng-container *ngSwitchCase="registerFormModules.CHILDREN">
+        <form *ngIf="childrenForm" class="form-register" [formGroup]="childrenForm">
+          <div [formArrayName]="registerFormControls.CHILDREN">
+          <div *ngFor="let child of childrenArray.controls; let i = index" [formGroupName]="i" class="child-row">
+            <!-------Fname of child----->
+            <ion-input class="input-register-child" type="text" label="שם פרטי של הילד" label-placement="floating"
+              fill="outline" placeholder="שם פרטי" formControlName="childFName"></ion-input>
+            <!-------Lname of child----->
+            <ion-input class="input-register-child" type="text" label="שם משפחה של הילד" label-placement="floating"
+              fill="outline" placeholder="שם משפחה" formControlName="childLName"></ion-input>
+            <!-------id of child----->
+            <ion-input class="input-register-child" type="text" label="תעודת זהות של הילד" label-placement="floating"
+              fill="outline" placeholder="תעודת זהות" 
+              formControlName="childID"></ion-input>
+
+            <!-------dateBirth of child----->
+            <ion-item class="custom-date-input-child">
+              <ion-label position="floating">תאריך לידה</ion-label>
+              <ion-input type="date" [max]="today" lable="תאריך לידה של הילד" label-placement="floating" fill="outline"
+              formControlName="childDate"
+                placeholder="בחר תאריך"></ion-input>
+            </ion-item>
+            <!------- buttons add and remove child----->
+            <div class="add-icon" (click)="addChild()"><ion-icon name="add-circle"></ion-icon></div>
+            <div class="add-icon" (click)="removeChild(i)"><ion-icon name="remove-circle"></ion-icon></div>
+          </div>
+          </div>
+        </form>
+      </ng-container>
+
+      <!-------------- BUSINESS MODULE ------------->
+      <ng-container *ngSwitchCase="registerFormModules.BUSINESS">
+        <form *ngIf="businessForm" class="form-register" [formGroup]="businessForm">
+          <!-------Business name------>
+          <ion-input class="input-register" type="text" label="שם עסק" label-placement="floating" fill="outline"
+            placeholder="הכנס שם עסק" fill="outline" [formControlName]="registerFormControls.BUSINESSNAME"></ion-input>
+          <!--------------- Business fields ------------->
+          <ion-select [formControlName]="registerFormControls.BUSINESSFIELD" class="input-register" label="תחום העסק" fill="outline"
+            label-placement="floating" interface="popover">
+            <ion-select-option *ngFor="let option of listBusinessField"
+              [value]="option.key">{{option.value}}</ion-select-option>
           </ion-select>
           <!--------------- Business type ------------->
-          <ion-select  label="סוג עסק" formControlName="businessType"
-          label-placement="floating" interface="popover">
-          <ion-select-option *ngFor="let option of listBusinessType" [value]="option.key">{{option.value}}</ion-select-option>
-        </ion-select>
-          <!--------------- employee ------------->
-        <ion-radio-group formControlName="employee">
-          <label>האם אתה גם שכיר?</label>
-          <ion-item>
-            <ion-label>כן</ion-label>
-            <ion-radio value="true"></ion-radio>
+          <ion-select [formControlName]="registerFormControls.BUSINESSTYPE" class="input-register" label="תחום העסק" fill="outline"
+            label-placement="floating" interface="popover">
+            <ion-select-option *ngFor="let option of listBusinessType"
+              [value]="option.key">{{option.value}}</ion-select-option>
+          </ion-select>
+          <!-------Business id------>
+          <ion-input class="input-register" type="text" label="מספר עסק" label-placement="floating" fill="outline"
+            placeholder="מספר עוסק / ח.פ ספק" [formControlName]="registerFormControls.BUSINESSID"></ion-input>
+          <!------- business date ----->
+          <ion-item class="custom-date-input">
+            <ion-label position="floating">תאריך פתיחת עסק</ion-label>
+            <ion-input type="date" [max]="today" lable="תאריך לידה בן / בת הזוג" label-placement="floating"
+              fill="outline" placeholder="בחר תאריך" [formControlName]="registerFormControls.BUSINESSDATE"></ion-input>
           </ion-item>
-          <ion-item>
-            <ion-label>לא</ion-label>
-            <ion-radio value="false"></ion-radio>
-          </ion-item>
-        </ion-radio-group>
-         
-        </ion-card-content>
-      </ion-card>
-      <ion-button   type="submit">הירשם</ion-button>
-    </form>
-  
-    <ion-button href="/login">אני כבר רשום</ion-button>
-  </ng-container>
-  <ng-container *ngIf="!this.registerMode">
-    נא לאמת חשבון מייל
-    <ion-button href="/login">כניסה</ion-button>
-  </ng-container>
-    <!-- <ng-template #verifyEmail>
-  </ng-template> -->
+        </form>
+      </ng-container>
+
+      <!-------------- VALIDATION MODULE ------------->
+      <ng-container *ngSwitchCase="registerFormModules.VALIDATION">
+        <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm">
+          <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
+          <ion-input class="input-register" (ionInput)="checkPassword()" type="text" label="סיסמא"
+            label-placement="floating" fill="outline" placeholder="בחר סיסמא" formControlName="password"></ion-input>
+          <ion-label *ngIf="!(passwordValid)">סיסמאות לא זהות</ion-label>
+          <ion-input class="input-register" (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()"
+            type="text" label="אימות סיסמא" label-placement="floating" fill="outline"
+            placeholder="הכנס את הסיסמא פעם נוספת"></ion-input>
+        </form>
+      </ng-container>
+
+    </ng-container>
+
+    <div>
+      <app-button buttonText="חזור" [disabled]="selectedFormModule === registerFormModules.PERSONAL" (onButtonClicked)="onBackBtnClicked()"></app-button>
+      <app-button [buttonText]="buttonNextText" [disabled]="myForm.invalid && selectedFormModule === registerFormModules.VALIDATION" (onButtonClicked)="onNextBtnClicked()"></app-button>
+    </div>
+  </div>
+  <p>
+    משתמש קיים? לחץ <span (click)="navigateToLogin()" class="blue-link">כאן</span> לכניסה.
+  </p>
 </ion-content>

@@ -14,15 +14,17 @@ import { PopupMessageComponent } from './popup-message/popup-message.component';
 import { selectSupplierComponent } from './select-supplier/popover-select-supplier.component';
 import { NgArrayPipesModule } from 'ngx-pipes';
 import { addSupplierComponent } from './add-supplier/add-supplier.component';
+import { ItemNavigateComponent } from './item-navigate/item-navigate.component';
+import { ButtonComponent } from './button/button.component';
 
 @NgModule({
-  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent],
+  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent],
   imports: [
     CommonModule,
     IonicModule,
     ReactiveFormsModule,
     NgArrayPipesModule,
     ],
-  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent]
+  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent]
 })
 export class SharedModule { }

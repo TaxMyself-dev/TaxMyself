@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { IColumnDataTable, IRowDataTable } from '../shared/interface';
 import { Observable, Subject } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../shared/enums';
 
 @Injectable({
   providedIn: 'root'
@@ -10,22 +11,41 @@ export class ExpenseDataService {
   
   constructor(private http: HttpClient) { }
 
-  private readonly columnsAddExpense = {
-    supplier: 'ספק',
-    date: 'תאריך',
-    sum: 'סכום',
-    category: 'קטגוריה',
-    subCategory: 'תת-קטגוריה',
-    expenseNumber: 'מספר חשבונית',
-    vatPercent: 'אחוז מוכר למעמ',
-    taxPercent: 'אחוז מוכר למס',
-    supplierID: 'ח.פ. ספק',
-    file: 'קובץ',
-    note: 'הערה',
-    totalTax: 'מוכר למס',
-    totalVat: 'מוכר למעמ',
-    isEquipment: 'מוגדר כציוד?'
-  } as IColumnDataTable;
+  private readonly columnsAddExpense: IColumnDataTable[] = [
+    {name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE},
+    {name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER},
+    {name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.EXPENSE_NUMBER, value: ExpenseFormHebrewColumns.expenseNumber, type: FormTypes.NUMBER},
+    {name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.SUPPLIER_ID, value: ExpenseFormHebrewColumns.supplierID, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.FILE},
+    {name: ExpenseFormColumns.NOTE, value: ExpenseFormHebrewColumns.note, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL},
+    // {name: ExpenseFormColumns.LOADING_DATE, value: ExpenseFormHebrewColumns.loadingDate, type:FormTypes.DATE},
+    // {name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type:FormTypes.NUMBER},
+    // {name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type:FormTypes.NUMBER}
+  ];
+
+  private readonly columnsDisplayExpense: IColumnDataTable[] = [
+    {name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE},
+    {name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER},
+    {name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.EXPENSE_NUMBER, value: ExpenseFormHebrewColumns.expenseNumber, type: FormTypes.NUMBER},
+    {name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.SUPPLIER_ID, value: ExpenseFormHebrewColumns.supplierID, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.FILE},
+    {name: ExpenseFormColumns.NOTE, value: ExpenseFormHebrewColumns.note, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.LOADING_DATE, value: ExpenseFormHebrewColumns.loadingDate, type:FormTypes.DATE},
+    {name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type:FormTypes.NUMBER},
+    {name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type:FormTypes.NUMBER}
+  ];
 
   private readonly columnsAddExpenseOrder = [
     'supplier',
@@ -76,11 +96,11 @@ export class ExpenseDataService {
     this.http.post
   }
 
-  // public getShowExpenseColumns(){
-  //   return this.columnsShowExpense;
-  // }
+  getShowExpenseColumns() : IColumnDataTable[]{
+    return this.columnsDisplayExpense;
+  }
 
-  getAddExpenseColumns(){
+  getAddExpenseColumns(): IColumnDataTable[] {
     return this.columnsAddExpense;
   }
 

@@ -1,30 +1,29 @@
-.regidter-toolbar{
-  display: flex;
-  justify-content: center;
-  font-size: xx-large;
-}
+// .regidter-toolbar{
+//   display: flex;
+//   justify-content: center;
+//   font-size: xx-large;
+// }
 
-.register-card{
-  border:1px solid gray;
-  margin: auto;
-  margin-top: 10px;
-  max-width: 360px;
-  ion-input{
-    margin-top: 10px;
-  }
-}
+// .register-card{
+//   border:1px solid gray;
+//   margin: auto;
+//   margin-top: 10px;
+//   max-width: 360px;
+//   ion-input{
+//     margin-top: 10px;
+//   }
+// }
 //css of add child button
 .child-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     margin-bottom: 10px;
-  }
-  
-  .input-container {
-    flex: 1;
-    margin-right: 10px;
-    width: 50px;
+    // border: 1px solid;
+
+    &:not(:last-of-type) {
+      border-bottom: 1px solid lightgray;
+    }
   }
   
   .add-icon {
@@ -33,3 +32,98 @@
     cursor: pointer;
   }
 //----------------
+ion-content .register-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around; 
+  align-items: center ;
+  height: 100%; 
+}
+
+.form-register{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  border:3px solid rgb(79, 171, 79);
+  border-radius: 15px;
+  width: 90%;
+}
+
+.form-register-validate{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  border:3px solid rgb(79, 171, 79);
+  border-radius: 15px;
+  width: 90%;
+}
+
+.input-register{
+  min-width: 200px;
+  display: flex;
+  width: 220px;
+  --border-radius: 15px;
+  flex-basis: calc(33.33% - 20px);
+  margin: 10px;
+}
+
+.input-register-child{
+  min-width: 150px;
+  display: flex;
+  width: 150px;
+  --border-radius: 15px;
+  // flex-basis: calc(25% - 20px);
+  margin: 10px;
+}
+
+.custom-date-input {
+  border-radius: 15px;
+  border-width: 1px;
+  border-style:  solid;
+  border-color:rgb(160, 158, 158); 
+  min-width: 200px;
+  display: flex;
+  align-items: flex-start;
+  align-content: flex-start;
+  width: 220px;
+  height: 56px;
+  flex-basis: calc(33.33% - 20px);
+  margin: 10px;
+}
+
+.custom-date-input:hover {
+  border-color: black;
+}
+
+.custom-date-input-child {
+  border-radius: 15px;
+  border-width: 1px;
+  border-style:  solid;
+  border-color:rgb(160, 158, 158); 
+  // min-width: 200px;
+  display: flex;
+  align-items: flex-start;
+  align-content: flex-start;
+  width: 150px;
+  height: 56px;
+  // flex-basis: calc(33.33% - 20px);
+  margin: 10px;
+}
+
+.custom-date-input-child:hover {
+  border-color: black;
+}
+
+
+
+.navigate-item-container{
+  display: flex;
+  justify-content: space-around;
+  background-color: transparent;
+  width: 70%;
+  // justify-items: center;
+}
+
+
+

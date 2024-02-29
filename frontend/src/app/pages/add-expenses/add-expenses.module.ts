@@ -8,7 +8,6 @@ import { AddExpensesPageRoutingModule } from './add-expenses-routing.module';
 
 import { AddInvoicePage } from './add-expenses.page';
 import { TableComponent } from 'src/app/shared/table/table.component';
-import { ButtonComponent } from 'src/app/shared/button/button.component';
 import { CustomToolbarComponent } from 'src/app/shared/custom-toolbar/custom-toolbar.component';
 import { HomePageModule } from '../home/home.module';
 import { SharedModule } from 'src/app/shared/shared.module';
@@ -22,7 +21,7 @@ import { SharedModule } from 'src/app/shared/shared.module';
     HomePageModule,
     SharedModule
   ],
-  declarations: [ AddInvoicePage,ButtonComponent],
+  declarations: [ AddInvoicePage],
   exports: [AddExpensesPageRoutingModule]
 })
 export class AddInvoicePageModule {}

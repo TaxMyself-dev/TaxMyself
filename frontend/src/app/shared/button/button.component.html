@@ -1,1 +1,7 @@
-<ion-button class="button-wrapper"  (click)="onClick()" shape="round">{{ buttonText }}</ion-button>
+<ion-button 
+    class="button-wrapper"  
+    shape="round" 
+    [ngClass]="buttonClass"
+    [disabled]="disabled"
+    (click)="onClick()" 
+>{{buttonText}}</ion-button>

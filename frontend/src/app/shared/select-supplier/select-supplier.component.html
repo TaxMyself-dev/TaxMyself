@@ -2,13 +2,19 @@
    <ion-searchbar placeholder="הכנס / חפש ספק" animated="true" (ionInput)="changeSearchTerm($event)" ></ion-searchbar>
 </ion-toolbar>
 
-<ion-list *ngIf="suppliers && (suppliers | filterBy: ['name']: searchTerm).length > 0; else showAddSupplier">
-  <ion-item class="ion-border" *ngFor="let supplier of suppliers | filterBy: ['name']: searchTerm" (click)="selectItem(supplier)" tappable>
+<ng-container *ngIf="suppliers; else loader">
+<ion-list *ngIf="suppliers.length && (suppliers | filterBy: ['name']: searchTerm).length > 0; else showAddSupplier">
+  <ion-item class="ion-border" *ngFor="let supplier of suppliers | filterBy: ['name']: searchTerm" (click)="selectItem(supplier.name)" tappable>
     <ion-icon (click)="editSupplier(supplier)" slot="end" name="create-outline"></ion-icon> 
-    <ion-label > {{ supplier.name }}</ion-label>
+    <ion-label>{{supplier.name}}</ion-label>
   </ion-item>
 </ion-list>
+</ng-container>
   <ng-template #showAddSupplier>
   <ion-button (click)="addSupplier()">הוסף ספק קבוע</ion-button>
   <ion-button (click)="casualSupplier()">ספק מזדמן</ion-button>
+</ng-template>
+
+<ng-template #loader>
+  <ion-loading message="Loading..." spinner="circles" [isOpen]="true"></ion-loading>
 </ng-template>

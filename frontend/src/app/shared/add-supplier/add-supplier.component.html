@@ -6,7 +6,7 @@
       label-placement="floating" interface="popover">
       <ion-select-option *ngFor="let option of listPercent" [value]="option.value">{{option.key}}</ion-select-option>
     </ion-select>
-      <ion-input *ngIf="isCustomUserVat" type="number" formControlName="{{col.key}}" label="הכנס מספר"
+      <ion-input *ngIf="isCustomUserVat" type="number" formControlName="{{field.key}}" label="הכנס מספר"
         label-placement="floating"></ion-input>
     </ng-container>
     <!--taxPercent-->
@@ -16,7 +16,7 @@
           label-placement="floating" interface="popover">
           <ion-select-option *ngFor="let option of listPercent" [value]="option.value">{{option.key}}</ion-select-option>
         </ion-select>
-        <ion-input *ngIf="isCustomUserTax" type="number" formControlName="{{col.key}}" label="הכנס מספר"
+        <ion-input *ngIf="isCustomUserTax" type="number" formControlName="{{field.key}}" label="הכנס מספר"
           label-placement="floating"></ion-input>
       </ng-container>
     </ng-template>

@@ -1,16 +1,40 @@
-    export interface IRowDataTable {
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from "./enums";
+
+export interface IRowDataTable {
     [key: string]: string | number | Date;
 }
 
 export interface IColumnDataTable {
-    [key: string]: string;
+    name: ExpenseFormColumns,
+    value: ExpenseFormHebrewColumns,
+    type: FormTypes
 }
+
+export interface ISuppliers {
+    id: number,
+    name: string,
+    category: string,
+    supplierID: string,
+    subCategory: string,
+    taxPercent: string,
+    vatPercent: string
+}
+
 export interface IChildren{
     fName: string,
     lName: string,
     id: string,
     dateOfBirth: string
 };
+
+export interface IItemNavigate{
+    name: string,
+    link?: string,
+    icon: string,
+    selected?: boolean,
+    id?: string
+};
+
 
 export interface IVatReportData {
     equipmentVatRefund: number;

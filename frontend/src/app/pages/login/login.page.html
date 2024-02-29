@@ -5,7 +5,9 @@
 </ion-header>
 <div *ngIf="!this.emailVerify && this.emailVerify !== undefined ">
   <p>עדיין לא אימתת את המייל, בבקשה כנס למייל שהזנת בהרשמה כדי לאמת חשבון</p>
-  <p (click)="sendVerficaitonEmail()">לחץ כאן לשליחת מייל חדש לאימות</p>
+  <p>
+    לחץ  <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
+  </p>
 </div>
 
 <form class="flex-center" [formGroup]="myForm" (ngSubmit)="signin()">
@@ -33,3 +35,4 @@
       </ion-card-content>
   </ion-card>
 </form>
+<ion-button href="/add-expenses">add</ion-button>

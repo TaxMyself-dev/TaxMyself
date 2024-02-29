@@ -1,6 +1,6 @@
-import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter } from '@angular/core';
+import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
-import { ModalController } from '@ionic/angular';
+import { ModalController, NavParams } from '@ionic/angular';
 import { IColumnDataTable, IRowDataTable } from '../interface';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
@@ -11,26 +11,41 @@ import { cloneDeep, isEqual } from 'lodash';
 import { PopoverController } from '@ionic/angular';
 import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
 import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of } from 'rxjs';
-
-
-
+import { ExpenseFormColumns, FormTypes } from '../enums';
 
 @Component({
   selector: 'app-modal',
   templateUrl: './modal.component.html',
   styleUrls: ['./modal.component.scss'],
 })
-export class ModalExpensesComponent implements OnInit {
-  @Input() columns: IColumnDataTable = {};
-  @Input() set editMode(val: boolean){
-    val? this.title = "עריכת הוצאה" : this.title = "הוסף הוצאה"
-  }
+export class ModalExpensesComponent {
+  @Input() set editMode(val: boolean) {
+    val ? this.title = "עריכת הוצאה" : this.title = "הוסף הוצאה"
+  };
+  // data for edit mode:
   @Input() set data(val: IRowDataTable) {
-    this.initForm(val);
-    this.id = +val.id;
+    if (val) {
+      this.initForm(val);
+      this.id = +val.id;
+    }
   };
 
-  listPercent = [{key:"נא לבחור", value:""},{key:"0", value:0},{key:"25", value:25},{key:"33", value:33},{key:"66", value:66},{key:"100", value:100},{key:"אחר", value:"other"}]
+  @Input() set columns(val :IColumnDataTable[]) {
+    this.fileItem = val?.find((item: IColumnDataTable) => item.type === FormTypes.FILE);
+    this.columnsList = val;
+  }
+
+  get columns(): IColumnDataTable[] {
+    return this.columnsList;
+  }
+
+  readonly formTypes = FormTypes;
+  readonly expenseFormColumns = ExpenseFormColumns;
+
+  columnsList: IColumnDataTable[];
+  fileItem: IColumnDataTable;
+  columnsFilter: IColumnDataTable[];
+  listPercent: Record<string, string | number>[] = [{ key: "נא לבחור", value: "" }, { key: "0", value: 0 }, { key: "25", value: 25 }, { key: "33", value: 33 }, { key: "66", value: 66 }, { key: "100", value: 100 }, { key: "אחר", value: "other" }]
   title: string;
   initialForm: FormGroup;
   myForm: FormGroup;
@@ -38,27 +53,32 @@ export class ModalExpensesComponent implements OnInit {
   id: number;
   isCustomUserVat = false;
   isCustomUserTax = false;
-  equipmentList = [{key:"לא", value: "not"},{key:"רכב", value: "car"},{key:"מחשב", value:"computer"},{key: "שולחן", value: "table"}, {key: "כיסא", value: "cheir"}, {key: "מנורה", value: "lamp"},];
+  equipmentList: Record<string, string>[] = [{ key: "לא", value: "not" }, { key: "רכב", value: "car" }, { key: "מחשב", value: "computer" }, { key: "שולחן", value: "table" }, { key: "כיסא", value: "cheir" }, { key: "מנורה", value: "lamp" }];
 
-  constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController) {
+  constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
+  }
+
+  ngOnInit(){
+    console.log("kjhchj");
+    console.log("xdfgdgfgf",this.columns);
   }
 
   initForm(data: IRowDataTable): void {
     this.myForm = this.formBuilder.group({
-      category: [data.category || ''],
-      subCategory: [data.subCategory || ''],
-      supplier: [data.supplier || ''],
-      sum: [data.sum || Number, Validators.required],
-      taxPercent: [data.taxPercent || '', Validators.required],
-      vatPercent: [data.vatPercent || '', Validators.required],
-      date: [data.date || '', Validators.required],
-      note: [data.note || ''],
-      expenseNumber: [data.expenseNumber || ''],
-      supplierID: [data.supplierID || ''],
-      file: [data.file || File, Validators.required],// TODO: what to show in edit mode
-      isEquipment: [data.isEquipment || false], // TODO
-      equipmentCategory: [data.equipmentCategory || ''],
-      reductionPercent: [data.reductionPercent || Number],
+      [ExpenseFormColumns.CATEGORY]: [data.category || ''],
+      [ExpenseFormColumns.SUB_CATEGORY]: [data.subCategory || ''],
+      [ExpenseFormColumns.SUPPLIER]: [data.supplier || ''],
+      [ExpenseFormColumns.SUM]: [data.sum || Number, Validators.required],
+      [ExpenseFormColumns.TAX_PERCENT]: [data.taxPercent || '', Validators.required],
+      [ExpenseFormColumns.VAT_PERCENT]: [data.vatPercent || '', Validators.required],
+      [ExpenseFormColumns.DATE]: [data.date || '', Validators.required],
+      [ExpenseFormColumns.NOTE]: [data.note || ''],
+      [ExpenseFormColumns.EXPENSE_NUMBER]: [data.expenseNumber || ''],
+      [ExpenseFormColumns.SUPPLIER_ID]: [data.supplierID || ''],
+      [ExpenseFormColumns.FILE]: [data.file || File, Validators.required],// TODO: what to show in edit mode
+      [ExpenseFormColumns.IS_EQUIPMENT]: [data.isEquipment || false], // TODO
+      [ExpenseFormColumns.EQUIPMENT_CATEGORY]: [data.equipmentCategory || ''],
+      [ExpenseFormColumns.REDUCTION_PERCENT]: [data.reductionPercent || Number],
     });
 
     this.initialForm = cloneDeep(this.myForm);
@@ -105,7 +125,7 @@ export class ModalExpensesComponent implements OnInit {
       switchMap((res) => this.fileService.addExpenseData(res)),
       catchError((err) => {
         alert('Something Went Wrong in second catchError ' + err.error.message)
-        if (filePath !== ''){
+        if (filePath !== '') {
           this.fileService.deleteFile(filePath);
         }
         return EMPTY;
@@ -145,7 +165,7 @@ export class ModalExpensesComponent implements OnInit {
       catchError((err) => {
         alert('Something Went Wrong in second catchError ' + err.error.message)
         this.fileService.deleteFile(filePath);
-        return EMPTY; 
+        return EMPTY;
       })
     ).subscribe((res) => {
       if (previousFile !== "") {
@@ -158,6 +178,23 @@ export class ModalExpensesComponent implements OnInit {
   }
 
 
+  onDdlSelectionChange(event, colData: IColumnDataTable) {
+    console.log(event);
+    
+    switch (colData.name) {
+      case ExpenseFormColumns.TAX_PERCENT:
+        this.customUserTax(event);
+        break;
+      case ExpenseFormColumns.EQUIPMENT_CATEGORY:
+        this.setValueEquipment(event);
+        break;
+      case ExpenseFormColumns.VAT_PERCENT:
+        this.customUserVat(event);
+        break;
+      default:
+        break;
+    }
+  }
 
   setFormData(filePath: string, token: string) {
     const formData = this.myForm.value;
@@ -167,7 +204,7 @@ export class ModalExpensesComponent implements OnInit {
     formData.token = this.formBuilder.control(token).value; // TODO: check when token is invalid
     console.log(formData);
     return formData;
-  }  
+  }
 
   // closeCalendar() {
   //   this.datetimePicker.dismiss();
@@ -202,7 +239,7 @@ export class ModalExpensesComponent implements OnInit {
         }
       })
     ).subscribe((res) => {
-      console.log('res in modal comp: ',res);
+      console.log('res in modal comp: ', res);
       console.log("res.role: ", res.role);
       if (res.role !== 'backdrop') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
@@ -226,6 +263,18 @@ export class ModalExpensesComponent implements OnInit {
     return 0;
   }
 
+  getListOptionsByKey(key: ExpenseFormColumns): Record<string, string | number>[] {
+    switch (key) {
+      case ExpenseFormColumns.VAT_PERCENT:
+      case ExpenseFormColumns.TAX_PERCENT:
+        return this.listPercent;
+      case ExpenseFormColumns.IS_EQUIPMENT:
+        return this.equipmentList;
+      default:
+        return [];
+    }
+  }
+
   async openPopupMessage(message: string) {
     const modal = await this.modalCtrl.create({
       component: PopupMessageComponent,
@@ -237,10 +286,6 @@ export class ModalExpensesComponent implements OnInit {
     })
     //.then(modal => modal.present());
     await modal.present();
-  }
-
-  ngOnInit() {
-    console.log("columns of form: ", this.columns);
   }
 
   customUserVat(ev: any): void {
@@ -255,41 +300,41 @@ export class ModalExpensesComponent implements OnInit {
     }
   }
 
-  setValueEquipment(event: any): void{
+  setValueEquipment(event: any): void {
     const value = event.detail.value;
     console.log("in set value", event.detail.value);
-    
+
     if (value == "not") {
-      this.myForm.patchValue({isEquipment:false});
-      this.myForm.patchValue({equipmentCategory:value});
+      this.myForm.patchValue({ isEquipment: false });
+      this.myForm.patchValue({ equipmentCategory: value });
     }
-    else{
-      this.myForm.patchValue({isEquipment:true});
-      switch(value) {
+    else {
+      this.myForm.patchValue({ isEquipment: true });
+      switch (value) {
         case 'car':
-          this.myForm.patchValue({equipmentCategory:value});
-          this.myForm.patchValue({reductionPercent:15});
+          this.myForm.patchValue({ equipmentCategory: value });
+          this.myForm.patchValue({ reductionPercent: 15 });
           break;
-          case 'computer':
-            this.myForm.patchValue({equipmentCategory:value});
-            this.myForm.patchValue({reductionPercent:25});
-            break;
-            case 'cheir':
-              this.myForm.patchValue({equipmentCategory:value});
-              this.myForm.patchValue({reductionPercent:35});
-              break;
-              case 'table':
-                this.myForm.patchValue({equipmentCategory:value});
-                this.myForm.patchValue({reductionPercent:45});
-                break;
-                case 'lamp':
-                  this.myForm.patchValue({equipmentCategory:value});
-                  this.myForm.patchValue({reductionPercent:55});
-                  break;
-                }    
-              }
-            }
-          }
+        case 'computer':
+          this.myForm.patchValue({ equipmentCategory: value });
+          this.myForm.patchValue({ reductionPercent: 25 });
+          break;
+        case 'cheir':
+          this.myForm.patchValue({ equipmentCategory: value });
+          this.myForm.patchValue({ reductionPercent: 35 });
+          break;
+        case 'table':
+          this.myForm.patchValue({ equipmentCategory: value });
+          this.myForm.patchValue({ reductionPercent: 45 });
+          break;
+        case 'lamp':
+          this.myForm.patchValue({ equipmentCategory: value });
+          this.myForm.patchValue({ reductionPercent: 55 });
+          break;
+      }
+    }
+  }
+}
 
 
 

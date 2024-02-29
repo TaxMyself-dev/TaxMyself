@@ -26,12 +26,12 @@
       </ion-content>
     </ion-menu>
 
-    <ion-popover *ngIf="isPopoverOpen" backdrop-dismiss='false' [isOpen]="isPopoverOpen">
+    <ion-popover class="logout-pop" *ngIf="isPopoverOpen" backdrop-dismiss='false' [isOpen]="isPopoverOpen">
       <ng-template>
         <div> אתה בטוח שאתה רוצה לעזוב?</div>
         <ion-button (click)="signOut()">כן</ion-button>
         <ion-button (click)="openCloseLogOutPopup()">לא</ion-button>
-        <app-popover-content></app-popover-content>
+        <!-- <app-popover-content></app-popover-content> -->
       </ng-template>
     </ion-popover>
     <ion-router-outlet id="main-content">
