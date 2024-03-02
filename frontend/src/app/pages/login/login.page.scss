@@ -1,3 +1,7 @@
+.login-header{
+  display: flex;
+  justify-content: center;
+}
 .flex-center{
     display: flex;
     flex-direction: column;
@@ -38,8 +42,13 @@
     // margin: auto;
     width: 130px;
     --background: rgb(71, 200, 157);
-    color:black
+    color:black;
+  }
+  
+.login-submit-button :hover{
+  cursor: pointer;
 }
+
 .line {
   border-top: 3px solid rgb(79, 171, 79); 
   width: 80%;
@@ -58,6 +67,39 @@
 
 .login-input{
   --border-radius: 15px;
+  width: 220px;
 }
 
+.login-item-password{
+  width: 220px;
+  height: 56px;
+  border: 1px solid rgb(189, 185, 185);
+  border-radius: 15px;
+  --border-style: hidden;
+  margin: 5px ;
+  padding: 2px;
+}
+
+  
+  
+.login-icon{
+  cursor: pointer;
+}
+
+.login-input-password{
+  --border-style: hidden;
+}
+
+.text-error{
+  border: 2px solid red;
+  border-radius: 15px;
+  width: 60%;
+  word-wrap: break-word;
+  text-align: justify;
+  text-align-last: center;
+  padding-left: 5px;
+  padding-right: 5px;
+  font-weight: bold;
+  margin: 10px 0;
+}
 

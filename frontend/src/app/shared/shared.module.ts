@@ -16,15 +16,16 @@ import { NgArrayPipesModule } from 'ngx-pipes';
 import { addSupplierComponent } from './add-supplier/add-supplier.component';
 import { ItemNavigateComponent } from './item-navigate/item-navigate.component';
 import { ButtonComponent } from './button/button.component';
+import { HandleErrorComponent } from './handle-error/handle-error.component';
 
 @NgModule({
-  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent],
+  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent,HandleErrorComponent],
   imports: [
     CommonModule,
     IonicModule,
     ReactiveFormsModule,
     NgArrayPipesModule,
     ],
-  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent]
+  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,ModalSortProviderComponent,ModalPreviewComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, HandleErrorComponent]
 })
 export class SharedModule { }

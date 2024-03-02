@@ -1,14 +1,40 @@
-<ion-header [translucent]="true">
+<ion-header class="login-header" [translucent]="true">
   <!-- <ion-toolbar>
     <p class="login-toolbar">עצמאי בעצמי - לחסוך כסף להרוויח זמן!</p>
   </ion-toolbar> -->
+  <!-- <div class="login-screen">
+    <div> -->
+  <ng-container *ngIf="displayError">
+    <ng-container [ngSwitch]="displayError">
+      <ng-container *ngSwitchCase=" 'email' ">
+        <p class="text-error">
+          עדיין לא אימתת את המייל, בבקשה כנס למייל שהזנת בהרשמה כדי לאמת חשבון
+          <br>
+          לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
+        </p>
+      </ng-container>
+      <ng-container *ngSwitchCase=" 'user' ">
+        <p class="text-error">
+        משתמש לא קיים / לא חוקי.
+          <br>
+          אנא ודא שהכנסת מייל תקין או הירשם למערכת
+        </p>
+      </ng-container>
+      <ng-container *ngSwitchCase=" 'password' ">
+        <p class="text-error">סיסמא שגויה
+          <br>
+          שכחת סיסמא? לחץ <span (click)="resetPassword()" class="blue-link">כאן</span> לאיפוס סיסמא
+        </p>
+      </ng-container>
+      <ng-container *ngSwitchCase=" 'error' ">
+        <p class="text-error">
+       השירות אינו זמין כעת אנא נסה מאוחר יותר
+        </p>
+      </ng-container>
+    </ng-container>
+  </ng-container>
 </ion-header>
-<div *ngIf="!this.emailVerify && this.emailVerify !== undefined ">
-  <p>עדיין לא אימתת את המייל, בבקשה כנס למייל שהזנת בהרשמה כדי לאמת חשבון</p>
-  <p>
-    לחץ  <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
-  </p>
-</div>
+<!-- </div> -->
 
 <form class="flex-center" [formGroup]="myForm" (ngSubmit)="signin()">
   <ion-card class="login-card">
@@ -22,17 +48,24 @@
 
     <ion-card-content class="login-card-content">
       <!---------user name-------->
-      <ion-input class="login-input" type="text" label="אימייל" label-placement="floating" fill="outline" placeholder="אימייל"
-        formControlName="userName"></ion-input>
+      <ion-input (keyup.enter)="onEnterKeyPressed()" (input)="saveEmailForReset($event)" class="login-input" type="text" label="אימייל" label-placement="floating" fill="outline"
+        placeholder="אימייל" formControlName="userName"></ion-input>
       <!---------password--------->
-      <ion-input class="login-input" type="password" label="סיסמא" label-placement="floating" fill="outline" placeholder="בחר סיסמא"
-        formControlName="password"></ion-input>
-        <ion-button [disabled]="this.myForm.invalid" class="login-submit-button" type="submit">התחבר</ion-button>
-        
-        <p>
-          משתמש חדש? לחץ <span (click)="navigateToRegister()" class="blue-link">כאן</span> להרשמה.
-        </p>
-      </ion-card-content>
+      <ion-item class="login-item-password">
+        <ion-input class="login-input-password"  type="{{ showPassword ? 'text' : 'password' }}" label="סיסמא" label-placement="floating" fill="outline"
+        placeholder="בחר סיסמא" formControlName="password"></ion-input>
+        <ion-icon class="login-icon" name="{{ showPassword ? 'eye-off' : 'eye' }}" slot="end" (click)="togglePasswordVisibility()"></ion-icon>
+
+      </ion-item>
+      <ion-button [disabled]="this.myForm.invalid" class="login-submit-button" type="submit">התחבר</ion-button>
+      <p>
+        לחץ <span (click)="resetPassword()" class="blue-link">כאן</span> לשליחת מייל לאיפוס סיסמא.
+      </p>
+      <p>
+        משתמש חדש? לחץ <span (click)="navigateToRegister()" class="blue-link">כאן</span> להרשמה.
+      </p>
+    </ion-card-content>
   </ion-card>
 </form>
+<!-- </div> -->
 <ion-button href="/add-expenses">add</ion-button>
