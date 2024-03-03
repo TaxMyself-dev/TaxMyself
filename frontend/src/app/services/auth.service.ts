@@ -41,7 +41,8 @@ export class AuthService {
   }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
-  public isErrLogIn$ = new BehaviorSubject<string>("");
+  public error$ = new BehaviorSubject<string>("");
+
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
 
 
@@ -53,27 +54,28 @@ export class AuthService {
       .pipe(
         catchError((err) => {
           console.log("err in sign in with email: ", err);
-          this.handleError(err.code);
+          this.handleErrorLogin(err.code);
+          
           return EMPTY;
         }),
         tap((user) => { localStorage.setItem('user', JSON.stringify(user.user)); })
       )
   }
 
-  handleError(err: string): void {
+  handleErrorLogin(err: string): void {
     console.log(err);
     if (err === "auth/wrong-password") {
-      this.isErrLogIn$.next("password");
+      this.error$.next("password");
     }
     if (err === "auth/user-not-found" || err === "auth/invalid-email") {
       console.log("invalid");
 
-      this.isErrLogIn$.next("user");
+      this.error$.next("user");
     }
-    console.log(this.isErrLogIn$);
 
   }
 
+  //TODO: hsandle errors
   signIn(user: UserCredential): void {
     console.log("in sign in");
     const url = 'http://localhost:3000/auth/signin'
@@ -137,27 +139,67 @@ export class AuthService {
 
 
 
-
+  handleErrorSignup(err: string): void {
+        switch (err) {
+      
+      case "auth/email-already-in-use":
+        this.error$.next("user");
+        break;
+      case "auth/invalid-email":
+        this.error$.next("email");
+        break;
+      case "auth/network-request-failed":
+        this.error$.next("net");
+        break;
+      case "auth/user-disabled":
+      case "auth/user-not-found":
+        this.error$.next("disabled");
+        break;
+      case "auth/too-many-requests":
+        this.error$.next("many");
+        break;
+    }  
+  }
 
 
 
   SignUp(formData: any): void {
     console.log("signup");
-    from(this.afAuth.createUserWithEmailAndPassword(formData.email, formData.password))
+    console.log(formData);
+    let uid: string = "";
+    console.log(formData.personal.email, formData.validation.password);
+
+    from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.validation.password))
       .pipe(
         catchError((err) => {
           console.log("err in create user: ", err);
+          this.handleErrorSignup(err.code);
+          
           return EMPTY;
         }),
-        switchMap((userCredentialData) => from(sendEmailVerification(userCredentialData.user))),
+        tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
+        switchMap((userCredentialData: UserCredential) => from(sendEmailVerification(userCredentialData.user))),
         catchError((err) => {
+          this.handleErrorSignup(err.code);
           console.log("err in send email verify: ", err);
           return EMPTY;
         }),
-        tap(() => {
-          this.isVerfyEmail$.next(true);
+        tap(() => this.isVerfyEmail$.next(true)),
+        switchMap(() => {
+          const url = 'http://localhost:3000/auth/signup'
+          formData.personal.firebaseId = uid;
+          return this.http.post(url, formData);
+
         }),
-      ).subscribe();
+        catchError((err) => {
+          console.log("err in http: ", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) =>{
+        console.log("res in sub signup", res);
+        this.router.navigate(['login']);
+      })
   }
 
   // Send email verfificaiton when new user sign up
@@ -195,12 +237,14 @@ export class AuthService {
           switch (err.code) {
             case "auth/invalid-email":
             case "auth/user-not-found":
-              this.isErrLogIn$.next("user");
+              // this.isErrLogIn$.next("user");
+              this.error$.next("user");
               break;
             case "auth/too-many-requests":
             case "auth/network-request-failed":
             case "auth/operation-not-allowed":
-              this.isErrLogIn$.next("error")
+              // this.isErrLogIn$.next("error")
+              this.error$.next("error")
           }
 
           return EMPTY;

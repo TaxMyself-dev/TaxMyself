@@ -32,11 +32,6 @@ export class User {
     city: string;
 
     @Column()
-    haveChild: boolean;
-
-    //children
-
-    @Column()
     spouseFName: string;
 
     @Column()
@@ -65,6 +60,9 @@ export class User {
 
     @Column()
     employee: boolean;
+
+    @Column()
+    familyStatus: string;
 
     
 

@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { CreateUserDto } from './dtos/create-user.dto';
+import { CreateUserDto, createChildDto } from './dtos/create-user.dto';
 import { UserRole } from 'src/enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
@@ -24,15 +24,19 @@ export class UsersService {
     }
                               
 
-    async signup(children: Child[], createUserDto: User, firebase_id: string) {
-        createUserDto.firebaseId = firebase_id;
-        console.log("CREATE USER DTO: ", createUserDto);
-        children.forEach(child => {
-            const newChild = this.child_repo.create(child);
-            newChild.fatherID = firebase_id
-            this.child_repo.save(newChild);
-        });
-        const user = this.user_repo.create(createUserDto);
+    async signup({personal,spouse,children,business,validation}:any) {
+        const newChildren = children?.children;
+        let newUser = {...personal, ...spouse, ...business};
+        console.log("newPersonal: ", newUser);
+        
+        console.log("children children: ", children.children);
+        for (let i = 0; i < newChildren.length; i++){
+            const child: Child = children[i];
+            const newChild =  this.child_repo.create(child);
+            newChild.fatherID = personal.firebaseId
+            const addChild = await this.child_repo.save(newChild);
+        }
+        const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
     }
 

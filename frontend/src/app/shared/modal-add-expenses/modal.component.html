@@ -13,9 +13,7 @@
       <ion-list class="list-expense" scrollY="true">
         <ion-item class="item-expense" *ngFor="let col of columns">
           <ng-container [ngSwitch]="col.type">
-
             <div>
-              
             </div>
             <div>
               <ng-container *ngSwitchCase="formTypes.TEXT">
@@ -31,7 +29,7 @@
               </ng-container>
 
               <ng-container *ngSwitchCase="formTypes.DDL">
-                <ion-select class="input-expense"  fill="outline" label=" * {{col.value}}" [formControlName]="col.name"
+                <ion-select class="input-expense" fill="outline" label=" * {{col.value}}" [formControlName]="col.name"
                   (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
                   <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                     [value]="option.value">{{option.key}}</ion-select-option>
@@ -45,15 +43,15 @@
               </ng-container>
             </div>
           </ng-container>
-        
-          <ion-input *ngIf="col.name === expenseFormColumns.TAX_PERCENT && isCustomUserTax" class="field-wrapper" type="number" formControlName="{{col.name}}" label="הכנס מספר"
-                label-placement="floating"></ion-input>
-          <ion-input *ngIf="col.name === expenseFormColumns.VAT_PERCENT && isCustomUserVat" type="number" formControlName="{{col.name}}" label="הכנס מספר"
-          label-placement="floating"></ion-input>
+
+          <ion-input *ngIf="col.name === expenseFormColumns.TAX_PERCENT && isCustomUserTax" class="field-wrapper"
+            type="number" formControlName="{{col.name}}" label="הכנס מספר" label-placement="floating"></ion-input>
+          <ion-input *ngIf="col.name === expenseFormColumns.VAT_PERCENT && isCustomUserVat" type="number"
+            formControlName="{{col.name}}" label="הכנס מספר" label-placement="floating"></ion-input>
         </ion-item>
       </ion-list>
-      <ion-input *ngIf="fileItem" (input)=fileSelected($event) label=" * {{fileItem.value}}"
-        label-placement="floating" [formControlName]="fileItem.name" type="file">
+      <ion-input *ngIf="fileItem" (input)=fileSelected($event) label=" * {{fileItem.value}}" label-placement="floating"
+        [formControlName]="fileItem.name" type="file">
       </ion-input>
     </div>
     <ion-button type="submit" [strong]="true" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>

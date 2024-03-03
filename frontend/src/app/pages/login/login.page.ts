@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
+import { EMPTY, catchError } from 'rxjs';
 
 @Component({
   selector: 'app-login',
@@ -21,7 +22,7 @@ export class LoginPage implements OnInit {
   showPassword: boolean = false;
 
 
-  constructor(private router: Router, private activatedRoute: ActivatedRoute, private formBuilder: FormBuilder, private authService: AuthService, private loadingController: LoadingController) {
+  constructor(private router: Router, private activatedRoute: ActivatedRoute, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
     this.myForm = this.formBuilder.group({
 
@@ -35,24 +36,13 @@ export class LoginPage implements OnInit {
   }
 
   ngOnInit() {
-    this.authService.isErrLogIn$.subscribe((val) =>{
-      if (val === "user") {
-        this.displayError = val;
-      }
-      if (val === "password") {
-        this.displayError = "password";
-      }
-      if (val === "error") {
-        this.displayError = "error";
-      }
-    })
   }
 
   onEnterKeyPressed(): void {
     this.signin();
   }
 
-  async signin(): Promise<void>{
+  async signin(): Promise<void> {
 
     const loading = await this.loadingController.create({
       message: 'Please wait...',
@@ -61,20 +51,23 @@ export class LoginPage implements OnInit {
     await loading.present();
 
     const formData = this.myForm.value;
-    this.authService.userVerify(formData.userName,formData.password)
-    .subscribe((res) => {
-      if (res) {
-        this.userCredential = res;
-      }
-      if (res.user.emailVerified) {
-        this.authService.signIn(res);
-        loading.dismiss();
-      }
-      else{
-        this.displayError = "email";
-        loading.dismiss();
-      }
-    });
+    this.authService.userVerify(formData.userName, formData.password)
+      .subscribe((res) => {
+        console.log("res sign in", res);
+
+        if (res) {
+          this.userCredential = res;
+        }
+        if (res.user.emailVerified) {
+          this.authService.signIn(res);
+          loading.dismiss();
+        }
+        else {
+          this.displayError = "email";
+          loading.dismiss();
+        }
+      });
+      loading.dismiss();
   }
 
   sendVerficaitonEmail(): void {
@@ -96,6 +89,6 @@ export class LoginPage implements OnInit {
   saveEmailForReset(event: any): void {
     console.log(event);
     this.userEmail = event.target.value;
-    console.log(this.userEmail); 
+    console.log(this.userEmail);
   }
 }

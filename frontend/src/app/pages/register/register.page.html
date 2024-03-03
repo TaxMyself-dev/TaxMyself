@@ -5,12 +5,49 @@
 </ion-header> -->
 
 <ion-content [fullscreen]="true">
+  
   <div class="register-content">
+  <ng-container *ngIf="authService.error$ | async as errorType">
+    <ng-container [ngSwitch]="errorType">
+      <ng-container *ngSwitchCase=" 'email' ">
+        <p class="text-error">
+          כתובת מייל לא חוקית
+        </p>
+        </ng-container>
+        <ng-container *ngSwitchCase=" 'user' ">
+          <p class="text-error">
+            לא ניתן להירשם עם מייל זה
+            <br>
+            כתובת המייל כבר קיימת במערכת
+          </p>
+        </ng-container>
+        <ng-container *ngSwitchCase=" 'net' ">
+          <p class="text-error">אין חיבור לאינטרנט אנא נסה מאוחר יותר
+            
+          </p>
+        </ng-container>
+        <ng-container *ngSwitchCase=" 'disabled' ">
+          <p class="text-error">
+            לא ניתן לשלוח אימות למייל
+            <br>
+            חשבון משתמש מושבת / לא קיים חשבון מייל כזה במערכת
+          </p>
+        </ng-container>
+        <ng-container *ngSwitchCase=" 'many' ">
+          <p class="text-error">
+            לא ניתן לשלוח כעת אימות למייל
+            <br>
+            אנא נסה מאוחר יותר
+          </p>
+        </ng-container>
+      </ng-container>
+    </ng-container>
+    
   <app-item-navigate class="navigate-item-container" [navigationItems]="itemsNavigate"
     (onNavButtonClicked)="navigateclicked($event)"></app-item-navigate>
 
     <!-------------- PRESONAL MODULE ------------->
-    <ng-container [ngSwitch]="selectedFormModule">
+    <ng-container [ngSwitch]="selectedFormModule">  
 
       <ng-container *ngSwitchCase="registerFormModules.PERSONAL">
         <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm">
@@ -43,8 +80,7 @@
           <!--------------- employee ------------->
           <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="האם אתה גם שכיר?" fill="outline"
             label-placement="floating" interface="popover">
-            <ion-select-option value="1">כן</ion-select-option>
-            <ion-select-option value="0">לא</ion-select-option>
+            <ion-select-option *ngFor="let option of employeeList" [value]="option.value">{{option.name}}</ion-select-option>
           </ion-select>
           <!--------- family status----->
           <ion-select [formControlName]="registerFormControls.FAMILYSTATUS" class="input-register" label="מצב משפחתי" fill="outline"
@@ -80,8 +116,7 @@
           <!---independet || employee---->
           <ion-select [formControlName]="registerFormControls.SPOUSEINDEPENDET" class="input-register" label="בן/בת הזוג עצמאי או שכיר"
             fill="outline" label-placement="floating" interface="popover">
-            <ion-select-option value="0">שכיר</ion-select-option>
-            <ion-select-option value="1">עצמאי</ion-select-option>
+            <ion-select-option *ngFor="let option of employeeList" [value]="option.value">{{option.name}}</ion-select-option>
           </ion-select>
         </form>
       </ng-container>
@@ -153,7 +188,7 @@
           <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
           <ion-input class="input-register" (ionInput)="checkPassword()" type="text" label="סיסמא"
             label-placement="floating" fill="outline" placeholder="בחר סיסמא" formControlName="password"></ion-input>
-          <ion-label *ngIf="!(passwordValid)">סיסמאות לא זהות</ion-label>
+          <ion-label *ngIf="!(this.passwordValid)">סיסמאות לא זהות</ion-label>
           <ion-input class="input-register" (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()"
             type="text" label="אימות סיסמא" label-placement="floating" fill="outline"
             placeholder="הכנס את הסיסמא פעם נוספת"></ion-input>
@@ -161,13 +196,17 @@
       </ng-container>
 
     </ng-container>
-
     <div>
+      <!-- <ng-container *ngIf="popoverValid">
+        <div>jfbvkjfvkjs</div>
+      </ng-container> -->
       <app-button buttonText="חזור" [disabled]="selectedFormModule === registerFormModules.PERSONAL" (onButtonClicked)="onBackBtnClicked()"></app-button>
-      <app-button [buttonText]="buttonNextText" [disabled]="myForm.invalid && selectedFormModule === registerFormModules.VALIDATION" (onButtonClicked)="onNextBtnClicked()"></app-button>
+      <app-button [buttonText]="buttonNextText" [disabled]="(myForm.invalid && (selectedFormModule === registerFormModules.VALIDATION) || (!this.passwordValid))" (onButtonClicked)="onNextBtnClicked()"></app-button>
+    </div>
+    <div>
+      משתמש קיים? לחץ <span (click)="navigateToLogin()" class="blue-link">כאן</span> לכניסה.
     </div>
   </div>
   <p>
-    משתמש קיים? לחץ <span (click)="navigateToLogin()" class="blue-link">כאן</span> לכניסה.
   </p>
 </ion-content>

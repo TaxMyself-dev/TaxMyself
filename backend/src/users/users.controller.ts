@@ -25,9 +25,8 @@ export class UsersController {
 
     @Post('/signup')
     async createUser(@Body() body: any) {
-        console.log(body);
-       console.log("children from body: ", body.formData.children);
-        const user = await this.userService.signup(body.formData.children,body.formData, body.firebaseId);
+        const user = await this.userService.signup(body);
+        console.log("new user", user);
         return body; //TODO: Elazar - check if it's necessary to return the body
     }
 

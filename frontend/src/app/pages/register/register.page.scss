@@ -125,5 +125,24 @@ ion-content .register-content {
   // justify-items: center;
 }
 
+.text-error{
+  border: 2px solid red;
+  border-radius: 15px;
+  width: 60%;
+  word-wrap: break-word;
+  text-align: justify;
+  text-align-last: center;
+  padding-left: 5px;
+  padding-right: 5px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.blue-link {
+  color: blue;
+  text-decoration: underline;
+  cursor: pointer; 
+}
+
 
 

@@ -23,12 +23,15 @@ export class RegisterPage implements OnInit {
   today!: string;
   registerMode: boolean = true;
   passwordValid = true;
+  displayError: string = "disabled";
+  // popoverValid: boolean = false;
   passwordValidInput!: string;
   listBusinessField = [{ key: "build", value: "בניין" }, { key: "electric", value: "חשמל" }, { key: "photo", value: "צילום" }, { key: "architecture", value: "אדריכלות" }]
   listBusinessType = [{ key: "licensed", value: "עוסק מורשה" }, { key: "exempt", value: "עוסק פטור" }, { key: "company", value: "חברה" }]
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION }]
+  employeeList = [{value: true, name: "כן"}, {value: false, name: "לא"}];
 
-  constructor(private router: Router, private authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
+  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     const currentDate = new Date();
     this.today = currentDate.toISOString().substring(0, 10);
     this.itemsNavigate[0].selected = true;
@@ -47,13 +50,13 @@ export class RegisterPage implements OnInit {
         '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\d{10}$/)]
+        '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058)\d{7}$/)]
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
         '', Validators.required,
       ),
       [RegisterFormControls.EMPLOYEE]: new FormControl(
-        false, Validators.requiredTrue,
+        false, Validators.required,
       ),
       [RegisterFormControls.CITY]: new FormControl(
         '', Validators.required,
@@ -77,20 +80,20 @@ export class RegisterPage implements OnInit {
         '', Validators.required,
       ),
       [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
-        false, Validators.requiredTrue,
+        false, Validators.required,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        false, Validators.requiredTrue,
+        '', [Validators.required,Validators.pattern(/^(050|051|052|053|054|055|058)\d{7}$/)]
       ),
     })
 
     const childrenForm = this.formBuilder.group({
       [RegisterFormControls.CHILDREN]: this.formBuilder.array([
         this.formBuilder.group({
-          childFName: [''],
-          childLName: [''],
-          childID: [''],
-          childDate: ['']
+          childFName: ['', Validators.required],
+          childLName: ['',Validators.required],
+          childID: ['',Validators.required],
+          childDate: ['',Validators.required]
         })
       ]),
     })
@@ -116,7 +119,7 @@ export class RegisterPage implements OnInit {
 
     const validationForm = this.formBuilder.group({
       [RegisterFormControls.PASSWORD]: new FormControl(
-        '', Validators.requiredTrue,
+        '', [Validators.required,Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
       ),
     })
 
@@ -130,20 +133,151 @@ export class RegisterPage implements OnInit {
       [RegisterFormModules.VALIDATION]: validationForm,
     });
 
-    console.log(this.myForm);
-    console.log(this.personalForm);
-    console.log(this.registerFormControls);
 
 
+
+
+
+    // const personalForm = this.formBuilder.group({
+    //   [RegisterFormControls.FIRSTNAME]: new FormControl(
+    //     'aaa', Validators.required,
+    //   ),
+    //   [RegisterFormControls.LASTNAME]: new FormControl(
+    //     'aaaa', Validators.required,
+    //   ),
+    //   [RegisterFormControls.ID]: new FormControl(
+    //     '333333333', [Validators.required, Validators.pattern(/^\d{9}$/)]
+    //   ),
+    //   [RegisterFormControls.EMAIL]: new FormControl(
+    //     '10@gmail.com', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+    //   ),
+    //   [RegisterFormControls.PHONE]: new FormControl(
+    //     '0525675730', [Validators.required, Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
+    //   ),
+    //   [RegisterFormControls.DATEOFBIRTH]: new FormControl(
+    //     '2015-12-10', Validators.required,
+    //   ),
+    //   [RegisterFormControls.EMPLOYEE]: new FormControl(
+    //     false, Validators.required,
+    //   ),
+    //   [RegisterFormControls.CITY]: new FormControl(
+    //     'll', Validators.required,
+    //   ),
+    //   [RegisterFormControls.FAMILYSTATUS]: new FormControl(
+    //     '1', Validators.required,
+    //   ),
+    // })
+
+    // const spouseForm = this.formBuilder.group({
+    //   [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
+    //     'hdh', Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
+    //     'dgr', Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSEID]: new FormControl(
+    //     '111111111', Validators.pattern(/^\d{9}$/),
+    //   ),
+    //   [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
+    //     '2012-05-01', Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
+    //     false, Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSEPHONE]: new FormControl(
+    //     '0526204910', [Validators.required,Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
+    //   ),
+    // })
+
+    // const childrenForm = this.formBuilder.group({
+    //   [RegisterFormControls.CHILDREN]: this.formBuilder.array([
+    //     this.formBuilder.group({
+    //       childFName: ['egtfh', Validators.required],
+    //       childLName: ['grsdht', Validators.required],
+    //       childID: ['111222333', Validators.required],
+    //       childDate: ['2022-12-12', Validators.required]
+    //     })
+    //   ]),
+    // })
+
+    // const businessForm = this.formBuilder.group({
+    //   [RegisterFormControls.BUSINESSNAME]: new FormControl(
+    //     'rhtjyk', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSFIELD]: new FormControl(
+    //     'esrgdth', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+    //     'dsgfhg', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSDATE]: new FormControl(
+    //     '2012-10-12', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSID]: new FormControl(
+    //     '23164', Validators.required,
+    //   ),
+
+    // })
+
+    // const validationForm = this.formBuilder.group({
+    //   [RegisterFormControls.PASSWORD]: new FormControl(
+    //     '151515sh', [Validators.required,Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
+    //   ),
+    // })
+
+
+
+    this.myForm = this.formBuilder.group({
+      [RegisterFormModules.PERSONAL]: personalForm,
+      [RegisterFormModules.SPOUSE]: spouseForm,
+      [RegisterFormModules.CHILDREN]: childrenForm,
+      [RegisterFormModules.BUSINESS]: businessForm,
+      [RegisterFormModules.VALIDATION]: validationForm,
+    });
   }
 
 
   ngOnInit() {
+    console.log("on init reg");
+    
     this.authService.isVerfyEmail$.subscribe((value) => {//TODO: unsubscribe
       if (value) {
         this.registerMode = false;
       }
     })
+
+    // this.authService.isErrSignup$.subscribe((val) =>{
+    //   console.log("in sun reg");
+      
+    //   switch (val) {
+    //     case "auth/email-already-in-used":
+    //       this.displayError = "user";
+    //       console.log(this.displayError);
+          
+    //       break;
+    //     case "auth/invalid-email":
+    //       this.displayError = "email";
+    //       console.log(this.displayError);
+
+    //       break;
+    //     case "auth/network-request-failed":
+    //       this.displayError = "net";
+    //       console.log(this.displayError);
+
+    //       break;
+    //     case "auth/user-disabled":
+    //     case "auth/user-not-found":
+    //       this.displayError = "disabled";
+    //       console.log(this.displayError);
+
+    //       break;
+    //     case "auth/too-many-requests":
+    //       this.displayError = "many";
+    //       console.log(this.displayError);
+
+    //       break;
+    //   }
+    // })
   };
 
   get personalForm(): FormGroup {
@@ -198,13 +332,12 @@ export class RegisterPage implements OnInit {
 
   handleFormRegister() {
     const formData = this.myForm.value;
-    const data = { fromReg: false, email: formData.email };
-    formData.spouseIndependet == "true" ? formData.spouseIndependet = true : formData.spouseIndependet = false
-    formData.employee == "true" ? formData.employee = true : formData.employee = false
     console.log(formData);
-
+    const data = { fromReg: false, email: formData.email };
+    // formData.spouseIndependet == "true" ? formData.spouseIndependet = true : formData.spouseIndependet = false
+    // formData.employee == "true" ? formData.employee = true : formData.employee = false
     this.authService.SignUp(formData);
-    this.router.navigate(['login'], { queryParams: data });
+    // this.router.navigate(['login'], { queryParams: data });
   }
 
   
@@ -229,10 +362,17 @@ export class RegisterPage implements OnInit {
     }
   }
 
+  try() {
+    console.log(this.myForm);
+    
+  }
+
   onNextBtnClicked(): void {
     switch (this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
-        //TODO: savve form
+        this.handleFormRegister();
+        console.log(this.displayError);
+        
         break;
       case RegisterFormModules.PERSONAL:
         this.selectedFormModule = RegisterFormModules.SPOUSE;
@@ -310,4 +450,5 @@ export class RegisterPage implements OnInit {
   navigateToLogin(): void {
     this.router.navigate(['login']);
   }
+
 }

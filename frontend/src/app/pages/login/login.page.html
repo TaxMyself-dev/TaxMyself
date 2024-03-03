@@ -4,8 +4,8 @@
   </ion-toolbar> -->
   <!-- <div class="login-screen">
     <div> -->
-  <ng-container *ngIf="displayError">
-    <ng-container [ngSwitch]="displayError">
+  <ng-container *ngIf="authService.error$ | async as errorType">
+    <ng-container [ngSwitch]="errorType">
       <ng-container *ngSwitchCase=" 'email' ">
         <p class="text-error">
           עדיין לא אימתת את המייל, בבקשה כנס למייל שהזנת בהרשמה כדי לאמת חשבון

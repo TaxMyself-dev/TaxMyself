@@ -11,16 +11,16 @@ export class Child {
     index: number;
 
     @Column()
-    fName: string;
+    childFName: string;
     
     @Column()
-    lName: string;
+    childLName: string;
 
     @Column()
-    id: string;
+    childID: string;
 
     @Column('date')
-    dateOfBirth: Date;
+    childDate: Date;
 
     @Column()
     fatherID: string;
