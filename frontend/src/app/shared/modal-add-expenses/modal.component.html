@@ -13,23 +13,21 @@
       <ion-list class="list-expense" scrollY="true">
         <ion-item class="item-expense" *ngFor="let col of columns">
           <ng-container [ngSwitch]="col.type">
-            <div>
-            </div>
-            <div>
+            <!-- <div> -->
               <ng-container *ngSwitchCase="formTypes.TEXT">
-                <ion-input class="input-expense" label="{{col.value}}" label-placement="floating"
+                <ion-input class="input-expense text" label="{{col.value}}" label-placement="floating"
                   [formControlName]="col.name" type="text" fill="outline">
                 </ion-input>
               </ng-container>
 
               <ng-container *ngSwitchCase="formTypes.NUMBER">
-                <ion-input class="input-expense" label=" * {{col.value}}" label-placement="floating"
+                <ion-input class="input-expense number" label=" * {{col.value}}" label-placement="floating"
                   [formControlName]="col.name" type="number">
                 </ion-input>
               </ng-container>
 
               <ng-container *ngSwitchCase="formTypes.DDL">
-                <ion-select class="input-expense" fill="outline" label=" * {{col.value}}" [formControlName]="col.name"
+                <ion-select class="input-expense ddl" fill="outline" label=" * {{col.value}}" [formControlName]="col.name"
                   (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
                   <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                     [value]="option.value">{{option.key}}</ion-select-option>
@@ -41,7 +39,7 @@
                   [formControlName]="col.name" type="date">
                 </ion-input>
               </ng-container>
-            </div>
+            <!-- </div> -->
           </ng-container>
 
           <ion-input *ngIf="col.name === expenseFormColumns.TAX_PERCENT && isCustomUserTax" class="field-wrapper"

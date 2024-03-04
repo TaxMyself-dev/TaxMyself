@@ -52,6 +52,18 @@ export interface ISortDate{
     year?: number;
 }
 
+
+
+export interface IGetSubCategory {
+    id: number;
+    subCategory: string;
+    category: string;
+    taxPercent: string;
+    vatPercent: string;
+    isEquipment: boolean;
+    reductionPercent: string;
+}
+
 export interface IMonthData {
     name: string;
     value: number[];

@@ -18,12 +18,13 @@ export class ExpenseDataService {
     {name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL},
     {name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL},
     {name: ExpenseFormColumns.EXPENSE_NUMBER, value: ExpenseFormHebrewColumns.expenseNumber, type: FormTypes.NUMBER},
-    {name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.DDL},
-    {name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT},
+    {name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.TEXT},
     {name: ExpenseFormColumns.SUPPLIER_ID, value: ExpenseFormHebrewColumns.supplierID, type: FormTypes.TEXT},
     {name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.FILE},
     {name: ExpenseFormColumns.NOTE, value: ExpenseFormHebrewColumns.note, type: FormTypes.TEXT},
     {name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL},
+    {name: ExpenseFormColumns.REDUCTION_PERCENT, value: ExpenseFormHebrewColumns.reductionPercent, type: FormTypes.TEXT},
     // {name: ExpenseFormColumns.LOADING_DATE, value: ExpenseFormHebrewColumns.loadingDate, type:FormTypes.DATE},
     // {name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type:FormTypes.NUMBER},
     // {name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type:FormTypes.NUMBER}
@@ -103,6 +104,24 @@ export class ExpenseDataService {
   getAddExpenseColumns(): IColumnDataTable[] {
     return this.columnsAddExpense;
   }
+
+  getSubCategory(category: string, isEquipment: boolean): Observable<any> {
+    console.log("coldata:",category);
+    
+    const url = 'http://localhost:3000/expenses/get-sub-categories-list';
+    const params = new HttpParams()
+    .set('isEquipment', isEquipment)
+    .set('category',category);
+    return this.http.get<any>(url,{params:params});
+}
+
+getcategry(isEquipment: boolean): Observable<any[]> {
+    const url = 'http://localhost:3000/expenses/get-categories-list'
+    const param = new HttpParams()
+    .set('isEquipment', isEquipment);
+     return this.http.get<any>(url,{params: param})
+  }
+
 
 
 
