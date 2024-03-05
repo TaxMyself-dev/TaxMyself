@@ -1,7 +1,7 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ModalController, NavParams } from '@ionic/angular';
-import { IColumnDataTable, IRowDataTable } from '../interface';
+import { IColumnDataTable, IGetSubCategory, IRowDataTable } from '../interface';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
@@ -12,6 +12,7 @@ import { PopoverController } from '@ionic/angular';
 import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
 import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of } from 'rxjs';
 import { ExpenseFormColumns, FormTypes } from '../enums';
+import { HttpClient, HttpParams } from '@angular/common/http';
 
 @Component({
   selector: 'app-modal',
@@ -30,7 +31,7 @@ export class ModalExpensesComponent {
     }
   };
 
-  @Input() set columns(val :IColumnDataTable[]) {
+  @Input() set columns(val: IColumnDataTable[]) {
     this.fileItem = val?.find((item: IColumnDataTable) => item.type === FormTypes.FILE);
     this.columnsList = val;
   }
@@ -42,10 +43,11 @@ export class ModalExpensesComponent {
   readonly formTypes = FormTypes;
   readonly expenseFormColumns = ExpenseFormColumns;
 
+  isEquipment: boolean;
   columnsList: IColumnDataTable[];
   fileItem: IColumnDataTable;
   columnsFilter: IColumnDataTable[];
-  listPercent: Record<string, string | number>[] = [{ key: "נא לבחור", value: "" }, { key: "0", value: 0 }, { key: "25", value: 25 }, { key: "33", value: 33 }, { key: "66", value: 66 }, { key: "100", value: 100 }, { key: "אחר", value: "other" }]
+  // listPercent: Record<string, string | number>[] = [{ key: "נא לבחור", value: "" }, { key: "0", value: 0 }, { key: "25", value: 25 }, { key: "33", value: 33 }, { key: "66", value: 66 }, { key: "100", value: 100 }, { key: "אחר", value: "other" }]
   title: string;
   initialForm: FormGroup;
   myForm: FormGroup;
@@ -53,14 +55,15 @@ export class ModalExpensesComponent {
   id: number;
   isCustomUserVat = false;
   isCustomUserTax = false;
-  equipmentList: Record<string, string>[] = [{ key: "לא", value: "not" }, { key: "רכב", value: "car" }, { key: "מחשב", value: "computer" }, { key: "שולחן", value: "table" }, { key: "כיסא", value: "cheir" }, { key: "מנורה", value: "lamp" }];
+  equipmentList: Record<string, string>[] = [{ key: "לא", value: "0" }, { key: "כן", value: "1" }];
+  categoryList: {};
+  subCategoryList: IGetSubCategory[];
 
-  constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
-  }
+  constructor(private http: HttpClient, private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) { }
 
-  ngOnInit(){
+  ngOnInit() {
     console.log("kjhchj");
-    console.log("xdfgdgfgf",this.columns);
+    console.log("xdfgdgfgf", this.columns);
   }
 
   initForm(data: IRowDataTable): void {
@@ -180,16 +183,25 @@ export class ModalExpensesComponent {
 
   onDdlSelectionChange(event, colData: IColumnDataTable) {
     console.log(event);
+    console.log(colData);
     
     switch (colData.name) {
-      case ExpenseFormColumns.TAX_PERCENT:
-        this.customUserTax(event);
-        break;
-      case ExpenseFormColumns.EQUIPMENT_CATEGORY:
+      // case ExpenseFormColumns.TAX_PERCENT:
+      //   this.customUserTax(event);
+      //   break;
+      case ExpenseFormColumns.IS_EQUIPMENT:
+        console.log("in equipment");
         this.setValueEquipment(event);
         break;
-      case ExpenseFormColumns.VAT_PERCENT:
-        this.customUserVat(event);
+      // case ExpenseFormColumns.VAT_PERCENT:
+      //   this.customUserVat(event);
+      //   break;
+      case ExpenseFormColumns.CATEGORY:
+        this.getSubCategory(event.detail.value);
+        break;
+      case ExpenseFormColumns.SUB_CATEGORY:
+        const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
+        this.selectedSubcategory(subCategoryDetails);
         break;
       default:
         break;
@@ -263,16 +275,85 @@ export class ModalExpensesComponent {
     return 0;
   }
 
-  getListOptionsByKey(key: ExpenseFormColumns): Record<string, string | number>[] {
+  getListOptionsByKey(key: ExpenseFormColumns): any {
     switch (key) {
-      case ExpenseFormColumns.VAT_PERCENT:
-      case ExpenseFormColumns.TAX_PERCENT:
-        return this.listPercent;
+      // case ExpenseFormColumns.VAT_PERCENT:
+      // case ExpenseFormColumns.TAX_PERCENT:
+      //   return this.listPercent;
       case ExpenseFormColumns.IS_EQUIPMENT:
         return this.equipmentList;
+      case ExpenseFormColumns.CATEGORY:
+        return this.getListCategoty();
+      case ExpenseFormColumns.SUB_CATEGORY:
+        return this.getListSubCategory();
       default:
         return [];
     }
+  }
+
+  getListSubCategory(): {} {
+    console.log("list category;", this.categoryList);
+
+    // if (this.categoryList != undefined) {
+      if (this.myForm.get(ExpenseFormColumns.CATEGORY).value) {
+      return this.subCategoryList;
+    }
+    else {
+      return [{ key: "נא לבחור קטגוריה", value: "" }];
+    }
+  }
+
+  getListCategoty(): {} {
+    if (this.isEquipment != undefined) {
+      return this.categoryList;
+    }
+    else {
+      return [{ key: "נא לבחור מוגדר כציוד או לא", value: "" }];
+    }
+  }
+
+  getSubCategory(category: string): void {
+    console.log("category in get sub", category);
+    
+    this.expenseDataServise.getSubCategory(category, this.isEquipment)
+      .pipe(
+        map((res) => {
+          console.log("before map:", res);
+          
+          return res.map((item: IGetSubCategory) => ({
+            ...item,
+            key: item.subCategory,
+            value: item.subCategory,
+
+          })
+          )
+        })
+      )
+      .subscribe((res) => {
+        console.log("sub categoey list", res);
+        this.subCategoryList = res;
+        console.log("list sub category:",this.subCategoryList);
+      })
+  }
+
+  getCategory(): void {
+    this.expenseDataServise.getcategry(this.isEquipment)
+        .pipe(
+          map((res) => {
+            return res.map((item) => ({
+              key: item,
+              value: item
+            })
+            )
+          })
+        )
+        .subscribe((res) => {
+          console.log(res);
+          this.categoryList = res;
+          console.log(this.categoryList);
+          // return res;
+        })
+
   }
 
   async openPopupMessage(message: string) {
@@ -288,51 +369,30 @@ export class ModalExpensesComponent {
     await modal.present();
   }
 
-  customUserVat(ev: any): void {
-    if (ev.detail.value == "other") {
-      this.isCustomUserVat = !this.isCustomUserVat;
-    }
-  }
-
-  customUserTax(ev: any): void {
-    if (ev.detail.value == "other") {
-      this.isCustomUserTax = !this.isCustomUserTax;
-    }
-  }
-
   setValueEquipment(event: any): void {
     const value = event.detail.value;
-    console.log("in set value", event.detail.value);
-
-    if (value == "not") {
-      this.myForm.patchValue({ isEquipment: false });
-      this.myForm.patchValue({ equipmentCategory: value });
+    console.log("in set value", value);
+    console.log("category form value", this.myForm.get(ExpenseFormColumns.CATEGORY).value);
+    
+    if (value != this.isEquipment){
+      this.myForm.patchValue({'category': ""})
+    }
+    if (value == "0") {
+      this.isEquipment = false;
+      this.getCategory();
     }
     else {
-      this.myForm.patchValue({ isEquipment: true });
-      switch (value) {
-        case 'car':
-          this.myForm.patchValue({ equipmentCategory: value });
-          this.myForm.patchValue({ reductionPercent: 15 });
-          break;
-        case 'computer':
-          this.myForm.patchValue({ equipmentCategory: value });
-          this.myForm.patchValue({ reductionPercent: 25 });
-          break;
-        case 'cheir':
-          this.myForm.patchValue({ equipmentCategory: value });
-          this.myForm.patchValue({ reductionPercent: 35 });
-          break;
-        case 'table':
-          this.myForm.patchValue({ equipmentCategory: value });
-          this.myForm.patchValue({ reductionPercent: 45 });
-          break;
-        case 'lamp':
-          this.myForm.patchValue({ equipmentCategory: value });
-          this.myForm.patchValue({ reductionPercent: 55 });
-          break;
-      }
+      this.isEquipment = true;
+      this.getCategory();
     }
+  }
+
+  selectedSubcategory(data: IGetSubCategory): void {
+    console.log("data in select sub:", data);
+    this.myForm.patchValue({reductionPercent: data.reductionPercent});
+    this.myForm.patchValue({vatPercent: data.vatPercent});
+    this.myForm.patchValue({taxPercent: data.taxPercent});
+    
   }
 }
 

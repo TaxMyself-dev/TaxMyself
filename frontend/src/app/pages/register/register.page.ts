@@ -50,7 +50,7 @@ export class RegisterPage implements OnInit {
         '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058)\d{7}$/)]
+        '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
         '', Validators.required,
@@ -83,7 +83,7 @@ export class RegisterPage implements OnInit {
         false, Validators.required,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        '', [Validators.required,Validators.pattern(/^(050|051|052|053|054|055|058)\d{7}$/)]
+        '', [Validators.required,Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
       ),
     })
 

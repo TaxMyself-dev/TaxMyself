@@ -22,7 +22,8 @@ export enum ExpenseFormHebrewColumns {
     totalTaxPayable = 'מוכר למס',
     totalVatPayable = 'מוכר למעמ',
     isEquipment = 'מוגדר כציוד?',
-    loadingDate = 'תאריך העלאת קובץ'
+    loadingDate = 'תאריך העלאת קובץ',
+    reductionPercent = 'פחת'
     
 }
 
