@@ -1,1 +1,0 @@
-docker exec -it nodeserver /bin/bash
