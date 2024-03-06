@@ -1,41 +1,141 @@
+.add-expense-header{
+    display: flex;
+    justify-content: space-between;
+}
+
+.add-expense-icon-header{
+    cursor: pointer;
+}
+
 
 .form-expense{
     height: 100%;
-    border: 1px solid red;
+    // border: 1px solid red;
 }
 
 .list-expense{
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    border: 1px solid;
+    // border: 1px solid;
     height: 100%; 
     overflow-y: auto; /* Enable vertical scrolling */
 }
 
 .input-expense{
-    // min-width: 200px;
-    gap: 5px;
-    margin: 5px;;
-    // display: flex;
-    width: 220px;
-    border-radius: 15px;
-    // flex-basis: calc(33.33% - 20px);
-    //margin: 10px;
-    //padding: 3px;
-    border: 1px solid;
-
+   // gap: 10px;
+    --border-radius: 15px;
+    margin: 0px 0px 20px 5px;
     &.text {
         width: 100%;
     }
 
-    // &.number {
-    //     width: 100%;
-    // }
+    &.date {
+        width: 30%;
+        border: 1px solid rgb(190, 183, 183);
+        border-radius: 15px;
+        --border-style: none;
+    }
+    
+    &.sum {
+        width: 30%;
+        border: 1px solid rgb(190, 183, 183);
+        border-radius: 15px;
+    }
+    &.expenseNumber{
+        width: 30%;
+        border: 1px solid rgb(190, 183, 183);
+        border-radius: 15px;
+        --border-style: none;
+    }
+    &.supplier{
+        width: 40%;
+        // position: relative;
+      
+        
+    }
+    &.supplierID{
+        width: 40%;
+    }
+    &.isEquipment{
+        width: 100%;
+        --border-style: none;
+        border-bottom: 1px solid gray;
+        border-radius: 0px;
+    }
+    &.category{
+        width: 40%;
+    }
+    &.subCategory{
+        width: 40%;
+    }
+    &.taxPercent{
+        width: 30%;
+    }
+    &.vatPercent{
+        width: 30%;
+    }
+    &.reductionPercent{
+        width: 30%;
+    }
+    &.note{
+        width: 100%;
+        --border-style: none;
+        border-bottom: 1px solid gray;
+        border-radius: 0px;
+    }
+}
 
-//     .number {
-//         width: 100%;
-//     }
+.supplier-btn{
+    // position: absolute;
+    // top: 50%;
+    // left: 10px; /* Adjust this value as needed */
+    // transform: translateY(-50%);
+    // cursor: pointer;
+    pointer-events: auto;
+}
+
+
+.label-file-add-expense ion-input[type="file"]{
+    display: none;
+}
+
+.div-wrapp{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+
+}
+
+.div-icon{
+    width: 70%;
+    height: 70%;
+}
+
+.label-file-add-expense ion-icon{
+    --ionicon-stroke-width: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.label-file-add-expense{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 5px solid rgb(79, 171, 79);;
+    border-radius: 15px;
+    margin-right: 10px;
+
+}
+
+.wrapp-btn-expense{
+    display: flex;
+    justify-content: space-around;
+    width: 60%;
 }
 
 .modal-content {
@@ -47,8 +147,23 @@
     min-width: 200px;
     display: flex;
     width: 220px;
-    // --border-radius: 15px;
     flex-basis: calc(33.33% - 20px);
     margin: 10px;
+}
+
+.input-container{
+    // display: flex;
+    // align-items: center;
+    position: relative;
+}
+
+.input-container ion-input {
+    flex: 1;
+    // position: absolute;
+}
+
+.input-container ion-button {
+    // position: absolute;
+margin-left: 8px; /* Adjust as needed */
 }
   

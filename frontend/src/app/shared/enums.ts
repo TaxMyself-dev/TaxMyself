@@ -9,7 +9,7 @@ export enum FormTypes {
 
 export enum ExpenseFormHebrewColumns {
     supplier = 'ספק',
-    date = 'תאריך',
+    date = 'תאריך ערך',
     sum = 'סכום',
     category = 'קטגוריה',
     subCategory = 'תת-קטגוריה',
@@ -18,13 +18,24 @@ export enum ExpenseFormHebrewColumns {
     taxPercent = 'אחוז מוכר למס',
     supplierID = 'ח.פ. ספק',
     file = 'קובץ',
-    note = 'הערה',
+    note = 'הערה / פירוט',
     totalTaxPayable = 'מוכר למס',
     totalVatPayable = 'מוכר למעמ',
-    isEquipment = 'מוגדר כציוד?',
+    isEquipment = 'האם ההוצאה הינה עבור רכוש קבוע?',
     loadingDate = 'תאריך העלאת קובץ',
     reductionPercent = 'פחת'
     
+}
+
+export enum displayColumnsExpense {
+    supplier = 'ספק',
+    date = 'תאריך',
+    sum = 'סכום',
+    category = 'קטגוריה',
+    subCategory = 'תת-קטגוריה',
+    vatPercent =  'מוכר למעמ',
+    taxPercent =  'מוכר למס',
+    month = 'דווח לחודש'
 }
 
 export enum ExpenseFormColumns {
@@ -42,7 +53,6 @@ export enum ExpenseFormColumns {
     TOTAL_TAX = 'totalTaxPayable',
     TOTAL_VAT = 'totalVatPayable',
     IS_EQUIPMENT = 'isEquipment',
-    EQUIPMENT_CATEGORY = 'equipmentCategory',
     REDUCTION_PERCENT = 'reductionPercent',
     LOADING_DATE = 'loadingDate'
     

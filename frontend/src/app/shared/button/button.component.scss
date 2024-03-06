@@ -19,11 +19,9 @@ ion-button {
   }
 
   .button-wrapper {
-    font-size: 24px;
     font-family: 'Open Sans Hebrew', serif;
     letter-spacing: 0;
     margin-bottom: 0;
-    padding-top: 21px;
     --color: black;
     --box-shadow: 0;
 
@@ -33,5 +31,21 @@ ion-button {
 
     &.clear {
       --background: transparent;
+    }
+
+    &.small {
+      font-size: 12px;
+      --padding-top: 10px;
+      --padding-bottom: 10px;
+      --padding-start: 16px;
+      --padding-end: 16px;
+    }
+
+    &.big {
+      font-size: 24px;
+      --padding-top: 30px;
+      --padding-bottom: 30px;
+      --padding-start: 36px;
+      --padding-end: 36px;
     }
   }

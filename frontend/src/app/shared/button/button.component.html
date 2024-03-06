@@ -1,7 +1,11 @@
 <ion-button 
     class="button-wrapper"  
     shape="round" 
-    [ngClass]="buttonClass"
+    [ngStyle]="buttonStyle"
+    [ngClass]="{'primary': buttonClass === ButtonClass.PRIMARY,
+        'clear': buttonClass === ButtonClass.CLEAR,
+        'small': buttonSize === ButtonSize.SMALL,
+        'big': buttonSize === ButtonSize.BIG}"
     [disabled]="disabled"
-    (click)="onClick()" 
+    (click)="onClick()"
 >{{buttonText}}</ion-button>

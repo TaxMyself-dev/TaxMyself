@@ -87,8 +87,6 @@ export class LoginPage implements OnInit {
   }
 
   saveEmailForReset(event: any): void {
-    console.log(event);
     this.userEmail = event.target.value;
-    console.log(this.userEmail);
   }
 }

@@ -13,31 +13,25 @@ import { ExpenseFormHebrewColumns } from '../enums';
 })
 export class TableComponent {
   @Input() fieldsNames: IColumnDataTable[];
-  @Input() set data(val: IRowDataTable) {
-    console.log(val);
-    this.id = +val.id;
-    this.tableData = Object.keys(val)
-      .filter((key) => key !== 'userId' && key !== 'id' && key !== 'reductionDone' && key !== 'reductionPercent')
-      .reduce((object, key) => {
-        return Object.assign(object, {
-          [key]: val[key]
-        });
-      }, {});
+  @Input() set rows(val: IRowDataTable[]) {
+    this.tableRows = [];
+    val.forEach((row: IRowDataTable) => {
+      const {id, reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId,  ...tableData} = row;
+      this.id = +id;
+      this.tableRows.push(tableData);
+    })
+    
   }
 
-  get data(): IRowDataTable {    
-    return this.tableData;
-  }
-
-  getFieldValue(key: string | number): ExpenseFormHebrewColumns {    
-    return this.fieldsNames.find((item: IColumnDataTable) => item.name === key).value;
+  get rows(): IRowDataTable[] {    
+    return this.tableRows;
   }
 
   @Output() updateClicked = new EventEmitter<any>();
   @Output() deleteClicked = new EventEmitter<any>();
 
   id: number;
-  tableData: IRowDataTable;
+  tableRows: IRowDataTable[];
 
   constructor(private filesService: FilesService) {}
    

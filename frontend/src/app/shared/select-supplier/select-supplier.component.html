@@ -1,4 +1,4 @@
-<ion-toolbar>
+<!-- <ion-toolbar>
    <ion-searchbar placeholder="הכנס / חפש ספק" animated="true" (ionInput)="changeSearchTerm($event)" ></ion-searchbar>
 </ion-toolbar>
 
@@ -17,4 +17,51 @@
 
 <ng-template #loader>
   <ion-loading message="Loading..." spinner="circles" [isOpen]="true"></ion-loading>
-</ng-template>
+</ng-template> -->
+<ion-toolbar>
+  <ion-header class="supplier-header">
+    <ion-title>
+      רשימת ספקים
+    </ion-title>
+     <ion-icon (click)="cancel()" class="supplier-icon-header" aria-label="back"  size="large" name="close-outline"></ion-icon>
+  </ion-header>
+</ion-toolbar>
+
+<ion-content >
+  <ion-list class="list-supplier-table">
+    <table *ngIf="suppliersList" class="supplier-table">
+
+      <tr class="tr-header">
+        <th>
+            שם ספק
+        </th>
+        <th>
+            ח.פ ספק
+        </th>
+        <th>
+            פעולות
+        </th>
+      </tr>
+      <ng-container *ngFor="let supplier of suppliersList">
+        <tr class="tr-content">
+          <td>
+            {{supplier.name}}
+          </td>
+          <td>
+            {{supplier.supplierID}}
+          </td>
+          <td>
+            <ion-button (click)="selectedSupplier(supplier)">בחר</ion-button>
+          </td>
+          <td>
+            <ion-button (click)="editSupplier(supplier)">עריכה</ion-button>
+          </td>
+          <td>
+            <ion-button (click)="deleteSupplier(supplier.id)">מחיקה</ion-button>
+          </td>
+
+        </tr>
+      </ng-container>
+    </table>
+  </ion-list>
+</ion-content>

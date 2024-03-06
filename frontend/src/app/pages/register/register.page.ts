@@ -74,7 +74,7 @@ export class RegisterPage implements OnInit {
         '', Validators.required,
       ),
       [RegisterFormControls.SPOUSEID]: new FormControl(
-        '', Validators.pattern(/^\d{9}$/),
+        '',[Validators.required, Validators.pattern(/^\d{9}$/)],
       ),
       [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
         '', Validators.required,
@@ -92,7 +92,7 @@ export class RegisterPage implements OnInit {
         this.formBuilder.group({
           childFName: ['', Validators.required],
           childLName: ['',Validators.required],
-          childID: ['',Validators.required],
+          childID: ['',Validators.required,Validators.pattern(/^\d{9}$/)],
           childDate: ['',Validators.required]
         })
       ]),

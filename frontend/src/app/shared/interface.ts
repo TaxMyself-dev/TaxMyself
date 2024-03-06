@@ -64,6 +64,16 @@ export interface IGetSubCategory {
     reductionPercent: string;
 }
 
+export interface IGetSupplier {
+    id: number;
+    subCategory: string;
+    category: string;
+    taxPercent: string;
+    vatPercent: string;
+    name: string;
+    supplierID: string;
+}
+
 export interface IMonthData {
     name: string;
     value: number[];

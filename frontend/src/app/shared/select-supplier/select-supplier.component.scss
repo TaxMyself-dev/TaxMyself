@@ -1,0 +1,29 @@
+.supplier-header{
+    display: flex;
+    justify-content: space-around;
+}
+
+.supplier-icon-header{
+    cursor: pointer;
+}
+.list-supplier-table{
+    display: flex;
+    justify-content: center;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.supplier-table{
+    border: 1px solid;
+    width: 95%;
+}
+
+.tr-header{
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+}
+
+.tr-content{
+    border-bottom: 1px solid lightgray;
+}

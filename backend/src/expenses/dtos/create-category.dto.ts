@@ -26,4 +26,7 @@ export class CreateCategoryDto {
     @IsOptional()
     @IsBoolean()
     isEquipment: boolean;
+
+    @IsNumber()
+    reductionPercent: number;
 }

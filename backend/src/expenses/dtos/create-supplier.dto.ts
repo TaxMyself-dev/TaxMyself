@@ -2,7 +2,8 @@ import {
     IsString,
     IsNumber,
     Min,
-    Max
+    Max,
+    IsBoolean
 } from 'class-validator'
 
 export class CreateSupplierDto {
@@ -31,5 +32,13 @@ export class CreateSupplierDto {
     @Min(0)
     @Max(100)
     vatPercent: number;
+
+    @IsBoolean()
+    isEquipment: boolean;
+
+    @IsNumber()
+    reductionPercent: number
+
+
 
 }

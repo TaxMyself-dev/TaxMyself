@@ -6,6 +6,7 @@ import { EMPTY, Observable, catchError } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { ICreateSupplier } from '../interface';
 import { cloneDeep, isEqual } from 'lodash';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 
 @Component({
   selector: 'app-add-supplier',
@@ -28,7 +29,7 @@ export class addSupplierComponent  implements OnInit {
   listPercent = [{key:"נא לבחור", value:""},{key:"0", value:0},{key:"25", value:25},{key:"33", value:33},{key:"66", value:66},{key:"100", value:100},{key:"אחר", value:"other"}]
   isCustomUserVat = false;
   isCustomUserTax = false;
-  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private popoverController: PopoverController) { }
+  constructor(private expenseDataService: ExpenseDataService, private formBuilder: FormBuilder, private popoverController: PopoverController) { }
 
   ngOnInit() {
   }
@@ -46,11 +47,15 @@ export class addSupplierComponent  implements OnInit {
   }
 
   confirm(data:any): Observable<any>{
-   return this.editMode? this.fileService.editSupplier(data, this.id) : this.fileService.addSupplier(data);
+   return this.editMode? this.expenseDataService.editSupplier(data, this.id) : this.expenseDataService.addSupplier(data);
   };
 
   disableSave(): boolean {
     return !this.myForm.valid || (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
+  }
+
+  cancel(): void {
+    this.popoverController.dismiss();
   }
 
 
@@ -58,7 +63,6 @@ export class addSupplierComponent  implements OnInit {
   saveSupplier(): void{
     console.log("save");
     console.log("edit?",this.editMode);
-    this.popoverController.dismiss(this.myForm);
     const formData = this.setFormData();
     this.confirm(formData).pipe(
       catchError((err) => {
@@ -66,6 +70,7 @@ export class addSupplierComponent  implements OnInit {
         return EMPTY;
       })).subscribe((res) =>{
         console.log("res of save sup: ", res);
+        this.popoverController.dismiss(this.myForm);
       });
   }
 
@@ -79,15 +84,8 @@ export class addSupplierComponent  implements OnInit {
     return formData;
   }
 
-  customUserVat(ev: any): void {
-    if (ev.detail.value == "other") {
-      this.isCustomUserVat = !this.isCustomUserVat;
-    }
+  onEnterKeyPressed(): void{
+    this.saveSupplier();
   }
 
-  customUserTax(ev: any): void {
-    if (ev.detail.value == "other") {
-      this.isCustomUserTax = !this.isCustomUserTax;
-    }
-  }
 }

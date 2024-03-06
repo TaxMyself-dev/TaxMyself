@@ -1,4 +1,4 @@
-<table *ngIf="data" class="receipt-wrapper">
+<!-- <table *ngIf="data" class="receipt-wrapper">
   <div *ngFor="let field of data | keyvalue">
     <tr>
       <th>
@@ -15,4 +15,17 @@
   </div>
   <ion-button (click)="updateExpense()">ערוך</ion-button>
   <ion-button (click)="deleteExpense()">מחק</ion-button>
-</table>
+</table> -->
+
+<ion-grid>
+  <ion-row>
+    <ion-col *ngFor="let col of fieldsNames">
+      {{col.value}}
+    </ion-col>
+  </ion-row>
+  <ion-row *ngFor="let row of rows">
+    <ion-col *ngFor="let field of row | keyvalue">
+      {{field.value}}
+    </ion-col>
+  </ion-row>
+</ion-grid>

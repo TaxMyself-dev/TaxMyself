@@ -32,4 +32,10 @@ export class Supplier {
     @Column()
     userId: string;
 
+    @Column()
+    isEquipment: boolean;
+
+    @Column()
+    reductionPercent: number;
+
 }

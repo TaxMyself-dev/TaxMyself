@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { ModalController } from '@ionic/angular';
-import { EMPTY, Observable, catchError, filter, from, map, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, filter, from, map, switchMap, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
@@ -55,7 +55,14 @@ export class MyStoragePage implements OnInit {
 
   // Get the data from server and update items
   setRowsData(): void {
-    this.items$ = this.expenseDataService.getExpenseByUser(this.uid);
+    this.items$ = this.expenseDataService.getExpenseByUser(this.uid)
+    .pipe(
+      tap((data) => console.log(data)
+      ),
+      
+    )
+    console.log(this.items$);
+    
   }
 
   openPopupAddExpense(data: IRowDataTable = {}): void {
@@ -67,7 +74,7 @@ export class MyStoragePage implements OnInit {
         //showBackdrop: false,
         componentProps: {
           columns: this.fieldsNamesToAdd,
-          // editMode: !!Object.keys(data).length,
+          editMode: !!Object.keys(data).length,
           data
         }
       })).pipe(catchError((err) => {

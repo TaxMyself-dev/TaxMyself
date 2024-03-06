@@ -49,16 +49,6 @@ export class FilesService {
     return from(uploadString(fileRef, base64String, 'data_url'));
   }
 
-  addExpenseData(data: any): Observable<any> {
-    console.log(data);
-    return this.http.post('http://localhost:3000/expenses/add-expense', data);
-  }
-
-  updateExpenseData(data: any, id: number): Observable<any> {
-    console.log(data);
-    return this.http.patch('http://localhost:3000/expenses/update-expense/' + id, data);
-  }
-
   getSuppliersList(token: string): Observable<any>{
     const url = "http://localhost:3000/expenses/get-suppliers-list";
     const options = {

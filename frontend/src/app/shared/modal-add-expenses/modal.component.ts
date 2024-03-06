@@ -1,7 +1,7 @@
-import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ModalController, NavParams } from '@ionic/angular';
-import { IColumnDataTable, IGetSubCategory, IRowDataTable } from '../interface';
+import { IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable } from '../interface';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
@@ -13,6 +13,7 @@ import { selectSupplierComponent } from '../select-supplier/popover-select-suppl
 import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of } from 'rxjs';
 import { ExpenseFormColumns, FormTypes } from '../enums';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { ButtonSize } from '../button/button.enum';
 
 @Component({
   selector: 'app-modal',
@@ -21,7 +22,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 })
 export class ModalExpensesComponent {
   @Input() set editMode(val: boolean) {
-    val ? this.title = "עריכת הוצאה" : this.title = "הוסף הוצאה"
+    val ? this.title = "עריכת הוצאה" : this.title = "הוספת הוצאה";
+    val ? this.isEditMode = true : null;
   };
   // data for edit mode:
   @Input() set data(val: IRowDataTable) {
@@ -36,42 +38,56 @@ export class ModalExpensesComponent {
     this.columnsList = val;
   }
 
+  @ViewChild('supplierIcon') supplierIcon: ElementRef;
+
+  ngAfterViewInit() {
+    if (this.supplierIcon) {
+      this.supplierIcon.nativeElement.addEventListener('click', this.openSelectSupplier.bind(this));
+    }
+  }
+
   get columns(): IColumnDataTable[] {
     return this.columnsList;
   }
 
+  get buttonText(): string {
+    return this.isEditMode? "עריכת הוצאה" : "שמירת הוצאה";
+  }
+
   readonly formTypes = FormTypes;
   readonly expenseFormColumns = ExpenseFormColumns;
+  readonly ButtonSize = ButtonSize;
 
   isEquipment: boolean;
+  isEditMode: boolean = false;
   columnsList: IColumnDataTable[];
   fileItem: IColumnDataTable;
   columnsFilter: IColumnDataTable[];
-  // listPercent: Record<string, string | number>[] = [{ key: "נא לבחור", value: "" }, { key: "0", value: 0 }, { key: "25", value: 25 }, { key: "33", value: 33 }, { key: "66", value: 66 }, { key: "100", value: 100 }, { key: "אחר", value: "other" }]
-  title: string;
+  title: string = "הוספת הוצאה";
   initialForm: FormGroup;
   myForm: FormGroup;
   selectedFile: string = "";
   id: number;
-  isCustomUserVat = false;
-  isCustomUserTax = false;
   equipmentList: Record<string, string>[] = [{ key: "לא", value: "0" }, { key: "כן", value: "1" }];
   categoryList: {};
   subCategoryList: IGetSubCategory[];
+  suppliersList: IGetSupplier[];
 
-  constructor(private http: HttpClient, private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) { }
+  constructor(private http: HttpClient, private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
+  
+  }
 
   ngOnInit() {
-    console.log("kjhchj");
     console.log("xdfgdgfgf", this.columns);
+    this.getSuppliers();
   }
 
   initForm(data: IRowDataTable): void {
     this.myForm = this.formBuilder.group({
-      [ExpenseFormColumns.CATEGORY]: [data.category || ''],
-      [ExpenseFormColumns.SUB_CATEGORY]: [data.subCategory || ''],
-      [ExpenseFormColumns.SUPPLIER]: [data.supplier || ''],
-      [ExpenseFormColumns.SUM]: [data.sum || Number, Validators.required],
+      [ExpenseFormColumns.CATEGORY]: [data.category || '', Validators.required],
+      [ExpenseFormColumns.SUB_CATEGORY]: [data.subCategory || '', Validators.required],
+      [ExpenseFormColumns.SUPPLIER]: [data.supplier || '', Validators.required],
+      [ExpenseFormColumns.SUM]: [data.sum || '', Validators.required],
       [ExpenseFormColumns.TAX_PERCENT]: [data.taxPercent || '', Validators.required],
       [ExpenseFormColumns.VAT_PERCENT]: [data.vatPercent || '', Validators.required],
       [ExpenseFormColumns.DATE]: [data.date || '', Validators.required],
@@ -79,9 +95,8 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.EXPENSE_NUMBER]: [data.expenseNumber || ''],
       [ExpenseFormColumns.SUPPLIER_ID]: [data.supplierID || ''],
       [ExpenseFormColumns.FILE]: [data.file || File, Validators.required],// TODO: what to show in edit mode
-      [ExpenseFormColumns.IS_EQUIPMENT]: [data.isEquipment || false], // TODO
-      [ExpenseFormColumns.EQUIPMENT_CATEGORY]: [data.equipmentCategory || ''],
-      [ExpenseFormColumns.REDUCTION_PERCENT]: [data.reductionPercent || Number],
+      [ExpenseFormColumns.IS_EQUIPMENT]: [data.isEquipment || false, Validators.required], // TODO
+      [ExpenseFormColumns.REDUCTION_PERCENT]: [data.reductionPercent || '', Validators.required],
     });
 
     this.initialForm = cloneDeep(this.myForm);
@@ -89,6 +104,8 @@ export class ModalExpensesComponent {
 
   fileSelected(event: any) {
     let file = event.target.files[0];
+    console.log(file);
+    
     if (file) {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -102,12 +119,25 @@ export class ModalExpensesComponent {
     return !this.myForm.valid || (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
   }
 
+  disabledAddSupplier(): boolean {
+    // if (this.myForm.controls != undefined){
+      const formData = this.myForm.controls;
+      const category = (formData.category.invalid);
+      const subCategory = (formData.subCategory.invalid);
+      const supplier = (formData.supplier.invalid);
+      const taxPercent = (formData.taxPercent.invalid);
+      const vatPercent = (formData.taxPercent.invalid);
+      const isEquipment = (formData.taxPercent.invalid);
+      const reductionPercent = (formData.reductionPercent.invalid);
+    return (category || subCategory || supplier || taxPercent || vatPercent || isEquipment || reductionPercent) ;
+  }
+
   cancel() {
     this.modalCtrl.dismiss(null, 'cancel');
   }
 
   confirm() {
-    this.editMode ? this.update() : this.add();
+    this.isEditMode ? this.update() : this.add();
   }
 
   add(): void {
@@ -125,7 +155,7 @@ export class ModalExpensesComponent {
         const token = localStorage.getItem('token');
         return this.setFormData(filePath, token);
       }),
-      switchMap((res) => this.fileService.addExpenseData(res)),
+      switchMap((res) => this.expenseDataServise.addExpenseData(res)),
       catchError((err) => {
         alert('Something Went Wrong in second catchError ' + err.error.message)
         if (filePath !== '') {
@@ -164,7 +194,7 @@ export class ModalExpensesComponent {
         const token = localStorage.getItem('token');
         return this.setFormData(filePath, token);
       }),
-      switchMap((res) => this.fileService.updateExpenseData(res, this.id)),
+      switchMap((res) => this.expenseDataServise.updateExpenseData(res, this.id)),
       catchError((err) => {
         alert('Something Went Wrong in second catchError ' + err.error.message)
         this.fileService.deleteFile(filePath);
@@ -203,6 +233,11 @@ export class ModalExpensesComponent {
         const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
         this.selectedSubcategory(subCategoryDetails);
         break;
+      case ExpenseFormColumns.SUPPLIER:
+        const supplierDetails = this.suppliersList.find((supplier => supplier.name === event.detail.value));
+        console.log(supplierDetails);
+        this.selectedSupplier(supplierDetails)
+        break;
       default:
         break;
     }
@@ -213,18 +248,19 @@ export class ModalExpensesComponent {
     formData.taxPercent = +formData.taxPercent;
     formData.vatPercent = +formData.vatPercent;
     formData.file = filePath;
+    formData.reductionPercent = +formData.reductionPercent;
+    formData.sum = +formData.sum;
+    formData.isEquipment === "0" ? formData.isEquipment = false : formData.isEquipment = true;
     formData.token = this.formBuilder.control(token).value; // TODO: check when token is invalid
     console.log(formData);
     return formData;
   }
 
-  // closeCalendar() {
-  //   this.datetimePicker.dismiss();
-  // }
-
-
-  openSelectSupplier() {
-    from(this.popoverController.create({
+  openSelectSupplier(event:Event) {
+    event.preventDefault();
+    console.log(event);
+    
+    from(this.modalCtrl.create({
       component: selectSupplierComponent,
       //event: ev,
       // translucent: false,
@@ -235,10 +271,10 @@ export class ModalExpensesComponent {
         console.log("openSelectSupplier failed in create ", err);
         return EMPTY;
       }),
-      switchMap((popover) => {
-        if (popover) {
-          return from(popover.present()).pipe(
-            switchMap(() => from(popover.onDidDismiss())),
+      switchMap((modal) => {
+        if (modal) {
+          return from(modal.present()).pipe(
+            switchMap(() => from(modal.onDidDismiss())),
             catchError((err) => {
               console.log("openSelectSupplier failed in present ", err);
               return EMPTY;
@@ -271,21 +307,40 @@ export class ModalExpensesComponent {
     })
   }
 
+  addSupplier(): void {
+    const token = localStorage.getItem('token');
+    const name = this.myForm.get('supplier').value;
+    const formData = this.myForm.value;
+    formData.token = this.formBuilder.control(token).value;
+    formData.name = this.formBuilder.control(name).value;
+    const { date, file, sum, note, expenseNumber, supplier,  ...newFormData } = formData;
+    this.expenseDataServise.addSupplier(newFormData)
+    .pipe(
+      catchError((err) => {
+        console.log("err in add supplier: ", err);
+        return EMPTY;
+      }),
+    ).subscribe((res) => {
+      console.log("res in add supplier:", res);
+    })
+  }
+
   valueAscOrder(a: KeyValue<string, string>, b: KeyValue<string, string>): number {// stay the list of fields in the original order
     return 0;
   }
 
   getListOptionsByKey(key: ExpenseFormColumns): any {
     switch (key) {
-      // case ExpenseFormColumns.VAT_PERCENT:
-      // case ExpenseFormColumns.TAX_PERCENT:
-      //   return this.listPercent;
       case ExpenseFormColumns.IS_EQUIPMENT:
         return this.equipmentList;
       case ExpenseFormColumns.CATEGORY:
         return this.getListCategoty();
       case ExpenseFormColumns.SUB_CATEGORY:
         return this.getListSubCategory();
+      case ExpenseFormColumns.SUPPLIER:
+        // this.temp();
+        return this.suppliersList;
+        break
       default:
         return [];
     }
@@ -392,6 +447,41 @@ export class ModalExpensesComponent {
     this.myForm.patchValue({reductionPercent: data.reductionPercent});
     this.myForm.patchValue({vatPercent: data.vatPercent});
     this.myForm.patchValue({taxPercent: data.taxPercent});
+    
+  }
+
+  getSuppliers(): void {
+    this.expenseDataServise.getAllSuppliers()
+    .pipe(
+      catchError((err) => {
+        console.log("err in get suppliers:", err);
+        return EMPTY;
+      }),
+      map((res) => {
+          return res.map((item) => ({
+            ...item,
+            key: item. name,
+            value: item.name
+          }))
+      })
+      )
+    .subscribe((res) => {
+      console.log(res);
+      this.suppliersList = res
+    })
+  }
+
+  selectedSupplier(data: IGetSupplier): void {
+    this.myForm.patchValue({category: data.category});
+    this.myForm.patchValue({subCategory: data.subCategory});
+    this.myForm.patchValue({supplierID: data.supplierID});
+    this.myForm.patchValue({taxPercent: data.taxPercent});
+    this.myForm.patchValue({vatPercent: data.vatPercent});
+    // this.myForm.patchValue({reductionPercent: data.reductionPercent});//TODO: add to supplier table
+  }
+
+  ttre() {
+    console.log("df,gfnkhbgeisojkotlhigjkh");
     
   }
 }
