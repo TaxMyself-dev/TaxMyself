@@ -137,7 +137,7 @@ export class ExpensesController {
 
 
   @Delete('delete-supplier/:id')
-  async deleteSupplier(@Param('id') id: number, @Query() token: string) {
+  async deleteSupplier(@Param('id') id: number, @Query('token') token: string) {
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.deleteSupplier(id, userId);
   }
