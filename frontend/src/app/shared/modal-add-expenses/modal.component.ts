@@ -10,7 +10,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { cloneDeep, isEqual } from 'lodash';
 import { PopoverController } from '@ionic/angular';
 import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
-import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of, BehaviorSubject } from 'rxjs';
 import { ExpenseFormColumns, FormTypes } from '../enums';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ButtonSize } from '../button/button.enum';
@@ -22,28 +22,37 @@ import { ButtonSize } from '../button/button.enum';
 })
 export class ModalExpensesComponent {
   @Input() set editMode(val: boolean) {
-    val ? this.title = "עריכת הוצאה" : this.title = "הוספת הוצאה";
-    val ? this.isEditMode = true : null;
+    this.title = val ? "עריכת הוצאה" : "הוספת הוצאה";
+    this.isEditMode = !!val;
   };
   // data for edit mode:
   @Input() set data(val: IRowDataTable) {
     if (val) {
-      this.initForm(val);
+      console.log("val in modal",val);
+      if (val.isEquipment == false) {
+        val.isEquipment = "0";
+        this.isEquipment = false;
+      }
+      else{
+        val.isEquipment = "1";
+        this.isEquipment = true;
+      }
       this.id = +val.id;
+      this.getCategory(val);
+      if (val.file != "" && val.file != undefined){
+        this.editModeFile = "loading"; // for the icon of choose file does not show
+        this.fileService.downloadFile(val.file as string)
+        .then((res) => {
+          this.editModeFile = res;
+        })
+        console.log("url edit mode file: ",this.editModeFile);    
+      }
     }
   };
 
   @Input() set columns(val: IColumnDataTable[]) {
     this.fileItem = val?.find((item: IColumnDataTable) => item.type === FormTypes.FILE);
     this.columnsList = val;
-  }
-
-  @ViewChild('supplierIcon') supplierIcon: ElementRef;
-
-  ngAfterViewInit() {
-    if (this.supplierIcon) {
-      this.supplierIcon.nativeElement.addEventListener('click', this.openSelectSupplier.bind(this));
-    }
   }
 
   get columns(): IColumnDataTable[] {
@@ -58,6 +67,7 @@ export class ModalExpensesComponent {
   readonly expenseFormColumns = ExpenseFormColumns;
   readonly ButtonSize = ButtonSize;
 
+  isEnlarged: boolean = false;
   isEquipment: boolean;
   isEditMode: boolean = false;
   columnsList: IColumnDataTable[];
@@ -67,36 +77,42 @@ export class ModalExpensesComponent {
   initialForm: FormGroup;
   myForm: FormGroup;
   selectedFile: string = "";
+  editModeFile: string = "";
   id: number;
   equipmentList: Record<string, string>[] = [{ key: "לא", value: "0" }, { key: "כן", value: "1" }];
   categoryList: {};
   subCategoryList: IGetSubCategory[];
   suppliersList: IGetSupplier[];
+  doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
+  doneLoadingSubCategoryList$ = new BehaviorSubject<boolean>(false);
+  subCategoriesListDataMap = new Map<string, any[]>();
+  categoriesListDataMap = new Map<boolean, any[]>();
 
-  constructor(private http: HttpClient, private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
+  constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
   
   }
 
   ngOnInit() {
     console.log("xdfgdgfgf", this.columns);
     this.getSuppliers();
+    this.initForm();
   }
 
-  initForm(data: IRowDataTable): void {
+  initForm(data?: IRowDataTable): void {
     this.myForm = this.formBuilder.group({
-      [ExpenseFormColumns.CATEGORY]: [data.category || '', Validators.required],
-      [ExpenseFormColumns.SUB_CATEGORY]: [data.subCategory || '', Validators.required],
-      [ExpenseFormColumns.SUPPLIER]: [data.supplier || '', Validators.required],
-      [ExpenseFormColumns.SUM]: [data.sum || '', Validators.required],
-      [ExpenseFormColumns.TAX_PERCENT]: [data.taxPercent || '', Validators.required],
-      [ExpenseFormColumns.VAT_PERCENT]: [data.vatPercent || '', Validators.required],
-      [ExpenseFormColumns.DATE]: [data.date || '', Validators.required],
-      [ExpenseFormColumns.NOTE]: [data.note || ''],
-      [ExpenseFormColumns.EXPENSE_NUMBER]: [data.expenseNumber || ''],
-      [ExpenseFormColumns.SUPPLIER_ID]: [data.supplierID || ''],
-      [ExpenseFormColumns.FILE]: [data.file || File, Validators.required],// TODO: what to show in edit mode
-      [ExpenseFormColumns.IS_EQUIPMENT]: [data.isEquipment || false, Validators.required], // TODO
-      [ExpenseFormColumns.REDUCTION_PERCENT]: [data.reductionPercent || '', Validators.required],
+      [ExpenseFormColumns.CATEGORY]: [data?.category || '', Validators.required],
+      [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
+      [ExpenseFormColumns.SUPPLIER]: [data?.supplier || '', Validators.required],
+      [ExpenseFormColumns.SUM]: [data?.sum || '', Validators.required],
+      [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || '', Validators.required],
+      [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || '', Validators.required],
+      [ExpenseFormColumns.DATE]: [data?.date || '', Validators.required],
+      [ExpenseFormColumns.NOTE]: [data?.note || ''],
+      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || ''],
+      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || ''],
+      [ExpenseFormColumns.FILE]: [data?.file || File, Validators.required],// TODO: what to show in edit mode
+      [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
+      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || '', Validators.required],
     });
 
     this.initialForm = cloneDeep(this.myForm);
@@ -116,7 +132,7 @@ export class ModalExpensesComponent {
   }
 
   disableSave(): boolean {
-    return !this.myForm.valid || (this.editMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
+    return !this.myForm.valid || (this.isEditMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
   }
 
   disabledAddSupplier(): boolean {
@@ -176,8 +192,12 @@ export class ModalExpensesComponent {
   }
 
   update(): void {
+    console.log("selected file: ",this.selectedFile);
+    
     let filePath = '';
     const previousFile = this.myForm.get('file').value;
+    console.log("previos file: ", previousFile);
+    
     this.getFileData().pipe(
       finalize(() => this.modalCtrl.dismiss()),
       catchError((err) => {
@@ -197,12 +217,16 @@ export class ModalExpensesComponent {
       switchMap((res) => this.expenseDataServise.updateExpenseData(res, this.id)),
       catchError((err) => {
         alert('Something Went Wrong in second catchError ' + err.error.message)
-        this.fileService.deleteFile(filePath);
+        if (this.selectedFile) {
+          this.fileService.deleteFile(filePath);
+        }
         return EMPTY;
       })
     ).subscribe((res) => {
       if (previousFile !== "") {
-        this.fileService.deleteFile(previousFile);
+        if (this.selectedFile){
+          this.fileService.deleteFile(previousFile);
+        }
       }
       if (res) { // TODO: why returning this object from BE?
         this.expenseDataServise.updateTable$.next(true);
@@ -227,7 +251,7 @@ export class ModalExpensesComponent {
       //   this.customUserVat(event);
       //   break;
       case ExpenseFormColumns.CATEGORY:
-        this.getSubCategory(event.detail.value);
+        this.getSubCategory(event.detail.value).subscribe();
         break;
       case ExpenseFormColumns.SUB_CATEGORY:
         const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
@@ -350,7 +374,7 @@ export class ModalExpensesComponent {
     console.log("list category;", this.categoryList);
 
     // if (this.categoryList != undefined) {
-      if (this.myForm.get(ExpenseFormColumns.CATEGORY).value) {
+    if (this.myForm.get(ExpenseFormColumns.CATEGORY).value) {
       return this.subCategoryList;
     }
     else {
@@ -367,11 +391,13 @@ export class ModalExpensesComponent {
     }
   }
 
-  getSubCategory(category: string): void {
+  getSubCategory(category: string): Observable<any> {
     console.log("category in get sub", category);
-    
+    const subList = this.subCategoriesListDataMap.get(category);
+    return subList ? of(subList) :
     this.expenseDataServise.getSubCategory(category, this.isEquipment)
       .pipe(
+        finalize(() => this.doneLoadingSubCategoryList$.next(true)),
         map((res) => {
           console.log("before map:", res);
           
@@ -382,16 +408,23 @@ export class ModalExpensesComponent {
 
           })
           )
-        })
-      )
-      .subscribe((res) => {
-        console.log("sub categoey list", res);
-        this.subCategoryList = res;
-        console.log("list sub category:",this.subCategoryList);
+        }),
+        tap((res) => {
+          console.log("sub categoey list", res);
+          this.subCategoryList = res;
+          this.subCategoriesListDataMap.set(category, res);
+          console.log("list sub category:",this.subCategoryList);
       })
+      )
   }
 
-  getCategory(): void {
+  getCategory(data?: IRowDataTable): void {
+    const categoryList = this.categoriesListDataMap.get(this.isEquipment);
+    if (categoryList) {
+      this.categoryList = categoryList;
+      return;
+    } 
+
     this.expenseDataServise.getcategry(this.isEquipment)
         .pipe(
           map((res) => {
@@ -400,14 +433,19 @@ export class ModalExpensesComponent {
               value: item
             })
             )
-          })
-        )
-        .subscribe((res) => {
+          }), tap((res) => {
           console.log(res);
           this.categoryList = res;
-          console.log(this.categoryList);
-          // return res;
-        })
+          }),
+          switchMap(() => this.getSubCategory(data.category as string)),
+          tap(()=> {
+            if (data && this.isEditMode) {
+              this.initForm(data);
+            }
+            console.log(this.categoryList);
+          })
+        ).subscribe();
+        
 
   }
 
@@ -480,9 +518,18 @@ export class ModalExpensesComponent {
     // this.myForm.patchValue({reductionPercent: data.reductionPercent});//TODO: add to supplier table
   }
 
-  ttre() {
-    console.log("df,gfnkhbgeisojkotlhigjkh");
+  toggleEnlarged(ev :Event): void {
+    ev.stopPropagation();
+    ev.preventDefault();
+    console.log("asdfghjkl;lkjhgfdsasdfghjkl;lkjhgfd");
+    console.log(this.isEnlarged);
     
+    this.isEnlarged = !this.isEnlarged;
+    console.log(this.isEnlarged);
+  }
+
+  displayFile(): any {
+    return this.isEditMode ? this.editModeFile : this.selectedFile as string; 
   }
 }
 

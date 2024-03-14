@@ -1,6 +1,6 @@
 <!-- <div class="modal-container"> -->
-  <ion-toolbar >
-    <ion-header class="add-expense-header">
+  <ion-toolbar>
+  <ion-header class="add-expense-header">
     <!-- <ion-title>{{title}}</ion-title> -->
     <div>
       <ion-title>
@@ -8,29 +8,34 @@
       </ion-title>
       <p>* שדות שמסומנים בכוכבית הם שדות חובה</p>
     </div>
-    <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back"  size="large" name="close-outline"></ion-icon>
+    <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
+      name="close-outline"></ion-icon>
   </ion-header>
 </ion-toolbar>
 
-
 <ion-content class="ion-padding">
-  <form class="form-expense" [formGroup]="myForm">
+  <form *ngIf="myForm; else loader" class="form-expense" [formGroup]="myForm">
     <div class="modal-content">
       <ion-list class="list-expense" scrollY="true">
         <ng-container *ngFor="let col of columns">
           <!-- <ion-item class="item-expense" *ngFor="let col of columns"> -->
           <ng-container [ngSwitch]="col.type">
             <ng-container *ngSwitchCase="formTypes.TEXT">
-                  <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'" [class.supplier]="col.name === 'supplier'" [class.note]="col.name === 'note'" [class.reductionPercent]="col.name === 'reductionPercent'" [class.vatPercent]="col.name === 'vatPercent'" [class.taxPercent]="col.name === 'taxPercent'" [class.supplierID]="col.name === 'supplierID'" class="input-expense text"  label-placement="floating"
-                    [formControlName]="col.name" type="text" fill="outline" label=" * {{col.value}}"></ion-input>
-                 
-                  <ion-button class="supplier-btn" name="chervon-down-outline" (click)="openSelectSupplier($event)" *ngIf="col.name === 'supplier'" >לרשימה</ion-button> 
-                  <!-- <ion-icon name="chevron-down-outline" (click)="openSelectSupplier()" *ngIf="col.name === 'supplier'"  class="supplier-btn" style="pointer-events: auto;"></ion-icon> -->
-                 
+              <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
+                [class.supplier]="col.name === 'supplier'" [class.note]="col.name === 'note'"
+                [class.reductionPercent]="col.name === 'reductionPercent'"
+                [class.vatPercent]="col.name === 'vatPercent'" [class.taxPercent]="col.name === 'taxPercent'"
+                [class.supplierID]="col.name === 'supplierID'" class="input-expense text" label-placement="floating"
+                [formControlName]="col.name" type="text" fill="outline" label=" * {{col.value}}"></ion-input>
+
+              <ion-button class="supplier-btn" name="chervon-down-outline" (click)="openSelectSupplier($event)"
+                *ngIf="col.name === 'supplier'">לרשימה</ion-button>
+              <!-- <ion-icon name="chevron-down-outline" (click)="openSelectSupplier()" *ngIf="col.name === 'supplier'"  class="supplier-btn" style="pointer-events: auto;"></ion-icon> -->
+
             </ng-container>
 
             <ng-container *ngSwitchCase="formTypes.NUMBER">
-              <ion-input  class="input-expense" label=" * {{col.value}}" label-placement="floating"
+              <ion-input class="input-expense" label=" * {{col.value}}" label-placement="floating"
                 [formControlName]="col.name" type="number">
               </ion-input>
             </ng-container>
@@ -41,8 +46,10 @@
               </ion-input>
             </ng-container>
             <ng-container *ngSwitchCase="formTypes.DDL">
-              <ion-select [class.isEquipment]="col.name === 'isEquipment'" [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'" class="input-expense ddl" fill="outline" label=" * {{col.value}}" [formControlName]="col.name"
-                (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
+              <ion-select [class.isEquipment]="col.name === 'isEquipment'" [class.category]="col.name === 'category'"
+                [class.subCategory]="col.name === 'subCategory'" class="input-expense ddl" fill="outline"
+                label=" * {{col.value}}" [formControlName]="col.name" (ionChange)="onDdlSelectionChange($event, col)"
+                label-placement="floating" interface="popover">
                 <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                   [value]="option.value">{{option.key}}</ion-select-option>
               </ion-select>
@@ -52,20 +59,36 @@
       </ion-list>
       <label class="label-file-add-expense">
         <div class="div-wrapp">
-          <div class="div-icon">
+          <div (click)="toggleEnlarged($event)" class="image-container" *ngIf="selectedFile || editModeFile" >
+            <img class="image-file" [src]="displayFile()" alt="file" [class.enlarged]="isEnlarged" />
+          </div>
+          <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
             <ion-icon size="large" name="document-outline"></ion-icon>
           </div>
-          <p><b>בחר קובץ</b></p>
+          <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
+          <p><b>{{(isEditMode && !editModeFile) ? "בחר קובץ" : "שנה קובץ"}}</b></p>
         </div>
-      <ion-input *ngIf="fileItem" (input)=fileSelected($event) label=" * {{fileItem.value}}" label-placement="floating"
-        [formControlName]="fileItem.name" type="file"  accept=".pdf,.doc,.docx">
-      </ion-input>
-  </label>
+        <ion-input *ngIf="fileItem" (input)=fileSelected($event) label=" * {{fileItem.value}}"
+          label-placement="floating" [formControlName]="fileItem.name" type="file" accept=".pdf, .png, .jpeg">
+        </ion-input>
+      </label>
     </div>
     <div class="wrapp-btn-expense">
-    <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()" (onButtonClicked)="confirm()"></app-button>
-    <app-button buttonText="שמירת ספק קבוע" [buttonSize]="ButtonSize.SMALL" [disabled]="disabledAddSupplier()" (onButtonClicked)="addSupplier()"></app-button>
-  </div>
+      <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
+        (onButtonClicked)="confirm()"></app-button>
+      <app-button buttonText="שמירת ספק קבוע" [buttonSize]="ButtonSize.SMALL" [disabled]="disabledAddSupplier()"
+        (onButtonClicked)="addSupplier()"></app-button>
+    </div>
   </form>
 </ion-content>
+
+
+<ng-template #loader>
+  <ion-spinner></ion-spinner>
+</ng-template>
+
+<ng-template #lineLoader>
+  <ion-loading></ion-loading>
+</ng-template>
+
 <!-- </div> -->

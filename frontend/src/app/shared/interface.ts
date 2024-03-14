@@ -1,7 +1,7 @@
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from "./enums";
 
 export interface IRowDataTable {
-    [key: string]: string | number | Date;
+    [key: string]: string | number | Date | boolean;
 }
 
 export interface IColumnDataTable {
