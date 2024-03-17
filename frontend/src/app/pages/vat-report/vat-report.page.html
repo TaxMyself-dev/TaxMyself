@@ -1,54 +1,44 @@
 <app-custom-toolbar></app-custom-toolbar>
 
 <ion-content [fullscreen]="true">
+  <form class="flex-center" [formGroup]="myForm" (ngSubmit)="getVarReportData()">
+    <ion-input type="number" label='עסקאות פטורות ממע"מ או בשיעור 0' label-placement="floating" fill="solid"
+    placeholder='עסקאות חייבות לפני מע"מ' formControlName="vatDeal" ></ion-input>
+    <ion-button class="login-submit-button" type="submit">התחבר</ion-button>
+  </form>
+</ion-content>
+
+<!--
+  <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+    <app-select-month formControlName="month"></app-select-month>
+    <app-select-year formControlName="year"></app-select-year>
+    <button type="submit">Submit</button>
+  </form>
+-->
+
+<!--
+<div class="vat-select">
+  <app-select-month></app-select-month>
+  <app-select-year></app-select-year>
+</div>
+-->
+
+
+<!--
+<ion-content [fullscreen]="true">
+  <p class="pStyle1">The first line</p>
+  <p id="par1">The second line</p>
+  <p style="color: aqua;">The third line</p>
+
   <app-sort-date (onSubmit)="getVatReportData($event)"></app-sort-date>
 
-  <!-- <form [formGroup]="myForm" (ngSubmit)="confirm()">
-    Select month if bimonthly report
-    <ion-item *ngIf="!(vatReportService.oneMonth$ | async)">
-      <ion-select label="חודשי דיווח" interface="popover" placeholder="בחר חודשים" formControlName="month">
-        <ion-select-option value="Jan. - Feb.">ינואר-פברואר</ion-select-option>
-        <ion-select-option value="Mar. - Apr.">מרץ-אפריל</ion-select-option>
-        <ion-select-option value="May - jun.">מאי-יוני</ion-select-option>
-        <ion-select-option value="Yul. - Aug.">יולי-אוגוסט</ion-select-option>
-        <ion-select-option value="Sep. - Oct.">ספטמבר-אוקטובר</ion-select-option>
-        <ion-select-option value="Nov. - Dec">נובמבר-דצמבר</ion-select-option>
-      </ion-select>
-    </ion-item>
-    Select month if monthly report
-    <ion-item *ngIf="(vatReportService.oneMonth$ | async)">
-      <ion-select label="חודשי דיווח" interface="popover" placeholder="בחר חודשים" formControlName="month">
-        <ion-select-option value="Januar">ינואר</ion-select-option>
-        <ion-select-option value="Februar">פברואר</ion-select-option>
-        <ion-select-option value="March">מרץ</ion-select-option>
-        <ion-select-option value="April">אפריל</ion-select-option>
-        <ion-select-option value="May">מאי</ion-select-option>
-        <ion-select-option value="Juni">יוני</ion-select-option>
-        <ion-select-option value="Juli">יולי</ion-select-option>
-        <ion-select-option value="August">אוגוסט</ion-select-option>
-        <ion-select-option value="September">ספטמבר</ion-select-option>
-        <ion-select-option value="October">אוקטובר</ion-select-option>
-        <ion-select-option value="November">נובמבר</ion-select-option>
-        <ion-select-option value="December">דצמבר</ion-select-option>
-      </ion-select>
-    </ion-item>
-    <ion-checkbox (ionChange)="onCheckboxChange($event)">חד חודשי</ion-checkbox>
-    Select year
-    <ion-item>
-      <ion-label>בחר שנה</ion-label>
-      <ion-select formControlName="year">
-        <ion-select-option *ngFor="let y of years" [value]="y">{{ y }}</ion-select-option>
-      </ion-select>
-    </ion-item>
-    
-    <ion-button type="submit">אישור</ion-button>
-  </form> -->
-  <!--Table-->
-  <!-- Incomes -->
+  <app-select-month></app-select-month>
+
   <ion-input type="number" label='עסקאות חייבות לפני מע"מ' label-placement="floating" fill="solid"
     placeholder='עסקאות חייבות לפני מע"מ' ></ion-input>
   <ion-input type="number" label='עסקאות פטורות ממע"מ או בשיעור 0' label-placement="floating" fill="solid"
     placeholder='עסקאות חייבות לפני מע"מ' ></ion-input>
+
   <div *ngIf="vatReportData$ | async as vatReportData">
     <ion-grid class="table-container">
       <ion-row *ngFor="let row of vatReportData | keyvalue">
@@ -62,3 +52,4 @@
   <ion-button target="_blank" href="https://secapp.taxes.gov.il/EmHanDoch/startPageIntErnet.aspx">לתשלום באתר
     מע"מ</ion-button>
 </ion-content>
+-->

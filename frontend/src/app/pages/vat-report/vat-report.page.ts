@@ -21,18 +21,21 @@ export class VatReportPage implements OnInit {
 
   constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder) {
     this.myForm = this.formBuilder.group({
-      year: new FormControl(
+      vatDeal: new FormControl (
         '', Validators.required,
-      ),
-      month: new FormControl(
-        '', Validators.required,
-      ),
-      liableForVAT: new FormControl(
-        '', Validators.required,
-      ),
-      exempForVAT: new FormControl(
-        '', Validators.required
       )
+      // year: new FormControl(
+      //   '', Validators.required,
+      // ),
+      // month: new FormControl(
+      //   '', Validators.required,
+      // ),
+      // liableForVAT: new FormControl(
+      //   '', Validators.required,
+      // ),
+      // exempForVAT: new FormControl(
+      //   '', Validators.required
+      // )
     })
   }
 
@@ -42,21 +45,47 @@ export class VatReportPage implements OnInit {
   onCheckboxChange(event: any) {
     // this.vatReportService.oneMonth$.next(event.detail.checked);
   };
+
+  onSubmit() {
+    console.log(this.myForm.value);
+    // Here you would handle form submission, like sending the data to a server
+  }
    
 
-  getVatReportData(data: ISortDate){
-    this.vatReportData$ = this.vatReportService.getVatReportdata(data).pipe(
-      map(data => {
-        return {
-          'עסקאות חייבות לפני מע"מ':data.transactionVAT,
-          'עסקאות פטורות ממע"מ או בשיעור 0': data.transactionFreeVAT,
-          'מע"מ הכנסות': data.transactionVAT * 0.17,
-          'החזר מע"מ רכוש קבוע:': data.equipmentVatRefund,
-          'החזר מע"מ הוצאות משתנות': data.generalVatRefund,
-          'מע"מ הכנסות:': 1236,
-          'תשלום מע"מ': 1236
-        }
-      })
-    )
+  // getVatReportData(data: ISortDate){
+  //   this.vatReportData$ = this.vatReportService.getVatReportdata(data).pipe(
+  //     map(data => {
+  //       return {
+  //         'עסקאות חייבות לפני מע"מ':data.transactionVAT,
+  //         'עסקאות פטורות ממע"מ או בשיעור 0': data.transactionFreeVAT,
+  //         'מע"מ הכנסות': data.transactionVAT * 0.17,
+  //         'החזר מע"מ רכוש קבוע:': data.equipmentVatRefund,
+  //         'החזר מע"מ הוצאות משתנות': data.generalVatRefund,
+  //         'מע"מ הכנסות:': 1236,
+  //         'תשלום מע"מ': 1236
+  //       }
+  //     })
+  //   )
+  // }
+
+  
+  startDate = '2023-01-01';
+  endDate = '2023-01-31';
+  vatableTurnover = 10000;
+  nonVatableTurnover = 5000;
+  userId = 'L5gJkrdQZ5gGmte5XxRgagkqpOL2';
+  
+
+  async getVarReportData() {
+
+    const formData = this.myForm.value;
+    console.log("vatDeal = ", formData.vatDeal);
+
+    this.vatReportService.getVatReportData(this.startDate, this.endDate, this.vatableTurnover, this.nonVatableTurnover, this.userId)
+    .subscribe((res) => {
+      console.log("res of vat report is", res);
+    });
   }
+
+
 }

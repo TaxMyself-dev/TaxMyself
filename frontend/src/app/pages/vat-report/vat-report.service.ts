@@ -1,27 +1,40 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, of } from 'rxjs';
 import { ISortDate, IVatReportData } from 'src/app/shared/interface';
+import { HttpClient, HttpParams } from '@angular/common/http';
 
 @Injectable({
   providedIn: 'root'
 })
 export class VatReportService {
 
-private vatReportData: IVatReportData = {
-  equipmentVatRefund: 87.5,
-  generalVatRefund: 67.5,
-  transactionVAT:0, //Variable of input incomes with VAT.
-  transactionFreeVAT:0 //Variable of input incomes free VAT.
-}
+// private vatReportData: IVatReportData = {
+//   equipmentVatRefund: 87.5,
+//   generalVatRefund: 67.5,
+//   transactionVAT:0, //Variable of input incomes with VAT.
+//   transactionFreeVAT:0 //Variable of input incomes free VAT.
+// }
 
-  constructor() { };
+  constructor(private http: HttpClient) { };
 
-  getVatReportdata(data: ISortDate): Observable<IVatReportData>{
-    return of(this.vatReportData);
+  getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number, userId: string): Observable<any> {
+    const url = 'http://localhost:3000/reports/vat-report'
+    const param = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('vatableTurnover', vatableTurnover.toString())
+      .set('nonVatableTurnover', nonVatableTurnover.toString())
+      .set('userId', userId);
+    return this.http.get<any>(url, { params: param })
   }
 
-  setvatReportData(data:any):void{
-    this.vatReportData.transactionVAT = data.liableForVAT;
-    this.vatReportData.transactionFreeVAT = data.exempForVAT;
-  }
+  // getVatReportdata(data: ISortDate): Observable<IVatReportData>{
+  //   return of(this.vatReportData);
+  // }
+
+  // setvatReportData(data:any):void{
+  //   this.vatReportData.transactionVAT = data.liableForVAT;
+  //   this.vatReportData.transactionFreeVAT = data.exempForVAT;
+  // }
+
 }

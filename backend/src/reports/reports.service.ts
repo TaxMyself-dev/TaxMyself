@@ -34,7 +34,7 @@ export class ReportsService {
         const vatRegularExpensesSum = await this.expense_repo.createQueryBuilder('expense')
             .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
             .where('expense.userId = :userId', { userId: vatReportRequest.userId })
-            .andWhere('expense.equipment = :equipment', { equipment: false })
+            .andWhere('expense.isEquipment = :isEquipment', { isEquipment: false })
             .andWhere('expense.date >= :startDate AND expense.date <= :endDate', { startDate: vatReportRequest.startDate, 
                 endDate: vatReportRequest.endDate })
             .getRawOne();
@@ -44,7 +44,7 @@ export class ReportsService {
         const vatAssetsExpensesSum = await this.expense_repo.createQueryBuilder('expense')
         .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
         .where('expense.userId = :userId', { userId: vatReportRequest.userId })
-        .andWhere('expense.equipment = :equipment', { equipment: true })
+        .andWhere('expense.isEquipment = :isEquipment', { isEquipment: true })
         .andWhere('expense.date >= :startDate AND expense.date <= :endDate', { startDate: vatReportRequest.startDate, 
             endDate: vatReportRequest.endDate })
         .getRawOne();
