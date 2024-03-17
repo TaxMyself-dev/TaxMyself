@@ -65,7 +65,7 @@ export class MyStoragePage implements OnInit {
     
   }
 
-  openPopupAddExpense(data: IRowDataTable = {}): void {
+  openPopupAddExpense(data?: IRowDataTable): void {
     console.log("this.fieldsNames in open", this.fieldsNamesToAdd) ;
     console.log("data in open", data) ;
       from(this.modalController.create({
@@ -82,28 +82,34 @@ export class MyStoragePage implements OnInit {
         return EMPTY;
       }), switchMap((modal) => from(modal.present())), catchError((err) => {
         alert("openPopupAddExpense switchMap error");
+        console.log(err);
+        
         return EMPTY;
       })).subscribe();
   }
 
-  onUpdateClicked(tableData: IRowDataTable): void {
+  onUpdateClicked(expense: IRowDataTable ): void {
+    console.log("in my storage", expense);
+    
     //alert("open modal for: !!"+(event.toString()));
-    const id = tableData.id;
-    this.openPopupAddExpense(tableData);
+     
+    this.openPopupAddExpense(expense);
   }
 
-  onDeleteClicked(event: any): void {
+  onDeleteClicked(event: number): void {
+    alert("למחוק את ההוצאה?")
     const token = localStorage.getItem('token');
     const options = {
       params: new HttpParams().set("token",token),
     }
-    const url = 'http://localhost:3000/expenses/delete-expense/' + event.id
+    const url = 'http://localhost:3000/expenses/delete-expense/' + event
     this.http.delete(url,options).pipe(
       catchError((err) => {
         console.log("The expense cannot be deleted", err);
         return EMPTY;
       })).subscribe((res) => {
         console.log("resfrom delete: ", res);
+        this.setRowsData();
       })
   }
 }

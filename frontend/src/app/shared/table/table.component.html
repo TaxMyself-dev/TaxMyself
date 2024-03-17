@@ -24,8 +24,25 @@
     </ion-col>
   </ion-row>
   <ion-row *ngFor="let row of rows">
-    <ion-col *ngFor="let field of row | keyvalue">
+    <ng-container *ngFor="let field of row | keyvalue">
+    <ion-col *ngIf="field.key != 'id' ">
       {{field.value}}
+    </ion-col>
+    </ng-container>
+    <ion-col>
+      <ion-icon class="icon-table"  (click)="deleteExpense(row)" name="trash-outline"></ion-icon>
+    </ion-col>
+    <ion-col>
+      <ion-icon name="share-social-outline"></ion-icon>
+    </ion-col>
+    <ion-col>
+      <ion-icon (click)="downloadFile(row)" name="cloud-download-outline"></ion-icon>
+    </ion-col>
+    <ion-col>
+      <ion-icon (click)="previewFile(row)" name="glasses-outline"></ion-icon>
+    </ion-col>
+    <ion-col>
+      <ion-icon class="icon-table" (click)="updateExpense(row)" name="create-outline"></ion-icon>
     </ion-col>
   </ion-row>
 </ion-grid>

@@ -152,7 +152,6 @@ export class ExpenseDataService {
   }
 
   updateExpenseData(data: any, id: number): Observable<any> {
-    console.log(data);
     return this.http.patch('http://localhost:3000/expenses/update-expense/' + id, data);
   }
 
