@@ -51,7 +51,7 @@ export class ReportsService {
 
         vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
 
-        vatReport.vatPayment = Math.round(vatReportRequest.vatableTurnover*(1 + VAT_RATE_2023)) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+        vatReport.vatPayment = Math.round(vatReportRequest.vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
 
         // console.log(filter);
 
