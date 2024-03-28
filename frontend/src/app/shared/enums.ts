@@ -8,19 +8,19 @@ export enum FormTypes {
 }
 
 export enum ExpenseFormHebrewColumns {
-    supplier = 'ספק',
     date = 'תאריך ערך',
     sum = 'סכום',
+    supplier = 'ספק',
     category = 'קטגוריה',
-    subCategory = 'תת-קטגוריה',
+    subCategory = 'תת קטגוריה',
     expenseNumber = 'מספר חשבונית',
-    vatPercent = 'אחוז מוכר למעמ',
-    taxPercent = 'אחוז מוכר למס',
+    vatPercent = 'מוכר למעמ',
+    taxPercent = 'מוכר למס',
     supplierID = 'ח.פ. ספק',
     file = 'קובץ',
     note = 'הערה / פירוט',
-    totalTaxPayable = 'מוכר למס',
-    totalVatPayable = 'מוכר למעמ',
+    totalVatPayable = 'החזר מעמ',
+    totalTaxPayable = 'החזר מס',
     isEquipment = 'האם ההוצאה הינה עבור רכוש קבוע?',
     loadingDate = 'תאריך העלאת קובץ',
     reductionPercent = 'פחת'

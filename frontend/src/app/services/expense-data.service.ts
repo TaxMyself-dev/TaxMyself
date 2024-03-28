@@ -31,9 +31,9 @@ export class ExpenseDataService {
   ];
 
   private readonly columnsDisplayExpense: IColumnDataTable[] = [
-    { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE },
     { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER },
+    { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
     // { name: ExpenseFormColumns.EXPENSE_NUMBER, value: ExpenseFormHebrewColumns.expenseNumber, type: FormTypes.NUMBER },
@@ -44,12 +44,12 @@ export class ExpenseDataService {
     // { name: ExpenseFormColumns.NOTE, value: ExpenseFormHebrewColumns.note, type: FormTypes.TEXT },
     // { name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL },
     // { name: ExpenseFormColumns.LOADING_DATE, value: ExpenseFormHebrewColumns.loadingDate, type: FormTypes.DATE },
-    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
+    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
     // { name: ExpenseFormColumns.REDUCTION_PERCENT, value: ExpenseFormHebrewColumns.reductionPercent, type: FormTypes.TEXT },
   ];
 
-  private readonly columnsAddExpenseOrder = [
+  public readonly columnsAddExpenseOrder = [
     'date',
     'sum',
     'expenseNumber',
@@ -105,7 +105,6 @@ export class ExpenseDataService {
 
   getSubCategory(category: string, isEquipment: boolean): Observable<any> {
     console.log("coldata:", category);
-
     const url = 'http://localhost:3000/expenses/get-sub-categories-list';
     const params = new HttpParams()
       .set('isEquipment', isEquipment)

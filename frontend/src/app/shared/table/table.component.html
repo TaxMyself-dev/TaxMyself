@@ -16,32 +16,50 @@
   <ion-button (click)="updateExpense()">ערוך</ion-button>
   <ion-button (click)="deleteExpense()">מחק</ion-button>
 </table> -->
+<ion-popover [isOpen]="isOpen">
+  <ng-template>
+    <ion-content>
+      <div class="wrap-message">
+        <div>{{message}}</div>
+        <div class="wrap-buttons-message">
+          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן"
+            (onButtonClicked)="deleteExpense()"></app-button>
+          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL"
+            (onButtonClicked)="cancelDel()"></app-button>
+        </div>
+      </div>
+    </ion-content>
+  </ng-template>
+</ion-popover>
 
 <ion-grid>
-  <ion-row>
-    <ion-col *ngFor="let col of fieldsNames">
+  <ion-row >
+    <ion-col size="1" class="row-header" [class.totalVatPayable]="col.name === 'totalVatPayable'" [class.totalTaxPayable]="col.name === 'totalTaxPayable'" [class.taxPercent]="col.name === 'taxPercent'" [class.vatPercent]="col.name === 'vatPercent'" [class.subCategory]="col.name === 'subCategory'" [class.category]="col.name === 'category'" [class.date]="col.name === 'date'" [class.sum]= "col.name === 'sum'" [class.supplier]="col.name === 'supplier'" *ngFor="let col of fieldsNames">
       {{col.value}}
     </ion-col>
+    <ion-col size="2.5" class="row-header action">
+      פעולות
+    </ion-col>
   </ion-row>
-  <ion-row *ngFor="let row of rows">
-    <ng-container *ngFor="let field of row | keyvalue">
-    <ion-col *ngIf="field.key != 'id' ">
+  <ion-row *ngFor="let row of rows" >
+    <ng-container *ngFor="let field of row | keyvalue: orderByFunc">
+    <ion-col size="1" *ngIf="field.key != 'id' ">
       {{field.value}}
     </ion-col>
     </ng-container>
-    <ion-col>
-      <ion-icon class="icon-table"  (click)="deleteExpense(row)" name="trash-outline"></ion-icon>
+    <ion-col size="0.5">
+      <ion-icon  class="icon-table"  (click)="confirmDel(row)" name="trash-outline"></ion-icon>
     </ion-col>
-    <ion-col>
-      <ion-icon name="share-social-outline"></ion-icon>
+    <ion-col size="0.5">
+      <ion-icon class="icon-table"  name="share-social-outline"></ion-icon>
     </ion-col>
-    <ion-col>
-      <ion-icon (click)="downloadFile(row)" name="cloud-download-outline"></ion-icon>
+    <ion-col size="0.5">
+      <ion-icon class="icon-table" (click)="downloadFile(row)" name="cloud-download-outline"></ion-icon>
     </ion-col>
-    <ion-col>
-      <ion-icon (click)="previewFile(row)" name="glasses-outline"></ion-icon>
+    <ion-col size="0.5">
+      <ion-icon class="icon-table" (click)="previewFile(row)" name="glasses-outline"></ion-icon>
     </ion-col>
-    <ion-col>
+    <ion-col size="0.5">
       <ion-icon class="icon-table" (click)="updateExpense(row)" name="create-outline"></ion-icon>
     </ion-col>
   </ion-row>

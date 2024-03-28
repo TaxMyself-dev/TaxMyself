@@ -1,5 +1,9 @@
-<p>
-  popup-message works!
-</p>
-
-<div>{{message}}</div>
+<div class="wrap-message">
+  <div>{{message}}</div>
+  <div class="wrap-buttons-message">
+    <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonTextConfirm"
+      (onButtonClicked)="confirm()"></app-button>
+    <app-button [buttonText]="buttonTextCancel" [buttonSize]="ButtonSize.SMALL"
+      (onButtonClicked)="cancel()"></app-button>
+  </div>
+</div>

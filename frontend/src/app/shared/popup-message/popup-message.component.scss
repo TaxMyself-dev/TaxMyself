@@ -1,0 +1,15 @@
+
+.wrap-message{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 3px solid red;
+    width: 40%;
+    border-radius: 15px;
+}
+
+.wrap-buttons-message{
+    width: 70%;
+    display: flex;
+    justify-content: space-between;
+}

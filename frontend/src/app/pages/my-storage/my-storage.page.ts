@@ -60,6 +60,7 @@ export class MyStoragePage implements OnInit {
       tap((data) => console.log(data)
       ),
       
+      
     )
     console.log(this.items$);
     
@@ -97,7 +98,6 @@ export class MyStoragePage implements OnInit {
   }
 
   onDeleteClicked(event: number): void {
-    alert("למחוק את ההוצאה?")
     const token = localStorage.getItem('token');
     const options = {
       params: new HttpParams().set("token",token),

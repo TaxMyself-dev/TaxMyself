@@ -1,9 +1,11 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ViewChild } from '@angular/core';
 import { IColumnDataTable, IRowDataTable } from '../interface';
 import { FilesService } from 'src/app/services/files.service';
 import { EMPTY, catchError, from } from 'rxjs';
 import { getDownloadURL, getStorage, ref } from "@angular/fire/storage";
 import { ExpenseFormHebrewColumns } from '../enums';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { ButtonSize } from '../button/button.enum';
 
 
 @Component({
@@ -18,8 +20,9 @@ export class TableComponent {
     this.originalRows = val;
     val.forEach((row: IRowDataTable) => {
       const { reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
-      //this.id = +id;
       this.tableRows.push(tableData);
+      console.log("before sort:",this.tableRows);
+      
     })
 
   }
@@ -31,12 +34,15 @@ export class TableComponent {
   @Output() updateClicked = new EventEmitter<any>();
   @Output() deleteClicked = new EventEmitter<any>();
 
+  readonly ButtonSize = ButtonSize;
+  isOpen: boolean = false;
   id: number;
   isEquipment: boolean;
   tableRows: IRowDataTable[];
   originalRows: IRowDataTable[];
+  message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
 
-  constructor(private filesService: FilesService) { }
+  constructor(private filesService: FilesService, private expenseDataService: ExpenseDataService) { }
 
   previewFile(event: IRowDataTable): void {
     const selectedExpense = this.originalRows.find((row) => row.id === event.id);
@@ -54,10 +60,10 @@ export class TableComponent {
     }
   }
 
-  deleteExpense(event: IRowDataTable): void {
-    console.log("event in table", event.id);
-
-    this.deleteClicked.emit(event.id);
+  deleteExpense(): void {
+    console.log("event in table", this.id);
+    this.deleteClicked.emit(this.id);
+    this.isOpen = false;
   }
 
   updateExpense(expenseData: IRowDataTable): void {
@@ -104,7 +110,55 @@ export class TableComponent {
         });
     }
     else {
-      alert("לא נשמר עבור הוצאה שאת קובץ")
+      alert("לא נשמר קובץ עבור הוצאה זו")
     }
   }
+
+  orderByFunc(a, b): any {
+    const columnsAddExpenseOrder = [
+      'date',
+      'sum',
+      'supplier',
+      'category',
+      'subCategory',
+      'vatPercent',
+      'taxPercent',
+      'totalTax',
+      'totalVat',
+    ];
+  
+    const indexA = columnsAddExpenseOrder.indexOf(a.key);
+    const indexB = columnsAddExpenseOrder.indexOf(b.key);
+    
+    if (indexA === -1 && indexB !== -1) {
+      return 1; // objA is not in the order list, move it to the end
+    } else if (indexA !== -1 && indexB === -1) {
+      return -1; // objB is not in the order list, move it to the end
+    } else if (indexA === -1 && indexB === -1) {
+      return 0; // both keys are not in the order list, leave them as is
+    }
+
+    if (indexA < indexB) {
+      return -1;
+    } else if (indexA > indexB) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  isGrayRow(index: number): boolean {
+    return index % 2 === 1; // Alternate between white and gray rows
+  }
+
+  confirmDel(ev: IRowDataTable): void {
+    console.log("event in confirm ", ev);
+    this.id = +ev.id;
+    this.isOpen = true;
+  }
+
+  cancelDel(): void {
+    this.isOpen = false;
+  }
+
 }

@@ -1,5 +1,4 @@
 <app-custom-toolbar></app-custom-toolbar>
-<app-sort-date></app-sort-date>
 <!-- <div class="inputs-sort-date-storage">
   
   <div class="filter-box">
@@ -21,11 +20,14 @@
   
 </div> -->
 <ion-content [fullscreen]="true">
-  <div *ngIf="items$ | async as items" class="table-wrapper" >
-    <app-table [rows]="items" [fieldsNames]="fieldsNamesToShow" (updateClicked)="onUpdateClicked($event)" (deleteClicked)="onDeleteClicked($event)"></app-table>
+  <div class="div-content">
+    <app-sort-date></app-sort-date>
+    <div *ngIf="items$ | async as items" class="table-wrapper" >
+      <app-table [rows]="items" [fieldsNames]="fieldsNamesToShow" (updateClicked)="onUpdateClicked($event)" (deleteClicked)="onDeleteClicked($event)"></app-table>
+    </div>
+    <!-- <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>  -->
+    
+    <!-- <app-table *ngIf="columns && rows.length" [columns]="columns" [rows]="rows"></app-table> -->
+    
   </div>
-  <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button> 
-
-  <!-- <app-table *ngIf="columns && rows.length" [columns]="columns" [rows]="rows"></app-table> -->
-
-</ion-content>
+  </ion-content>
