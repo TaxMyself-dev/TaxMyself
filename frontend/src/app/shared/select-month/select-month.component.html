@@ -1,0 +1,16 @@
+<div class="select-month">
+    <select *ngIf="!oneMonth" (change)="onMonthChange($event)">
+      <option *ngFor="let monthPair of months" [value]="monthPair.value">{{monthPair.name}}</option>
+    </select>
+    
+    <select *ngIf="oneMonth" (change)="onMonthChange($event)">
+      <option *ngFor="let month of singleMonths" [value]="month.value">{{month.name}}</option>
+    </select>
+</div>
+
+<div class="select-month">
+    <label>
+      <input type="checkbox" (change)="toggleSingleMonth()" [checked]="oneMonth">
+      חד חודשי
+    </label>
+</div>

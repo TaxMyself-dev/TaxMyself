@@ -57,3 +57,27 @@ export enum ExpenseFormColumns {
     LOADING_DATE = 'loadingDate'
     
 }
+
+  export const months = [
+    { value: 0, name: 'ינואר - פברואר' },
+    { value: 2, name: 'מרץ - אפריל' },
+    { value: 4, name: 'מאי - יוני' },
+    { value: 6, name: 'יולי - אוגוסט' },
+    { value: 8, name: 'ספטמבר - אוקטובר' },
+    { value: 10, name: 'נובמבר - דצמבר' }
+  ];
+
+  export const singleMonths = [
+    { value: 0, name: 'ינואר' },
+    { value: 1, name: 'פברואר' },
+    { value: 2, name: 'מרץ' },
+    { value: 3, name: 'אפריל' },
+    { value: 4, name: 'מאי' },
+    { value: 5, name: 'יוני' },
+    { value: 6, name: 'יולי' },
+    { value: 7, name: 'אוגוסט' },
+    { value: 8, name: 'ספטמבר' },
+    { value: 9, name: 'אוקטובר' },
+    { value: 10, name: 'נובמבר' },
+    { value: 11, name: 'דצמבר' }
+  ];

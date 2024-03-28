@@ -1,15 +1,84 @@
-.table-container {
-    text-align: center;
-    border-collapse: separate;
-    border-spacing: 0 30px;
+.flex-center{
+  display: flex;
+  justify-content: center;
+  flex-direction: row;
+  margin-top: 10vh;
+  border: 1px solid;
+  height: 20%;
 }
-    .table-header {
-      border-spacing: 10px;
-      padding: 0 20px 0 20px;    
-      background-color: white;
-      font-weight: 400;
-      font-size: 20px;
-      color: #3E3A3A;
-      
-    }
+
+.input-vat-report{
+  min-width: 200px;
+  display: flex;
+  width: 220px;
+  --border-radius: 15px;
+  flex-basis: calc(33.33% - 20px);
+  margin: 10px;
+}
+
+.output-vat-report{
+  border: 1px solid;
+  margin: 10px;
+  // background: blue($color: #c50d0d);
+  // color: white;
+}
+
+// .form-container {
+//   display: flex;
+//   justify-content: right;
+//   flex-wrap: wrap;
+// }
+
+// .flex-row {
+//   display: flex;
+//   flex-direction: row; /* Lays out the form contents horizontally */
+//   gap: 10px; /* Adjusts the space between form elements */
+// }
+
+
+// .vat-form {
+//   display: flex;
+//   justify-content: flex-end;
+//   width: 100%;
+// }
+
+// .vat-form {
+//   display: flex;
+//   justify-content: flex-end; /* Aligns children to the right */
+//   gap: 10px; /* Adjust the gap between items as needed */
+// }
+
+
+
+// .table-container {
+//   text-align: center;
+//   border-collapse: separate;
+//   border-spacing: 0 30px;
+// }
+    
+// .table-header {
+//   border-spacing: 10px;
+//   padding: 0 20px 0 20px;    
+//   background-color: white;
+//   font-weight: 400;
+//   font-size: 20px;
+//   color: #3E3A3A;    
+// }
+
+// .vat-select {
+//   display: flex;
+//   justify-content: center; /* Center the items horizontally */
+//   align-items: center; /* Center the items vertically */
+// }
+
+// /* Optionally, ensure that the select components do not stretch too much or have a specific width */
+// app-select-month, app-select-year {
+//   min-width: 150px; /* Adjust as needed */
+//   margin: 10px; /* Adds some space around the components */
+// }
+
+// .vat-select {
+//   display: flex;
+//   flex-wrap: wrap;
+// }
     

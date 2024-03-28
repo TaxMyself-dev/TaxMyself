@@ -1,8 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Output, Input, EventEmitter } from '@angular/core';
 import { VatReportService } from './vat-report.service';
 import { IRowDataTable, ISortDate, IVatReportTableData } from 'src/app/shared/interface';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Observable, map, tap } from 'rxjs';
+import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { months, singleMonths } from 'src/app/shared/enums';
+
 
 @Component({
   selector: 'app-vat-report',
@@ -11,52 +14,89 @@ import { Observable, map, tap } from 'rxjs';
 })
 export class VatReportPage implements OnInit {
 
-  myForm: FormGroup;
-  //Array of selected year input. @length:how many years back view.
+  @Input() isSingleMonth: boolean = false;
+  months = months;
+  singleMonths = singleMonths;
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
-  vatReportData$!: Observable<IVatReportTableData>;//Data from server.
-  liableForVAT!: number;//Variable of input incomes with VAT.
-  exempForVAT!: number;//Variable of input incomes free VAT.
-
+  report: any;
+  myForm: FormGroup;
 
   constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder) {
     this.myForm = this.formBuilder.group({
-      year: new FormControl(
+      vatableTurnover: new FormControl (
         '', Validators.required,
       ),
-      month: new FormControl(
+      nonVatableTurnover: new FormControl (
         '', Validators.required,
       ),
-      liableForVAT: new FormControl(
+      month: new FormControl (
         '', Validators.required,
       ),
-      exempForVAT: new FormControl(
-        '', Validators.required
+      year: new FormControl (
+        '', Validators.required,
       )
     })
   }
 
+
   ngOnInit() {
   }
-//Func of checkbox.Updates the variable oneMonth if selected or not.
-  onCheckboxChange(event: any) {
-    // this.vatReportService.oneMonth$.next(event.detail.checked);
-  };
-   
 
-  getVatReportData(data: ISortDate){
-    this.vatReportData$ = this.vatReportService.getVatReportdata(data).pipe(
-      map(data => {
-        return {
-          'עסקאות חייבות לפני מע"מ':data.transactionVAT,
-          'עסקאות פטורות ממע"מ או בשיעור 0': data.transactionFreeVAT,
-          'מע"מ הכנסות': data.transactionVAT * 0.17,
-          'החזר מע"מ רכוש קבוע:': data.equipmentVatRefund,
-          'החזר מע"מ הוצאות משתנות': data.generalVatRefund,
-          'מע"מ הכנסות:': 1236,
-          'תשלום מע"מ': 1236
-        }
-      })
-    )
+
+  onSubmit() {
+    console.log("onSubmit - start");
+    const formData = this.myForm.value;
+    //let monthArr = [];
+    //monthArr = formData.month;
+    console.log("month is ", formData.month);
+    //console.log("monthArr is ", monthArr);
+    console.log("year is ", formData.year);
+    
+    this.getVarReportData(formData.month, formData.year, this.isSingleMonth);
   }
+
+
+  toggleSingleMonth(): void {
+    this.isSingleMonth = !this.isSingleMonth;
+  }
+
+
+  userId = 'L5gJkrdQZ5gGmte5XxRgagkqpOL2';
+  
+
+  async getVarReportData(month: number , year: number, isSingleMonth: boolean) {
+
+    const formData = this.myForm.value;
+
+    console.log("month is ", month);
+    
+
+    // Create a date object for the first day of the specified month and year
+    let startDateofMonth = startOfMonth(new Date(year, month));
+    let monthAdjusted = isSingleMonth ? Number(month) : Number(month) + 1;
+    console.log("monthAdjusted is ", monthAdjusted);
+    let lastDayOfMonth = endOfMonth(new Date(year, monthAdjusted));
+
+    console.log("debug_0 startDate is ", startDateofMonth);
+    console.log("debug_0 endDate is ", lastDayOfMonth);
+
+    // Format the date as "dd-MM-yyyy"
+    const startDate = format(startDateofMonth, 'yyyy-MM-dd').toString();
+    const endDate = format(lastDayOfMonth, 'yyyy-MM-dd').toString();
+
+    console.log("debug_1 startDate is ", startDate);
+    console.log("debug_1 endDate is ", endDate);
+
+
+    this.vatReportService.getVatReportData(startDate, endDate, formData.vatableTurnover, formData.nonVatableTurnover, this.userId)
+    .subscribe((res) => {
+      console.log("res of vat report is", res);
+      this.report = res;
+      console.log("report is ", this.report);
+      
+    });
+
+  }
+
+
 }
