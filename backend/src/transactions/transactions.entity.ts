@@ -13,10 +13,10 @@ export class Transactions {
   @Column()
   name: string;
 
-  @Column('date')
+  @Column('timestamp')
   billDate: Date;
 
-  @Column('date')
+  @Column('timestamp')
   payDate: Date;
 
   @Column('decimal')

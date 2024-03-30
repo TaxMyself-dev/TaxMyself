@@ -42,51 +42,9 @@
     <ion-button class="login-submit-button" type="submit">שלח</ion-button>
   </form>
   <ng-container *ngIf="report">
-    <div class="output-vat-report" *ngFor="let field of report|keyvalue">
-      <p> Hello</p>{{field.value}}
+    <div class="output-vat-report" *ngFor="let key of reportOrder">
+      <p>{{ vatReportFieldTitles[key] }}:</p>{{ report[key] }}
     </div>
   </ng-container>
   
 </ion-content>
-
-
-
-
-
-<!--
-<div class="vat-select">
-  <app-select-month></app-select-month>
-  <app-select-year></app-select-year>
-</div>
--->
-
-
-<!--
-<ion-content [fullscreen]="true">
-  <p class="pStyle1">The first line</p>
-  <p id="par1">The second line</p>
-  <p style="color: aqua;">The third line</p>
-
-  <app-sort-date (onSubmit)="getVatReportData($event)"></app-sort-date>
-
-  <app-select-month></app-select-month>
-
-  <ion-input type="number" label='עסקאות חייבות לפני מע"מ' label-placement="floating" fill="solid"
-    placeholder='עסקאות חייבות לפני מע"מ' ></ion-input>
-  <ion-input type="number" label='עסקאות פטורות ממע"מ או בשיעור 0' label-placement="floating" fill="solid"
-    placeholder='עסקאות חייבות לפני מע"מ' ></ion-input>
-
-  <div *ngIf="vatReportData$ | async as vatReportData">
-    <ion-grid class="table-container">
-      <ion-row *ngFor="let row of vatReportData | keyvalue">
-        <ion-col>{{row.value}}</ion-col>
-        <ion-col class="table-header">{{row.key}}</ion-col>
-      </ion-row>
-    </ion-grid>
-  </div>
-
-
-  <ion-button target="_blank" href="https://secapp.taxes.gov.il/EmHanDoch/startPageIntErnet.aspx">לתשלום באתר
-    מע"מ</ion-button>
-</ion-content>
--->

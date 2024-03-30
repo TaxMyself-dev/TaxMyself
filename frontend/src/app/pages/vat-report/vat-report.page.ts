@@ -6,6 +6,19 @@ import { Observable, map, tap } from 'rxjs';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { months, singleMonths } from 'src/app/shared/enums';
 
+interface ReportData {
+  vatableTurnover: string;
+  nonVatableTurnover: string;  
+  vatRefundOnAssets: number;
+  vatRefundOnExpenses: number;
+  vatPayment: number;
+}
+
+
+
+interface FieldTitles {
+  [key: string]: string;
+}
 
 @Component({
   selector: 'app-vat-report',
@@ -18,8 +31,25 @@ export class VatReportPage implements OnInit {
   months = months;
   singleMonths = singleMonths;
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
-  report: any;
+  report?: ReportData;
   myForm: FormGroup;
+
+
+  reportOrder: string[] = [
+    'vatableTurnover',
+    'nonVatableTurnover',
+    'vatRefundOnAssets',
+    'vatRefundOnExpenses',
+    'vatPayment'
+  ];
+
+  vatReportFieldTitles = {
+    vatableTurnover: 'עסקאות חייבות',
+    nonVatableTurnover: 'עסקאות פטורות או בשיעור אפס',
+    vatRefundOnAssets: 'תשומות ציוד',
+    vatRefundOnExpenses: 'תשומות אחרות',
+    vatPayment: 'סה"כ לתשלום'
+  };
 
   constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder) {
     this.myForm = this.formBuilder.group({
@@ -93,7 +123,6 @@ export class VatReportPage implements OnInit {
       console.log("res of vat report is", res);
       this.report = res;
       console.log("report is ", this.report);
-      
     });
 
   }

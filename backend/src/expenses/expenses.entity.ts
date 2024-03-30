@@ -33,7 +33,10 @@ export class Expense {
   @Column('decimal')
   vatPercent: number;
 
-  @Column('date')
+  //@Column('date')
+  //date: Date;
+
+  @Column('timestamp')
   date: Date;
 
   @Column({ nullable: true })

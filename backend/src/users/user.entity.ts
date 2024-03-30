@@ -19,7 +19,7 @@ export class User {
     @Column()
     id: string;
 
-    @Column('date')
+    @Column('timestamp')
     dateOfBirth: Date;
 
     @Column()
@@ -40,10 +40,10 @@ export class User {
     @Column()
     spouseId: string;
 
-    @Column('date')
+    @Column('timestamp')
     spouseDateOfBirth: Date;
 
-     @Column()
+    @Column()
     spouseIndependet: boolean;
 
     @Column()

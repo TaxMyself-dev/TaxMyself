@@ -19,7 +19,7 @@ export class Child {
     @Column()
     childID: string;
 
-    @Column('date')
+    @Column('timestamp')
     childDate: Date;
 
     @Column()
