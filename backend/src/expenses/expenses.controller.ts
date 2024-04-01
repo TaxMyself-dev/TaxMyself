@@ -122,7 +122,7 @@ export class ExpensesController {
     console.log("add supplier call", body);
     
     const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    return await this.expensesService.addSupplier(body, userId); 
+    return await this.expensesService.addSupplier(body, userId, body.name); 
   } 
   catch (error) {
     return {message: "invalid user"};  
