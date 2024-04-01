@@ -213,3 +213,18 @@
     margin-left: 8px;
     /* Adjust as needed */
 }
+
+
+.wrap-message{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 15px;
+    text-align: center;
+  }
+  
+  .wrap-buttons-message{
+    width: 70%;
+    display: flex;
+    justify-content: space-between;
+  }

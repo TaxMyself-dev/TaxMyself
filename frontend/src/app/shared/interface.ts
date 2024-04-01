@@ -92,5 +92,7 @@ export interface User {
     taxPercent: string,
     vatPercent: string,
     supplierID: string,
-    id: number
+    id: number,
+    isEquipment: string,
+    reductionPercent: number
 }

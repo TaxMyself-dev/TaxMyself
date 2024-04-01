@@ -3,23 +3,51 @@
     <ion-title>
       רשימת ספקים
     </ion-title>
-     <ion-icon (click)="cancel()" class="supplier-icon-header" aria-label="back"  size="large" name="close-outline"></ion-icon>
+    <ion-icon (click)="cancel()" class="supplier-icon-header" aria-label="back" size="large"
+      name="close-outline"></ion-icon>
   </ion-header>
 </ion-toolbar>
 
-<ion-content >
-  <ion-list class="list-supplier-table">
-    <table *ngIf="suppliersList" class="supplier-table">
+<ion-popover [isOpen]="isOpen">
+  <ng-template>
+    <ion-content>
+      <div class="wrap-message">
+        <div>{{message}}</div>
+        <div class="wrap-buttons-message">
+          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן"
+            (onButtonClicked)="deleteSupplier()"></app-button>
+          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL"
+            (onButtonClicked)="cancelDel()"></app-button>
+        </div>
+      </div>
+    </ion-content>
+  </ng-template>
+</ion-popover>
+
+<ion-content>
+  <div *ngIf="error" class="wrap-error">
+    <h2 class="error-supplier">
+      <p >
+        שגיאה
+        <br>
+        לא ניתן להציג ספקים
+        <br>
+        אנא נסה שנית מאוחר יותר
+      </p>
+    </h2>
+  </div>
+  <ion-list *ngIf="suppliersList; else loader" class="list-supplier-table">
+    <table  class="supplier-table">
 
       <tr class="tr-header">
         <th>
-            שם ספק
+          שם ספק
         </th>
         <th>
-            ח.פ ספק
+          ח.פ ספק
         </th>
         <th>
-            פעולות
+          פעולות
         </th>
       </tr>
       <ng-container *ngFor="let supplier of suppliersList">
@@ -37,11 +65,15 @@
             <ion-button (click)="editSupplier(supplier)">עריכה</ion-button>
           </td>
           <td>
-            <ion-button (click)="deleteSupplier(supplier.id)">מחיקה</ion-button>
+            <ion-button (click)="confirmDel(supplier.id)">מחיקה</ion-button>
           </td>
 
         </tr>
       </ng-container>
     </table>
   </ion-list>
+
+  <ng-template #loader>
+    <ion-spinner></ion-spinner>
+  </ng-template>
 </ion-content>

@@ -193,6 +193,7 @@ export class AuthService {
         }),
         catchError((err) => {
           console.log("err in http: ", err);
+          //TODO delete user from firebase
           return EMPTY;
         })
       )

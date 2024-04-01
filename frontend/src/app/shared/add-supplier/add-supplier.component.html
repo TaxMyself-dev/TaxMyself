@@ -3,26 +3,35 @@
     <ion-title>
       עריכת ספק
     </ion-title>
-    <ion-icon class="add-supplier-icon-header" (click)="cancel()" aria-label="back"  size="large" name="close-outline"></ion-icon>
+    <ion-icon class="add-supplier-icon-header" (click)="cancel()" aria-label="back" size="large"
+      name="close-outline"></ion-icon>
   </ion-header>
 </ion-toolbar>
-<form [formGroup]="myForm" (ngSubmit)="saveSupplier()">
-  <ion-list *ngFor="let field of arrFields">
-    <!-- vatPercent-->
-    <!-- <ng-container *ngIf="field.key === 'vatPercent'; else taxPercent">
-      <ion-input type="number" label="* {{field.value}}" formControlName="{{field.key}}" label-placement="floating"></ion-input>
-    </ng-container>
-    taxPercent
-    <ng-template #taxPercent>
-      <ng-container *ngIf="(field.key === 'taxPercent'); else string">
-        <ion-input type="number" label="* {{field.value}}" formControlName="{{field.key}}" label-placement="floating"></ion-input>
+<form *ngIf="myForm; else lineLoader" [formGroup]="myForm" (ngSubmit)="saveSupplier()">
+  <ion-list>
+    <ng-container *ngFor="let field of arrFields">
+      <ng-container [ngSwitch]="field.type">
+        <ng-container *ngSwitchCase="'ddl'">
+          <ion-select *ngIf="field.key == 'category' || 'subCategory' || 'reductionPercent'" class="input-expense ddl"
+            fill="outline" label=" * {{field.value}}" [formControlName]="field.key" label-placement="floating"
+            interface="popover" (ionChange)="onDdlSelectionChange($event, field)">
+            <ion-select-option *ngFor="let option of getListOptionsByKey(field.key)"
+              [value]="option.value">{{option.key}}</ion-select-option>
+          </ion-select>
+        </ng-container>
+        <ng-container *ngSwitchCase="'text'">
+          <ion-item>
+            <ion-input (keyup.enter)="onEnterKeyPressed()" label="{{field.value}}" label-placement="floating"
+              formControlName="{{field.key}}" type="text"></ion-input>
+          </ion-item>
+        </ng-container>
       </ng-container>
-    </ng-template> -->
-    <!-- <ng-template #string> -->
-    <ion-item >
-      <ion-input (keyup.enter)="onEnterKeyPressed()" label="{{field.value}}" label-placement="floating" formControlName="{{field.key}}" type="text"></ion-input>
-    </ion-item>
-  <!-- </ng-template> -->
+    </ng-container>
+    <!-- </ng-template> -->
   </ion-list>
   <ion-button type="submit" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>
 </form>
+
+<ng-template #lineLoader>
+  <ion-loading></ion-loading>
+</ng-template>

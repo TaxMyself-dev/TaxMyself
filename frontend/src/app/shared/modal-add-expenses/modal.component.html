@@ -91,4 +91,18 @@
   <ion-loading></ion-loading>
 </ng-template>
 
+<ion-popover [isOpen]="isOpen">
+  <ng-template>
+    <ion-content>
+      <div class="wrap-message">
+        <div>{{errorString}}</div>
+        <div class="wrap-buttons-message">
+          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="OK"
+            (onButtonClicked)="closePop()"></app-button>
+        </div>
+      </div>
+    </ion-content>
+  </ng-template>
+</ion-popover>
+
 <!-- </div> -->

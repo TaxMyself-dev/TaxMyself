@@ -127,8 +127,14 @@ export class ExpensesService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    async addSupplier(supplier: Partial<Supplier>, userId: string): Promise<Supplier> {
+    async addSupplier(supplier: Partial<Supplier>, userId: string, name:string){
         console.log("addSupplier - start");
+        const isAllreadyExist = await this.supplier_repo.findOne({where: {name}});
+        console.log("is allready: ",isAllreadyExist);
+        if (isAllreadyExist) {
+            throw new NotFoundException({message:`Supplier with this name: "${name}" is allready exist`, code: 507});
+
+        }
         const newSupplier = this.supplier_repo.create(supplier);
         newSupplier.userId = userId;
         return await this.supplier_repo.save(newSupplier);

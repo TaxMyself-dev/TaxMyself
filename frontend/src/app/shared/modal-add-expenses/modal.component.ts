@@ -29,7 +29,7 @@ export class ModalExpensesComponent {
   @Input() set data(val: IRowDataTable) {
     if (val) {
       console.log("val in modal",val);
-      if (val.isEquipment == false) {
+      if (val.isEquipment == false) {        
         val.isEquipment = "0";
         this.isEquipment = false;
       }
@@ -87,8 +87,11 @@ export class ModalExpensesComponent {
   doneLoadingSubCategoryList$ = new BehaviorSubject<boolean>(false);
   subCategoriesListDataMap = new Map<string, any[]>();
   categoriesListDataMap = new Map<boolean, any[]>();
+  errorString: string = "";
+  isOpen: boolean = false;
+  isSelectSupplierMode: boolean = false;
 
-  constructor(private popoverController: PopoverController, private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
+  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
   
   }
 
@@ -99,10 +102,12 @@ export class ModalExpensesComponent {
   }
 
   initForm(data?: IRowDataTable): void {
+    console.log("data in init form modal edit", data);
+    
     this.myForm = this.formBuilder.group({
       [ExpenseFormColumns.CATEGORY]: [data?.category || '', Validators.required],
       [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
-      [ExpenseFormColumns.SUPPLIER]: [data?.supplier || '', Validators.required],
+      [ExpenseFormColumns.SUPPLIER]: [data?.supplier || data?.name || '', Validators.required],
       [ExpenseFormColumns.SUM]: [data?.sum || '', Validators.required],
       [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || '', Validators.required],
       [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || '', Validators.required],
@@ -240,18 +245,15 @@ export class ModalExpensesComponent {
     console.log(colData);
     
     switch (colData.name) {
-      // case ExpenseFormColumns.TAX_PERCENT:
-      //   this.customUserTax(event);
-      //   break;
       case ExpenseFormColumns.IS_EQUIPMENT:
         console.log("in equipment");
         this.setValueEquipment(event);
         break;
-      // case ExpenseFormColumns.VAT_PERCENT:
-      //   this.customUserVat(event);
-      //   break;
       case ExpenseFormColumns.CATEGORY:
-        this.getSubCategory(event.detail.value).subscribe();
+        this.getSubCategory(event.detail.value).
+        pipe(
+          tap((res) => {this.subCategoryList = res})
+          ).subscribe();
         break;
       case ExpenseFormColumns.SUB_CATEGORY:
         const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
@@ -261,8 +263,6 @@ export class ModalExpensesComponent {
         const supplierDetails = this.suppliersList.find((supplier => supplier.name === event.detail.value));
         console.log(supplierDetails);
         this.selectedSupplier(supplierDetails)
-        break;
-      default:
         break;
     }
   }
@@ -311,21 +311,42 @@ export class ModalExpensesComponent {
         }
       })
     ).subscribe((res) => {
+      console.log(this.categoryList);
+      console.log(this.subCategoryList);
+      
       console.log('res in modal comp: ', res);
       console.log("res.role: ", res.role);
+      console.log("type:",typeof (res.data));
+      
       if (res.role !== 'backdrop') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
-          if (typeof (res.data) == "string") {
-            this.myForm.patchValue({ supplier: res.data });
+          // if (typeof (res.data) == "string") {
+          //   this.myForm.patchValue({ supplier: res.data });
+          // }
+          // else {
+          if (res){
+            
+            if (res.data.isEquipment == false) {        
+              console.log("🚀 ~ ).subscribe ~ res.data.isEquipment:", res.data.isEquipment)
+              res.data.isEquipment = "0";
+              this.isEquipment = false;
+            }
+            else{
+              res.data.isEquipment = "1";
+              this.isEquipment = true;
+            }
+            console.log(this.isEquipment);
+            this.isSelectSupplierMode = true;
+            this.getCategory(res.data);
+            //this.initForm(res.data);
           }
-          else {
-            this.myForm.patchValue({ supplier: res?.data?.name });
-            this.myForm.patchValue({ supplierID: res?.data?.supplierID });
-            this.myForm.patchValue({ category: res?.data?.category });
-            this.myForm.patchValue({ subCategory: res?.data?.subCategory });
-            this.myForm.patchValue({ taxPercent: res?.data?.taxPercent });
-            this.myForm.patchValue({ vatPercent: res?.data?.vatPercent });
-          }
+            // this.myForm.patchValue({ supplier: res?.data?.name });
+            // this.myForm.patchValue({ supplierID: res?.data?.supplierID });
+            // this.myForm.patchValue({ category: res?.data?.category });
+            // this.myForm.patchValue({ subCategory: res?.data?.subCategory });
+            // this.myForm.patchValue({ taxPercent: res?.data?.taxPercent });
+            // this.myForm.patchValue({ vatPercent: res?.data?.vatPercent });
+          // }
         }
       }
     })
@@ -337,16 +358,36 @@ export class ModalExpensesComponent {
     const formData = this.myForm.value;
     formData.token = this.formBuilder.control(token).value;
     formData.name = this.formBuilder.control(name).value;
+    formData.isEquipment = formData.isEquipment === '1' ? true : false;
     const { date, file, sum, note, expenseNumber, supplier,  ...newFormData } = formData;
+    console.log("new add supplier",newFormData);
     this.expenseDataServise.addSupplier(newFormData)
+    
     .pipe(
       catchError((err) => {
+        if (err.status == 0) {
+          this. errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
+          this.isOpen = true;
+        }
+        if(err.error.code == 300) {
+          this. errorString = "משתמש לא חוקי , אנא התחבר למערכת";
+          this.isOpen = true;
+        }
+        if(err.error.code == 507) {
+          this. errorString = "כבר קיים ספק בשם זה, אנא בחר שם שונה. אם ברצונך לערוך ספק זה אנא  לחץ על כפתור עריכה דרך הרשימה .";
+          this.isOpen = true;
+        }
+
         console.log("err in add supplier: ", err);
         return EMPTY;
       }),
     ).subscribe((res) => {
       console.log("res in add supplier:", res);
     })
+  }
+
+  closePop(): void {
+    this.isOpen = false;
   }
 
   valueAscOrder(a: KeyValue<string, string>, b: KeyValue<string, string>): number {// stay the list of fields in the original order
@@ -358,7 +399,7 @@ export class ModalExpensesComponent {
       case ExpenseFormColumns.IS_EQUIPMENT:
         return this.equipmentList;
       case ExpenseFormColumns.CATEGORY:
-        return this.getListCategoty();
+        return this.getListCategory();
       case ExpenseFormColumns.SUB_CATEGORY:
         return this.getListSubCategory();
       case ExpenseFormColumns.SUPPLIER:
@@ -371,9 +412,6 @@ export class ModalExpensesComponent {
   }
 
   getListSubCategory(): {} {
-    console.log("list category;", this.categoryList);
-
-    // if (this.categoryList != undefined) {
     if (this.myForm.get(ExpenseFormColumns.CATEGORY).value) {
       return this.subCategoryList;
     }
@@ -382,7 +420,7 @@ export class ModalExpensesComponent {
     }
   }
 
-  getListCategoty(): {} {
+  getListCategory(): {} {
     if (this.isEquipment != undefined) {
       return this.categoryList;
     }
@@ -399,8 +437,6 @@ export class ModalExpensesComponent {
       .pipe(
         finalize(() => this.doneLoadingSubCategoryList$.next(true)),
         map((res) => {
-          console.log("before map:", res);
-          
           return res.map((item: IGetSubCategory) => ({
             ...item,
             key: item.subCategory,
@@ -410,10 +446,8 @@ export class ModalExpensesComponent {
           )
         }),
         tap((res) => {
-          console.log("sub categoey list", res);
           this.subCategoryList = res;
           this.subCategoriesListDataMap.set(category, res);
-          console.log("list sub category:",this.subCategoryList);
       })
       )
   }
@@ -438,15 +472,15 @@ export class ModalExpensesComponent {
           this.categoryList = res;
           }),
           switchMap(() => this.getSubCategory(data.category as string)),
-          tap(()=> {
-            if (data && this.isEditMode) {
+          tap((res)=> {
+            console.log('res of sub category', res);
+            
+            if (data && this.isEditMode || data && this.isSelectSupplierMode) {
+              console.log("datta: ", data);
               this.initForm(data);
             }
-            console.log(this.categoryList);
           })
         ).subscribe();
-        
-
   }
 
   async openPopupMessage(message: string) {
@@ -498,7 +532,7 @@ export class ModalExpensesComponent {
       map((res) => {
           return res.map((item) => ({
             ...item,
-            key: item. name,
+            key: item.name,
             value: item.name
           }))
       })
