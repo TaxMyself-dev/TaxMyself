@@ -17,17 +17,25 @@ export class FilesService {
   constructor(private http: HttpClient) { }
 
   public async downloadFile(urlFile: string) {
+    console.log("in dowmload file");
+
     const storage = getStorage();
     const pathReference = ref(storage, urlFile);
+    let blob;
     try {
       const url = await getDownloadURL(pathReference);
       console.log(url);
       urlFile = url;
-    } catch (error) {
-      console.error(error);
+      const response = await fetch(url);
+      blob = await response.blob();
+      console.log('File MIME type:', blob.type);
+     
+    }
+    catch (error) {
+      console.error("error from download file", error);
     }
 
-    return urlFile;
+    return {file:urlFile, type: blob.type} ;
   }
 
   public async deleteFile(urlFile: string) {
@@ -49,23 +57,23 @@ export class FilesService {
     return from(uploadString(fileRef, base64String, 'data_url'));
   }
 
-  getSuppliersList(token: string): Observable<any>{
+  getSuppliersList(token: string): Observable<any> {
     const url = "http://localhost:3000/expenses/get-suppliers-list";
     const options = {
-      params: new HttpParams().set("token",token),
+      params: new HttpParams().set("token", token),
     }
-    return this.http.get(url,options);
+    return this.http.get(url, options);
   }
 
-  addSupplier(formData: any): Observable<any>{
+  addSupplier(formData: any): Observable<any> {
     const url = "http://localhost:3000/expenses/add-supplier";
-    return this.http.post(url,formData);
+    return this.http.post(url, formData);
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
     console.log("id in edit to server", id);
-    
-    const url = "http://localhost:3000/expenses/update-supplier/"+id;
-    return this.http.patch(url,formData);
+
+    const url = "http://localhost:3000/expenses/update-supplier/" + id;
+    return this.http.patch(url, formData);
   }
 }

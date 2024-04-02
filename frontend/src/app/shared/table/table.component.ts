@@ -52,7 +52,7 @@ export class TableComponent {
         alert("can't open file");
         return EMPTY;
       })).subscribe((fileUrl) => {
-        window.open(fileUrl, '_blank');
+        window.open(fileUrl.file, '_blank');
       });
     }
     else {

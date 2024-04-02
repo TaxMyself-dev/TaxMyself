@@ -1,5 +1,5 @@
 //General
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository} from 'typeorm';
 //Entities
@@ -129,11 +129,17 @@ export class ExpensesService {
 
     async addSupplier(supplier: Partial<Supplier>, userId: string, name:string){
         console.log("addSupplier - start");
-        const isAllreadyExist = await this.supplier_repo.findOne({where: {name}});
-        console.log("is allready: ",isAllreadyExist);
-        if (isAllreadyExist) {
-            throw new NotFoundException({message:`Supplier with this name: "${name}" is allready exist`, code: 507});
+        const isAlreadyExist = await this.supplier_repo.findOne({where: {name}});
+        console.log("is allready: ",isAlreadyExist);
+        // if (isAllreadyExist) {
+        //     throw new NotFoundException({message:`Supplier with this name: "${name}" is allready exist`, code: 507});
 
+        // }
+        if (isAlreadyExist) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                error: `Supplier with this name: "${name}" already exists`
+            }, HttpStatus.CONFLICT);
         }
         const newSupplier = this.supplier_repo.create(supplier);
         newSupplier.userId = userId;

@@ -42,7 +42,7 @@ export class LoginPage implements OnInit {
     this.signin();
   }
 
-  async signin(): Promise<void> {
+  async signin(): Promise<any> {
 
     const loading = await this.loadingController.create({
       message: 'Please wait...',
@@ -59,15 +59,18 @@ export class LoginPage implements OnInit {
           this.userCredential = res;
         }
         if (res.user.emailVerified) {
-          this.authService.signIn(res);
-          loading.dismiss();
+          this.authService.signIn(res)
+            .subscribe(() => {
+              this.router.navigate(['home']);
+              loading.dismiss();
+            })
         }
         else {
           this.displayError = "email";
           loading.dismiss();
         }
       });
-      loading.dismiss();
+    //loading.dismiss();
   }
 
   sendVerficaitonEmail(): void {

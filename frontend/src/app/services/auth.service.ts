@@ -76,10 +76,10 @@ export class AuthService {
   }
 
   //TODO: hsandle errors
-  signIn(user: UserCredential): void {
+  signIn(user: UserCredential): any {
     console.log("in sign in");
     const url = 'http://localhost:3000/auth/signin'
-    from(user.user.getIdToken())
+    return from(user.user.getIdToken())
       .pipe(
         catchError((err) => {
           console.log("err in get id token: ", err);
@@ -92,7 +92,7 @@ export class AuthService {
           return EMPTY;
         }),
       )
-      .subscribe(() => this.router.navigate(['home']))
+      
   }
 
   // )

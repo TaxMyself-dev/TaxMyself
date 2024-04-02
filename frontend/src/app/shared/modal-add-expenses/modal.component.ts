@@ -1,6 +1,6 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
-import { ModalController, NavParams } from '@ionic/angular';
+import { LoadingController, ModalController, NavParams } from '@ionic/angular';
 import { IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable } from '../interface';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue } from '@angular/common';
@@ -14,6 +14,8 @@ import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, 
 import { ExpenseFormColumns, FormTypes } from '../enums';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ButtonSize } from '../button/button.enum';
+import { Router } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-modal',
@@ -43,7 +45,14 @@ export class ModalExpensesComponent {
         this.editModeFile = "loading"; // for the icon of choose file does not show
         this.fileService.downloadFile(val.file as string)
         .then((res) => {
-          this.editModeFile = res;
+          console.log(res);
+          
+          this.editModeFile = res.file;
+          if (res.type === "application/pdf") {
+            this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(res.file);
+            this.pdfLoaded = true;
+          }
+          console.log("in then", this.editModeFile);
         })
         console.log("url edit mode file: ",this.editModeFile);    
       }
@@ -90,9 +99,13 @@ export class ModalExpensesComponent {
   errorString: string = "";
   isOpen: boolean = false;
   isSelectSupplierMode: boolean = false;
+  isToastOpen: boolean = false;
+  safePdfBase64String: SafeResourceUrl;
+  pdfLoaded: boolean = false;
 
-  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams) {
-  
+  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams, private loadingController: LoadingController, private router: Router, private sanitizer: DomSanitizer) {
+    this.safePdfBase64String =
+      this.sanitizer.bypassSecurityTrustResourceUrl('');
   }
 
   ngOnInit() {
@@ -123,17 +136,62 @@ export class ModalExpensesComponent {
     this.initialForm = cloneDeep(this.myForm);
   }
 
-  fileSelected(event: any) {
-    let file = event.target.files[0];
-    console.log(file);
-    
-    if (file) {
+  convertPdfFileToBase64String(file: File) {
+    return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        const result = reader.result;
+  
+        if (!result) {
+          reject('result is null');
+          return;
+        }
+  
+        resolve(reader.result.toString());
+      });
+      reader.addEventListener('error', reject);
       reader.readAsDataURL(file);
-      reader.onload = () => {
-        this.selectedFile = reader.result as string;
-      }
+    });
+  }
+
+  async fileSelected(event: any) {
+    let file = event.target.files[0];
+
+    if (!file) {
+      return;
     }
+
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const extension = file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedExtensions.includes(`.${extension}`)) {
+      alert('Please upload only PDF, PNG, or JPEG files.');
+      return;
+    } 
+    
+    if (extension === "pdf"){
+      console.log("in pdf");
+      const target = event.target as HTMLInputElement;
+      const files = target.files as FileList;
+      const file = files.item(0);
+      console.log("pdf file:", file);
+
+      if (!file) {
+        return;
+      }
+
+      const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
+      this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
+      this.pdfLoaded = true;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      this.selectedFile = reader.result as string;
+    }
+
+    
   }
 
   disableSave(): boolean {
@@ -162,10 +220,15 @@ export class ModalExpensesComponent {
   }
 
   add(): void {
+    this.getLoader();
     let filePath = '';
     this.getFileData().pipe(
-      finalize(() => this.modalCtrl.dismiss()),
+      finalize(() => {
+        this.loadingController.dismiss();
+        this.modalCtrl.dismiss();
+      }),
       catchError((err) => {
+        this.loadingController.dismiss();
         alert('Something Went Wrong in first catchError: ' + err.error.message.join(', '))
         return EMPTY;
       }),
@@ -178,13 +241,19 @@ export class ModalExpensesComponent {
       }),
       switchMap((res) => this.expenseDataServise.addExpenseData(res)),
       catchError((err) => {
-        alert('Something Went Wrong in second catchError ' + err.error.message)
+        this.loadingController.dismiss();
+        alert('Something Went Wrong in second catchError ' + err.error.message);
+        console.log("after wrongggggg");
+        
         if (filePath !== '') {
           this.fileService.deleteFile(filePath);
         }
         return EMPTY;
       })
     ).subscribe((res) => {
+      this.loadingController.dismiss();
+      this.router.navigate(['my-storage']);
+      //this.isToastOpen = true;
       console.log('Saved expense data in DB. The response is: ', res);
       if (res) { // TODO: why returning this object from BE?
         this.expenseDataServise.updateTable$.next(true);
@@ -352,28 +421,61 @@ export class ModalExpensesComponent {
     })
   }
 
-  addSupplier(): void {
+  getLoader(): any {
+    return from(this.loadingController.create({
+      message: 'Please wait...',
+      spinner: 'crescent'
+    }))
+    .pipe(
+        catchError((err) => {
+          console.log("err in create loader in save supplier", err);
+          return EMPTY;
+        }),
+        switchMap((loader) => {
+          if (loader) {
+            return from(loader.present())
+            .pipe(
+                catchError((err) => {
+                  console.log("err in open loader in save supplier", err);
+                  return EMPTY;
+                })
+              )
+          }
+          else {
+            console.log("loader in save supplier is null");
+            return EMPTY;
+          }
+        })
+      )
+      .subscribe();
+  }
+
+ addSupplier(): void {
     const token = localStorage.getItem('token');
     const name = this.myForm.get('supplier').value;
     const formData = this.myForm.value;
     formData.token = this.formBuilder.control(token).value;
     formData.name = this.formBuilder.control(name).value;
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
-    const { date, file, sum, note, expenseNumber, supplier,  ...newFormData } = formData;
-    console.log("new add supplier",newFormData);
-    this.expenseDataServise.addSupplier(newFormData)
+    const { date, file, sum, note, expenseNumber, supplier,  ...newFormData }=formData;
+    this.getLoader();
     
+
+    this.expenseDataServise.addSupplier(newFormData)
     .pipe(
       catchError((err) => {
         if (err.status == 0) {
+          this.loadingController.dismiss();
           this. errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
           this.isOpen = true;
         }
         if(err.error.code == 300) {
+          this.loadingController.dismiss();
           this. errorString = "משתמש לא חוקי , אנא התחבר למערכת";
           this.isOpen = true;
         }
-        if(err.error.code == 507) {
+        if(err.status == 409) {
+          this.loadingController.dismiss();
           this. errorString = "כבר קיים ספק בשם זה, אנא בחר שם שונה. אם ברצונך לערוך ספק זה אנא  לחץ על כפתור עריכה דרך הרשימה .";
           this.isOpen = true;
         }
@@ -382,6 +484,8 @@ export class ModalExpensesComponent {
         return EMPTY;
       }),
     ).subscribe((res) => {
+      this.loadingController.dismiss();
+      this.isToastOpen = true;
       console.log("res in add supplier:", res);
     })
   }
@@ -565,7 +669,11 @@ export class ModalExpensesComponent {
   displayFile(): any {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string; 
   }
-}
+
+  setOpenToast(): void {
+    this.isToastOpen = !this.isToastOpen;
+  }
+ }
 
 
 
