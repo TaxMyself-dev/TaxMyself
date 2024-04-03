@@ -12,39 +12,64 @@
 -->
 
 <ion-content [fullscreen]="true">
-  <form class="flex-center" [formGroup]="myForm" (ngSubmit)="onSubmit()">
-    <!-- select month -->
-    <div class="select-month">
-      <select *ngIf="!isSingleMonth" formControlName="month">
-        <option *ngFor="let monthPair of months" [value]="monthPair.value">{{monthPair.name}}</option>
-      </select>
-      <select *ngIf="isSingleMonth" formControlName="month">
+  <div class="wrap-screen">
+    <form class="flex-form" [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <!-- select month -->
+      <!-- <div class="select-month"> -->
+        <p class="report-title">פרטי דו"ח</p>
+      <ion-select class="input-vat-report" (ionChange)="slectedTypeReport($event)" label-placement="floating"
+        interface="popover" fill="outline" label='חודשי / דו-חודשי'>
+        <ion-select-option *ngFor="let option of optionTypeReport"
+          [value]="option.key">{{option.value}}</ion-select-option>
+      </ion-select>
+      <!-- <select *ngIf="isSingleMonth" formControlName="month">
         <option *ngFor="let month of singleMonths" [value]="month.value">{{month.name}}</option>
-      </select>
-    </div>
-      <div class="select-month">
-        <label>
+      </select> -->
+      <!-- </div> -->
+      <!-- <div class="select-month"> -->
+      <ion-select class="input-vat-report" formControlName="month" label-placement="floating" interface="popover"
+        fill="outline" label="בחר חודשי דוח">
+        <ion-select-option *ngFor="let month of months" [value]="month.value">{{month.name}}</ion-select-option>
+      </ion-select>
+      <!-- <label>
           <input type="checkbox" (change)="toggleSingleMonth()" [checked]="isSingleMonth">
           חד חודשי
-        </label>
+        </label> -->
+      <!-- </div> -->
+      <!-- <div> -->
+      <!-- select year -->
+      <ion-select class="input-vat-report" formControlName="year" label-placement="floating" interface="popover"
+        fill="outline" label='בחר שנה'>
+        <ion-select-option *ngFor="let year of years" [value]="year">{{year}} </ion-select-option>
+      </ion-select>
+      <!-- </div> -->
+      <!-- select  vatableTurnover -->
+      <ion-input class="input-vat-report" type="number" label='עסקאות חייבות לפני מע"מ' label-placement="floating"
+        fill="outline" formControlName="vatableTurnover"></ion-input>
+      <!-- select  nonVatableTurnover -->
+      <ion-input class="input-vat-report" type="number" label='עסקאות פטורות ממע"מ או בשיעור 0'
+        label-placement="floating" fill="outline" formControlName="nonVatableTurnover"></ion-input>
+      <!-- submit button -->
+      <ion-button class="login-submit-button" type="submit">צור דוח</ion-button>
+    </form>
+    <ng-container *ngIf="!report">
+      <p class="text-before-report">
+        אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח
+      </p>
+    </ng-container>
+    <ng-container *ngIf="report">
+      <div class="wrap-output-report">
+        <p class="report-title">נתוני דו"ח</p>
+        <div class="output-vat-report" *ngFor="let key of reportOrder">
+          <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
+          <div class="value-field-report">{{ report[key] }}</div>
+        </div>
       </div>
-    <div>
-    <!-- select year -->
-    <select formControlName="year">
-      <option *ngFor="let year of years" [value]="year">{{year}} </option>
-    </select>
+    </ng-container>
+    <div class="wrap-buttons">
+      <app-button buttonText="פירוט הוצאות" [buttonSize]="ButtonSize.SMALL"></app-button>
+      <app-button buttonText="לתשלום באתר מעמ" [buttonSize]="ButtonSize.SMALL" href="" target="_blank"></app-button>
     </div>
-    <!-- select  vatableTurnover -->
-    <ion-input class="input-vat-report" type="number" label='עסקאות חייבות לפני מע"מ' label-placement="floating" fill="solid" formControlName="vatableTurnover" ></ion-input>
-    <!-- select  nonVatableTurnover -->
-    <ion-input class="input-vat-report" type="number" label='עסקאות פטורות ממע"מ או בשיעור 0' label-placement="floating" fill="solid" formControlName="nonVatableTurnover" ></ion-input>
-    <!-- submit button -->
-    <ion-button class="login-submit-button" type="submit">שלח</ion-button>
-  </form>
-  <ng-container *ngIf="report">
-    <div class="output-vat-report" *ngFor="let key of reportOrder">
-      <p>{{ vatReportFieldTitles[key] }}:</p>{{ report[key] }}
-    </div>
-  </ng-container>
-  
+  </div>
+
 </ion-content>

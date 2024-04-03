@@ -5,6 +5,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { Observable, map, tap } from 'rxjs';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { months, singleMonths } from 'src/app/shared/enums';
+import { ButtonSize } from 'src/app/shared/button/button.enum';
 
 interface ReportData {
   vatableTurnover: string;
@@ -28,8 +29,11 @@ interface FieldTitles {
 export class VatReportPage implements OnInit {
 
   @Input() isSingleMonth: boolean = false;
+
+  readonly ButtonSize = ButtonSize;
   months = months;
   singleMonths = singleMonths;
+  optionTypeReport = [{key: 'oneMonth', value: 'חודשי'}, {key: 'twoMonth', value: 'דו-חודשי'}];
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
   myForm: FormGroup;
@@ -85,6 +89,14 @@ export class VatReportPage implements OnInit {
     this.getVarReportData(formData.month, formData.year, this.isSingleMonth);
   }
 
+  slectedTypeReport(event: any): void {
+    console.log(event.target.value);
+    const val = event.target.value;
+    val === "oneMonth" ? this.months = singleMonths : this.months = months ;
+    console.log(this.months);
+    
+  }
+
 
   toggleSingleMonth(): void {
     this.isSingleMonth = !this.isSingleMonth;
@@ -126,6 +138,8 @@ export class VatReportPage implements OnInit {
     });
 
   }
+
+
 
 
 }

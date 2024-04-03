@@ -1,84 +1,153 @@
-.flex-center{
+.wrap-screen {
+  width: 100%;
+  height: 95%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-form {
+  width: 95%;
   display: flex;
   justify-content: center;
-  flex-direction: row;
-  margin-top: 10vh;
-  border: 1px solid;
-  height: 20%;
+  align-items: center;
+  border: 2px solid rgb(79, 171, 79);
+  border-radius: 15px;
+  padding: 10px;
+  margin-top: 10px;
 }
 
-.input-vat-report{
-  min-width: 200px;
-  display: flex;
-  width: 220px;
+.input-vat-report {
+  flex: 1;
+  // min-width: 200px;
   --border-radius: 15px;
-  flex-basis: calc(33.33% - 20px);
+  margin-right: 10px;
+  font-size: 90%;
+  box-sizing: border-box;
+}
+
+.login-submit-button {
+  // word-break:  break-word;
+  text-align: center;
+  white-space: normal;
+  --background: rgb(79, 171, 79);
+  --border-radius: 50%;
+  --border-color: #878383;
+  --border-style: solid;
+  --border-width: 1px;
+  --box-shadow: 0 2px 6px 0 rgb(0, 0, 0, 0.25);
+  height: 50px;
+  width: 50px;
+  margin-right: 10px;
+}
+
+.wrap-output-report{
+  width: 80%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid rgb(79, 171, 79);
+  border-radius: 15px;
+  padding: 10px;
   margin: 10px;
 }
 
-.output-vat-report{
-  border: 1px solid;
+.output-vat-report {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid;
   margin: 10px;
-  // background: blue($color: #c50d0d);
-  // color: white;
+  width: 50%;
 }
 
-// .form-container {
-//   display: flex;
-//   justify-content: right;
-//   flex-wrap: wrap;
-// }
+.value-field-report{
+  border: 1px solid black;
+  color: gray;
+  border-radius: 5px;
+  padding-bottom: 1px;
+  padding-top: 1px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin-bottom: 5px;
+  width: 20%;
+  text-align: center;
+}
 
-// .flex-row {
-//   display: flex;
-//   flex-direction: row; /* Lays out the form contents horizontally */
-//   gap: 10px; /* Adjusts the space between form elements */
-// }
+.field-report{
+  color: gray;
+}
+
+.wrap-buttons{
+  width: 75%;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.report-title{
+  display: none;
+}
 
 
-// .vat-form {
-//   display: flex;
-//   justify-content: flex-end;
-//   width: 100%;
-// }
+@media only screen and (max-width:640px) {
+  .wrap-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+  }
 
-// .vat-form {
-//   display: flex;
-//   justify-content: flex-end; /* Aligns children to the right */
-//   gap: 10px; /* Adjust the gap between items as needed */
-// }
+  .flex-form {
+    width: 95%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 2px solid rgb(79, 171, 79);
+    border-radius: 15px;
+    padding: 10px;
+    margin-top: 10px;
+  }
 
+  .input-vat-report {
+    flex: 1;
+    // min-width: 200px;
+    --border-radius: 15px;
+    margin-top: 10px;
+    font-size: 90%;
+    box-sizing: border-box;
+  }
 
+  .text-before-report{
+    text-align: center;
+  }
 
-// .table-container {
-//   text-align: center;
-//   border-collapse: separate;
-//   border-spacing: 0 30px;
-// }
-    
-// .table-header {
-//   border-spacing: 10px;
-//   padding: 0 20px 0 20px;    
-//   background-color: white;
-//   font-weight: 400;
-//   font-size: 20px;
-//   color: #3E3A3A;    
-// }
+  .wrap-output-report{
+    width: 95%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 2px solid rgb(79, 171, 79);
+    border-radius: 15px;
+    padding: 10px;
+    margin: 10px;
+  }
 
-// .vat-select {
-//   display: flex;
-//   justify-content: center; /* Center the items horizontally */
-//   align-items: center; /* Center the items vertically */
-// }
+  .output-vat-report {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid;
+    margin: 10px;
+    width: 95%;
+  }
 
-// /* Optionally, ensure that the select components do not stretch too much or have a specific width */
-// app-select-month, app-select-year {
-//   min-width: 150px; /* Adjust as needed */
-//   margin: 10px; /* Adds some space around the components */
-// }
-
-// .vat-select {
-//   display: flex;
-//   flex-wrap: wrap;
-// }
-    
+  .report-title{
+    display: block;
+    font-weight: 800;
+  }
+}

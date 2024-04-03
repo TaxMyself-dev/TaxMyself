@@ -1,3 +1,4 @@
+import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 
 @Component({
@@ -8,10 +9,19 @@ import { Component, OnInit } from '@angular/core';
 export class MyAccountPage implements OnInit {
 
 str: string = "good";
+cities: any;
 
-  constructor() { }
+  constructor(private http: HttpClient) { }
 
   ngOnInit() {
+   const url = "https://raw.githubusercontent.com/royts/israel-cities/master/israel-cities.json";
+    this.http.get(url).subscribe((res) => {
+      console.log(res);
+      
+      this.cities = res;
+      console.log(this.cities);
+      
+    })
   }
 
 }
