@@ -3,7 +3,7 @@ import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } 
 import { LoadingController, ModalController, NavParams } from '@ionic/angular';
 import { IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable } from '../interface';
 import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
-import { KeyValue } from '@angular/common';
+import { KeyValue, formatDate } from '@angular/common';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
@@ -101,17 +101,26 @@ export class ModalExpensesComponent {
   isSelectSupplierMode: boolean = false;
   isToastOpen: boolean = false;
   safePdfBase64String: SafeResourceUrl;
+  //safePdfBase64String$ = new BehaviorSubject<SafeResourceUrl>('');
   pdfLoaded: boolean = false;
+  maxDate: string;
 
   constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams, private loadingController: LoadingController, private router: Router, private sanitizer: DomSanitizer) {
-    this.safePdfBase64String =
-      this.sanitizer.bypassSecurityTrustResourceUrl('');
+    this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
   }
-
+  
   ngOnInit() {
+    const today = new Date();
+    this.maxDate = this.formatDate(today);
+    console.log(this.maxDate);
+    
     console.log("xdfgdgfgf", this.columns);
     this.getSuppliers();
     this.initForm();
+  }
+
+  formatDate(date: Date): string {
+    return formatDate(date, 'YYYY-MM-dd', 'en-US');
   }
 
   initForm(data?: IRowDataTable): void {
@@ -122,15 +131,15 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
       [ExpenseFormColumns.SUPPLIER]: [data?.supplier || data?.name || '', Validators.required],
       [ExpenseFormColumns.SUM]: [data?.sum || '', Validators.required],
-      [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || '', Validators.required],
-      [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || '', Validators.required],
-      [ExpenseFormColumns.DATE]: [data?.date || '', Validators.required],
+      [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || ''],
+      [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || ''],
+      [ExpenseFormColumns.DATE]: [data?.date || '', Validators.required,],
       [ExpenseFormColumns.NOTE]: [data?.note || ''],
       [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || ''],
       [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || ''],
-      [ExpenseFormColumns.FILE]: [data?.file || File, Validators.required],// TODO: what to show in edit mode
+      [ExpenseFormColumns.FILE]: [data?.file || File],// TODO: what to show in edit mode
       [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
-      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || '', Validators.required],
+      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || ''],
     });
 
     this.initialForm = cloneDeep(this.myForm);
@@ -155,8 +164,13 @@ export class ModalExpensesComponent {
   }
 
   async fileSelected(event: any) {
+    console.log("in filelelel");
+    
+    this.pdfLoaded = false;// on change pdf to image
+    
     let file = event.target.files[0];
-
+    console.log("fileeeeeeeeeeee", file);
+    
     if (!file) {
       return;
     }
@@ -188,10 +202,22 @@ export class ModalExpensesComponent {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
-      this.selectedFile = reader.result as string;
+      if (this.isEditMode) {
+        this.editModeFile = reader.result as string;
+        this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
+      }
+      else{
+        this.selectedFile = reader.result as string;
+      }
+      console.log(this.selectedFile);
+      
     }
 
     
+  }
+
+  getPdfData(): SafeResourceUrl {
+    return this.safePdfBase64String;
   }
 
   disableSave(): boolean {
@@ -220,15 +246,14 @@ export class ModalExpensesComponent {
   }
 
   add(): void {
-    this.getLoader();
     let filePath = '';
-    this.getFileData().pipe(
+
+    this.getLoader().pipe(
       finalize(() => {
         this.loadingController.dismiss();
-        this.modalCtrl.dismiss();
       }),
+      switchMap(() => this.getFileData()),
       catchError((err) => {
-        this.loadingController.dismiss();
         alert('Something Went Wrong in first catchError: ' + err.error.message.join(', '))
         return EMPTY;
       }),
@@ -241,21 +266,25 @@ export class ModalExpensesComponent {
       }),
       switchMap((res) => this.expenseDataServise.addExpenseData(res)),
       catchError((err) => {
-        this.loadingController.dismiss();
-        alert('Something Went Wrong in second catchError ' + err.error.message);
-        console.log("after wrongggggg");
-        
+        console.log(err);
+        if (err.status == 401) {
+          this. errorString = "משתמש לא חוקי , אנא התחבר למערכת";
+          this.isOpen = true;
+        }
+        if (err.status == 0) {
+          this.loadingController.dismiss();
+          this. errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
+          this.isOpen = true;
+        }
         if (filePath !== '') {
           this.fileService.deleteFile(filePath);
         }
         return EMPTY;
       })
     ).subscribe((res) => {
-      this.loadingController.dismiss();
       this.router.navigate(['my-storage']);
-      //this.isToastOpen = true;
       console.log('Saved expense data in DB. The response is: ', res);
-      if (res) { // TODO: why returning this object from BE?
+      if (res) {
         this.expenseDataServise.updateTable$.next(true);
       }
     });
@@ -266,8 +295,6 @@ export class ModalExpensesComponent {
   }
 
   update(): void {
-    console.log("selected file: ",this.selectedFile);
-    
     let filePath = '';
     const previousFile = this.myForm.get('file').value;
     console.log("previos file: ", previousFile);
@@ -389,10 +416,6 @@ export class ModalExpensesComponent {
       
       if (res.role !== 'backdrop') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
-          // if (typeof (res.data) == "string") {
-          //   this.myForm.patchValue({ supplier: res.data });
-          // }
-          // else {
           if (res){
             
             if (res.data.isEquipment == false) {        
@@ -421,7 +444,7 @@ export class ModalExpensesComponent {
     })
   }
 
-  getLoader(): any {
+  getLoader(): Observable<any> {
     return from(this.loadingController.create({
       message: 'Please wait...',
       spinner: 'crescent'
@@ -434,20 +457,15 @@ export class ModalExpensesComponent {
         switchMap((loader) => {
           if (loader) {
             return from(loader.present())
-            .pipe(
-                catchError((err) => {
-                  console.log("err in open loader in save supplier", err);
-                  return EMPTY;
-                })
-              )
           }
-          else {
             console.log("loader in save supplier is null");
             return EMPTY;
-          }
+        }),
+        catchError((err) => {
+          console.log("err in open loader in save supplier", err);
+          return EMPTY;
         })
       )
-      .subscribe();
   }
 
  addSupplier(): void {
@@ -469,7 +487,7 @@ export class ModalExpensesComponent {
           this. errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
           this.isOpen = true;
         }
-        if(err.error.code == 300) {
+        if(err.status == 401) {
           this.loadingController.dismiss();
           this. errorString = "משתמש לא חוקי , אנא התחבר למערכת";
           this.isOpen = true;
@@ -672,6 +690,21 @@ export class ModalExpensesComponent {
 
   setOpenToast(): void {
     this.isToastOpen = !this.isToastOpen;
+  }
+
+  deleteFile(event: any): void {
+    const fileInput = event.target.closest('label').querySelector('ion-input[type="file"]');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    this.selectedFile = '';
+    this.editModeFile = '';
+    this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
+    this.pdfLoaded = false;
+    if (this.isEditMode) {
+      this.myForm.patchValue({file: ''});
+    }
+    event.preventDefault();
   }
  }
 

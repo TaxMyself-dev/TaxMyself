@@ -31,11 +31,11 @@ export class ExpensesService {
         newExpense.loadingDate = new Date();
         newExpense.reductionDone = false;
         console.log("this is a newExpense :", newExpense);
-        console.log("addExpense - end");
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0){
             throw new Error ("expense not saved");
         }
+        console.log("addExpense - end");
         return resAddExpense;
     }
 
@@ -131,10 +131,6 @@ export class ExpensesService {
         console.log("addSupplier - start");
         const isAlreadyExist = await this.supplier_repo.findOne({where: {name}});
         console.log("is allready: ",isAlreadyExist);
-        // if (isAllreadyExist) {
-        //     throw new NotFoundException({message:`Supplier with this name: "${name}" is allready exist`, code: 507});
-
-        // }
         if (isAlreadyExist) {
             throw new HttpException({
                 status: HttpStatus.CONFLICT,

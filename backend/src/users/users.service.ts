@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
@@ -55,15 +55,31 @@ export class UsersService {
 
     async getFirbsaeIdByToken(token: string): Promise<string> {
         let uid: string;
-        if (token != null && token != '') {
-            const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
-            uid = firebaseUserData.uid;
-            if (uid != null && uid != '') {
-                console.log('User ID:', uid);
-                return uid
-            } else {
-                throw new NotFoundException('Not a valid token');
+        try {
+            if (token != null && token != '') {
+                const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
+                uid = firebaseUserData.uid;
+                if (uid != null && uid != '') {
+                    console.log('User ID:', uid);
+                    return uid
+                } else {
+                    throw new HttpException({
+                        status: HttpStatus.UNAUTHORIZED,
+                        error: `invalid user`
+                    }, HttpStatus.UNAUTHORIZED);
+                }
+            }else {
+                throw new HttpException({
+                    status: HttpStatus.UNAUTHORIZED,
+                    error: `invalid user`
+                }, HttpStatus.UNAUTHORIZED);
             }
+        } catch (error) {
+            throw new HttpException({
+                status: HttpStatus.UNAUTHORIZED,
+                error: `invalid user`
+            }, HttpStatus.UNAUTHORIZED);
+            
         }
     }
 

@@ -1,5 +1,5 @@
 //General
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
@@ -40,20 +40,10 @@ export class ExpensesController {
 
 
   @Post('add-expense')
-  async addExpense(@Body() body: CreateExpenseDto) {
-    try {      
+  async addExpense(@Body() body: any) {
       const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-      console.log("afterafter");
-      console.log("body of expense :", body);
-      console.log("user id in addExpense :", userId);
       const res = await this.expensesService.addExpense(body, userId);
       return res;
-    }
-    catch (error) {
-      console.log("invalid user");
-      console.log("this is errorrrrrrrr :", error);
-      throw new NotFoundException(error.message);
-    }
   }
 
 
@@ -119,14 +109,9 @@ export class ExpensesController {
 
   @Post('add-supplier')
   async addSupplier(@Body() body: any) {
-    console.log("add supplier call", body);
-    
     const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return await this.expensesService.addSupplier(body, userId, body.name); 
   } 
-  catch (error) {
-    return {message: "invalid user"};  
-  }
 
 
   @Patch('update-supplier/:id')

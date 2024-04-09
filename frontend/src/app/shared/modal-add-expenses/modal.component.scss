@@ -1,5 +1,13 @@
 .add-expense-header {
+    width: 100%;
     display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.header-list{
+    display: flex;
+    width: 98%;
     justify-content: space-between;
 }
 
@@ -7,26 +15,30 @@
     cursor: pointer;
 }
 
-
 .form-expense {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
     height: 100%;
-    // border: 1px solid red;
+}
+
+.modal-content {
+    display: flex;
+    flex-direction: row;
 }
 
 .list-expense {
     display: flex;
+    flex: 1.5;
     flex-wrap: wrap;
     justify-content: space-between;
-    // border: 1px solid;
     height: 100%;
-    overflow-y: auto;
-    /* Enable vertical scrolling */
 }
 
 .input-expense {
-    // gap: 10px;
     --border-radius: 15px;
-    margin: 0px 0px 20px 5px;
+    margin: 5px 5px 20px 5px;
 
     &.text {
         width: 100%;
@@ -41,27 +53,20 @@
 
     &.sum {
         width: 30%;
-        border: 1px solid rgb(190, 183, 183);
         border-radius: 15px;
     }
 
     &.expenseNumber {
         width: 30%;
-        border: 1px solid rgb(190, 183, 183);
         border-radius: 15px;
-        --border-style: none;
     }
 
     &.supplier {
-        width: 250px;
-        position: relative;
-        z-index: -1;
-
-
+        width: 47%;
     }
 
     &.supplierID {
-        width: 40%;
+        width: 47%;
     }
 
     &.isEquipment {
@@ -72,11 +77,13 @@
     }
 
     &.category {
-        width: 40%;
+        // width: 47%;
+        flex-basis: calc(50% - 10px);
     }
-
+    
     &.subCategory {
-        width: 40%;
+        flex-basis: calc(50% - 10px);
+        // width: 47%;
     }
 
     &.taxPercent {
@@ -99,66 +106,32 @@
     }
 }
 
-.supplier-btn {
-    position: fixed;
-    top: 23%;
-    right: 21%;
-    left: 67%;
-    // left: 10px; /* Adjust this value as needed */
-    transform: translateY(-50%);
-    cursor: pointer;
-    // pointer-events: auto;
-    z-index: 1;
-}
-
-
-.label-file-add-expense ion-input[type="file"] {
-    display: none;
-}
-
-.div-wrapp {
+.supplier-span {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    position: fixed;
+    top: 30%;
+    right:2%;
+    cursor: pointer;
+    color: gray;
+    font-size: small;
+}
+
+.supplier-span:hover {
+    text-shadow: 2px 2px 5px gray;
+}
+
+.label-file-add-expense {
+    // height: 500px;
+    max-height: 500px;
+    display: flex;
+    flex: 2;
     justify-content: center;
     align-items: center;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
-
-}
-
-// .img-file{
-//     width: 100%;
-//     height: 100%;
-// }
-
-.image-container {
-    width: 100%;
-    height: 100%;
-    /* Set maximum height to maintain proportion */
-    overflow: hidden;
-    position: relative;
-}
-
-.image-file {
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-    /* Maintain aspect ratio */
-
-    &.enlarged {
-        width: 400px;
-        max-height: none;
-        object-fit: cover;
-    }
-}
-
-
-
-
-.div-icon {
-    width: 70%;
-    height: 70%;
+    border: 5px solid rgb(79, 171, 79);
+    border-radius: 15px;
+    margin-right: 10px;
+    margin-left: 10px;
 }
 
 .label-file-add-expense ion-icon {
@@ -167,53 +140,50 @@
     height: 100%;
 }
 
-.label-file-add-expense {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border: 5px solid rgb(79, 171, 79);
-    ;
-    border-radius: 15px;
-    margin-right: 10px;
+.label-file-add-expense ion-input[type="file"] {
+    display: none;
+}
 
+.div-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    cursor: pointer;
+}
+
+.file-container {
+    max-width: 100%;
+    overflow: auto;
+  }
+
+.image-file {
+  display: block;
+  max-width: 100%;
+  max-height: auto;
+  object-fit: contain;
+}
+
+.div-icon {
+    width: 70%;
+    height: 70%;
+}
+
+.wrap-del-change-file{
+    width: 100%;
+    // align-self: flex-end;
+    display: flex;
+    justify-content: space-around;
 }
 
 .wrapp-btn-expense {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
     width: 60%;
 }
-
-.modal-content {
-    display: grid;
-    grid-template-columns: 60% 40%;
-}
-
-.field-wrapper {
-    min-width: 200px;
-    display: flex;
-    width: 220px;
-    flex-basis: calc(33.33% - 20px);
-    margin: 10px;
-}
-
-.input-container {
-    // display: flex;
-    // align-items: center;
-    position: relative;
-}
-
-.input-container ion-input {
-    flex: 1;
-    // position: absolute;
-}
-
-.input-container ion-button {
-    // position: absolute;
-    margin-left: 8px;
-    /* Adjust as needed */
-}
-
 
 .wrap-message{
     display: flex;
@@ -223,8 +193,50 @@
     text-align: center;
   }
   
-  .wrap-buttons-message{
-    width: 70%;
-    display: flex;
-    justify-content: space-between;
-  }
+.wrap-buttons-message{
+width: 70%;
+display: flex;
+justify-content: space-between;
+}
+
+
+
+@media only screen and (max-width:600px) {
+    .modal-content {
+        display: flex;
+        flex-direction: column-reverse;
+        overflow-y:auto ;
+    }
+
+    .list-expense {
+        display: flex;
+        // flex: 1.5;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        // height: 40vh;
+        // margin-top: 100vh;
+        overflow-y: auto;
+        // background-color: #ffffff;
+    }
+
+    .label-file-add-expense {
+        // position: fixed;
+        // top: 10vh;
+        // left: 0;
+        // right: 0;
+        // z-index: 1;
+        height: 50vh;
+        background-color: #f0f0f0; /* Example background color */
+
+        // max-height: 500px;
+        display: flex;
+        // flex: 2;
+        justify-content: center;
+        align-items: center;
+        border: 5px solid rgb(79, 171, 79);
+        border-radius: 15px;
+        margin-right: 10px;
+        margin-left: 10px;
+    }
+}
+

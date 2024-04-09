@@ -1,24 +1,20 @@
-<!-- <div class="modal-container"> -->
 <ion-toolbar>
   <ion-header class="add-expense-header">
-    <!-- <ion-title>{{title}}</ion-title> -->
-    <div>
+    <ion-list class="header-list">
       <ion-title>
         {{title}}
       </ion-title>
-      <p>* שדות שמסומנים בכוכבית הם שדות חובה</p>
-    </div>
-    <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
-      name="close-outline"></ion-icon>
+      <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
+        name="close-outline"></ion-icon>
+    </ion-list>
   </ion-header>
 </ion-toolbar>
 
-<ion-content class="ion-padding">
-  <form *ngIf="myForm; else loader" class="form-expense" [formGroup]="myForm">
+<ion-content>
+  <form *ngIf="myForm; else loader" class="form-expense" [formGroup]="myForm" scrollY="true">
     <div class="modal-content">
-      <ion-list class="list-expense" scrollY="true">
+      <ion-list class="list-expense">
         <ng-container *ngFor="let col of columns">
-          <!-- <ion-item class="item-expense" *ngFor="let col of columns"> -->
           <ng-container [ngSwitch]="col.type">
             <ng-container *ngSwitchCase="formTypes.TEXT">
               <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
@@ -26,30 +22,28 @@
                 [class.reductionPercent]="col.name === 'reductionPercent'"
                 [class.vatPercent]="col.name === 'vatPercent'" [class.taxPercent]="col.name === 'taxPercent'"
                 [class.supplierID]="col.name === 'supplierID'" class="input-expense text" label-placement="floating"
-                [formControlName]="col.name" type="text" fill="outline" label=" * {{col.value}}"></ion-input>
-
-              <ion-button class="supplier-btn" name="chervon-down-outline" (click)="openSelectSupplier($event)"
-                *ngIf="col.name === 'supplier'">לרשימה</ion-button>
-              <!-- <ion-icon name="chevron-down-outline" (click)="openSelectSupplier()" *ngIf="col.name === 'supplier'"  class="supplier-btn" style="pointer-events: auto;"></ion-icon> -->
+                [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input>
+              <span position="fixed" class="supplier-span" (click)="openSelectSupplier($event)"
+                *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span>
 
             </ng-container>
 
-            <ng-container *ngSwitchCase="formTypes.NUMBER">
-              <ion-input class="input-expense" label=" * {{col.value}}" label-placement="floating"
+            <!-- <ng-container *ngSwitchCase="formTypes.NUMBER">
+              <ion-input class="input-expense" label="{{col.value}}" label-placement="floating"
                 [formControlName]="col.name" type="number">
               </ion-input>
-            </ng-container>
+            </ng-container> -->
 
             <ng-container *ngSwitchCase="formTypes.DATE">
-              <ion-input class="input-expense date" label=" * {{col.value}}" label-placement="floating"
-                [formControlName]="col.name" type="date">
+              <ion-input required="true" [max]=maxDate class="input-expense date" label="{{col.value}}"
+                label-placement="floating" fill="outline" [formControlName]="col.name" type="date">
               </ion-input>
             </ng-container>
             <ng-container *ngSwitchCase="formTypes.DDL">
-              <ion-select [class.isEquipment]="col.name === 'isEquipment'" [class.category]="col.name === 'category'"
-                [class.subCategory]="col.name === 'subCategory'" class="input-expense ddl" fill="outline"
-                label=" * {{col.value}}" [formControlName]="col.name" (ionChange)="onDdlSelectionChange($event, col)"
-                label-placement="floating" interface="popover">
+              <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
+                [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
+                class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
+                (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
                 <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                   [value]="option.value">{{option.key}}</ion-select-option>
               </ion-select>
@@ -58,23 +52,33 @@
         </ng-container>
       </ion-list>
       <label class="label-file-add-expense">
-        <div class="div-wrapp">
-          <div (click)="toggleEnlarged($event)" class="image-container"
-            *ngIf="(selectedFile || editModeFile || pdfLoaded)">
-            <img *ngIf="!pdfLoaded" class="image-file" [src]="displayFile()" alt="file" [class.enlarged]="isEnlarged" />
-            <object *ngIf="pdfLoaded" type="application/pdf" width="100%" height="100%" style="min-height: 500px;"
-              [data]="safePdfBase64String">
-            </object>
-          </div>
-          <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
-            <p>ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
-            <ion-icon size="large" name="document-outline"></ion-icon>
-          </div>
+        <div class="div-wrap">
+          <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
+            <div *ngIf="!pdfLoaded" class="file-container">
+              <ng-container *ngIf="displayFile() && !(displayFile() == 'loading'); else loader">
+                <img class="image-file" [src]="displayFile()" alt="file" />
+              </ng-container>
+            </div>
+            <ng-container *ngIf="getPdfData(); else loader">
+              <object *ngIf="pdfLoaded" type="application/pdf" width="100%" height="100%" style="min-height: 500px;"
+                [data]="getPdfData()">
+              </object>
+            </ng-container>
+          </ng-container>
+          <ng-template #notFile>
+            <p class="text-file-type">ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
+            <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
+              <ion-icon size="large" name="document-outline"></ion-icon>
+            </div>
+          </ng-template>
           <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
-          <p><b>{{(isEditMode && !editModeFile) ? "בחר קובץ" : "שנה קובץ"}}</b></p>
+          <div class="wrap-del-change-file">
+            <p><b>{{(isEditMode && !editModeFile) ? "בחר קובץ" : "שנה קובץ"}}</b></p>
+            <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
+          </div>
         </div>
-        <ion-input *ngIf="fileItem" (input)=fileSelected($event) label=" * {{fileItem.value}}"
-          label-placement="floating" [formControlName]="fileItem.name" type="file" accept=".pdf, .png, .jpeg, .jpg">
+        <ion-input *ngIf="fileItem" (input)="fileSelected($event)" label-placement="floating"
+          [formControlName]="fileItem.name" type="file" accept=".pdf, .png, .jpeg, .jpg">
         </ion-input>
       </label>
     </div>
