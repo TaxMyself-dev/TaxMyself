@@ -1,25 +1,8 @@
-// .regidter-toolbar{
-//   display: flex;
-//   justify-content: center;
-//   font-size: xx-large;
-// }
-
-// .register-card{
-//   border:1px solid gray;
-//   margin: auto;
-//   margin-top: 10px;
-//   max-width: 360px;
-//   ion-input{
-//     margin-top: 10px;
-//   }
-// }
-//css of add child button
 .child-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     margin-bottom: 10px;
-    // border: 1px solid;
 
     &:not(:last-of-type) {
       border-bottom: 1px solid lightgray;
@@ -69,60 +52,17 @@ ion-content .register-content {
 }
 
 .input-register-child{
-  min-width: 150px;
   display: flex;
-  width: 150px;
   --border-radius: 15px;
-  // flex-basis: calc(25% - 20px);
+  flex-basis: calc(25% - 35px);
   margin: 10px;
 }
-
-.custom-date-input {
-  border-radius: 15px;
-  border-width: 1px;
-  border-style:  solid;
-  border-color:rgb(160, 158, 158); 
-  min-width: 200px;
-  display: flex;
-  align-items: flex-start;
-  align-content: flex-start;
-  width: 220px;
-  height: 56px;
-  flex-basis: calc(33.33% - 20px);
-  margin: 10px;
-}
-
-.custom-date-input:hover {
-  border-color: black;
-}
-
-.custom-date-input-child {
-  border-radius: 15px;
-  border-width: 1px;
-  border-style:  solid;
-  border-color:rgb(160, 158, 158); 
-  // min-width: 200px;
-  display: flex;
-  align-items: flex-start;
-  align-content: flex-start;
-  width: 150px;
-  height: 56px;
-  // flex-basis: calc(33.33% - 20px);
-  margin: 10px;
-}
-
-.custom-date-input-child:hover {
-  border-color: black;
-}
-
-
 
 .navigate-item-container{
   display: flex;
   justify-content: space-around;
   background-color: transparent;
   width: 70%;
-  // justify-items: center;
 }
 
 .text-error{
@@ -142,6 +82,15 @@ ion-content .register-content {
   color: blue;
   text-decoration: underline;
   cursor: pointer; 
+}
+
+@media only screen and (max-width:600px) {
+  .input-register-child{
+    min-width: 200px;
+    display: flex;
+    --border-radius: 15px;
+    margin: 10px;
+  }
 }
 
 

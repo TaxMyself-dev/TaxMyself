@@ -18,7 +18,7 @@ export class RegisterPage implements OnInit {
   readonly registerFormControls = RegisterFormControls;
 
   myForm: FormGroup;
-
+  cities: any;
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
   today!: string;
@@ -91,10 +91,10 @@ export class RegisterPage implements OnInit {
     const childrenForm = this.formBuilder.group({
       [RegisterFormControls.CHILDREN]: this.formBuilder.array([
         this.formBuilder.group({
-          childFName: ['', Validators.required],
-          childLName: ['', Validators.required],
-          childID: ['', Validators.required, Validators.pattern(/^\d{9}$/)],
-          childDate: ['', Validators.required]
+          childFName: ['', ],
+          childLName: ['', ],
+          childID: ['', Validators.pattern(/^\d{9}$/)],
+          childDate: ['', ]
         })
       ]),
     })
@@ -137,102 +137,102 @@ export class RegisterPage implements OnInit {
 
 
 
-    // const personalForm = this.formBuilder.group({
-    //   [RegisterFormControls.FIRSTNAME]: new FormControl(
-    //     'aaa', Validators.required,
-    //   ),
-    //   [RegisterFormControls.LASTNAME]: new FormControl(
-    //     'aaaa', Validators.required,
-    //   ),
-    //   [RegisterFormControls.ID]: new FormControl(
-    //     '333333333', [Validators.required, Validators.pattern(/^\d{9}$/)]
-    //   ),
-    //   [RegisterFormControls.EMAIL]: new FormControl(
-    //     '10@gmail.com', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
-    //   ),
-    //   [RegisterFormControls.PHONE]: new FormControl(
-    //     '0525675730', [Validators.required, Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
-    //   ),
-    //   [RegisterFormControls.DATEOFBIRTH]: new FormControl(
-    //     '2015-12-10', Validators.required,
-    //   ),
-    //   [RegisterFormControls.EMPLOYEE]: new FormControl(
-    //     false, Validators.required,
-    //   ),
-    //   [RegisterFormControls.CITY]: new FormControl(
-    //     'll', Validators.required,
-    //   ),
-    //   [RegisterFormControls.FAMILYSTATUS]: new FormControl(
-    //     '1', Validators.required,
-    //   ),
-    // })
+  //   const personalForm = this.formBuilder.group({
+  //     [RegisterFormControls.FIRSTNAME]: new FormControl(
+  //       'aaa', Validators.required,
+  //     ),
+  //     [RegisterFormControls.LASTNAME]: new FormControl(
+  //       'aaaa', Validators.required,
+  //     ),
+  //     [RegisterFormControls.ID]: new FormControl(
+  //       '333333333', [Validators.required, Validators.pattern(/^\d{9}$/)]
+  //     ),
+  //     [RegisterFormControls.EMAIL]: new FormControl(
+  //       '10@gmail.com', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+  //     ),
+  //     [RegisterFormControls.PHONE]: new FormControl(
+  //       '0525675730', [Validators.required, Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
+  //     ),
+  //     [RegisterFormControls.DATEOFBIRTH]: new FormControl(
+  //       '2015-12-10', Validators.required,
+  //     ),
+  //     [RegisterFormControls.EMPLOYEE]: new FormControl(
+  //       false, Validators.required,
+  //     ),
+  //     [RegisterFormControls.CITY]: new FormControl(
+  //       'll', Validators.required,
+  //     ),
+  //     [RegisterFormControls.FAMILYSTATUS]: new FormControl(
+  //       '1', Validators.required,
+  //     ),
+  //   })
 
-    // const spouseForm = this.formBuilder.group({
-    //   [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-    //     'hdh', Validators.required,
-    //   ),
-    //   [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-    //     'dgr', Validators.required,
-    //   ),
-    //   [RegisterFormControls.SPOUSEID]: new FormControl(
-    //     '111111111', Validators.pattern(/^\d{9}$/),
-    //   ),
-    //   [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
-    //     '2012-05-01', Validators.required,
-    //   ),
-    //   [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
-    //     false, Validators.required,
-    //   ),
-    //   [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-    //     '0526204910', [Validators.required,Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
-    //   ),
-    // })
+  //   const spouseForm = this.formBuilder.group({
+  //     [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
+  //       'hdh', Validators.required,
+  //     ),
+  //     [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
+  //       'dgr', Validators.required,
+  //     ),
+  //     [RegisterFormControls.SPOUSEID]: new FormControl(
+  //       '111111111', Validators.pattern(/^\d{9}$/),
+  //     ),
+  //     [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
+  //       '2012-05-01', Validators.required,
+  //     ),
+  //     [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
+  //       false, Validators.required,
+  //     ),
+  //     [RegisterFormControls.SPOUSEPHONE]: new FormControl(
+  //       '0526204910', [Validators.required,Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
+  //     ),
+  //   })
 
-    // const childrenForm = this.formBuilder.group({
-    //   [RegisterFormControls.CHILDREN]: this.formBuilder.array([
-    //     this.formBuilder.group({
-    //       childFName: ['egtfh', Validators.required],
-    //       childLName: ['grsdht', Validators.required],
-    //       childID: ['111222333', Validators.required],
-    //       childDate: ['2022-12-12', Validators.required]
-    //     })
-    //   ]),
-    // })
+  //   const childrenForm = this.formBuilder.group({
+  //     [RegisterFormControls.CHILDREN]: this.formBuilder.array([
+  //       this.formBuilder.group({
+  //         childFName: ['egtfh', Validators.required],
+  //         childLName: ['grsdht', Validators.required],
+  //         childID: ['111222333', Validators.required],
+  //         childDate: ['2022-12-12', Validators.required]
+  //       })
+  //     ]),
+  //   })
 
-    // const businessForm = this.formBuilder.group({
-    //   [RegisterFormControls.BUSINESSNAME]: new FormControl(
-    //     'rhtjyk', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSFIELD]: new FormControl(
-    //     'esrgdth', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-    //     'dsgfhg', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSDATE]: new FormControl(
-    //     '2012-10-12', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSID]: new FormControl(
-    //     '23164', Validators.required,
-    //   ),
+  //   const businessForm = this.formBuilder.group({
+  //     [RegisterFormControls.BUSINESSNAME]: new FormControl(
+  //       'rhtjyk', Validators.required,
+  //     ),
+  //     [RegisterFormControls.BUSINESSFIELD]: new FormControl(
+  //       'esrgdth', Validators.required,
+  //     ),
+  //     [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+  //       'dsgfhg', Validators.required,
+  //     ),
+  //     [RegisterFormControls.BUSINESSDATE]: new FormControl(
+  //       '2012-10-12', Validators.required,
+  //     ),
+  //     [RegisterFormControls.BUSINESSID]: new FormControl(
+  //       '23164', Validators.required,
+  //     ),
 
-    // })
+  //   })
 
-    // const validationForm = this.formBuilder.group({
-    //   [RegisterFormControls.PASSWORD]: new FormControl(
-    //     '151515sh', [Validators.required,Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
-    //   ),
-    // })
+  //   const validationForm = this.formBuilder.group({
+  //     [RegisterFormControls.PASSWORD]: new FormControl(
+  //       '151515sh', [Validators.required,Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
+  //     ),
+  //   })
 
 
 
-    this.myForm = this.formBuilder.group({
-      [RegisterFormModules.PERSONAL]: personalForm,
-      [RegisterFormModules.SPOUSE]: spouseForm,
-      [RegisterFormModules.CHILDREN]: childrenForm,
-      [RegisterFormModules.BUSINESS]: businessForm,
-      [RegisterFormModules.VALIDATION]: validationForm,
-    });
+  //   this.myForm = this.formBuilder.group({
+  //     [RegisterFormModules.PERSONAL]: personalForm,
+  //     [RegisterFormModules.SPOUSE]: spouseForm,
+  //     [RegisterFormModules.CHILDREN]: childrenForm,
+  //     [RegisterFormModules.BUSINESS]: businessForm,
+  //     [RegisterFormModules.VALIDATION]: validationForm,
+  //   });
   }
 
 
@@ -246,18 +246,6 @@ export class RegisterPage implements OnInit {
       }
     })
     this.gelAllCities();
-    
-    // const response = await fetch(
-    //   'https://parseapi.back4app.com/classes/Israelcities_City?limit=10&order=-name&keys=name',
-    //   {
-    //     headers: {
-    //       'X-Parse-Application-Id': 'qApdv7tIqcxhsd6atYnooRWLx8rbx4hH7xH8Fhfg', // This is your app's application id
-    //       'X-Parse-REST-API-Key': 'xrKdPC9tyJ8yqxniG5AgZlfWK2l4es84sPdiEJLl', // This is your app's REST API key
-    //     }
-    //   }
-    // );
-    // const data = await response.json(); // Here you have the data that you need
-    // console.log(JSON.stringify(data, null, 2));
   };
   // this.authService.isErrSignup$.subscribe((val) =>{
   //   console.log("in sun reg");
@@ -323,17 +311,11 @@ export class RegisterPage implements OnInit {
 }
 
 gelAllCities(): any {
-  const url = 'https://parseapi.back4app.com/classes/Israelcities_City?limit=1500&order=-name&keys=name';
-    const headers = new HttpHeaders({
-      'X-Parse-Application-Id': 'qApdv7tIqcxhsd6atYnooRWLx8rbx4hH7xH8Fhfg', // This is your app's application id
-      'X-Parse-REST-API-Key': 'xrKdPC9tyJ8yqxniG5AgZlfWK2l4es84sPdiEJLl', // This is your app's REST API key
-    });
-
-    const options = { headers: headers };
-    return this.http.get<any>(url,options).subscribe((res) =>{
-      console.log(res);
-      
-    })
+  this.registerService.getCities()
+  .subscribe((res) => {
+    console.log(res);
+    this.cities = res;
+  })
 }
 
 addChild() {
@@ -414,16 +396,10 @@ onNextBtnClicked(): void {
 
 changePasswordValidinput(event: any) {
   this.passwordValidInput = event.target.value;
-  console.log(this.passwordValidInput);
-  console.log(this.passwordValid);
-
 }
 
 checkPassword() {
   const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
-  console.log(realPass);
-  console.log(this.passwordValid);
-
   if (this.passwordValidInput === realPass) {
     this.passwordValid = true;
   } else {

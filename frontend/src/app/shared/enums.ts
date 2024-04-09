@@ -8,7 +8,7 @@ export enum FormTypes {
 }
 
 export enum ExpenseFormHebrewColumns {
-    date = 'תאריך ערך',
+    date = 'תאריך',
     sum = 'סכום',
     supplier = 'ספק',
     category = 'קטגוריה',

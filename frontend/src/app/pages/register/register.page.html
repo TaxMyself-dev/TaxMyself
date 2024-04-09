@@ -70,13 +70,14 @@
             placeholder="מספר פלאפון" [formControlName]="registerFormControls.PHONE">
           </ion-input>
           <!-----date of birth----->
-          <ion-item class="custom-date-input">
-            <ion-label> תאריך לידה</ion-label>
-            <ion-input type="date" [max]="today" placeholder="בחר תאריך" [formControlName]="registerFormControls.DATEOFBIRTH"></ion-input>
-          </ion-item>
+            <ion-input class="input-register" type="date" [max]="today"  label-placement="floating" fill="outline" label="תאריך לידה" [formControlName]="registerFormControls.DATEOFBIRTH"></ion-input>
           <!---------city  TODO: list from the net----->
           <ion-input class="input-register" label="עיר" clear-input="true" spellcheck="true" slot="end" type="text"
             label-placement="floating" fill="outline" placeholder="עיר" formControlName="city"></ion-input>
+
+            <!-- <ion-select class="input-register" formControlName="city" label="עיר" placeholder="עיר" label-placement="floating" fill="outline"  interface="popover">
+              <ion-select-option *ngFor="let city of cities">{{city.name}}</ion-select-option>
+            </ion-select> -->
           <!--------------- employee ------------->
           <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="האם אתה גם שכיר?" fill="outline"
             label-placement="floating" interface="popover">
@@ -105,11 +106,7 @@
           <ion-input class="input-register" type="text" label="תעודת זהות בן / בת הזוג" label-placement="floating"
             fill="outline" placeholder="הכנס תעודת זהות" [formControlName]="registerFormControls.SPOUSEID"></ion-input>
           <!-----date of birth----->
-          <ion-item class="custom-date-input">
-            <ion-label position="floating">תאריך לידה</ion-label>
-            <ion-input type="date" [max]="today" lable="תאריך לידה בן / בת הזוג" label-placement="floating"
-              fill="outline" placeholder="בחר תאריך" [formControlName]="registerFormControls.SPOUSEDATEOFBIRTH"></ion-input>
-          </ion-item>
+          <ion-input class="input-register" type="date" [max]="today"  label-placement="floating" fill="outline" label="תאריך לידה" [formControlName]="registerFormControls.SPOUSEDATEOFBIRTH"></ion-input>
           <!-------- phone------->
           <ion-input class="input-register" type="text" label="מספר פלאפון" label-placement="floating" fill="outline"
             placeholder="פלאפון בן / בת הזוג" [formControlName]="registerFormControls.SPOUSEPHONE"></ion-input>
@@ -138,12 +135,7 @@
               formControlName="childID"></ion-input>
 
             <!-------dateBirth of child----->
-            <ion-item class="custom-date-input-child">
-              <ion-label position="floating">תאריך לידה</ion-label>
-              <ion-input type="date" [max]="today" lable="תאריך לידה של הילד" label-placement="floating" fill="outline"
-              formControlName="childDate"
-                placeholder="בחר תאריך"></ion-input>
-            </ion-item>
+            <ion-input class="input-register-child" type="date" [max]="today"  label-placement="floating" fill="outline" label="תאריך לידה" formControlName="childDate"></ion-input>
             <!------- buttons add and remove child----->
             <div class="add-icon" (click)="addChild()"><ion-icon name="add-circle"></ion-icon></div>
             <div class="add-icon" (click)="removeChild(i)"><ion-icon name="remove-circle"></ion-icon></div>
@@ -174,11 +166,7 @@
           <ion-input class="input-register" type="text" label="מספר עסק" label-placement="floating" fill="outline"
             placeholder="מספר עוסק / ח.פ ספק" [formControlName]="registerFormControls.BUSINESSID"></ion-input>
           <!------- business date ----->
-          <ion-item class="custom-date-input">
-            <ion-label position="floating">תאריך פתיחת עסק</ion-label>
-            <ion-input type="date" [max]="today" lable="תאריך לידה בן / בת הזוג" label-placement="floating"
-              fill="outline" placeholder="בחר תאריך" [formControlName]="registerFormControls.BUSINESSDATE"></ion-input>
-          </ion-item>
+          <ion-input class="input-register" type="date" [max]="today"  label-placement="floating" fill="outline" label="תאריך פתיחת עסק" [formControlName]="registerFormControls.BUSINESSDATE"></ion-input>
         </form>
       </ng-container>
 

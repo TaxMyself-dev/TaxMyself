@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
-import { Subject } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { IChildren } from 'src/app/shared/interface';
-//import { ajax } from 'ajax';
+import { HttpClient } from '@angular/common/http';
+
 
 
 @Injectable({
@@ -10,5 +11,10 @@ import { IChildren } from 'src/app/shared/interface';
 export class RegisterService {
 
   public childrenRegister$: Subject<IChildren> = new Subject();
-  constructor() { }
+  constructor(private http: HttpClient) { }
+
+  getCities(): Observable<any> {
+    const url = "https://raw.githubusercontent.com/royts/israel-cities/master/israel-cities.json";
+    return this.http.get<any>(url)
+  }
 }

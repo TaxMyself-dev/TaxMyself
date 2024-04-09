@@ -55,7 +55,7 @@ export class AuthService {
         catchError((err) => {
           console.log("err in sign in with email: ", err);
           this.handleErrorLogin(err.code);
-          
+
           return EMPTY;
         }),
         tap((user) => { localStorage.setItem('user', JSON.stringify(user.user)); })
@@ -92,7 +92,7 @@ export class AuthService {
           return EMPTY;
         }),
       )
-      
+
   }
 
   // )
@@ -140,8 +140,8 @@ export class AuthService {
 
 
   handleErrorSignup(err: string): void {
-        switch (err) {
-      
+    switch (err) {
+
       case "auth/email-already-in-use":
         this.error$.next("user");
         break;
@@ -158,7 +158,7 @@ export class AuthService {
       case "auth/too-many-requests":
         this.error$.next("many");
         break;
-    }  
+    }
   }
 
 
@@ -174,7 +174,6 @@ export class AuthService {
         catchError((err) => {
           console.log("err in create user: ", err);
           this.handleErrorSignup(err.code);
-          
           return EMPTY;
         }),
         tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
@@ -192,12 +191,16 @@ export class AuthService {
 
         }),
         catchError((err) => {
-          console.log("err in http: ", err);
-          //TODO delete user from firebase
+          this.afAuth.currentUser.then((user) =>{
+            user.delete();
+          }).catch((err) =>{
+            console.log("err:", err);
+          })
+          this.handleErrorSignup("auth/network-request-failed");
           return EMPTY;
         })
       )
-      .subscribe((res) =>{
+      .subscribe((res) => {
         console.log("res in sub signup", res);
         this.router.navigate(['login']);
       })
