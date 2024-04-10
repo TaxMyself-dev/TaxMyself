@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { ModalController } from '@ionic/angular';
-import { EMPTY, Observable, catchError, filter, from, map, switchMap, tap } from 'rxjs';
+import { LoadingController, ModalController } from '@ionic/angular';
+import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
@@ -20,6 +20,8 @@ export class MyStoragePage implements OnInit {
   fieldsNamesToAdd: IColumnDataTable[];
   fieldsNamesToShow: IColumnDataTable[];
   isOnUpdate: boolean = false;
+  isToastOpen: boolean = false;
+  toastMessage: string = "";
 
   // tableTitle = "הוצאות אחרונות";
   public chooseYear = [
@@ -27,7 +29,7 @@ export class MyStoragePage implements OnInit {
     2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017
   ]
 
-  constructor(private http: HttpClient, private expenseDataService: ExpenseDataService, private modalController: ModalController) { }
+  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private modalController: ModalController) { }
 
   ngOnInit() {
     this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
@@ -103,13 +105,47 @@ export class MyStoragePage implements OnInit {
       params: new HttpParams().set("token",token),
     }
     const url = 'http://localhost:3000/expenses/delete-expense/' + event
-    this.http.delete(url,options).pipe(
-      catchError((err) => {
-        console.log("The expense cannot be deleted", err);
-        return EMPTY;
-      })).subscribe((res) => {
-        console.log("resfrom delete: ", res);
-        this.setRowsData();
-      })
+    this.getLoader()
+    .pipe(
+      finalize(() => this.loadingController.dismiss()),
+      switchMap(() => this.http.delete(url,options)),
+        catchError((err) => {
+          this.toastMessage = "אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר";
+          this.isToastOpen = true;
+          console.log("The expense cannot be deleted", err);
+          return EMPTY;
+        })).subscribe((res) => {
+          console.log("resfrom delete: ", res);
+          this.setRowsData();
+        })
+        
+  }
+
+  getLoader(): Observable<any> {
+    return from(this.loadingController.create({
+      message: 'Please wait...',
+      spinner: 'crescent'
+    }))
+    .pipe(
+        catchError((err) => {
+          console.log("err in create loader in save supplier", err);
+          return EMPTY;
+        }),
+        switchMap((loader) => {
+          if (loader) {
+            return from(loader.present())
+          }
+            console.log("loader in save supplier is null");
+            return EMPTY;
+        }),
+        catchError((err) => {
+          console.log("err in open loader in save supplier", err);
+          return EMPTY;
+        })
+      )
+  }
+
+  setOpenToast(): void {
+    this.isToastOpen = false;
   }
 }

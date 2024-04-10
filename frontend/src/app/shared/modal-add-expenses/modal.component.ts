@@ -139,7 +139,7 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || ''],
       [ExpenseFormColumns.FILE]: [data?.file || File],// TODO: what to show in edit mode
       [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
-      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || ''],
+      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0],
     });
 
     this.initialForm = cloneDeep(this.myForm);
@@ -335,7 +335,6 @@ export class ModalExpensesComponent {
     });
   }
 
-
   onDdlSelectionChange(event, colData: IColumnDataTable) {
     console.log(event);
     console.log(colData);
@@ -419,7 +418,6 @@ export class ModalExpensesComponent {
           if (res){
             
             if (res.data.isEquipment == false) {        
-              console.log("🚀 ~ ).subscribe ~ res.data.isEquipment:", res.data.isEquipment)
               res.data.isEquipment = "0";
               this.isEquipment = false;
             }
@@ -427,18 +425,9 @@ export class ModalExpensesComponent {
               res.data.isEquipment = "1";
               this.isEquipment = true;
             }
-            console.log(this.isEquipment);
             this.isSelectSupplierMode = true;
             this.getCategory(res.data);
-            //this.initForm(res.data);
           }
-            // this.myForm.patchValue({ supplier: res?.data?.name });
-            // this.myForm.patchValue({ supplierID: res?.data?.supplierID });
-            // this.myForm.patchValue({ category: res?.data?.category });
-            // this.myForm.patchValue({ subCategory: res?.data?.subCategory });
-            // this.myForm.patchValue({ taxPercent: res?.data?.taxPercent });
-            // this.myForm.patchValue({ vatPercent: res?.data?.vatPercent });
-          // }
         }
       }
     })

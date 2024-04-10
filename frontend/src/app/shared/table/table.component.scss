@@ -96,59 +96,74 @@
 // }
 //=============================================================================
 ion-col {
-  background-color: #686e6d;
   border: solid 1px #fff;
-  color: #fff;
+  color: black;
   text-align: center;
-  --ion-col-width: 200px;
 }
+
+.grid-container{
+  width: 100%;
+  overflow-x: auto;
+}
+
+.grid{
+  width: 1300px;
+  border: 2px solid rgb(79, 171, 79);;
+  border-radius: 15px;
+  margin: 10px;
+  padding: 10px;
+}
+
 .row-header{
-  // border: 1px red solid;
-  //width: 15%;
-  color:aqua;
-  &.date{
-    //border: solid blue;
-  }
-  &.sum{
-    //border:solid red;
-  }
-  &.supplier{
-    //border: solid green;
-  }
-  &.category{
-    //border: solid darkblue;
-  }
-  &.subCategory{
-    //border: solid chartreuse;
-  }
-  &.vatPercent{
-    //border: solid aqua;
-  }
-  &.taxPercent{
-    //border: solid hotpink;
-  }
-  &.totalTaxPayable{
-    //border: solid lightcoral;
-  }
-  &.totalVatPayable{
-    //border: chocolate;
-  }
-  &.action{
+  background-color:rgba(0, 15, 0, 0.33); 
+  text-align: center;
+  // &.date{
+  //   //border: solid blue;
+  // }
+  // &.sum{
+  //   //border:solid red;
+  // }
+  // &.supplier{
+  //   //border: solid green;
+  // }
+  // &.category{
+  //   //border: solid darkblue;
+  // }
+  // &.subCategory{
+  //   //border: solid chartreuse;
+  // }
+  // &.vatPercent{
+  //   //border: solid aqua;
+  // }
+  // &.taxPercent{
+  //   //border: solid hotpink;
+  // }
+  // &.totalTaxPayable{
+  //   //border: solid lightcoral;
+  // }
+  // &.totalVatPayable{
+  //   //border: chocolate;
+  // }
+  // &.action{
    
-    //border: solid teal;
-  }
+  //   //border: solid teal;
+  // }
   
 }
-  // &.white-row {
-  //   background-color: #ffffff; /* White background color */
-  // }
-  
-  // &.gray-row {
-  //   background-color: #f0f0f0; /* Gray background color */
-  // }
+
+.even-row {
+  background-color:rgba(0, 15, 0, 0.13); 
+}
+
+.odd-row {
+  background-color:rgba(0, 15, 0, 0.33); 
+}
 
 .icon-table{
-cursor: pointer;
+  cursor: pointer;
+  width: 25px ;
+  height: 25px ;
+  margin: 5px;
 }
 
 .wrap-message{
@@ -165,8 +180,6 @@ cursor: pointer;
   justify-content: space-between;
 }
 
-ion-content{
-  border: 3px solid red;
-}
+
 
 

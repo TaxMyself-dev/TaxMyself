@@ -67,5 +67,7 @@
     </ion-card-content>
   </ion-card>
 </form>
+<ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="3000" (didDismiss)="setOpenToast()"></ion-toast>
+
 <!-- </div> -->
-<ion-button href="/add-expenses">add</ion-button>
+<!-- <ion-button href="/add-expenses">add</ion-button> -->

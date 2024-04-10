@@ -25,28 +25,28 @@
   
 //====================================================
 
-ion-input{
-    //border-radius: 35px;
-    min-width: 150px;
-    //display: flex;
-    //width: 220px;
+.input-sort-date{
+    flex: 1;
     --border-radius: 15px;
-    flex-basis: calc(25% - 50px);
-    margin: 10px;
+    margin-right: 10px;
+    font-size: 90%;
 }
 
 .wrap-form{
-    //border: 3px solid rgb(128, 53, 0);
-    border: 3px solid green;
-    border-radius: 15px;
-    margin-top: 10px;
-    margin-bottom: 10px;
+   width: 100%;
+   display: flex;
+   justify-content: center;
 }
 
 .form-sort{
+    width: 100%;
     display: flex;
-    flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
+    border: 2px solid rgb(79, 171, 79);;
+    border-radius: 15px;
+    margin: 10px;
+    padding: 10px;
 }
 
 .button-sort{
@@ -55,9 +55,27 @@ ion-input{
     --color: black;
     font-weight: bolder;
     margin: 10px;
-
-    //border: 3px solid rgb(5, 5, 30);
-    //border-radius: 50%;
-    //width: 50px;
     height: 50px;
+}
+
+@media only screen and (max-width:640px) {
+    
+    .wrap-form{
+        width: 100%;
+        display: flex;
+        justify-content: center;
+     }
+    
+    .form-sort {
+        flex-direction: column;
+        margin-bottom: 10px;
+        align-items: center;
+    }
+
+    .input-sort-date {
+        margin-top: 10px;
+        width: 100%;
+    }
+
+
 }

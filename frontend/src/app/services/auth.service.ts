@@ -42,11 +42,9 @@ export class AuthService {
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   public error$ = new BehaviorSubject<string>("");
-
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
+  public isToastOpen$ = new BehaviorSubject<boolean>(false);
 
-
-  // Sign in with email/password
 
   userVerify(email: string, password: string): Observable<UserCredential> {
     console.log("in user verify");
@@ -75,7 +73,6 @@ export class AuthService {
 
   }
 
-  //TODO: hsandle errors
   signIn(user: UserCredential): any {
     console.log("in sign in");
     const url = 'http://localhost:3000/auth/signin'
@@ -88,56 +85,15 @@ export class AuthService {
         tap((token) => localStorage.setItem('token', token)),
         switchMap((token) => this.http.post(url, { token: token })),
         catchError((err) => {
+          // if (err.status == 0) {
+            this.error$.next("error");
+          // }
           console.log("err in post request: ", err);
           return EMPTY;
         }),
       )
 
   }
-
-  // )
-
-
-
-  //   return this.afAuth
-  //     .signInWithEmailAndPassword(email, password)
-  //     .then((result) => {
-  //       console.log(result);
-  //       result.user.getIdToken()
-  //         .then((token) => {
-  //           axios.post('http://localhost:3000/auth/signin', { token })
-  //             .then((response) => {
-  //             })
-  //           //console.log("data:", token);
-  //         })
-  //         .catch((err) => {
-  //           console.log(err);
-  //         }),
-  //         //this.uid = result.user.uid;
-  //       // console.log("uid:", this.uid);
-
-  //       this.SetUserData(result.user);
-  //       //this.SaveDataUserInLocalStorage();
-  //       //this.isLoggedIn$.next(localStorage.getItem('token'))
-  //       this.afAuth.authState.subscribe((user) => {
-  //         if (user.emailVerified) {
-  //           this.router.navigate(['home']);
-  //         }
-  //         else{
-  //           return user;
-  //           alert("please verify email")
-  //         }
-  //       });
-  //     })
-  //     .catch((error) => {
-  //       window.alert(error.message);
-  //     });
-  // }
-
-  //================================================sign-up===================================
-  // Sign up with email/password
-
-
 
   handleErrorSignup(err: string): void {
     switch (err) {
@@ -160,8 +116,6 @@ export class AuthService {
         break;
     }
   }
-
-
 
   SignUp(formData: any): void {
     console.log("signup");
@@ -206,60 +160,28 @@ export class AuthService {
       })
   }
 
-  // Send email verfificaiton when new user sign up
-  async SendVerificationMail() {
-    return this.afAuth.currentUser
-      .then((u: any) => u.sendEmailVerification())
-      .then(() => {
-        //this.router.navigate(['verify-email-address']);
-      });
+  SendVerificationMail(): Observable<any> {
+    return from(this.afAuth.currentUser)
+    .pipe(
+        catchError((err) => {
+          console.log("err in send email verify", err);
+          return EMPTY;
+        }),
+        tap((res) => res.sendEmailVerification()),
+      )
+      // .subscribe((user) => {
+      //   user.sendEmailVerification();
+        
+      // })
+    // return this.afAuth.currentUser
+    //   .then((u: any) => u.sendEmailVerification())
+    //   .then(() => {
+    //     //this.router.navigate(['verify-email-address']);
+    //   });
   }
 
-  // sendVerificationMail(): Observable<void> {
-  //   return from(this.afAuth.currentUser)
-  //     .pipe(
-  //       catchError((err) => {
-  //         return EMPTY;
-  //       }),
-  //       switchMap(user => {
-  //         if (user) {
-  //           return from(user.sendEmailVerification());
-  //         } else {
-  //           return EMPTY;
-  //         }
-  //       })
-  //     );
-  // }
-
-  // Reset Forggot password
-  ForgotPassword(passwordResetEmail: string): void {
-    from(this.afAuth
-      .sendPasswordResetEmail(passwordResetEmail))
-      .pipe(
-        catchError((err) => {
-          console.log("err in reset: ", err);
-          switch (err.code) {
-            case "auth/invalid-email":
-            case "auth/user-not-found":
-              // this.isErrLogIn$.next("user");
-              this.error$.next("user");
-              break;
-            case "auth/too-many-requests":
-            case "auth/network-request-failed":
-            case "auth/operation-not-allowed":
-              // this.isErrLogIn$.next("error")
-              this.error$.next("error")
-          }
-
-          return EMPTY;
-        })
-      ).subscribe()
-    // .then(() => {
-    //   window.alert('Password reset email sent, check your inbox.');
-    // })
-    // .catch((error) => {
-    //   window.alert(error);
-    // });
+  ForgotPassword(passwordResetEmail: string): Observable<any> {
+    return from(this.afAuth.sendPasswordResetEmail(passwordResetEmail));
   }
 
   // Returns true when user is looged in and email is verified

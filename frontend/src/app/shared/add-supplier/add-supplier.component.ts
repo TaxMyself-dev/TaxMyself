@@ -78,8 +78,6 @@ export class addSupplierComponent implements OnInit {
   }
 
   confirm(data: any): Observable<any> {
-    console.log("in confirm", data);
-
     return this.editMode ? this.expenseDataService.editSupplier(data, this.id) : this.expenseDataService.addSupplier(data);
   };
 
@@ -95,6 +93,8 @@ export class addSupplierComponent implements OnInit {
     console.log("save");
     console.log("edit?", this.editMode);
     const formData = this.setFormData();
+    console.log("form data supplier", formData);
+    
     this.confirm(formData).pipe(
       catchError((err) => {
         console.log("somthing faild", err);
@@ -112,10 +112,10 @@ export class addSupplierComponent implements OnInit {
     formData.taxPercent = +formData.taxPercent;
     formData.vatPercent = +formData.vatPercent;
     formData.reductionPercent = +formData.reductionPercent;
-    if (formData.isEquipment == "כן") {
+    if (formData.isEquipment == "1") {
       formData.isEquipment = true;
     }
-    if (formData.isEquipment == "לא") {
+    if (formData.isEquipment == "0") {
       formData.isEquipment = false;
     }
     console.log("fornData send: ", formData);
@@ -258,6 +258,7 @@ export class addSupplierComponent implements OnInit {
     this.myForm.patchValue({taxPercent: data.taxPercent});
     
   }
+  
   onEnterKeyPressed(): void {
     this.saveSupplier();
   }

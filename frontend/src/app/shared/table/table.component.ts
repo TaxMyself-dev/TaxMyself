@@ -21,8 +21,6 @@ export class TableComponent {
     val.forEach((row: IRowDataTable) => {
       const { reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
       this.tableRows.push(tableData);
-      console.log("before sort:",this.tableRows);
-      
     })
 
   }
@@ -41,6 +39,7 @@ export class TableComponent {
   tableRows: IRowDataTable[];
   originalRows: IRowDataTable[];
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
+  size: number = 1;
 
   constructor(private filesService: FilesService, private expenseDataService: ExpenseDataService) { }
 
@@ -116,9 +115,9 @@ export class TableComponent {
 
   orderByFunc(a, b): any {
     const columnsAddExpenseOrder = [
+      'supplier',
       'date',
       'sum',
-      'supplier',
       'category',
       'subCategory',
       'vatPercent',
@@ -147,10 +146,6 @@ export class TableComponent {
     }
   }
 
-  isGrayRow(index: number): boolean {
-    return index % 2 === 1; // Alternate between white and gray rows
-  }
-
   confirmDel(ev: IRowDataTable): void {
     console.log("event in confirm ", ev);
     this.id = +ev.id;
@@ -160,5 +155,6 @@ export class TableComponent {
   cancelDel(): void {
     this.isOpen = false;
   }
+
 
 }
