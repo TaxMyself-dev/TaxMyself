@@ -2,8 +2,8 @@
 <ion-list class="nav-buttons-wrapper">
   <ion-button *ngFor="let item of navigationItems" class="button-item-navigate" shape="round" [class.selected]="item.selected" (click)="onButtonClicked(item)">
     <div class="button-content">
-      <ion-icon  size="large" *ngIf="item.icon" [name]="item.icon"></ion-icon>
-      <ion-label>{{item.name}}</ion-label>
+      <ion-icon class="icon-nav" size="large" *ngIf="item.icon" [name]="item.icon"></ion-icon>
+      <ion-label class="label-item">{{item.name}}</ion-label>
     </div>
     </ion-button>
 </ion-list>

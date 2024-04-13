@@ -28,6 +28,7 @@ export class AppComponent {
 
   ];
   isPopoverOpen: boolean = false;
+  showMenu: boolean = false;
   //public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
 
   constructor(private router: Router, private modalCtrl: ModalController, private authService: AuthService, private popoverController: PopoverController) { };
@@ -44,6 +45,10 @@ export class AppComponent {
     this.isPopoverOpen = !this.isPopoverOpen
     this.router.navigate(["/login"])
 
+  }
+
+  toggleMenu() {
+    this.showMenu = !this.showMenu;
   }
 
 

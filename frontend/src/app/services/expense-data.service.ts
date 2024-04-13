@@ -81,7 +81,7 @@ export class ExpenseDataService {
   // } as IColumnDataTable;
 
   public updateTable$: Subject<boolean> = new Subject();//I need to check what is do
-  public isToastOpen$: Subject<boolean> = new Subject();//I need to check what is do
+  public isToastOpen$: Subject<boolean> = new Subject();
 
 
   getColomnsOrder(): string[] {
@@ -147,7 +147,7 @@ export class ExpenseDataService {
   }
 
   addExpenseData(data: any): Observable<any> {
-    console.log(data);
+    console.log("formdata in send",data);
     return this.http.post('http://localhost:3000/expenses/add-expense', data);
   }
 

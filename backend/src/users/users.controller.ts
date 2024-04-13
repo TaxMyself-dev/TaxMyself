@@ -15,7 +15,7 @@ import { Request } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 @Controller('auth')
-@Serialize(UserDto)
+// @Serialize(UserDto)
 export class UsersController {
 
     constructor(
@@ -37,9 +37,27 @@ export class UsersController {
         //const uid = await this.authService.getFirbsaeIdByToken(body.token);
         //const user = await this.userService.findFireUser(uid);
         console.log("user is ", user);
-        return user;
+        return user[0];
     }
 
+    @Get('/get-user')
+    async getUser(@Query() token: any) {
+        try {
+            const userID = await this.userService.getFirbsaeIdByToken(token.token);
+            const user = await this.userService.findFireUser(userID);
+            // return await this.userService.findFireUser(userID);
+            if (user) {
+                // const a = user[0].fName;
+                console.log("user after get:", user);
+                // return a;
+                return user;
+            }
+            throw new NotFoundException("user not exist");
+        } 
+        catch (error) {
+            
+        }
+    }
     // @Post('/signout')
     // signOut(@Session() session: any) {
     //     session.userId = null;
