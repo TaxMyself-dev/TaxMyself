@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
 import { IItemNavigate } from '../interface';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-item-navigate',
@@ -12,9 +13,12 @@ export class ItemNavigateComponent {
 
   @Output() onNavButtonClicked = new EventEmitter<IItemNavigate>();
 
-  constructor() { }
+  constructor(private router: Router) { }
 
   onButtonClicked(selectedItem: IItemNavigate): void {
+    if (selectedItem.link != "" ){
+      this.router.navigate([selectedItem.link])
+    }
     this.navigationItems.forEach((item: IItemNavigate) => 
       item.selected = item.name === selectedItem.name
     )

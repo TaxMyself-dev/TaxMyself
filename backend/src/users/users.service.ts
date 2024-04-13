@@ -49,6 +49,8 @@ export class UsersService {
 
 
     findFireUser(firebaseId: string) {
+        console.log("in find user:", firebaseId);
+        
         return this.user_repo.find({ where: {firebaseId} })
     }
 

@@ -1,10 +1,18 @@
-
 <ion-header [translucent]="true">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
-    <ion-title >{{folder}}</ion-title>
-    <ion-icon slot="end" size="large" [name]="name"></ion-icon>
+    <ion-title>
+      <div class="title-toolbar">
+        <div>{{folder }}</div>
+        <!-- <div>{{"שלום" + " " + userDetails.fName + " " + userDetails.lName}}</div> -->
+        <!-- <ion-icon slot="end" size="large" [name]="name"></ion-icon> -->
+        <div class="icon-toolbar">
+            <ion-icon size="large" name="notifications-circle-outline"></ion-icon>
+            <ion-icon size="large" name="chatbubbles-outline"></ion-icon>
+        </div>
+      </div>
+    </ion-title>
   </ion-toolbar>
 </ion-header>

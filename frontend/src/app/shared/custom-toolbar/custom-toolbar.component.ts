@@ -1,6 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Route } from '@angular/router';
 import { Location } from '@angular/common';
+import { AuthService } from 'src/app/services/auth.service';
 
 
 @Component({
@@ -10,10 +11,10 @@ import { Location } from '@angular/common';
 })
 export class CustomToolbarComponent implements OnInit {
 
-  constructor(private location: Location,) { };
+  constructor(private location: Location, public authService: AuthService) { };
 
   public folder!: string;
-
+  userDetails: any;
   public name: string = "";
   ngOnInit() {
     this.folder = this.location.path().slice(1);
@@ -65,6 +66,12 @@ export class CustomToolbarComponent implements OnInit {
           this.folder = "עצמאי בעצמי"
         break;
       }
+
+    this.userDetails = this.authService.userDetails;
+    console.log(this.userDetails);
+    
   };
+
+  
 }
 

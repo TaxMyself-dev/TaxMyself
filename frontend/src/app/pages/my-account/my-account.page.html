@@ -1,2 +1,11 @@
-<app-custom-toolbar ></app-custom-toolbar>
-<p class="str">{{str}}</p>
+<ion-header>
+    <app-custom-toolbar ></app-custom-toolbar>
+</ion-header>
+
+<ion-content>
+    <div class="my-account-screen">
+        <img class="logo" src="../../../assets/logo.png"/>
+        <app-item-navigate [navigationItems]="itemsNavigate"></app-item-navigate>
+    </div>
+</ion-content>
+<!-- <p class="str">{{str}}</p> -->

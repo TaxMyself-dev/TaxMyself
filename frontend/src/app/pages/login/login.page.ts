@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
-import { EMPTY, catchError, finalize } from 'rxjs';
+import { EMPTY, Subject, catchError, finalize } from 'rxjs';
 
 @Component({
   selector: 'app-login',
@@ -69,8 +69,10 @@ export class LoginPage implements OnInit {
         }
         if (res.user.emailVerified) {
           this.authService.signIn(res)
-            .subscribe(() => {
-              this.router.navigate(['home']);
+            .subscribe((res) => {
+              console.log("res from server",res);
+              this.authService.userDetails = res;
+              this.router.navigate(['my-account']);
             })
         }
         else {
