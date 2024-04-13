@@ -17,11 +17,11 @@ export class VatReportService {
 
   constructor(private http: HttpClient) { };
 
-  getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number, userId: string): Observable<any> {
+  getVatReportData(startDate: Date, endDate: Date, vatableTurnover: number, nonVatableTurnover: number, userId: string): Observable<any> {
     const url = 'http://localhost:3000/reports/vat-report'
     const param = new HttpParams()
-      .set('startDate', startDate)
-      .set('endDate', endDate)
+      .set('startDate', startDate.toISOString())
+      .set('endDate', endDate.toISOString())
       .set('vatableTurnover', vatableTurnover.toString())
       .set('nonVatableTurnover', nonVatableTurnover.toString())
       .set('userId', userId);

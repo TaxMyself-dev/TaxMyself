@@ -1,12 +1,13 @@
 //shared.service.ts
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 
 import { parse } from 'date-fns';
 import { getDayOfYear } from 'date-fns';
 
 @Injectable()
 export class SharedService {
+
 
     getDayOfYearFromDate(date: Date): number {
         // Assuming the input format is "DD.MM.YYYY"
@@ -16,6 +17,7 @@ export class SharedService {
         console.log(dayOfYear);  
         return(dayOfYear)
     }
+
 
     getReductionForYear(activeDate: Date, year: number, reductionPercent: number): number {
         let daysForReduction: number;
@@ -28,7 +30,15 @@ export class SharedService {
 
         return daysForReduction;
     }
-
+    
+    
+    convertDateToTimestamp(dateStr: string): number {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+          throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
+        }
+        return Math.floor(date.getTime() / 1000);
+      }
 
 
 }

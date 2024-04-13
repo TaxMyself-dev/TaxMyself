@@ -19,39 +19,44 @@ export class ReportsService {
     ) {}
 
 
-    async createVatReport(vatReportRequest: VatReportRequestDto): Promise<VatReportDto> {
+    //async createVatReport(vatReportRequest: VatReportRequestDto): Promise<VatReportDto> {
+    async createVatReport(userId: string, startDate: number, endDate: number, vatableTurnover:number, nonVatableTurnover: number): Promise<VatReportDto> {
 
         const vatReport: VatReportDto = {
-            vatableTurnover: vatReportRequest.vatableTurnover,
-            nonVatableTurnover: vatReportRequest.nonVatableTurnover,
+            vatableTurnover: vatableTurnover,
+            nonVatableTurnover: nonVatableTurnover,
             vatRefundOnAssets: 0,
             vatRefundOnExpenses: 0,
             vatPayment: 0
         };
 
         console.log('getTotalExpenses - start');
+        console.log("userId is ", userId);
+        console.log("startDate is ", startDate);
+        console.log("endDate is ", endDate);
+        
 
         const vatRegularExpensesSum = await this.expense_repo.createQueryBuilder('expense')
             .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
-            .where('expense.userId = :userId', { userId: vatReportRequest.userId })
+            .where('expense.userId = :userId', { userId: userId })
             .andWhere('expense.isEquipment = :isEquipment', { isEquipment: false })
-            .andWhere('expense.date >= :startDate AND expense.date <= :endDate', { startDate: vatReportRequest.startDate, 
-                endDate: vatReportRequest.endDate })
+            .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
+                endDate: endDate })
             .getRawOne();
 
         vatReport.vatRefundOnExpenses = Math.round(vatRegularExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
 
         const vatAssetsExpensesSum = await this.expense_repo.createQueryBuilder('expense')
         .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
-        .where('expense.userId = :userId', { userId: vatReportRequest.userId })
+        .where('expense.userId = :userId', { userId: userId })
         .andWhere('expense.isEquipment = :isEquipment', { isEquipment: true })
-        .andWhere('expense.date >= :startDate AND expense.date <= :endDate', { startDate: vatReportRequest.startDate, 
-            endDate: vatReportRequest.endDate })
+        .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
+            endDate: endDate })
         .getRawOne();
 
         vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
 
-        vatReport.vatPayment = Math.round(vatReportRequest.vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+        vatReport.vatPayment = Math.round(vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
 
         // console.log(filter);
 
@@ -80,10 +85,10 @@ export class ReportsService {
     
         const expenses = await this.expense_repo
           .createQueryBuilder("expense")
-          .select(["expense.date", "expense.sum", "expense.category", "expense.reductionPercent"])
+          .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
           .where("expense.userId = :userId", { userId })
           .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
-          .andWhere("expense.date BETWEEN :startDate AND :endDate", { startDate, endDate })
+          .andWhere("expense.dateTimestamp BETWEEN :startDate AND :endDate", { startDate, endDate })
           .getMany();
 
         console.log(expenses);
@@ -91,8 +96,8 @@ export class ReportsService {
             const calculatedValue = expense.sum * (expense.reductionPercent / 100);
             return {
                 category: expense.category,
-                billDate: expense.date,
-                activeDate: expense.date,
+                billDate: expense.dateTimestamp,
+                activeDate: expense.dateTimestamp,
                 redunctionPercnet: expense.reductionPercent,
                 redunctionForPeriod: calculatedValue
             } as unknown as ReductionReportDto;

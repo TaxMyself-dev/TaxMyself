@@ -130,7 +130,7 @@ export class VatReportPage implements OnInit {
     console.log("debug_1 endDate is ", endDate);
 
 
-    this.vatReportService.getVatReportData(startDate, endDate, formData.vatableTurnover, formData.nonVatableTurnover, this.userId)
+    this.vatReportService.getVatReportData(startDateofMonth, lastDayOfMonth, formData.vatableTurnover, formData.nonVatableTurnover, this.userId)
     .subscribe((res) => {
       console.log("res of vat report is", res);
       this.report = res;
@@ -138,6 +138,10 @@ export class VatReportPage implements OnInit {
     });
 
   }
+
+  convertDateToTimestamp(date: Date): void {
+  }
+
 
 
 
