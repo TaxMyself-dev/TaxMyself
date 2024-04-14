@@ -116,7 +116,7 @@ export class TableComponent {
   orderByFunc(a, b): any {
     const columnsAddExpenseOrder = [
       'supplier',
-      'date',
+      'dateTimestamp',
       'sum',
       'category',
       'subCategory',

@@ -33,11 +33,11 @@
   <ion-grid class="grid">
     <ion-row>
       <ion-col
-        [size]="col.name == 'date' ? 1.5 : col.name == 'supplier' ? 1.2 : col.name == 'category' ? 1.2 : col.name == 'subCategory' ? 1.1 : 1"
+        [size]="col.name == 'dateTimestamp' ? 1.5 : col.name == 'supplier' ? 1.2 : col.name == 'category' ? 1.2 : col.name == 'subCategory' ? 1.1 : 1"
         class="row-header" [class.totalVatPayable]="col.name === 'totalVatPayable'"
         [class.totalTaxPayable]="col.name === 'totalTaxPayable'" [class.taxPercent]="col.name === 'taxPercent'"
         [class.vatPercent]="col.name === 'vatPercent'" [class.subCategory]="col.name === 'subCategory'"
-        [class.category]="col.name === 'category'" [class.date]="col.name === 'date'" [class.sum]="col.name === 'sum'"
+        [class.category]="col.name === 'category'" [class.date]="col.name === 'dateTimestamp'" [class.sum]="col.name === 'sum'"
         [class.supplier]="col.name === 'supplier'" *ngFor="let col of fieldsNames">
         {{col.value}}
       </ion-col>
@@ -48,7 +48,7 @@
     <ion-row *ngFor="let row of rows; let i = index" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
       <ng-container *ngFor="let field of row | keyvalue: orderByFunc">
         <ion-col
-          [size]="field.key == 'date' ? 1.5 : field.key == 'supplier' ? 1.2 : field.key == 'category' ? 1.2 : field.key == 'subCategory' ? 1.1 : 1"
+          [size]="field.key == 'dateTimestamp' ? 1.5 : field.key == 'supplier' ? 1.2 : field.key == 'category' ? 1.2 : field.key == 'subCategory' ? 1.1 : 1"
           *ngIf="field.key != 'id' ">
           {{field.value}}
         </ion-col>

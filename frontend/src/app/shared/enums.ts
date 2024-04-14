@@ -40,7 +40,8 @@ export enum displayColumnsExpense {
 
 export enum ExpenseFormColumns {
     SUPPLIER = 'supplier',
-    DATE = 'date',
+    // change this to dateTimeStamp
+    DATE = 'dateTimestamp',
     SUM = 'sum',
     CATEGORY = 'category',
     SUB_CATEGORY = 'subCategory',
