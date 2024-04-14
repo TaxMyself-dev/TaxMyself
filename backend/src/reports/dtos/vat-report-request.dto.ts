@@ -25,6 +25,6 @@ export class VatReportRequestDto {
     nonVatableTurnover: number;
 
     @IsNotEmpty()
-    userId: string;
+    token: string;
 
 }

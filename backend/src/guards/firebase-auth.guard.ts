@@ -12,7 +12,6 @@ export class FirebaseAuthGuard implements CanActivate {
     let token = request.body.token;
 
     if (!token) {
-      console.log("there is no token");
       throw new UnauthorizedException('No authorization token provided');
     }
 
@@ -40,14 +39,10 @@ export class FirebaseAuthGuard implements CanActivate {
   }
 
   async validateToken(token: string): Promise<boolean> {
-    console.log("this is my token:");
-    console.log(token);
     try {
       await admin.auth().verifyIdToken(token);
-      console.log("protected data!!!!!!!!!!!!!!!!!!!!!!!!!!");
       return true;
     } catch (error) {
-      console.log("token is not valid");
       throw new UnauthorizedException('Invalid authorization token');
     }
   }

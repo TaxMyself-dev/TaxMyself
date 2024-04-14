@@ -1,9 +1,7 @@
-import { Component, OnInit, Output, Input, EventEmitter } from '@angular/core';
+import { Component, OnInit, Input } from '@angular/core';
 import { VatReportService } from './vat-report.service';
-import { IRowDataTable, ISortDate, IVatReportTableData } from 'src/app/shared/interface';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { Observable, map, tap } from 'rxjs';
-import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { startOfMonth, endOfMonth } from 'date-fns';
 import { months, singleMonths } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 
@@ -14,8 +12,6 @@ interface ReportData {
   vatRefundOnExpenses: number;
   vatPayment: number;
 }
-
-
 
 interface FieldTitles {
   [key: string]: string;
@@ -37,6 +33,7 @@ export class VatReportPage implements OnInit {
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
   myForm: FormGroup;
+  token: string;
 
 
   reportOrder: string[] = [
@@ -54,6 +51,7 @@ export class VatReportPage implements OnInit {
     vatRefundOnExpenses: 'תשומות אחרות',
     vatPayment: 'סה"כ לתשלום'
   };
+
 
   constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder) {
     this.myForm = this.formBuilder.group({
@@ -74,20 +72,16 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
+    this.token = localStorage.getItem('token');
   }
 
 
   onSubmit() {
     console.log("onSubmit - start");
     const formData = this.myForm.value;
-    //let monthArr = [];
-    //monthArr = formData.month;
-    console.log("month is ", formData.month);
-    //console.log("monthArr is ", monthArr);
-    console.log("year is ", formData.year);
-    
     this.getVarReportData(formData.month, formData.year, this.isSingleMonth);
   }
+
 
   slectedTypeReport(event: any): void {
     console.log(event.target.value);
@@ -101,36 +95,18 @@ export class VatReportPage implements OnInit {
   toggleSingleMonth(): void {
     this.isSingleMonth = !this.isSingleMonth;
   }
-
-
-  userId = 'L5gJkrdQZ5gGmte5XxRgagkqpOL2';
   
 
   async getVarReportData(month: number , year: number, isSingleMonth: boolean) {
 
     const formData = this.myForm.value;
 
-    console.log("month is ", month);
-    
-
     // Create a date object for the first day of the specified month and year
     let startDateofMonth = startOfMonth(new Date(year, month));
     let monthAdjusted = isSingleMonth ? Number(month) : Number(month) + 1;
-    console.log("monthAdjusted is ", monthAdjusted);
     let lastDayOfMonth = endOfMonth(new Date(year, monthAdjusted));
 
-    console.log("debug_0 startDate is ", startDateofMonth);
-    console.log("debug_0 endDate is ", lastDayOfMonth);
-
-    // Format the date as "dd-MM-yyyy"
-    const startDate = format(startDateofMonth, 'yyyy-MM-dd').toString();
-    const endDate = format(lastDayOfMonth, 'yyyy-MM-dd').toString();
-
-    console.log("debug_1 startDate is ", startDate);
-    console.log("debug_1 endDate is ", endDate);
-
-
-    this.vatReportService.getVatReportData(startDateofMonth, lastDayOfMonth, formData.vatableTurnover, formData.nonVatableTurnover, this.userId)
+    this.vatReportService.getVatReportData(startDateofMonth, lastDayOfMonth, formData.vatableTurnover, formData.nonVatableTurnover, this.token)
     .subscribe((res) => {
       console.log("res of vat report is", res);
       this.report = res;
@@ -138,12 +114,6 @@ export class VatReportPage implements OnInit {
     });
 
   }
-
-  convertDateToTimestamp(date: Date): void {
-  }
-
-
-
 
 
 }

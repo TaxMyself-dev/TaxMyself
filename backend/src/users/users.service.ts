@@ -27,9 +27,7 @@ export class UsersService {
     async signup({personal,spouse,children,business,validation}:any) {
         const newChildren = children?.children;
         let newUser = {...personal, ...spouse, ...business};
-        console.log("newPersonal: ", newUser);
         
-        console.log("children children: ", children.children);
         for (let i = 0; i < newChildren.length; i++){
             const child: Child = children[i];
             const newChild =  this.child_repo.create(child);
@@ -49,8 +47,6 @@ export class UsersService {
 
 
     findFireUser(firebaseId: string) {
-        console.log("in find user:", firebaseId);
-        
         return this.user_repo.find({ where: {firebaseId} })
     }
 
@@ -62,7 +58,6 @@ export class UsersService {
                 const firebaseUserData = await this.firebaseAuth.verifyIdToken(token);
                 uid = firebaseUserData.uid;
                 if (uid != null && uid != '') {
-                    console.log('User ID:', uid);
                     return uid
                 } else {
                     throw new HttpException({

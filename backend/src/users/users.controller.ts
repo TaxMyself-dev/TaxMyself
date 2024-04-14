@@ -1,17 +1,7 @@
 import { Body, Controller, Post, Get, Patch, Delete,
          Param, Query, NotFoundException, Session, UseGuards, Req} from '@nestjs/common';
-import { CreateUserDto } from './dtos/create-user.dto';
-import { UpdateUserDto } from './dtos/update-user.dto';
 import { UsersService } from './users.service';
-import { Serialize } from 'src/interceptors/serialize.interceptor';
-import { UserDto } from './dtos/user.dto';
 import { AuthService } from './auth.service';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { User } from './user.entity';
-import { AuthGuard } from 'src/guards/auth.guard';
-import { log } from 'console';
-import { request } from 'http';
-import { Request } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 @Controller('auth')
@@ -34,9 +24,6 @@ export class UsersController {
     @UseGuards(FirebaseAuthGuard)
     async signin(@Body() body: any) {     
         const user = await this.userService.signin(body.token);  
-        //const uid = await this.authService.getFirbsaeIdByToken(body.token);
-        //const user = await this.userService.findFireUser(uid);
-        console.log("user is ", user);
         return user[0];
     }
 
@@ -45,11 +32,7 @@ export class UsersController {
         try {
             const userID = await this.userService.getFirbsaeIdByToken(token.token);
             const user = await this.userService.findFireUser(userID);
-            // return await this.userService.findFireUser(userID);
             if (user) {
-                // const a = user[0].fName;
-                console.log("user after get:", user);
-                // return a;
                 return user;
             }
             throw new NotFoundException("user not exist");
