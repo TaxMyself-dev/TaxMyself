@@ -6,10 +6,12 @@ import { Repository} from 'typeorm';
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { DefaultCategory } from './categories.entity';
+import { SharedService } from 'src/shared/shared.service';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
+import { CreateExpenseDto } from './dtos/create-expense.dto';
 
 
 @Injectable()
@@ -17,21 +19,23 @@ export class ExpensesService {
     
     constructor
     (
+        private readonly sharedService: SharedService,
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
         @InjectRepository(DefaultCategory) private category_repo: Repository<DefaultCategory>,
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
 
-    async addExpense(expense: Partial<Expense>, userId: string): Promise<Expense> {
+    async addExpense(expense: Partial<CreateExpenseDto>, userId: string): Promise<Expense> {
         console.log("addExpense - start");
         //console.log("expense in addEaxpense: ", expense);
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
-        newExpense.loadingDate = new Date();
+        newExpense.dateTimestamp = this.sharedService.convertDateToTimestamp(expense.date);
+        //newExpense.loadingDate = new Date();
 
         //console.log("debug_eh_0: date is ", newExpense.date);
-        newExpense.date = new Date(newExpense.date);
+        //newExpense.date = new Date(newExpense.date);
         //console.log("debug_eh_1: date is ", newExpense.date);
 
         //const dateString = "2024-04-09"; // or "2024-04-09T00:00:00Z"

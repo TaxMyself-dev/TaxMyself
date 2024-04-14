@@ -40,7 +40,7 @@ export class UpdateExpenseDto {
     
     @IsOptional()
     @IsString()
-    date: Date
+    date: string
     
     @IsOptional()
     @IsString()

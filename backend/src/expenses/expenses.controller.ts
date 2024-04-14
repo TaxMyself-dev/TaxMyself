@@ -41,7 +41,8 @@ export class ExpensesController {
 
   @Post('add-expense')
   async addExpense(@Body() body: CreateExpenseDto) {
-      const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+      const userId = await this.usersService.getFirbsaeIdByToken(body.token);
+      
       const res = await this.expensesService.addExpense(body, userId);
       return res;
   }

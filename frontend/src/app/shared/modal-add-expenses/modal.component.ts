@@ -365,10 +365,6 @@ export class ModalExpensesComponent {
   setFormData(filePath: string, token: string) {
     const formData = this.myForm.value;
     console.log("form in set form", formData);
-    console.log("type:",typeof( formData.date));
-    formData.date = new Date(formData.date);
-    console.log("type:",typeof( formData.date));
-    // formData.date = formData.date.
     formData.taxPercent = +formData.taxPercent;
     formData.vatPercent = +formData.vatPercent;
     formData.file = filePath;
