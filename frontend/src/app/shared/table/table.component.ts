@@ -20,6 +20,7 @@ export class TableComponent {
     this.originalRows = val;
     val.forEach((row: IRowDataTable) => {
       const { reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
+      tableData.dateTimestamp = "24-01-2023"; //TODO: update to convert from timestamp to string
       this.tableRows.push(tableData);
     })
 

@@ -31,18 +31,9 @@ export class ExpensesController {
     private usersService: UsersService,
     private sharedService: SharedService) {}
 
-
-  // @Post('try')
-  // async try() {
-  //   const dayOfYear = this.sharedService.getDayOfYearFromDate(Date("31.12.2023"))
-  //   console.log(dayOfYear);  
-  // }
-
-
   @Post('add-expense')
   async addExpense(@Body() body: CreateExpenseDto) {
       const userId = await this.usersService.getFirbsaeIdByToken(body.token);
-      
       const res = await this.expensesService.addExpense(body, userId);
       return res;
   }

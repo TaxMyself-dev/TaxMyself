@@ -28,26 +28,16 @@ export class ExpensesService {
 
     async addExpense(expense: Partial<CreateExpenseDto>, userId: string): Promise<Expense> {
         console.log("addExpense - start");
-        //console.log("expense in addEaxpense: ", expense);
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
         newExpense.dateTimestamp = this.sharedService.convertDateToTimestamp(expense.date);
-        //newExpense.loadingDate = new Date();
-
-        //console.log("debug_eh_0: date is ", newExpense.date);
-        //newExpense.date = new Date(newExpense.date);
-        //console.log("debug_eh_1: date is ", newExpense.date);
-
-        //const dateString = "2024-04-09"; // or "2024-04-09T00:00:00Z"
-        //const dateObject = new Date(dateString);
-
+        const currentDate = (new Date()).toISOString();
+        newExpense.loadingDate = this.sharedService.convertDateToTimestamp(currentDate);
         newExpense.reductionDone = false;
-        //console.log("this is a newExpense :", newExpense);
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0){
             throw new Error ("expense not saved");
         }
-        //console.log("addExpense - end");
         return resAddExpense;
     }
 
