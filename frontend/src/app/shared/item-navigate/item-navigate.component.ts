@@ -1,21 +1,35 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
-import { IItemNavigate } from '../interface';
+import { IColumnDataTable, IItemNavigate } from '../interface';
 import { Router } from '@angular/router';
+import { ModalExpensesComponent } from '../modal-add-expenses/modal.component';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { ModalController } from '@ionic/angular';
 
 @Component({
   selector: 'app-item-navigate',
   templateUrl: './item-navigate.component.html',
   styleUrls: ['./item-navigate.component.scss'],
 })
-export class ItemNavigateComponent {
+export class ItemNavigateComponent  implements OnInit{
 
   @Input() navigationItems: IItemNavigate[];
 
   @Output() onNavButtonClicked = new EventEmitter<IItemNavigate>();
+  columns: IColumnDataTable[];//Titles of expense
 
-  constructor(private router: Router) { }
+
+  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController) { }
+
+
+  ngOnInit() {
+    this.columns = this.expenseDataServise.getAddExpenseColumns()
+  }
 
   onButtonClicked(selectedItem: IItemNavigate): void {
+    if (selectedItem.link === "/add-expenses") {
+      this.openPopupAddExpense();
+      return;
+    }
     if (selectedItem.link != "" ){
       this.router.navigate([selectedItem.link])
     }
@@ -23,6 +37,18 @@ export class ItemNavigateComponent {
       item.selected = item.name === selectedItem.name
     )
     this.onNavButtonClicked.emit(selectedItem);
+  }
+
+  async openPopupAddExpense() {
+    const modal = await this.modalCtrl.create({
+      component: ModalExpensesComponent,
+      componentProps: {
+        columns: this.columns,
+        data: {},
+      },
+      cssClass: 'custom-modal'
+    })
+    await modal.present();
   }
 
 }

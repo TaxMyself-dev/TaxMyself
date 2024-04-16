@@ -2,9 +2,10 @@ import { Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IColumnDataTable, IRowDataTable } from './shared/interface';
 import { Location } from '@angular/common';
-import { AddInvoicePage } from './pages/add-expenses/add-expenses.page';
 import { ModalController, PopoverController } from '@ionic/angular';
 import { AuthService } from './services/auth.service';
+import { ExpenseDataService } from './services/expense-data.service';
+import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 
 
 @Component({
@@ -12,7 +13,7 @@ import { AuthService } from './services/auth.service';
   templateUrl: 'app.component.html',
   styleUrls: ['app.component.scss']
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   public appPages = [
     { title: 'דף-הבית', url: 'home', icon: 'home' },
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
@@ -29,14 +30,30 @@ export class AppComponent {
   ];
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;
-  //public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
+  columns: IColumnDataTable[];//Titles of expense
 
-  constructor(private router: Router, private modalCtrl: ModalController, private authService: AuthService, private popoverController: PopoverController) { };
+  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService) { };
+
+  ngOnInit() {
+    this.columns = this.expenseDataServise.getAddExpenseColumns()
+  }
 
   openCloseLogOutPopup() {
     console.log("popover open");
     this.isPopoverOpen = !this.isPopoverOpen
     console.log(this.isPopoverOpen);
+  }
+
+  async openPopupAddExpense() {
+    const modal = await this.modalCtrl.create({
+      component: ModalExpensesComponent,
+      componentProps: {
+        columns: this.columns,
+        data: {},
+      },
+      cssClass: 'custom-modal'
+    })
+    await modal.present();
   }
 
   async signOut() {

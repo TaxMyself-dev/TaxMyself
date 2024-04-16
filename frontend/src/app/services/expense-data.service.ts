@@ -67,19 +67,6 @@ export class ExpenseDataService {
     'totalVat',
   ];
 
-  // private readonly columnsShowExpense = {//mock data 
-  //   date: 'תאריך',
-  //   category: 'קטגוריה',
-  //   subCategory: 'תת-קטגוריה',
-  //   supplier: 'ספק',
-  //   sum: 'סכום',
-  //   taxPercent: 'אחוז מוכר למס',
-  //   vatPercent: 'אחוז מוכר למעמ',
-  //   totalTax: 'מוכר למס',
-  //   totalVat: 'מוכר למעמ',
-  //   file: 'קובץ',
-  // } as IColumnDataTable;
-
   public updateTable$: Subject<boolean> = new Subject();//I need to check what is do
   public isToastOpen$: Subject<boolean> = new Subject();
 

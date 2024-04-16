@@ -4,7 +4,6 @@ import { RouteReuseStrategy } from '@angular/router';
 import { IonicModule, IonicRouteStrategy } from '@ionic/angular';
 import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
-import { SidebarNavComponent } from './core/sidebar-nav/sidebar-nav.component';
 import { RegisterPageModule } from './pages/register/register.module';
 import { TableComponent } from './shared/table/table.component';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
@@ -24,7 +23,7 @@ import { NgArrayPipesModule } from 'ngx-pipes';
 
     
 @NgModule({
-  declarations: [AppComponent, SidebarNavComponent],
+  declarations: [AppComponent],
   imports: [BrowserModule, IonicModule.forRoot(), AppRoutingModule,RegisterPageModule,ReactiveFormsModule, 
     //provideFirebaseApp(() => initializeApp(environment.firebase)), provideAuth(() => getAuth()),
     AngularFireModule.initializeApp(environment.firebase),

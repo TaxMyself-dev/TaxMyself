@@ -1,9 +1,0 @@
-
-<ion-content>
-  <ion-list *ngIf="matches.length > 0">
-    <ion-item *ngFor="let provider of matches" (click)="returnSelctedProvider(provider)">
-      {{ provider.name }}
-    </ion-item>
-  </ion-list>
-  <ion-button class="aaa"  (click)="dismissModal()">Close</ion-button>
-</ion-content>

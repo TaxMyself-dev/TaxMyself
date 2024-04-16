@@ -2,7 +2,6 @@ import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, On
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { LoadingController, ModalController, NavParams } from '@ionic/angular';
 import { IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable } from '../interface';
-import { ModalSortProviderComponent } from '../modal-sort-provider/modal-sort-provider.component';
 import { KeyValue, formatDate } from '@angular/common';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
