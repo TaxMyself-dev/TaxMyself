@@ -1,19 +1,17 @@
-import { Component, OnInit, NgModule } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray } from '@angular/forms';
 import { RegisterService } from './register.service';
-import { IChildren, IItemNavigate } from 'src/app/shared/interface';
-import axios from 'axios';
+import { IItemNavigate } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 @Component({
   selector: 'app-register',
   templateUrl: './register.page.html',
   styleUrls: ['./register.page.scss'],
 })
-export class RegisterPage implements OnInit {
+export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormModules = RegisterFormModules;
   readonly registerFormControls = RegisterFormControls;
 
@@ -25,14 +23,13 @@ export class RegisterPage implements OnInit {
   registerMode: boolean = true;
   passwordValid = true;
   displayError: string = "disabled";
-  // popoverValid: boolean = false;
   passwordValidInput!: string;
   listBusinessField = [{ key: "build", value: "בניין" }, { key: "electric", value: "חשמל" }, { key: "photo", value: "צילום" }, { key: "architecture", value: "אדריכלות" }]
   listBusinessType = [{ key: "licensed", value: "עוסק מורשה" }, { key: "exempt", value: "עוסק פטור" }, { key: "company", value: "חברה" }]
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
 
-  constructor(private http: HttpClient, private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
+  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     const currentDate = new Date();
     this.today = currentDate.toISOString().substring(0, 10);
     this.itemsNavigate[0].selected = true;
@@ -90,12 +87,12 @@ export class RegisterPage implements OnInit {
 
     const childrenForm = this.formBuilder.group({
       [RegisterFormControls.CHILDREN]: this.formBuilder.array([
-        this.formBuilder.group({
-          childFName: ['', ],
-          childLName: ['', ],
-          childID: ['', Validators.pattern(/^\d{9}$/)],
-          childDate: ['', ]
-        })
+        // this.formBuilder.group({
+        //   childFName: ['', ],
+        //   childLName: ['', ],
+        //   childID: ['', Validators.pattern(/^\d{9}$/)],
+        //   childDate: ['', ]
+        // })
       ]),
     })
 
@@ -115,6 +112,9 @@ export class RegisterPage implements OnInit {
       [RegisterFormControls.BUSINESSID]: new FormControl(
         '', Validators.required,
       ),
+      [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
+        '', Validators.required,
+      ),
 
     })
 
@@ -131,115 +131,13 @@ export class RegisterPage implements OnInit {
       [RegisterFormModules.BUSINESS]: businessForm,
       [RegisterFormModules.VALIDATION]: validationForm,
     });
-
-
-
-
-
-
-  //   const personalForm = this.formBuilder.group({
-  //     [RegisterFormControls.FIRSTNAME]: new FormControl(
-  //       'aaa', Validators.required,
-  //     ),
-  //     [RegisterFormControls.LASTNAME]: new FormControl(
-  //       'aaaa', Validators.required,
-  //     ),
-  //     [RegisterFormControls.ID]: new FormControl(
-  //       '333333333', [Validators.required, Validators.pattern(/^\d{9}$/)]
-  //     ),
-  //     [RegisterFormControls.EMAIL]: new FormControl(
-  //       '10@gmail.com', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
-  //     ),
-  //     [RegisterFormControls.PHONE]: new FormControl(
-  //       '0525675730', [Validators.required, Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
-  //     ),
-  //     [RegisterFormControls.DATEOFBIRTH]: new FormControl(
-  //       '2015-12-10', Validators.required,
-  //     ),
-  //     [RegisterFormControls.EMPLOYEE]: new FormControl(
-  //       false, Validators.required,
-  //     ),
-  //     [RegisterFormControls.CITY]: new FormControl(
-  //       'll', Validators.required,
-  //     ),
-  //     [RegisterFormControls.FAMILYSTATUS]: new FormControl(
-  //       '1', Validators.required,
-  //     ),
-  //   })
-
-  //   const spouseForm = this.formBuilder.group({
-  //     [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-  //       'hdh', Validators.required,
-  //     ),
-  //     [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-  //       'dgr', Validators.required,
-  //     ),
-  //     [RegisterFormControls.SPOUSEID]: new FormControl(
-  //       '111111111', Validators.pattern(/^\d{9}$/),
-  //     ),
-  //     [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
-  //       '2012-05-01', Validators.required,
-  //     ),
-  //     [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
-  //       false, Validators.required,
-  //     ),
-  //     [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-  //       '0526204910', [Validators.required,Validators.pattern(/^(052|051|053|054|058|055)\d{7}$/)]
-  //     ),
-  //   })
-
-  //   const childrenForm = this.formBuilder.group({
-  //     [RegisterFormControls.CHILDREN]: this.formBuilder.array([
-  //       this.formBuilder.group({
-  //         childFName: ['egtfh', Validators.required],
-  //         childLName: ['grsdht', Validators.required],
-  //         childID: ['111222333', Validators.required],
-  //         childDate: ['2022-12-12', Validators.required]
-  //       })
-  //     ]),
-  //   })
-
-  //   const businessForm = this.formBuilder.group({
-  //     [RegisterFormControls.BUSINESSNAME]: new FormControl(
-  //       'rhtjyk', Validators.required,
-  //     ),
-  //     [RegisterFormControls.BUSINESSFIELD]: new FormControl(
-  //       'esrgdth', Validators.required,
-  //     ),
-  //     [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-  //       'dsgfhg', Validators.required,
-  //     ),
-  //     [RegisterFormControls.BUSINESSDATE]: new FormControl(
-  //       '2012-10-12', Validators.required,
-  //     ),
-  //     [RegisterFormControls.BUSINESSID]: new FormControl(
-  //       '23164', Validators.required,
-  //     ),
-
-  //   })
-
-  //   const validationForm = this.formBuilder.group({
-  //     [RegisterFormControls.PASSWORD]: new FormControl(
-  //       '151515sh', [Validators.required,Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
-  //     ),
-  //   })
-
-
-
-  //   this.myForm = this.formBuilder.group({
-  //     [RegisterFormModules.PERSONAL]: personalForm,
-  //     [RegisterFormModules.SPOUSE]: spouseForm,
-  //     [RegisterFormModules.CHILDREN]: childrenForm,
-  //     [RegisterFormModules.BUSINESS]: businessForm,
-  //     [RegisterFormModules.VALIDATION]: validationForm,
-  //   });
   }
 
+ngOnDestroy(): void {
+    this.authService.isVerfyEmail$.unsubscribe();
+}
 
   ngOnInit() {
-
-    console.log("on init reg");
-
     this.authService.isVerfyEmail$.subscribe((value) => {//TODO: unsubscribe
       if (value) {
         this.registerMode = false;
@@ -247,203 +145,167 @@ export class RegisterPage implements OnInit {
     })
     this.gelAllCities();
   };
-  // this.authService.isErrSignup$.subscribe((val) =>{
-  //   console.log("in sun reg");
-
-  //   switch (val) {
-  //     case "auth/email-already-in-used":
-  //       this.displayError = "user";
-  //       console.log(this.displayError);
-
-  //       break;
-  //     case "auth/invalid-email":
-  //       this.displayError = "email";
-  //       console.log(this.displayError);
-
-  //       break;
-  //     case "auth/network-request-failed":
-  //       this.displayError = "net";
-  //       console.log(this.displayError);
-
-  //       break;
-  //     case "auth/user-disabled":
-  //     case "auth/user-not-found":
-  //       this.displayError = "disabled";
-  //       console.log(this.displayError);
-
-  //       break;
-  //     case "auth/too-many-requests":
-  //       this.displayError = "many";
-  //       console.log(this.displayError);
-
-  //       break;
-  //   }
-  // })
-
-
 
   get personalForm(): FormGroup {
-  return this.myForm.get(RegisterFormModules.PERSONAL) as FormGroup;
-}
+    return this.myForm.get(RegisterFormModules.PERSONAL) as FormGroup;
+  }
 
   get spouseForm(): FormGroup {
-  return this.myForm.get(RegisterFormModules.SPOUSE) as FormGroup;
-}
+    return this.myForm.get(RegisterFormModules.SPOUSE) as FormGroup;
+  }
 
   get childrenForm(): FormGroup {
-  return this.myForm.get(RegisterFormModules.CHILDREN) as FormGroup;
-}
+    return this.myForm.get(RegisterFormModules.CHILDREN) as FormGroup;
+  }
 
   get childrenArray(): FormArray {
-  return this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
-}
+    return this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+  }
 
   get businessForm(): FormGroup {
-  return this.myForm.get(RegisterFormModules.BUSINESS) as FormGroup;
-}
+    return this.myForm.get(RegisterFormModules.BUSINESS) as FormGroup;
+  }
 
   get validationForm(): FormGroup {
-  return this.myForm.get(RegisterFormModules.VALIDATION) as FormGroup;
-}
+    return this.myForm.get(RegisterFormModules.VALIDATION) as FormGroup;
+  }
 
   get buttonNextText(): string {
-  return this.selectedFormModule !== RegisterFormModules.VALIDATION ? 'הבא' : 'שלח';
-}
+    return this.selectedFormModule !== RegisterFormModules.VALIDATION ? 'הבא' : 'שלח';
+  }
 
-gelAllCities(): any {
-  this.registerService.getCities()
-  .subscribe((res) => {
-    console.log(res);
-    this.cities = res;
-  })
-}
-
-addChild() {
-  console.log(this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN).value);
-
-  const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
-  items.push(
-    this.formBuilder.group({
-      childFName: [''],
-      childLName: [''],
-      childID: [''],
-      childDate: ['']
+  gelAllCities(): any {
+    this.registerService.getCities()
+    .subscribe((res) => {
+      console.log(res);
+      this.cities = res;
     })
-  );
-}
-
-removeChild(index: number) {
-  const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
-  if (items.length >= 2) {
-    items.removeAt(index);
-  }
-}
-
-handleFormRegister() {
-  const formData = this.myForm.value;
-  console.log(formData);
-  const data = { fromReg: false, email: formData.email };
-  this.authService.SignUp(formData);
-  // this.router.navigate(['login'], { queryParams: data });
-}
-
-onBackBtnClicked(): void {
-  switch(this.selectedFormModule) {
-      case RegisterFormModules.VALIDATION:
-  this.selectedFormModule = RegisterFormModules.BUSINESS;
-  this.setSelectedNavItem(RegisterFormModules.BUSINESS)
-  break;
-      case RegisterFormModules.BUSINESS:
-  this.selectedFormModule = RegisterFormModules.CHILDREN;
-  this.setSelectedNavItem(RegisterFormModules.CHILDREN)
-  break;
-      case RegisterFormModules.CHILDREN:
-  this.selectedFormModule = RegisterFormModules.SPOUSE;
-  this.setSelectedNavItem(RegisterFormModules.SPOUSE)
-  break;
-      case RegisterFormModules.SPOUSE:
-  this.selectedFormModule = RegisterFormModules.PERSONAL;
-  this.setSelectedNavItem(RegisterFormModules.PERSONAL)
-  break;
-}
   }
 
-onNextBtnClicked(): void {
-  switch(this.selectedFormModule) {
-      case RegisterFormModules.VALIDATION:
-  this.handleFormRegister();
-  console.log(this.displayError);
+  addChild() {
+    console.log(this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN).value);
 
-  break;
-      case RegisterFormModules.PERSONAL:
-  this.selectedFormModule = RegisterFormModules.SPOUSE;
-  this.setSelectedNavItem(RegisterFormModules.SPOUSE)
-  break;
-      case RegisterFormModules.CHILDREN:
-  this.selectedFormModule = RegisterFormModules.BUSINESS;
-  this.setSelectedNavItem(RegisterFormModules.BUSINESS)
-  break;
-      case RegisterFormModules.SPOUSE:
-  this.selectedFormModule = RegisterFormModules.CHILDREN;
-  this.setSelectedNavItem(RegisterFormModules.CHILDREN)
-  break;
-      case RegisterFormModules.BUSINESS:
-  this.selectedFormModule = RegisterFormModules.VALIDATION;
-  this.setSelectedNavItem(RegisterFormModules.VALIDATION)
-  break;
-}
+    const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+    items.push(
+      this.formBuilder.group({
+        childFName: [''],
+        childLName: [''],
+        childID: [''],
+        childDate: ['']
+      })
+    );
   }
 
-changePasswordValidinput(event: any) {
-  this.passwordValidInput = event.target.value;
-}
-
-checkPassword() {
-  const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
-  if (this.passwordValidInput === realPass) {
-    this.passwordValid = true;
-  } else {
-    this.passwordValid = false;
-  }
-}
-
-navigateclicked(event: IItemNavigate): void {
-  console.log(event);
-  switch(event.name) {
-      case "פרטים אישיים":
-  this.selectedFormModule = this.registerFormModules.PERSONAL
-  break;
-
-      case "פרטי בן/בת זוג":
-  this.selectedFormModule = this.registerFormModules.SPOUSE
-  break;
-
-      case "פרטי ילדים":
-  this.selectedFormModule = this.registerFormModules.CHILDREN
-  break;
-
-      case "פרטי עסק":
-  this.selectedFormModule = this.registerFormModules.BUSINESS
-  break;
-
-      case "סיסמא ואימות":
-  this.selectedFormModule = this.registerFormModules.VALIDATION
-  break;
-
-      default:
-  this.selectedFormModule = this.registerFormModules.PERSONAL
-  break;
-}
+  removeChild(index: number) {
+    const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+    // if (items.length >= 2) {
+      items.removeAt(index);
+    // }
   }
 
-  private setSelectedNavItem(selectedModule: RegisterFormModules) {
-  this.itemsNavigate.forEach((item: IItemNavigate) =>
-    item.selected = item.id === selectedModule
-  )
-}
+  handleFormRegister() {
+    const formData = this.myForm.value;
+    console.log(formData);
+    const data = { fromReg: false, email: formData.email };
+    this.authService.SignUp(formData);
+  }
 
-navigateToLogin(): void {
-  this.router.navigate(['login']);
-}
+  onBackBtnClicked(): void {
+    switch(this.selectedFormModule) {
+        case RegisterFormModules.VALIDATION:
+    this.selectedFormModule = RegisterFormModules.BUSINESS;
+    this.setSelectedNavItem(RegisterFormModules.BUSINESS)
+    break;
+        case RegisterFormModules.BUSINESS:
+    this.selectedFormModule = RegisterFormModules.CHILDREN;
+    this.setSelectedNavItem(RegisterFormModules.CHILDREN)
+    break;
+        case RegisterFormModules.CHILDREN:
+    this.selectedFormModule = RegisterFormModules.SPOUSE;
+    this.setSelectedNavItem(RegisterFormModules.SPOUSE)
+    break;
+        case RegisterFormModules.SPOUSE:
+    this.selectedFormModule = RegisterFormModules.PERSONAL;
+    this.setSelectedNavItem(RegisterFormModules.PERSONAL)
+    break;
+  }
+    }
+
+  onNextBtnClicked(): void {
+    switch(this.selectedFormModule) {
+        case RegisterFormModules.VALIDATION:
+    this.handleFormRegister();
+    console.log(this.displayError);
+
+    break;
+        case RegisterFormModules.PERSONAL:
+    this.selectedFormModule = RegisterFormModules.SPOUSE;
+    this.setSelectedNavItem(RegisterFormModules.SPOUSE)
+    break;
+        case RegisterFormModules.CHILDREN:
+    this.selectedFormModule = RegisterFormModules.BUSINESS;
+    this.setSelectedNavItem(RegisterFormModules.BUSINESS)
+    break;
+        case RegisterFormModules.SPOUSE:
+    this.selectedFormModule = RegisterFormModules.CHILDREN;
+    this.setSelectedNavItem(RegisterFormModules.CHILDREN)
+    break;
+        case RegisterFormModules.BUSINESS:
+    this.selectedFormModule = RegisterFormModules.VALIDATION;
+    this.setSelectedNavItem(RegisterFormModules.VALIDATION)
+    break;
+  }
+    }
+
+  changePasswordValidinput(event: any) {
+    this.passwordValidInput = event.target.value;
+  }
+
+  checkPassword() {
+    const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
+    if (this.passwordValidInput === realPass) {
+      this.passwordValid = true;
+    } else {
+      this.passwordValid = false;
+    }
+  }
+
+  navigateclicked(event: IItemNavigate): void {
+    switch(event.name) {
+        case "פרטים אישיים":
+    this.selectedFormModule = this.registerFormModules.PERSONAL
+    break;
+
+        case "פרטי בן/בת זוג":
+    this.selectedFormModule = this.registerFormModules.SPOUSE
+    break;
+
+        case "פרטי ילדים":
+    this.selectedFormModule = this.registerFormModules.CHILDREN
+    break;
+
+        case "פרטי עסק":
+    this.selectedFormModule = this.registerFormModules.BUSINESS
+    break;
+
+        case "סיסמא ואימות":
+    this.selectedFormModule = this.registerFormModules.VALIDATION
+    break;
+
+        default:
+    this.selectedFormModule = this.registerFormModules.PERSONAL
+    break;
+  }
+    }
+
+    private setSelectedNavItem(selectedModule: RegisterFormModules) {
+    this.itemsNavigate.forEach((item: IItemNavigate) =>
+      item.selected = item.id === selectedModule
+    )
+  }
+
+  navigateToLogin(): void {
+    this.router.navigate(['login']);
+  }
 
 }

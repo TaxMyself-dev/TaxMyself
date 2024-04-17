@@ -1,3 +1,4 @@
+import { IsOptional } from 'class-validator';
 import { 
     Entity, 
     Column, 
@@ -19,8 +20,9 @@ export class Child {
     @Column()
     childID: string;
 
-    @Column('timestamp')
-    childDate: Date;
+    @IsOptional()
+    @Column('date')
+    childDate: String;
 
     @Column()
     fatherID: string;

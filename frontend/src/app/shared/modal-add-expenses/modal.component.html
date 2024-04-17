@@ -25,15 +25,7 @@
                 [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input>
               <span position="fixed" class="supplier-span" (click)="openSelectSupplier($event)"
                 *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span>
-
             </ng-container>
-
-            <!-- <ng-container *ngSwitchCase="formTypes.NUMBER">
-              <ion-input class="input-expense" label="{{col.value}}" label-placement="floating"
-                [formControlName]="col.name" type="number">
-              </ion-input>
-            </ng-container> -->
-
             <ng-container *ngSwitchCase="formTypes.DATE">
               <ion-input required="true" [max]=maxDate class="input-expense date" label="{{col.value}}"
                 label-placement="floating" fill="outline" [formControlName]="col.name" type="date">

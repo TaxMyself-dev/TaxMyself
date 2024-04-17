@@ -27,12 +27,13 @@ export class UsersService {
     async signup({personal,spouse,children,business,validation}:any) {
         const newChildren = children?.children;
         let newUser = {...personal, ...spouse, ...business};
-        
-        for (let i = 0; i < newChildren.length; i++){
-            const child: Child = children[i];
-            const newChild =  this.child_repo.create(child);
-            newChild.fatherID = personal.firebaseId
-            const addChild = await this.child_repo.save(newChild);
+        if (newChildren.length > 0) {
+            for (let i = 0; i < newChildren.length; i++){
+                const child: Child = newChildren[i];
+                const newChild =  this.child_repo.create(child);
+                newChild.fatherID = personal.firebaseId
+                const addChild = await this.child_repo.save(newChild);
+            }
         }
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);

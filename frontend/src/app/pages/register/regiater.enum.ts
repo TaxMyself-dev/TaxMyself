@@ -22,7 +22,8 @@ export enum RegisterFormControls {
         BUSINESSFIELD = "businessField",
         BUSINESSNAME = "businessName",
         BUSINESSID = "businessID",
-        BUSINESSDATE = "businessDate"
+        BUSINESSDATE = "businessDate",
+        BUSINESSINVENTORY = "businessInventory",
 
 }
 
