@@ -6,6 +6,7 @@ import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject } 
 import { HttpClient } from '@angular/common/http';
 import { UserCredential } from '@firebase/auth-types';
 import { sendEmailVerification } from '@angular/fire/auth';
+import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -53,7 +54,10 @@ export class AuthService {
   }
 
   signIn(user: UserCredential): any {
-    const url = 'http://localhost:3000/auth/signin'
+    const url = `${environment.apiUrl}auth/signin`
+    console.log("url is ",url);
+    console.log("firebase is ",environment.firebase);
+    
     return from(user.user.getIdToken())
       .pipe(
         catchError((err) => {
@@ -110,7 +114,7 @@ export class AuthService {
         }),
         tap(() => this.isVerfyEmail$.next(true)),
         switchMap(() => {
-          const url = 'http://localhost:3000/auth/signup'
+          const url = `${environment.apiUrl}auth/signup`
           formData.personal.firebaseId = uid;
           return this.http.post(url, formData);
 

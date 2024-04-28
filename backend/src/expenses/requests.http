@@ -20,6 +20,25 @@ content-type: application/json
 }
 
 ###
+POST https://taxmys16elf-prod-tau7bgxb3q-zf.a.run.app/expenses/add-expense
+content-type: application/json
+
+{
+  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImFlYzU4NjcwNGNhOTZiZDcwMzZiMmYwZDI4MGY5NDlmM2E5NzZkMzgiLCJ0eXAiOiJKV1QifQ.eyJyb2xlIjoiYWRtaW4iLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vdGF4bXlzZWxmLTVkOGEwIiwiYXVkIjoidGF4bXlzZWxmLTVkOGEwIiwiYXV0aF90aW1lIjoxNzA4MDA3NjAzLCJ1c2VyX2lkIjoiTDVnSmtyZFFaNWdHbXRlNVh4UmdhZ2txcE9MMiIsInN1YiI6Ikw1Z0prcmRRWjVnR210ZTVYeFJnYWdrcXBPTDIiLCJpYXQiOjE3MDgwMDc2MDMsImV4cCI6MTcwODAxMTIwMywiZW1haWwiOiJoYXJlbGF6YXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImhhcmVsYXphckBnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.JUPmVWbcrI3nDL_1P7t5Nwq7MCnWWrdomJ9zGjEfYHYmjk8KqIEFqjKL1u6aXhzlWAuOPwpIH6rE2T1qlVs6iNzSyRmyynWeJHvZEYgG1L8Wlx0VSxBH2_z-p1cqmc9kNXIMVK0FiEU7HrkxzstD99LIggUJoxiCPSNrz1GBuXvRZQ4IT43laYdB2sYCdqmnKXgL1Mym1-pycwBnfYtcvTYY7p57ZEMvZDr4kwYPKYwj4mazClRD910qdNBcSC_gWQhd-CMDk73yS7dxtHjuelGRIFKJGp1hz56LUSrivQhMVDaxf3lUPzSP8Oj3iUQLLATqmYf3ccKibxkst4zoMg",
+  "supplier": "הוצאות דלק",
+  "supplierId": "239458",
+  "expenseNumber": "324234",
+  "category": "רכב",
+  "subCategory": "דלק",
+  "sum": 850,
+  "taxPercent": 25,
+  "vatPercent": 45,
+  "date": "2023-08-25T10:00:00Z",
+  "isEquipment": false
+}
+
+
+###
 PATCH http://localhost:3000/expenses/update-expense/90
 content-type: application/json
 

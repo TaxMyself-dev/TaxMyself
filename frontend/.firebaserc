@@ -1,12 +1,20 @@
 {
   "projects": {
-    "default": "taxmyself-5d8a0"
+    "dev": "taxmyself-5d8a0",
+    "prod": "taxmyself-prod"
   },
   "targets": {
     "taxmyself-5d8a0": {
       "hosting": {
         "app": [
           "taxmyself-5d8a0"
+        ]
+      }
+    },
+    "taxmyself-prod": {
+      "hosting": {
+        "app": [
+          "taxmyself-prod"
         ]
       }
     }

@@ -104,7 +104,7 @@ export class MyStoragePage implements OnInit {
     const options = {
       params: new HttpParams().set("token",token),
     }
-    const url = 'http://localhost:3000/expenses/delete-expense/' + event
+    const url = '${environment.apiUrl}expenses/delete-expense/' + event
     this.getLoader()
     .pipe(
       finalize(() => this.loadingController.dismiss()),

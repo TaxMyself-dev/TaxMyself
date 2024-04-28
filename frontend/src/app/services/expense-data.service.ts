@@ -3,6 +3,7 @@ import { IColumnDataTable, IGetSupplier, IRowDataTable } from '../shared/interfa
 import { Observable, Subject } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../shared/enums';
+import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -76,7 +77,8 @@ export class ExpenseDataService {
   }
 
   getExpenseByUser(userID?: string): Observable<IRowDataTable[]> {
-    const url = "http://localhost:3000/expenses/get_by_userID";
+    //const url = this.baseURL+"/expenses/get_by_userID";
+    const url = `${environment.apiUrl}expenses/get-sub-categories-list`;
     const options = {
       params: new HttpParams().set("userID", userID),
     }
@@ -93,7 +95,7 @@ export class ExpenseDataService {
 
   getSubCategory(category: string, isEquipment: boolean): Observable<any> {
     console.log("coldata:", category);
-    const url = 'http://localhost:3000/expenses/get-sub-categories-list';
+    const url = '${environment.apiUrl}expenses/get-sub-categories-list';
     const params = new HttpParams()
       .set('isEquipment', isEquipment)
       .set('category', category);
@@ -101,7 +103,7 @@ export class ExpenseDataService {
   }
 
   getcategry(isEquipment: boolean): Observable<any[]> {
-    const url = 'http://localhost:3000/expenses/get-categories-list'
+    const url = '${environment.apiUrl}expenses/get-categories-list'
     const param = new HttpParams()
       .set('isEquipment', isEquipment);
     return this.http.get<any>(url, { params: param })
@@ -109,19 +111,19 @@ export class ExpenseDataService {
 
   getAllSuppliers(): Observable<IGetSupplier[]> {
     const token = localStorage.getItem('token');
-    const url = 'http://localhost:3000/expenses/get-suppliers-list';
+    const url = '${environment.apiUrl}expenses/get-suppliers-list';
     const param = new HttpParams()
       .set('token', token);
     return this.http.get<IGetSupplier[]>(url, { params: param })
   }
 
   addSupplier(formData: any): Observable<any> {
-    const url = "http://localhost:3000/expenses/add-supplier";
+    const url = "${environment.apiUrl}expenses/add-supplier";
     return this.http.post(url, formData);
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
-    const url = "http://localhost:3000/expenses/update-supplier/" + id;
+    const url = "${environment.apiUrl}expenses/update-supplier/" + id;
     return this.http.patch(url, formData);
   }
 
@@ -129,17 +131,17 @@ export class ExpenseDataService {
     const token = localStorage.getItem('token');
     const param = new HttpParams()
       .set('token', token);
-    const url = "http://localhost:3000/expenses/delete-supplier/" + id;
+    const url = "${environment.apiUrl}expenses/delete-supplier/" + id;
     return this.http.delete(url, { params: param });
   }
 
   addExpenseData(data: any): Observable<any> {
     console.log("formdata in send",data);
-    return this.http.post('http://localhost:3000/expenses/add-expense', data);
+    return this.http.post('${environment.apiUrl}expenses/add-expense', data);
   }
 
   updateExpenseData(data: any, id: number): Observable<any> {
-    return this.http.patch('http://localhost:3000/expenses/update-expense/' + id, data);
+    return this.http.patch('${environment.apiUrl}expenses/update-expense/' + id, data);
   }
 
 

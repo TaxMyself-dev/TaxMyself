@@ -1,20 +1,10 @@
 {
-  "hosting": [
-    {
-      "public": "public",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ]
-    },
-    {
-      "target": "app",
-      "source": ".",
-      "frameworksBackend": {}
-    }
-  ],
-  "storage": {
-    "rules": "gs://taxmyself-5d8a0.appspot.com.rules"
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
   }
 }

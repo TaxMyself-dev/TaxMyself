@@ -58,7 +58,7 @@ export class FilesService {
   }
 
   getSuppliersList(token: string): Observable<any> {
-    const url = "http://localhost:3000/expenses/get-suppliers-list";
+    const url = "${environment.apiUrl}expenses/get-suppliers-list";
     const options = {
       params: new HttpParams().set("token", token),
     }
@@ -66,14 +66,14 @@ export class FilesService {
   }
 
   addSupplier(formData: any): Observable<any> {
-    const url = "http://localhost:3000/expenses/add-supplier";
+    const url = "${environment.apiUrl}expenses/add-supplier";
     return this.http.post(url, formData);
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
     console.log("id in edit to server", id);
 
-    const url = "http://localhost:3000/expenses/update-supplier/" + id;
+    const url = "${environment.apiUrl}expenses/update-supplier/" + id;
     return this.http.patch(url, formData);
   }
 }

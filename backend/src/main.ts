@@ -7,13 +7,6 @@ const cookieSession = require('cookie-session');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule,{ bodyParser: false });
-  // Initialize Firebase Admin SDK
-  // const serviceAccount = require('./auth/firebaseServiceAccount.json');
-  // admin.initializeApp({
-  //   credential: admin.credential.cert(serviceAccount),
-  //   // Add any other configuration options you may need
-  // });
-  
   app.use(
     cookieSession({
       keys: ['badcabab'],
@@ -27,7 +20,12 @@ async function bootstrap() {
   app.use(require('cors')());
 
   app.use(bodyParser.json({ limit: '50mb' }));
+  console.log("debug_port is", process.env.PORT);
+  
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  //TODO: Update for Production 
+  //await app.listen(8080);
+  //await app.listen(parseInt(process.env.PORT) || 8080);
   await app.listen(3000);
 
 }
