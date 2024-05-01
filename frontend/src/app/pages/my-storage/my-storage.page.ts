@@ -5,6 +5,7 @@ import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, 
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-my-storage',
@@ -104,7 +105,7 @@ export class MyStoragePage implements OnInit {
     const options = {
       params: new HttpParams().set("token",token),
     }
-    const url = '${environment.apiUrl}expenses/delete-expense/' + event
+    const url = `${environment.apiUrl}expenses/delete-expense/` + event
     this.getLoader()
     .pipe(
       finalize(() => this.loadingController.dismiss()),

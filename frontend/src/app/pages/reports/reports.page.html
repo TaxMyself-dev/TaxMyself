@@ -1,8 +1,5 @@
 <app-custom-toolbar></app-custom-toolbar>
 
 <div class="flex-center">
-    <ion-button class="menu-button" href="/income-statement">דו"ח רווח והפסד</ion-button>
-    <ion-button class="menu-button" href="/vat-report">דו"ח מע"מ</ion-button>
-    <ion-button class="menu-button" href="/annual-report">דו"ח שנתי</ion-button>
-    <ion-button class="menu-button" href="/advance-income-tax-report">דו"ח מקדמות למס הכנסה</ion-button>
-  </div>
+  <app-item-navigate [navigationItems]="itemsNavigate"></app-item-navigate>
+</div>

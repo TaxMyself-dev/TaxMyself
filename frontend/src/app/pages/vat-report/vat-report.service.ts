@@ -11,7 +11,7 @@ export class VatReportService {
   constructor(private http: HttpClient) { };
 
   getVatReportData(startDate: Date, endDate: Date, vatableTurnover: number, nonVatableTurnover: number, token: string): Observable<any> {
-    const url = '${environment.apiUrl}reports/vat-report';
+    const url = `${environment.apiUrl}reports/vat-report`;
     const param = new HttpParams()
       .set('startDate', startDate.toISOString())
       .set('endDate', endDate.toISOString())
