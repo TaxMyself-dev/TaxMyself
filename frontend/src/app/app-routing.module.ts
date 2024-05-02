@@ -23,7 +23,8 @@ const routes: Routes = [
   },
   {
     path: 'my-account',
-    loadChildren: () => import('./pages/my-account/my-account.module').then( m => m.MyAccountPageModule)
+    loadChildren: () => import('./pages/my-account/my-account.module').then( m => m.MyAccountPageModule),
+    // canActivate: [AuthGuard] 
   },
   {
     path: 'login',

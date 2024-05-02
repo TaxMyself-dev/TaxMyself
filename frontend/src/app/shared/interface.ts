@@ -32,7 +32,8 @@ export interface IItemNavigate{
     link?: string,
     icon: string,
     selected?: boolean,
-    id?: string
+    id?: string,
+    index: string
 };
 
 

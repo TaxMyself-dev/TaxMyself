@@ -17,12 +17,17 @@ export class ItemNavigateComponent  implements OnInit{
   @Output() onNavButtonClicked = new EventEmitter<IItemNavigate>();
   columns: IColumnDataTable[];//Titles of expense
 
+  page: string;
+
 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController) { }
 
 
   ngOnInit() {
     this.columns = this.expenseDataServise.getAddExpenseColumns()
+    this.page = this.router.url;
+    console.log(this.page);
+    
   }
 
   onButtonClicked(selectedItem: IItemNavigate): void {
@@ -33,9 +38,11 @@ export class ItemNavigateComponent  implements OnInit{
     if (selectedItem.link != "" ){
       this.router.navigate([selectedItem.link])
     }
-    this.navigationItems.forEach((item: IItemNavigate) => 
+ 
+      this.navigationItems.forEach((item: IItemNavigate) => 
       item.selected = item.name === selectedItem.name
-    )
+      )
+    
     this.onNavButtonClicked.emit(selectedItem);
   }
 

@@ -21,6 +21,10 @@ ion-content .register-content {
   justify-content: space-around; 
   align-items: center ;
   height: 100%; 
+
+  @media only screen and (max-width:495px) {
+    justify-content: normal;
+  }
 }
 
 .form-register{
@@ -62,7 +66,7 @@ ion-content .register-content {
   display: flex;
   justify-content: space-around;
   background-color: transparent;
-  width: 70%;
+  width: 100%;
 }
 
 .text-error{
