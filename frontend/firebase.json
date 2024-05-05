@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "Taxmyself",
+    "public": "frontend",
     "ignore": [
       "firebase.json",
       "**/.*",

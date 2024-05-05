@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "Taxmyself": {
+    "app": {
       "projectType": "application",
       "schematics": {},
       "root": "",
