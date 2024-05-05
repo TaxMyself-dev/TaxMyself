@@ -253,7 +253,7 @@ export class ModalExpensesComponent {
       }),
       switchMap(() => this.getFileData()),
       catchError((err) => {
-        alert('Something Went Wrong in first catchError: ' + err.error.message.join(', '))
+        alert('Something Went Wrong in first catchError: ' + err.message)
         return EMPTY;
       }),
       map((res) => {

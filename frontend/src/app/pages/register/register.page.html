@@ -72,18 +72,15 @@
           <!-----date of birth----->
           <ion-input class="input-register" type="date" [max]="today" label-placement="floating" fill="outline"
             label="תאריך לידה" [formControlName]="registerFormControls.DATEOFBIRTH"></ion-input>
-          <!---------city  TODO: list from the net----->
-          <ion-input class="input-register" label="עיר" clear-input="true" spellcheck="true" slot="end" type="text"
-            label-placement="floating" fill="outline" placeholder="עיר" formControlName="city"></ion-input>
-
-          <!-- <ion-select class="input-register" formControlName="city" label="עיר" placeholder="עיר" label-placement="floating" fill="outline"  interface="popover">
-              <ion-select-option *ngFor="let city of cities">{{city.name}}</ion-select-option>
-            </ion-select> -->
+          <!---------city ----->
+          <ion-select class="input-register" formControlName="city" label="עיר" placeholder="עיר" label-placement="floating" fill="outline"  interface="action-sheet">
+              <ion-select-option *ngFor="let city of cities$ | async">{{city.name}}</ion-select-option>
+            </ion-select>
           <!--------------- employee ------------->
-          <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="האם אתה גם שכיר?"
+          <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="סטטוס תעסוקתי"
             fill="outline" label-placement="floating" interface="popover">
-            <ion-select-option *ngFor="let option of employeeList"
-              [value]="option.value">{{option.name}}</ion-select-option>
+            <ion-select-option *ngFor="let option of EmploymentStatusList"
+              [value]="option.value">{{option.key}}</ion-select-option>
           </ion-select>
           <!--------- family status----->
           <ion-select [formControlName]="registerFormControls.FAMILYSTATUS" class="input-register" label="מצב משפחתי"
@@ -102,23 +99,23 @@
           <ion-input class="input-register" type="text" label="שם פרטי" label-placement="floating" fill="outline"
             placeholder="שם פרטי בן / בת הזוג" [formControlName]="registerFormControls.SPOUSEFIRSTNAME"></ion-input>
           <!--------last name------->
-          <ion-input class="input-register" type="text" label="שם משפחה בן / בת הזוג" label-placement="floating"
+          <ion-input class="input-register" type="text" label="שם משפחה" label-placement="floating"
             fill="outline" placeholder="הכנס שם משפחה"
             [formControlName]="registerFormControls.SPOUSELASTNAME"></ion-input>
           <!-------id number------->
-          <ion-input class="input-register" type="text" label="תעודת זהות בן / בת הזוג" label-placement="floating"
+          <ion-input class="input-register" type="text" label="תעודת זהות" label-placement="floating"
             fill="outline" placeholder="הכנס תעודת זהות" [formControlName]="registerFormControls.SPOUSEID"></ion-input>
           <!-----date of birth----->
           <ion-input class="input-register" type="date" [max]="today" label-placement="floating" fill="outline"
             label="תאריך לידה" [formControlName]="registerFormControls.SPOUSEDATEOFBIRTH"></ion-input>
           <!-------- phone------->
           <ion-input class="input-register" type="text" label="מספר פלאפון" label-placement="floating" fill="outline"
-            placeholder="פלאפון בן / בת הזוג" [formControlName]="registerFormControls.SPOUSEPHONE"></ion-input>
+            placeholder="פלאפון" [formControlName]="registerFormControls.SPOUSEPHONE"></ion-input>
           <!---independet || employee---->
           <ion-select [formControlName]="registerFormControls.SPOUSEINDEPENDET" class="input-register"
-            label="בן/בת הזוג עצמאי או שכיר" fill="outline" label-placement="floating" interface="popover">
-            <ion-select-option *ngFor="let option of employeeList"
-              [value]="option.value">{{option.name}}</ion-select-option>
+            label="סטטוס תעסוקתי" fill="outline" label-placement="floating" interface="popover">
+            <ion-select-option *ngFor="let option of EmploymentStatusList"
+              [value]="option.value">{{option.key}}</ion-select-option>
           </ion-select>
         </form>
       </ng-container>
@@ -176,7 +173,7 @@
                 [value]="option.key">{{option.value}}</ion-select-option>
             </ion-select>
             <!--------------- Business type ------------->
-            <ion-select [formControlName]="registerFormControls.BUSINESSTYPE" class="input-register" label="תחום העסק"
+            <ion-select [formControlName]="registerFormControls.BUSINESSTYPE" class="input-register" label="סוג העסק"
               fill="outline" label-placement="floating" interface="popover">
               <ion-select-option *ngFor="let option of listBusinessType"
                 [value]="option.key">{{option.value}}</ion-select-option>

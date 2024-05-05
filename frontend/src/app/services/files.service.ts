@@ -4,17 +4,16 @@ import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@an
 import { log } from 'console';
 import { nanoid } from 'nanoid';
 import { Observable, from, of, throwError } from 'rxjs';
+import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class FilesService {
 
-  uniqueId: string;
-  arrayFolder = ["111", "2222", "3333"];//id folder for user. change to our id of user
+  uniqueIdFile: string;
 
-
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient) {}
 
   public async downloadFile(urlFile: string) {
     console.log("in dowmload file");
@@ -50,15 +49,18 @@ export class FilesService {
   }
 
   uploadFileViaFront(base64String: string): Observable<any> {
+    const tempA = localStorage.getItem('user');
+    const tempB = JSON.parse(tempA)
+    const uid = tempB.uid;
     const i = Math.floor((Math.random() * 100) % 3);
-    this.uniqueId = nanoid();
+    this.uniqueIdFile = nanoid();
     const storage = getStorage(); // bucket root
-    const fileRef = ref(storage, this.arrayFolder[i] + "/" + this.uniqueId); // full path relative to bucket's root
+    const fileRef = ref(storage, `users/${uid}/deductibleExp/${this.uniqueIdFile}`); // full path relative to bucket's root
     return from(uploadString(fileRef, base64String, 'data_url'));
   }
 
   getSuppliersList(token: string): Observable<any> {
-    const url = "${environment.apiUrl}expenses/get-suppliers-list";
+    const url = `${environment.apiUrl}expenses/get-suppliers-list`;
     const options = {
       params: new HttpParams().set("token", token),
     }
@@ -66,14 +68,12 @@ export class FilesService {
   }
 
   addSupplier(formData: any): Observable<any> {
-    const url = "${environment.apiUrl}expenses/add-supplier";
+    const url = `${environment.apiUrl}expenses/add-supplier`;
     return this.http.post(url, formData);
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
-    console.log("id in edit to server", id);
-
-    const url = "${environment.apiUrl}expenses/update-supplier/" + id;
+    const url = `${environment.apiUrl}expenses/update-supplier/${id}`;
     return this.http.patch(url, formData);
   }
 }
