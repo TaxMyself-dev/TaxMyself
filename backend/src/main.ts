@@ -17,7 +17,7 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
-  app.use(require('cors')());
+  app.use(require('cors')('*'));
 
   app.use(bodyParser.json({ limit: '50mb' }));
   console.log("debug_port is", process.env.PORT);
