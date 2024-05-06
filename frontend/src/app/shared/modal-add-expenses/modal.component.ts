@@ -264,6 +264,9 @@ export class ModalExpensesComponent {
         return this.setFormData(filePath, token);
       }),
       switchMap((res) => this.expenseDataServise.addExpenseData(res)),
+      finalize(() => {
+        this.modalCtrl.dismiss();
+      }),
       catchError((err) => {
         console.log(err);
         if (err.status == 401) {
@@ -381,10 +384,6 @@ export class ModalExpensesComponent {
     
     from(this.modalCtrl.create({
       component: selectSupplierComponent,
-      //event: ev,
-      // translucent: false,
-      componentProps: {
-      }
     })).pipe(
       catchError((err) => {
         console.log("openSelectSupplier failed in create ", err);
@@ -663,15 +662,15 @@ export class ModalExpensesComponent {
     // this.myForm.patchValue({reductionPercent: data.reductionPercent});//TODO: add to supplier table
   }
 
-  toggleEnlarged(ev :Event): void {
-    ev.stopPropagation();
-    ev.preventDefault();
-    console.log("asdfghjkl;lkjhgfdsasdfghjkl;lkjhgfd");
-    console.log(this.isEnlarged);
+  // toggleEnlarged(ev :Event): void {
+  //   ev.stopPropagation();
+  //   ev.preventDefault();
+  //   console.log("asdfghjkl;lkjhgfdsasdfghjkl;lkjhgfd");
+  //   console.log(this.isEnlarged);
     
-    this.isEnlarged = !this.isEnlarged;
-    console.log(this.isEnlarged);
-  }
+  //   this.isEnlarged = !this.isEnlarged;
+  //   console.log(this.isEnlarged);
+  // }
 
   displayFile(): any {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string; 
