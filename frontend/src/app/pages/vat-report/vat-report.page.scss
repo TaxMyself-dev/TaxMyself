@@ -81,8 +81,9 @@
 .wrap-buttons{
   width: 75%;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .report-title{

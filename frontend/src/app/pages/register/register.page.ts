@@ -1,10 +1,11 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray } from '@angular/forms';
 import { RegisterService } from './register.service';
-import { IItemNavigate } from 'src/app/shared/interface';
+import { ICityData, IItemNavigate } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
+import { BehaviorSubject, Observable, map, startWith, tap } from 'rxjs';
 
 @Component({
   selector: 'app-register',
@@ -16,7 +17,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormControls = RegisterFormControls;
 
   myForm: FormGroup;
-  cities: any;
+  cities$: Observable<ICityData[]>;
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
   today!: string;
@@ -24,9 +25,10 @@ export class RegisterPage implements OnInit, OnDestroy {
   passwordValid = true;
   displayError: string = "disabled";
   passwordValidInput!: string;
+  EmploymentStatusList = [{key: "עצמאי", value: 0}, {key: "שכיר", value: 1}, {key: "עצמאי ושכיר", value: 2}];
   listBusinessField = [{ key: "build", value: "בניין" }, { key: "electric", value: "חשמל" }, { key: "photo", value: "צילום" }, { key: "architecture", value: "אדריכלות" }]
   listBusinessType = [{ key: "licensed", value: "עוסק מורשה" }, { key: "exempt", value: "עוסק פטור" }, { key: "company", value: "חברה" }]
-  itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION }]
+  itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one'}, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
@@ -86,14 +88,7 @@ export class RegisterPage implements OnInit, OnDestroy {
     })
 
     const childrenForm = this.formBuilder.group({
-      [RegisterFormControls.CHILDREN]: this.formBuilder.array([
-        // this.formBuilder.group({
-        //   childFName: ['', ],
-        //   childLName: ['', ],
-        //   childID: ['', Validators.pattern(/^\d{9}$/)],
-        //   childDate: ['', ]
-        // })
-      ]),
+      [RegisterFormControls.CHILDREN]: this.formBuilder.array([]),
     })
 
     const businessForm = this.formBuilder.group({
@@ -175,11 +170,14 @@ ngOnDestroy(): void {
   }
 
   gelAllCities(): any {
-    this.registerService.getCities()
-    .subscribe((res) => {
-      console.log(res);
-      this.cities = res;
-    })
+    this.cities$ = this.registerService.getCities().pipe(startWith([]), map((res) => {
+      if (res.length) {
+        return res.slice(1);
+      }
+      else {
+        return [];
+      }
+    }));
   }
 
   addChild() {

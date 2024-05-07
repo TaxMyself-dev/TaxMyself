@@ -18,7 +18,7 @@
       <!-- <div class="select-month"> -->
         <p class="report-title">פרטי דו"ח</p>
       <ion-select class="input-vat-report" (ionChange)="slectedTypeReport($event)" label-placement="floating"
-        interface="popover" fill="outline" label='חודשי / דו-חודשי'>
+        interface="action-sheet" fill="outline" label='חודשי / דו-חודשי'>
         <ion-select-option *ngFor="let option of optionTypeReport"
           [value]="option.key">{{option.value}}</ion-select-option>
       </ion-select>
@@ -27,7 +27,7 @@
       </select> -->
       <!-- </div> -->
       <!-- <div class="select-month"> -->
-      <ion-select class="input-vat-report" formControlName="month" label-placement="floating" interface="popover"
+      <ion-select class="input-vat-report" formControlName="month" label-placement="floating" interface="action-sheet"
         fill="outline" label="בחר חודשי דוח">
         <ion-select-option *ngFor="let month of months" [value]="month.value">{{month.name}}</ion-select-option>
       </ion-select>
@@ -38,7 +38,7 @@
       <!-- </div> -->
       <!-- <div> -->
       <!-- select year -->
-      <ion-select class="input-vat-report" formControlName="year" label-placement="floating" interface="popover"
+      <ion-select class="input-vat-report" formControlName="year" label-placement="floating" interface="action-sheet"
         fill="outline" label='בחר שנה'>
         <ion-select-option *ngFor="let year of years" [value]="year">{{year}} </ion-select-option>
       </ion-select>
@@ -67,8 +67,8 @@
       </div>
     </ng-container>
     <div class="wrap-buttons">
-      <app-button buttonText="פירוט הוצאות" [buttonSize]="ButtonSize.SMALL"></app-button>
-      <app-button buttonText="לתשלום באתר מעמ" [buttonSize]="ButtonSize.SMALL" href="" target="_blank"></app-button>
+      <app-button buttonText="פירוט הוצאות"></app-button>
+      <app-button buttonText="לתשלום באתר מעמ" href="" target="_blank"></app-button>
     </div>
   </div>
 

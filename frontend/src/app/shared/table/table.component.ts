@@ -49,7 +49,8 @@ export class TableComponent {
     const fileName = selectedExpense.file;
     if (!(fileName === undefined || fileName === "" || fileName === null)) {
       from(this.filesService.downloadFile(fileName as string)).pipe(catchError((err) => {
-        alert("can't open file");
+        console.log("err in try to open file: ", err);
+        alert("לא ניתן לפתוח את הקובץ");
         return EMPTY;
       })).subscribe((fileUrl) => {
         window.open(fileUrl.file, '_blank');

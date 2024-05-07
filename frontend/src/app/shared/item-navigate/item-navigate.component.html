@@ -1,6 +1,6 @@
 
 <ion-list class="nav-buttons-wrapper">
-  <ion-button *ngFor="let item of navigationItems" class="button-item-navigate" shape="round" [class.selected]="item.selected" (click)="onButtonClicked(item)">
+  <ion-button *ngFor="let item of navigationItems" [class]="item.index" [ngClass]="{'button-item-navigate-register': page === '/register', 'button-item-navigate-my-account': page === '/my-account'}" shape="round" [class.selected]="item.selected" (click)="onButtonClicked(item)">
     <div class="button-content">
       <ion-icon class="icon-nav" size="large" *ngIf="item.icon" [name]="item.icon"></ion-icon>
       <ion-label class="label-item">{{item.name}}</ion-label>

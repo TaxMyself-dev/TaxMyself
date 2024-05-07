@@ -26,9 +26,6 @@ export class ExpenseDataService {
     { name: ExpenseFormColumns.REDUCTION_PERCENT, value: ExpenseFormHebrewColumns.reductionPercent, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.NOTE, value: ExpenseFormHebrewColumns.note, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.FILE },
-    // {name: ExpenseFormColumns.LOADING_DATE, value: ExpenseFormHebrewColumns.loadingDate, type:FormTypes.DATE},
-    // {name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type:FormTypes.NUMBER},
-    // {name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type:FormTypes.NUMBER}
   ];
 
   private readonly columnsDisplayExpense: IColumnDataTable[] = [
@@ -37,17 +34,10 @@ export class ExpenseDataService {
     { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
-    // { name: ExpenseFormColumns.EXPENSE_NUMBER, value: ExpenseFormHebrewColumns.expenseNumber, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.TEXT },
-    // { name: ExpenseFormColumns.SUPPLIER_ID, value: ExpenseFormHebrewColumns.supplierID, type: FormTypes.TEXT },
-    // { name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.FILE },
-    // { name: ExpenseFormColumns.NOTE, value: ExpenseFormHebrewColumns.note, type: FormTypes.TEXT },
-    // { name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL },
-    // { name: ExpenseFormColumns.LOADING_DATE, value: ExpenseFormHebrewColumns.loadingDate, type: FormTypes.DATE },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
-    // { name: ExpenseFormColumns.REDUCTION_PERCENT, value: ExpenseFormHebrewColumns.reductionPercent, type: FormTypes.TEXT },
   ];
 
   public readonly columnsAddExpenseOrder = [
@@ -78,7 +68,7 @@ export class ExpenseDataService {
 
   getExpenseByUser(userID?: string): Observable<IRowDataTable[]> {
     //const url = this.baseURL+"/expenses/get_by_userID";
-    const url = `${environment.apiUrl}expenses/get-sub-categories-list`;
+    const url = `${environment.apiUrl}expenses/get_by_userID`;
     const options = {
       params: new HttpParams().set("userID", userID),
     }
@@ -94,7 +84,6 @@ export class ExpenseDataService {
   }
 
   getSubCategory(category: string, isEquipment: boolean): Observable<any> {
-    console.log("coldata:", category);
     const url = `${environment.apiUrl}expenses/get-sub-categories-list`;
     const params = new HttpParams()
       .set('isEquipment', isEquipment)
@@ -141,7 +130,9 @@ export class ExpenseDataService {
   }
 
   updateExpenseData(data: any, id: number): Observable<any> {
-    return this.http.patch(`${environment.apiUrl}expenses/update-expense/` + id, data);
+    console.log("id of update: ", id);
+    
+    return this.http.patch(`${environment.apiUrl}expenses/update-expense/${id}`, data);
   }
 
 
