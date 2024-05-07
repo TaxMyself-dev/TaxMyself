@@ -1,7 +1,9 @@
+import 'dotenv/config'
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import * as admin from 'firebase-admin';
+
 const bodyParser = require('body-parser');
 const cookieSession = require('cookie-session');
 
@@ -23,10 +25,7 @@ async function bootstrap() {
   console.log("debug_port is", process.env.PORT);
   
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  //TODO: Update for Production 
-  //await app.listen(8080);
-  //await app.listen(parseInt(process.env.PORT) || 8080);
-  await app.listen(3000);
+  await app.listen(parseInt(process.env.PORT) || 8080);
 
 }
 bootstrap();

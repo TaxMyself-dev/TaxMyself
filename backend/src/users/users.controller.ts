@@ -16,7 +16,6 @@ export class UsersController {
     @Post('/signup')
     async createUser(@Body() body: any) {
         const user = await this.userService.signup(body);
-        console.log("new user", user);
         return body; //TODO: Elazar - check if it's necessary to return the body
     }
 

@@ -4,6 +4,7 @@ import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@an
 import { log } from 'console';
 import { nanoid } from 'nanoid';
 import { Observable, from, of, throwError } from 'rxjs';
+import { environment } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -58,7 +59,7 @@ export class FilesService {
   }
 
   getSuppliersList(token: string): Observable<any> {
-    const url = "${environment.apiUrl}expenses/get-suppliers-list";
+    const url = `${environment.apiUrl}expenses/get-suppliers-list`;
     const options = {
       params: new HttpParams().set("token", token),
     }
@@ -66,14 +67,14 @@ export class FilesService {
   }
 
   addSupplier(formData: any): Observable<any> {
-    const url = "${environment.apiUrl}expenses/add-supplier";
+    const url = `${environment.apiUrl}expenses/add-supplier`;
     return this.http.post(url, formData);
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
     console.log("id in edit to server", id);
 
-    const url = "${environment.apiUrl}expenses/update-supplier/" + id;
+    const url = `${environment.apiUrl}expenses/update-supplier/${id}`;
     return this.http.patch(url, formData);
   }
 }

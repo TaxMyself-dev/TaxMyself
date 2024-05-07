@@ -53,8 +53,6 @@ export class ExpensesController {
   @Delete('delete-expense/:id')
   async deleteExpense(@Param('id') id: number, @Query('token') token: string) {
     console.log("controller delete expense - Start");
-    console.log(token);
-    
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.deleteExpense(id, userId);
   }
@@ -122,7 +120,6 @@ export class ExpensesController {
 
   @Get('get-suppliers-list')
   async getSupplierNamesByUserId(@Query('token') token: string): Promise<SupplierResponseDto[]> {
-    console.log(token);
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.getSupplierNamesByUserId(userId);
   }

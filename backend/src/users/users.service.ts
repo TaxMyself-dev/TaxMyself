@@ -43,6 +43,7 @@ export class UsersService {
     async signin(token: string) {
         const firebaseId = await this.getFirbsaeIdByToken(token);
         const user = await this.findFireUser(firebaseId);
+        console.log("debug token");
         return user;
     }
 
