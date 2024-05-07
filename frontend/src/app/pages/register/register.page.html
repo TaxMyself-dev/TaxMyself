@@ -78,13 +78,13 @@
             </ion-select>
           <!--------------- employee ------------->
           <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="סטטוס תעסוקתי"
-            fill="outline" label-placement="floating" interface="popover">
+            fill="outline" label-placement="floating" interface="action-sheet">
             <ion-select-option *ngFor="let option of EmploymentStatusList"
               [value]="option.value">{{option.key}}</ion-select-option>
           </ion-select>
           <!--------- family status----->
           <ion-select [formControlName]="registerFormControls.FAMILYSTATUS" class="input-register" label="מצב משפחתי"
-            fill="outline" label-placement="floating" interface="popover">
+            fill="outline" label-placement="floating" interface="action-sheet">
             <ion-select-option value="0">רווק</ion-select-option>
             <ion-select-option value="1">נשוי</ion-select-option>
             <ion-select-option value="2">גרוש</ion-select-option>
@@ -113,7 +113,7 @@
             placeholder="פלאפון" [formControlName]="registerFormControls.SPOUSEPHONE"></ion-input>
           <!---independet || employee---->
           <ion-select [formControlName]="registerFormControls.SPOUSEINDEPENDET" class="input-register"
-            label="סטטוס תעסוקתי" fill="outline" label-placement="floating" interface="popover">
+            label="סטטוס תעסוקתי" fill="outline" label-placement="floating" interface="action-sheet">
             <ion-select-option *ngFor="let option of EmploymentStatusList"
               [value]="option.value">{{option.key}}</ion-select-option>
           </ion-select>
@@ -168,13 +168,13 @@
               [formControlName]="registerFormControls.BUSINESSNAME"></ion-input>
             <!--------------- Business fields ------------->
             <ion-select [formControlName]="registerFormControls.BUSINESSFIELD" class="input-register" label="תחום העסק"
-              fill="outline" label-placement="floating" interface="popover">
+              fill="outline" label-placement="floating" interface="action-sheet">
               <ion-select-option *ngFor="let option of listBusinessField"
                 [value]="option.key">{{option.value}}</ion-select-option>
             </ion-select>
             <!--------------- Business type ------------->
             <ion-select [formControlName]="registerFormControls.BUSINESSTYPE" class="input-register" label="סוג העסק"
-              fill="outline" label-placement="floating" interface="popover">
+              fill="outline" label-placement="floating" interface="action-sheet">
               <ion-select-option *ngFor="let option of listBusinessType"
                 [value]="option.key">{{option.value}}</ion-select-option>
             </ion-select>
@@ -186,7 +186,7 @@
               label="תאריך פתיחת עסק" [formControlName]="registerFormControls.BUSINESSDATE"></ion-input>
             <!------- business inventory ----->
             <ion-select [formControlName]="registerFormControls.BUSINESSINVENTORY" class="input-register"
-              label="האם העסק מנהל מלאי?" fill="outline" label-placement="floating" interface="popover">
+              label="האם העסק מנהל מלאי?" fill="outline" label-placement="floating" interface="action-sheet">
               <ion-select-option *ngFor="let option of employeeList"
                 [value]="option.value">{{option.name}}</ion-select-option>
             </ion-select>

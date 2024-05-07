@@ -14,7 +14,7 @@
         <ng-container *ngSwitchCase="'ddl'">
           <ion-select *ngIf="field.key == 'category' || 'subCategory' || 'reductionPercent'" class="input-expense ddl"
             fill="outline" label=" * {{field.value}}" [formControlName]="field.key" label-placement="floating"
-            interface="popover" (ionChange)="onDdlSelectionChange($event, field)">
+            interface="action-sheet" (ionChange)="onDdlSelectionChange($event, field)">
             <ion-select-option *ngFor="let option of getListOptionsByKey(field.key)"
               [value]="option.value">{{option.key}}</ion-select-option>
           </ion-select>
