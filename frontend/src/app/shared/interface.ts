@@ -109,3 +109,13 @@ export interface ICityData {
     shem_moaatza: string;
     shem_napa: string;
 }
+
+export interface ITransactionData {
+    id: number;
+    name: string;
+    billDate: Date;
+    payDate: Date;
+    sum: number;
+    category: string;
+    userId: string;
+}

@@ -13,6 +13,11 @@ Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
 < transactions.xlsx
 --your-boundary--
 
+###
+GET http://localhost:3000/excel/get_by_userID?userId=N0rQ3GHjlmMEfKHUPmTUn2Tv3Y72
+
+
+
 
 
 

@@ -33,6 +33,11 @@ const routes: Routes = [
     loadChildren: () => import('./pages/login/login.module').then( m => m.LoginPageModule)
   },
   {
+    path: 'transactions',
+    loadChildren: () => import('./pages/transactions/transactions.module').then( m => m.TransactionsPageModule),
+    canActivate: [AuthGuard] 
+  },
+  {
     path: 'my-status',
     loadChildren: () => import('./pages/my-status/my-status.module').then( m => m.MyStatusPageModule),
     canActivate: [AuthGuard] 

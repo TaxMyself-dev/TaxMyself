@@ -75,5 +75,9 @@ export class TransactionsService {
     return date;
   }
 
+  async getTransactionsByUserID (userId: string) {
+    return await this.transactionsRepository.find({ where: { userId: userId } });
+  }
+
 
 }
