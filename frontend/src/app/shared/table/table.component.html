@@ -32,13 +32,10 @@
 <div class="grid-container">
   <ion-grid class="grid">
     <ion-row>
-      <ion-col
-        [size]="col.name == 'date' ? 1.5 : col.name == 'supplier' ? 1.2 : col.name == 'category' ? 1.2 : col.name == 'subCategory' ? 1.1 : 1"
-        class="row-header" [class.totalVatPayable]="col.name === 'totalVatPayable'"
-        [class.totalTaxPayable]="col.name === 'totalTaxPayable'" [class.taxPercent]="col.name === 'taxPercent'"
-        [class.vatPercent]="col.name === 'vatPercent'" [class.subCategory]="col.name === 'subCategory'"
-        [class.category]="col.name === 'category'" [class.date]="col.name === 'date'" [class.sum]="col.name === 'sum'"
-        [class.supplier]="col.name === 'supplier'" *ngFor="let col of fieldsNames">
+            <ion-col
+        *ngFor="let col of fieldsNames"
+        [size]="columnsWidth.get(col.name) ?? 1"
+        class="row-header {{col.name}}">
         {{col.value}}
       </ion-col>
       <ion-col size="2" class="row-header action">
@@ -47,9 +44,10 @@
     </ion-row>
     <ion-row *ngFor="let row of rows; let i = index" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
       <ng-container *ngFor="let field of row | keyvalue: orderByFunc">
+        <!-- TODO: remove the specific dateTimestampfrom size -->
         <ion-col
-          [size]="field.key == 'dateTimestamp' ? 1.5 : field.key == 'supplier' ? 1.2 : field.key == 'category' ? 1.2 : field.key == 'subCategory' ? 1.1 : 1"
-          *ngIf="field.key != 'id' ">
+          *ngIf="!columnsToIgnore.includes(field.key)"
+          [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth.get(field.key) || 1">
           {{field.value}}
         </ion-col>
       </ng-container>

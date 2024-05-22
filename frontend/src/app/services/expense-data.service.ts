@@ -12,7 +12,7 @@ export class ExpenseDataService {
 
   constructor(private http: HttpClient) { }
 
-  private readonly columnsAddExpense: IColumnDataTable[] = [
+  private readonly columnsAddExpense: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE },
     { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.EXPENSE_NUMBER, value: ExpenseFormHebrewColumns.expenseNumber, type: FormTypes.TEXT },
@@ -28,7 +28,7 @@ export class ExpenseDataService {
     { name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.FILE },
   ];
 
-  private readonly columnsDisplayExpense: IColumnDataTable[] = [
+  private readonly columnsDisplayExpense: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE },
     { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER },
@@ -75,11 +75,11 @@ export class ExpenseDataService {
     return this.http.get<IRowDataTable[]>(url, options);
   }
 
-  getShowExpenseColumns(): IColumnDataTable[] {
+  getShowExpenseColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsDisplayExpense;
   }
 
-  getAddExpenseColumns(): IColumnDataTable[] {
+  getAddExpenseColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsAddExpense;
   }
 

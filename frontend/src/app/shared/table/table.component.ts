@@ -13,8 +13,12 @@ import { ButtonSize } from '../button/button.enum';
   templateUrl: './table.component.html',
   styleUrls: ['./table.component.scss'],
 })
-export class TableComponent {
-  @Input() fieldsNames: IColumnDataTable[];
+export class TableComponent<TFormColumns, TFormHebrewColumns> {
+  @Input() columnsWidth: Map<TFormColumns | string, number>;
+  @Input() columnsToIgnore: (TFormColumns | string)[] = [];
+  @Input() fieldsNames: IColumnDataTable<TFormColumns, TFormHebrewColumns>[];
+  @Input() showActions = false;
+  @Input() actions; // TODO
   @Input() set rows(val: IRowDataTable[]) {
     this.tableRows = [];
     this.originalRows = val;

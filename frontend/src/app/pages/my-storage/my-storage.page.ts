@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { LoadingController, ModalController } from '@ionic/angular';
 import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { environment } from 'src/environments/environment';
@@ -13,13 +14,19 @@ import { environment } from 'src/environments/environment';
   styleUrls: ['./my-storage.page.scss'],
 })
 export class MyStoragePage implements OnInit {
-
+  readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
+    [ExpenseFormColumns.CATEGORY, 1.2],
+    [ExpenseFormColumns.SUB_CATEGORY, 1.1],
+    [ExpenseFormColumns.SUPPLIER, 1.2],
+    [ExpenseFormColumns.DATE, 1.5]
+  ]);
+  readonly COLUMNS_TO_IGNORE = ['id']; 
   // columns: IColumnDataTable = {};//Titles of table
   items$: Observable<IRowDataTable[]>;//Data of expenses
   item: IRowDataTable;
   uid: string;
-  fieldsNamesToAdd: IColumnDataTable[];
-  fieldsNamesToShow: IColumnDataTable[];
+  fieldsNamesToAdd: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
+  fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   isOnUpdate: boolean = false;
   isToastOpen: boolean = false;
   toastMessage: string = "";

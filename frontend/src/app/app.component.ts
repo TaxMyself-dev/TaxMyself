@@ -6,6 +6,7 @@ import { ModalController, PopoverController } from '@ionic/angular';
 import { AuthService } from './services/auth.service';
 import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
 
 
 @Component({
@@ -30,12 +31,12 @@ export class AppComponent implements OnInit {
   ];
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;
-  columns: IColumnDataTable[];//Titles of expense
+  columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService) { };
 
   ngOnInit() {
-    this.columns = this.expenseDataServise.getAddExpenseColumns()
+    this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
   }
 
   openCloseLogOutPopup() {

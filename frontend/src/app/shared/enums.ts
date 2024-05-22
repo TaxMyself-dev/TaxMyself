@@ -55,8 +55,26 @@ export enum ExpenseFormColumns {
     TOTAL_VAT = 'totalVatPayable',
     IS_EQUIPMENT = 'isEquipment',
     REDUCTION_PERCENT = 'reductionPercent',
-    LOADING_DATE = 'loadingDate'
-    
+    LOADING_DATE = 'loadingDate' 
+}
+
+export enum TransactionsOutcomesColumns {
+  ID = 'id',
+  // change this to dateTimeStamp
+  BILL_DATE = 'bill_date',
+  PAY_DATE = 'pay_date',
+  NAME = 'name',
+  SUM = 'sum',
+  CATEGORY = 'category'
+}
+
+export enum TransactionsOutcomesHebrewColumns {
+  id = 'חשבון',
+  bill_date = 'תאריך תשלום',
+  pay_date = 'תאריך עסקה',
+  name = 'שם',
+  sum = 'סכום',
+  category = 'קטגוריה'
 }
 
   export const months = [

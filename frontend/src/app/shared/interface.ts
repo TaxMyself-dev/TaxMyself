@@ -4,9 +4,9 @@ export interface IRowDataTable {
     [key: string]: string | number | Date | boolean;
 }
 
-export interface IColumnDataTable {
-    name: ExpenseFormColumns,
-    value: ExpenseFormHebrewColumns,
+export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
+    name: TFormColumns,
+    value: TFormHebrewColumns,
     type: FormTypes
 }
 

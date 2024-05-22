@@ -10,7 +10,7 @@ import { cloneDeep, isEqual } from 'lodash';
 import { PopoverController } from '@ionic/angular';
 import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
 import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of, BehaviorSubject } from 'rxjs';
-import { ExpenseFormColumns, FormTypes } from '../enums';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ButtonSize } from '../button/button.enum';
 import { Router } from '@angular/router';
@@ -58,12 +58,12 @@ export class ModalExpensesComponent {
     }
   };
 
-  @Input() set columns(val: IColumnDataTable[]) {
-    this.fileItem = val?.find((item: IColumnDataTable) => item.type === FormTypes.FILE);
+  @Input() set columns(val: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]) {
+    this.fileItem = val?.find((item: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) => item.type === FormTypes.FILE);
     this.columnsList = val;
   }
 
-  get columns(): IColumnDataTable[] {
+  get columns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsList;
   }
 
@@ -78,9 +78,10 @@ export class ModalExpensesComponent {
   isEnlarged: boolean = false;
   isEquipment: boolean;
   isEditMode: boolean = false;
-  columnsList: IColumnDataTable[];
-  fileItem: IColumnDataTable;
-  columnsFilter: IColumnDataTable[];
+  // TODO: should modal be generic? if so remove the expense specific declerations
+  columnsList: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
+  fileItem: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>;
+  columnsFilter: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   title: string = "הוספת הוצאה";
   initialForm: FormGroup;
   myForm: FormGroup;
@@ -337,7 +338,7 @@ export class ModalExpensesComponent {
     });
   }
 
-  onDdlSelectionChange(event, colData: IColumnDataTable) {
+  onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
     console.log(event);
     console.log(colData);
     

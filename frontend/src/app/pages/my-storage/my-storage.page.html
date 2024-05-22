@@ -25,7 +25,7 @@
       <app-sort-date></app-sort-date>
     </div>
       <div *ngIf="items$ | async as items" class="table-wrapper" >
-        <app-table [rows]="items" [fieldsNames]="fieldsNamesToShow" (updateClicked)="onUpdateClicked($event)" (deleteClicked)="onDeleteClicked($event)"></app-table>
+        <app-table [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [showActions]="true" [rows]="items" [fieldsNames]="fieldsNamesToShow" (updateClicked)="onUpdateClicked($event)" (deleteClicked)="onDeleteClicked($event)"></app-table>
       </div>
     </div>
     <!-- <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>  -->
