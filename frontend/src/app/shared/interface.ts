@@ -119,3 +119,9 @@ export interface ITransactionData {
     category: string;
     userId: string;
 }
+
+export interface ITableRowAction {
+    name: string;
+    icon: string;
+    action: (row: IRowDataTable) => void;
+}

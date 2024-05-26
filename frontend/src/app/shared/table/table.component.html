@@ -16,47 +16,32 @@
   <ion-button (click)="updateExpense()">ערוך</ion-button>
   <ion-button (click)="deleteExpense()">מחק</ion-button>
 </table> -->
-<ion-popover [isOpen]="isOpen">
-  <ng-template>
-    <ion-content>
-      <div class="wrap-message">
-        <div>{{message}}</div>
-        <div class="wrap-buttons-message">
-          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן" (onButtonClicked)="deleteExpense()"></app-button>
-          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="cancelDel()"></app-button>
-        </div>
-      </div>
-    </ion-content>
-  </ng-template>
-</ion-popover>
+
 <div class="grid-container">
   <ion-grid class="grid">
     <ion-row>
-            <ion-col
+      <ion-col
         *ngFor="let col of fieldsNames"
-        [size]="columnsWidth.get(col.name) ?? 1"
+        [size]="columnsWidth?.get(col.name) ?? baseSize"
         class="row-header {{col.name}}">
         {{col.value}}
       </ion-col>
-      <ion-col size="2" class="row-header action">
+      <ion-col *ngIf="actions?.length" size="2" class="row-header action">
         פעולות
       </ion-col>
     </ion-row>
-    <ion-row *ngFor="let row of rows; let i = index" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
-      <ng-container *ngFor="let field of row | keyvalue: orderByFunc">
+    <ion-row *ngFor="let row of rows; let i = index">
+      <ng-container *ngFor="let field of row | keyvalue: columnsOrderByFunc">
         <!-- TODO: remove the specific dateTimestampfrom size -->
         <ion-col
           *ngIf="!columnsToIgnore.includes(field.key)"
-          [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth.get(field.key) || 1">
+          [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+          [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
           {{field.value}}
         </ion-col>
       </ng-container>
-      <ion-col size="2">
-        <ion-icon class="icon-table" (click)="confirmDel(row)" name="trash-outline"></ion-icon>
-        <ion-icon class="icon-table" name="share-social-outline"></ion-icon>
-        <ion-icon class="icon-table" (click)="previewFile(row)" name="glasses-outline"></ion-icon>
-        <ion-icon class="icon-table" (click)="updateExpense(row)" name="create-outline"></ion-icon>
-        <ion-icon class="icon-table" (click)="downloadFile(row)" name="cloud-download-outline"></ion-icon>
+      <ion-col *ngIf="actions?.length" size="2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
+        <ion-icon *ngFor="let action of actions" class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
       </ion-col>
     </ion-row>
   </ion-grid>

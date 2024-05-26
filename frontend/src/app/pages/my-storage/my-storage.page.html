@@ -25,7 +25,7 @@
       <app-sort-date></app-sort-date>
     </div>
       <div *ngIf="items$ | async as items" class="table-wrapper" >
-        <app-table [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [showActions]="true" [rows]="items" [fieldsNames]="fieldsNamesToShow" (updateClicked)="onUpdateClicked($event)" (deleteClicked)="onDeleteClicked($event)"></app-table>
+        <app-table [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="items" [actions]="tableActions" [fieldsNames]="fieldsNamesToShow" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
       </div>
     </div>
     <!-- <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>  -->
@@ -34,3 +34,17 @@
     <ion-toast [isOpen]="isToastOpen" [message]="toastMessage" [duration]="3000" (didDismiss)="setOpenToast()"></ion-toast>
 
   </ion-content>
+
+  <ion-popover [isOpen]="isOpen">
+    <ng-template>
+      <ion-content>
+        <div class="wrap-message">
+          <div>{{message}}</div>
+          <div class="wrap-buttons-message">
+            <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן" (onButtonClicked)="deleteExpense()"></app-button>
+            <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="cancelDel()"></app-button>
+          </div>
+        </div>
+      </ion-content>
+    </ng-template>
+  </ion-popover>

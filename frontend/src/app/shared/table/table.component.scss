@@ -107,7 +107,7 @@ ion-col {
 }
 
 .grid{
-  width: 1300px;
+  // width: 1300px;
   border: 2px solid rgb(79, 171, 79);;
   border-radius: 15px;
   margin: 10px;
@@ -166,19 +166,6 @@ ion-col {
   margin: 5px;
 }
 
-.wrap-message{
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  border-radius: 15px;
-  text-align: center;
-}
-
-.wrap-buttons-message{
-  width: 70%;
-  display: flex;
-  justify-content: space-between;
-}
 
 
 

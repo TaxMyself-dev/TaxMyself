@@ -1,8 +1,6 @@
-<p>This is the transactions page</p>
-<app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button>
-
-<ng-container *ngIf="data$ | async as data">
-    <div *ngFor="let transaction of data" class="transaction-wrapper">
-        <p *ngFor="let field of transaction | keyvalue">{{field.key}}: {{field.value}}</p>
-    </div>
-</ng-container>
+<app-custom-toolbar></app-custom-toolbar>
+<ion-content>
+    <p>This is the transactions page</p>
+    <app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button>
+    <app-table *ngIf="data$ | async as data" [fieldsNames]="fieldsNames" [rows]="rows" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+</ion-content>
