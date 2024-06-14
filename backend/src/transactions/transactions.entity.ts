@@ -13,6 +13,12 @@ export class Transactions {
   id: number;
 
   @Column()
+  userId: string;
+
+  @Column()
+  paymentIdentifier: string;
+
+  @Column()
   name: string;
 
   @Column('timestamp')
@@ -28,9 +34,21 @@ export class Transactions {
   category: string;
 
   @Column()
-  userId: string;
+  subCategory: string;
 
-  //@ManyToOne(() => Bill, (bill) => bill.transactions)
-  //bill: Bill;
+  @Column()
+  isRecognized: boolean;
+
+  @Column()
+  vatPercent: number;
+
+  @Column()
+  taxPercent: number;
+
+  @Column()
+  isEquipment: boolean;
+
+  @Column()
+  reductionPercent: number;
 
 }

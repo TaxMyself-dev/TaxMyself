@@ -35,21 +35,23 @@ export class TransactionsService {
 
     // Find index of each column based on header row
     const nameIndex = headers.findIndex(header => header === 'שם העסק');
-    const billDateIndex = headers.findIndex(header => header === 'תאריך חיוב');
-    const payDateIndex = headers.findIndex(header => header === 'תאריך תשלום');
+    const paymentIdentifierIndex = headers.findIndex(header => header === 'אמצעי זיהוי התשלום');
+    const billDateIndex = headers.findIndex(header => header === 'תאריך החיוב בחשבון');
+    const payDateIndex = headers.findIndex(header => header === 'תאריך התשלום');
     const sumIndex = headers.findIndex(header => header === 'סכום');
-    const categoryIndex = headers.findIndex(header => header === 'קטגוריה');
+    //const categoryIndex = headers.findIndex(header => header === 'קטגוריה');
 
     for (const row of rows) {
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
+      transaction.paymentIdentifier = row[paymentIdentifierIndex];
       //convert string to date
       const billDate = this.convertStringToDate(row[billDateIndex]);
       const payDate = this.convertStringToDate(row[payDateIndex]);
       transaction.billDate = billDate;
       transaction.payDate = payDate;
       transaction.sum = parseFloat(row[sumIndex]);
-      transaction.category = row[categoryIndex];
+      //transaction.category = row[categoryIndex];
       // transaction.userId should be set to the current user's ID somehow
 
       await this.transactionsRepo.save(transaction);
