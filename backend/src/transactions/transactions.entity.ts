@@ -1,8 +1,10 @@
 import { 
     Entity, 
     Column, 
-    PrimaryGeneratedColumn 
+    PrimaryGeneratedColumn,
+    ManyToOne
 } from 'typeorm'
+import { Bill } from './bill.entity';
 
 @Entity()
 export class Transactions {
@@ -27,5 +29,8 @@ export class Transactions {
 
   @Column()
   userId: string;
+
+  @ManyToOne(() => Bill, (bill) => bill.transactions)
+  bill: Bill;
 
 }

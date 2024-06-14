@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Transactions } from './transactions.entity';
 import { parse, isValid } from 'date-fns';
 import { DateTime } from 'luxon';
+import { Bill } from './bill.entity';
 
 
 @Injectable()
@@ -12,6 +13,8 @@ export class TransactionsService {
   constructor(
     @InjectRepository(Transactions)
     private transactionsRepository: Repository<Transactions>,
+    @InjectRepository(Bill)
+    private billRepo: Repository<Bill>,
   ) {}
 
   async saveTransactions(file: Express.Multer.File): Promise<{ message: string }> {
@@ -78,6 +81,18 @@ export class TransactionsService {
   async getTransactionsByUserID (userId: string) {
     return await this.transactionsRepository.find({ where: { userId: userId } });
   }
+
+  async addBill(userId: string, billName: string){
+    const isAlreadyExist = await this.billRepo.findOne({ where: {userId: userId, billName: billName} });
+    if (isAlreadyExist) {
+        throw new HttpException({
+            status: HttpStatus.CONFLICT,
+            error: `Bill with this name: "${name}" already exists`
+        }, HttpStatus.CONFLICT);
+    }
+    const bill = this.billRepo.create({userId, billName });
+    return this.billRepo.save(bill);
+}
 
 
 }

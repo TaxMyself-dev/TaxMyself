@@ -16,6 +16,7 @@ import { Transactions } from './transactions/transactions.entity';
 import { DefaultCategory } from './expenses/categories.entity';
 import { User } from './users/user.entity';
 import { Child } from './users/child.entity';
+import { Bill } from './transactions/bill.entity';
 
 import * as firebase from 'firebase-admin';
 //import * as serviceAccount from './auth/firebaseServiceAccount.json';
@@ -83,7 +84,7 @@ serviceAccount = {
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Supplier, Transactions, DefaultCategory],
+      entities: [User, Child, Expense, Supplier, Transactions, Bill, DefaultCategory],
       synchronize: process.env.NODE_ENV !== 'production'}),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
   controllers: [AppController],

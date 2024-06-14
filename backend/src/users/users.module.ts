@@ -5,6 +5,8 @@ import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { User } from './user.entity';
 import { Child } from './child.entity';
+import { Bill } from 'src/transactions/bill.entity';
+import { Transactions } from 'src/transactions/transactions.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Child])],
