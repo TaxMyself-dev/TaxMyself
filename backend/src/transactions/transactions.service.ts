@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as XLSX from 'xlsx';
@@ -6,15 +6,18 @@ import { Transactions } from './transactions.entity';
 import { parse, isValid } from 'date-fns';
 import { DateTime } from 'luxon';
 import { Bill } from './bill.entity';
+import { Source } from './source.entity';
 
 
 @Injectable()
 export class TransactionsService {
   constructor(
     @InjectRepository(Transactions)
-    private transactionsRepository: Repository<Transactions>,
+    private transactionsRepo: Repository<Transactions>,
     @InjectRepository(Bill)
     private billRepo: Repository<Bill>,
+    @InjectRepository(Source)
+    private sourceRepo: Repository<Source>,
   ) {}
 
   async saveTransactions(file: Express.Multer.File): Promise<{ message: string }> {
@@ -49,7 +52,7 @@ export class TransactionsService {
       transaction.category = row[categoryIndex];
       // transaction.userId should be set to the current user's ID somehow
 
-      await this.transactionsRepository.save(transaction);
+      await this.transactionsRepo.save(transaction);
     }
 
     return { message: `Successfully saved ${rows.length} transactions to the database.` };
@@ -79,8 +82,12 @@ export class TransactionsService {
   }
 
   async getTransactionsByUserID (userId: string) {
-    return await this.transactionsRepository.find({ where: { userId: userId } });
+    return await this.transactionsRepo.find({ where: { userId: userId } });
   }
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////               Bills                 /////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////////////////////
 
   async addBill(userId: string, billName: string){
     const isAlreadyExist = await this.billRepo.findOne({ where: {userId: userId, billName: billName} });
@@ -92,7 +99,48 @@ export class TransactionsService {
     }
     const bill = this.billRepo.create({userId, billName });
     return this.billRepo.save(bill);
-}
+  }
+
+
+  async deleteBill(id: number, userId: string): Promise<void> {
+    const bill = await this.billRepo.findOne({ where: { id } });
+    if (!bill) {
+      throw new NotFoundException(`Bill with ID ${id} not found`);
+    }
+    //Check if the user making the request is the owner of the expense
+    if (bill.userId !== userId) {
+      throw new UnauthorizedException(`You do not have permission to delete this bill`);
+    }
+    await this.billRepo.remove(bill);
+  }
+
+
+  findOne(id: number): Promise<Bill> {
+    return this.billRepo.findOne({ where: { id }, relations: ['sources'] });
+  }
+
+
+  async addSourceToBill(billId: number, sourceName: string, userId: string): Promise<Source> {
+    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+    if (!bill) {
+      throw new Error('Bill not found');
+    }
+    const newSource = this.sourceRepo.create({ sourceName, bill });
+    return this.sourceRepo.save(newSource);
+  }
+
+  
+  // async getTransactionsForBill(billId: number): Promise<Transactions[]> {
+  //   const bill = await this.billRepo.findOne({ where: { id: billId }, relations: ['sources'] });
+  //   if (!bill) {
+  //     throw new Error('Bill not found');
+  //   }
+
+  //   const sources = bill.sources.map(source => source.source);
+  //   return this.transactionsRepo.find({
+  //     where: { source: In(sources) },
+  //   });
+  // }
 
 
 }

@@ -30,7 +30,7 @@ export class Transactions {
   @Column()
   userId: string;
 
-  @ManyToOne(() => Bill, (bill) => bill.transactions)
-  bill: Bill;
+  //@ManyToOne(() => Bill, (bill) => bill.transactions)
+  //bill: Bill;
 
 }

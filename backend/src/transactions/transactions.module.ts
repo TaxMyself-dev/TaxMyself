@@ -9,9 +9,10 @@ import { Transactions } from './transactions.entity';
 import { UsersService } from 'src/users/users.service';
 import { Child } from 'src/users/child.entity';
 import { Bill } from './bill.entity';
+import { Source } from './source.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, Bill, Child])],
+  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, Bill, Source, Child])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
