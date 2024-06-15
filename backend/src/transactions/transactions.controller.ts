@@ -7,13 +7,13 @@ import { CreateBillDto } from './dtos/create-bill.dto';
 import { Source } from './source.entity';
 import { CreateSourceDto } from './dtos/create-source.dto';
 
-@Controller('excel')
+@Controller('transactions')
 export class TransactionsController {
   constructor(
     private readonly transactionsService: TransactionsService,
     private usersService: UsersService,) {}
 
-  @Post('save')
+  @Post('load-file')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     return this.transactionsService.saveTransactions(file);
@@ -41,6 +41,16 @@ export class TransactionsController {
   ): Promise<Source> {
     const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return this.transactionsService.addSourceToBill(id, body.sourceName, userId);
+  }
+
+
+  @Get(':id/get-transactions')
+  async getTransactionsForBill(
+    @Param('id') id: number,
+    @Body() body: any
+  ): Promise<Transactions[]> {
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return this.transactionsService.getTransactionsByBillAndUserId(id, userId);
   }
 
 }

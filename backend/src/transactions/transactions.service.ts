@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Transactions } from './transactions.entity';
 import { parse, isValid } from 'date-fns';
@@ -131,18 +131,28 @@ export class TransactionsService {
     return this.sourceRepo.save(newSource);
   }
 
-  
-  // async getTransactionsForBill(billId: number): Promise<Transactions[]> {
-  //   const bill = await this.billRepo.findOne({ where: { id: billId }, relations: ['sources'] });
-  //   if (!bill) {
-  //     throw new Error('Bill not found');
-  //   }
 
-  //   const sources = bill.sources.map(source => source.source);
-  //   return this.transactionsRepo.find({
-  //     where: { source: In(sources) },
-  //   });
-  // }
+  async getBillsByUserId(userId: string): Promise<{ id: number, billName: string }[]> {
+    const bills = await this.billRepo
+      .createQueryBuilder('bill')
+      .select(['bill.id', 'bill.billName'])
+      .where('bill.userId = :userId', { userId })
+      .getMany();
+
+    return bills.map(bill => ({ id: bill.id, billName: bill.billName }));
+  }
+
+
+  async getTransactionsByBillAndUserId(billId: number, userId: string): Promise<Transactions[]> {
+    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+    if (!bill) {
+      throw new Error('Bill not found');
+    }
+    const sources = bill.sources.map(source => source.sourceName);
+    return this.transactionsRepo.find({
+      where: { paymentIdentifier: In(sources) },
+    });
+  }
 
 
 }
