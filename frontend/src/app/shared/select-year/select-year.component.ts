@@ -1,4 +1,5 @@
-import { Component, OnInit, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, Output, Input, EventEmitter } from '@angular/core';
+import { FormGroup } from '@angular/forms';
 
 @Component({
   selector: 'app-select-year',
@@ -7,11 +8,12 @@ import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 })
 
 export class SelectYearComponent implements OnInit {
+  @Input() parentForm: FormGroup;
 
-  years: number[] = [];
-  selectedYear: number | null = null;
-  
   @Output() yearChanged = new EventEmitter<number>();
+
+  years: ({value: number; name: number})[] = [];
+  selectedYear: number | null = null;
 
   constructor() { }
 
@@ -22,14 +24,8 @@ export class SelectYearComponent implements OnInit {
   generateYears(): void {
     const currentYear = new Date().getFullYear();
     for (let i = 0; i <= 20; i++) {
-      this.years.push(currentYear - i);
+      this.years.push({name: currentYear - i, value: currentYear - i});
     }
     this.years.reverse(); // If you want the years in ascending order
   }
-
-  onYearChange(event: any): void {
-    this.selectedYear = event.target.value;
-    this.yearChanged.emit(this.selectedYear);
-  }
-  
 }

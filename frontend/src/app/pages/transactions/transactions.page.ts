@@ -3,6 +3,7 @@ import { TransactionsService } from './transactions.page.service';
 import { Observable, tap } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { FormTypes, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-transactions',
@@ -23,9 +24,24 @@ export class TransactionsPage implements OnInit {
   ];
   rows: IRowDataTable[];
   tableActions: ITableRowAction[]; 
+  accountsList = ['4516', '4517'];
+  transactionsForm: FormGroup;
 
-  constructor(private transactionsService: TransactionsService) {}
+  constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder) {
+    this.transactionsForm = this.formBuilder.group({
+      monthFormat: new FormControl (
+        '', Validators.required,
+      ),
+      month: new FormControl (
+        '', Validators.required,
+      ),
+      year: new FormControl (
+        '', Validators.required,
+      )
+    })
+  }
 
+  
   ngOnInit(): void {
     this.setTableActions();
 

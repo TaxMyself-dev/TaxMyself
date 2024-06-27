@@ -289,7 +289,7 @@ export class MyStoragePage implements OnInit {
         }
       },
       {
-        name: 'share-social-outline',
+        name: 'share',
         icon: 'share-social-outline',
         action: (row: IRowDataTable) => {
           console.log('TODO: share-social-outline');

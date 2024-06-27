@@ -1,6 +1,14 @@
 <app-custom-toolbar></app-custom-toolbar>
 <ion-content>
-    <p>This is the transactions page</p>
-    <app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button>
-    <app-table *ngIf="data$ | async as data" [fieldsNames]="fieldsNames" [rows]="rows" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+  <app-search-bar [customTemplate]="searchBarContent"></app-search-bar>
+  <app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button>
+  <app-table *ngIf="data$ | async as data" [fieldsNames]="fieldsNames" [rows]="rows" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
 </ion-content>
+
+<ng-template #searchBarContent>
+  <form [formGroup]="transactionsForm">
+    <app-select-month-format class="input-wrapper" [parentForm]="transactionsForm"></app-select-month-format>
+    <app-select-month class="input-wrapper" [parentForm]="transactionsForm"></app-select-month>
+    <app-select-year class="input-wrapper" [parentForm]="transactionsForm"></app-select-year>
+  </form>
+</ng-template>

@@ -1,0 +1,11 @@
+<div *ngIf="parentForm; else notForm" [formGroup]="parentForm">
+  <ion-select [formControlName]="controlName" class="input-content" fill="outline" [label]="title" label-placement="floating" (ionChange)="onSelectChange($event)">
+    <ion-select-option *ngFor="let item of items" [value]="item.value">{{item.name}}</ion-select-option>
+  </ion-select>
+</div>
+
+<ng-template #notForm>
+    <ion-select class="input-content" fill="outline" [label]="title" label-placement="floating" (ionChange)="onSelectChange($event)">
+      <ion-select-option *ngFor="let item of items" [value]="item.value">{{item.name}}</ion-select-option>
+    </ion-select>
+</ng-template>

@@ -1,16 +1,18 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input } from '@angular/core';
+import { FormGroup } from '@angular/forms';
 
 @Component({
   selector: 'app-select-month',
   templateUrl: './select-month.component.html',
   styleUrls: ['./select-month.component.scss']
 })
-export class SelectMonthComponent implements OnInit {
+export class SelectMonthComponent {
   @Input() oneMonth: boolean = false;
+  @Input() parentForm: FormGroup;
 
   selectedMonth: string = '';
 
-  months = [
+  doubleMonths = [
     { value: '01-02', name: 'ינואר - פברואר' },
     { value: '03-04', name: 'מרץ - אפריל' },
     { value: '05-06', name: 'מאי - יוני' },
@@ -36,17 +38,8 @@ export class SelectMonthComponent implements OnInit {
 
   constructor() { }
 
-  ngOnInit(): void {
-  }
-
-  onMonthChange(event: any): void {
-    this.selectedMonth = event.target.value;
-    console.log("Selected Month:", this.selectedMonth);
-    // You can also emit this value to the parent component if needed
-  }
-
-  toggleSingleMonth(): void {
-    this.oneMonth = !this.oneMonth;
-  }
-  
+  get month(): ({value: string | number; name: string | number;})[] {
+    return this.parentForm?.get('monthFormat')?.value === 'oneMonth' ? this.singleMonths : this.doubleMonths;
+  } 
 }
+
