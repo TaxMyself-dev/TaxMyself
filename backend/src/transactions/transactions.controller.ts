@@ -1,22 +1,56 @@
-import { Controller, Get, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { Transactions } from './transactions.entity';
+import { UsersService } from 'src/users/users.service';
+import { CreateBillDto } from './dtos/create-bill.dto';
+import { Source } from './source.entity';
+import { CreateSourceDto } from './dtos/create-source.dto';
 
-@Controller('excel')
+@Controller('transactions')
 export class TransactionsController {
-  constructor(private readonly excelService: TransactionsService) {}
+  constructor(
+    private readonly transactionsService: TransactionsService,
+    private usersService: UsersService,) {}
 
-  @Post('save')
+  @Post('load-file')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    return this.excelService.saveTransactions(file);
+    return this.transactionsService.saveTransactions(file);
   }
 
   @Get('get_by_userID')
   async getTransactionsByUserID(@Query('userID') userID: string): Promise<Transactions[]> {
     console.log("this is user id that i send: ", userID);
 
-    return await this.excelService.getTransactionsByUserID(userID);
+    return await this.transactionsService.getTransactionsByUserID(userID);
   }
+
+
+  @Post('add-bill')
+  async addBill(@Body() body: CreateBillDto) {
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return await this.transactionsService.addBill(userId, body.billName); 
+  }
+
+  
+  @Post(':id/sources')
+  async addSourceToBill(
+    @Param('id') id: number,
+    @Body() body: CreateSourceDto,
+  ): Promise<Source> {
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return this.transactionsService.addSourceToBill(id, body.sourceName, userId);
+  }
+
+
+  @Get(':id/get-transactions')
+  async getTransactionsForBill(
+    @Param('id') id: number,
+    @Body() body: any
+  ): Promise<Transactions[]> {
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return this.transactionsService.getTransactionsByBillAndUserId(id, userId);
+  }
+
 }

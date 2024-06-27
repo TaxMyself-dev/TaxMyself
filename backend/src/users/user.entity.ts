@@ -2,7 +2,9 @@ import {
     Entity, 
     Column, 
     PrimaryGeneratedColumn,
+    OneToMany
  } from 'typeorm';
+import { Bill } from 'src/transactions/bill.entity';
 import { UserRole } from 'src/enum';
 
 @Entity()
@@ -64,12 +66,13 @@ export class User {
     @Column()
     familyStatus: string;
 
-    
-
     @Column({
         type: 'enum',
         enum: UserRole,
         default: UserRole.FREE_USER,
       })
       role: UserRole;
+
+    @OneToMany(() => Bill, (bill) => bill.user)
+    bills: Bill[];
 }
