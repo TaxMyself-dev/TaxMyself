@@ -4,7 +4,7 @@ import { FormGroup } from '@angular/forms';
 @Component({
   selector: 'app-select-month',
   templateUrl: './select-month.component.html',
-  styleUrls: ['./select-month.component.scss']
+  styleUrls: ['./select-month.component.scss','../search-bar/search-bar.component.scss']
 })
 export class SelectMonthComponent {
   @Input() oneMonth: boolean = false;

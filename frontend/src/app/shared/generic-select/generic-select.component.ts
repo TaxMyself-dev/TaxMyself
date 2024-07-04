@@ -1,10 +1,10 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 
 @Component({
   selector: 'app-generic-select',
   templateUrl: './generic-select.component.html',
-  styleUrls: ['./generic-select.component.scss'],
+  styleUrls: ['./generic-select.component.scss', '../search-bar/search-bar.component.scss'],
 })
 export class GenericSelectComponent {
 

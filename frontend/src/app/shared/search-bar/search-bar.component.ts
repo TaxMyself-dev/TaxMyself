@@ -15,7 +15,7 @@ export class SearchBarComponent {
 
   onSearchClicked(event: any): void {
     console.log(event);
-    //this.onSearchClick?.emit();
+    this.onSearchClick?.emit(event);
   }
   
 }

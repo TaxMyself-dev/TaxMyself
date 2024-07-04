@@ -1,50 +1,44 @@
 <app-custom-toolbar></app-custom-toolbar>
-<!-- <div class="inputs-sort-date-storage">
-  
-  <div class="filter-box">
-    <ion-input id="month" type="month" placeholder="בחר חודש"></ion-input>
-    <label class="month-label" for="month">תאריך</label>
-  </div> -->
-  <!-- <div class="filter-box">
-    <select class="labels" id="year" name="year">
-      <option *ngFor="let year of chooseYear " value="year">{{year}}</option>
-    </select>
-    <label for="year">בחר שנה</label>
-  </div> -->
-  <!-- <div class="filter-box">
-    <ion-input  label="ספק" label-placement="floating"  id="provider" type="text"></ion-input>
-  </div>
-  <div class="filter-box">
-    <ion-input  label="סוג הוצאה" label-placement="floating" id="outcome" type="text"></ion-input>
-  </div>
-  
-</div> -->
+
+
+
 <ion-content [fullscreen]="true">
+  <app-search-bar [customTemplate]="searchBarContent"></app-search-bar>
+
   <div class="div-content">
-    <div class="div-sort">
-      <app-sort-date></app-sort-date>
+    <div *ngIf="items$ | async as items" class="table-wrapper">
+      <app-table [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="items"
+        [actions]="tableActions" [fieldsNames]="fieldsNamesToShow"
+        [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </div>
-      <div *ngIf="items$ | async as items" class="table-wrapper" >
-        <app-table [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="items" [actions]="tableActions" [fieldsNames]="fieldsNamesToShow" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
-      </div>
-    </div>
-    <!-- <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>  -->
-    
-    <!-- <app-table *ngIf="columns && rows.length" [columns]="columns" [rows]="rows"></app-table> -->
-    <ion-toast [isOpen]="isToastOpen" [message]="toastMessage" [duration]="3000" (didDismiss)="setOpenToast()"></ion-toast>
+  </div>
+  <!-- <ion-button (click)="openPopupAddExpense()" shape="round">הוסף הוצאה</ion-button>  -->
 
-  </ion-content>
+  <!-- <app-table *ngIf="columns && rows.length" [columns]="columns" [rows]="rows"></app-table> -->
+  <ion-toast [isOpen]="isToastOpen" [message]="toastMessage" [duration]="3000"
+    (didDismiss)="setOpenToast()"></ion-toast>
 
-  <ion-popover [isOpen]="isOpen">
-    <ng-template>
-      <ion-content>
-        <div class="wrap-message">
-          <div>{{message}}</div>
-          <div class="wrap-buttons-message">
-            <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן" (onButtonClicked)="deleteExpense()"></app-button>
-            <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="cancelDel()"></app-button>
-          </div>
+</ion-content>
+
+<ion-popover [isOpen]="isOpen">
+  <ng-template>
+    <ion-content>
+      <div class="wrap-message">
+        <div>{{message}}</div>
+        <div class="wrap-buttons-message">
+          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן" (onButtonClicked)="deleteExpense()"></app-button>
+          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="cancelDel()"></app-button>
         </div>
-      </ion-content>
-    </ng-template>
-  </ion-popover>
+      </div>
+    </ion-content>
+  </ng-template>
+</ion-popover>
+
+<ng-template #searchBarContent>
+  <form *ngIf="storageForm" class="generic-search-bar-content" [formGroup]="storageForm">
+    <app-sort-date [parentForm]="storageForm" [controlName]="'until'" [inputLabel]="'מתאריך'"></app-sort-date>
+    <app-sort-date [parentForm]="storageForm" [controlName]="'from'" [inputLabel]="'עד תאריך'"></app-sort-date>
+    <app-generic-input [parentForm]="storageForm" [controlName]="'supplier'" [inputLabel]="'ספק'"></app-generic-input>
+    <app-generic-input [parentForm]="storageForm" [controlName]="'category'" [inputLabel]="'קטגוריה'"></app-generic-input>
+  </form>
+</ng-template>
