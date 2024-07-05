@@ -53,4 +53,29 @@ export class TransactionsController {
     return this.transactionsService.getTransactionsByBillAndUserId(id, userId);
   }
 
+
+  @Get('get-incomes')
+  async getIncomesForBill(
+    //@Param('id') id: number,
+    //@Query('billId') billId: number | null,
+    @Query('billId') billId: string,
+    @Body() body: any
+  ): Promise<Transactions[]> {
+    const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return this.transactionsService.getIncomesTransactions(parsedBillId, userId);
+  }
+
+
+  @Get('get-expenses')
+  async getForBill(
+    @Query('billId') billId: string,
+    @Body() body: any
+  ): Promise<Transactions[]> {
+    const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return this.transactionsService.getExpensesTransactions(parsedBillId, userId);
+  }
+
+
 }

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThan, LessThan } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Transactions } from './transactions.entity';
 import { parse, isValid } from 'date-fns';
@@ -144,15 +144,56 @@ export class TransactionsService {
 
 
   async getTransactionsByBillAndUserId(billId: number, userId: string): Promise<Transactions[]> {
-    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
-    if (!bill) {
-      throw new Error('Bill not found');
+
+    let sources: string[] = [];
+
+    if (billId === null) {
+      // Get all bills for the user
+      const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+      if (!bills || bills.length === 0) {
+        throw new Error('No bills found for the user');
+      }
+
+      // Collect all sources from the user's bills
+      bills.forEach(bill => {
+        sources.push(...bill.sources.map(source => source.sourceName));
+      });
+    } else {
+      // Get the specific bill for the user
+      const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+      if (!bill) {
+        throw new Error('Bill not found');
+      }
+
+      sources = bill.sources.map(source => source.sourceName);
     }
-    const sources = bill.sources.map(source => source.sourceName);
+
+    console.log("sources are ", sources);
+    
+
     return this.transactionsRepo.find({
       where: { paymentIdentifier: In(sources) },
     });
   }
+
+
+  async getIncomesTransactions(billId: number | null, userId: string): Promise<Transactions[]> {
+    const transactions = await this.getTransactionsByBillAndUserId(billId, userId);
+    console.log(transactions);
+    return transactions.filter(transaction => transaction.sum > 0);
+  }
+
+
+  async getExpensesTransactions(billId: number | null, userId: string): Promise<Transactions[]> {
+    const transactions = await this.getTransactionsByBillAndUserId(billId, userId);
+    console.log(transactions);
+    return transactions.filter(transaction => transaction.sum < 0);
+  }
+
+
+  //async updateTransactionFields() {
+  //
+  //}
 
 
 }

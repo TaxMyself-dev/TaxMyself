@@ -18,8 +18,14 @@ export class UserCategory {
     @Column('decimal')
     vatPercent: number;
 
+    @Column('decimal')
+    reductionPercent: number;
+
     @Column('boolean')
     isEquipment: boolean;
+
+    @Column('boolean')
+    isRecognized: boolean;
 
     @Column()
     userId: string;

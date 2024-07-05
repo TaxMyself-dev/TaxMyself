@@ -22,11 +22,16 @@ export class CreateCategoryDto {
     
     @IsNumber()
     vatPercent: number;
+
+    @IsNumber()
+    reductionPercent: number;
     
     @IsOptional()
     @IsBoolean()
     isEquipment: boolean;
 
-    @IsNumber()
-    reductionPercent: number;
+    @IsOptional()
+    @IsBoolean()
+    isRecognized: boolean;
+    
 }

@@ -14,6 +14,7 @@ import { Expense } from './expenses/expenses.entity';
 import { Supplier } from './expenses/suppliers.entity';
 import { Transactions } from './transactions/transactions.entity';
 import { DefaultCategory } from './expenses/categories.entity';
+import { UserCategory } from './expenses/user-categories.entity';
 import { User } from './users/user.entity';
 import { Child } from './users/child.entity';
 import { Bill } from './transactions/bill.entity';
@@ -85,7 +86,7 @@ serviceAccount = {
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Supplier, Transactions, Bill, Source, DefaultCategory],
+      entities: [User, Child, Expense, Supplier, Transactions, Bill, Source, DefaultCategory, UserCategory],
       synchronize: process.env.NODE_ENV !== 'production'}),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
   controllers: [AppController],

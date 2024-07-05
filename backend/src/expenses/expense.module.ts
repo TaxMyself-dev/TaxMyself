@@ -7,6 +7,7 @@ import { Expense } from './expenses.entity';
 import { User } from 'src/users/user.entity';
 import { DefaultCategory } from './categories.entity';
 import { Supplier } from './suppliers.entity';
+import { UserCategory } from './user-categories.entity';
 //Controllers
 import { ExpensesController } from './expenses.controller';
 //Services
@@ -15,9 +16,8 @@ import { AuthService } from 'src/users/auth.service';
 import { UsersService } from 'src/users/users.service';
 import { Child } from 'src/users/child.entity';
 
-
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory, Supplier, Child ]),
+  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory, UserCategory, Supplier, Child ]),
             SharedModule],
   controllers: [ExpensesController],
   providers: [

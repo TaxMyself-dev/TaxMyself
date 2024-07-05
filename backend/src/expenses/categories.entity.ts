@@ -18,10 +18,15 @@ export class DefaultCategory {
     @Column('decimal')
     vatPercent: number;
 
+    @Column('decimal')
+    reductionPercent: number;
+
     @Column('boolean')
     isEquipment: boolean;
 
-    @Column('decimal')
-    reductionPercent: number;
+    @Column('boolean')
+    isRecognized: boolean;
+
+    
 
 }

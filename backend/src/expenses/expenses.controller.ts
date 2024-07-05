@@ -74,6 +74,13 @@ export class ExpensesController {
   @UseGuards(AdminGuard)
   async addDefaultCategory(@Body() body: CreateCategoryDto) {
     return await this.expensesService.addDefaultCategory(body); 
+  }
+  
+
+  @Post('add-user-category')
+  async addUserCategory(@Body() body: CreateCategoryDto) {
+    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    return await this.expensesService.addUserCategory(body, userId); 
   } 
 
 

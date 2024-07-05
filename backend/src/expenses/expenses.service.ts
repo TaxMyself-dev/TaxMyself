@@ -1,17 +1,21 @@
 //General
-import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository} from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { DefaultCategory } from './categories.entity';
+import { UserCategory } from './user-categories.entity';
 import { SharedService } from 'src/shared/shared.service';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
+import { CreateCategoryDto } from './dtos/create-category.dto';
+
+//import { areNumbersEqual } 
 
 
 @Injectable()
@@ -21,7 +25,8 @@ export class ExpensesService {
     (
         private readonly sharedService: SharedService,
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
-        @InjectRepository(DefaultCategory) private category_repo: Repository<DefaultCategory>,
+        @InjectRepository(DefaultCategory) private defaultCategoryRepo: Repository<DefaultCategory>,
+        @InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
@@ -100,13 +105,68 @@ export class ExpensesService {
 
     async addDefaultCategory(category: Partial<DefaultCategory>): Promise<DefaultCategory> {
         console.log("addCategory - start");
-        const newCategory = this.category_repo.create(category);
-        return await this.category_repo.save(newCategory);
+        const newCategory = this.defaultCategoryRepo.create(category);
+        return await this.defaultCategoryRepo.save(newCategory);
     }
 
 
+
+    async addUserCategory(categoryData: Partial<CreateCategoryDto>, userId: string): Promise<UserCategory> {
+                                                
+        const existingUserCategory = await this.userCategoryRepo.findOne({ 
+            where: { userId: userId, category: categoryData.category, subCategory: categoryData.subCategory }
+        });
+
+        const existingDefaultCategory = await this.defaultCategoryRepo.findOne({ 
+            where: { category: categoryData.category, subCategory: categoryData.subCategory }
+        });
+
+        if (existingUserCategory) {
+            throw new ConflictException('Category and sub-category already exist for this user.');
+        }
+
+        if (existingDefaultCategory) {
+            console.log("user vat is", categoryData.taxPercent, "while default vat is", existingDefaultCategory.taxPercent);
+            console.log("user vat is", categoryData.vatPercent, "while default vat is", existingDefaultCategory.vatPercent);
+            
+            const isIdentical = 
+                categoryData.category === existingDefaultCategory.category &&
+                categoryData.subCategory === existingDefaultCategory.subCategory &&
+                categoryData.taxPercent === existingDefaultCategory.taxPercent &&
+                categoryData.vatPercent === existingDefaultCategory.vatPercent;
+                //categoryData.reductionPercent === existingDefaultCategory.reductionPercent &&
+                //categoryData.isEquipment === existingDefaultCategory.isEquipment &&
+                //categoryData.isRecognized === existingDefaultCategory.isRecognized;
+
+            if (isIdentical) {
+                throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
+            }
+            else console.log("not identical!!!");
+            
+        }
+        else console.log("no identical category");
+        
+
+        // if (existingDefaultCategory) {
+        //     const isIdentical = Object.keys(categoryData).every(key => 
+        //         categoryData[key] === existingDefaultCategory[key]
+        //     );
+
+        //     if (isIdentical) {
+        //         throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
+        //     }
+        // }
+
+        const newUserCategory = this.userCategoryRepo.create({ ...categoryData, userId });
+        return this.userCategoryRepo.save(newUserCategory);
+    }
+
+
+
+
+
     async getAllCategories(isEquipment: boolean): Promise<string[]> {
-        const categories = await this.category_repo.find({
+        const categories = await this.defaultCategoryRepo.find({
             select: ['category'],
             where: { isEquipment: isEquipment}
         });
@@ -116,7 +176,7 @@ export class ExpensesService {
     }
 
     async getSubcategoriesByCategory(categoryName: string, isEquipment: boolean): Promise<DefaultCategory[]> {
-        return this.category_repo.find({
+        return this.defaultCategoryRepo.find({
           where: { 
                     category: categoryName,
                     isEquipment: isEquipment 
