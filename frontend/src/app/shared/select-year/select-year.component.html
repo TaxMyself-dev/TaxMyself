@@ -1,5 +1,1 @@
-<div>
-  <select (change)="onYearChange($event)">
-    <option *ngFor="let year of years" [value]="year">{{year}}</option>
-  </select>
-</div>
+<app-generic-select [parentForm]="parentForm" [controlName]="'year'" [items]="years" title="בחר שנה"></app-generic-select>

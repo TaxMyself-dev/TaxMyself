@@ -20,19 +20,19 @@ interface FieldTitles {
 @Component({
   selector: 'app-vat-report',
   templateUrl: './vat-report.page.html',
-  styleUrls: ['./vat-report.page.scss'],
+  styleUrls: ['./vat-report.page.scss', '../../shared/search-bar/search-bar.component.scss'],
 })
 export class VatReportPage implements OnInit {
 
   @Input() isSingleMonth: boolean = false;
 
   readonly ButtonSize = ButtonSize;
-  months = months;
-  singleMonths = singleMonths;
-  optionTypeReport = [{key: 'oneMonth', value: 'חודשי'}, {key: 'twoMonth', value: 'דו-חודשי'}];
+  // months = months;
+  // singleMonths = singleMonths;
+  // optionTypeReport = [{key: 'oneMonth', value: 'חודשי'}, {key: 'twoMonth', value: 'דו-חודשי'}];
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
-  myForm: FormGroup;
+  vatReportForm: FormGroup;
   token: string;
 
 
@@ -54,7 +54,7 @@ export class VatReportPage implements OnInit {
 
 
   constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder) {
-    this.myForm = this.formBuilder.group({
+    this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl (
         '', Validators.required,
       ),
@@ -65,6 +65,9 @@ export class VatReportPage implements OnInit {
         '', Validators.required,
       ),
       year: new FormControl (
+        '', Validators.required,
+      ),
+      monthFormat: new FormControl (
         '', Validators.required,
       )
     })
@@ -78,18 +81,20 @@ export class VatReportPage implements OnInit {
 
   onSubmit() {
     console.log("onSubmit - start");
-    const formData = this.myForm.value;
+    const formData = this.vatReportForm.value;
+    console.log(formData);
+    
     this.getVarReportData(formData.month, formData.year, this.isSingleMonth);
   }
 
 
-  slectedTypeReport(event: any): void {
-    console.log(event.target.value);
-    const val = event.target.value;
-    val === "oneMonth" ? this.months = singleMonths : this.months = months ;
-    console.log(this.months);
+  // slectedTypeReport(event: any): void {
+  //   console.log(event.target.value);
+  //   const val = event.target.value;
+  //   val === "oneMonth" ? this.months = singleMonths : this.months = months ;
+  //   console.log(this.months);
     
-  }
+  // }
 
 
   toggleSingleMonth(): void {
@@ -99,7 +104,7 @@ export class VatReportPage implements OnInit {
 
   async getVarReportData(month: number , year: number, isSingleMonth: boolean) {
 
-    const formData = this.myForm.value;
+    const formData = this.vatReportForm.value;
 
     // Create a date object for the first day of the specified month and year
     let startDateofMonth = startOfMonth(new Date(year, month));

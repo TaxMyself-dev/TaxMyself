@@ -8,3 +8,11 @@
     margin: 10px;
     padding: 10px;
 }
+
+.input-wrapper {
+    width: 200px;
+
+    &.month-pick {
+        width: 280px;
+    }
+}

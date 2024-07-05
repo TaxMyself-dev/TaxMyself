@@ -3,11 +3,12 @@ import { TransactionsService } from './transactions.page.service';
 import { Observable, tap } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { FormTypes, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-transactions',
   templateUrl: './transactions.page.html',
-  styleUrls: ['./transactions.page.scss'],
+  styleUrls: ['./transactions.page.scss', '../../shared/search-bar/search-bar.component.scss'],
 })
 
 export class TransactionsPage implements OnInit {
@@ -23,12 +24,38 @@ export class TransactionsPage implements OnInit {
   ];
   rows: IRowDataTable[];
   tableActions: ITableRowAction[]; 
+  accountsList = [{value:'4516', name: 'שובל'}, {value: '4517', name:'שמואל'}];
+  transactionsForm: FormGroup;
+  isOpen: boolean = false;
+  constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder) {
+    this.transactionsForm = this.formBuilder.group({
+      monthFormat: new FormControl (
+        '', Validators.required,
+      ),
+      month: new FormControl (
+        '', Validators.required,
+      ),
+      year: new FormControl (
+        '', Validators.required,
+      ),
+      accounts: new FormControl (
+        '', Validators.required,
+      )
+    })
+  }
 
-  constructor(private transactionsService: TransactionsService) {}
-
+  
   ngOnInit(): void {
     this.setTableActions();
 
+  }
+
+  onOpenClicked(event: boolean): void {
+    console.log("event of cliack",event);
+    
+    this.isOpen = event
+    console.log(this.isOpen);
+    
   }
 
   getTransactions() {

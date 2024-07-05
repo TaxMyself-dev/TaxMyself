@@ -11,13 +11,15 @@ import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { environment } from 'src/environments/environment';
 import { cloneDeep } from 'lodash';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-my-storage',
   templateUrl: './my-storage.page.html',
-  styleUrls: ['./my-storage.page.scss'],
+  styleUrls: ['./my-storage.page.scss', '../../shared/search-bar/search-bar.component.scss'],
 })
 export class MyStoragePage implements OnInit {
+
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
     [ExpenseFormColumns.CATEGORY, 1.2],
     [ExpenseFormColumns.SUB_CATEGORY, 1.1],
@@ -41,6 +43,8 @@ export class MyStoragePage implements OnInit {
   isOpen: boolean = false;
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
+  storageForm: FormGroup;
+
 
   // tableTitle = "הוצאות אחרונות";
   public chooseYear = [
@@ -48,7 +52,22 @@ export class MyStoragePage implements OnInit {
     2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017
   ]
 
-  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController) { }
+  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder) {
+    this.storageForm = this.formBuilder.group({
+      from: new FormControl (
+        '', Validators.required,
+      ),
+      until: new FormControl (
+        '', Validators.required,
+      ),
+      supplier: new FormControl (
+        '', Validators.required,
+      ),
+      category: new FormControl (
+        '', Validators.required,
+      )
+    })
+  }
 
   ngOnInit() {
     this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
@@ -289,7 +308,7 @@ export class MyStoragePage implements OnInit {
         }
       },
       {
-        name: 'share-social-outline',
+        name: 'share',
         icon: 'share-social-outline',
         action: (row: IRowDataTable) => {
           console.log('TODO: share-social-outline');

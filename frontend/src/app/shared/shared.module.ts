@@ -16,15 +16,20 @@ import { NgArrayPipesModule } from 'ngx-pipes';
 import { addSupplierComponent } from './add-supplier/add-supplier.component';
 import { ItemNavigateComponent } from './item-navigate/item-navigate.component';
 import { ButtonComponent } from './button/button.component';
+import { SearchBarComponent } from './search-bar/search-bar.component';
+import { GenericSelectComponent } from './generic-select/generic-select.component';
+import { SelectMonthFormatComponent } from './select-month-format/select-month-format.component';
+import { GenericInputComponent } from './generic-input/generic-input.component';
+import { collapseComponent } from './collapse/collapse.component';
 
 @NgModule({
-  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent],
+  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent],
   imports: [
     CommonModule,
     IonicModule,
     ReactiveFormsModule,
     NgArrayPipesModule,
     ],
-  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent]
+  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent]
 })
 export class SharedModule { }

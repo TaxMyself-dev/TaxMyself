@@ -12,7 +12,7 @@ export class TransactionsService {
   constructor(private http: HttpClient) { };
 
   getTransactionsData(): Observable<ITransactionData[]> {
-    const url = `${environment.apiUrl}excel/get_by_userID`;
+    const url = `${environment.apiUrl}transactions/get_by_userID`;
     const params = new HttpParams()
       .set('userId', 'N0rQ3GHjlmMEfKHUPmTUn2Tv3Y72'); // TODO: remove
     return this.http.get<ITransactionData[]>(url, {params})
