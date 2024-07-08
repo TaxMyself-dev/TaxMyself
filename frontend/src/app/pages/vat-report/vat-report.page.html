@@ -4,7 +4,7 @@
 
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
-  <app-search-bar (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"></app-search-bar>
+  <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"></app-search-bar>
     <ng-container *ngIf="!report">
       <p class="text-before-report">
         אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח

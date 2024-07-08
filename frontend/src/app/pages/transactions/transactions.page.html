@@ -1,11 +1,40 @@
 <app-custom-toolbar></app-custom-toolbar>
 <ion-content>
-  <app-search-bar [customTemplate]="searchBarContent" (onSearchClick)="getTransactions()"></app-search-bar>
+  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
+    (onSearchClick)="getTransactions()"></app-search-bar>
   <!-- <app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button> -->
-  <app-collaps (handleOpen)="onOpenClicked($event)"  [title]="'הכנסות'"></app-collaps>
-  <app-table *ngIf="isOpen && data$ | async as data" [fieldsNames]="fieldsNames" [rows]="rows" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+  <div>
+    <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse" (handleOpen)="onOpenClicked($event)"
+      [title]="'הכנסות'"></app-collapse>
+    <ng-container *ngIf="isOpen">
+    </ng-container>
+    <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse" (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
+  
 
+    <ng-template #expensesCollapse>
+      <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar"
+        (onSearchClick)="expensesFilter()"></app-search-bar>
+      <app-table *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNames" [rows]="expensesData"
+        [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+    </ng-template>
+  
+    <ng-template #incomeCollapse>
+      <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
+        (onSearchClick)="incomeFilter()"></app-search-bar>
+      <app-table  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNames" [rows]="incomesData"
+        [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+    </ng-template>
 
+  </div>
+  <label class="label-file-add-expense">
+    <div class="div-wrap">
+     
+     
+      
+    <ion-input  label-placement="floating" type="file" accept=".pdf, .png, .jpeg, .jpg">
+    </ion-input>
+    </div>
+  </label>
 </ion-content>
 
 <ng-template #searchBarContent>
@@ -13,6 +42,25 @@
     <app-select-month-format [parentForm]="transactionsForm"></app-select-month-format>
     <app-select-month [parentForm]="transactionsForm"></app-select-month>
     <app-select-year [parentForm]="transactionsForm"></app-select-year>
-    <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'" [parentForm]="transactionsForm"></app-generic-select>
+    <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'"
+      [parentForm]="transactionsForm"></app-generic-select>
+  </form>
+</ng-template>
+
+<ng-template #incomeSearchBar>
+  <form class="generic-search-bar-content" [formGroup]="incomeForm">
+    <app-generic-select [parentForm]="incomeForm" [controlName]="'incomeType'" [items]="typeIncomeList"
+      [title]="'סוג ההכנסה'"></app-generic-select>
+    <app-generic-select [parentForm]="incomeForm" [controlName]="'category'" [items]="accountsList" [title]="'קטגוריה'"></app-generic-select>
+  </form>
+</ng-template>
+
+
+
+<ng-template #expensesSearchBar>
+  <form class="generic-search-bar-content" [formGroup]="expensesForm">
+    <app-generic-select [parentForm]="expensesForm" [controlName]="'expensesType'" [items]="typeIncomeList"
+      [title]="'סוג ההוצאה'"></app-generic-select>
+    <app-generic-select [controlName]="'category'" [items]="accountsList" [title]="'קטגוריה'"></app-generic-select>
   </form>
 </ng-template>

@@ -1,15 +1,16 @@
-import { Component, EventEmitter, INJECTOR, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, INJECTOR, Input, OnInit, Output, TemplateRef } from '@angular/core';
 
 @Component({
-  selector: 'app-collaps',
+  selector: 'app-collapse',
   templateUrl: './collapse.component.html',
   styleUrls: ['./collapse.component.scss'],
 })
 export class collapseComponent  implements OnInit {
 
   @Input() title: string;
+  @Input() customTemplate: TemplateRef<any>;
   @Output() handleOpen = new EventEmitter<boolean>();
-  iconString: string = "chevron-down-outline";
+  iconString: string = "chevron-forward-outline";
   isOpen: boolean = false;
   constructor() { }
 
@@ -27,7 +28,7 @@ export class collapseComponent  implements OnInit {
   handleIcon(): void {
     console.log("handle icon");
     
-    this.isOpen ? this.iconString = "chevron-down-outline" : this.iconString = "chevron-forward-outline";
+    this.isOpen ? this.iconString = "chevron-forward-outline" : this.iconString = "chevron-down-outline";
   }
 
 }

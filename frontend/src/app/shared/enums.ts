@@ -61,20 +61,23 @@ export enum ExpenseFormColumns {
 export enum TransactionsOutcomesColumns {
   ID = 'id',
   // change this to dateTimeStamp
-  BILL_DATE = 'bill_date',
+  BILL_NUMBER = 'bill_number',
   PAY_DATE = 'pay_date',
   NAME = 'name',
   SUM = 'sum',
-  CATEGORY = 'category'
+  CATEGORY = 'category',
+  SUBCATEGORY = 'sub_category',
+
 }
 
 export enum TransactionsOutcomesHebrewColumns {
-  id = 'חשבון',
-  bill_date = 'תאריך תשלום',
+  id = 'מספר עסקה',
+  bill_number = 'חשבון',
   pay_date = 'תאריך עסקה',
-  name = 'שם',
+  name = 'שם עסק',
   sum = 'סכום',
-  category = 'קטגוריה'
+  category = 'קטגוריה',
+  sub_category = 'תת-קטגוריה'
 }
 
   export const months = [

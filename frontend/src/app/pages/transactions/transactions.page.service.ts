@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, OnInit } from '@angular/core';
 import { Observable } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
@@ -9,13 +9,42 @@ import { ITransactionData } from 'src/app/shared/interface';
 })
 export class TransactionsService {
 
-  constructor(private http: HttpClient) { };
+token:string;
+constructor(private http: HttpClient) { 
+  this.setUserId();
+};
 
-  getTransactionsData(): Observable<ITransactionData[]> {
-    const url = `${environment.apiUrl}transactions/get_by_userID`;
-    const params = new HttpParams()
-      .set('userId', 'N0rQ3GHjlmMEfKHUPmTUn2Tv3Y72'); // TODO: remove
-    return this.http.get<ITransactionData[]>(url, {params})
+  private setUserId(): void {
+    console.log("in set");
+    this.token = localStorage.getItem('token');
+    // const tempA = localStorage.getItem('token');
+    // const tempB = JSON.parse(tempA)
+    // this.token = tempB.uid;
+    console.log(this.token);
+  }
+
+  getIncomeTransactionsData(formData: any): Observable<ITransactionData[]> {
+    console.log(formData.accounts);
+    
+    const url = `${environment.apiUrl}transactions/get-incomes`;
+    const param = new HttpParams()
+    .set('billId', formData.accounts);
+    const headers = {
+      'token': this.token
+    }
+    return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
+  }
+
+  getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
+    console.log(formData.accounts);
+    
+    const url = `${environment.apiUrl}transactions/get-expenses`;
+    const param = new HttpParams()
+    .set('billId', formData.accounts);
+    const headers = {
+      'token': this.token
+    }
+    return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
   }
 
 }
