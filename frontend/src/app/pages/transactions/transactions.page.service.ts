@@ -28,7 +28,10 @@ constructor(private http: HttpClient) {
     
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
-    .set('billId', formData.accounts);
+    .set('billId', formData.accounts)
+    .set('month', formData.month)
+    .set('year', formData.year)
+    .set('isSingleMonth', formData.isSingleMonth)
     const headers = {
       'token': this.token
     }
@@ -45,6 +48,12 @@ constructor(private http: HttpClient) {
       'token': this.token
     }
     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
+  }
+
+  getAllBills(): void {
+    console.log("get bills");
+    const url = `${environment.apiUrl}transactions/get-incomes`;
+
   }
 
 }

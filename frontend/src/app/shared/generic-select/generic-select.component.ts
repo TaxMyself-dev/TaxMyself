@@ -10,7 +10,7 @@ export class GenericSelectComponent {
 
   constructor() { }
   
-  @Input() items: ({value: string | number; name: string | number;})[];
+  @Input() items: ({value: string | number | boolean; name: string | number;})[];
   @Input() title: string;
   @Input() isRequired: boolean = false;
   @Input() parentForm: FormGroup;

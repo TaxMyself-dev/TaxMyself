@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 
 @Component({
   selector: 'app-add-bill',
@@ -7,8 +7,18 @@ import { Component, OnInit } from '@angular/core';
 })
 export class AddBillComponent  implements OnInit {
 
+  @Input() paymentMethod: string;
+
+  existBill: boolean = true;
   constructor() { }
 
   ngOnInit() {}
+
+  clicked(event): void {
+    const choose = event.target.value;
+    console.log("click");
+    console.log(event.target.value);
+    choose === "new" ? this.existBill = false : this.existBill = true;
+  }
 
 }

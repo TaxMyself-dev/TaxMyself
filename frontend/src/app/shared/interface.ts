@@ -1,4 +1,4 @@
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from "./enums";
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
 
 export interface IRowDataTable {
     [key: string]: string | number | Date | boolean;
@@ -7,7 +7,8 @@ export interface IRowDataTable {
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     name: TFormColumns,
     value: TFormHebrewColumns,
-    type: FormTypes
+    type: FormTypes,
+    cellRenderer?: ICellRenderer
 }
 
 export interface ISuppliers {

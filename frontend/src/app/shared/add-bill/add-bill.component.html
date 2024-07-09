@@ -1,3 +1,24 @@
-<p>
-  add-bill works!
-</p>
+<ion-header>
+  <ion-toolbar>
+    <ion-title>שיוך אמצעי תשלום - {{paymentMethod}}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-segment (ionChange)="clicked($event)"  color="success" value="exist">
+    <ion-segment-button value="exist">
+      <ion-label>שייך לחשבון קיים</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="new">
+      <ion-label>שייך לחשבון חדש</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <ng-container *ngIf="existBill; else newBill">
+    <app-generic-select></app-generic-select>
+  </ng-container>
+
+  <ng-template #newBill>
+
+  </ng-template>
+</ion-content>
