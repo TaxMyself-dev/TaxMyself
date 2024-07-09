@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { SharedService } from 'src/shared/shared.service';
@@ -22,8 +22,8 @@ export class TransactionsController {
   }
 
   @Get('get_by_userID')
-  async getTransactionsByUserID(@Query('userID') userID: string): Promise<Transactions[]> {
-    console.log("this is user id that i send: ", userID);
+  async getTransactionsByUserID(@Query('billId') userID: string): Promise<Transactions[]> {
+    console.log("this is user id thatttt i send: ", userID);
 
     return await this.transactionsService.getTransactionsByUserID(userID);
   }
@@ -67,23 +67,23 @@ export class TransactionsController {
     //@Param('id') id: number,
     //@Query('billId') billId: number | null,
     @Query('billId') billId: string,
-    @Body() body: any
+    // @Body() body: any
+    @Headers('token') token: string
   ): Promise<Transactions[]> {
     const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    //return this.transactionsService.getIncomesTransactions(parsedBillId, userId);
-    return this.transactionsService.getIncomesTransactions(null, "N0rQ3GHjlmMEfKHUPmTUn2Tv3Y72");
-
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
+    return this.transactionsService.getIncomesTransactions(parsedBillId, userId);
   }
 
 
   @Get('get-expenses')
   async getForBill(
     @Query('billId') billId: string,
-    @Body() body: any
+    @Headers('token') token: string
+    // @Body() body: any
   ): Promise<Transactions[]> {
     const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.transactionsService.getExpensesTransactions(parsedBillId, userId);
   }
 

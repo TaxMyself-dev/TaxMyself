@@ -111,6 +111,13 @@ export interface ICityData {
 }
 
 export interface ITransactionData {
+    paymentIdentifier: string,
+    subCategory: string,
+    isRecognized: boolean,
+    vatPercent: number,
+    taxPercent: number,
+    isEquipment: boolean,
+    reductionPercent: number,
     id: number;
     name: string;
     billDate: Date;

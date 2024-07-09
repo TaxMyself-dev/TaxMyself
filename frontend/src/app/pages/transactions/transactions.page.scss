@@ -16,3 +16,9 @@
         width: 280px;
     }
 }
+
+@keyframes slide-in {
+    100% {
+        transform: translateY(0%)
+    }
+}
