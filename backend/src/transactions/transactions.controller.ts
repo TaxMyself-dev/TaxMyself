@@ -52,6 +52,15 @@ export class TransactionsController {
   }
 
 
+  @Get('get-bills')
+  async getBills(
+    @Headers('token') token: string
+  ) {
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    return this.transactionsService.getBillsByUserId(userId);
+  }
+
+
   @Get(':id/get-transactions')
   async getTransactionsForBill(
     @Param('id') id: number,
