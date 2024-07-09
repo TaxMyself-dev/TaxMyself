@@ -1,12 +1,62 @@
 //shared.service.ts
 
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, EntityTarget, FindOptionsWhere, Between } from 'typeorm';
+
 
 import { parse } from 'date-fns';
 import { getDayOfYear } from 'date-fns';
 
+import { Expense } from 'src/expenses/expenses.entity';
+import { Transactions } from 'src/transactions/transactions.entity';
+
 @Injectable()
 export class SharedService {
+
+    constructor(
+        @InjectRepository(Expense)
+        private readonly expenseRepository: Repository<Expense>,
+        @InjectRepository(Transactions)
+        private readonly transactionRepository: Repository<Transactions>,
+    ) {}
+
+
+    // async findEntities<T>(entity: EntityTarget<T>, conditions: FindOptionsWhere<T>): Promise<T[]> {
+    //     const repository = this.getRepository(entity);
+    //     return repository.find({ where: conditions });
+    // }
+
+    async findEntities<T>(entity: EntityTarget<T>, conditions: any): Promise<T[]> {
+        const repository = this.getRepository(entity);
+        const whereConditions = this.buildWhereConditions<T>(conditions);
+        return repository.find({ where: whereConditions });
+    }
+  
+
+    private getRepository<T>(entity: EntityTarget<T>): Repository<T> {
+        switch (entity) {
+            case Expense:
+                return this.expenseRepository as unknown as Repository<T>;
+            case Transactions:
+                return this.transactionRepository as unknown as Repository<T>;
+            default:
+                throw new Error('Repository not found for given entity');
+        }
+    }
+
+
+    private buildWhereConditions<T>(conditions: any): FindOptionsWhere<T> {
+        const whereConditions: FindOptionsWhere<T> = {};
+        for (const [key, value] of Object.entries(conditions)) {
+            if (key === 'startDate' || key === 'endDate') continue;
+            whereConditions[key] = value;
+        }
+        if (conditions.startDate && conditions.endDate) {
+            whereConditions['date'] = Between(new Date(conditions.startDate), new Date(conditions.endDate));
+        }
+        return whereConditions;
+    }
 
 
     getDayOfYearFromDate(date: Date): number {

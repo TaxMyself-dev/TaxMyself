@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
+import { SharedService } from 'src/shared/shared.service';
 import { Transactions } from './transactions.entity';
 import { UsersService } from 'src/users/users.service';
 import { CreateBillDto } from './dtos/create-bill.dto';
@@ -11,6 +12,7 @@ import { CreateSourceDto } from './dtos/create-source.dto';
 export class TransactionsController {
   constructor(
     private readonly transactionsService: TransactionsService,
+    private readonly sharedService: SharedService,
     private usersService: UsersService,) {}
 
   @Post('load-file')
@@ -32,6 +34,12 @@ export class TransactionsController {
     const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return await this.transactionsService.addBill(userId, body.billName); 
   }
+
+
+  // @Get('get-bills')
+  // async getUserBills(@Query('userId') isEquipment: boolean): Promise<string[]> {
+  //   return this.transactionsService.getBillsByUserId(userId);
+  // }
 
   
   @Post(':id/sources')
@@ -63,7 +71,9 @@ export class TransactionsController {
   ): Promise<Transactions[]> {
     const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
     const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    return this.transactionsService.getIncomesTransactions(parsedBillId, userId);
+    //return this.transactionsService.getIncomesTransactions(parsedBillId, userId);
+    return this.transactionsService.getIncomesTransactions(null, "N0rQ3GHjlmMEfKHUPmTUn2Tv3Y72");
+
   }
 
 
@@ -75,6 +85,13 @@ export class TransactionsController {
     const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
     const userId = await this.usersService.getFirbsaeIdByToken(body.token)
     return this.transactionsService.getExpensesTransactions(parsedBillId, userId);
+  }
+
+
+  @Get('try-1')
+  async getTransactions(@Query() query): Promise<Transactions[]> {
+    return this.sharedService.findEntities(Transactions, query);
+      //return this.genericService.findEntities(Transactions, query);
   }
 
 

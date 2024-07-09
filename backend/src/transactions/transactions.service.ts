@@ -132,14 +132,19 @@ export class TransactionsService {
   }
 
 
-  async getBillsByUserId(userId: string): Promise<{ id: number, billName: string }[]> {
-    const bills = await this.billRepo
-      .createQueryBuilder('bill')
-      .select(['bill.id', 'bill.billName'])
-      .where('bill.userId = :userId', { userId })
-      .getMany();
+  async getBillsByUserId(userId: string): Promise<Bill[]> {
 
-    return bills.map(bill => ({ id: bill.id, billName: bill.billName }));
+    return this.billRepo.find({
+      where: { userId: userId}
+    });
+
+    // const bills = await this.billRepo
+    //   .createQueryBuilder('bill')
+    //   .select(['bill.id', 'bill.billName'])
+    //   .where('bill.userId = :userId', { userId })
+    //   .getMany();
+
+    // return bills.map(bill => ({ id: bill.id, billName: bill.billName }));
   }
 
 
