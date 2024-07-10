@@ -12,7 +12,7 @@ export class SelectMonthFormatComponent {
 
   selectedMonth: string = '';
 
-  optionsTypes = [{value: 'oneMonth', name: 'חודשי'}, {value: 'twoMonth', name: 'דו-חודשי'}];
+  optionsTypes = [{value: true, name: 'חודשי'}, {value: false, name: 'דו-חודשי'}];
 
   constructor() { }
 }

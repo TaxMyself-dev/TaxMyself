@@ -21,9 +21,13 @@
     <ng-template #incomeCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
         (onSearchClick)="incomeFilter()"></app-search-bar>
-      <app-table  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNames" [rows]="incomesData"
+      <app-table [specialColumnsCellRendering]="specialColumnsCellRendering" [actions]="tableActions"  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNames" [rows]="incomesData"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
+
+    <ng-container *ngIf="addPayment">
+      <app-add-bill [paymentMethod]="this.selectBill" ></app-add-bill>
+    </ng-container>
 
   </div>
   <label class="label-file-add-expense">

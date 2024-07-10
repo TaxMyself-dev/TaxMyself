@@ -67,7 +67,7 @@ export class VatReportPage implements OnInit {
       year: new FormControl (
         '', Validators.required,
       ),
-      monthFormat: new FormControl (
+      isSingleMonth: new FormControl (
         '', Validators.required,
       )
     })

@@ -33,12 +33,58 @@
     <ion-row *ngFor="let row of rows; let i = index">
       <ng-container *ngFor="let field of row | keyvalue: columnsOrderByFunc">
         <!-- TODO: remove the specific dateTimestampfrom size -->
-        <ion-col
-          *ngIf="!columnsToIgnore.includes(field.key)"
-          [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
-          [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
-          {{field.value}}
-        </ion-col>
+        <ng-container [ngSwitch]="specialColumnsCellRendering?.get(field.key)">
+          <ng-container *ngSwitchCase="ICellRenderer.BILL">
+            <ng-container *ngTemplateOutlet="billRenderCell"></ng-container>
+          </ng-container>
+          <ng-container *ngSwitchCase="ICellRenderer.CATEGORY">
+            <ng-container *ngTemplateOutlet="categoryRenderCell"></ng-container>
+          </ng-container>
+          <ng-container *ngSwitchCase="ICellRenderer.SUBCATEGORY">
+            <ng-container *ngTemplateOutlet="subCategoryRenderCell"></ng-container>
+          </ng-container>
+          <ng-container *ngSwitchDefault>
+            <ng-container *ngTemplateOutlet="defaultCell"></ng-container>
+          </ng-container>
+        </ng-container>
+
+        <ng-template #defaultCell>
+          <ion-col
+                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                {{field.value}}
+          </ion-col>
+        </ng-template>
+        
+        <ng-template #billRenderCell>
+          <ng-container *ngIf="field.value === 'טרם סווג'; else defaultCell">
+          <ion-col
+          *ngIf="field.value === 'טרם סווג'; else defaultCell"
+                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                bill
+          </ion-col>
+        </ng-container>
+        </ng-template>
+        
+        <ng-template #categoryRenderCell>
+          <ion-col
+          *ngIf="field.value === 'טרם סווג'; else defaultCell"
+                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                cat
+          </ion-col>
+        </ng-template>
+        
+        <ng-template #subCategoryRenderCell>
+          <ion-col
+          *ngIf="field.value === 'טרם סווג'; else defaultCell"
+                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                sub
+          </ion-col>
+        </ng-template>
+      
       </ng-container>
       <ion-col *ngIf="actions?.length" size="2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
         <ion-icon *ngFor="let action of actions" class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>

@@ -1,9 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, Observable, map, zip } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, from, map, switchMap, zip } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
-import { FormTypes, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
+import { ModalController } from '@ionic/angular';
 
 @Component({
   selector: 'app-transactions',
@@ -17,16 +19,21 @@ export class TransactionsPage implements OnInit {
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   fieldsNames: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     // { name: TransactionsOutcomesColumns.ID, value: TransactionsOutcomesHebrewColumns.id, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.bill_number, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL},
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.sub_category, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY},
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY},
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.pay_date, type: FormTypes.DATE },
   ];
+  readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
+    [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
+    [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
+    [TransactionsOutcomesColumns.BILL_NUMBER, ICellRenderer.BILL],
+  ]);
   rows: IRowDataTable[];
   tableActions: ITableRowAction[]; 
-  accountsList = [{value:'null', name: 'כל החשבונות'},{value:'4516', name: 'שובל'}, {value: '4517', name:'שמואל'}];
+  accountsList = [{value:'null', name: 'כל החשבונות'},{value:'10', name: 'שובל'}, {value: '4517', name:'שמואל'}];
   typeIncomeList = [{value:null, name: 'הכל'}, {value:'classification', name: 'סווג'}, {value: 'notClassification', name:'טרם סווג'}];
   transactionsForm: FormGroup;
   incomeForm: FormGroup;
@@ -34,11 +41,13 @@ export class TransactionsPage implements OnInit {
   isOpen: boolean = false;
   incomesData: IRowDataTable[];
   expensesData: IRowDataTable[];
+  addPayment: boolean = false;
+  selectBill: string;
 
-  constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder) {
+  constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
-      monthFormat: new FormControl (
-        '', Validators.required,
+      isSingleMonth: new FormControl (
+        false, Validators.required,
       ),
       month: new FormControl (
         '', Validators.required,
@@ -136,14 +145,41 @@ columnsOrderByFunc(a, b): number {
 
 private setTableActions(): void {
   this.tableActions = [
-    // {
-    //   name: 'delete',
-    //   icon: 'trash-outline',
-    //   action: (row: IRowDataTable) => {
-    //     this.confirmDel(row);
-    //   }
-    // },
+    {
+      name: 'delete',
+      icon: 'create',
+      action: (row: IRowDataTable) => {
+        this.openAddBill(row)
+      }
+    },
   ]
+}
+
+openAddBill(data: IRowDataTable): void {
+  // this.addPayment = true;        
+  this.selectBill = data.paymentIdentifier as string;
+  this.openPopupAddExpense()
+}
+
+openPopupAddExpense(data?: IRowDataTable): void {
+    from(this.modalController.create({
+
+      component: AddBillComponent,
+      //showBackdrop: false,
+      componentProps: {
+        // columns: this.fieldsNamesToAdd,
+        // editMode: !!Object.keys(data).length,
+        paymentMethod: this.selectBill
+      }
+    })).pipe(catchError((err) => {
+      alert("openPopupAddExpense error");
+      return EMPTY;
+    }), switchMap((modal) => from(modal.present())), catchError((err) => {
+      alert("openPopupAddExpense switchMap error");
+      console.log(err);
+      
+      return EMPTY;
+    })).subscribe();
 }
 
 incomeFilter(): void {
@@ -194,5 +230,7 @@ private handleTableData(data: ITransactionData[]) {
 
   return rows;
 }
+
+
 
 }
