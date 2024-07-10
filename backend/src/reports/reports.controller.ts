@@ -22,8 +22,8 @@ export class ReportsController {
             let endDate: number;
             let userId: string;
 
-            startDate = this.sharedService.convertDateToTimestamp(query.startDate);
-            endDate   = this.sharedService.convertDateToTimestamp(query.endDate);
+            startDate = this.sharedService.convertDateStrToTimestamp(query.startDate);
+            endDate   = this.sharedService.convertDateStrToTimestamp(query.endDate);
             userId    = await this.usersService.getFirbsaeIdByToken(query.token)
         
             const vatReport = await this.reportsService.createVatReport(userId, startDate, endDate, query.vatableTurnover, query.nonVatableTurnover);

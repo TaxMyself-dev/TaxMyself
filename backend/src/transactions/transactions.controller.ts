@@ -100,6 +100,23 @@ export class TransactionsController {
   @Get('try-1')
   async getTransactions(@Query() query): Promise<Transactions[]> {
     return this.sharedService.findEntities(Transactions, query);
+  }
+
+
+  @Get('try-2')
+  async getDates() {
+    const my_range = this.sharedService.getStartAndEndDate("2024","1",false);
+    console.log("my_range is ", my_range);
+    console.log("startDate is ", my_range.startDate);
+    console.log("endDate is ", my_range.endDate);
+    const startDateTS = this.sharedService.convertDateToTimestamp(my_range.startDate)
+    console.log("startDateTS is ", startDateTS);
+    
+
+
+    
+    //return this.sharedService.getStartAndEndDate("2024","1",false);
+
       //return this.genericService.findEntities(Transactions, query);
   }
 
