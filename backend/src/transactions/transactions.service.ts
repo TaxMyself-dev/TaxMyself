@@ -7,11 +7,13 @@ import { parse, isValid } from 'date-fns';
 import { DateTime } from 'luxon';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
+import { SharedService } from 'src/shared/shared.service';
 
 
 @Injectable()
 export class TransactionsService {
   constructor(
+    private readonly sharedService: SharedService,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
     @InjectRepository(Bill)
@@ -200,16 +202,19 @@ export class TransactionsService {
   }
 
 
-  async getIncomesTransactions(billId: number | null, userId: string): Promise<Transactions[]> {
-    const transactions = await this.getTransactionsByBillAndUserId(billId, userId);
-    console.log(transactions);
+  async getIncomesTransactions(query: any): Promise<Transactions[]> {
+    //const transactions = await this.sharedService.findEntities(Transactions, query);
+    //console.log("getIncomesTransactions query is ", query);
+    
+    const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId);
+    //console.log(transactions);
     return transactions.filter(transaction => transaction.sum > 0);
   }
 
 
   async getExpensesTransactions(billId: number | null, userId: string): Promise<Transactions[]> {
     const transactions = await this.getTransactionsByBillAndUserId(billId, userId);
-    console.log(transactions);
+    //console.log(transactions);
     return transactions.filter(transaction => transaction.sum < 0);
   }
 
