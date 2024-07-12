@@ -72,9 +72,10 @@ export enum TransactionsOutcomesColumns {
 
 export enum TransactionsOutcomesHebrewColumns {
   id = 'מספר עסקה',
-  paymentIdentifier = 'חשבון',
-  pay_date = 'תאריך עסקה',
-  name = 'שם עסק',
+  paymentIdentifier = 'אמצעי תשלום',
+  payDate = 'תאריך עסקה',
+  billDate = 'תאריך חיוב',
+  name = 'שם העסק',
   sum = 'סכום',
   category = 'קטגוריה',
   subCategory = 'תת-קטגוריה'

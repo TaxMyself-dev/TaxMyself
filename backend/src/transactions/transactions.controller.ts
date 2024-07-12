@@ -30,8 +30,9 @@ export class TransactionsController {
 
 
   @Post('add-bill')
-  async addBill(@Body() body: CreateBillDto) {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+  async addBill(@Headers('token') token: string,
+  @Body() body: CreateBillDto) {
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
     return await this.transactionsService.addBill(userId, body.billName); 
   }
 
@@ -44,11 +45,14 @@ export class TransactionsController {
   
   @Post(':id/sources')
   async addSourceToBill(
-    @Param('id') id: number,
-    @Body() body: CreateSourceDto,
-  ): Promise<Source> {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    return this.transactionsService.addSourceToBill(id, body.sourceName, userId);
+    @Param('id') billId: number,
+    @Headers('token') token: string,
+    @Body() body: any,
+    
+    ): Promise<Source> {
+      console.log(billId, body.sourceName, token);
+      const userId = await this.usersService.getFirbsaeIdByToken(token)
+    return this.transactionsService.addSourceToBill(billId, body.sourceName, userId);
   }
 
 
@@ -58,6 +62,12 @@ export class TransactionsController {
   ) {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     return this.transactionsService.getBillsByUserId(userId);
+  }
+  
+  @Get('get-sources')
+  async getSources(@Headers('token') token: string) {
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    return this.transactionsService.getSources(userId);
   }
 
 

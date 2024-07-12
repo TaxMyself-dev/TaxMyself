@@ -17,14 +17,21 @@ export class TransactionsPage implements OnInit {
 
   incomesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
-  fieldsNames: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    // { name: TransactionsOutcomesColumns.ID, value: TransactionsOutcomesHebrewColumns.id, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL},
+  fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL },
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY},
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY},
+    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.pay_date, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
+  ];
+  fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL },
+    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
+    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
   ];
   readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
     [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
@@ -32,9 +39,8 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.BILL_NUMBER, ICellRenderer.BILL],
   ]);
   rows: IRowDataTable[];
-  tableActions: ITableRowAction[]; 
-  accountsList = [{value:'null', name: 'כל החשבונות'},{value:'10', name: 'שובל'}, {value: '4517', name:'שמואל'}];
-  typeIncomeList = [{value:null, name: 'הכל'}, {value:'classification', name: 'סווג'}, {value: 'notClassification', name:'טרם סווג'}];
+  tableActions: ITableRowAction[];
+  typeIncomeList = [{ value: null, name: 'הכל' }, { value: 'classification', name: 'סווג' }, { value: 'notClassification', name: 'טרם סווג' }];
   transactionsForm: FormGroup;
   incomeForm: FormGroup;
   expensesForm: FormGroup;
@@ -43,46 +49,69 @@ export class TransactionsPage implements OnInit {
   expensesData: IRowDataTable[];
   addPayment: boolean = false;
   selectBill: string;
+  accountsList: any[] = [];
 
   constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
-      isSingleMonth: new FormControl (
+      isSingleMonth: new FormControl(
         false, Validators.required,
       ),
-      month: new FormControl (
+      month: new FormControl(
         '', Validators.required,
       ),
-      year: new FormControl (
+      year: new FormControl(
         '', Validators.required,
       ),
-      accounts: new FormControl (
+      accounts: new FormControl(
         '', Validators.required,
       )
     });
 
     this.incomeForm = this.formBuilder.group({
-      incomeType: new FormControl (
+      incomeType: new FormControl(
         '', Validators.required,
       ),
-      category: new FormControl (
+      category: new FormControl(
         '', Validators.required,
       ),
     });
 
     this.expensesForm = this.formBuilder.group({
-      expensesType: new FormControl (
+      expensesType: new FormControl(
         '', Validators.required,
       ),
-      category: new FormControl (
+      category: new FormControl(
         '', Validators.required,
       ),
     })
   }
 
-  
+
   ngOnInit(): void {
     this.setTableActions();
+    this.transactionsService.getAllBills();
+    this.transactionsService.accountsList$.subscribe(
+      (accountsList) => {
+        this.accountsList = accountsList;
+        console.log(this.accountsList);
+      }
+    );
+    this.transactionsService.getAllSources().subscribe((data) => {
+      console.log("sources: ",data);
+    })
 
+  }
+
+  ngOnDestroy(): void {
+      this.transactionsService.accountsList$.unsubscribe();
+    
+  }
+
+  renameFields(obj: any): any {
+    return {
+      value: obj.id,
+      name: obj.billName,
+    };
   }
 
   onOpenClicked(event: boolean): void {
@@ -96,80 +125,78 @@ export class TransactionsPage implements OnInit {
     const expensesData$ = this.transactionsService.getExpenseTransactionsData(formData);
 
     zip(incomeData$, expensesData$)
-    .pipe(
-      map(([incomeData, expenseData]) => {
-        const incomeDataRows = this.handleTableData(incomeData);
-        const expenseeDataRows = this.handleTableData(expenseData);
-        return {incomes: incomeDataRows, expenses: expenseeDataRows};
-      }
-    )
-  )
-  .subscribe((data: {incomes: IRowDataTable[]; expenses: IRowDataTable[]}) => {
-    this.expensesData = data.expenses;
-    this.incomesData = data.incomes;
-    this.incomesData$.next(data.incomes);
-    this.expensesData$.next(data.expenses);
-  });
-}
-
-columnsOrderByFunc(a, b): number {
-  
-  const columnsOrder = [
-    'paymentIdentifier',
-    'name',
-    'category',
-    'subCategory',
-    'sum',
-    'payDate'
-  ];
-
-  const indexA = columnsOrder.indexOf(a.key);
-  const indexB = columnsOrder.indexOf(b.key);
-  
-  if (indexA === -1 && indexB !== -1) {
-    return 1; // objA is not in the order list, move it to the end
-  } else if (indexA !== -1 && indexB === -1) {
-    return -1; // objB is not in the order list, move it to the end
-  } else if (indexA === -1 && indexB === -1) {
-    return 0; // both keys are not in the order list, leave them as is
+      .pipe(
+        map(([incomeData, expenseData]) => {
+          const incomeDataRows = this.handleTableData(incomeData);
+          const expenseeDataRows = this.handleTableData(expenseData);
+          return { incomes: incomeDataRows, expenses: expenseeDataRows };
+        }
+        )
+      )
+      .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
+        this.expensesData = data.expenses;
+        this.incomesData = data.incomes;
+        this.incomesData$.next(data.incomes);
+        this.expensesData$.next(data.expenses);
+      });
   }
 
-  if (indexA < indexB) {
-    return -1;
-  } else if (indexA > indexB) {
-    return 1;
-  } else {
-    return 0;
+  columnsOrderByFunc(a, b): number {
+
+    const columnsOrder = [
+      'paymentIdentifier',
+      'name',
+      'category',
+      'subCategory',
+      'sum',
+      'payDate'
+    ];
+
+    const indexA = columnsOrder.indexOf(a.key);
+    const indexB = columnsOrder.indexOf(b.key);
+
+    if (indexA === -1 && indexB !== -1) {
+      return 1; // objA is not in the order list, move it to the end
+    } else if (indexA !== -1 && indexB === -1) {
+      return -1; // objB is not in the order list, move it to the end
+    } else if (indexA === -1 && indexB === -1) {
+      return 0; // both keys are not in the order list, leave them as is
+    }
+
+    if (indexA < indexB) {
+      return -1;
+    } else if (indexA > indexB) {
+      return 1;
+    } else {
+      return 0;
+    }
   }
-}
 
-private setTableActions(): void {
-  this.tableActions = [
-    {
-      name: 'delete',
-      icon: 'create',
-      action: (row: IRowDataTable) => {
-        this.openAddBill(row)
-      }
-    },
-  ]
-}
+  private setTableActions(): void {
+    this.tableActions = [
+      {
+        name: 'delete',
+        icon: 'create',
+        action: (row: IRowDataTable) => {
+          this.openAddBill(row)
+        }
+      },
+    ]
+  }
 
-openAddBill(data: IRowDataTable): void {
-  // this.addPayment = true;        
-  this.selectBill = data.paymentIdentifier as string;
-  this.openPopupAddExpense()
-}
+  openAddBill(data: IRowDataTable): void {
+    // this.addPayment = true;        
+    this.selectBill = data.paymentIdentifier as string;
+    this.openPopupAddBill()
+  }
 
-openPopupAddExpense(data?: IRowDataTable): void {
+  openPopupAddBill(data?: IRowDataTable): void {
     from(this.modalController.create({
 
       component: AddBillComponent,
-      //showBackdrop: false,
       componentProps: {
-        // columns: this.fieldsNamesToAdd,
-        // editMode: !!Object.keys(data).length,
-        paymentMethod: this.selectBill
+        paymentMethod: this.selectBill,
+        // accountsList: this.accountsList.splice(1)
       }
     })).pipe(catchError((err) => {
       alert("openPopupAddExpense error");
@@ -177,59 +204,59 @@ openPopupAddExpense(data?: IRowDataTable): void {
     }), switchMap((modal) => from(modal.present())), catchError((err) => {
       alert("openPopupAddExpense switchMap error");
       console.log(err);
-      
+
       return EMPTY;
     })).subscribe();
-}
+  }
 
-incomeFilter(): void {
-  console.log("income filter");
-  const formData = this.incomeForm.value;
-  console.log(formData);
-  if (formData.incomeType === "notClassification") {
-    this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג"));
+  incomeFilter(): void {
+    console.log("income filter");
+    const formData = this.incomeForm.value;
+    console.log(formData);
+    if (formData.incomeType === "notClassification") {
+      this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג"));
+    }
+    else if (formData.incomeType === null) {
+      this.incomesData$.next(this.incomesData);
+    }
+    else {
+      this.incomesData$.next(this.incomesData.filter((income) => income.category !== "טרם סווג"));
+    }
   }
-  else if (formData.incomeType === null) {
-    this.incomesData$.next(this.incomesData);
-  }
-  else {
-    this.incomesData$.next(this.incomesData.filter((income) => income.category !== "טרם סווג"));
-  }
-}
 
-expensesFilter(): void {
-  console.log("expens filter");
-  const formData = this.expensesForm.value;
-  console.log(this.expensesForm.get('expensesType').value);
-  if (formData.expensesType === "notClassification") {
-    this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג"));
+  expensesFilter(): void {
+    console.log("expens filter");
+    const formData = this.expensesForm.value;
+    console.log(this.expensesForm.get('expensesType').value);
+    if (formData.expensesType === "notClassification") {
+      this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג"));
+    }
+    else if (formData.expensesType === null) {
+      this.expensesData$.next(this.expensesData);
+    }
+    else {
+      this.expensesData$.next(this.expensesData.filter((expense) => expense.category !== "טרם סווג"));
+    }
   }
-  else if (formData.expensesType === null) {
-    this.expensesData$.next(this.expensesData);
-  }
-  else {
-    this.expensesData$.next(this.expensesData.filter((expense) => expense.category !== "טרם סווג"));
-  }
-}
 
 
-private handleTableData(data: ITransactionData[]) {
-  const rows = [];
-  if (data.length) {
-    data.forEach((row: ITransactionData) => {
-      const {userId,isRecognized,isEquipment,id,taxPercent,vatPercent,billDate,reductionPercent,...data} = row;
-      console.log("befor",data.category);
-      
-      data.category === "" ? data.category = "טרם סווג" : null; 
-      data.subCategory === "" ? data.subCategory = "טרם סווג" : null; 
-      console.log("afterr",data.category);
-      rows.push(data);
+  private handleTableData(data: ITransactionData[]) {
+    const rows = [];
+    if (data.length) {
+      data.forEach((row: ITransactionData) => {
+        const { userId, isRecognized, isEquipment, id, taxPercent, vatPercent, billDate, reductionPercent, ...data } = row;
+        console.log("befor", data.category);
+
+        data.category === "" ? data.category = "טרם סווג" : null;
+        data.subCategory === "" ? data.subCategory = "טרם סווג" : null;
+        console.log("afterr", data.category);
+        rows.push(data);
       }
-    )
-  }
+      )
+    }
 
-  return rows;
-}
+    return rows;
+  }
 
 
 

@@ -147,6 +147,24 @@ export class TransactionsService {
     // return bills.map(bill => ({ id: bill.id, billName: bill.billName }));
   }
 
+  async getSources(userId: string): Promise<string[]> {
+    let sources: string[] = [];
+
+      // Get all bills for the user
+      const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+      if (!bills || bills.length === 0) {
+        throw new Error('No bills found for the user');
+      }
+      console.log("bills:", bills);
+      
+      bills.forEach(bill => {
+        sources.push(...bill.sources.map(source => source.sourceName));
+      });
+      console.log("sources: ", sources);
+      
+
+    return sources;
+  }
 
   async getTransactionsByBillAndUserId(billId: number, userId: string): Promise<Transactions[]> {
 

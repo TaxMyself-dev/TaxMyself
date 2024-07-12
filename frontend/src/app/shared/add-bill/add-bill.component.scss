@@ -1,0 +1,87 @@
+.container-add-bill {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    margin: auto;
+}
+
+
+.wrapp-bill-exist {
+    display: flex;
+    flex-direction: column;
+    width: 70%;
+    margin: auto;
+}
+
+.title-exist {
+    border-bottom: 1px solid gray;
+    width: 200px;
+}
+
+.checkbox-wrapp {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Material Design styles */
+ion-segment-button.md {
+    --color: #000;
+    --color-checked: #08a391;
+    --indicator-height: 4px;
+    --border-width: 0px;
+}
+
+// ion-radio::part(container) {
+//     width: 30px;
+//     height: 30px;
+//     border-radius: 8px;
+//     border: 2px solid #ddd;
+// }
+
+// ion-radio::part(mark) {
+//     background: none;
+//     transition: none;
+//     transform: none;
+//     border-radius: 0;
+// }
+
+// ion-radio.radio-checked::part(container) {
+//     background: #6815ec;
+//     border-color: transparent;
+// }
+
+// ion-radio.radio-checked::part(mark) {
+//     width: 6px;
+//     height: 10px;
+
+//     border-width: 0px 2px 2px 0px;
+//     border-style: solid;
+//     border-color: #fff;
+
+//     transform: rotate(45deg);
+// }
+
+.header-list{
+    display: flex;
+    width: 98%;
+    justify-content: space-between;
+}
+
+.header-list :hover {
+    cursor: pointer;
+}
+
+.radio-group {
+    flex-direction: column;
+    display: flex;
+    gap: 3px;
+}
+
+ion-radio {
+    width: fit-content;
+}
+
+.login-input{
+    --border-radius: 15px;
+    width: 220px;
+  }

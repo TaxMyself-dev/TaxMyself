@@ -1,24 +1,45 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>שיוך אמצעי תשלום - {{paymentMethod}}</ion-title>
+    <ion-list class="header-list">
+      <ion-title>שיוך אמצעי תשלום - {{paymentMethod}}</ion-title>
+      <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
+        name="close-outline"></ion-icon>
+    </ion-list>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  <ion-segment (ionChange)="clicked($event)"  color="success" value="exist">
-    <ion-segment-button value="exist">
-      <ion-label>שייך לחשבון קיים</ion-label>
-    </ion-segment-button>
-    <ion-segment-button value="new">
-      <ion-label>שייך לחשבון חדש</ion-label>
-    </ion-segment-button>
-  </ion-segment>
+  <div class="container-add-bill">
+    <ion-segment (ionChange)="clicked($event)" color="success" value="exist">
+      <ion-segment-button value="exist">
+        <ion-label>שייך לחשבון קיים</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="new">
+        <ion-label>הגדר כחשבון חדש</ion-label>
+      </ion-segment-button>
+    </ion-segment>
 
-  <ng-container *ngIf="existBill; else newBill">
-    <app-generic-select></app-generic-select>
-  </ng-container>
+    <ng-container *ngIf="existBill; else newBill">
+      <div class="wrapp-bill-exist">
+        <p class="title-exist">בחר חשבון</p>
+          <div class="wrapp-radio-group">
+            <ion-radio-group class="radio-group" (ionChange)="radioGroupChange($event)">
+              <ion-radio label-placement="end" *ngFor="let account of accountsList"
+                [value]="account.value">{{account.name}}</ion-radio>
+            </ion-radio-group>
+        </div>
+        <app-button (onButtonClicked)="addSource()" [disabled]="onChangeRadio"
+          [buttonText]="'שייך לחשבון'"></app-button>
+      </div>
+    </ng-container>
 
-  <ng-template #newBill>
-
-  </ng-template>
+    <ng-template #newBill>
+      <p class="title-exist">בחר חשבון</p>
+      <form [formGroup]="addBillForm">
+        <ion-input (keyup.enter)="onEnterKeyPressed()" class="login-input" type="text" label="שם החשבון"
+          label-placement="floating" fill="outline" placeholder="שם החשבון" formControlName="billName"></ion-input>
+        <app-button [buttonText]="'הוסף'" (onButtonClicked)="addBill()"></app-button>
+      </form>
+    </ng-template>
+  </div>
 </ion-content>

@@ -6,9 +6,6 @@ import {
 export class CreateBillDto {
 
     @IsString()
-    token: string;
-
-    @IsString()
     billName: string;
     
 }
