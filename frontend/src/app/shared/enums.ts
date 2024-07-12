@@ -63,6 +63,9 @@ export enum TransactionsOutcomesColumns {
   // change this to dateTimeStamp
   BILL_NUMBER = 'paymentIdentifier',
   PAY_DATE = 'pay_date',
+  BILL_DATE = 'bill_date',
+  BILL_NAME = 'bill_name',
+  IS_RECOGNIZED = 'is_recognized',
   NAME = 'name',
   SUM = 'sum',
   CATEGORY = 'category',
@@ -78,7 +81,9 @@ export enum TransactionsOutcomesHebrewColumns {
   name = 'שם העסק',
   sum = 'סכום',
   category = 'קטגוריה',
-  subCategory = 'תת-קטגוריה'
+  subCategory = 'תת-קטגוריה',
+  billName = 'חשבון',
+  isRecognized = 'הוצאה מוכרת'
 }
 
   export const months = [

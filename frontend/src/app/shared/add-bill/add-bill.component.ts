@@ -74,19 +74,7 @@ cancel(): void {
     .pipe()
     .subscribe(() =>{
       this.transactionsService.getAllBills()
-      // .pipe(
-      //   map((data) => {
-      //     return data.map((bill) => {
-      //       const {userId, ...bills} = bill;
-      //       const newFields = this.renameFields(bills);
-      //       return newFields;
-      //     })
-      //   })  
-      // )
-      // .subscribe((bills)=> {
-      //   this.accountsList = [...this.accountsList, ...bills];
-        this.existBill = true;
-      // })
+      this.existBill = true;
     });
     
   }
