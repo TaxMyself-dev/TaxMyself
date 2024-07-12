@@ -2,7 +2,8 @@
 
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, EntityTarget, FindOptionsWhere, Between } from 'typeorm';
+import { Repository, EntityTarget, FindOptionsWhere, Between, Timestamp } from 'typeorm';
+import { startOfMonth, endOfMonth } from 'date-fns';
 
 
 import { parse } from 'date-fns';
@@ -21,11 +22,6 @@ export class SharedService {
         private readonly transactionRepository: Repository<Transactions>,
     ) {}
 
-
-    // async findEntities<T>(entity: EntityTarget<T>, conditions: FindOptionsWhere<T>): Promise<T[]> {
-    //     const repository = this.getRepository(entity);
-    //     return repository.find({ where: conditions });
-    // }
 
     async findEntities<T>(entity: EntityTarget<T>, conditions: any): Promise<T[]> {
         const repository = this.getRepository(entity);
@@ -59,6 +55,26 @@ export class SharedService {
     }
 
 
+    getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
+
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
+    
+        // Start date is always the first day of the specified month in UTC
+        let startDate = new Date(Date.UTC(year, month, 1));
+        // Calculate the end date in UTC
+        let endDate: Date;
+        if (isSingleMonth) {
+            // Last day of the specified month
+            endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+        } else {
+            // Last day of the next month
+            endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
+        }
+        return { startDate, endDate };
+    }
+
+
     getDayOfYearFromDate(date: Date): number {
         // Assuming the input format is "DD.MM.YYYY"
         const formatString = 'dd.MM.yyyy';
@@ -82,13 +98,21 @@ export class SharedService {
     }
     
     
-    convertDateToTimestamp(dateStr: string): number {
+    convertDateStrToTimestamp(dateStr: string): number {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) {
           throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
         }
         return Math.floor(date.getTime() / 1000);
-      }
+    }
+
+
+    convertDateToTimestamp(date: Date): number {
+        if (isNaN(date.getTime())) {
+          throw new BadRequestException(`Invalid date format provided: ${date}. Please use a valid ISO 8601 date format.`);
+        }
+        return Math.floor(date.getTime() / 1000);
+    }
 
 
 }

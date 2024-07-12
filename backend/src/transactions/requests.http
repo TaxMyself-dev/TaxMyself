@@ -72,3 +72,7 @@ content-type: application/json
   "userId": "N0rQ3GHjlmMEfKHUPmTUn2Tv3Y72"
 }
 
+###
+GET  http://localhost:3000/transactions/try-2
+
+
