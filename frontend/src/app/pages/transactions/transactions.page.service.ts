@@ -81,6 +81,8 @@ constructor(private http: HttpClient) {
     const headers = {
       'token': this.token
     }
+    console.log(this.token);
+    
     return this.http.get<any[]>(url, {headers: headers})
   }
 
