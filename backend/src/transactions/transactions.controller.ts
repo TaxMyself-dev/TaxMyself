@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { SharedService } from 'src/shared/shared.service';
@@ -7,6 +7,7 @@ import { UsersService } from 'src/users/users.service';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import { Source } from './source.entity';
 import { CreateSourceDto } from './dtos/create-source.dto';
+import { query } from 'express';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -75,13 +76,26 @@ export class TransactionsController {
   async getIncomesForBill(
     //@Param('id') id: number,
     //@Query('billId') billId: number | null,
-    @Query('billId') billId: string,
-    // @Body() body: any
+    //@Query('billId') billId: string,
+    @Query() query,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
-    const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.transactionsService.getIncomesTransactions(parsedBillId, userId);
+    console.log("get-incomes - start");
+    console.log('Original query:', query);
+
+    //if (query.year || query.month || query.isSingleMonth || query.billId === undefined) {
+    //  throw new BadRequestException('Missing required query parameters');
+    //}
+
+    // Modify the query parameters as needed
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth === 'true');
+    query.startDate = startDate.toISOString();
+    query.endDate = endDate.toISOString();
+    query.billId = query.billId === 'null' ? null : parseInt(query.billId, 10);
+    query.userId = await this.usersService.getFirbsaeIdByToken(token)
+
+    console.log('Modified query:', query);
+    return this.transactionsService.getIncomesTransactions(query);
   }
 
 
