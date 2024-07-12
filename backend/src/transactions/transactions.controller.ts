@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { SharedService } from 'src/shared/shared.service';
@@ -8,6 +8,8 @@ import { CreateBillDto } from './dtos/create-bill.dto';
 import { Source } from './source.entity';
 import { CreateSourceDto } from './dtos/create-source.dto';
 import { query } from 'express';
+import { GetTransactionsDto } from './dtos/get-transactions.dto';
+import { log } from 'console';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -16,11 +18,13 @@ export class TransactionsController {
     private readonly sharedService: SharedService,
     private usersService: UsersService,) {}
 
+
   @Post('load-file')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     return this.transactionsService.saveTransactions(file);
   }
+
 
   @Get('get_by_userID')
   async getTransactionsByUserID(@Query('billId') userID: string): Promise<Transactions[]> {
@@ -38,12 +42,6 @@ export class TransactionsController {
   }
 
 
-  // @Get('get-bills')
-  // async getUserBills(@Query('userId') isEquipment: boolean): Promise<string[]> {
-  //   return this.transactionsService.getBillsByUserId(userId);
-  // }
-
-  
   @Post(':id/sources')
   async addSourceToBill(
     @Param('id') billId: number,
@@ -65,6 +63,7 @@ export class TransactionsController {
     return this.transactionsService.getBillsByUserId(userId);
   }
   
+
   @Get('get-sources')
   async getSources(@Headers('token') token: string) {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
@@ -72,52 +71,57 @@ export class TransactionsController {
   }
 
 
-  @Get(':id/get-transactions')
-  async getTransactionsForBill(
-    @Param('id') id: number,
-    @Body() body: any
-  ): Promise<Transactions[]> {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    return this.transactionsService.getTransactionsByBillAndUserId(id, userId);
-  }
+  // @Get(':id/get-transactions')
+  // async getTransactionsForBill(
+  //   @Param('id') id: string,
+  //   @Body() body: any
+  // ): Promise<Transactions[]> {
+  //   const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+  //   return this.transactionsService.getTransactionsByBillAndUserId(id, userId);
+  // }
 
 
   @Get('get-incomes')
+  @UsePipes(new ValidationPipe({ transform: true }))
   async getIncomesForBill(
-    //@Param('id') id: number,
-    //@Query('billId') billId: number | null,
-    //@Query('billId') billId: string,
-    @Query() query,
+    @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
     console.log("get-incomes - start");
     console.log('Original query:', query);
-
-    //if (query.year || query.month || query.isSingleMonth || query.billId === undefined) {
-    //  throw new BadRequestException('Missing required query parameters');
-    //}
-
-    // Modify the query parameters as needed
-    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth === 'true');
-    query.startDate = startDate.toISOString();
-    query.endDate = endDate.toISOString();
-    query.billId = query.billId === 'null' ? null : parseInt(query.billId, 10);
-    query.userId = await this.usersService.getFirbsaeIdByToken(token)
-
-    console.log('Modified query:', query);
-    return this.transactionsService.getIncomesTransactions(query);
+   
+    query.billId === 'null' ? null : parseInt(query.billId, 10);
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    // Construct a new query object with the additional fields
+    const modifiedQuery = {
+      ...query,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      userId: await this.usersService.getFirbsaeIdByToken(token)
+    };
+    console.log('Modified query:', modifiedQuery);
+    return this.transactionsService.getIncomesTransactions(modifiedQuery);
   }
 
 
   @Get('get-expenses')
+  //@UsePipes(new ValidationPipe({ transform: true }))
   async getForBill(
-    @Query('billId') billId: string,
+    @Query() query: GetTransactionsDto,
     @Headers('token') token: string
-    // @Body() body: any
   ): Promise<Transactions[]> {
-    const parsedBillId = billId === 'null' ? null : parseInt(billId, 10);
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.transactionsService.getExpensesTransactions(parsedBillId, userId);
+    console.log("get-expenses - start");
+    console.log('Original query:', query);
+    query.billId === 'null' ? null : parseInt(query.billId, 10);
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    // Construct a new query object with the additional fields
+    const modifiedQuery = {
+      ...query,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      userId: await this.usersService.getFirbsaeIdByToken(token)
+    };
+    return this.transactionsService.getExpensesTransactions(modifiedQuery);
   }
 
 
@@ -136,12 +140,6 @@ export class TransactionsController {
     const startDateTS = this.sharedService.convertDateToTimestamp(my_range.startDate)
     console.log("startDateTS is ", startDateTS);
     
-
-
-    
-    //return this.sharedService.getStartAndEndDate("2024","1",false);
-
-      //return this.genericService.findEntities(Transactions, query);
   }
 
 

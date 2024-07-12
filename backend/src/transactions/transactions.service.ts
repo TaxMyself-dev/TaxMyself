@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, MoreThan, LessThan } from 'typeorm';
+import { Repository, In, MoreThan, LessThan, Between } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Transactions } from './transactions.entity';
 import { parse, isValid } from 'date-fns';
@@ -157,24 +157,25 @@ export class TransactionsService {
       if (!bills || bills.length === 0) {
         throw new Error('No bills found for the user');
       }
-      console.log("bills:", bills);
+      //console.log("bills:", bills);
       
       bills.forEach(bill => {
         sources.push(...bill.sources.map(source => source.sourceName));
       });
-      console.log("sources: ", sources);
+      //console.log("sources: ", sources);
       
 
     return sources;
   }
 
-  async getTransactionsByBillAndUserId(billId: number, userId: string): Promise<Transactions[]> {
+  async getTransactionsByBillAndUserId(billId: number | null, userId: string, startDate: Date, endDate: Date): Promise<Transactions[]> {
 
-    let sources: string[] = [];
+    let sources: string[];
 
     if (billId === null) {
       // Get all bills for the user
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+      console.log("bills are ", bills);
       if (!bills || bills.length === 0) {
         throw new Error('No bills found for the user');
       }
@@ -186,6 +187,7 @@ export class TransactionsService {
     } else {
       // Get the specific bill for the user
       const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+      console.log("bill is ", bill);
       if (!bill) {
         throw new Error('Bill not found');
       }
@@ -194,28 +196,43 @@ export class TransactionsService {
     }
 
     console.log("sources are ", sources);
-    
 
     return this.transactionsRepo.find({
-      where: { paymentIdentifier: In(sources) },
+      where: { paymentIdentifier: In(sources),
+               billDate: Between(startDate, endDate)
+       },
     });
   }
 
 
   async getIncomesTransactions(query: any): Promise<Transactions[]> {
     //const transactions = await this.sharedService.findEntities(Transactions, query);
-    //console.log("getIncomesTransactions query is ", query);
+    console.log("getIncomesTransactions query is ", query);
+
+    console.log("billId is ", query.billId);
+    console.log("Type of billId is ", typeof query.billId);
     
-    const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId);
-    //console.log(transactions);
-    return transactions.filter(transaction => transaction.sum > 0);
+    const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
+    //console.log("Transactions:\n", transactions)
+    const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
+    console.log("incomeTransactions:\n", incomeTransactions)
+    return incomeTransactions;
+
   }
 
+  async getExpensesTransactions(query: any): Promise<Transactions[]> {
+    //const transactions = await this.sharedService.findEntities(Transactions, query);
+    console.log("getIncomesTransactions query is ", query);
 
-  async getExpensesTransactions(billId: number | null, userId: string): Promise<Transactions[]> {
-    const transactions = await this.getTransactionsByBillAndUserId(billId, userId);
-    //console.log(transactions);
-    return transactions.filter(transaction => transaction.sum < 0);
+    console.log("billId is ", query.billId);
+    console.log("Type of billId is ", typeof query.billId);
+    
+    const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
+    //console.log("Transactions:\n", transactions)
+    const expenseTransactions = transactions.filter(transaction => transaction.sum < 0);
+    console.log("expenseTransactions:\n", expenseTransactions)
+    return expenseTransactions;
+
   }
 
 
