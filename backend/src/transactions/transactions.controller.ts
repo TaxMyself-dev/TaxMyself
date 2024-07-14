@@ -132,7 +132,7 @@ export class TransactionsController {
   }
 
 
-  @Put('update')
+  @Put('update-trans')
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateTransactions(
     @Query('startDate') startDate: string,
