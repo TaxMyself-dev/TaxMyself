@@ -8,6 +8,7 @@ import { DateTime } from 'luxon';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { SharedService } from 'src/shared/shared.service';
+import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 
 
 @Injectable()
@@ -48,13 +49,17 @@ export class TransactionsService {
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
       //convert string to date
-      const billDate = this.convertStringToDate(row[billDateIndex]);
-      const payDate = this.convertStringToDate(row[payDateIndex]);
+      //const billDate = this.convertStringToDate(row[billDateIndex]);
+      //const payDate = this.convertStringToDate(row[payDateIndex]);
+      const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
+      const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
       transaction.billDate = billDate;
       transaction.payDate = payDate;
       transaction.sum = parseFloat(row[sumIndex]);
       //transaction.category = row[categoryIndex];
-      // transaction.userId should be set to the current user's ID somehow
+      transaction.userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2"; //TODO: set to the current user's ID 
+
+      //console.log("transaction_",row,":\n",transaction);
 
       await this.transactionsRepo.save(transaction);
     }
@@ -168,7 +173,7 @@ export class TransactionsService {
     return sources;
   }
 
-  async getTransactionsByBillAndUserId(billId: number | null, userId: string, startDate: Date, endDate: Date): Promise<Transactions[]> {
+  async getTransactionsByBillAndUserId(billId: number | null, userId: string, startDate: number, endDate: number): Promise<Transactions[]> {
 
     let sources: string[];
 
@@ -236,9 +241,30 @@ export class TransactionsService {
   }
 
 
-  //async updateTransactionFields() {
-  //
-  //}
+  async updateTransactionsByCriteria(
+    startDate: number,
+    endDate: number,
+    updateData: UpdateTransactionsDto,
+  ): Promise<void> {
+    // Find transactions matching the criteria
+    const transactions = await this.transactionsRepo.find({
+      where: {
+        name: updateData.name,
+        paymentIdentifier: updateData.paymentIdentifier,
+        billDate: Between(startDate, endDate),
+      },
+    });
+
+    if (transactions.length === 0) {
+      throw new Error('No transactions found matching the criteria');
+    }
+
+    // Update each transaction with the provided data
+    for (const transaction of transactions) {
+      Object.assign(transaction, updateData);
+      await this.transactionsRepo.save(transaction);
+    }
+  }
 
 
 }

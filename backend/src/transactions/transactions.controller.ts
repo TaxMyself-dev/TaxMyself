@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe, Put } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { SharedService } from 'src/shared/shared.service';
@@ -10,6 +10,7 @@ import { CreateSourceDto } from './dtos/create-source.dto';
 import { query } from 'express';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { log } from 'console';
+import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -92,11 +93,15 @@ export class TransactionsController {
    
     query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
     // Construct a new query object with the additional fields
     const modifiedQuery = {
       ...query,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      //startDate: startDate.toISOString(),
+      //endDate: endDate.toISOString(),
+      startDate: startDateT,
+      endDate: endDateT,
       userId: await this.usersService.getFirbsaeIdByToken(token)
     };
     console.log('Modified query:', modifiedQuery);
@@ -105,7 +110,7 @@ export class TransactionsController {
 
 
   @Get('get-expenses')
-  //@UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ transform: true }))
   async getForBill(
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
@@ -114,14 +119,45 @@ export class TransactionsController {
     console.log('Original query:', query);
     query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
     // Construct a new query object with the additional fields
     const modifiedQuery = {
       ...query,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
+      startDate: startDateT,
+      endDate: endDateT,
       userId: await this.usersService.getFirbsaeIdByToken(token)
     };
     return this.transactionsService.getExpensesTransactions(modifiedQuery);
+  }
+
+
+  @Put('update')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateTransactions(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Body() updateData: UpdateTransactionsDto,
+  ): Promise<void> {
+    // Convert startDate and endDate to numbers (assuming they are timestamps)
+    const startTimestamp = Number(startDate);
+    const endTimestamp = Number(endDate);
+
+    if (isNaN(startTimestamp) || isNaN(endTimestamp)) {
+      throw new BadRequestException('Invalid date format');
+    }
+
+    // Ensure required fields are present in the body
+    if (!updateData.name || !updateData.paymentIdentifier) {
+      throw new BadRequestException('Both name and paymentIdentifier must be provided in the body');
+    }
+
+    // Call the service method to update transactions
+    await this.transactionsService.updateTransactionsByCriteria(
+      startTimestamp,
+      endTimestamp,
+      updateData,
+    );
   }
 
 

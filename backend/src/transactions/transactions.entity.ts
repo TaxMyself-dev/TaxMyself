@@ -21,11 +21,11 @@ export class Transactions {
   @Column()
   name: string;
 
-  @Column('timestamp')
-  billDate: Date;
+  @Column('bigint')
+  billDate: number;
 
-  @Column('timestamp')
-  payDate: Date;
+  @Column('bigint')
+  payDate: number;
 
   @Column('decimal')
   sum: number;

@@ -41,7 +41,10 @@ constructor(private http: HttpClient) {
     
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
-    .set('billId', formData.accounts);
+    .set('billId', formData.accounts)
+    .set('month', formData.month)
+    .set('year', formData.year)
+    .set('isSingleMonth', formData.isSingleMonth)
     const headers = {
       'token': this.token
     }
