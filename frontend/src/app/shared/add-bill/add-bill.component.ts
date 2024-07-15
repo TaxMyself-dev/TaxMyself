@@ -38,9 +38,9 @@ export class AddBillComponent  implements OnInit {
     );
   }
 
-  ngOnDestroy(): void {
-    this.transactionsService.accountsList$.unsubscribe();
-}
+//   ngOnDestroy(): void {
+//     this.transactionsService.accountsList$.unsubscribe();
+// }
 
 cancel(): void {
   this.modalCtrl.dismiss(null,'cancel');

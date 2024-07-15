@@ -54,6 +54,7 @@ export class TransactionsPage implements OnInit {
   addPayment: boolean = false;
   selectBill: string;
   accountsList: any[] = [];
+  sourcesList: string[] =[];
 
   constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
@@ -102,14 +103,15 @@ export class TransactionsPage implements OnInit {
     );
     this.transactionsService.getAllSources().subscribe((data) => {
       console.log("sources: ",data);
+      this.sourcesList = data;
     })
 
   }
 
-  ngOnDestroy(): void {
-      this.transactionsService.accountsList$.unsubscribe();
+  // ngOnDestroy(): void {
+  //     this.transactionsService.accountsList$.unsubscribe();
     
-  }
+  // }
 
   renameFields(obj: any): any {
     return {
@@ -250,13 +252,19 @@ export class TransactionsPage implements OnInit {
   private handleTableData(data: ITransactionData[]) {
     const rows = [];
     if (data.length) {
+      console.log("data: ", data);
+      
       data.forEach((row: ITransactionData) => {
         const { userId, isEquipment, id, taxPercent, vatPercent, reductionPercent, ...data } = row;
-        console.log("befor", data.category);
-
+        console.log("payment",data.paymentIdentifier);
+        if (this.sourcesList.includes(data.paymentIdentifier)) {
+          console.log(`${data.paymentIdentifier} is exactly in the array.`);
+        } else {
+          console.log(`${data.paymentIdentifier} is not in the array.`);
+        }
+        
         data.category === "" ? data.category = "טרם סווג" : null;
         data.subCategory === "" ? data.subCategory = "טרם סווג" : null;
-        console.log("afterr", data.category);
         rows.push(data);
       }
       )
