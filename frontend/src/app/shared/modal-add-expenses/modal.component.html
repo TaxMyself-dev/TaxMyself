@@ -43,7 +43,7 @@
           </ng-container>
         </ng-container>
       </ion-list>
-      <label class="label-file-add-expense">
+      <label *ngIf="fileItem" class="label-file-add-expense">
         <div class="div-wrap">
           <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
             <div *ngIf="!pdfLoaded" class="file-container">
@@ -74,6 +74,13 @@
         </ion-input>
       </label>
     </div>
+
+    <!-- <ng-container *ngTemplateOutlet="customFooterTemplate"></ng-container> -->
+
+    <ng-container *ngFor="let button of buttons">
+      <app-button [buttonSize]="button.size" [buttonText]="button.text" [disabled]="button.disabled" (onButtonClicked)="button.action()"></app-button>
+    </ng-container>
+
     <div class="wrapp-btn-expense">
       <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
         (onButtonClicked)="confirm()"></app-button>

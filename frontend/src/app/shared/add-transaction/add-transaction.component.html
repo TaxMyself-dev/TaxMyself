@@ -1,0 +1,30 @@
+<ion-segment (ionChange)="clicked($event)" color="success" value="exist">
+  <ion-segment-button value="exist">
+    <ion-label>בחירת קטגוריה</ion-label>
+  </ion-segment-button>
+  <ion-segment-button value="new">
+    <ion-label>הוספת קטגוריה</ion-label>
+  </ion-segment-button>
+</ion-segment>
+
+
+<ng-container *ngIf="existCategory; else newCategory">
+  <form [formGroup]="existCategoryForm">
+    <ng-container *ngFor="let col of columns">
+
+      <ng-container [ngSwitch]="col.type">
+        <ng-container *ngSwitchCase="formTypes.DDL">
+          <ion-select label="{{col.value}}" required="true" [formControlName]="col.name"
+            (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" fill="outline" interface="popover">
+            <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
+              [value]="option.value">{{option.key}}</ion-select-option>
+          </ion-select>
+        </ng-container>
+      </ng-container>
+    </ng-container>
+  </form>
+</ng-container>
+
+<ng-template #newCategory>
+
+</ng-template>

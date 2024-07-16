@@ -1,16 +1,39 @@
-.container-add-bill {
+.main-container-add-bill {
     display: flex;
-    flex-direction: column;
-    height: 100%;
+    // flex-direction: column;
+    height: 64%;
+    justify-content: center;
+    align-items: center;
     margin: auto;
+    width: 80%;
+}
+
+.sub-container-add-bill {
+    display: flex;
+    justify-content: space-around;
+    align-items: baseline;
+    width: 100%;
+    // border: 1px solid green;
+    height: 80%;
 }
 
 
-.wrapp-bill-exist {
+.container-bill-exist {
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     width: 70%;
     margin: auto;
+    // border: 1px solid blue;
+    height: 100%;
+}
+
+.container-new-bill {
+    // border: 1px solid red;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .title-exist {

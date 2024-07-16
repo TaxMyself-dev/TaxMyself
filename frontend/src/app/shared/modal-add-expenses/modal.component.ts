@@ -1,7 +1,7 @@
-import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef } from '@angular/core';
+import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef, TemplateRef } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { LoadingController, ModalController, NavParams } from '@ionic/angular';
-import { IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable } from '../interface';
+import { IButtons, IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable } from '../interface';
 import { KeyValue, formatDate } from '@angular/common';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -57,11 +57,13 @@ export class ModalExpensesComponent {
       }
     }
   };
-
+  @Input() buttons: IButtons[];
   @Input() set columns(val: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]) {
     this.fileItem = val?.find((item: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) => item.type === FormTypes.FILE);
     this.columnsList = val;
   }
+  @Input() customFooterTemplate: TemplateRef<any>;
+
 
   get columns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsList;
@@ -243,6 +245,10 @@ export class ModalExpensesComponent {
 
   confirm() {
     this.isEditMode ? this.update() : this.add();
+  }
+
+  clickOnApp(): void {
+    
   }
 
   add(): void {

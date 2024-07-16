@@ -133,3 +133,11 @@ export interface ITableRowAction {
     icon: string;
     action: (row: IRowDataTable) => void;
 }
+
+export interface IButtons {
+    text: string;
+    icon?: string;
+    action: (event?: any) => void;
+    size: string;
+    disabled?: boolean;
+}

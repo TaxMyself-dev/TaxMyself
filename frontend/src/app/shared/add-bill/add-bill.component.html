@@ -9,37 +9,29 @@
 </ion-header>
 
 <ion-content>
-  <div class="container-add-bill">
-    <ion-segment (ionChange)="clicked($event)" color="success" value="exist">
-      <ion-segment-button value="exist">
-        <ion-label>שייך לחשבון קיים</ion-label>
-      </ion-segment-button>
-      <ion-segment-button value="new">
-        <ion-label>הגדר כחשבון חדש</ion-label>
-      </ion-segment-button>
-    </ion-segment>
-
-    <ng-container *ngIf="existBill; else newBill">
-      <div class="wrapp-bill-exist">
-        <p class="title-exist">בחר חשבון</p>
-          <div class="wrapp-radio-group">
-            <ion-radio-group class="radio-group" (ionChange)="radioGroupChange($event)">
-              <ion-radio label-placement="end" *ngFor="let account of accountsList"
-                [value]="account.value">{{account.name}}</ion-radio>
-            </ion-radio-group>
+  <div class="main-container-add-bill">
+    <div class="sub-container-add-bill">
+      <div class="container-bill-exist">
+        <div>
+          <p class="title-exist">בחר חשבון קיים</p>
+          <ion-radio-group class="radio-group" (ionChange)="radioGroupChange($event)">
+            <ion-radio label-placement="end" *ngFor="let account of accountsList"
+            [value]="account.value">{{account.name}}</ion-radio>
+          </ion-radio-group>
         </div>
         <app-button (onButtonClicked)="addSource()" [disabled]="onChangeRadio"
           [buttonText]="'שייך לחשבון'"></app-button>
       </div>
-    </ng-container>
-
-    <ng-template #newBill>
-      <p class="title-exist">בחר חשבון</p>
-      <form [formGroup]="addBillForm">
-        <ion-input (keyup.enter)="onEnterKeyPressed()" class="login-input" type="text" label="שם החשבון"
-          label-placement="floating" fill="outline" placeholder="שם החשבון" formControlName="billName"></ion-input>
-        <app-button [buttonText]="'הוסף'" (onButtonClicked)="addBill()"></app-button>
-      </form>
-    </ng-template>
+      <div class="container-new-bill">
+        <div>
+          <p class="title-exist">הוסף חשבון חדש</p>
+          <form [formGroup]="addBillForm">
+            <ion-input (keyup.enter)="onEnterKeyPressed()" class="login-input" type="text" label="שם החשבון"
+            label-placement="floating" fill="outline" placeholder="שם החשבון" formControlName="billName"></ion-input>
+          </form>
+        </div>
+          <app-button [buttonText]="'הוסף'" (onButtonClicked)="addBill()"></app-button>
+      </div>
+    </div>
   </div>
 </ion-content>

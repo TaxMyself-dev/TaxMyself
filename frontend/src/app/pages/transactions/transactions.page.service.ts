@@ -3,6 +3,9 @@ import { BehaviorSubject, EMPTY, Observable, catchError, map } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { ITransactionData } from 'src/app/shared/interface';
+import * as XLSX from 'xlsx';
+import * as fs from 'fs';
+
 
 @Injectable({
   providedIn: 'root'
@@ -91,10 +94,12 @@ constructor(private http: HttpClient) {
 
   updateAccountList(newData: any): void {
     const accounts = this.accountsList$.value
-    const updatedTransactions = [...accounts, ...newData];
+    const updatedTransactions = [newData];
+    // const updatedTransactions = [...accounts, ...newData];
 
     // Emit the updated transactions
-    this.accountsList$.next(updatedTransactions);
+    this.accountsList$.next([...[{ value: 'null', name: 'כל החשבונות' }],...newData]);
+    // this.accountsList$.next(updatedTransactions);
     console.log(this.accountsList$.value);
     
   }
@@ -120,6 +125,34 @@ constructor(private http: HttpClient) {
       'token': this.token
     }
     return this.http.post<any[]>(url,{billName: billName},{headers:headers});
+  }
+  
+  uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
+    console.log("file buffer in service: ", fileBuffer);
+    
+    const url = `${environment.apiUrl}transactions/load-file`;
+    const formData = new FormData();
+    const blob = new Blob([fileBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    console.log("blob: ", blob);
+    formData.append('file', blob, 'file.xlsx');
+    console.log("form data: ", formData.get('file'));
+    // formData.forEach((value, key) => {
+    //   console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaa", key, value);
+    // });
+
+    return this.http.post<any>(url, formData);
+  }
+
+  convertXlsxToBuffer(filePath) {
+    // Read the file from the filesystem
+    const workbook = XLSX.readFile("");
+  console.log("workbook: ", workbook);
+  
+    // Write the workbook to a buffer
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+  console.log("buffer: ", buffer);
+  
+    return buffer;
   }
 
 }

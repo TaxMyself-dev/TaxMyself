@@ -30,7 +30,14 @@ export class AddBillComponent  implements OnInit {
    }
 
   ngOnInit() {
-    this.transactionsService.accountsList$.subscribe(
+    this.transactionsService.accountsList$
+    .pipe(
+      map((data) => {
+        const modifiedData = data.slice(1);
+        return modifiedData
+      })
+      )
+    .subscribe(
       (accountsList) => {
         this.accountsList = accountsList;
         console.log(this.accountsList);
@@ -46,15 +53,8 @@ cancel(): void {
   this.modalCtrl.dismiss(null,'cancel');
 }
 
-  clicked(event): void {
-    const choose = event.target.value;
-    console.log("click");
-    console.log(event);
-    choose === "new" ? this.existBill = false : this.existBill = true;
-    this.onChangeRadio = true;
-  }
 
-  radioGroupChange(event): void {
+  radioGroupChange(event: any): void {
     this.onChangeRadio = false;
     console.log(event.detail.value);
     this.billSelected = event.detail.value;
@@ -73,10 +73,9 @@ cancel(): void {
     this.transactionsService.addBill(formData.billName)
     .pipe()
     .subscribe(() =>{
-      this.transactionsService.getAllBills()
-      this.existBill = true;
+      this.transactionsService.getAllBills();
+      this.addBillForm.reset();     
     });
-    
   }
 
   renameFields(obj: any): any {

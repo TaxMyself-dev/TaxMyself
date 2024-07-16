@@ -1,11 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, Observable, catchError, from, map, switchMap, zip } from 'rxjs';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
-import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { IButtons, IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
+import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
+import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 
 @Component({
   selector: 'app-transactions',
@@ -42,6 +44,16 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
     [TransactionsOutcomesColumns.BILL_NUMBER, ICellRenderer.BILL],
   ]);
+
+  columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [ // Titles of expense// TODO: what? why is this here? should be generic??
+    { name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL },
+    { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
+    { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
+  ];
+
+  buttons: IButtons[] = [
+    {text: "שמור", size: "large", action: this.saveTransaction}
+  ]
   rows: IRowDataTable[];
   tableActions: ITableRowAction[];
   typeIncomeList = [{ value: null, name: 'הכל' }, { value: 'classification', name: 'סווג' }, { value: 'notClassification', name: 'טרם סווג' }];
@@ -55,6 +67,7 @@ export class TransactionsPage implements OnInit {
   selectBill: string;
   accountsList: any[] = [];
   sourcesList: string[] =[];
+  selectedFile: File = null;
 
   constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
@@ -205,13 +218,12 @@ export class TransactionsPage implements OnInit {
       component: AddBillComponent,
       componentProps: {
         paymentMethod: this.selectBill,
-        // accountsList: this.accountsList.splice(1)
       }
     })).pipe(catchError((err) => {
-      alert("openPopupAddExpense error");
+      alert("openPopupAddBill error");
       return EMPTY;
     }), switchMap((modal) => from(modal.present())), catchError((err) => {
-      alert("openPopupAddExpense switchMap error");
+      alert("openPopupAddBill switchMap error");
       console.log(err);
 
       return EMPTY;
@@ -271,6 +283,65 @@ export class TransactionsPage implements OnInit {
     }
 
     return rows;
+  }
+
+  onFileSelected(event: any): void {
+    console.log("in file");
+    this.selectedFile = event.target.files[0];
+    console.log(this.selectedFile);
+  }
+
+  onUpload(): void {
+    if (this.selectedFile) {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        const arrayBuffer = reader.result;
+console.log("array buffer: ", arrayBuffer);
+
+        this.transactionsService.uploadFile(arrayBuffer as ArrayBuffer)
+        .pipe()
+        .subscribe(
+          (response) => {
+            console.log(response.message);
+            // Handle successful response
+          },
+          error => {
+            console.error('Error uploading file', error);
+            // Handle error response
+          }
+        );
+      };
+
+      reader.readAsArrayBuffer(this.selectedFile);
+    } else {
+      console.error('No file selected.');
+    }
+  }
+
+  openAddTransaction(): void {
+    from(this.modalController.create({
+
+      // component: AddTransactionComponent,
+      component: ModalExpensesComponent,
+      componentProps: {
+        columns: this.columns,
+        buttons: this.buttons
+      }
+    })).pipe(catchError((err) => {
+      alert("openAddTransaction error");
+      return EMPTY;
+    }), switchMap((modal) => from(modal.present())), catchError((err) => {
+      alert("openAddTransaction switchMap error");
+      console.log(err);
+
+      return EMPTY;
+    })).subscribe();
+  }
+
+  saveTransaction(): void {
+    console.log("save transaction");
+    
   }
 
 

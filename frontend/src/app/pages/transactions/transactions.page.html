@@ -1,7 +1,20 @@
 <app-custom-toolbar></app-custom-toolbar>
 <ion-content>
-  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
+  <div class="header-transaction">
+
+    <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
     (onSearchClick)="getTransactions()"></app-search-bar>
+    <label class="label-file-transaction">
+      <!-- <div class="div-wrap"> -->
+        <ion-icon size="small" name="cloud-upload-outline"></ion-icon>
+        <ion-input (change)="onFileSelected($event)"  label-placement="floating" type="file" accept=".pdf, .xlsx">
+      </ion-input>
+      <!-- </div> -->
+    </label>
+    <button (click)="onUpload()">Upload</button>
+    <button (click)="openAddTransaction()">open</button>
+
+  </div>
   <!-- <app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button> -->
   <div>
     <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse" (handleOpen)="onOpenClicked($event)"
@@ -30,15 +43,9 @@
     </ng-container>
 
   </div>
-  <label class="label-file-add-expense">
-    <div class="div-wrap">
-     
-     
-      
-    <ion-input  label-placement="floating" type="file" accept=".pdf, .png, .jpeg, .jpg">
-    </ion-input>
-    </div>
-  </label>
+
+ 
+
 </ion-content>
 
 <ng-template #searchBarContent>
