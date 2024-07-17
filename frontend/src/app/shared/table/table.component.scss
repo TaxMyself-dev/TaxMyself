@@ -166,6 +166,15 @@ ion-col {
   margin: 5px;
 }
 
+.special-cell {
+  color: red;
+}
+
+.special-cell:hover {
+  color: red;
+  cursor: pointer;
+}
+
 
 
 

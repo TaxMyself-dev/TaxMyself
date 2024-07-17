@@ -21,7 +21,7 @@ export class TransactionsPage implements OnInit {
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL },
+    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL },
     { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
@@ -42,7 +42,7 @@ export class TransactionsPage implements OnInit {
   readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
     [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
-    [TransactionsOutcomesColumns.BILL_NUMBER, ICellRenderer.BILL],
+    [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
   ]);
 
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [ // Titles of expense// TODO: what? why is this here? should be generic??
@@ -61,7 +61,7 @@ export class TransactionsPage implements OnInit {
   incomeForm: FormGroup;
   expensesForm: FormGroup;
   isOpen: boolean = false;
-  incomesData: IRowDataTable[];
+  incomesData: IRowDataTable[] = [];
   expensesData: IRowDataTable[];
   addPayment: boolean = false;
   selectBill: string;
@@ -153,9 +153,12 @@ export class TransactionsPage implements OnInit {
         )
       )
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
+        data.incomes.forEach((row => {
+          const {isRecognized, payDate, ...incomeRow} = row;
+          this.incomesData.push(incomeRow);
+        }))
         this.expensesData = data.expenses;
-        this.incomesData = data.incomes;
-        this.incomesData$.next(data.incomes);
+        this.incomesData$.next(this.incomesData);
         this.expensesData$.next(data.expenses);
       });
   }
@@ -165,7 +168,7 @@ export class TransactionsPage implements OnInit {
     const columnsOrder = [
       'name',
       'paymentIdentifier',
-      'bill_name',
+      'billName',
       'category',
       'subCategory',
       'sum',
@@ -207,7 +210,6 @@ export class TransactionsPage implements OnInit {
   }
 
   openAddBill(data: IRowDataTable): void {
-    // this.addPayment = true;        
     this.selectBill = data.paymentIdentifier as string;
     this.openPopupAddBill()
   }
@@ -260,6 +262,23 @@ export class TransactionsPage implements OnInit {
     }
   }
 
+  timestampToDateStr(timestamp: number): string {
+    let date: Date;
+    if (typeof timestamp === 'string') {
+      const parsedTimestamp = parseInt(timestamp);
+      if (isNaN(parsedTimestamp)) {
+        throw new Error('Invalid timestamp string');
+      }
+      date = new Date(parsedTimestamp);
+    } 
+    else {
+      date = new Date(timestamp);
+    }
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day}/${month}/${year}`;
+  }
 
   private handleTableData(data: ITransactionData[]) {
     const rows = [];
@@ -269,12 +288,16 @@ export class TransactionsPage implements OnInit {
       data.forEach((row: ITransactionData) => {
         const { userId, isEquipment, id, taxPercent, vatPercent, reductionPercent, ...data } = row;
         console.log("payment",data.paymentIdentifier);
+        data.billDate = this.timestampToDateStr(data.billDate as number)
+        data.payDate = this.timestampToDateStr(data.payDate as number)
+        
+        
         if (this.sourcesList.includes(data.paymentIdentifier)) {
           console.log(`${data.paymentIdentifier} is exactly in the array.`);
         } else {
           console.log(`${data.paymentIdentifier} is not in the array.`);
         }
-        
+        data.billName = "זמני";
         data.category === "" ? data.category = "טרם סווג" : null;
         data.subCategory === "" ? data.subCategory = "טרם סווג" : null;
         rows.push(data);
@@ -341,6 +364,12 @@ console.log("array buffer: ", arrayBuffer);
 
   saveTransaction(): void {
     console.log("save transaction");
+    
+  }
+
+  onClickedCell(event: {str: string, data: IRowDataTable}): void {
+    console.log(event);
+    event.str === "bill" ? this.openAddBill(event.data) : this.openAddTransaction()
     
   }
 

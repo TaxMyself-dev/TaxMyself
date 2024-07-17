@@ -64,7 +64,7 @@ export enum TransactionsOutcomesColumns {
   BILL_NUMBER = 'paymentIdentifier',
   PAY_DATE = 'pay_date',
   BILL_DATE = 'bill_date',
-  BILL_NAME = 'bill_name',
+  BILL_NAME = 'billName',
   IS_RECOGNIZED = 'is_recognized',
   NAME = 'name',
   SUM = 'sum',
@@ -113,5 +113,5 @@ export enum TransactionsOutcomesHebrewColumns {
   export enum ICellRenderer {
     CATEGORY = 'category',
     SUBCATEGORY = 'subCategory',
-    BILL = 'paymentIdentifier'
+    BILL = 'billName'
   }

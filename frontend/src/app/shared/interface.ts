@@ -121,11 +121,12 @@ export interface ITransactionData {
     reductionPercent: number,
     id: number;
     name: string;
-    billDate: Date;
-    payDate: Date;
+    billDate: number | string;
+    payDate: number | string;
     sum: number;
     category: string;
     userId: string;
+    billName: string;
 }
 
 export interface ITableRowAction {

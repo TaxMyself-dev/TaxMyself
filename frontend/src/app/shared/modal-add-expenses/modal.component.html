@@ -35,7 +35,7 @@
               <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
                 [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
                 class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
-                (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="action-sheet">
+                (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
                 <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                   [value]="option.value">{{option.key}}</ion-select-option>
               </ion-select>

@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges} from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from '@angular/core';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from '../interface';
 import { ICellRenderer } from '../enums';
 
@@ -17,8 +17,9 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   @Input() specialColumnsCellRendering: Map<TFormColumns | string, ICellRenderer>;
   @Input() set rows(val: IRowDataTable[]) {
     this.tableRows = val;
-
   }
+
+  @Output() onClickedCell = new EventEmitter<{str: string, data: IRowDataTable}>();
 
   get rows(): IRowDataTable[] {
     return this.tableRows;
@@ -34,5 +35,11 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
     if (changes.fieldsNames) {
       
     }
+  }
+
+  openAddBill(event: IRowDataTable): any {
+    console.log("click on bill");
+    
+    this.onClickedCell.emit({str: "bill", data: event})
   }
 }

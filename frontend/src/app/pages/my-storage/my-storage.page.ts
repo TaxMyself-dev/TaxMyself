@@ -94,6 +94,24 @@ export class MyStoragePage implements OnInit {
     console.log(this.uid);
   }
 
+  timestampToDateStr(timestamp: number): string {
+    let date: Date;
+    if (typeof timestamp === 'string') {
+      const parsedTimestamp = parseInt(timestamp);
+      if (isNaN(parsedTimestamp)) {
+        throw new Error('Invalid timestamp string');
+      }
+      date = new Date(parsedTimestamp);
+    } 
+    else {
+      date = new Date(timestamp);
+    }
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day}/${month}/${year}`;
+  }
+
   // Get the data from server and update items
   setRowsData(): void {
     this.items$ = this.expenseDataService.getExpenseByUser(this.uid)
@@ -101,8 +119,8 @@ export class MyStoragePage implements OnInit {
       map((data) => {
         const rows = [];
       data.forEach(row => {
-        const { reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
-        tableData.dateTimestamp = "24-01-2023"; //TODO: update to convert from timestamp to string
+        const { id, reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
+        tableData.dateTimestamp = this.timestampToDateStr(tableData.dateTimestamp as number);
         rows.push(tableData);
       })
       this.rows = rows;

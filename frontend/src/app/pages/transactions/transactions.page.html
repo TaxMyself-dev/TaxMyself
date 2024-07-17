@@ -5,17 +5,14 @@
     <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
     (onSearchClick)="getTransactions()"></app-search-bar>
     <label class="label-file-transaction">
-      <!-- <div class="div-wrap"> -->
         <ion-icon size="small" name="cloud-upload-outline"></ion-icon>
         <ion-input (change)="onFileSelected($event)"  label-placement="floating" type="file" accept=".pdf, .xlsx">
       </ion-input>
-      <!-- </div> -->
     </label>
     <button (click)="onUpload()">Upload</button>
     <button (click)="openAddTransaction()">open</button>
 
   </div>
-  <!-- <app-button buttonText="get data from DB" (onButtonClicked)="getTransactions()"></app-button> -->
   <div>
     <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse" (handleOpen)="onOpenClicked($event)"
       [title]="'הכנסות'"></app-collapse>
@@ -27,14 +24,14 @@
     <ng-template #expensesCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar"
         (onSearchClick)="expensesFilter()"></app-search-bar>
-      <app-table *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData"
+      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
   
     <ng-template #incomeCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
         (onSearchClick)="incomeFilter()"></app-search-bar>
-      <app-table [specialColumnsCellRendering]="specialColumnsCellRendering" [actions]="tableActions"  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
+      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" [actions]="tableActions"  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
 

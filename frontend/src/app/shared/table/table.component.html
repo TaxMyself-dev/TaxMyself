@@ -57,11 +57,12 @@
         </ng-template>
         
         <ng-template #billRenderCell>
-          <ng-container *ngIf="field.value === 'טרם סווג'; else defaultCell">
+          <ng-container *ngIf="field.value === 'זמני'; else defaultCell">
           <ion-col
-          *ngIf="field.value === 'טרם סווג'; else defaultCell"
+          *ngIf="field.value === 'זמני'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
-                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                class="special-cell"
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize" (click)="openAddBill(row)">
                 bill
           </ion-col>
         </ng-container>
@@ -71,6 +72,7 @@
           <ion-col
           *ngIf="field.value === 'טרם סווג'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                class="special-cell"
                 [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
                 cat
           </ion-col>
@@ -80,6 +82,7 @@
           <ion-col
           *ngIf="field.value === 'טרם סווג'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                class="special-cell"
                 [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
                 sub
           </ion-col>
