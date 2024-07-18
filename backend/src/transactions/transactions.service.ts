@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, MoreThan, LessThan, Between } from 'typeorm';
+import { Repository, In, MoreThan, LessThan, Between, IsNull, Not } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Transactions } from './transactions.entity';
 import { parse, isValid } from 'date-fns';
@@ -134,8 +134,23 @@ export class TransactionsService {
     if (!bill) {
       throw new Error('Bill not found');
     }
+
+    // Create and save the new source
     const newSource = this.sourceRepo.create({ sourceName, bill });
-    return this.sourceRepo.save(newSource);
+    await this.sourceRepo.save(newSource);
+
+    // Update the billName in all transactions of the user with the new source
+    await this.updateBillNameInTransactions(sourceName, bill.billName, userId);
+
+    return newSource;
+  }
+
+
+  private async updateBillNameInTransactions(sourceName: string, billName: string, userId: string): Promise<void> {
+    await this.transactionsRepo.update(
+      { userId, paymentIdentifier: sourceName },
+      { billName }
+    );
   }
 
 
@@ -145,13 +160,6 @@ export class TransactionsService {
       where: { userId: userId}
     });
 
-    // const bills = await this.billRepo
-    //   .createQueryBuilder('bill')
-    //   .select(['bill.id', 'bill.billName'])
-    //   .where('bill.userId = :userId', { userId })
-    //   .getMany();
-
-    // return bills.map(bill => ({ id: bill.id, billName: bill.billName }));
   }
 
   async getSources(userId: string): Promise<string[]> {
@@ -176,6 +184,7 @@ export class TransactionsService {
   async getTransactionsByBillAndUserId(billId: number | null, userId: string, startDate: number, endDate: number): Promise<Transactions[]> {
 
     let sources: string[];
+    let allIdentifiers: string[] = [];
 
     if (billId === null) {
       // Get all bills for the user
@@ -189,6 +198,10 @@ export class TransactionsService {
       bills.forEach(bill => {
         sources.push(...bill.sources.map(source => source.sourceName));
       });
+
+      // Collect all paymentIdentifiers from all bills
+      allIdentifiers = sources;
+
     } else {
       // Get the specific bill for the user
       const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
@@ -202,11 +215,38 @@ export class TransactionsService {
 
     console.log("sources are ", sources);
 
-    return this.transactionsRepo.find({
-      where: { paymentIdentifier: In(sources),
-               billDate: Between(startDate, endDate)
-       },
-    });
+     // Get all paymentIdentifiers for all bills
+     const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+     allBills.forEach(bill => {
+       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
+     });
+
+     console.log("allIdentifiers is ", allIdentifiers);
+     
+
+    // Find transactions that match the criteria
+    const transactions = await this.transactionsRepo.find({
+    where: [
+      {
+        userId,
+        paymentIdentifier: In(sources),
+        billDate: Between(startDate, endDate)
+      },
+      {
+        userId,
+        paymentIdentifier: Not(In(allIdentifiers)),
+        billDate: Between(startDate, endDate)
+      }
+    ]
+  });
+
+  return transactions;
+
+    // return this.transactionsRepo.find({
+    //   where: { paymentIdentifier: In(sources),
+    //            billDate: Between(startDate, endDate)
+    //    },
+    // });
   }
 
 

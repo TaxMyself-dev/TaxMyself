@@ -19,6 +19,9 @@ export class Transactions {
   paymentIdentifier: string;
 
   @Column()
+  billName: string;
+
+  @Column()
   name: string;
 
   @Column('bigint')
