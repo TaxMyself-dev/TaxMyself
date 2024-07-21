@@ -91,15 +91,12 @@ export class TransactionsController {
     console.log("get-incomes - start");
     console.log('Original query:', query);
    
-    query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
     const startDateT = this.sharedService.convertDateToTimestamp(startDate);
     const endDateT = this.sharedService.convertDateToTimestamp(endDate);
     // Construct a new query object with the additional fields
     const modifiedQuery = {
       ...query,
-      //startDate: startDate.toISOString(),
-      //endDate: endDate.toISOString(),
       startDate: startDateT,
       endDate: endDateT,
       userId: await this.usersService.getFirbsaeIdByToken(token)

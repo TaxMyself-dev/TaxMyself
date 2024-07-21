@@ -13,7 +13,7 @@ import * as fs from 'fs';
 export class TransactionsService {
 
 token:string;
-accountsList$ = new BehaviorSubject<any[]>([{ value: 'null', name: 'כל החשבונות' }]);
+accountsList$ = new BehaviorSubject<any[]>([{ value: 'ALL_BILLS', name: 'כל החשבונות' }]);
 
 // accountsList = [{ value: 'null', name: 'כל החשבונות' }];
 constructor(private http: HttpClient) { 
@@ -98,7 +98,7 @@ constructor(private http: HttpClient) {
     // const updatedTransactions = [...accounts, ...newData];
 
     // Emit the updated transactions
-    this.accountsList$.next([...[{ value: 'null', name: 'כל החשבונות' }],...newData]);
+    this.accountsList$.next([...[{ value: 'ALL_BILLS', name: 'כל החשבונות' }],...newData]);
     // this.accountsList$.next(updatedTransactions);
     console.log(this.accountsList$.value);
     

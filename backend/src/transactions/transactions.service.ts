@@ -181,30 +181,53 @@ export class TransactionsService {
     return sources;
   }
 
-  async getTransactionsByBillAndUserId(billId: number | null, userId: string, startDate: number, endDate: number): Promise<Transactions[]> {
+  async getTransactionsByBillAndUserId(billId: string, userId: string, startDate: number, endDate: number): Promise<Transactions[]> {
 
-    let sources: string[];
+    let sources: string[] = [];
     let allIdentifiers: string[] = [];
 
-    if (billId === null) {
+    console.log("getTransactionsByBillAndUserId - start");
+
+
+    if (billId === "ALL_BILLS") {
       // Get all bills for the user
+      console.log("ALL_BILLS");
+      console.log("billId is ", billId);
+      
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      console.log("bills are ", bills);
+      console.log("bills are ", JSON.stringify(bills, null, 2));
+
+      //console.log("bills are ", bills);
       if (!bills || bills.length === 0) {
         throw new Error('No bills found for the user');
       }
 
+
       // Collect all sources from the user's bills
       bills.forEach(bill => {
-        sources.push(...bill.sources.map(source => source.sourceName));
-      });
+      if (!bill.sources) {
+        console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
+      } else {
+        console.log("Bill sources before pushing:", bill.sources);
+        bill.sources.forEach(source => {
+          console.log("Source being pushed:", source.sourceName);
+          //if (source === undefined) {
+          //  console.error("Sources array is undefined before pushing!");
+          //}
+          sources.push(source.sourceName);
+          console.log("Sources array after pushing:", sources);
+        });
+        console.log("Bill sources after pushing:", sources);
+      }
+    });
 
-      // Collect all paymentIdentifiers from all bills
-      allIdentifiers = sources;
+    // Collect all paymentIdentifiers from all bills
+    allIdentifiers = sources;
 
     } else {
       // Get the specific bill for the user
-      const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+      const billIdNum = parseInt(billId, 10);
+      const bill = await this.billRepo.findOne({ where: { id: billIdNum, userId }, relations: ['sources'] });
       console.log("bill is ", bill);
       if (!bill) {
         throw new Error('Bill not found');
@@ -242,17 +265,12 @@ export class TransactionsService {
 
   return transactions;
 
-    // return this.transactionsRepo.find({
-    //   where: { paymentIdentifier: In(sources),
-    //            billDate: Between(startDate, endDate)
-    //    },
-    // });
   }
 
 
   async getIncomesTransactions(query: any): Promise<Transactions[]> {
-    //const transactions = await this.sharedService.findEntities(Transactions, query);
-    console.log("getIncomesTransactions query is ", query);
+
+    console.log("getIncomesTransactions - start ");
 
     console.log("billId is ", query.billId);
     console.log("Type of billId is ", typeof query.billId);
@@ -266,8 +284,8 @@ export class TransactionsService {
   }
 
   async getExpensesTransactions(query: any): Promise<Transactions[]> {
-    //const transactions = await this.sharedService.findEntities(Transactions, query);
-    console.log("getIncomesTransactions query is ", query);
+
+    console.log("getExpensesTransactions - start");
 
     console.log("billId is ", query.billId);
     console.log("Type of billId is ", typeof query.billId);
