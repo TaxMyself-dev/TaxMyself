@@ -64,7 +64,9 @@ cancel(): void {
   addSource(): void {
     this.transactionsService.addSource(this.billSelected, this.paymentMethod)
     .pipe()
-    .subscribe()
+    .subscribe(() => {
+      this.modalCtrl.dismiss(null,'success');
+    })
   }
 
   addBill(): void {

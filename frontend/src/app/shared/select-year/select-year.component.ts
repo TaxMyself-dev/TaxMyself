@@ -26,6 +26,6 @@ export class SelectYearComponent implements OnInit {
     for (let i = 0; i <= 20; i++) {
       this.years.push({name: currentYear - i, value: currentYear - i});
     }
-    this.years.reverse(); // If you want the years in ascending order
+    this.years; 
   }
 }

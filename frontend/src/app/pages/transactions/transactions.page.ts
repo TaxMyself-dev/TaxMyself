@@ -155,6 +155,7 @@ export class TransactionsPage implements OnInit {
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
         data.incomes.forEach((row => {
           const {isRecognized, payDate, ...incomeRow} = row;
+          this.incomesData = [];
           this.incomesData.push(incomeRow);
         }))
         this.expensesData = data.expenses;
@@ -224,12 +225,21 @@ export class TransactionsPage implements OnInit {
     })).pipe(catchError((err) => {
       alert("openPopupAddBill error");
       return EMPTY;
-    }), switchMap((modal) => from(modal.present())), catchError((err) => {
+    }),
+     switchMap((modal) => from(modal.present())
+     .pipe(
+      switchMap(() => from(modal.onWillDismiss()))
+      )),
+     catchError((err) => {
       alert("openPopupAddBill switchMap error");
       console.log(err);
-
       return EMPTY;
-    })).subscribe();
+    }))
+    .subscribe(({data, role}) => {
+      if (role === 'success') {
+        this.getTransactions()
+      }
+    });
   }
 
   incomeFilter(): void {
@@ -288,18 +298,11 @@ export class TransactionsPage implements OnInit {
       data.forEach((row: ITransactionData) => {
         const { userId, isEquipment, id, taxPercent, vatPercent, reductionPercent, ...data } = row;
         console.log("payment",data.paymentIdentifier);
-        data.billDate = this.timestampToDateStr(data.billDate as number)
-        data.payDate = this.timestampToDateStr(data.payDate as number)
-        
-        
-        if (this.sourcesList.includes(data.paymentIdentifier)) {
-          console.log(`${data.paymentIdentifier} is exactly in the array.`);
-        } else {
-          console.log(`${data.paymentIdentifier} is not in the array.`);
-        }
-        data.billName = "זמני";
-        data.category === "" ? data.category = "טרם סווג" : null;
-        data.subCategory === "" ? data.subCategory = "טרם סווג" : null;
+        data.billDate = this.timestampToDateStr(data.billDate as number);
+        data.payDate = this.timestampToDateStr(data.payDate as number);
+        data.billName ? null : data.billName = "זמני";
+        data.category ? null : data.category = "טרם סווג";
+        data.subCategory ? null : data.subCategory = "טרם סווג";
         rows.push(data);
       }
       )
