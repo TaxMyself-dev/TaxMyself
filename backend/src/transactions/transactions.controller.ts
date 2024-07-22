@@ -132,17 +132,13 @@ export class TransactionsController {
   @Put('update-trans')
   @UsePipes(new ValidationPipe({ transform: true }))
   async updateTransactions(
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
+    @Query() query: GetTransactionsDto,
     @Body() updateData: UpdateTransactionsDto,
   ): Promise<void> {
-    // Convert startDate and endDate to numbers (assuming they are timestamps)
-    const startTimestamp = Number(startDate);
-    const endTimestamp = Number(endDate);
-
-    if (isNaN(startTimestamp) || isNaN(endTimestamp)) {
-      throw new BadRequestException('Invalid date format');
-    }
+   
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
 
     // Ensure required fields are present in the body
     if (!updateData.name || !updateData.paymentIdentifier) {
@@ -151,8 +147,8 @@ export class TransactionsController {
 
     // Call the service method to update transactions
     await this.transactionsService.updateTransactionsByCriteria(
-      startTimestamp,
-      endTimestamp,
+      startDateT,
+      endDateT,
       updateData,
     );
   }
