@@ -4,7 +4,7 @@ import { FormGroup } from '@angular/forms';
 @Component({
   selector: 'app-generic-select',
   templateUrl: './generic-select.component.html',
-  styleUrls: ['./generic-select.component.scss', '../search-bar/search-bar.component.scss'],
+  styleUrls: ['./generic-select.component.scss', '../shared-styling.scss'],
 })
 export class GenericSelectComponent {
 
