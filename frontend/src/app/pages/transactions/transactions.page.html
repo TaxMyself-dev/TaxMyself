@@ -13,7 +13,7 @@
     <button (click)="openAddTransaction()">open</button>
 
   </div>
-  <div>
+  <div class="content-wrapper">
     <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse" (handleOpen)="onOpenClicked($event)"
       [title]="'הכנסות'"></app-collapse>
     <ng-container *ngIf="isOpen">

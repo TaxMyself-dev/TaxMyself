@@ -54,3 +54,8 @@
 .label-file-transaction ion-input[type="file"] {
     display: none;
 }
+
+.content-wrapper {
+    display: flex;
+    flex-direction: column;
+}
