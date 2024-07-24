@@ -3,7 +3,7 @@
 
 
 <ion-content [fullscreen]="true">
-  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"></app-search-bar>
+  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent" [isDisabled]="storageForm.invalid"></app-search-bar>
 
   <div class="div-content">
     <div *ngIf="items$ | async as items" class="table-wrapper">
