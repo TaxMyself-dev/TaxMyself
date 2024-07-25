@@ -9,6 +9,9 @@ import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
+import { ClassifiedTransactions } from './classified-transactions.entity';
+import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
+import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
 
 
 @Injectable()
@@ -17,6 +20,8 @@ export class TransactionsService {
     private readonly sharedService: SharedService,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
+    @InjectRepository(Transactions)
+    private classifiedTransactionsRepo: Repository<ClassifiedTransactions>,
     @InjectRepository(Bill)
     private billRepo: Repository<Bill>,
     @InjectRepository(Source)
@@ -93,6 +98,111 @@ export class TransactionsService {
   async getTransactionsByUserID (userId: string) {
     return await this.transactionsRepo.find({ where: { userId: userId } });
   }
+
+
+  async classifyTransaction(classifyDto: UpdateNewTransactionDto, userId: string, startDate: number, endDate: number): Promise<void> {
+
+    const { id, isSingleUpdate, name, billName, ...updateFields } = classifyDto;
+
+    let transactions: Transactions[];
+
+    if (!classifyDto.isSingleUpdate) {
+      transactions = await this.transactionsRepo.find({
+        where: {
+          userId,
+          name,
+          billName,
+          payDate: Between(startDate, endDate)
+        },
+      });
+    } else {
+      transactions = await this.transactionsRepo.find({
+        where: {
+          id, 
+          userId
+        },
+      });
+    }
+
+    transactions.forEach(transaction => {
+      for (const key in updateFields) {
+        transaction[key] = updateFields[key];
+      }
+    });
+
+    await this.transactionsRepo.save(transactions);
+  }
+
+
+
+
+
+  // async classifyTransaction(userId: string, transactionName: string, billName: string, category: string, subCategory: string): Promise<ClassifiedTransaction> {
+  //   // Ensure the bill belongs to the user
+  //   const bill = await this.billRepo.findOne({ where: { name: billName, userId } });
+
+  //   if (!bill) {
+  //     throw new Error('Bill not found or does not belong to the user');
+  //   }
+
+  //   let classifiedTransaction = await this.classifiedTransactionRepo.findOne({ where: { userId, transactionName, billName } });
+
+  //   if (!classifiedTransaction) {
+  //     classifiedTransaction = this.classifiedTransactionRepo.create({
+  //       userId,
+  //       transactionName,
+  //       billName,
+  //       category,
+  //       subCategory
+  //     });
+  //   } else {
+  //     classifiedTransaction.category = category;
+  //     classifiedTransaction.subCategory = subCategory;
+  //   }
+
+
+
+//   async addClassifiedTrans(data: Partial<ClassifyTransactionDto>, userId: string): Promise<ClassifiedTransactions> {
+                                                
+//     const existingUserCategory = await this.userCategoryRepo.findOne({ 
+//         where: { userId: userId, category: categoryData.category, subCategory: categoryData.subCategory }
+//     });
+
+//     const existingDefaultCategory = await this.defaultCategoryRepo.findOne({ 
+//         where: { category: categoryData.category, subCategory: categoryData.subCategory }
+//     });
+
+//     if (existingUserCategory) {
+//         throw new ConflictException('Category and sub-category already exist for this user.');
+//     }
+
+//     if (existingDefaultCategory) {
+//         console.log("user vat is", categoryData.taxPercent, "while default vat is", existingDefaultCategory.taxPercent);
+//         console.log("user vat is", categoryData.vatPercent, "while default vat is", existingDefaultCategory.vatPercent);
+        
+//         const isIdentical = 
+//             categoryData.category === existingDefaultCategory.category &&
+//             categoryData.subCategory === existingDefaultCategory.subCategory &&
+//             categoryData.taxPercent === existingDefaultCategory.taxPercent &&
+//             categoryData.vatPercent === existingDefaultCategory.vatPercent;
+//             //categoryData.reductionPercent === existingDefaultCategory.reductionPercent &&
+//             //categoryData.isEquipment === existingDefaultCategory.isEquipment &&
+//             //categoryData.isRecognized === existingDefaultCategory.isRecognized;
+
+//         if (isIdentical) {
+//             throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
+//         }
+//         else console.log("not identical!!!");
+        
+//     }
+//     else console.log("no identical category");
+
+//     const newUserCategory = this.userCategoryRepo.create({ ...categoryData, userId });
+//     return this.userCategoryRepo.save(newUserCategory);
+// }
+
+
+
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////               Bills                 /////////////////////////////

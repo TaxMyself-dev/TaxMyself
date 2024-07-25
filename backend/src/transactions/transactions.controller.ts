@@ -11,6 +11,7 @@ import { query } from 'express';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { log } from 'console';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
+import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -126,6 +127,24 @@ export class TransactionsController {
       userId: await this.usersService.getFirbsaeIdByToken(token)
     };
     return this.transactionsService.getExpensesTransactions(modifiedQuery);
+  }
+  
+
+  @Post('classify-trans')
+  async classifyTransaction(
+    @Body() classifyDto: UpdateNewTransactionDto,
+    @Headers('token') token: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('isSingleMonth') isSingleMonth: boolean
+  ): Promise<void> {
+
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
+
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
+    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    return this.transactionsService.classifyTransaction(classifyDto, userId, startDateT, endDateT);
   }
 
 

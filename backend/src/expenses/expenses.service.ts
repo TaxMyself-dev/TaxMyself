@@ -134,9 +134,6 @@ export class ExpensesService {
                 categoryData.subCategory === existingDefaultCategory.subCategory &&
                 categoryData.taxPercent === existingDefaultCategory.taxPercent &&
                 categoryData.vatPercent === existingDefaultCategory.vatPercent;
-                //categoryData.reductionPercent === existingDefaultCategory.reductionPercent &&
-                //categoryData.isEquipment === existingDefaultCategory.isEquipment &&
-                //categoryData.isRecognized === existingDefaultCategory.isRecognized;
 
             if (isIdentical) {
                 throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
