@@ -12,7 +12,7 @@ import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.
 @Component({
   selector: 'app-transactions',
   templateUrl: './transactions.page.html',
-  styleUrls: ['./transactions.page.scss', '../../shared/search-bar/search-bar.component.scss'],
+  styleUrls: ['./transactions.page.scss', '../../shared/shared-styling.scss'],
 })
 
 export class TransactionsPage implements OnInit {

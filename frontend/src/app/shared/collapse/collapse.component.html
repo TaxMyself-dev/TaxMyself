@@ -1,4 +1,4 @@
-<ion-button class="collapse-button" (click)="handleClick()"><ion-icon [name]="iconString"></ion-icon>{{title}}</ion-button>
+<ion-button class="collapse-button" (click)="handleClick()"><ion-icon class="collapse-icon {{arrowDirrection}}" name="chevron-forward-outline"></ion-icon>{{title}}</ion-button>
 <ng-container *ngIf="isOpen">
     <ng-container *ngTemplateOutlet="customTemplate"></ng-container>
 </ng-container>

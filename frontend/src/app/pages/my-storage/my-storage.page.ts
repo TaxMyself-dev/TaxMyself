@@ -16,7 +16,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 @Component({
   selector: 'app-my-storage',
   templateUrl: './my-storage.page.html',
-  styleUrls: ['./my-storage.page.scss', '../../shared/search-bar/search-bar.component.scss'],
+  styleUrls: ['./my-storage.page.scss', '../../shared/shared-styling.scss'],
 })
 export class MyStoragePage implements OnInit {
 

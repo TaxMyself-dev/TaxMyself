@@ -4,7 +4,7 @@ import { FormGroup } from '@angular/forms';
 @Component({
   selector: 'app-select-year',
   templateUrl: './select-year.component.html',
-  styleUrls: ['./select-year.component.scss','../search-bar/search-bar.component.scss']
+  styleUrls: ['./select-year.component.scss']
 })
 
 export class SelectYearComponent implements OnInit {

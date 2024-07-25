@@ -9,9 +9,12 @@ export class collapseComponent  implements OnInit {
 
   @Input() title: string;
   @Input() customTemplate: TemplateRef<any>;
+  
   @Output() handleOpen = new EventEmitter<boolean>();
-  iconString: string = "chevron-forward-outline";
+
   isOpen: boolean = false;
+  arrowDirrection = "left";
+
   constructor() { }
 
   ngOnInit() {}
@@ -28,7 +31,7 @@ export class collapseComponent  implements OnInit {
   handleIcon(): void {
     console.log("handle icon");
     
-    this.isOpen ? this.iconString = "chevron-forward-outline" : this.iconString = "chevron-down-outline";
+    this.isOpen ? this.arrowDirrection = "down" : this.arrowDirrection = "left";
   }
 
 }

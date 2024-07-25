@@ -9,6 +9,8 @@ import { Component, OnInit, Output, EventEmitter, TemplateRef, Input } from '@an
 export class SearchBarComponent {
 
   @Input() customTemplate: TemplateRef<any>;
+  @Input() isDisabled = false;
+  
   @Output() onSearchClick = new EventEmitter<void>();
 
   constructor() { }

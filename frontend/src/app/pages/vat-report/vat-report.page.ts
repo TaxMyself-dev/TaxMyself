@@ -20,7 +20,7 @@ interface FieldTitles {
 @Component({
   selector: 'app-vat-report',
   templateUrl: './vat-report.page.html',
-  styleUrls: ['./vat-report.page.scss', '../../shared/search-bar/search-bar.component.scss'],
+  styleUrls: ['./vat-report.page.scss', '../../shared/shared-styling.scss'],
 })
 export class VatReportPage implements OnInit {
 

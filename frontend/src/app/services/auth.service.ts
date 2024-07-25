@@ -64,7 +64,9 @@ export class AuthService {
           console.log("err in get id token: ", err);
           return EMPTY;
         }),
-        tap((token) => localStorage.setItem('token', token)),
+        tap((token) => {
+          localStorage.setItem('token', token)
+        } ),
         switchMap((token) => this.http.post(url, { token: token })),
         catchError((err) => {
             this.error$.next("error");
