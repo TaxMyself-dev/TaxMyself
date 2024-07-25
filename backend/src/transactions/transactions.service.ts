@@ -131,6 +131,25 @@ export class TransactionsService {
     });
 
     await this.transactionsRepo.save(transactions);
+
+    // Save classification rule to ClassifiedTransactions
+    let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
+
+    if (!classifiedTransaction) {
+      classifiedTransaction = this.classifiedTransactionsRepo.create({
+        userId,
+        transactionName: name,
+        billName,
+        ...updateFields
+      });
+    } else {
+      for (const key in updateFields) {
+        classifiedTransaction[key] = updateFields[key];
+      }
+    }
+   
+    await this.classifiedTransactionsRepo.save(classifiedTransaction);
+
   }
 
 
