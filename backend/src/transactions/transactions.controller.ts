@@ -23,8 +23,11 @@ export class TransactionsController {
 
   @Post('load-file')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    return this.transactionsService.saveTransactions(file);
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Headers('token') token: string) {
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    return this.transactionsService.saveTransactions(file, userId);
   }
 
 

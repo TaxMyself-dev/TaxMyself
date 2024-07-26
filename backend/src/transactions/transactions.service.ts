@@ -1,15 +1,20 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, MoreThan, LessThan, Between, IsNull, Not } from 'typeorm';
+import { Repository, In, Between, Not } from 'typeorm';
 import * as XLSX from 'xlsx';
+
+//Entities
 import { Transactions } from './transactions.entity';
-import { parse, isValid } from 'date-fns';
-import { DateTime } from 'luxon';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
-import { SharedService } from 'src/shared/shared.service';
-import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifiedTransactions } from './classified-transactions.entity';
+import { ExpensesService } from 'src/expenses/expenses.service';
+
+//Services
+import { SharedService } from 'src/shared/shared.service';
+
+//DTOs
+import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
 
@@ -18,6 +23,7 @@ import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
 export class TransactionsService {
   constructor(
     private readonly sharedService: SharedService,
+    //private readonly expenseService: ExpensesService,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
     @InjectRepository(Transactions)
@@ -28,7 +34,8 @@ export class TransactionsService {
     private sourceRepo: Repository<Source>,
   ) {}
 
-  async saveTransactions(file: Express.Multer.File): Promise<{ message: string }> {
+
+  async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
     if (!file) {
       throw new BadRequestException('No file uploaded.');
     }
@@ -47,27 +54,50 @@ export class TransactionsService {
     const billDateIndex = headers.findIndex(header => header === 'תאריך החיוב בחשבון');
     const payDateIndex = headers.findIndex(header => header === 'תאריך התשלום');
     const sumIndex = headers.findIndex(header => header === 'סכום');
-    //const categoryIndex = headers.findIndex(header => header === 'קטגוריה');
+
+    const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
 
     for (const row of rows) {
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
-      //convert string to date
-      //const billDate = this.convertStringToDate(row[billDateIndex]);
-      //const payDate = this.convertStringToDate(row[payDateIndex]);
       const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
       const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
       transaction.billDate = billDate;
       transaction.payDate = payDate;
       transaction.sum = parseFloat(row[sumIndex]);
-      //transaction.category = row[categoryIndex];
-      transaction.userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2"; //TODO: set to the current user's ID 
-
-      //console.log("transaction_",row,":\n",transaction);
-
+      transaction.userId = userId;
+  
+      // Check if there's a matching classified transaction
+      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.paymentIdentifier);
+  
+      // If a match is found, update the transaction fields with the classified values
+      if (matchingClassifiedTransaction) {
+        transaction.category = matchingClassifiedTransaction.category;
+        transaction.subCategory = matchingClassifiedTransaction.subCategory;
+        transaction.isRecognized = matchingClassifiedTransaction.isRecognized;
+        transaction.vatPercent = matchingClassifiedTransaction.vatPercent;
+        transaction.taxPercent = matchingClassifiedTransaction.taxPercent;
+        transaction.isEquipment = matchingClassifiedTransaction.isEquipment;
+        transaction.reductionPercent = matchingClassifiedTransaction.reductionPercent;
+      }
+  
       await this.transactionsRepo.save(transaction);
     }
+
+    // for (const row of rows) {
+    //   const transaction = new Transactions();
+    //   transaction.name = row[nameIndex];
+    //   transaction.paymentIdentifier = row[paymentIdentifierIndex];
+    //   const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
+    //   const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
+    //   transaction.billDate = billDate;
+    //   transaction.payDate = payDate;
+    //   transaction.sum = parseFloat(row[sumIndex]);
+    //   transaction.userId = userId; //"L5gJkrdQZ5gGmte5XxRgagkqpOL2"; //TODO: set to the current user's ID 
+
+    //   await this.transactionsRepo.save(transaction);
+    // }
 
     return { message: `Successfully saved ${rows.length} transactions to the database.` };
   }
@@ -151,75 +181,6 @@ export class TransactionsService {
     await this.classifiedTransactionsRepo.save(classifiedTransaction);
 
   }
-
-
-
-
-
-  // async classifyTransaction(userId: string, transactionName: string, billName: string, category: string, subCategory: string): Promise<ClassifiedTransaction> {
-  //   // Ensure the bill belongs to the user
-  //   const bill = await this.billRepo.findOne({ where: { name: billName, userId } });
-
-  //   if (!bill) {
-  //     throw new Error('Bill not found or does not belong to the user');
-  //   }
-
-  //   let classifiedTransaction = await this.classifiedTransactionRepo.findOne({ where: { userId, transactionName, billName } });
-
-  //   if (!classifiedTransaction) {
-  //     classifiedTransaction = this.classifiedTransactionRepo.create({
-  //       userId,
-  //       transactionName,
-  //       billName,
-  //       category,
-  //       subCategory
-  //     });
-  //   } else {
-  //     classifiedTransaction.category = category;
-  //     classifiedTransaction.subCategory = subCategory;
-  //   }
-
-
-
-//   async addClassifiedTrans(data: Partial<ClassifyTransactionDto>, userId: string): Promise<ClassifiedTransactions> {
-                                                
-//     const existingUserCategory = await this.userCategoryRepo.findOne({ 
-//         where: { userId: userId, category: categoryData.category, subCategory: categoryData.subCategory }
-//     });
-
-//     const existingDefaultCategory = await this.defaultCategoryRepo.findOne({ 
-//         where: { category: categoryData.category, subCategory: categoryData.subCategory }
-//     });
-
-//     if (existingUserCategory) {
-//         throw new ConflictException('Category and sub-category already exist for this user.');
-//     }
-
-//     if (existingDefaultCategory) {
-//         console.log("user vat is", categoryData.taxPercent, "while default vat is", existingDefaultCategory.taxPercent);
-//         console.log("user vat is", categoryData.vatPercent, "while default vat is", existingDefaultCategory.vatPercent);
-        
-//         const isIdentical = 
-//             categoryData.category === existingDefaultCategory.category &&
-//             categoryData.subCategory === existingDefaultCategory.subCategory &&
-//             categoryData.taxPercent === existingDefaultCategory.taxPercent &&
-//             categoryData.vatPercent === existingDefaultCategory.vatPercent;
-//             //categoryData.reductionPercent === existingDefaultCategory.reductionPercent &&
-//             //categoryData.isEquipment === existingDefaultCategory.isEquipment &&
-//             //categoryData.isRecognized === existingDefaultCategory.isRecognized;
-
-//         if (isIdentical) {
-//             throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
-//         }
-//         else console.log("not identical!!!");
-        
-//     }
-//     else console.log("no identical category");
-
-//     const newUserCategory = this.userCategoryRepo.create({ ...categoryData, userId });
-//     return this.userCategoryRepo.save(newUserCategory);
-// }
-
 
 
 
