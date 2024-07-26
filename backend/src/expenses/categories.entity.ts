@@ -25,8 +25,6 @@ export class DefaultCategory {
     isEquipment: boolean;
 
     @Column('boolean')
-    isRecognized: boolean;
-
-    
+    isRecognized: boolean; 
 
 }

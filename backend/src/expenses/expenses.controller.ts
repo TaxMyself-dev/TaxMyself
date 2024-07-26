@@ -1,5 +1,5 @@
 //General
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
@@ -96,6 +96,14 @@ export class ExpensesController {
           @Query('isEquipment') isEquipmentQuery: boolean,
         ): Promise<DefaultCategory[]> {
     return this.expensesService.getSubcategoriesByCategory(categoryQuery, isEquipmentQuery);
+  }
+
+  @Get('get-user-categories')
+  async getDefaultAndUserCategories(
+    @Headers('token') token: string): Promise<any[]> {
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    //const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
+    return this.expensesService.getDefaultAndUserCategories(userId);
   }
 
 

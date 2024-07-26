@@ -117,49 +117,17 @@ export class ExpensesService {
             where: { userId: userId, category: categoryData.category, subCategory: categoryData.subCategory }
         });
 
-        const existingDefaultCategory = await this.defaultCategoryRepo.findOne({ 
-            where: { category: categoryData.category, subCategory: categoryData.subCategory }
-        });
+        // const existingDefaultCategory = await this.defaultCategoryRepo.findOne({ 
+        //     where: { category: categoryData.category, subCategory: categoryData.subCategory }
+        // });
 
         if (existingUserCategory) {
             throw new ConflictException('Category and sub-category already exist for this user.');
         }
 
-        if (existingDefaultCategory) {
-            console.log("user vat is", categoryData.taxPercent, "while default vat is", existingDefaultCategory.taxPercent);
-            console.log("user vat is", categoryData.vatPercent, "while default vat is", existingDefaultCategory.vatPercent);
-            
-            const isIdentical = 
-                categoryData.category === existingDefaultCategory.category &&
-                categoryData.subCategory === existingDefaultCategory.subCategory &&
-                categoryData.taxPercent === existingDefaultCategory.taxPercent &&
-                categoryData.vatPercent === existingDefaultCategory.vatPercent;
-
-            if (isIdentical) {
-                throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
-            }
-            else console.log("not identical!!!");
-            
-        }
-        else console.log("no identical category");
-        
-
-        // if (existingDefaultCategory) {
-        //     const isIdentical = Object.keys(categoryData).every(key => 
-        //         categoryData[key] === existingDefaultCategory[key]
-        //     );
-
-        //     if (isIdentical) {
-        //         throw new ConflictException('Category and sub-category with identical fields already exist in the default categories.');
-        //     }
-        // }
-
         const newUserCategory = this.userCategoryRepo.create({ ...categoryData, userId });
         return this.userCategoryRepo.save(newUserCategory);
     }
-
-
-
 
 
     async getAllCategories(isEquipment: boolean): Promise<string[]> {
@@ -180,6 +148,35 @@ export class ExpensesService {
                 }
         });
     }
+
+
+    async getDefaultAndUserCategories(userId: string): Promise<any[]> {
+
+        console.log("combined categories start!");
+                
+
+        const userCategories = await this.userCategoryRepo.find({ where: { userId } });
+        const defaultCategories = await this.defaultCategoryRepo.find();
+    
+        const combinedCategories = new Map();
+    
+        // Add default categories to the map
+        defaultCategories.forEach(category => {
+          const key = `${category.category}-${category.subCategory}`;
+          combinedCategories.set(key, category);
+        });
+    
+        // Add user categories to the map, overriding any default categories
+        userCategories.forEach(category => {
+          const key = `${category.category}-${category.subCategory}`;
+          combinedCategories.set(key, category);
+        });
+
+        console.log("combimedCategories are ", combinedCategories);
+    
+        return Array.from(combinedCategories.values());
+    }
+
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////               Suppliers             /////////////////////////////

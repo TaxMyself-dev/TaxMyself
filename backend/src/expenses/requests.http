@@ -103,6 +103,8 @@ GET http://localhost:3000/expenses/get-categories-list?isEquipment=true
 GET http://localhost:3000/expenses/get-sub-categories-list?category=ציוד אלקטרוני&isEquipment=true
 
 
+### Get default and user categories
+GET http://localhost:3000/expenses/get-user-categories
 
 
 
