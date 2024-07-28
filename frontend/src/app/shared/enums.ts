@@ -35,7 +35,10 @@ export enum displayColumnsExpense {
     subCategory = 'תת-קטגוריה',
     vatPercent =  'מוכר למעמ',
     taxPercent =  'מוכר למס',
-    month = 'דווח לחודש'
+    month = 'דווח לחודש',
+    isEquipment = 'מוגדר כציוד',
+    isRecognized = 'הוצאה מוכרת',
+    reductionPercent = 'אחוז פחת'
 }
 
 export enum ExpenseFormColumns {

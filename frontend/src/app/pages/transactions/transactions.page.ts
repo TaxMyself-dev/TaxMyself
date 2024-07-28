@@ -348,8 +348,7 @@ console.log("array buffer: ", arrayBuffer);
   openAddTransaction(): void {
     from(this.modalController.create({
 
-      // component: AddTransactionComponent,
-      component: ModalExpensesComponent,
+      component: AddTransactionComponent,
       componentProps: {
         columns: this.columns,
         buttons: this.buttons

@@ -9,20 +9,50 @@
 
 
 <ng-container *ngIf="existCategory; else newCategory">
-  <form [formGroup]="existCategoryForm">
-    <ng-container *ngFor="let col of columns">
+  <div class="wrapp-exist-category">
+    <ion-radio-group class="radio-buttons-wrapper" [value]="0" (ionChange)="equipmentTypeChanged($event)">
+      <ion-radio [value]="0" labelPlacement="end">בחירה מקטגוריות שמוגדרות ציוד</ion-radio>
+      <ion-radio [value]="1" labelPlacement="end">בחירה מקטגוריות שאינן ציוד</ion-radio>
+    </ion-radio-group>
+    <form class="form-exist-category" *ngIf="!equipmentType && listIsEqiupmentCategory && listNotIsEqiupmentCategory"
+      [formGroup]="existCategoryEquipmentForm">
+      <div class="wrapp-select" [class.disabled]="!!equipmentType">
+        <app-generic-select (selectionChanged)="getNotIsEquipmentSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
+          [controlName]="'category'" [items]="listNotIsEqiupmentCategory" [isRequired]="true"
+          [title]="'קטגוריה - מוגדר כציוד'"></app-generic-select>
+        <app-generic-select (selectionChanged)="selectedIsEquipmentSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
+          [controlName]="'subCategory'" [items]="listNotIsEqiupmentSubCategory" [isRequired]="true"
+          [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
+      </div>
+    </form>
+    <form class="form-exist-category" *ngIf="!!equipmentType && listNotIsEqiupmentCategory"
+    [formGroup]="existCategoryNotEquipmentForm">
+      <div class="wrapp-select" [class.disabled]="!equipmentType">
+        <app-generic-select (selectionChanged)="getIsEquipmentSubCategory($event)" [parentForm]="existCategoryNotEquipmentForm"
+          [controlName]="'category'" [items]="listIsEqiupmentCategory" [isRequired]="true"
+          [title]="'קטגוריה - לא מוגדר כציוד'"></app-generic-select>
+        <app-generic-select (selectionChanged)="selectedIsEquipmentSubCategory($event)" [parentForm]="existCategoryNotEquipmentForm"
+          [controlName]="'subCategory'" [items]="listIsEqiupmentSubCategory" [isRequired]="true"
+          [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
+      </div>
+    </form>
 
-      <ng-container [ngSwitch]="col.type">
-        <ng-container *ngSwitchCase="formTypes.DDL">
-          <ion-select label="{{col.value}}" required="true" [formControlName]="col.name"
-            (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" fill="outline" interface="popover">
-            <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
-              [value]="option.value">{{option.key}}</ion-select-option>
-          </ion-select>
-        </ng-container>
-      </ng-container>
-    </ng-container>
-  </form>
+    <div class="wrapp-ion-card">
+      <ion-card class="ion-card" *ngIf="subCategorySelected">
+        <ion-card-header>
+          <ion-card-title>פרטי קטגוריה נבחרת</ion-card-title>
+        </ion-card-header>
+        <ion-card-content class="content-card">
+          <ng-container *ngFor="let item of displayDetails | keyvalue">
+            <div class="data-card">
+              <p class="headers-table">{{displayHebrew[item.key]}} :&nbsp;&nbsp;</p>
+              <p>{{item.value}}</p>
+            </div>
+          </ng-container>
+        </ion-card-content>
+      </ion-card>
+    </div>
+  </div>
 </ng-container>
 
 <ng-template #newCategory>

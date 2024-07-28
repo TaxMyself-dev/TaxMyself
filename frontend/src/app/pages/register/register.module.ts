@@ -5,6 +5,7 @@ import { IonicModule } from '@ionic/angular';
 import { RegisterPageRoutingModule } from './register-routing.module';
 import { RegisterPage } from './register.page';
 import { SharedModule } from "../../shared/shared.module";
+import { IonicSelectableComponent } from 'ionic-selectable';
 
 @NgModule({
     declarations: [RegisterPage],
@@ -14,7 +15,8 @@ import { SharedModule } from "../../shared/shared.module";
         ReactiveFormsModule,
         IonicModule,
         RegisterPageRoutingModule,
-        SharedModule
+        SharedModule,
+        IonicSelectableComponent
     ]
 })
 export class RegisterPageModule {}

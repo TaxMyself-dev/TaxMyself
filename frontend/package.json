@@ -39,6 +39,7 @@
     "date-fns": "^3.6.0",
     "firebase": "^9.16.0",
     "ionic-select-searchable": "^2.10.0",
+    "ionic-selectable": "^5.0.0",
     "ionicons": "^7.0.0",
     "nanoid": "^5.0.4",
     "ngx-image-compress": "^15.1.6",

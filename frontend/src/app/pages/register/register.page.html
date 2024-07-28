@@ -48,7 +48,6 @@
 
     <!-------------- PRESONAL MODULE ------------->
     <ng-container [ngSwitch]="selectedFormModule">
-
       <ng-container *ngSwitchCase="registerFormModules.PERSONAL">
         <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm">
           <!---------first name----->
@@ -73,9 +72,22 @@
           <ion-input class="input-register" type="date" [max]="today" label-placement="floating" fill="outline"
             label="תאריך לידה" [formControlName]="registerFormControls.DATEOFBIRTH"></ion-input>
           <!---------city ----->
-          <ion-select class="input-register" formControlName="city" label="עיר" placeholder="עיר" label-placement="floating" fill="outline"  interface="popover">
-              <ion-select-option *ngFor="let city of cities$ | async">{{city.name}}</ion-select-option>
-            </ion-select>
+          <!-- <ion-select class="input-register" formControlName="city" label="עיר" placeholder="עיר" label-placement="floating" fill="outline"  interface="action-sheet">
+              <ion-select-option *ngFor="let city of cities">{{city.name}}</ion-select-option>
+            </ion-select> -->
+            <ion-item>
+              <ion-label>עיר</ion-label>
+              <ionic-selectable
+                formControlName="city"
+                [shouldFocusSearchbar]="true"
+                [searchDebounce]="1"
+                [items]="cities"
+                itemValueField="name"
+                itemTextField="name"
+                [canSearch]="true"
+                (onChange)="portChange($event)">
+              </ionic-selectable>
+            </ion-item>
           <!--------------- employee ------------->
           <ion-select [formControlName]="registerFormControls.EMPLOYEE" class="input-register" label="סטטוס תעסוקתי"
             fill="outline" label-placement="floating" interface="popover">

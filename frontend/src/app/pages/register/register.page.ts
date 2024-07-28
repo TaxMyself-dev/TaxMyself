@@ -6,6 +6,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { BehaviorSubject, Observable, map, startWith, tap } from 'rxjs';
+import { IonicSelectableComponent } from 'ionic-selectable';
 
 @Component({
   selector: 'app-register',
@@ -17,7 +18,9 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormControls = RegisterFormControls;
 
   myForm: FormGroup;
-  cities$: Observable<ICityData[]>;
+  cities: ICityData[];
+  ports: any;
+  port: any;
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
   today!: string;
@@ -35,6 +38,14 @@ export class RegisterPage implements OnInit, OnDestroy {
     const currentDate = new Date();
     this.today = currentDate.toISOString().substring(0, 10);
     this.itemsNavigate[0].selected = true;
+
+
+  this.ports = [
+    { id: 1, name: 'Tokai' },
+    { id: 2, name: 'Vladivostok' },
+    { id: 3, name: 'Navlakhi' }
+  ];
+
 
     const personalForm = this.formBuilder.group({
       [RegisterFormControls.FIRSTNAME]: new FormControl(
@@ -169,15 +180,28 @@ ngOnDestroy(): void {
     return this.selectedFormModule !== RegisterFormModules.VALIDATION ? 'הבא' : 'שלח';
   }
 
-  gelAllCities(): any {
-    this.cities$ = this.registerService.getCities().pipe(startWith([]), map((res) => {
-      if (res.length) {
-        return res.slice(1);
+  gelAllCities(): void {
+    this.registerService.getCities().pipe(
+      startWith([]), 
+      tap((res) => {
+        if (res.length) {
+          this.cities = res.slice(1);
+        }
+        else {
+          this.cities = [];
+        }
+
+ 
       }
-      else {
-        return [];
-      }
-    }));
+    )).subscribe();
+  }
+
+
+  portChange(event: {
+    component: IonicSelectableComponent,
+    value: any
+  }) {
+    console.log('port:', event.value);
   }
 
   addChild() {

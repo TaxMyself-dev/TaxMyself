@@ -18,9 +18,7 @@ export class GenericSelectComponent {
 
   @Output() selectionChanged = new EventEmitter<number>();
 
-  onSelectChange(event: any): void {
-    console.log(event.target);
-    
-    this.selectionChanged.emit(event.target);
+  onSelectChange(event: any): void {    
+    this.selectionChanged.emit(event.detail);
   }
 }

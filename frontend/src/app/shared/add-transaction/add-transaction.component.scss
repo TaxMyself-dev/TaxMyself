@@ -4,3 +4,73 @@ ion-segment-button.md {
     --indicator-height: 4px;
     --border-width: 0px;
 }
+
+.title-exist {
+    border-bottom: 1px solid gray;
+    width: 220px;
+}
+
+.wrapp-exist-category {
+    height: 90%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+}
+
+.form-exist-category {
+    display: flex;
+    justify-content: space-around;
+    height: 65%;
+    width: 100%;
+}
+
+.wrapp-select {
+    display: flex;
+    flex-direction: column;
+    height: 45%;
+    justify-content: space-around;
+    align-items: center;
+    gap: 10px;
+}
+
+
+.wrapp-ion-card {
+    height: 20%;
+    margin: 20px;
+}
+
+
+.ion-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background-color: beige;
+}
+
+.content-card {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    height: 50%;
+}
+
+.data-card {
+    display: flex;
+}
+
+.headers-table {
+    font-weight: bolder;
+}
+
+.radio-buttons-wrapper {
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+}
+
+.select-content {
+    gap: 50px;
+    display: flex;
+    flex-direction: column;
+}

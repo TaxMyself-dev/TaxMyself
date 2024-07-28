@@ -1,44 +1,70 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { IColumnDataTable } from '../interface';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
+import { IColumnDataTable, IGetSubCategory } from '../interface';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
+import { map, tap } from 'rxjs';
 
 @Component({
   selector: 'app-add-transaction',
   templateUrl: './add-transaction.component.html',
   styleUrls: ['./add-transaction.component.scss'],
 })
-export class AddTransactionComponent  implements OnInit {
+export class AddTransactionComponent implements OnInit {
 
-  columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [ // Titles of expense// TODO: what? why is this here? should be generic??
-    { name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL },
-    { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
-    { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
-  ];
   existCategory: boolean = true;
-  existCategoryForm: FormGroup;
-  readonly formTypes = FormTypes;
+  existCategoryEquipmentForm: FormGroup;
+  existCategoryNotEquipmentForm: FormGroup;
+  listIsEqiupmentCategory: any[];
+  listNotIsEqiupmentCategory: any[];
+  listNotIsEqiupmentSubCategory: any[]
+  listIsEqiupmentSubCategory: any[];
+  originalSubCategoryList: IGetSubCategory[];
+  originalNotSubCategoryList: IGetSubCategory[];
+  subCategorySelected: boolean = false;
+  displayDetails: IGetSubCategory;
+  equipmentType = 0;
 
-  constructor(private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder) { 
-    this.existCategoryForm = this.formBuilder.group({
-      oneTimeTransaction : new FormControl(
+  readonly formTypes = FormTypes;
+  readonly displayHebrew = displayColumnsExpense;
+
+  constructor(private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder) {
+    this.existCategoryEquipmentForm = this.formBuilder.group({
+      oneTimeTransaction: new FormControl(
         false, [Validators.required,]
       ),
-      category : new FormControl(
+      category: new FormControl(''
+        , [Validators.required,]
+      ),
+      subCategory: new FormControl(
         '', [Validators.required,]
       ),
-      subCategory : new FormControl(
-        '', [Validators.required,]
-      ), 
-      isEquipment : new FormControl(
+      isEquipment: new FormControl(
         false, [Validators.required,]
-      ),
+      )
     })
+
+    this.existCategoryNotEquipmentForm = this.formBuilder.group({
+      oneTimeTransaction: new FormControl(
+        false, [Validators.required,]
+      ),
+      category: new FormControl(
+        '', [Validators.required,]
+      ),
+      subCategory: new FormControl(
+        '', [Validators.required,]
+      ),
+      isEquipment: new FormControl(
+        false, [Validators.required,]
+      )
+    })
+
   }
 
   ngOnInit() {
-    // this.expenseDataServise.getcategry
+    // this.expenseDataServise.getcategry;
+    this.getIsEquipmentCategory();
+    this.getNotIsEquipmentCategory();
   }
 
   clicked(event): void {
@@ -48,49 +74,100 @@ export class AddTransactionComponent  implements OnInit {
     choose === "new" ? this.existCategory = false : this.existCategory = true;
   }
 
-  onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
-    console.log("event: ", event);
-    console.log("colData: ", colData);
-    
-    switch (colData.name) {
-      // case ExpenseFormColumns.IS_EQUIPMENT:
-      //   console.log("in equipment");
-      //   this.setValueEquipment(event);
-      //   break;
-      // case ExpenseFormColumns.CATEGORY:
-      //   this.getSubCategory(event.detail.value).
-      //   pipe(
-      //     tap((res) => {this.subCategoryList = res})
-      //     ).subscribe();
-      //   break;
-      // case ExpenseFormColumns.SUB_CATEGORY:
-      //   const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
-      //   this.selectedSubcategory(subCategoryDetails);
-      //   break;
-      // case ExpenseFormColumns.SUPPLIER:
-      //   const supplierDetails = this.suppliersList.find((supplier => supplier.name === event.detail.value));
-      //   console.log(supplierDetails);
-      //   this.selectedSupplier(supplierDetails)
-      //   break;
+  getIsEquipmentCategory(): void {
+    this.expenseDataServise.getcategry(true)
+      .pipe(
+        map((res) => {
+          return res.map((item: string) => ({
+            name: item,
+            value: item
+          })
+          )
+        }))
+      .subscribe((res) => {
+        this.listIsEqiupmentCategory = res;
+        console.log("isEquipment: ", this.listIsEqiupmentCategory);
+
+      })
+  }
+
+  getNotIsEquipmentCategory(): void {
+    this.expenseDataServise.getcategry(false)
+      .pipe(
+        map((res) => {
+          return res.map((item: string) => ({
+            name: item,
+            value: item
+          })
+          )
+        }))
+      .subscribe((res) => {
+        this.listNotIsEqiupmentCategory = res;
+        console.log("not is equipment: ", this.listNotIsEqiupmentCategory);
+
+      })
+  }
+
+  getIsEquipmentSubCategory(event): void {
+    this.subCategorySelected = false;
+    console.log(event.value);
+    this.expenseDataServise.getSubCategory(event.value, true)
+      .pipe(
+        tap((data) => {
+          this.originalSubCategoryList = data;
+          console.log(this.originalSubCategoryList);
+        }),
+        map((res) => {
+          return res.map((item: IGetSubCategory) => ({
+            name: item.subCategory,
+            value: item.subCategory
+          })
+          )
+        }))
+      .subscribe((res) => {
+        this.listIsEqiupmentSubCategory = res;
+        console.log(this.listIsEqiupmentSubCategory);
+
+      })
+  }
+
+  getNotIsEquipmentSubCategory(event): void {
+    this.subCategorySelected = false;
+    console.log(event.value);
+    this.expenseDataServise.getSubCategory(event.value, false)
+      .pipe(
+        tap((data) => {
+          this.originalNotSubCategoryList = data;
+          console.log(this.originalNotSubCategoryList);
+        }),
+        map((res) => {
+          return res.map((item: IGetSubCategory) => ({
+            name: item.subCategory,
+            value: item.subCategory
+          })
+          )
+        }))
+      .subscribe((res) => {
+        this.listNotIsEqiupmentSubCategory = res;
+        console.log(this.listNotIsEqiupmentSubCategory);
+      })
+  }
+
+  selectedIsEquipmentSubCategory(event): void {
+    this.subCategorySelected = true;
+    if (this.originalSubCategoryList) {
+      this.displayDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);
+      if (!this.displayDetails) {
+        this.displayDetails = this.originalNotSubCategoryList.find((item) => item.subCategory === event.value);
+      }
+    }
+    else {
+      this.displayDetails = this.originalNotSubCategoryList.find((item) => item.subCategory === event.value);
     }
   }
 
-  getListOptionsByKey(key: ExpenseFormColumns): any {
-    console.log("key:", key);
-    
-    // switch (key) {
-    //   case ExpenseFormColumns.IS_EQUIPMENT:
-    //     return this.equipmentList;
-    //   case ExpenseFormColumns.CATEGORY:
-    //     return this.getListCategory();
-    //   case ExpenseFormColumns.SUB_CATEGORY:
-    //     return this.getListSubCategory();
-    //   case ExpenseFormColumns.SUPPLIER:
-    //     // this.temp();
-    //     return this.suppliersList;
-    //     break
-    //   default:
-    //     return [];
-    // }
+  equipmentTypeChanged(event): void {
+    this.equipmentType = event.detail.value;
   }
+
 }
