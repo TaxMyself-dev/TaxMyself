@@ -150,13 +150,30 @@ export class ExpensesService {
     }
 
 
-    async getDefaultAndUserCategories(userId: string): Promise<any[]> {
+    async getDefaultAndUserCategories(userId: string, isEquipment: boolean | null, isRecognized: boolean | null): Promise<any[]> {
 
         console.log("combined categories start!");
-                
+        console.log("isEquipment is ", isEquipment);
+        console.log("isRecognized is ", isRecognized);
+        
 
-        const userCategories = await this.userCategoryRepo.find({ where: { userId } });
-        const defaultCategories = await this.defaultCategoryRepo.find();
+        // Create dynamic query object
+        const categoryQuery: any = {};
+
+        if (isEquipment !== null) {
+            categoryQuery.isEquipment = isEquipment;
+        }
+
+        if (isRecognized !== null) {
+            categoryQuery.isRecognized = isRecognized;
+        }
+
+        // Fetch user categories with userId
+        const userCategoryQuery = { ...categoryQuery, userId };
+        const userCategories = await this.userCategoryRepo.find({ where: userCategoryQuery });
+
+        // Fetch default categories
+        const defaultCategories = await this.defaultCategoryRepo.find({ where: categoryQuery });
     
         const combinedCategories = new Map();
     

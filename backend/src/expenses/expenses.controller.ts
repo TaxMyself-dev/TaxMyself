@@ -100,10 +100,14 @@ export class ExpensesController {
 
   @Get('get-user-categories')
   async getDefaultAndUserCategories(
-    @Headers('token') token: string): Promise<any[]> {
+    @Headers('token') token: string,
+    @Query('isEquipment') isEquipment: boolean | null,
+    @Query('isRecognized') isRecognized: boolean | null): Promise<any[]> {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     //const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
-    return this.expensesService.getDefaultAndUserCategories(userId);
+    console.log("isEquipment_ is ", isEquipment);
+    console.log("isRecognized_ is ", isRecognized);
+    return this.expensesService.getDefaultAndUserCategories(userId, isEquipment, isRecognized);
   }
 
 
