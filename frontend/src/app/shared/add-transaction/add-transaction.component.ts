@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { IColumnDataTable, IGetSubCategory } from '../interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
-import { map, tap } from 'rxjs';
+import { EMPTY, catchError, map, tap } from 'rxjs';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 
 @Component({
   selector: 'app-add-transaction',
@@ -12,25 +13,35 @@ import { map, tap } from 'rxjs';
 })
 export class AddTransactionComponent implements OnInit {
 
+  @Input() date;
+  @Input() data;
+
   existCategory: boolean = true;
   existCategoryEquipmentForm: FormGroup;
   existCategoryNotEquipmentForm: FormGroup;
+  newCategoryIsRecognizeForm: FormGroup;
+  newCategoryNotRecognizedForm: FormGroup;
   listIsEqiupmentCategory: any[];
-  listNotIsEqiupmentCategory: any[];
+  listNotEqiupmentCategory: any[];
   listNotIsEqiupmentSubCategory: any[]
   listIsEqiupmentSubCategory: any[];
+  listSubCategory: any[];
   originalSubCategoryList: IGetSubCategory[];
   originalNotSubCategoryList: IGetSubCategory[];
   subCategorySelected: boolean = false;
-  displayDetails: IGetSubCategory;
+  categoryDetails: IGetSubCategory;
   equipmentType = 0;
+  isRecognize: boolean = false;
+  equipmentList = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
+  isEquipment: boolean;
+  isSingleUpdate: boolean;
 
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
 
-  constructor(private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder) {
+  constructor(private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService) {
     this.existCategoryEquipmentForm = this.formBuilder.group({
-      oneTimeTransaction: new FormControl(
+      isSingleUpdate: new FormControl(
         false, [Validators.required,]
       ),
       category: new FormControl(''
@@ -39,13 +50,28 @@ export class AddTransactionComponent implements OnInit {
       subCategory: new FormControl(
         '', [Validators.required,]
       ),
-      isEquipment: new FormControl(
-        false, [Validators.required,]
-      )
+      // isEquipment: new FormControl(
+      //   false, [Validators.required,]
+      // )
     })
 
     this.existCategoryNotEquipmentForm = this.formBuilder.group({
-      oneTimeTransaction: new FormControl(
+      isSingleUpdate: new FormControl(
+        false, [Validators.required,]
+      ),
+      category: new FormControl(
+        '', [Validators.required,]
+      ),
+      subCategory: new FormControl(
+        '', [Validators.required,]
+      ),
+      // isEquipment: new FormControl(
+      //   false, [Validators.required,]
+      // )
+    })
+
+    this.newCategoryIsRecognizeForm = this.formBuilder.group({
+      isSingleUpdate: new FormControl(
         false, [Validators.required,]
       ),
       category: new FormControl(
@@ -56,21 +82,43 @@ export class AddTransactionComponent implements OnInit {
       ),
       isEquipment: new FormControl(
         false, [Validators.required,]
+      ),
+      taxPercent: new FormControl(
+        '', [Validators.required,]
+      ),
+      vatPercent: new FormControl(
+        '', [Validators.required,]
+      ),
+      reductionPercent: new FormControl(
+        '', [Validators.required,]
       )
+    })
+
+    this.newCategoryNotRecognizedForm = this.formBuilder.group({
+      isSingleUpdate: new FormControl(
+        false, [Validators.required,]
+      ),
+      category: new FormControl(
+        '', [Validators.required,]
+      ),
+      subCategory: new FormControl(
+        '', [Validators.required,]
+      ),
     })
 
   }
 
   ngOnInit() {
-    // this.expenseDataServise.getcategry;
     this.getIsEquipmentCategory();
-    this.getNotIsEquipmentCategory();
+    this.getNotEquipmentCategory();
+    console.log(this.isRecognize);
+    console.log("date from input: ", this.date);
+    console.log("data from input: ", this.data);
+
   }
 
-  clicked(event): void {
+  segmentClicked(event): void {
     const choose = event.target.value;
-    console.log("click");
-    console.log(event);
     choose === "new" ? this.existCategory = false : this.existCategory = true;
   }
 
@@ -91,7 +139,7 @@ export class AddTransactionComponent implements OnInit {
       })
   }
 
-  getNotIsEquipmentCategory(): void {
+  getNotEquipmentCategory(): void {
     this.expenseDataServise.getcategry(false)
       .pipe(
         map((res) => {
@@ -102,72 +150,174 @@ export class AddTransactionComponent implements OnInit {
           )
         }))
       .subscribe((res) => {
-        this.listNotIsEqiupmentCategory = res;
-        console.log("not is equipment: ", this.listNotIsEqiupmentCategory);
+        this.listNotEqiupmentCategory = res;
+        console.log("not is equipment: ", this.listNotEqiupmentCategory);
 
       })
   }
 
-  getIsEquipmentSubCategory(event): void {
+  getSubCategory(event): void {
     this.subCategorySelected = false;
     console.log(event.value);
-    this.expenseDataServise.getSubCategory(event.value, true)
-      .pipe(
-        tap((data) => {
-          this.originalSubCategoryList = data;
-          console.log(this.originalSubCategoryList);
-        }),
-        map((res) => {
-          return res.map((item: IGetSubCategory) => ({
-            name: item.subCategory,
-            value: item.subCategory
-          })
-          )
-        }))
-      .subscribe((res) => {
-        this.listIsEqiupmentSubCategory = res;
-        console.log(this.listIsEqiupmentSubCategory);
+    if (this.isEquipment) {
 
-      })
-  }
+      this.expenseDataServise.getSubCategory(event.value, true)
+        .pipe(
+          tap((data) => {
+            this.originalSubCategoryList = data;
+            console.log(this.originalSubCategoryList);
+          }),
+          map((res) => {
+            return res.map((item: IGetSubCategory) => ({
+              name: item.subCategory,
+              value: item.subCategory
+            })
+            )
+          }))
+        .subscribe((res) => {
+          this.listSubCategory = res;
+          // this.listIsEqiupmentSubCategory = res;
+          console.log(this.listSubCategory);
 
-  getNotIsEquipmentSubCategory(event): void {
-    this.subCategorySelected = false;
-    console.log(event.value);
-    this.expenseDataServise.getSubCategory(event.value, false)
-      .pipe(
-        tap((data) => {
-          this.originalNotSubCategoryList = data;
-          console.log(this.originalNotSubCategoryList);
-        }),
-        map((res) => {
-          return res.map((item: IGetSubCategory) => ({
-            name: item.subCategory,
-            value: item.subCategory
-          })
-          )
-        }))
-      .subscribe((res) => {
-        this.listNotIsEqiupmentSubCategory = res;
-        console.log(this.listNotIsEqiupmentSubCategory);
-      })
-  }
-
-  selectedIsEquipmentSubCategory(event): void {
-    this.subCategorySelected = true;
-    if (this.originalSubCategoryList) {
-      this.displayDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);
-      if (!this.displayDetails) {
-        this.displayDetails = this.originalNotSubCategoryList.find((item) => item.subCategory === event.value);
-      }
+        })
     }
     else {
-      this.displayDetails = this.originalNotSubCategoryList.find((item) => item.subCategory === event.value);
+      this.expenseDataServise.getSubCategory(event.value, false)
+        .pipe(
+          tap((data) => {
+            this.originalSubCategoryList = data;
+            console.log(this.originalSubCategoryList);
+          }),
+          map((res) => {
+            return res.map((item: IGetSubCategory) => ({
+              name: item.subCategory,
+              value: item.subCategory
+            })
+            )
+          }))
+        .subscribe((res) => {
+          this.listSubCategory = res;
+          // this.listIsEqiupmentSubCategory = res;
+          console.log(this.listSubCategory);
+
+        })
+    }
+  }
+
+  // getNotEquipmentSubCategory(event): void {
+  //   this.subCategorySelected = false;
+  //   console.log(event.value);
+  //   this.expenseDataServise.getSubCategory(event.value, false)
+  //     .pipe(
+  //       tap((data) => {
+  //         this.originalNotSubCategoryList = data;
+  //         console.log(this.originalNotSubCategoryList);
+  //       }),
+  //       map((res) => {
+  //         return res.map((item: IGetSubCategory) => ({
+  //           name: item.subCategory,
+  //           value: item.subCategory
+  //         })
+  //         )
+  //       }))
+  //     .subscribe((res) => {
+  //       this.listNotIsEqiupmentSubCategory = res;
+  //       console.log(this.listNotIsEqiupmentSubCategory);
+  //     })
+  // }
+
+  selectedSubCategory(event): void {
+    if (this.existCategory) {
+      this.subCategorySelected = true;
+      this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);
+    }
+    else {
+      this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);
+      this.newCategoryIsRecognizeForm.patchValue({ reductionPercent: this.categoryDetails.reductionPercent });
+      this.newCategoryIsRecognizeForm.patchValue({ vatPercent: this.categoryDetails.vatPercent });
+      this.newCategoryIsRecognizeForm.patchValue({ taxPercent: this.categoryDetails.taxPercent });
     }
   }
 
   equipmentTypeChanged(event): void {
+    let form: FormGroup;
     this.equipmentType = event.detail.value;
+    this.equipmentType ? this.isEquipment = false : this.isEquipment = true;
+    console.log(this.equipmentType);
+    if (this.equipmentType) {
+      form = this.existCategoryNotEquipmentForm
+    }
+    else {
+      form = this.existCategoryEquipmentForm
+    }
+    if (this.subCategorySelected) {
+      this.selectedSubCategory({ value: form.get('subCategory').value });
+    }
+  }
+
+  onCheckboxClassify(event): void {
+    console.log(event.detail.checked);
+    this.isSingleUpdate = event.detail.checked;
+  }
+
+  onCheckboxRecognize(event): void {
+    console.log(event.detail.checked);
+    this.isRecognize = event.detail.checked;
+  }
+
+  addClasssification(): void {
+    let formData;
+    if (this.equipmentType) {
+      formData = this.existCategoryNotEquipmentForm.value;
+    }
+    else {
+      formData = this.existCategoryEquipmentForm.value;
+    }
+    console.log("in class");
+    formData.category = this.categoryDetails.category;
+    formData.subCategory = this.categoryDetails.subCategory;
+    formData.isRecognized = this.categoryDetails.isRecognized;
+    formData.vatPercent = this.categoryDetails.vatPercent;
+    formData.taxPercent = this.categoryDetails.taxPercent;
+    formData.isEquipment = this.categoryDetails.isEquipment;
+    formData.reductionPercent = this.categoryDetails.reductionPercent;
+    formData.isSingleMonth = this.date.isSingleMonth;
+    formData.month = this.date.month;
+    formData.year = this.date.year;
+    formData.id = this.data.id
+    console.log(formData);
+    this.transactionsService.addClassifiction(formData)
+      .pipe(
+        catchError((err) => {
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log(res);
+      })
+  }
+
+  setValueEquipment(event): void {
+    this.listSubCategory = [];
+    if (event.value) {
+      this.isEquipment = true;;
+    }
+    else {
+      this.isEquipment = false;;
+    }
+  }
+
+  getCategory(): any {
+    if (this.isEquipment) {
+      return this.listIsEqiupmentCategory;
+    }
+    else {
+      return this.listNotEqiupmentCategory;
+    }
+  }
+
+  getListSubCategory(): any {
+    return this.listSubCategory;
   }
 
 }

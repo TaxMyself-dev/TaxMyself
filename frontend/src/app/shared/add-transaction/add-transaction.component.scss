@@ -13,14 +13,17 @@ ion-segment-button.md {
 .wrapp-exist-category {
     height: 90%;
     display: flex;
+    align-items: center;
     flex-direction: column;
     justify-content: space-around;
 }
 
 .form-exist-category {
     display: flex;
+    flex-direction: column;
     justify-content: space-around;
-    height: 65%;
+    align-items: center;
+    height: 50%;
     width: 100%;
 }
 
@@ -37,6 +40,8 @@ ion-segment-button.md {
 .wrapp-ion-card {
     height: 20%;
     margin: 20px;
+    width: 100%;
+    // margin: auto;
 }
 
 
@@ -73,4 +78,32 @@ ion-segment-button.md {
     gap: 50px;
     display: flex;
     flex-direction: column;
+}
+
+.new-category-screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.wrap-checkbox {
+    width: 60%;
+    display: flex;
+    justify-content: space-around;
+}
+
+.form-is-recognized {
+    height: 60%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.form-not-recognized {
+    height: 60%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }

@@ -36,6 +36,8 @@ export class TransactionsService {
 
 
   async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
+    console.log("in save tran");
+    
     if (!file) {
       throw new BadRequestException('No file uploaded.');
     }
@@ -58,6 +60,8 @@ export class TransactionsService {
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
 
     for (const row of rows) {
+      console.log("in 1 for");
+      
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
@@ -70,7 +74,6 @@ export class TransactionsService {
   
       // Check if there's a matching classified transaction
       const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.paymentIdentifier);
-  
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         transaction.category = matchingClassifiedTransaction.category;
@@ -85,19 +88,19 @@ export class TransactionsService {
       await this.transactionsRepo.save(transaction);
     }
 
-    // for (const row of rows) {
-    //   const transaction = new Transactions();
-    //   transaction.name = row[nameIndex];
-    //   transaction.paymentIdentifier = row[paymentIdentifierIndex];
-    //   const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
-    //   const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
-    //   transaction.billDate = billDate;
-    //   transaction.payDate = payDate;
-    //   transaction.sum = parseFloat(row[sumIndex]);
-    //   transaction.userId = userId; //"L5gJkrdQZ5gGmte5XxRgagkqpOL2"; //TODO: set to the current user's ID 
+    for (const row of rows) {
+      const transaction = new Transactions();
+      transaction.name = row[nameIndex];
+      transaction.paymentIdentifier = row[paymentIdentifierIndex];
+      const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
+      const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
+      transaction.billDate = billDate;
+      transaction.payDate = payDate;
+      transaction.sum = parseFloat(row[sumIndex]);
+      transaction.userId = userId; //"L5gJkrdQZ5gGmte5XxRgagkqpOL2"; //TODO: set to the current user's ID 
 
-    //   await this.transactionsRepo.save(transaction);
-    // }
+      await this.transactionsRepo.save(transaction);
+    }
 
     return { message: `Successfully saved ${rows.length} transactions to the database.` };
   }
@@ -343,7 +346,7 @@ export class TransactionsService {
       {
         userId,
         paymentIdentifier: In(sources),
-        billDate: Between(startDate, endDate)
+        // billDate: Between(startDate, endDate)
       },
       {
         userId,

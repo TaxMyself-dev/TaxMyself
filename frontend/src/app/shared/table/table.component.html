@@ -50,6 +50,7 @@
 
         <ng-template #defaultCell>
           <ion-col
+                *ngIf="!columnsToIgnore.includes(field.key)"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value}}
@@ -62,7 +63,8 @@
           *ngIf="field.value === 'זמני'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
-                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize" (click)="openAddBill(row)">
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize" 
+                (click)="openAddBill(row)">
                 שייך לחשבון
           </ion-col>
         </ng-container>
@@ -73,7 +75,8 @@
           *ngIf="field.value === 'טרם סווג'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
-                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize"
+                (click)="openAddTransaction(row)">
                 טרם סווג
           </ion-col>
         </ng-template>
