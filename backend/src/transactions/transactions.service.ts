@@ -59,6 +59,16 @@ export class TransactionsService {
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
 
+    // Fetch user's bills and create a mapping from paymentIdentifier to billName
+    const userBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+    const paymentIdentifierToBillName = new Map<string, string>();
+
+    userBills.forEach(bill => {
+      bill.sources.forEach(source => {
+        paymentIdentifierToBillName.set(source.sourceName, bill.billName);
+      });
+    });
+
     for (const row of rows) {
       console.log("in 1 for");
       
@@ -71,6 +81,12 @@ export class TransactionsService {
       transaction.payDate = payDate;
       transaction.sum = parseFloat(row[sumIndex]);
       transaction.userId = userId;
+
+      // Set the billName if paymentIdentifier is associated with a bill
+      const billName = paymentIdentifierToBillName.get(transaction.paymentIdentifier);
+      if (billName) {
+        transaction.billName = billName;
+      }
   
       // Check if there's a matching classified transaction
       const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.paymentIdentifier);
