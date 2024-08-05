@@ -10,7 +10,7 @@
       </ion-input>
     </label>
     <button (click)="onUpload()">Upload</button>
-    <button (click)="openAddTransaction()">open</button>
+    <button (click)="openAddTransaction($event)">open</button>
 
   </div>
   <div class="content-wrapper">
@@ -24,7 +24,7 @@
     <ng-template #expensesCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar" [isDisabled]="expensesForm.invalid"
         (onSearchClick)="expensesFilter()"></app-search-bar>
-      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData"
+      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
   

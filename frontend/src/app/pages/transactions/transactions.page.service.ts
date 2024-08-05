@@ -136,11 +136,10 @@ constructor(private http: HttpClient) {
     console.log("blob: ", blob);
     formData.append('file', blob, 'file.xlsx');
     console.log("form data: ", formData.get('file'));
-    // formData.forEach((value, key) => {
-    //   console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaa", key, value);
-    // });
-
-    return this.http.post<any>(url, formData);
+    const headers = {
+      'token': this.token
+    }
+    return this.http.post<any>(url, formData,{headers: headers});
   }
 
   convertXlsxToBuffer(filePath) {
@@ -153,6 +152,19 @@ constructor(private http: HttpClient) {
   console.log("buffer: ", buffer);
   
     return buffer;
+  }
+
+  addClassifiction(formData): Observable<any> {
+    const url = `${environment.apiUrl}transactions/classify-trans`;
+    const headers = {
+      'token':
+       this.token
+    }
+    const params = new HttpParams()
+    .set('year', formData.year)
+    .set('month', formData.month)
+    .set('isSingleMonth', formData.isSingleMonth);
+    return this.http.post<any>(url,formData,{params:params,headers: headers});
   }
 
 }

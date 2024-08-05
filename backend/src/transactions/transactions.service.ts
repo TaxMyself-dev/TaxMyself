@@ -36,6 +36,8 @@ export class TransactionsService {
 
 
   async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
+    console.log("in save tran");
+    
     if (!file) {
       throw new BadRequestException('No file uploaded.');
     }
@@ -58,6 +60,8 @@ export class TransactionsService {
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
 
     for (const row of rows) {
+      console.log("in 1 for");
+      
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
@@ -70,7 +74,6 @@ export class TransactionsService {
   
       // Check if there's a matching classified transaction
       const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.paymentIdentifier);
-  
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         transaction.category = matchingClassifiedTransaction.category;
@@ -307,7 +310,7 @@ export class TransactionsService {
       {
         userId,
         paymentIdentifier: In(sources),
-        billDate: Between(startDate, endDate)
+        // billDate: Between(startDate, endDate)
       },
       {
         userId,

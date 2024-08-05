@@ -44,16 +44,9 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
     [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
   ]);
+  readonly COLUMNS_TO_IGNORE = ['id']; 
 
-  columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [ // Titles of expense// TODO: what? why is this here? should be generic??
-    { name: ExpenseFormColumns.IS_EQUIPMENT, value: ExpenseFormHebrewColumns.isEquipment, type: FormTypes.DDL },
-    { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
-    { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
-  ];
 
-  buttons: IButtons[] = [
-    {text: "שמור", size: "large", action: this.saveTransaction}
-  ]
   rows: IRowDataTable[];
   tableActions: ITableRowAction[];
   typeIncomeList = [{ value: null, name: 'הכל' }, { value: 'classification', name: 'סווג' }, { value: 'notClassification', name: 'טרם סווג' }];
@@ -68,6 +61,7 @@ export class TransactionsPage implements OnInit {
   accountsList: any[] = [];
   sourcesList: string[] =[];
   selectedFile: File = null;
+  dateForUpdate = {'isSingleMonth': true, 'month' : "1" ,'year' : 2024};
 
   constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
@@ -140,6 +134,9 @@ export class TransactionsPage implements OnInit {
   getTransactions() {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
+    this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
+    this.dateForUpdate.month = formData.month;
+    this.dateForUpdate.year = formData.year;
     const incomeData$ = this.transactionsService.getIncomeTransactionsData(formData);
     const expensesData$ = this.transactionsService.getExpenseTransactionsData(formData);
 
@@ -296,7 +293,7 @@ export class TransactionsPage implements OnInit {
       console.log("data: ", data);
       
       data.forEach((row: ITransactionData) => {
-        const { userId, isEquipment, id, taxPercent, vatPercent, reductionPercent, ...data } = row;
+        const { userId, isEquipment, taxPercent, vatPercent, reductionPercent, ...data } = row;
         console.log("payment",data.paymentIdentifier);
         data.billDate = this.timestampToDateStr(data.billDate as number);
         data.payDate = this.timestampToDateStr(data.payDate as number);
@@ -345,13 +342,13 @@ console.log("array buffer: ", arrayBuffer);
     }
   }
 
-  openAddTransaction(): void {
+  openAddTransaction(event): void {
     from(this.modalController.create({
 
       component: AddTransactionComponent,
       componentProps: {
-        columns: this.columns,
-        buttons: this.buttons
+        date: this.dateForUpdate,
+        data: event,
       }
     })).pipe(catchError((err) => {
       alert("openAddTransaction error");
@@ -371,7 +368,7 @@ console.log("array buffer: ", arrayBuffer);
 
   onClickedCell(event: {str: string, data: IRowDataTable}): void {
     console.log(event);
-    event.str === "bill" ? this.openAddBill(event.data) : this.openAddTransaction()
+    event.str === "bill" ? this.openAddBill(event.data) : this.openAddTransaction(event.data)
     
   }
 

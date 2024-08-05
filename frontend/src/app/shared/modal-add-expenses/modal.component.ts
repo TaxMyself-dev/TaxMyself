@@ -247,10 +247,6 @@ export class ModalExpensesComponent {
     this.isEditMode ? this.update() : this.add();
   }
 
-  clickOnApp(): void {
-    
-  }
-
   add(): void {
     let filePath = '';
 

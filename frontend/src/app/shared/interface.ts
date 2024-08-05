@@ -63,6 +63,7 @@ export interface IGetSubCategory {
     taxPercent: string;
     vatPercent: string;
     isEquipment: boolean;
+    isRecognized: boolean;
     reductionPercent: string;
 }
 

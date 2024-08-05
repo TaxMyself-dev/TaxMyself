@@ -42,4 +42,9 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
     
     this.onClickedCell.emit({str: "bill", data: event})
   }
+  openAddTransaction(event: IRowDataTable): any {
+    console.log("click on tran");
+    
+    this.onClickedCell.emit({str: "tran", data: event})
+  }
 }

@@ -1,4 +1,4 @@
-<ion-segment (ionChange)="clicked($event)" color="success" value="exist">
+<ion-segment (ionChange)="segmentClicked($event)" color="success" value="exist">
   <ion-segment-button value="exist">
     <ion-label>בחירת קטגוריה</ion-label>
   </ion-segment-button>
@@ -14,26 +14,30 @@
       <ion-radio [value]="0" labelPlacement="end">בחירה מקטגוריות שמוגדרות ציוד</ion-radio>
       <ion-radio [value]="1" labelPlacement="end">בחירה מקטגוריות שאינן ציוד</ion-radio>
     </ion-radio-group>
-    <form class="form-exist-category" *ngIf="!equipmentType && listIsEqiupmentCategory && listNotIsEqiupmentCategory"
+    <form class="form-exist-category" *ngIf="!equipmentType && listIsEqiupmentCategory && listNotEqiupmentCategory"
       [formGroup]="existCategoryEquipmentForm">
       <div class="wrapp-select" [class.disabled]="!!equipmentType">
-        <app-generic-select (selectionChanged)="getNotIsEquipmentSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'category'" [items]="listNotIsEqiupmentCategory" [isRequired]="true"
+        <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
+          (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
+        <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
+          [controlName]="'category'" [items]="listIsEqiupmentCategory" [isRequired]="true"
           [title]="'קטגוריה - מוגדר כציוד'"></app-generic-select>
-        <app-generic-select (selectionChanged)="selectedIsEquipmentSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'subCategory'" [items]="listNotIsEqiupmentSubCategory" [isRequired]="true"
+        <app-generic-select (selectionChanged)="selectedSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
+          [controlName]="'subCategory'" [items]="listSubCategory" [isRequired]="true"
           [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
       </div>
     </form>
-    <form class="form-exist-category" *ngIf="!!equipmentType && listNotIsEqiupmentCategory"
-    [formGroup]="existCategoryNotEquipmentForm">
+    <form class="form-exist-category" *ngIf="!!equipmentType && listNotEqiupmentCategory"
+      [formGroup]="existCategoryNotEquipmentForm">
       <div class="wrapp-select" [class.disabled]="!equipmentType">
-        <app-generic-select (selectionChanged)="getIsEquipmentSubCategory($event)" [parentForm]="existCategoryNotEquipmentForm"
-          [controlName]="'category'" [items]="listIsEqiupmentCategory" [isRequired]="true"
+        <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
+          (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
+        <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryNotEquipmentForm"
+          [controlName]="'category'" [items]="listNotEqiupmentCategory" [isRequired]="true"
           [title]="'קטגוריה - לא מוגדר כציוד'"></app-generic-select>
-        <app-generic-select (selectionChanged)="selectedIsEquipmentSubCategory($event)" [parentForm]="existCategoryNotEquipmentForm"
-          [controlName]="'subCategory'" [items]="listIsEqiupmentSubCategory" [isRequired]="true"
-          [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
+        <app-generic-select (selectionChanged)="selectedSubCategory($event)"
+          [parentForm]="existCategoryNotEquipmentForm" [controlName]="'subCategory'" [items]="listSubCategory"
+          [isRequired]="true" [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
       </div>
     </form>
 
@@ -43,7 +47,7 @@
           <ion-card-title>פרטי קטגוריה נבחרת</ion-card-title>
         </ion-card-header>
         <ion-card-content class="content-card">
-          <ng-container *ngFor="let item of displayDetails | keyvalue">
+          <ng-container *ngFor="let item of categoryDetails | keyvalue">
             <div class="data-card">
               <p class="headers-table">{{displayHebrew[item.key]}} :&nbsp;&nbsp;</p>
               <p>{{item.value}}</p>
@@ -52,9 +56,50 @@
         </ion-card-content>
       </ion-card>
     </div>
+    <div class="button-add-transaction">
+      <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssification()"></app-button>
+    </div>
   </div>
+
 </ng-container>
 
 <ng-template #newCategory>
+  <div class="new-category-screen">
+    <div class="wrap-checkbox">
+      <ion-checkbox labelPlacement="end" (ionChange)="onCheckboxRecognize($event)">התנועה הינה הוצאה
+        מוכרת</ion-checkbox>
+      <ion-checkbox labelPlacement="end" (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד
+        פעמי</ion-checkbox>
+    </div>
+    <ng-container *ngIf="!isRecognize; else Recognize">
+      <form class="form-not-recognized" [formGroup]="newCategoryNotRecognizedForm">
+        <app-generic-select [controlName]="'category'" [title]="'קטגוריה'" [parentForm]="newCategoryNotRecognizedForm" [items]="getCategory()" (selectionChanged)="getSubCategory($event)"></app-generic-select>
+        <app-generic-select [controlName]="'subCategory'" [title]="'תת-קטגוריה'" [parentForm]="newCategoryNotRecognizedForm" [items]="getCategory()" (selectionChanged)="getSubCategory($event)"></app-generic-select>
+      </form>
+      <div class="button-add-transaction">
+        <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssification()"></app-button>
+      </div>
+    </ng-container>
 
+    <ng-template #Recognize>
+      <form class="form-is-recognized" [formGroup]="newCategoryIsRecognizeForm">
+        <app-generic-select [items]="equipmentList" [controlName]="'isEquipment'"
+          [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה מוגדרת כציוד?'"
+          (selectionChanged)="setValueEquipment($event)"></app-generic-select>
+        <app-generic-select [controlName]="'category'" [title]="'קטגוריה'" [items]="getCategory()"
+          (selectionChanged)="getSubCategory($event)"></app-generic-select>
+        <app-generic-select [controlName]="'subCategory'" [title]="'תת-קטגוריה'" [items]="getListSubCategory()"
+          (selectionChanged)="selectedSubCategory($event)"></app-generic-select>
+        <app-generic-input [controlName]="'taxPercent'" [parentForm]="newCategoryIsRecognizeForm"
+          [inputLabel]="'אחוז מוכר למס'"></app-generic-input>
+        <app-generic-input [controlName]="'vatPercent'" [parentForm]="newCategoryIsRecognizeForm"
+          [inputLabel]="'אחוז מוכר למעמ'"></app-generic-input>
+        <app-generic-input [controlName]="'reductionPercent'" [parentForm]="newCategoryIsRecognizeForm"
+          [inputLabel]="'אחוז פחת'"></app-generic-input>
+      </form>
+      <div class="button-add-transaction">
+        <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssification()"></app-button>
+      </div>
+    </ng-template>
+  </div>
 </ng-template>
