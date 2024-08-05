@@ -85,45 +85,9 @@ export class TransactionsService {
       await this.transactionsRepo.save(transaction);
     }
 
-    // for (const row of rows) {
-    //   const transaction = new Transactions();
-    //   transaction.name = row[nameIndex];
-    //   transaction.paymentIdentifier = row[paymentIdentifierIndex];
-    //   const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
-    //   const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
-    //   transaction.billDate = billDate;
-    //   transaction.payDate = payDate;
-    //   transaction.sum = parseFloat(row[sumIndex]);
-    //   transaction.userId = userId; //"L5gJkrdQZ5gGmte5XxRgagkqpOL2"; //TODO: set to the current user's ID 
-
-    //   await this.transactionsRepo.save(transaction);
-    // }
-
     return { message: `Successfully saved ${rows.length} transactions to the database.` };
   }
 
-
-  convertStringToDate(inputString) {
-    // Split the input string by '/'
-    const parts = inputString.split('/');
-  
-    if (parts.length !== 3) {
-      return null; // Invalid input format
-    }
-  
-    const month = parseInt(parts[0], 10) - 1; // Subtract 1 as months are zero-based in JavaScript
-    const day = parseInt(parts[1], 10);
-    const year = parseInt(parts[2], 10) + 2000; // Assuming "yy" represents a year in 2000s
-  
-    // Create a new Date object
-    const date = new Date(year, month, day);
-  
-    if (isNaN(date.getTime())) {
-      return null; // Invalid date
-    }
-  
-    return date;
-  }
 
   async getTransactionsByUserID (userId: string) {
     return await this.transactionsRepo.find({ where: { userId: userId } });
