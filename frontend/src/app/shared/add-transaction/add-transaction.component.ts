@@ -284,7 +284,9 @@ export class AddTransactionComponent implements OnInit {
     formData.isSingleMonth = this.date.isSingleMonth;
     formData.month = this.date.month;
     formData.year = this.date.year;
-    formData.id = this.data.id
+    formData.id = this.data.id;
+    formData.billName = this.data.billName;
+    formData.name = this.data.name;
     console.log(formData);
     this.transactionsService.addClassifiction(formData)
       .pipe(

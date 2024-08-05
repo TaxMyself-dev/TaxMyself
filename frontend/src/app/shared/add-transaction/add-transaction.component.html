@@ -66,9 +66,9 @@
 <ng-template #newCategory>
   <div class="new-category-screen">
     <div class="wrap-checkbox">
-      <ion-checkbox labelPlacement="end" (ionChange)="onCheckboxRecognize($event)">התנועה הינה הוצאה
+      <ion-checkbox [checked]="false" labelPlacement="end" (ionChange)="onCheckboxRecognize($event)">התנועה הינה הוצאה
         מוכרת</ion-checkbox>
-      <ion-checkbox labelPlacement="end" (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד
+      <ion-checkbox  labelPlacement="end" (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד
         פעמי</ion-checkbox>
     </div>
     <ng-container *ngIf="!isRecognize; else Recognize">
