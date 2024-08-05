@@ -135,7 +135,8 @@ export class TransactionsController {
 
   @Post('classify-trans')
   async classifyTransaction(
-    @Body() classifyDto: UpdateNewTransactionDto,
+    //@Body() classifyDto: UpdateNewTransactionDto,
+    @Body() classifyDto: any,
     @Headers('token') token: string,
     @Query('year') year: string,
     @Query('month') month: string,

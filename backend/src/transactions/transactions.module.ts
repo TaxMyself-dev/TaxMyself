@@ -11,9 +11,10 @@ import { Child } from 'src/users/child.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { SharedService } from 'src/shared/shared.service';
+import { ClassifiedTransactions } from './classified-transactions.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, Bill, Source, Child])],
+  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, ClassifiedTransactions, Bill, Source, Child])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,

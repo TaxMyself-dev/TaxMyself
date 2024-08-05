@@ -30,6 +30,7 @@ import { SharedModule } from './shared/shared.module';
 import 'dotenv/config'
 
 import admin from 'firebase-admin';
+import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
 let serviceAccount: any;
 
 // if (process.env.NODE_ENV === 'production') {
@@ -86,7 +87,7 @@ serviceAccount = {
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Supplier, Transactions, Bill, Source, DefaultCategory, UserCategory],
+      entities: [User, Child, Expense, Supplier, Transactions, ClassifiedTransactions, Bill, Source, DefaultCategory, UserCategory],
       synchronize: process.env.NODE_ENV !== 'production'}),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
   controllers: [AppController],

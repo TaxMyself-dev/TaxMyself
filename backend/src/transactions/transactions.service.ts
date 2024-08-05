@@ -26,7 +26,7 @@ export class TransactionsService {
     //private readonly expenseService: ExpensesService,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
-    @InjectRepository(Transactions)
+    @InjectRepository(ClassifiedTransactions)
     private classifiedTransactionsRepo: Repository<ClassifiedTransactions>,
     @InjectRepository(Bill)
     private billRepo: Repository<Bill>,
@@ -131,7 +131,7 @@ export class TransactionsService {
 
     // Save classification rule to ClassifiedTransactions
     let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
-
+                                                                      
     if (!classifiedTransaction) {
       classifiedTransaction = this.classifiedTransactionsRepo.create({
         userId,
