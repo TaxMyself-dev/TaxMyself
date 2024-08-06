@@ -264,8 +264,8 @@ export class TransactionsService {
 
     if (billId === "ALL_BILLS") {
       // Get all bills for the user
-      console.log("ALL_BILLS");
-      console.log("billId is ", billId);
+      //console.log("ALL_BILLS");
+      //console.log("billId is ", billId);
       
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
       console.log("bills are ", JSON.stringify(bills, null, 2));
@@ -284,9 +284,6 @@ export class TransactionsService {
         console.log("Bill sources before pushing:", bill.sources);
         bill.sources.forEach(source => {
           console.log("Source being pushed:", source.sourceName);
-          //if (source === undefined) {
-          //  console.error("Sources array is undefined before pushing!");
-          //}
           sources.push(source.sourceName);
           console.log("Sources array after pushing:", sources);
         });
@@ -295,7 +292,7 @@ export class TransactionsService {
     });
 
     // Collect all paymentIdentifiers from all bills
-    allIdentifiers = sources;
+    //allIdentifiers = sources;
 
     } else {
       // Get the specific bill for the user
@@ -309,7 +306,7 @@ export class TransactionsService {
       sources = bill.sources.map(source => source.sourceName);
     }
 
-    console.log("sources are ", sources);
+    //console.log("sources are ", sources);
 
      // Get all paymentIdentifiers for all bills
      const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
@@ -317,24 +314,38 @@ export class TransactionsService {
        allIdentifiers.push(...bill.sources.map(source => source.sourceName));
      });
 
-     console.log("allIdentifiers is ", allIdentifiers);
+    console.log("allIdentifiers is ", allIdentifiers);
+    console.log("sources is ", sources);
      
 
     // Find transactions that match the criteria
+
+    // const transactions = await this.transactionsRepo.find({
+    //   where: 
+    //     {
+    //       userId,
+    //       //paymentIdentifier: In(sources),
+    //       //billDate: Between(startDate, endDate)
+    //     }
+    // });
+
     const transactions = await this.transactionsRepo.find({
     where: [
       {
         userId,
         paymentIdentifier: In(sources),
-        // billDate: Between(startDate, endDate)
+        //billDate: Between(startDate, endDate)
       },
       {
         userId,
         paymentIdentifier: Not(In(allIdentifiers)),
-        billDate: Between(startDate, endDate)
+        //billDate: Between(startDate, endDate)
       }
     ]
   });
+
+  //console.log("transactions are", transactions);
+  
 
   return transactions;
 
@@ -345,13 +356,10 @@ export class TransactionsService {
 
     console.log("getIncomesTransactions - start ");
 
-    console.log("billId is ", query.billId);
-    console.log("Type of billId is ", typeof query.billId);
-    
     const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
-    console.log("incomeTransactions:\n", incomeTransactions)
+    //console.log("incomeTransactions:\n", incomeTransactions)
     return incomeTransactions;
 
   }
@@ -359,14 +367,11 @@ export class TransactionsService {
   async getExpensesTransactions(query: any): Promise<Transactions[]> {
 
     console.log("getExpensesTransactions - start");
-
-    console.log("billId is ", query.billId);
-    console.log("Type of billId is ", typeof query.billId);
     
     const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
     //console.log("Transactions:\n", transactions)
     const expenseTransactions = transactions.filter(transaction => transaction.sum < 0);
-    console.log("expenseTransactions:\n", expenseTransactions)
+    //console.log("expenseTransactions:\n", expenseTransactions)
     return expenseTransactions;
 
   }
