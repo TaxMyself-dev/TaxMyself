@@ -262,20 +262,11 @@ export class TransactionsService {
     console.log("getTransactionsByBillAndUserId - start");
 
 
-    if (billId === "ALL_BILLS") {
-      // Get all bills for the user
-      //console.log("ALL_BILLS");
-      //console.log("billId is ", billId);
-      
+    if (billId === "ALL_BILLS") {  
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      console.log("bills are ", JSON.stringify(bills, null, 2));
-
-      //console.log("bills are ", bills);
       if (!bills || bills.length === 0) {
         throw new Error('No bills found for the user');
       }
-
-
       // Collect all sources from the user's bills
       bills.forEach(bill => {
       if (!bill.sources) {
@@ -290,23 +281,15 @@ export class TransactionsService {
         console.log("Bill sources after pushing:", sources);
       }
     });
-
-    // Collect all paymentIdentifiers from all bills
-    //allIdentifiers = sources;
-
     } else {
       // Get the specific bill for the user
       const billIdNum = parseInt(billId, 10);
       const bill = await this.billRepo.findOne({ where: { id: billIdNum, userId }, relations: ['sources'] });
-      console.log("bill is ", bill);
       if (!bill) {
         throw new Error('Bill not found');
       }
-
       sources = bill.sources.map(source => source.sourceName);
     }
-
-    //console.log("sources are ", sources);
 
      // Get all paymentIdentifiers for all bills
      const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
@@ -329,17 +312,20 @@ export class TransactionsService {
     //     }
     // });
 
+    console.log("start date is ", startDate);
+    console.log("end date is ", endDate);
+
     const transactions = await this.transactionsRepo.find({
     where: [
       {
         userId,
         paymentIdentifier: In(sources),
-        //billDate: Between(startDate, endDate)
+        billDate: Between(startDate, endDate)
       },
       {
         userId,
         paymentIdentifier: Not(In(allIdentifiers)),
-        //billDate: Between(startDate, endDate)
+        billDate: Between(startDate, endDate)
       }
     ]
   });

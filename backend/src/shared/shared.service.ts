@@ -57,6 +57,12 @@ export class SharedService {
 
     getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
 
+        console.log("isSingleMonth = ", isSingleMonth);
+
+        // Ensure `isSingleMonth` is a boolean
+        isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
+        //console.log("isSingleMonth = ", isSingleMonth, " (type:", typeof isSingleMonth, ")");
+
         const year = parseInt(yearStr, 10);
         const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
     
@@ -66,12 +72,18 @@ export class SharedService {
         let endDate: Date;
         if (isSingleMonth) {
             // Last day of the specified month
+            console.log("single true");
+            
             endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
         } else {
             // Last day of the next month
+            console.log("single false");
             endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
         }
+        //console.log("getStartAndEndDate - debug:\n startDate is ", startDate, "\nendDate is ", endDate);
+        
         return { startDate, endDate };
+
     }
 
 

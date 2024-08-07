@@ -116,8 +116,6 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
-    //console.log("get-expenses - start");
-    //console.log('Original query:', query);
     query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
     const startDateT = this.sharedService.convertDateToTimestamp(startDate);
