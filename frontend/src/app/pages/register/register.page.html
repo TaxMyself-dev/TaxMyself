@@ -90,34 +90,22 @@
       <!-------------- SPOUSE MODULE ------------->
       <ng-container *ngSwitchCase="registerFormModules.SPOUSE">
         <form *ngIf="spouseForm" class="form-register" [formGroup]="spouseForm">
-          <!-------first name------>
-          <ion-input class="input-register" type="text" label="שם פרטי" label-placement="floating" fill="outline"
-            placeholder="שם פרטי בן / בת הזוג" [formControlName]="registerFormControls.SPOUSEFIRSTNAME"></ion-input>
+          <!---------first name----->
+          <app-generic-input inputLabel="שם פרטי בן / בת הזוג" [controlName]="registerFormControls.SPOUSEFIRSTNAME" [parentForm]="spouseForm"></app-generic-input>
           <!--------last name------->
-          <ion-input class="input-register" type="text" label="שם משפחה" label-placement="floating"
-            fill="outline" placeholder="הכנס שם משפחה"
-            [formControlName]="registerFormControls.SPOUSELASTNAME"></ion-input>
+          <app-generic-input inputLabel="שם משפחה" [controlName]="registerFormControls.SPOUSELASTNAME" [parentForm]="spouseForm"></app-generic-input>
           <!-------id number------->
-          <ion-input class="input-register" type="text" label="תעודת זהות" label-placement="floating"
-            fill="outline" placeholder="הכנס תעודת זהות" [formControlName]="registerFormControls.SPOUSEID"></ion-input>
+          <app-generic-input inputLabel="תעודת זהות" inputType="number" [controlName]="registerFormControls.SPOUSEID" [parentForm]="spouseForm"></app-generic-input>
+          <!----phone ----->
+          <app-generic-input inputType="tel" inputLabel="מספר פלאפון" [controlName]="registerFormControls.SPOUSEPHONE" [parentForm]="spouseForm"></app-generic-input>
           <!-----date of birth----->
-          <ion-input class="input-register" type="date" label-placement="floating" fill="outline"
-            label="תאריך לידה" [formControlName]="registerFormControls.SPOUSEDATEOFBIRTH"></ion-input>
-          <!-------- phone------->
-          <ion-input class="input-register" type="text" label="מספר פלאפון" label-placement="floating" fill="outline"
-            placeholder="פלאפון" [formControlName]="registerFormControls.SPOUSEPHONE"></ion-input>
-          <!---independet || employee---->
-          <ion-select [formControlName]="registerFormControls.SPOUSEINDEPENDET" class="input-register"
-            label="סטטוס תעסוקתי" fill="outline" label-placement="floating" interface="popover">
-            <ion-select-option *ngFor="let option of EmploymentStatusList"
-              [value]="option.value">{{option.name}}</ion-select-option>
-          </ion-select>
+          <app-generic-input inputType="date" inputLabel="תאריך לידה" [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
+          <!--------------- employee ------------->
+          <app-generic-select [controlName]="registerFormControls.SPOUSEINDEPENDET" title="סטטוס תעסוקתי" [items]="EmploymentStatusList" [parentForm]="spouseForm"></app-generic-select>
         </form>
       </ng-container>
 
       <!-------------- CHILDREN MODULE ------------->
-      
-      
         <ng-container *ngSwitchCase="registerFormModules.CHILDREN">
           <ng-container *ngIf="childrenArray.controls.length == 0; else children">
             <ion-item>
