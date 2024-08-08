@@ -1,3 +1,3 @@
 <form *ngIf="parentForm" [formGroup]="parentForm">
-  <ion-input class="generic-input-style" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" type="date"></ion-input>
+  <ion-input class="generic-input-style" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" [max]="maxDate" [min]="minDate" fill="outline" label-placement="floating" type="date"></ion-input>
 </form>

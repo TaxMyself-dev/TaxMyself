@@ -27,13 +27,14 @@ ion-content .register-content {
   }
 }
 
-.form-register{
+.form-register {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-around;
   border:3px solid rgb(79, 171, 79);
   border-radius: 15px;
   width: 90%;
+  padding-top: 26px;
 }
 
 .form-register-validate{

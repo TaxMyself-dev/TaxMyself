@@ -22,7 +22,7 @@ export class GenericSelectComponent {
   inputLabelName: string;
 
   get showErrorMessage(): boolean {
-    return this.currentFormControl ? this.currentFormControl().touched && this.currentFormControl().invalid : false;
+    return this.currentFormControl() ? this.currentFormControl().touched && this.currentFormControl().invalid : false;
   }
 
   constructor() { }
@@ -43,7 +43,7 @@ export class GenericSelectComponent {
   }
 
   currentFormControl(): FormControl {
-    return this.parentForm && this.controlName ? this.parentForm.get(this.controlName) as FormControl: null;
+    return (this.parentForm && this.controlName) ? this.parentForm.get(this.controlName) as FormControl: null;
   }
 
   isRequired(): boolean {

@@ -1,5 +1,5 @@
 .generic-input-wrapper {
-    height: 54px;
+    height: 80px;
 }
 
 .generic-search-bar-content {
@@ -17,4 +17,16 @@
 .generic-input-style {
     --border-radius: 15px;
     width: 172px;
+}
+
+.generic-ionic-selectable-wrapper {
+    border: 1px solid rgb(179 179 179);
+    height: 56px;
+    border-radius: 13px;
+    width: 172px;
+    --border-style: none; // ionic-bottom-border
+
+    &:hover {
+        border-color: rgb(0, 0, 0);
+    }
 }

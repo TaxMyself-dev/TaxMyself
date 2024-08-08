@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { FormControl, FormGroup, Validators} from '@angular/forms';
+import { DateService } from 'src/app/services/date.service';
 
 
 @Component({
@@ -13,6 +14,10 @@ export class SortDateComponent implements OnChanges {
   @Input() parentForm: FormGroup;
   @Input() controlName: string;
   @Input() errorText: string;
+  @Input() minDate: string;
+  @Input() set customMaxDate(val: string) {
+    this.maxDate = val;
+  }
   @Input() set inputLabel(val: string) {
     this.inputLabelName = val;
   }
@@ -21,8 +26,11 @@ export class SortDateComponent implements OnChanges {
   invalidDateErrorMessage = "התאריך שבחרת אינו תקני";
   errorMessage: string;
   inputLabelName: string;
+  maxDate: string;
 
-  constructor() { }
+  constructor(private dateService: DateService) {
+    this.maxDate = this.dateService.getTodaysDate();
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.errorText) {

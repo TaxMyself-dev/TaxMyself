@@ -1,3 +1,6 @@
-<form [formGroup]="parentForm">
-  <ion-input class="generic-input-style" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" type="string"></ion-input>
+<form class="generic-input-wrapper" [formGroup]="parentForm">
+  <ng-container [ngSwitch]="inputType">
+    <ion-input *ngSwitchCase="'date'" class="generic-input-style" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate"></ion-input>
+    <ion-input *ngSwitchDefault class="generic-input-style" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType"></ion-input>
+  </ng-container>
 </form>

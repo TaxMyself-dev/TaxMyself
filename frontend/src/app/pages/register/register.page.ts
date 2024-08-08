@@ -5,13 +5,13 @@ import { ICityData, IItemNavigate } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
-import { BehaviorSubject, Observable, map, startWith, tap } from 'rxjs';
+import { startWith, tap } from 'rxjs';
 import { IonicSelectableComponent } from 'ionic-selectable';
 
 @Component({
   selector: 'app-register',
   templateUrl: './register.page.html',
-  styleUrls: ['./register.page.scss'],
+  styleUrls: ['./register.page.scss', '../../shared/shared-styling.scss'],
 })
 export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormModules = RegisterFormModules;
@@ -23,20 +23,18 @@ export class RegisterPage implements OnInit, OnDestroy {
   port: any;
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
-  today!: string;
   registerMode: boolean = true;
   passwordValid = true;
   displayError: string = "disabled";
   passwordValidInput!: string;
-  EmploymentStatusList = [{key: "עצמאי", value: 0}, {key: "שכיר", value: 1}, {key: "עצמאי ושכיר", value: 2}];
+  EmploymentStatusList = [{name: "עצמאי", value: 0}, {name: "שכיר", value: 1}, {name: "עצמאי ושכיר", value: 2}];
   listBusinessField = [{ key: "build", value: "בניין" }, { key: "electric", value: "חשמל" }, { key: "photo", value: "צילום" }, { key: "architecture", value: "אדריכלות" }]
   listBusinessType = [{ key: "licensed", value: "עוסק מורשה" }, { key: "exempt", value: "עוסק פטור" }, { key: "company", value: "חברה" }]
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one'}, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
+  familyStatusOptionsList = [{value: 0, name: "רווק"}, {value: 1, name: "נשוי"}, {value: 2, name: "גרוש"}]
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
-    const currentDate = new Date();
-    this.today = currentDate.toISOString().substring(0, 10);
     this.itemsNavigate[0].selected = true;
 
 
