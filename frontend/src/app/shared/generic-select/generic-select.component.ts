@@ -10,6 +10,7 @@ export class GenericSelectComponent {
   @Input() items: ({value: string | number | boolean; name: string | number;})[];
   @Input() parentForm: FormGroup;
   @Input() errorText: string;
+  @Input() className: string;
   @Input() controlName: string;
   @Input() set title (val: string) {
     this.inputLabelName = val;

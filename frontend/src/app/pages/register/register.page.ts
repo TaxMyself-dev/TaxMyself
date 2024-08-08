@@ -7,6 +7,7 @@ import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { startWith, tap } from 'rxjs';
 import { IonicSelectableComponent } from 'ionic-selectable';
+import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 
 @Component({
   selector: 'app-register',
@@ -16,7 +17,9 @@ import { IonicSelectableComponent } from 'ionic-selectable';
 export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormModules = RegisterFormModules;
   readonly registerFormControls = RegisterFormControls;
-
+  readonly ButtonClass = ButtonClass;
+  readonly ButtonSize = ButtonSize;
+  
   myForm: FormGroup;
   cities: ICityData[];
   ports: any;
@@ -28,8 +31,8 @@ export class RegisterPage implements OnInit, OnDestroy {
   displayError: string = "disabled";
   passwordValidInput!: string;
   EmploymentStatusList = [{name: "עצמאי", value: 0}, {name: "שכיר", value: 1}, {name: "עצמאי ושכיר", value: 2}];
-  listBusinessField = [{ key: "build", value: "בניין" }, { key: "electric", value: "חשמל" }, { key: "photo", value: "צילום" }, { key: "architecture", value: "אדריכלות" }]
-  listBusinessType = [{ key: "licensed", value: "עוסק מורשה" }, { key: "exempt", value: "עוסק פטור" }, { key: "company", value: "חברה" }]
+  listBusinessField = [{ value: "build", name: "בניין" }, { value: "electric", name: "חשמל" }, { value: "photo", name: "צילום" }, { value: "architecture", name: "אדריכלות" }]
+  listBusinessType = [{ value: "licensed", name: "עוסק מורשה" }, { value: "exempt", name: "עוסק פטור" }, { value: "company", name: "חברה" }]
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one'}, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = [{value: 0, name: "רווק"}, {value: 1, name: "נשוי"}, {value: 2, name: "גרוש"}]
@@ -198,6 +201,10 @@ ngOnDestroy(): void {
     )).subscribe();
   }
 
+  
+  getChildFormByIndex(index: number): FormGroup {
+    return this.childrenArray.at(index) as FormGroup;
+  }
 
   portChange(event: {
     component: IonicSelectableComponent,
@@ -212,10 +219,18 @@ ngOnDestroy(): void {
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
     items.push(
       this.formBuilder.group({
-        childFName: [''],
-        childLName: [''],
-        childID: [''],
-        childDate: ['']
+        [RegisterFormControls.CHILD_FIRST_NAME]: new FormControl(
+          '', Validators.required,
+        ),
+        [RegisterFormControls.CHILD_LAST_NAME]: new FormControl(
+          '', Validators.required,
+        ),
+        [RegisterFormControls.CHILD_ID]: new FormControl(
+          '', [Validators.required, Validators.pattern(/^\d{9}$/)]
+        ),
+        [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
+          '', Validators.required,
+        )
       })
     );
   }

@@ -12,6 +12,7 @@ export class GenericInputComponent implements OnChanges {
   @Input() parentForm: FormGroup;
   @Input() controlName: string;
   @Input() errorText: string;
+  @Input() className: string;
   @Input() inputType = "text";
   @Input() minDate: string;
   @Input() set customMaxDate(val: string) {
