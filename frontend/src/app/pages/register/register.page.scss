@@ -9,11 +9,6 @@
     }
   }
   
-  .add-icon {
-    font-size: 24px;
-    color: blue;
-    cursor: pointer;
-  }
 //----------------
 ion-content .register-content {
   display: flex;
@@ -56,11 +51,15 @@ ion-content .register-content {
   margin: 10px;
 }
 
-.input-register-child{
+.input-register-child {
   display: flex;
   --border-radius: 15px;
   flex-basis: calc(25% - 35px);
   margin: 10px;
+}
+
+.child-button {
+  margin-bottom: 30px;
 }
 
 .navigate-item-container{

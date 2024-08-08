@@ -7,6 +7,7 @@ import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { startWith, tap } from 'rxjs';
 import { IonicSelectableComponent } from 'ionic-selectable';
+import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 
 @Component({
   selector: 'app-register',
@@ -16,7 +17,9 @@ import { IonicSelectableComponent } from 'ionic-selectable';
 export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormModules = RegisterFormModules;
   readonly registerFormControls = RegisterFormControls;
-
+  readonly ButtonClass = ButtonClass;
+  readonly ButtonSize = ButtonSize;
+  
   myForm: FormGroup;
   cities: ICityData[];
   ports: any;
@@ -198,6 +201,10 @@ ngOnDestroy(): void {
     )).subscribe();
   }
 
+  
+  getChildFormByIndex(index: number): FormGroup {
+    return this.childrenArray.at(index) as FormGroup;
+  }
 
   portChange(event: {
     component: IonicSelectableComponent,
@@ -212,10 +219,18 @@ ngOnDestroy(): void {
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
     items.push(
       this.formBuilder.group({
-        childFName: [''],
-        childLName: [''],
-        childID: [''],
-        childDate: ['']
+        [RegisterFormControls.CHILD_FIRST_NAME]: new FormControl(
+          '', Validators.required,
+        ),
+        [RegisterFormControls.CHILD_LAST_NAME]: new FormControl(
+          '', Validators.required,
+        ),
+        [RegisterFormControls.CHILD_ID]: new FormControl(
+          '', [Validators.required, Validators.pattern(/^\d{9}$/)]
+        ),
+        [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
+          '', Validators.required,
+        )
       })
     );
   }

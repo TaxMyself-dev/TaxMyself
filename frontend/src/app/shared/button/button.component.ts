@@ -12,6 +12,9 @@ export class ButtonComponent {
   @Input() disabled: boolean = false;
   @Input() buttonClass: string = ButtonClass.PRIMARY;
   @Input() buttonSize: string = ButtonSize.BIG;
+  @Input() iconName: string;
+  @Input() iconPosition = "start";
+  @Input() iconStyle: Partial<CSSStyleDeclaration> = {margin: '0'};
   @Input() buttonStyle: Partial<CSSStyleDeclaration> = {}
 
   @Output() onButtonClicked: EventEmitter<void> = new EventEmitter<void>();

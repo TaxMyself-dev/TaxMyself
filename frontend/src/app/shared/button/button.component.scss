@@ -28,6 +28,17 @@ ion-button {
       --background: transparent;
     }
 
+    &.icon_only {
+      --background: rgb(79, 171, 79);
+      --padding-start: 0;
+      --padding-end: 0;
+    }
+
+    &.x_small {
+      height: 24px;
+      width: 24px;
+    }
+
     &.small {
       font-size: 12px;
       height: 30px;
