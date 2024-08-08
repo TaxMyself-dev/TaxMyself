@@ -63,9 +63,6 @@
           <!-----date of birth----->
           <app-generic-input inputType="date" inputLabel="תאריך לידה" [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
           <!---------city ----->
-          <!-- <ion-select class="input-register" formControlName="city" label="עיר" placeholder="עיר" label-placement="floating" fill="outline"  interface="action-sheet">
-              <ion-select-option *ngFor="let city of cities">{{city.name}}</ion-select-option>
-            </ion-select> -->
           <ion-item class="generic-ionic-selectable-wrapper">
             <ion-label>עיר</ion-label>
             <ionic-selectable
