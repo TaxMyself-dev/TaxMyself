@@ -12,13 +12,18 @@ import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { ClassifiedTransactions } from './classified-transactions.entity';
+import { ExpensesService } from 'src/expenses/expenses.service';
+import { UserCategory } from 'src/expenses/user-categories.entity';
+import { DefaultCategory } from 'src/expenses/categories.entity';
+import { Supplier } from 'src/expenses/suppliers.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, ClassifiedTransactions, Bill, Source, Child])],
+  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, UserCategory, Supplier, ClassifiedTransactions, Bill, Source, Child])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
     SharedService,
+    ExpensesService,
     UsersService,
     AuthService,
   ],

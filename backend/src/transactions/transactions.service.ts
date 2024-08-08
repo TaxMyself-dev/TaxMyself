@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not } from 'typeorm';
 import * as XLSX from 'xlsx';
@@ -23,7 +23,7 @@ import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
 export class TransactionsService {
   constructor(
     private readonly sharedService: SharedService,
-    //private readonly expenseService: ExpensesService,
+    private readonly expenseService: ExpensesService,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
     @InjectRepository(ClassifiedTransactions)
@@ -115,11 +115,24 @@ export class TransactionsService {
 
   async classifyTransaction(classifyDto: UpdateNewTransactionDto, userId: string, startDate: number, endDate: number): Promise<void> {
 
-    const { id, isSingleUpdate, name, billName, ...updateFields } = classifyDto;
-
+    const {id, isSingleUpdate, isNewCategory, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
     let transactions: Transactions[];
 
-    if (!classifyDto.isSingleUpdate) {
+    // Add new user category if isNewCategory is true
+    if (isNewCategory) {
+      try {
+        const categoryData = {category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized};
+        await this.expenseService.addUserCategory(categoryData, userId);
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          console.log('Category already exists:', error.message);
+        } else {
+          throw error; // Re-throw other unexpected errors
+        }
+      }
+    }
+  
+    if (!isSingleUpdate) {
       transactions = await this.transactionsRepo.find({
         where: {
           userId,
@@ -131,39 +144,147 @@ export class TransactionsService {
     } else {
       transactions = await this.transactionsRepo.find({
         where: {
-          id, 
+          id,
           userId
         },
       });
     }
-
+  
     transactions.forEach(transaction => {
-      for (const key in updateFields) {
-        transaction[key] = updateFields[key];
-      }
+      transaction.category = category;
+      transaction.subCategory = subCategory;
+      transaction.taxPercent = taxPercent;
+      transaction.vatPercent = vatPercent;
+      transaction.reductionPercent = reductionPercent;
+      transaction.isEquipment = isEquipment;
+      transaction.isRecognized = isRecognized;
     });
-
+  
     await this.transactionsRepo.save(transactions);
-
-    // Save classification rule to ClassifiedTransactions
-    let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
-                                                                      
-    if (!classifiedTransaction) {
-      classifiedTransaction = this.classifiedTransactionsRepo.create({
-        userId,
-        transactionName: name,
-        billName,
-        ...updateFields
-      });
-    } else {
-      for (const key in updateFields) {
-        classifiedTransaction[key] = updateFields[key];
+  
+    // Update ClassifiedTransactions only if it's not a single update
+    if (!isSingleUpdate) {
+      let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
+  
+      if (!classifiedTransaction) {
+        classifiedTransaction = this.classifiedTransactionsRepo.create({
+          userId,
+          transactionName: name,
+          billName,
+          category,
+          subCategory,
+          taxPercent,
+          vatPercent,
+          reductionPercent,
+          isEquipment,
+          isRecognized
+        });
+      } else {
+        classifiedTransaction.category = category;
+        classifiedTransaction.subCategory = subCategory;
+        classifiedTransaction.taxPercent = taxPercent;
+        classifiedTransaction.vatPercent = vatPercent;
+        classifiedTransaction.reductionPercent = reductionPercent;
+        classifiedTransaction.isEquipment = isEquipment;
+        classifiedTransaction.isRecognized = isRecognized;
       }
+  
+      await this.classifiedTransactionsRepo.save(classifiedTransaction);
     }
-   
-    await this.classifiedTransactionsRepo.save(classifiedTransaction);
-
   }
+
+
+
+
+
+  // async classifyTransaction(classifyDto: UpdateNewTransactionDto, userId: string, startDate: number, endDate: number): Promise<void> {
+
+  //   const {
+  //     id,
+  //     isSingleUpdate,
+  //     isNewCategory,
+  //     name,
+  //     billName,
+  //     category,
+  //     subCategory,
+  //     taxPercent,
+  //     vatPercent,
+  //     reductionPercent,
+  //     isEquipment,
+  //     isRecognized,
+  //     ...updateFields
+  //   } = classifyDto;
+
+  //   let transactions: Transactions[];
+
+  //   // Add new user category if isNewCategory is true
+  //   if (isNewCategory) {
+  //     try {
+  //       const categoryData = {
+  //         category,
+  //         subCategory,
+  //         taxPercent,
+  //         vatPercent,
+  //         reductionPercent,
+  //         isEquipment,
+  //         isRecognized
+  //       };
+
+  //       await this.expenseService.addUserCategory(categoryData, userId);
+  //     } catch (error) {
+  //       if (error instanceof ConflictException) {
+  //         console.log('Category already exists:', error.message);
+  //       } else {
+  //         throw error; // Re-throw other unexpected errors
+  //       }
+  //     }
+  //   }
+
+  //   if (!classifyDto.isSingleUpdate) {
+  //     transactions = await this.transactionsRepo.find({
+  //       where: {
+  //         userId,
+  //         name,
+  //         billName,
+  //         payDate: Between(startDate, endDate)
+  //       },
+  //     });
+  //   } else {
+  //     transactions = await this.transactionsRepo.find({
+  //       where: {
+  //         id, 
+  //         userId
+  //       },
+  //     });
+  //   }
+
+  //   transactions.forEach(transaction => {
+  //     for (const key in updateFields) {
+  //       transaction[key] = updateFields[key];
+  //     }
+  //   });
+
+  //   await this.transactionsRepo.save(transactions);
+
+  //   // Save classification rule to ClassifiedTransactions
+  //   let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
+                                                                      
+  //   if (!classifiedTransaction) {
+  //     classifiedTransaction = this.classifiedTransactionsRepo.create({
+  //       userId,
+  //       transactionName: name,
+  //       billName,
+  //       ...updateFields
+  //     });
+  //   } else {
+  //     for (const key in updateFields) {
+  //       classifiedTransaction[key] = updateFields[key];
+  //     }
+  //   }
+   
+  //   await this.classifiedTransactionsRepo.save(classifiedTransaction);
+
+  // }
 
 
 
@@ -387,6 +508,45 @@ export class TransactionsService {
       await this.transactionsRepo.save(transaction);
     }
   }
+
+
+  // async convertTransactionsToExpenses(transactionIds: number[]): Promise<{ message: string }> {
+  //   // Fetch transactions with the given IDs
+  //   const transactions = await this.transactionsRepo.findByIds(transactionIds);
+  
+  //   if (!transactions || transactions.length === 0) {
+  //     throw new Error('No transactions found with the provided IDs.');
+  //   }
+  
+  //   const expenses = transactions.map(transaction => {
+  //     const expense = new Expense();
+  //     expense.supplier = transaction.name;
+  //     expense.supplierID = transaction.paymentIdentifier; // Assuming this is the supplier ID
+  //     expense.category = transaction.category;
+  //     expense.subCategory = transaction.subCategory;
+  //     expense.sum = transaction.sum;
+  //     expense.taxPercent = transaction.taxPercent;
+  //     expense.vatPercent = transaction.vatPercent;
+  //     expense.dateTimestamp = transaction.payDate; // Assuming you want to use the pay date
+  //     expense.note = ''; // You can set a default or leave it empty
+  //     expense.file = ''; // Assuming the file field needs to be filled later
+  //     expense.isEquipment = transaction.isEquipment;
+  //     expense.userId = transaction.userId;
+  //     expense.loadingDate = Date.now(); // Current timestamp as loading date
+  //     expense.expenseNumber = ''; // Generate or leave empty if not available
+  //     expense.reductionDone = false; // Assuming this needs to be set as default
+  //     expense.reductionPercent = transaction.reductionPercent;
+  
+  //     // Automatically calculate totalTaxPayable and totalVatPayable using the @BeforeInsert() and @BeforeUpdate() hooks in the Expense entity
+  
+  //     return expense;
+  //   });
+  
+  //   // Save expenses to the database
+  //   await this.expenseRepo.save(expenses);
+  
+  //   return { message: `Successfully converted ${expenses.length} transactions to expenses.` };
+  // }
 
 
 }

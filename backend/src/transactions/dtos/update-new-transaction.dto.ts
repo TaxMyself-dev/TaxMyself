@@ -8,6 +8,9 @@ export class UpdateNewTransactionDto {
   @IsBoolean()
   isSingleUpdate: boolean;
 
+  @IsBoolean()
+  isNewCategory: boolean;
+
   @IsString()
   name: string;
 

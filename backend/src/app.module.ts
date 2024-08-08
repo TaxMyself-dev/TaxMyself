@@ -9,6 +9,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
 import { ExcelModule } from './transactions/transactions.module';
 import { CloudModule } from './cloud/cloud.module';
+import { SharedModule } from './shared/shared.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Supplier } from './expenses/suppliers.entity';
@@ -26,7 +27,6 @@ import * as firebase from 'firebase-admin';
 import { promisify } from 'util';
 
 import { VAT_RATE_2023 } from './constants';
-import { SharedModule } from './shared/shared.module';
 import 'dotenv/config'
 
 import admin from 'firebase-admin';
