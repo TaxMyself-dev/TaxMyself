@@ -29,10 +29,10 @@
         <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
           (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
         <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'category'" [items]="listIsEqiupmentCategory" [isRequired]="true"
+          [controlName]="'category'" [items]="listIsEqiupmentCategory"
           [title]="'קטגוריה - מוגדר כציוד'"></app-generic-select>
         <app-generic-select (selectionChanged)="selectedSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'subCategory'" [items]="listSubCategory" [isRequired]="true"
+          [controlName]="'subCategory'" [items]="listSubCategory"
           [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
       </div>
     </form>
@@ -42,11 +42,11 @@
         <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
           (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
         <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryNotEquipmentForm"
-          [controlName]="'category'" [items]="listNotEqiupmentCategory" [isRequired]="true"
+          [controlName]="'category'" [items]="listNotEqiupmentCategory"
           [title]="'קטגוריה - לא מוגדר כציוד'"></app-generic-select>
         <app-generic-select (selectionChanged)="selectedSubCategory($event)"
           [parentForm]="existCategoryNotEquipmentForm" [controlName]="'subCategory'" [items]="listSubCategory"
-          [isRequired]="true" [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
+          [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
       </div>
     </form>
 

@@ -38,7 +38,7 @@
   <form *ngIf="storageForm" class="generic-search-bar-content" [formGroup]="storageForm">
     <app-sort-date class="generic-input-wrapper" [parentForm]="storageForm" [controlName]="'until'" [inputLabel]="'מתאריך'"></app-sort-date>
     <app-sort-date class="generic-input-wrapper" [parentForm]="storageForm" [controlName]="'from'" [inputLabel]="'עד תאריך'"></app-sort-date>
-    <app-generic-input class="generic-input-wrapper" [parentForm]="storageForm" [controlName]="'supplier'" [inputLabel]="'ספק'" [isRequired]="true"></app-generic-input>
-    <app-generic-input class="generic-input-wrapper" [parentForm]="storageForm" [controlName]="'category'" [inputLabel]="'קטגוריה'" [isRequired]="true"></app-generic-input>
+    <app-generic-input class="generic-input-wrapper" [parentForm]="storageForm" [controlName]="'supplier'" [inputLabel]="'ספק'"></app-generic-input>
+    <app-generic-input class="generic-input-wrapper" [parentForm]="storageForm" [controlName]="'category'" [inputLabel]="'קטגוריה'"></app-generic-input>
   </form>
 </ng-template>

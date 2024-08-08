@@ -1,8 +1,6 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { FormGroup, FormBuilder, FormControl, Validators } from '@angular/forms';
-import { BehaviorSubject, Observable, map } from 'rxjs';
-import { VatReportService } from 'src/app/pages/vat-report/vat-report.service';
-import { IMonthData, ISortDate, IVatReportTableData } from '../interface';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { FormControl, FormGroup, Validators} from '@angular/forms';
+
 
 @Component({
   selector: 'app-sort-date',
@@ -10,11 +8,47 @@ import { IMonthData, ISortDate, IVatReportTableData } from '../interface';
   styleUrls: ['./sort-date.component.scss', '../search-bar/search-bar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class SortDateComponent {
+export class SortDateComponent implements OnChanges {
 
   @Input() parentForm: FormGroup;
   @Input() controlName: string;
-  @Input() inputLabel: string;
+  @Input() errorText: string;
+  @Input() set inputLabel(val: string) {
+    this.inputLabelName = val;
+  }
+
+  RequiredErrorMessage = "שדה זה הוא חובה";
+  invalidDateErrorMessage = "התאריך שבחרת אינו תקני";
+  errorMessage: string;
+  inputLabelName: string;
+
+  constructor() { }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.errorText) {
+      this.errorMessage = this.isRequired() ? this.errorText ?? this.RequiredErrorMessage : this.errorText;
+    }
+    if (changes.inputLabel || changes.controlName) {
+      this.inputLabelName = this.isRequired() ? this.inputLabelName + ' *' : this.inputLabelName;
+    }
+  }
+  
+  get errorMessageToDisplay(): string {
+    return this.isDateValid() ? this.invalidDateErrorMessage : this.errorMessage;
+  }
+
+  currentFormControl(): FormControl {
+    return this.parentForm && this.controlName ? this.parentForm.get(this.controlName) as FormControl: null;
+  }
+
+  isRequired(): boolean {
+    return !!this.currentFormControl()?.hasValidator(Validators.required);
+  }
+
+  isDateValid(): boolean {
+    return true; // TODO
+  }
+
 
   // readonly doubleMonths: IMonthData[] = [
   //   { name: 'ינואר - פברואר', value: [1, 2] },

@@ -223,7 +223,7 @@
       <app-button buttonText="חזור" [disabled]="selectedFormModule === registerFormModules.PERSONAL"
         (onButtonClicked)="onBackBtnClicked()"></app-button>
       <app-button [buttonText]="buttonNextText"
-        [disabled]="(myForm.invalid && (selectedFormModule === registerFormModules.VALIDATION) || (!this.passwordValid))"
+        [disabled]="isNextButtonDisabled"
         (onButtonClicked)="onNextBtnClicked()"></app-button>
     </div>
     <div>

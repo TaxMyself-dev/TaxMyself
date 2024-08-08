@@ -180,6 +180,10 @@ ngOnDestroy(): void {
     return this.selectedFormModule !== RegisterFormModules.VALIDATION ? 'הבא' : 'שלח';
   }
 
+  get isNextButtonDisabled(): boolean {
+    return this.isCurrentFormValid();
+  }
+
   gelAllCities(): void {
     this.registerService.getCities().pipe(
       startWith([]), 
@@ -329,5 +333,20 @@ ngOnDestroy(): void {
   navigateToLogin(): void {
     this.router.navigate(['login']);
   }
+
+  private isCurrentFormValid(): boolean {
+    switch(this.selectedFormModule) {
+      case RegisterFormModules.VALIDATION:
+        return !this.passwordValid || this.myForm.invalid;
+      case RegisterFormModules.PERSONAL:
+        return this.personalForm.invalid;
+      case RegisterFormModules.CHILDREN:
+        return this.childrenForm.invalid;
+      case RegisterFormModules.SPOUSE:
+        return this.spouseForm.invalid;
+      case RegisterFormModules.BUSINESS:
+        return this.businessForm.invalid;
+      }
+    }
 
 }
