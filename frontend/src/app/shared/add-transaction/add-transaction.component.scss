@@ -107,3 +107,14 @@ ion-segment-button.md {
     flex-direction: column;
     gap: 10px;
 }
+
+.header-list{
+    display: flex;
+    width: 98%;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-list :hover {
+    cursor: pointer;
+}

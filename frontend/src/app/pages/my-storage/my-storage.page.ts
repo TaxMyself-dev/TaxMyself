@@ -101,10 +101,10 @@ export class MyStoragePage implements OnInit {
       if (isNaN(parsedTimestamp)) {
         throw new Error('Invalid timestamp string');
       }
-      date = new Date(parsedTimestamp);
+      date = new Date(parsedTimestamp * 1000);
     } 
     else {
-      date = new Date(timestamp);
+      date = new Date(timestamp * 1000);
     }
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based

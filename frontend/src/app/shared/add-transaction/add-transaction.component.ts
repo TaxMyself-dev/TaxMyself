@@ -5,6 +5,7 @@ import { IColumnDataTable, IGetSubCategory } from '../interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
 import { EMPTY, catchError, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { ModalController } from '@ionic/angular';
 
 @Component({
   selector: 'app-add-transaction',
@@ -39,7 +40,7 @@ export class AddTransactionComponent implements OnInit {
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
 
-  constructor(private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService) {
+  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService) {
     this.existCategoryEquipmentForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         false, [Validators.required,]
@@ -320,6 +321,10 @@ export class AddTransactionComponent implements OnInit {
 
   getListSubCategory(): any {
     return this.listSubCategory;
+  }
+
+  cancel(): void {
+    this.modalCtrl.dismiss(null,'cancel');
   }
 
 }

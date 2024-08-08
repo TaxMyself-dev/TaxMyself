@@ -24,7 +24,7 @@
     <ng-template #expensesCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar" [isDisabled]="expensesForm.invalid"
         (onSearchClick)="expensesFilter()"></app-search-bar>
-      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE"
+      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
   
@@ -32,7 +32,7 @@
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar" [isDisabled]="incomeForm.invalid"
         (onSearchClick)="incomeFilter()"></app-search-bar>
       <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" [actions]="tableActions"  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
-        [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+        [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"></app-table>
     </ng-template>
 
     <ng-container *ngIf="addPayment">

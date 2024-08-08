@@ -167,7 +167,13 @@ ion-col {
 }
 
 .special-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: red;
+  border: 1px solid;
+  border-radius: 15px;
+  border-color: black;
 }
 
 .special-cell:hover {

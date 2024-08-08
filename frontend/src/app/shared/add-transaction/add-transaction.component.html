@@ -1,11 +1,20 @@
-<ion-segment (ionChange)="segmentClicked($event)" color="success" value="exist">
-  <ion-segment-button value="exist">
-    <ion-label>בחירת קטגוריה</ion-label>
-  </ion-segment-button>
-  <ion-segment-button value="new">
-    <ion-label>הוספת קטגוריה</ion-label>
-  </ion-segment-button>
-</ion-segment>
+<ion-header>
+  <ion-toolbar>
+<ion-list class="header-list">
+
+  <ion-segment (ionChange)="segmentClicked($event)" color="success" value="exist">
+    <ion-segment-button value="exist">
+      <ion-label>בחירת קטגוריה</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="new">
+      <ion-label>הוספת קטגוריה</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+  <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
+  name="close-outline"></ion-icon>
+</ion-list>
+  </ion-toolbar>
+  </ion-header>
 
 
 <ng-container *ngIf="existCategory; else newCategory">

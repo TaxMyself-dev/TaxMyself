@@ -44,7 +44,8 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
     [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
   ]);
-  readonly COLUMNS_TO_IGNORE = ['id']; 
+  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id']; 
+  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized']; 
 
 
   rows: IRowDataTable[];
@@ -138,6 +139,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
     const incomeData$ = this.transactionsService.getIncomeTransactionsData(formData);
+    
     const expensesData$ = this.transactionsService.getExpenseTransactionsData(formData);
 
     zip(incomeData$, expensesData$)
@@ -150,11 +152,12 @@ export class TransactionsPage implements OnInit {
         )
       )
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
-        data.incomes.forEach((row => {
-          const {isRecognized, payDate, ...incomeRow} = row;
-          this.incomesData = [];
-          this.incomesData.push(incomeRow);
-        }))
+        // data.incomes.forEach((row => {
+        //   const {isRecognized, payDate, ...incomeRow} = row;
+        // //  this.incomesData = [];
+        //   this.incomesData.push(incomeRow);
+        // }))
+        this.incomesData = data.incomes;
         this.expensesData = data.expenses;
         this.incomesData$.next(this.incomesData);
         this.expensesData$.next(data.expenses);
@@ -271,24 +274,28 @@ export class TransactionsPage implements OnInit {
 
   timestampToDateStr(timestamp: number): string {
     let date: Date;
+    
     if (typeof timestamp === 'string') {
       const parsedTimestamp = parseInt(timestamp);
       if (isNaN(parsedTimestamp)) {
         throw new Error('Invalid timestamp string');
       }
-      date = new Date(parsedTimestamp);
+      date = new Date(parsedTimestamp * 1000);
+      
     } 
     else {
-      date = new Date(timestamp);
+      date = new Date(timestamp * 1000);
     }
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
     const year = date.getFullYear().toString().slice(-2);
+    
     return `${day}/${month}/${year}`;
   }
 
   private handleTableData(data: ITransactionData[]) {
-    const rows = [];
+     const rows = [];
+     //let rows: any[];
     if (data.length) {
       console.log("data: ", data);
       
@@ -304,7 +311,8 @@ export class TransactionsPage implements OnInit {
       }
       )
     }
-
+    console.log("rows: ",rows);
+    
     return rows;
   }
 
