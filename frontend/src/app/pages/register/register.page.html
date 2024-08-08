@@ -134,33 +134,17 @@
         <ng-container *ngSwitchCase="registerFormModules.BUSINESS">
           <form *ngIf="businessForm" class="form-register" [formGroup]="businessForm">
             <!-------Business name------>
-            <ion-input class="input-register" type="text" label="שם עסק" label-placement="floating" fill="outline"
-              placeholder="הכנס שם עסק" fill="outline"
-              [formControlName]="registerFormControls.BUSINESSNAME"></ion-input>
+            <app-generic-input inputLabel="שם עסק" [controlName]="registerFormControls.BUSINESSNAME" [parentForm]="businessForm"></app-generic-input>
             <!--------------- Business fields ------------->
-            <ion-select [formControlName]="registerFormControls.BUSINESSFIELD" class="input-register" label="תחום העסק"
-              fill="outline" label-placement="floating" interface="popover">
-              <ion-select-option *ngFor="let option of listBusinessField"
-                [value]="option.key">{{option.value}}</ion-select-option>
-            </ion-select>
+            <app-generic-select [controlName]="registerFormControls.BUSINESSFIELD" title="תחום העסק" [items]="listBusinessField" [parentForm]="businessForm"></app-generic-select>
             <!--------------- Business type ------------->
-            <ion-select [formControlName]="registerFormControls.BUSINESSTYPE" class="input-register" label="סוג העסק"
-              fill="outline" label-placement="floating" interface="popover">
-              <ion-select-option *ngFor="let option of listBusinessType"
-                [value]="option.key">{{option.value}}</ion-select-option>
-            </ion-select>
+            <app-generic-select [controlName]="registerFormControls.BUSINESSTYPE" title="סוג העסק" [items]="listBusinessType" [parentForm]="businessForm"></app-generic-select>
             <!-------Business id------>
-            <ion-input class="input-register" type="text" label="מספר עסק" label-placement="floating" fill="outline"
-              placeholder="מספר עוסק / ח.פ ספק" [formControlName]="registerFormControls.BUSINESSID"></ion-input>
+            <app-generic-input inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSID" [parentForm]="businessForm"></app-generic-input>
             <!------- business date ----->
-            <ion-input class="input-register" type="date" label-placement="floating" fill="outline"
-              label="תאריך פתיחת עסק" [formControlName]="registerFormControls.BUSINESSDATE"></ion-input>
+            <app-generic-input inputType="date" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input>
             <!------- business inventory ----->
-            <ion-select [formControlName]="registerFormControls.BUSINESSINVENTORY" class="input-register"
-              label="האם העסק מנהל מלאי?" fill="outline" label-placement="floating" interface="popover">
-              <ion-select-option *ngFor="let option of employeeList"
-                [value]="option.value">{{option.name}}</ion-select-option>
-            </ion-select>
+            <app-generic-select [controlName]="registerFormControls.BUSINESSINVENTORY" title="האם העסק מנהל מלאי?" [items]="employeeList" [parentForm]="businessForm"></app-generic-select>
           </form>
         </ng-container>
 
