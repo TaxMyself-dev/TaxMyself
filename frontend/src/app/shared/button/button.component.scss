@@ -24,14 +24,15 @@ ion-button {
       --background: rgb(79, 171, 79);
     }
 
-    &.clear {
-      --background: transparent;
-    }
-
     &.icon_only {
       --background: rgb(79, 171, 79);
       --padding-start: 0;
       --padding-end: 0;
+    }
+
+    
+    &.clear {
+      --background: transparent;
     }
 
     &.x_small {

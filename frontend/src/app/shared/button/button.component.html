@@ -3,13 +3,13 @@
     shape="round"
     [ngStyle]="buttonStyle"
     [ngClass]="{'primary': buttonClass === ButtonClass.PRIMARY,
-        'clear': buttonClass === ButtonClass.CLEAR,
-        'icon_only': buttonClass === ButtonClass.ICON_ONLY,
+        'clear': buttonClass === ButtonClass.CLEAR || buttonClass === ButtonClass.CLEAR_ICON_ONLY,
+        'icon_only': buttonClass === ButtonClass.ICON_ONLY || buttonClass === ButtonClass.CLEAR_ICON_ONLY,
         'x_small': buttonSize === ButtonSize.X_SMALL,
         'small': buttonSize === ButtonSize.SMALL,
         'big': buttonSize === ButtonSize.BIG}"
     [disabled]="disabled"
     (click)="onClick()"
 >
-<ion-icon *ngIf="iconName" [ngStyle]="iconStyle" [slot]="iconPosition" [name]="iconName"></ion-icon>
+<ion-icon *ngIf="iconName" [ariaLabel]="ariaLabel" [ngStyle]="iconStyle" [slot]="iconPosition" [name]="iconName"></ion-icon>
 {{buttonText}}</ion-button>

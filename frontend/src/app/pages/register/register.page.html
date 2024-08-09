@@ -150,14 +150,10 @@
 
         <!-------------- VALIDATION MODULE ------------->
         <ng-container *ngSwitchCase="registerFormModules.VALIDATION">
-          <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm">
+          <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm" class="validation-form-register">
             <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
-            <ion-input class="input-register" (ionInput)="checkPassword()" type="text" label="סיסמא"
-              label-placement="floating" fill="outline" placeholder="בחר סיסמא" formControlName="password"></ion-input>
-            <ion-label *ngIf="!(this.passwordValid)">סיסמאות לא זהות</ion-label>
-            <ion-input class="input-register" (ionInput)="changePasswordValidinput($event)" (ionInput)="checkPassword()"
-              type="text" label="אימות סיסמא" label-placement="floating" fill="outline"
-              placeholder="הכנס את הסיסמא פעם נוספת"></ion-input>
+            <app-generic-input inputType="password" inputLabel="סיסמא" [controlName]="registerFormControls.PASSWORD" [parentForm]="validationForm" [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>
+            <app-generic-input inputType="password" inputLabel="אימות סיסמא" [required]="true" [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)" (onInputChange)="checkPassword($event)"></app-generic-input>
           </form>
         </ng-container>
 

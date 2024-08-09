@@ -296,13 +296,14 @@ ngOnDestroy(): void {
   }
     }
 
-  changePasswordValidinput(event: any) {
-    this.passwordValidInput = event.target.value;
-  }
+  // changePasswordValidinput(event: any) {
+  //   this.passwordValidInput = event.target.value;
+  // }
 
-  checkPassword() {
+  checkPassword(event: string) {
     const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
-    if (this.passwordValidInput === realPass) {
+    //if (this.passwordValidInput === realPass) {
+    if (event === realPass) {
       this.passwordValid = true;
     } else {
       this.passwordValid = false;

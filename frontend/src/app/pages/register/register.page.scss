@@ -32,6 +32,16 @@ ion-content .register-content {
   padding-top: 26px;
 }
 
+.validation-form-register {
+  display: flex;
+  border: 3px solid rgb(79, 171, 79);
+  border-radius: 15px;
+  width: 90%;
+  padding: 26px 20px;
+  flex-direction: column;
+  align-items: center;
+}
+
 .form-register-validate{
   display: flex;
   flex-direction: column;

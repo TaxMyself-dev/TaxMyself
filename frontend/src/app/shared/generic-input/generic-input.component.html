@@ -1,6 +1,22 @@
-<form class="generic-input-wrapper" [formGroup]="parentForm">
+<form *ngIf="parentForm; else notForm" class="generic-input-wrapper" [formGroup]="parentForm">
   <ng-container [ngSwitch]="inputType">
     <ion-input *ngSwitchCase="'date'" class="generic-input-style {{className}}" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate"></ion-input>
+    <div *ngSwitchCase="'password'" class="generic-ionic-selectable-wrapper wide password-input-wrapper">
+      <ion-input class="password-input" [label]="inputLabelName" [formControlName]="controlName" [errorText]="errorMessage" fill="outline" label-placement="floating" type="{{showPassword ? 'text' : 'password'}}"></ion-input>
+      <app-button class="password-eye-button" ariaLabel="{{showPassword ? 'הסתר סיסמא' : 'הראה סיסמא'}}" iconName="{{ showPassword ? 'eye-off' : 'eye' }}" iconPosition="end" [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" (onButtonClicked)="togglePasswordVisibility()"></app-button>
+    </div>
     <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType"></ion-input>
   </ng-container>
 </form>
+
+<ng-template #notForm>
+  <ng-container [ngSwitch]="inputType">
+    <ion-input *ngSwitchCase="'date'" class="generic-input-style {{className}}" [label]="inputLabelName" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate"></ion-input>
+    <div *ngSwitchCase="'password'" class="generic-ionic-selectable-wrapper wide password-input-wrapper">
+      <ion-input class="password-input" [label]="inputLabelName" fill="outline" label-placement="floating" type="{{showPassword ? 'text' : 'password'}}" (ionChange)="onInputChanged($event)"></ion-input>
+      <app-button class="password-eye-button" ariaLabel="{{showPassword ? 'הסתר סיסמא' : 'הראה סיסמא'}}" iconName="{{ showPassword ? 'eye-off' : 'eye' }}" iconPosition="end" [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" (onButtonClicked)="togglePasswordVisibility()"></app-button>
+    </div>
+    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType"></ion-input>
+    <ion-note *ngIf="showError" class="errorText">{{errorMessage}}</ion-note>
+  </ng-container>
+</ng-template>
