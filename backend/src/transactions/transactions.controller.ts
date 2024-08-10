@@ -175,21 +175,14 @@ export class TransactionsController {
   }
 
 
-  @Get('try-1')
-  async getTransactions(@Query() query): Promise<Transactions[]> {
-    return this.sharedService.findEntities(Transactions, query);
-  }
+  @Post('save-trans-to-expenses')
+  async saveTransToExpenses(
+    @Body() IDs: number[],
+    @Headers('token') token: string,
+  ): Promise<void> {
 
-
-  @Get('try-2')
-  async getDates() {
-    const my_range = this.sharedService.getStartAndEndDate("2024","1",false);
-    console.log("my_range is ", my_range);
-    console.log("startDate is ", my_range.startDate);
-    console.log("endDate is ", my_range.endDate);
-    const startDateTS = this.sharedService.convertDateToTimestamp(my_range.startDate)
-    console.log("startDateTS is ", startDateTS);
-    
+    //const userId = await this.usersService.getFirbsaeIdByToken(token)
+    this.transactionsService.saveTransactionsToExpenses(IDs);
   }
 
 

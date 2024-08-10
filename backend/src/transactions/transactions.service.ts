@@ -9,6 +9,7 @@ import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { ExpensesService } from 'src/expenses/expenses.service';
+import { Expense } from 'src/expenses/expenses.entity';
 
 //Services
 import { SharedService } from 'src/shared/shared.service';
@@ -32,6 +33,8 @@ export class TransactionsService {
     private billRepo: Repository<Bill>,
     @InjectRepository(Source)
     private sourceRepo: Repository<Source>,
+    @InjectRepository(Expense)
+    private expenseRepo: Repository<Expense>,
   ) {}
 
 
@@ -192,100 +195,6 @@ export class TransactionsService {
       await this.classifiedTransactionsRepo.save(classifiedTransaction);
     }
   }
-
-
-
-
-
-  // async classifyTransaction(classifyDto: UpdateNewTransactionDto, userId: string, startDate: number, endDate: number): Promise<void> {
-
-  //   const {
-  //     id,
-  //     isSingleUpdate,
-  //     isNewCategory,
-  //     name,
-  //     billName,
-  //     category,
-  //     subCategory,
-  //     taxPercent,
-  //     vatPercent,
-  //     reductionPercent,
-  //     isEquipment,
-  //     isRecognized,
-  //     ...updateFields
-  //   } = classifyDto;
-
-  //   let transactions: Transactions[];
-
-  //   // Add new user category if isNewCategory is true
-  //   if (isNewCategory) {
-  //     try {
-  //       const categoryData = {
-  //         category,
-  //         subCategory,
-  //         taxPercent,
-  //         vatPercent,
-  //         reductionPercent,
-  //         isEquipment,
-  //         isRecognized
-  //       };
-
-  //       await this.expenseService.addUserCategory(categoryData, userId);
-  //     } catch (error) {
-  //       if (error instanceof ConflictException) {
-  //         console.log('Category already exists:', error.message);
-  //       } else {
-  //         throw error; // Re-throw other unexpected errors
-  //       }
-  //     }
-  //   }
-
-  //   if (!classifyDto.isSingleUpdate) {
-  //     transactions = await this.transactionsRepo.find({
-  //       where: {
-  //         userId,
-  //         name,
-  //         billName,
-  //         payDate: Between(startDate, endDate)
-  //       },
-  //     });
-  //   } else {
-  //     transactions = await this.transactionsRepo.find({
-  //       where: {
-  //         id, 
-  //         userId
-  //       },
-  //     });
-  //   }
-
-  //   transactions.forEach(transaction => {
-  //     for (const key in updateFields) {
-  //       transaction[key] = updateFields[key];
-  //     }
-  //   });
-
-  //   await this.transactionsRepo.save(transactions);
-
-  //   // Save classification rule to ClassifiedTransactions
-  //   let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
-                                                                      
-  //   if (!classifiedTransaction) {
-  //     classifiedTransaction = this.classifiedTransactionsRepo.create({
-  //       userId,
-  //       transactionName: name,
-  //       billName,
-  //       ...updateFields
-  //     });
-  //   } else {
-  //     for (const key in updateFields) {
-  //       classifiedTransaction[key] = updateFields[key];
-  //     }
-  //   }
-   
-  //   await this.classifiedTransactionsRepo.save(classifiedTransaction);
-
-  // }
-
 
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -510,43 +419,41 @@ export class TransactionsService {
   }
 
 
-  // async convertTransactionsToExpenses(transactionIds: number[]): Promise<{ message: string }> {
-  //   // Fetch transactions with the given IDs
-  //   const transactions = await this.transactionsRepo.findByIds(transactionIds);
+  async saveTransactionsToExpenses(transactionIds: number[]): Promise<{ message: string }> {
+
+    // Fetch transactions with the given IDs
+    const transactions = await this.transactionsRepo.findBy({ id: In(transactionIds) });
   
-  //   if (!transactions || transactions.length === 0) {
-  //     throw new Error('No transactions found with the provided IDs.');
-  //   }
+    if (!transactions || transactions.length === 0) {
+      throw new Error('No transactions found with the provided IDs.');
+    }
   
-  //   const expenses = transactions.map(transaction => {
-  //     const expense = new Expense();
-  //     expense.supplier = transaction.name;
-  //     expense.supplierID = transaction.paymentIdentifier; // Assuming this is the supplier ID
-  //     expense.category = transaction.category;
-  //     expense.subCategory = transaction.subCategory;
-  //     expense.sum = transaction.sum;
-  //     expense.taxPercent = transaction.taxPercent;
-  //     expense.vatPercent = transaction.vatPercent;
-  //     expense.dateTimestamp = transaction.payDate; // Assuming you want to use the pay date
-  //     expense.note = ''; // You can set a default or leave it empty
-  //     expense.file = ''; // Assuming the file field needs to be filled later
-  //     expense.isEquipment = transaction.isEquipment;
-  //     expense.userId = transaction.userId;
-  //     expense.loadingDate = Date.now(); // Current timestamp as loading date
-  //     expense.expenseNumber = ''; // Generate or leave empty if not available
-  //     expense.reductionDone = false; // Assuming this needs to be set as default
-  //     expense.reductionPercent = transaction.reductionPercent;
+    const expenses = transactions.map(transaction => {
+      const expense = new Expense();
+      expense.supplier = transaction.name;
+      expense.supplierID = '';
+      expense.category = transaction.category;
+      expense.subCategory = transaction.subCategory;
+      expense.sum = transaction.sum;
+      expense.taxPercent = transaction.taxPercent;
+      expense.vatPercent = transaction.vatPercent;
+      expense.dateTimestamp = transaction.billDate;
+      expense.note = '';
+      expense.file = '';
+      expense.isEquipment = transaction.isEquipment;
+      expense.userId = transaction.userId;
+      expense.loadingDate = Date.now();
+      expense.expenseNumber = '';
+      expense.reductionDone = false;
+      expense.reductionPercent = transaction.reductionPercent;
+      return expense;
+    });
   
-  //     // Automatically calculate totalTaxPayable and totalVatPayable using the @BeforeInsert() and @BeforeUpdate() hooks in the Expense entity
+    // Save expenses to the database
+    await this.expenseRepo.save(expenses);
   
-  //     return expense;
-  //   });
-  
-  //   // Save expenses to the database
-  //   await this.expenseRepo.save(expenses);
-  
-  //   return { message: `Successfully converted ${expenses.length} transactions to expenses.` };
-  // }
+    return { message: `Successfully converted ${expenses.length} transactions to expenses.` };
+  }
 
 
 }
