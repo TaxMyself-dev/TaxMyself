@@ -5,6 +5,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
 import { EMPTY, Subject, catchError, finalize } from 'rxjs';
+import { ButtonSize } from 'src/app/shared/button/button.enum';
 
 @Component({
   selector: 'app-login',
@@ -13,27 +14,34 @@ import { EMPTY, Subject, catchError, finalize } from 'rxjs';
 
 })
 export class LoginPage implements OnInit {
+  readonly ButtonSize = ButtonSize;
 
   emailVerify: boolean = true;
-  userEmail: string = "";
+  userEmailForReset: string = "";
   userCredential: UserCredential;
-  myForm: FormGroup;
+  loginForm: FormGroup;
+  resetForm: FormGroup;
   displayError: string;
   showPassword: boolean = false;
   isToastOpen: boolean = false;
   messageToast: string = "";
-
+  resetMode = false;
 
   constructor(private router: Router, private activatedRoute: ActivatedRoute, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
-    this.myForm = this.formBuilder.group({
-
+    this.loginForm = this.formBuilder.group({
       userName: new FormControl(
-        '', [Validators.required,]
+        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       password: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
-      ),
+      )
+    });
+
+    this.resetForm = this.formBuilder.group({
+      userName: new FormControl(
+        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+      )
     });
   }
 
@@ -45,40 +53,41 @@ export class LoginPage implements OnInit {
   }
 
   async signin(): Promise<any> {
-
-    const loading = await this.loadingController.create({
-      message: 'Please wait...',
-      spinner: 'crescent'
-    });
-    await loading.present();
-
-    const formData = this.myForm.value;
-    this.authService.userVerify(formData.userName, formData.password)
-    .pipe(
-      catchError((err) => {
-        console.log("err in user verify in sign in", err);
-        return EMPTY;
-      }),
-      finalize(() => loading.dismiss()),
-      )
-      .subscribe((res) => {
-        console.log("res sign in", res);
-
-        if (res) {
-          this.userCredential = res;
-        }
-        if (res.user.emailVerified) {
-          this.authService.signIn(res)
-            .subscribe((res) => {
-              console.log("res from server",res);
-              this.authService.userDetails = res;
-              this.router.navigate(['my-account']);
-            })
-        }
-        else {
-          this.authService.error$.next("email");
-        }
+    if (this.loginForm.valid) {
+      const loading = await this.loadingController.create({
+        message: 'Please wait...',
+        spinner: 'crescent'
       });
+      await loading.present();
+
+      const formData = this.loginForm.value;
+      this.authService.userVerify(formData.userName, formData.password)
+      .pipe(
+        catchError((err) => {
+          console.log("err in user verify in sign in", err);
+          return EMPTY;
+        }),
+        finalize(() => loading.dismiss()),
+        )
+        .subscribe((res) => {
+          console.log("res sign in", res);
+
+          if (res) {
+            this.userCredential = res;
+          }
+          if (res.user.emailVerified) {
+            this.authService.signIn(res)
+              .subscribe((res) => {
+                console.log("res from server",res);
+                this.authService.userDetails = res;
+                this.router.navigate(['my-account']);
+              })
+          }
+          else {
+            this.authService.error$.next("email");
+          }
+        });
+      }
   }
 
   sendVerficaitonEmail(): void {
@@ -97,8 +106,13 @@ export class LoginPage implements OnInit {
     this.showPassword = !this.showPassword;
   }
 
+  switchMode(isResetMode: boolean): void {
+    this.resetMode = isResetMode;
+  }
+
   resetPassword(): void {
-    this.authService.ForgotPassword(this.userEmail)
+    if (this.resetForm.valid) {
+    this.authService.ForgotPassword(this.userEmailForReset)
     .pipe(
       catchError((err) => {
         console.log("err in reset: ", err);
@@ -122,12 +136,16 @@ export class LoginPage implements OnInit {
       this.isToastOpen =true;
     });
   }
+  else {
+    alert("אנא הכנס אימייל תקין");
+  }
+}
 
   setOpenToast(): void {
     this.isToastOpen = false;
   }
 
-  saveEmailForReset(event: any): void {
-    this.userEmail = event.target.value;
+  saveEmailForReset(email: string): void {
+    this.userEmailForReset = email;
   }
 }

@@ -36,7 +36,7 @@
 </ion-header>
 <!-- </div> -->
 
-<form class="flex-center" [formGroup]="myForm" (ngSubmit)="signin()">
+<form class="flex-center" [formGroup]="loginForm" (ngSubmit)="signin()">
   <ion-card class="login-card">
     <ion-card-header>
       <ion-card-title class="custom-title"><b>עצמאי בעצמי</b></ion-card-title>
@@ -47,19 +47,33 @@
     </ion-card-header>
 
     <ion-card-content class="login-card-content">
-      <!---------user name-------->
-      <ion-input (keyup.enter)="onEnterKeyPressed()" (input)="saveEmailForReset($event)" class="login-input" type="text" label="אימייל" label-placement="floating" fill="outline"
-        placeholder="אימייל" formControlName="userName"></ion-input>
+      <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="signin()">
+        <app-generic-input inputType="email" inputLabel="אימייל" controlName="userName" className="wide" [parentForm]="loginForm" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
+        <app-generic-input inputType="password" inputLabel="סיסמא" controlName="password" [parentForm]="loginForm" [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>  
+        <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.loginForm.invalid" buttonText="התחבר" (onButtonClicked)="signin()"></app-button>
+      </ng-container>
+      <ng-template #resetTemplate>
+        <app-generic-input (keyup.enter)="resetPassword()" inputType="email" inputLabel="אימייל" className="wide" [errorText]="'כתובת המייל אינה חוקית'" controlName="userName" [parentForm]="resetForm" (onInputChange)="saveEmailForReset($event)"></app-generic-input>
+        <div class="reset-buttons">
+          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="חזור" (onButtonClicked)="switchMode(false)"></app-button>
+          <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.resetForm.invalid" buttonText="שלח" (onButtonClicked)="resetPassword()"></app-button>
+        </div>
+      </ng-template>
+       <!---------user name-------->
+ 
+      <!-- <ion-input (keyup.enter)="onEnterKeyPressed()" (input)="saveEmailForReset($event)" class="login-input" type="text" label="אימייל" label-placement="floating" fill="outline"
+        placeholder="אימייל" formControlName="userName"></ion-input> -->
       <!---------password--------->
-      <ion-item class="login-item-password">
+      <!-- <ion-item class="login-item-password">
         <ion-input class="login-input-password"  type="{{ showPassword ? 'text' : 'password' }}" label="סיסמא" label-placement="floating" fill="outline"
         placeholder="בחר סיסמא" formControlName="password"></ion-input>
         <ion-icon class="login-icon" name="{{ showPassword ? 'eye-off' : 'eye' }}" slot="end" (click)="togglePasswordVisibility()"></ion-icon>
 
-      </ion-item>
-      <ion-button [disabled]="this.myForm.invalid" class="login-submit-button" type="submit">התחבר</ion-button>
+      </ion-item> -->
+
+      <!-- <ion-button [disabled]="this.loginForm.invalid" class="login-submit-button" type="submit">התחבר</ion-button> -->
       <p>
-        לחץ <span (click)="resetPassword()" class="blue-link">כאן</span> לשליחת מייל לאיפוס סיסמא.
+        לחץ <span (click)="switchMode(true)" class="blue-link">כאן</span> לשליחת מייל לאיפוס סיסמא.
       </p>
       <p>
         משתמש חדש? לחץ <span (click)="navigateToRegister()" class="blue-link">כאן</span> להרשמה.
