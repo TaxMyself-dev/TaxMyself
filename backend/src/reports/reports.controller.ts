@@ -1,5 +1,5 @@
 //General
-import { Controller, Post, Patch, Get, Query, Param, Body, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe } from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from 'src/shared/shared.service';
@@ -16,17 +16,16 @@ export class ReportsController {
                 private usersService: UsersService) {}
 
     @Get('vat-report')
-        async getVatReport(@Query() query: VatReportRequestDto): Promise<VatReportDto> {
+        async getVatReport(
+            @Headers('token') token: string,
+            @Query() query: VatReportRequestDto): Promise<VatReportDto> {
           
-            let startDate: number;
-            let endDate: number;
-            let userId: string;
-
-            startDate = this.sharedService.convertDateStrToTimestamp(query.startDate);
-            endDate   = this.sharedService.convertDateStrToTimestamp(query.endDate);
-            userId    = await this.usersService.getFirbsaeIdByToken(query.token)
+            const userId = await this.usersService.getFirbsaeIdByToken(token);
+            const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+            const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+            const endDateT = this.sharedService.convertDateToTimestamp(endDate);
         
-            const vatReport = await this.reportsService.createVatReport(userId, startDate, endDate, query.vatableTurnover, query.nonVatableTurnover);
+            const vatReport = await this.reportsService.createVatReport(userId, startDateT, endDateT, query.vatableTurnover, query.nonVatableTurnover);
             return vatReport;
     }
 

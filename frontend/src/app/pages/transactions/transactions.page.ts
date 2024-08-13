@@ -135,6 +135,8 @@ export class TransactionsPage implements OnInit {
   getTransactions() {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
+    console.log("form data trans is ", formData);
+    
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;

@@ -1,4 +1,4 @@
-import { IsDateString, IsNumber, IsNotEmpty, Validate } from 'class-validator';
+import { IsDateString, IsNumber, IsNotEmpty, Validate, IsString, IsBooleanString } from 'class-validator';
 
 class IsNumberString {
     validate(value: string) {
@@ -8,13 +8,25 @@ class IsNumberString {
 
 export class VatReportRequestDto {
 
-    @IsNotEmpty()
-    @IsDateString()
-    startDate: string;
+    // @IsNotEmpty()
+    // @IsDateString()
+    // startDate: string;
 
+    // @IsNotEmpty()
+    // @IsDateString()
+    // endDate: string;
+
+    @IsString()
     @IsNotEmpty()
-    @IsDateString()
-    endDate: string;
+    year: string;
+
+    @IsString()
+    @IsNotEmpty()
+    month: string;
+
+    @IsBooleanString()
+    @IsNotEmpty()
+    isSingleMonth: boolean; // or boolean, depending on how you handle it
 
     @IsNotEmpty()
     @Validate(IsNumberString)
@@ -23,8 +35,5 @@ export class VatReportRequestDto {
     @IsNotEmpty()
     @Validate(IsNumberString)
     nonVatableTurnover: number;
-
-    @IsNotEmpty()
-    token: string;
 
 }

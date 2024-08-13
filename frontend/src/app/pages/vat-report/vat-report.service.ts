@@ -8,17 +8,38 @@ import { environment } from 'src/environments/environment';
 })
 export class VatReportService {
 
-  constructor(private http: HttpClient) { };
+  token: string;
 
-  getVatReportData(startDate: Date, endDate: Date, vatableTurnover: number, nonVatableTurnover: number, token: string): Observable<any> {
+  constructor(private http: HttpClient) {
+    this.setUserId();
+   };
+
+  // ngOnInit() {
+  //   this.token = localStorage.getItem('token');
+  // }
+
+  private setUserId(): void {
+    this.token = localStorage.getItem('token');
+  }
+
+  //getVatReportData(startDate: Date, endDate: Date, vatableTurnover: number, nonVatableTurnover: number, token: string): Observable<any> {
+  getVatReportData(formData: any): Observable<any> {
     const url = `${environment.apiUrl}reports/vat-report`;
-    const param = new HttpParams()
-      .set('startDate', startDate.toISOString())
-      .set('endDate', endDate.toISOString())
-      .set('vatableTurnover', vatableTurnover.toString())
-      .set('nonVatableTurnover', nonVatableTurnover.toString())
-      .set('token', token);
-    return this.http.get<any>(url, { params: param })
+    const params = new HttpParams()
+    .set('year', formData.year)
+    .set('month', formData.month)
+    .set('isSingleMonth', formData.isSingleMonth)
+    .set('vatableTurnover', formData.vatableTurnover.toString())
+    .set('nonVatableTurnover', formData.nonVatableTurnover.toString())
+  
+    const headers = {
+      'token': this.token
+    }
+    // const param = new HttpParams()
+    //   .set('startDate', startDate.toISOString())
+    //   .set('endDate', endDate.toISOString())
+    //   .set('token', token);
+    return this.http.get<any>(url, { params: params, headers: headers})
   }
 
 }

@@ -58,6 +58,12 @@ export class ReportsService {
 
         vatReport.vatPayment = Math.round(vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
 
+        console.log("vatRefundOnExpenses is ", vatReport.vatRefundOnExpenses);
+        console.log("vatRefundOnAssets is ", vatReport.vatRefundOnAssets);
+        console.log("vatPayment is ", vatReport.vatPayment);
+
+        
+
         // console.log(filter);
 
         // // Fetch individual expenses
