@@ -75,7 +75,7 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
-    this.token = localStorage.getItem('token');
+    //this.token = localStorage.getItem('token');
   }
 
 
@@ -106,12 +106,15 @@ export class VatReportPage implements OnInit {
 
     const formData = this.vatReportForm.value;
 
+    console.log("form data debug is ",formData);
+    
     // Create a date object for the first day of the specified month and year
     let startDateofMonth = startOfMonth(new Date(year, month));
     let monthAdjusted = isSingleMonth ? Number(month) : Number(month) + 1;
     let lastDayOfMonth = endOfMonth(new Date(year, monthAdjusted));
 
-    this.vatReportService.getVatReportData(startDateofMonth, lastDayOfMonth, formData.vatableTurnover, formData.nonVatableTurnover, this.token)
+    //this.vatReportService.getVatReportData(startDateofMonth, lastDayOfMonth, formData.vatableTurnover, formData.nonVatableTurnover, this.token)
+    this.vatReportService.getVatReportData(formData)
     .subscribe((res) => {
       console.log("res of vat report is", res);
       this.report = res;
