@@ -6,7 +6,7 @@
     (onSearchClick)="getTransactions()"></app-search-bar>
     <label class="label-file-transaction">
         <ion-icon size="small" name="cloud-upload-outline"></ion-icon>
-        <ion-input (change)="onFileSelected($event)"  label-placement="floating" type="file" accept=".pdf, .xlsx">
+        <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".pdf, .xlsx">
       </ion-input>
     </label>
     <button (click)="onUpload()">Upload</button>

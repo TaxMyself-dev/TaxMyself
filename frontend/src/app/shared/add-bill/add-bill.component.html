@@ -26,11 +26,10 @@
         <div>
           <p class="title-exist">הוסף חשבון חדש</p>
           <form [formGroup]="addBillForm">
-            <ion-input (keyup.enter)="onEnterKeyPressed()" class="login-input" type="text" label="שם החשבון"
-            label-placement="floating" fill="outline" placeholder="שם החשבון" formControlName="billName"></ion-input>
+            <app-generic-input [parentForm]="addBillForm" inputLabel="שם החשבון" controlName="billName" [showError]="false" [showAsterisk]="false" (keyup.enter)="onEnterKeyPressed()"></app-generic-input>
           </form>
         </div>
-          <app-button [buttonText]="'הוסף'" (onButtonClicked)="addBill()"></app-button>
+          <app-button [disabled]="addBillForm.invalid" [buttonText]="'הוסף'" (onButtonClicked)="addBill()"></app-button>
       </div>
     </div>
   </div>

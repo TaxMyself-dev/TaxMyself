@@ -16,6 +16,7 @@ export class GenericInputComponent implements OnChanges {
   @Input() className: string;
   @Input() inputType = "text";
   @Input() minDate: string;
+  @Input() fileTypes: string;
   @Input() showAsterisk = true;
   @Input() showError = true;  // for non form inputs
   @Input() required = false; // for non form inputs
@@ -78,6 +79,10 @@ export class GenericInputComponent implements OnChanges {
   }
 
   onInputChanged(event): void {
-    this.onInputChange.emit(event?.detail?.value);
+    this.onInputChange?.emit(event?.detail?.value);
+  }
+  
+  onFileUpload(event): void {
+    this.onInputChange?.emit(event);
   }
 }

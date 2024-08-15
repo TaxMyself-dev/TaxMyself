@@ -86,7 +86,7 @@ export class ModalExpensesComponent {
   columnsFilter: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   title: string = "הוספת הוצאה";
   initialForm: FormGroup;
-  myForm: FormGroup;
+  addExpenseForm: FormGroup;
   selectedFile: string = "";
   editModeFile: string = "";
   id: number;
@@ -128,7 +128,7 @@ export class ModalExpensesComponent {
   initForm(data?: IRowDataTable): void {
     console.log("data in init form modal edit", data);
     
-    this.myForm = this.formBuilder.group({
+    this.addExpenseForm = this.formBuilder.group({
       [ExpenseFormColumns.CATEGORY]: [data?.category || '', Validators.required],
       [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
       [ExpenseFormColumns.SUPPLIER]: [data?.supplier || data?.name || '', Validators.required],
@@ -144,7 +144,7 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0],
     });
 
-    this.initialForm = cloneDeep(this.myForm);
+    this.initialForm = cloneDeep(this.addExpenseForm);
   }
 
   convertPdfFileToBase64String(file: File) {
@@ -223,12 +223,12 @@ export class ModalExpensesComponent {
   }
 
   disableSave(): boolean {
-    return !this.myForm.valid || (this.isEditMode ? isEqual(this.initialForm.value, this.myForm.value) : false)
+    return !this.addExpenseForm.valid || (this.isEditMode ? isEqual(this.initialForm.value, this.addExpenseForm.value) : false)
   }
 
   disabledAddSupplier(): boolean {
-    // if (this.myForm.controls != undefined){
-      const formData = this.myForm.controls;
+    // if (this.addExpenseForm.controls != undefined){
+      const formData = this.addExpenseForm.controls;
       const category = (formData.category.invalid);
       const subCategory = (formData.subCategory.invalid);
       const supplier = (formData.supplier.invalid);
@@ -301,7 +301,7 @@ export class ModalExpensesComponent {
 
   update(): void {
     let filePath = '';
-    const previousFile = this.myForm.get('file').value;
+    const previousFile = this.addExpenseForm.get('file').value;
     console.log("previos file: ", previousFile);
     
     this.getFileData().pipe(
@@ -315,7 +315,7 @@ export class ModalExpensesComponent {
           filePath = res.metadata.fullPath;
         }
         else {
-          filePath = this.myForm.get('file').value;
+          filePath = this.addExpenseForm.get('file').value;
         }
         const token = localStorage.getItem('token');
         return this.setFormData(filePath, token);
@@ -368,7 +368,7 @@ export class ModalExpensesComponent {
   }
 
   setFormData(filePath: string, token: string) {
-    const formData = this.myForm.value;
+    const formData = this.addExpenseForm.value;
     console.log("form in set form", formData);
     formData.taxPercent = +formData.taxPercent;
     formData.vatPercent = +formData.vatPercent;
@@ -461,8 +461,8 @@ export class ModalExpensesComponent {
 
  addSupplier(): void {
     const token = localStorage.getItem('token');
-    const name = this.myForm.get('supplier').value;
-    const formData = this.myForm.value;
+    const name = this.addExpenseForm.get('supplier').value;
+    const formData = this.addExpenseForm.value;
     formData.token = this.formBuilder.control(token).value;
     formData.name = this.formBuilder.control(name).value;
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
@@ -525,7 +525,7 @@ export class ModalExpensesComponent {
   }
 
   getListSubCategory(): {} {
-    if (this.myForm.get(ExpenseFormColumns.CATEGORY).value) {
+    if (this.addExpenseForm.get(ExpenseFormColumns.CATEGORY).value) {
       return this.subCategoryList;
     }
     else {
@@ -612,10 +612,10 @@ export class ModalExpensesComponent {
   setValueEquipment(event: any): void {
     const value = event.detail.value;
     console.log("in set value", value);
-    console.log("category form value", this.myForm.get(ExpenseFormColumns.CATEGORY).value);
+    console.log("category form value", this.addExpenseForm.get(ExpenseFormColumns.CATEGORY).value);
     
     if (value != this.isEquipment){
-      this.myForm.patchValue({'category': ""})
+      this.addExpenseForm.patchValue({'category': ""})
     }
     if (value == "0") {
       this.isEquipment = false;
@@ -629,9 +629,9 @@ export class ModalExpensesComponent {
 
   selectedSubcategory(data: IGetSubCategory): void {
     console.log("data in select sub:", data);
-    this.myForm.patchValue({reductionPercent: data.reductionPercent});
-    this.myForm.patchValue({vatPercent: data.vatPercent});
-    this.myForm.patchValue({taxPercent: data.taxPercent});
+    this.addExpenseForm.patchValue({reductionPercent: data.reductionPercent});
+    this.addExpenseForm.patchValue({vatPercent: data.vatPercent});
+    this.addExpenseForm.patchValue({taxPercent: data.taxPercent});
     
   }
 
@@ -657,12 +657,12 @@ export class ModalExpensesComponent {
   }
 
   selectedSupplier(data: IGetSupplier): void {
-    this.myForm.patchValue({category: data.category});
-    this.myForm.patchValue({subCategory: data.subCategory});
-    this.myForm.patchValue({supplierID: data.supplierID});
-    this.myForm.patchValue({taxPercent: data.taxPercent});
-    this.myForm.patchValue({vatPercent: data.vatPercent});
-    // this.myForm.patchValue({reductionPercent: data.reductionPercent});//TODO: add to supplier table
+    this.addExpenseForm.patchValue({category: data.category});
+    this.addExpenseForm.patchValue({subCategory: data.subCategory});
+    this.addExpenseForm.patchValue({supplierID: data.supplierID});
+    this.addExpenseForm.patchValue({taxPercent: data.taxPercent});
+    this.addExpenseForm.patchValue({vatPercent: data.vatPercent});
+    // this.addExpenseForm.patchValue({reductionPercent: data.reductionPercent});//TODO: add to supplier table
   }
 
   // toggleEnlarged(ev :Event): void {
@@ -693,7 +693,7 @@ export class ModalExpensesComponent {
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
     this.pdfLoaded = false;
     if (this.isEditMode) {
-      this.myForm.patchValue({file: ''});
+      this.addExpenseForm.patchValue({file: ''});
     }
     event.preventDefault();
   }

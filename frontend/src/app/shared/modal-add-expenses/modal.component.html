@@ -11,25 +11,25 @@
 </ion-toolbar>
 
 <ion-content>
-  <form *ngIf="myForm; else loader" class="form-expense" [formGroup]="myForm" scrollY="true">
+  <form *ngIf="addExpenseForm; else loader" class="form-expense" [formGroup]="addExpenseForm" scrollY="true">
     <div class="modal-content">
       <ion-list class="list-expense">
         <ng-container *ngFor="let col of columns">
           <ng-container [ngSwitch]="col.type">
             <ng-container *ngSwitchCase="formTypes.TEXT">
-              <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
+              <!-- <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
                 [class.supplier]="col.name === 'supplier'" [class.note]="col.name === 'note'"
                 [class.reductionPercent]="col.name === 'reductionPercent'"
                 [class.vatPercent]="col.name === 'vatPercent'" [class.taxPercent]="col.name === 'taxPercent'"
                 [class.supplierID]="col.name === 'supplierID'" class="input-expense text" label-placement="floating"
-                [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input>
+                [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input> -->
+
+                <app-generic-input class="inputs-wrapper" [inputLabel]="col.value" [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
               <span position="fixed" class="supplier-span" (click)="openSelectSupplier($event)"
                 *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span>
             </ng-container>
             <ng-container *ngSwitchCase="formTypes.DATE">
-              <ion-input required="true" [max]=maxDate class="input-expense date" label="{{col.value}}"
-                label-placement="floating" fill="outline" [formControlName]="col.name" type="date">
-              </ion-input>
+              <app-generic-input class="inputs-wrapper" inputType="date" [inputLabel]="col.value" [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
             </ng-container>
             <ng-container *ngSwitchCase="formTypes.DDL">
               <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
@@ -69,9 +69,7 @@
             <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
           </div>
         </div>
-        <ion-input *ngIf="fileItem" (input)="fileSelected($event)" label-placement="floating"
-          [formControlName]="fileItem.name" type="file" accept=".pdf, .png, .jpeg, .jpg">
-        </ion-input>
+        <app-generic-input *ngIf="fileItem" inputType="file" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input>
       </label>
     </div>
 

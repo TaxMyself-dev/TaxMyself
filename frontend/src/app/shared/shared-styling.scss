@@ -1,5 +1,9 @@
 .generic-input-wrapper {
     height: 80px;
+
+    &.file {
+        border-style: none;
+    }
 }
 
 .generic-search-bar-content {
