@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, from, map, switchMap, zip } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, from, map, switchMap, tap, zip } from 'rxjs';
 import { IButtons, IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
@@ -24,7 +24,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE, },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL },
     { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
   ];
@@ -44,8 +44,8 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
     [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
   ]);
-  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id']; 
-  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized']; 
+  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id'];
+  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized'];
 
 
   rows: IRowDataTable[];
@@ -60,10 +60,10 @@ export class TransactionsPage implements OnInit {
   addPayment: boolean = false;
   selectBill: string;
   accountsList: any[] = [];
-  sourcesList: string[] =[];
+  sourcesList: string[] = [];
   selectedFile: File = null;
-  dateForUpdate = {'isSingleMonth': true, 'month' : "1" ,'year' : 2024};
-
+  dateForUpdate = { 'isSingleMonth': true, 'month': "1", 'year': 2024 };
+  checkClassifyBill: boolean = true;
   constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
@@ -82,19 +82,19 @@ export class TransactionsPage implements OnInit {
 
     this.incomeForm = this.formBuilder.group({
       incomeType: new FormControl(
-        '', Validators.required,
+        '',
       ),
       category: new FormControl(
-        '', Validators.required,
+        '',
       ),
     });
 
     this.expensesForm = this.formBuilder.group({
       expensesType: new FormControl(
-        '', Validators.required,
+        '',
       ),
       category: new FormControl(
-        '', Validators.required,
+        '',
       ),
     })
   }
@@ -110,7 +110,7 @@ export class TransactionsPage implements OnInit {
       }
     );
     this.transactionsService.getAllSources().subscribe((data) => {
-      console.log("sources: ",data);
+      console.log("sources: ", data);
       this.sourcesList = data;
     })
 
@@ -118,7 +118,7 @@ export class TransactionsPage implements OnInit {
 
   // ngOnDestroy(): void {
   //     this.transactionsService.accountsList$.unsubscribe();
-    
+
   // }
 
   renameFields(obj: any): any {
@@ -138,8 +138,10 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
+    console.log("dateForUpdate ", this.dateForUpdate);
+
     const incomeData$ = this.transactionsService.getIncomeTransactionsData(formData);
-    
+
     const expensesData$ = this.transactionsService.getExpenseTransactionsData(formData);
 
     zip(incomeData$, expensesData$)
@@ -152,11 +154,6 @@ export class TransactionsPage implements OnInit {
         )
       )
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
-        // data.incomes.forEach((row => {
-        //   const {isRecognized, payDate, ...incomeRow} = row;
-        // //  this.incomesData = [];
-        //   this.incomesData.push(incomeRow);
-        // }))
         this.incomesData = data.incomes;
         this.expensesData = data.expenses;
         this.incomesData$.next(this.incomesData);
@@ -226,20 +223,20 @@ export class TransactionsPage implements OnInit {
       alert("openPopupAddBill error");
       return EMPTY;
     }),
-     switchMap((modal) => from(modal.present())
-     .pipe(
-      switchMap(() => from(modal.onWillDismiss()))
-      )),
-     catchError((err) => {
-      alert("openPopupAddBill switchMap error");
-      console.log(err);
-      return EMPTY;
-    }))
-    .subscribe(({data, role}) => {
-      if (role === 'success') {
-        this.getTransactions()
-      }
-    });
+      switchMap((modal) => from(modal.present())
+        .pipe(
+          switchMap(() => from(modal.onWillDismiss()))
+        )),
+      catchError((err) => {
+        alert("openPopupAddBill switchMap error");
+        console.log(err);
+        return EMPTY;
+      }))
+      .subscribe(({ data, role }) => {
+        if (role === 'success') {
+          this.getTransactions()
+        }
+      });
   }
 
   incomeFilter(): void {
@@ -274,45 +271,45 @@ export class TransactionsPage implements OnInit {
 
   timestampToDateStr(timestamp: number): string {
     let date: Date;
-    
+
     if (typeof timestamp === 'string') {
       const parsedTimestamp = parseInt(timestamp);
       if (isNaN(parsedTimestamp)) {
         throw new Error('Invalid timestamp string');
       }
       date = new Date(parsedTimestamp * 1000);
-      
-    } 
+
+    }
     else {
       date = new Date(timestamp * 1000);
     }
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
     const year = date.getFullYear().toString().slice(-2);
-    
+
     return `${day}/${month}/${year}`;
   }
 
   private handleTableData(data: ITransactionData[]) {
-     const rows = [];
-     //let rows: any[];
+    const rows = [];
+    //let rows: any[];
     if (data.length) {
       console.log("data: ", data);
-      
+
       data.forEach((row: ITransactionData) => {
         const { userId, isEquipment, taxPercent, vatPercent, reductionPercent, ...data } = row;
-        console.log("payment",data.paymentIdentifier);
+        console.log("payment", data.paymentIdentifier);
         data.billDate = this.timestampToDateStr(data.billDate as number);
         data.payDate = this.timestampToDateStr(data.payDate as number);
-        data.billName ? null : data.billName = "זמני";
+        data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
         rows.push(data);
       }
       )
     }
-    console.log("rows: ",rows);
-    
+    console.log("rows: ", rows);
+
     return rows;
   }
 
@@ -328,20 +325,20 @@ export class TransactionsPage implements OnInit {
 
       reader.onload = (e) => {
         const arrayBuffer = reader.result;
-console.log("array buffer: ", arrayBuffer);
+        console.log("array buffer: ", arrayBuffer);
 
         this.transactionsService.uploadFile(arrayBuffer as ArrayBuffer)
-        .pipe()
-        .subscribe(
-          (response) => {
-            console.log(response.message);
-            // Handle successful response
-          },
-          error => {
-            console.error('Error uploading file', error);
-            // Handle error response
-          }
-        );
+          .pipe()
+          .subscribe(
+            (response) => {
+              console.log(response.message);
+              // Handle successful response
+            },
+            error => {
+              console.error('Error uploading file', error);
+              // Handle error response
+            }
+          );
       };
 
       reader.readAsArrayBuffer(this.selectedFile);
@@ -358,26 +355,43 @@ console.log("array buffer: ", arrayBuffer);
         date: this.dateForUpdate,
         data: event,
       }
-    })).pipe(catchError((err) => {
-      alert("openAddTransaction error");
-      return EMPTY;
-    }), switchMap((modal) => from(modal.present())), catchError((err) => {
-      alert("openAddTransaction switchMap error");
-      console.log(err);
-
-      return EMPTY;
-    })).subscribe();
+    }))
+      .pipe(
+        catchError((err) => {
+          alert("openAddTransaction error");
+          return EMPTY;
+        }),
+        switchMap((modal) => from(modal.present())
+        .pipe(
+          switchMap(() => from(modal.onWillDismiss())
+          .pipe(
+             tap(() => this.getTransactions()) 
+            )
+          )
+        )),
+        catchError((err) => {
+          alert("openAddTransaction switchMap error");
+          console.log(err);
+          return EMPTY;
+        }))
+      .subscribe(() => {
+      });
   }
+
 
   saveTransaction(): void {
     console.log("save transaction");
-    
+
   }
 
-  onClickedCell(event: {str: string, data: IRowDataTable}): void {
+  onClickedCell(event: { str: string, data: IRowDataTable }): void {
     console.log(event);
-    event.str === "bill" ? this.openAddBill(event.data) : this.openAddTransaction(event.data)
-    
+    if (event.str === "bill") {
+      this.openAddBill(event.data);
+    }
+    else {
+      event.data.billName === "זמני" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data);
+    }
   }
 
 

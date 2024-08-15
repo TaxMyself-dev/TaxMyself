@@ -1,4 +1,5 @@
-import { Component, EventEmitter, Input, Output, SimpleChanges } from '@angular/core';
+import { ISelectItem } from '../interface';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 
 @Component({
@@ -6,14 +7,25 @@ import { FormControl, FormGroup, Validators } from '@angular/forms';
   templateUrl: './generic-select.component.html',
   styleUrls: ['./generic-select.component.scss', '../shared-styling.scss'],
 })
-export class GenericSelectComponent {  
-  @Input() items: ({value: string | number | boolean; name: string | number;})[];
+
+export class GenericSelectComponent implements OnChanges{  
+  @Input() items: ISelectItem[];
   @Input() parentForm: FormGroup;
   @Input() errorText: string;
   @Input() className: string;
   @Input() controlName: string;
   @Input() set title (val: string) {
     this.inputLabelName = val;
+  }
+  @Input() set disabled(val: boolean) {
+    const currentFormControl = this.currentFormControl();
+    if (currentFormControl) {
+      if (val) {
+        currentFormControl.disable();
+      } else {
+        currentFormControl.enable();
+      }
+    }
   }
 
   @Output() selectionChanged = new EventEmitter<number>();

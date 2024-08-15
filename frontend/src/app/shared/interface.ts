@@ -143,3 +143,9 @@ export interface IButtons {
     size: string;
     disabled?: boolean;
 }
+
+export interface ISelectItem {
+    value: string | number | boolean; 
+    name: string | number; 
+    disable?: boolean
+}

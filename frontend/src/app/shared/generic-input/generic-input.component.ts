@@ -27,6 +27,16 @@ export class GenericInputComponent implements OnChanges {
 
   @Output() onInputChange: EventEmitter<string> = new EventEmitter<string>();  // for non form inputs
 
+  @Input() set disabled(val: boolean) {
+    const currentFormControl = this.currentFormControl();
+    if (currentFormControl) {
+      if (val) {
+        currentFormControl.disable();
+      } else {
+        currentFormControl.enable();
+      }
+    }
+  }
 
   readonly ButtonClass = ButtonClass;
   readonly ButtonSize = ButtonSize;

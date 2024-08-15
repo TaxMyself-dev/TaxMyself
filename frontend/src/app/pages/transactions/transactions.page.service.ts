@@ -36,6 +36,8 @@ constructor(private http: HttpClient) {
     const headers = {
       'token': this.token
     }
+    console.log("param: ",param);
+    
     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
   }
   

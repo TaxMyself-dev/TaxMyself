@@ -1,16 +1,16 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { IColumnDataTable, IGetSubCategory } from '../interface';
+import { IColumnDataTable, IGetSubCategory, ISelectItem } from '../interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
-import { EMPTY, catchError, map, tap } from 'rxjs';
+import { EMPTY, catchError, finalize, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ModalController } from '@ionic/angular';
 
 @Component({
   selector: 'app-add-transaction',
   templateUrl: './add-transaction.component.html',
-  styleUrls: ['./add-transaction.component.scss'],
+  styleUrls: ['./add-transaction.component.scss', '../../shared/shared-styling.scss'],
 })
 export class AddTransactionComponent implements OnInit {
 
@@ -22,25 +22,27 @@ export class AddTransactionComponent implements OnInit {
   existCategoryNotEquipmentForm: FormGroup;
   newCategoryIsRecognizeForm: FormGroup;
   newCategoryNotRecognizedForm: FormGroup;
-  listIsEqiupmentCategory: any[];
-  listNotEqiupmentCategory: any[];
+  listIsEqiupmentCategory: ISelectItem[];
+  listNotEqiupmentCategory: ISelectItem[];
   listNotIsEqiupmentSubCategory: any[]
-  listIsEqiupmentSubCategory: any[];
-  listSubCategory: any[];
+  listIsEqiupmentSubCategory: ISelectItem[];
+  listSubCategory: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[];
   originalNotSubCategoryList: IGetSubCategory[];
   subCategorySelected: boolean = false;
   categoryDetails: IGetSubCategory;
   equipmentType = 0;
   isRecognize: boolean = false;
-  equipmentList = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
+  equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
   isEquipment: boolean;
   isSingleUpdate: boolean;
+  isOpenToast: boolean = false;
+  combinedListCategory: ISelectItem[] = [];
 
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
 
-  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService) {
+  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService,private modalController: ModalController) {
     this.existCategoryEquipmentForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         false, [Validators.required,]
@@ -73,7 +75,10 @@ export class AddTransactionComponent implements OnInit {
 
     this.newCategoryIsRecognizeForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
-        false, [Validators.required,]
+        '', [Validators.required,]
+      ),
+      isRecognize: new FormControl(
+        '' 
       ),
       category: new FormControl(
         '', [Validators.required,]
@@ -82,7 +87,7 @@ export class AddTransactionComponent implements OnInit {
         '', [Validators.required,]
       ),
       isEquipment: new FormControl(
-        false, [Validators.required,]
+        '', [Validators.required,]
       ),
       taxPercent: new FormControl(
         '', [Validators.required,]
@@ -97,7 +102,10 @@ export class AddTransactionComponent implements OnInit {
 
     this.newCategoryNotRecognizedForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
-        false, [Validators.required,]
+        '', [Validators.required,]
+      ),
+      isRecognize: new FormControl(
+        ''  
       ),
       category: new FormControl(
         '', [Validators.required,]
@@ -112,6 +120,7 @@ export class AddTransactionComponent implements OnInit {
   ngOnInit() {
     this.getIsEquipmentCategory();
     this.getNotEquipmentCategory();
+    // this.getAllCategory()
     console.log(this.isRecognize);
     console.log("date from input: ", this.date);
     console.log("data from input: ", this.data);
@@ -136,7 +145,7 @@ export class AddTransactionComponent implements OnInit {
       .subscribe((res) => {
         this.listIsEqiupmentCategory = res;
         console.log("isEquipment: ", this.listIsEqiupmentCategory);
-
+        this.getAllCategory()
       })
   }
 
@@ -153,10 +162,18 @@ export class AddTransactionComponent implements OnInit {
       .subscribe((res) => {
         this.listNotEqiupmentCategory = res;
         console.log("not is equipment: ", this.listNotEqiupmentCategory);
-
+        this.getAllCategory()
       })
   }
 
+  getAllCategory(): void {
+    const separator: ISelectItem[] = [{name: '----- מוגדרות כציוד -----', value: null, disable: true}];
+    if (this.listIsEqiupmentCategory && this.listNotEqiupmentCategory) {
+      this.combinedListCategory.push(...this.listNotEqiupmentCategory,...separator,...this.listIsEqiupmentCategory);
+    }
+    console.log(this.combinedListCategory);
+    
+  }
   getSubCategory(event): void {
     this.subCategorySelected = false;
     console.log(event.value);
@@ -261,9 +278,11 @@ export class AddTransactionComponent implements OnInit {
     this.isSingleUpdate = event.detail.checked;
   }
 
-  onCheckboxRecognize(event): void {
+  onCheckboxRecognize(event, isRecognize): void {
     console.log(event.detail.checked);
-    this.isRecognize = event.detail.checked;
+    this.isRecognize = event.detail.checked ? isRecognize : !isRecognize;
+    console.log("is recog: ",this.isRecognize);
+    
   }
 
   addClasssification(): void {
@@ -296,6 +315,8 @@ export class AddTransactionComponent implements OnInit {
         })
       )
       .subscribe((res) => {
+        this.modalController.dismiss(null, 'cancel');
+        this.isOpenToast = true;
         console.log(res);
       })
   }
