@@ -16,7 +16,8 @@ export class GenericInputComponent implements OnChanges {
   @Input() className: string;
   @Input() inputType = "text";
   @Input() minDate: string;
-  @Input() showError = false;  // for non form inputs
+  @Input() showAsterisk = true;
+  @Input() showError = true;  // for non form inputs
   @Input() required = false; // for non form inputs
   @Input() set customMaxDate(val: string) {
     this.maxDate = val;
@@ -55,9 +56,11 @@ export class GenericInputComponent implements OnChanges {
     const isRequired = this.isRequired() || this.required;
 
     if (changes.errorText || changes.controlName) {
-      this.errorMessage = isRequired ? this.errorText ?? this.RequiredErrorMessage : this.errorText;
+      this.errorMessage = this.showError ? 
+        isRequired ? this.errorText ?? this.RequiredErrorMessage : this.errorText 
+        : '';
     }
-    if (changes.inputLabel || changes.controlName) {
+    if ((changes.inputLabel || changes.controlName) && this.showAsterisk) {
       this.inputLabelName = isRequired ? this.inputLabelName + ' *' : this.inputLabelName;
     }
   }
@@ -67,7 +70,7 @@ export class GenericInputComponent implements OnChanges {
   }
 
   isRequired(): boolean {
-    return !!this.currentFormControl()?.hasValidator(Validators.required);
+    return this.required || !!this.currentFormControl()?.hasValidator(Validators.required);
   }
 
   togglePasswordVisibility(): void {
