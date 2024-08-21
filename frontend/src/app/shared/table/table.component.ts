@@ -23,7 +23,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
 
   @Output() onClickedCell = new EventEmitter<{str: string, data: IRowDataTable}>();
   @Output() onChecked = new EventEmitter<{id: number, checked: boolean}>();
-  @Output() onCheckedAll = new EventEmitter<{id: number[]}>();
+  @Output() onCheckedAll = new EventEmitter<{id: number[], checked: boolean}>();
 
   get rows(): IRowDataTable[] {
     return this.tableRows;
@@ -33,6 +33,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   tableRows: IRowDataTable[];
   baseSize: number = 1;
   allID: number[] =[];
+  isSelected: boolean = false;
 
   constructor() { }
 
@@ -60,12 +61,12 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   }
   
   selectAll(event: IRowDataTable[]): void {
+    this.isSelected = !this.isSelected;
+    this.isSelected ? this.checkboxData.columnName = "בטל הכול" :  this.checkboxData.columnName = "בחר הכול"
     console.log(event);
-    event.forEach((row) => {
-      this.allID.push(row.id as number)
-    })
-    this.onCheckedAll.emit({id: this.allID})
-    console.log(this.allID);
+    this.isSelected ? event.forEach((row) => {this.allID.push(row.id as number)}) : this.allID = [];
+    this.onCheckedAll.emit({id: this.allID, checked: this.isSelected})
+    //console.log(this.allID);
     
   }
 }

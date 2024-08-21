@@ -84,7 +84,7 @@
       </ng-container>
       <ng-container  *ngIf="!disableCheckbox">
       <div class="checkbox">
-        <ion-checkbox (ionChange)="onCheckedClicked({$event,row})"></ion-checkbox>
+        <ion-checkbox [checked]="isSelected" (ionChange)="onCheckedClicked({$event,row})"></ion-checkbox>
       </div>
         </ng-container>
       <ion-col *ngIf="actions?.length" size="2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">

@@ -61,6 +61,12 @@ export class FlowReportPage implements OnInit {
           row.billDate = this.transactionService.timestampToDateStr(row.billDate as number)
         })
         return data;
+      }),
+      map((data) =>{
+        const isRecognized = data.filter((tran) => {
+          return tran.isRecognized;
+        })
+        return isRecognized;
       })
       )
       .subscribe((res) => {
@@ -113,8 +119,15 @@ export class FlowReportPage implements OnInit {
     
   }
 
-  selectedAll(event: {id: number[]}): void {
+  selectedAll(event: {id: number[], checked: boolean}): void {
     console.log(event);
+    event.checked ? event.id.forEach((id) => {
+      if (!this.chosenTrans.includes(id)){
+        this.chosenTrans.push(id)
+      }
+    })
+        : this.chosenTrans = [];
+    console.log(this.chosenTrans);
     
   }
 
