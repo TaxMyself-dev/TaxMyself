@@ -108,7 +108,7 @@ ion-col {
 
 .grid{
   // width: 1300px;
-  border: 2px solid rgb(79, 171, 79);;
+  border: 2px solid rgb(79, 171, 79);
   border-radius: 15px;
   margin: 10px;
   padding: 10px;
@@ -182,6 +182,19 @@ ion-col {
 
 .text-special-cell:hover {
   cursor: pointer;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4%;
+}
+
+.checkbox-header {
+  --background:  rgb(79, 171, 79);
+  border-radius: 15px;
+  color: black;
 }
 
 

@@ -63,6 +63,10 @@ const routes: Routes = [
     loadChildren: () => import('./pages/income-statement/income-statement.module').then( m => m.IncomeStatementPageModule),
     canActivate: [AuthGuard] 
   },
+  {
+    path: 'flow-report',
+    loadChildren: () => import('./pages/flow-report/flow-report.module').then( m => m.FlowReportPageModule)
+  },
  
 ];
 

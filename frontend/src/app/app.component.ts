@@ -20,6 +20,7 @@ export class AppComponent implements OnInit {
     { title: 'דף-הבית', url: 'home', icon: 'home' },
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
     { title: 'הענן שלי', url: 'my-storage', icon: 'cloud-download' },
+    { title: 'דוח תזרים', url: 'flow-report', icon: 'cloud-download' },
     { title: ' הגשת דוחות', url: 'reports', icon: 'documents' },
     { title: 'הוספת חשבונית', url: 'add-expenses', icon: 'cloud-upload' },
     { title: 'יעוץ פיננסי', url: 'spam', icon: 'chatbubbles' },

@@ -8,6 +8,7 @@ import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-transactions',
@@ -64,7 +65,7 @@ export class TransactionsPage implements OnInit {
   selectedFile: File = null;
   dateForUpdate = { 'isSingleMonth': true, 'month': "1", 'year': 2024 };
   checkClassifyBill: boolean = true;
-  constructor(private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
+  constructor( private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
         false, Validators.required,
@@ -271,26 +272,7 @@ export class TransactionsPage implements OnInit {
     }
   }
 
-  timestampToDateStr(timestamp: number): string {
-    let date: Date;
-
-    if (typeof timestamp === 'string') {
-      const parsedTimestamp = parseInt(timestamp);
-      if (isNaN(parsedTimestamp)) {
-        throw new Error('Invalid timestamp string');
-      }
-      date = new Date(parsedTimestamp * 1000);
-
-    }
-    else {
-      date = new Date(timestamp * 1000);
-    }
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-    const year = date.getFullYear().toString().slice(-2);
-
-    return `${day}/${month}/${year}`;
-  }
+ 
 
   private handleTableData(data: ITransactionData[]) {
     const rows = [];
@@ -301,8 +283,8 @@ export class TransactionsPage implements OnInit {
       data.forEach((row: ITransactionData) => {
         const { userId, isEquipment, taxPercent, vatPercent, reductionPercent, ...data } = row;
         console.log("payment", data.paymentIdentifier);
-        data.billDate = this.timestampToDateStr(data.billDate as number);
-        data.payDate = this.timestampToDateStr(data.payDate as number);
+        data.billDate = this.transactionsService.timestampToDateStr(data.billDate as number);
+        data.payDate = this.transactionsService.timestampToDateStr(data.payDate as number);
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
@@ -394,6 +376,19 @@ export class TransactionsPage implements OnInit {
     else {
       event.data.billName === "זמני" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data);
     }
+  }
+
+  openFlowReport(): void {
+    const details = {
+      date: this.dateForUpdate,
+
+    }
+    this.router.navigate(['flow-report'], {queryParams: { 
+      month: this.dateForUpdate.month, 
+      year: this.dateForUpdate.year, 
+      isSingleMonth: this.dateForUpdate.isSingleMonth, 
+      accounts: 'null'
+    }})
   }
 
 

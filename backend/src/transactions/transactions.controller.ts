@@ -93,7 +93,7 @@ export class TransactionsController {
     @Headers('token') token: string
   ): Promise<Transactions[]> {
     //console.log("get-incomes - start");
-    //console.log('Original query:', query);
+    // console.log('Original query:', query);
    
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
     const startDateT = this.sharedService.convertDateToTimestamp(startDate);
@@ -179,11 +179,12 @@ export class TransactionsController {
   async saveTransToExpenses(
     @Body() IDs: number[],
     @Headers('token') token: string,
-  ): Promise<void> {
+  ): Promise<{ message: string }> {
 
+    console.log("in save trans: ", IDs);
     
     //const userId = await this.usersService.getFirbsaeIdByToken(token)
-    this.transactionsService.saveTransactionsToExpenses(IDs);
+    return this.transactionsService.saveTransactionsToExpenses(IDs);
   }
 
 

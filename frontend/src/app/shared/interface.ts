@@ -100,6 +100,11 @@ export interface User {
     reductionPercent: number
 }
 
+export interface ICheckboxCellData {
+    columnName: string,
+     
+}
+
 export interface ICityData {
     english_name: string;
     lishka: string;
