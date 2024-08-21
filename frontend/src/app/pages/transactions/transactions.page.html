@@ -24,7 +24,7 @@
     <ng-template #expensesCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar" [isDisabled]="expensesForm.invalid"
         (onSearchClick)="expensesFilter()"></app-search-bar>
-      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"
+      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES" [actions]="tableActions"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
   

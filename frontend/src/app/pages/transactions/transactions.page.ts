@@ -204,7 +204,7 @@ export class TransactionsPage implements OnInit {
         name: 'delete',
         icon: 'create',
         action: (row: IRowDataTable) => {
-          this.openAddBill(row)
+          this.openAddTransaction(row)
         }
       },
     ]
@@ -288,6 +288,7 @@ export class TransactionsPage implements OnInit {
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
+        data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         rows.push(data);
       }
       )

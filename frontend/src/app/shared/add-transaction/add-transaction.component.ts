@@ -248,6 +248,9 @@ export class AddTransactionComponent implements OnInit {
     if (this.existCategory) {
       this.subCategorySelected = true;
       this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);
+      this.categoryDetails.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
+      this.categoryDetails.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
+      delete this.categoryDetails.id;
     }
     else {
       this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);

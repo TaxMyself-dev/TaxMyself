@@ -62,8 +62,8 @@ export interface IGetSubCategory {
     category: string;
     taxPercent: string;
     vatPercent: string;
-    isEquipment: boolean;
-    isRecognized: boolean;
+    isEquipment: boolean | string;
+    isRecognized: boolean | string;
     reductionPercent: string;
 }
 
@@ -120,7 +120,7 @@ export interface ICityData {
 export interface ITransactionData {
     paymentIdentifier: string,
     subCategory: string,
-    isRecognized: boolean,
+    isRecognized: boolean | string,
     vatPercent: number,
     taxPercent: number,
     isEquipment: boolean,
