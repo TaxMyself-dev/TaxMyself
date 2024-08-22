@@ -1,0 +1,6 @@
+<app-custom-toolbar></app-custom-toolbar>
+<h1><b><p>הפקת דו"ח על בסיס תזרים</p></b></h1>
+
+<app-table *ngIf="expensesData" [fieldsNames]="fieldsNames" [rows]="expensesData" [columnsToIgnore]="columnsToIgnore" [columnsOrderByFunc]="columnsOrderByFunc" [disableCheckbox]="false" (onChecked)="checkedClicked($event)" (onCheckedAll)="selectedAll($event)"></app-table>
+
+<app-button [buttonText]="'הוסף'" (onButtonClicked)="addTransToExpense()"></app-button>

@@ -67,6 +67,9 @@ export class CustomToolbarComponent implements OnInit {
         case "income-statement":
           this.folder = 'דו"ח רווח והפסד'
           break;
+          case "flow-report":
+          this.folder = 'דוח-תזרים'
+          break;
         default:
           this.folder = "עצמאי בעצמי"
           break;

@@ -59,11 +59,14 @@ export enum ExpenseFormColumns {
     IS_EQUIPMENT = 'isEquipment',
     REDUCTION_PERCENT = 'reductionPercent',
     LOADING_DATE = 'loadingDate' 
-}
-
-export enum TransactionsOutcomesColumns {
-  ID = 'id',
-  // change this to dateTimeStamp
+  }
+  
+  export enum TransactionsOutcomesColumns {
+    TOTAL_TAX = 'totalTaxPayable',
+    TOTAL_VAT = 'totalVatPayable',
+    ID = 'id',
+    // change this to dateTimeStamp
+    REDUCTION_PERCENT = 'reductionPercent',
   BILL_NUMBER = 'paymentIdentifier',
   PAY_DATE = 'pay_date',
   BILL_DATE = 'bill_date',
@@ -73,6 +76,7 @@ export enum TransactionsOutcomesColumns {
   SUM = 'sum',
   CATEGORY = 'category',
   SUBCATEGORY = 'subCategory',
+  CHECKBOX = 'checkbox'
 
 }
 
@@ -86,7 +90,11 @@ export enum TransactionsOutcomesHebrewColumns {
   category = 'קטגוריה',
   subCategory = 'תת-קטגוריה',
   billName = 'חשבון',
-  isRecognized = 'הוצאה מוכרת'
+  isRecognized = 'הוצאה מוכרת',
+  reductionPercent = 'אחוז פחת',
+  totalTax = 'מוכר למס',
+  totalVat = 'מוכר למע"מ',
+  checkbox = 'בחר'
 }
 
   export const months = [
@@ -116,5 +124,6 @@ export enum TransactionsOutcomesHebrewColumns {
   export enum ICellRenderer {
     CATEGORY = 'category',
     SUBCATEGORY = 'subCategory',
-    BILL = 'billName'
+    BILL = 'billName',
+    CHECKBOX = 'checkbox'
   }
