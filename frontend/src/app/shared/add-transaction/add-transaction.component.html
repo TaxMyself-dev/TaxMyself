@@ -48,7 +48,7 @@
       </ion-card>
     </div>
     <div class="button-add-transaction">
-      <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssification()"></app-button>
+      <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssificationExistCategory()"></app-button>
     </div>
   </div>
 
@@ -80,5 +80,7 @@
           <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'" [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
         </form>
       </div>
+      <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssificationNewCategory()"></app-button>
+
     </div>
 <ion-toast message="התנועה סווגה בהצלחה" [isOpen]="isOpenToast" [duration]="3000"></ion-toast>

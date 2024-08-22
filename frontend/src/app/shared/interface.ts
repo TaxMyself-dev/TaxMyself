@@ -149,6 +149,21 @@ export interface IButtons {
     disabled?: boolean;
 }
 
+export interface IClassifyTrans {
+  id: number;
+  isSingleUpdate: boolean;
+  isNewCategory: boolean;
+  name: string;
+  billName: string;
+  category: string;
+  subCategory: string;
+  isRecognized: boolean;
+  vatPercent: number;
+  taxPercent: number;
+  isEquipment: boolean;
+  reductionPercent: number;
+}
+
 export interface ISelectItem {
     value: string | number | boolean; 
     name: string | number; 

@@ -2,7 +2,7 @@ import { Injectable, OnInit } from '@angular/core';
 import { BehaviorSubject, EMPTY, Observable, catchError, map } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { ITransactionData } from 'src/app/shared/interface';
+import { IClassifyTrans, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 
@@ -156,16 +156,16 @@ constructor(private http: HttpClient) {
     return buffer;
   }
 
-  addClassifiction(formData): Observable<any> {
+  addClassifiction(formData: IClassifyTrans, date: any): Observable<any> {
     const url = `${environment.apiUrl}transactions/classify-trans`;
     const headers = {
       'token':
        this.token
     }
     const params = new HttpParams()
-    .set('year', formData.year)
-    .set('month', formData.month)
-    .set('isSingleMonth', formData.isSingleMonth);
+    .set('year', date.year)
+    .set('month', date.month)
+    .set('isSingleMonth', date.isSingleMonth);
     return this.http.post<any>(url,formData,{params:params,headers: headers});
   }
 

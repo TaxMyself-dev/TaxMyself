@@ -1,7 +1,7 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { IColumnDataTable, IGetSubCategory, ISelectItem } from '../interface';
+import { IClassifyTrans, IColumnDataTable, IGetSubCategory, ISelectItem } from '../interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
 import { EMPTY, catchError, finalize, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
@@ -42,7 +42,7 @@ export class AddTransactionComponent implements OnInit {
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
 
-  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService,private modalController: ModalController) {
+  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService, private modalController: ModalController) {
     this.existCategoryEquipmentForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         false, [Validators.required,]
@@ -58,27 +58,27 @@ export class AddTransactionComponent implements OnInit {
       // )
     })
 
-    this.existCategoryNotEquipmentForm = this.formBuilder.group({
-      isSingleUpdate: new FormControl(
-        false, [Validators.required,]
-      ),
-      category: new FormControl(
-        '', [Validators.required,]
-      ),
-      subCategory: new FormControl(
-        '', [Validators.required,]
-      ),
+    // this.existCategoryNotEquipmentForm = this.formBuilder.group({
+    //   isSingleUpdate: new FormControl(
+    //     false, [Validators.required,]
+    //   ),
+    //   category: new FormControl(
+    //     '', [Validators.required,]
+    //   ),
+    //   subCategory: new FormControl(
+    //     '', [Validators.required,]
+    //   ),
       // isEquipment: new FormControl(
       //   false, [Validators.required,]
       // )
-    })
+    // })
 
     this.newCategoryIsRecognizeForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         '', [Validators.required,]
       ),
       isRecognize: new FormControl(
-        '' 
+        true
       ),
       category: new FormControl(
         '', [Validators.required,]
@@ -105,7 +105,7 @@ export class AddTransactionComponent implements OnInit {
         '', [Validators.required,]
       ),
       isRecognize: new FormControl(
-        ''  
+        false
       ),
       category: new FormControl(
         '', [Validators.required,]
@@ -162,12 +162,12 @@ export class AddTransactionComponent implements OnInit {
   }
 
   getAllCategory(): void {
-    const separator: ISelectItem[] = [{name: '----- מוגדרות כציוד -----', value: null, disable: true}];
+    const separator: ISelectItem[] = [{ name: '----- מוגדרות כציוד -----', value: null, disable: true }];
     if (this.listIsEqiupmentCategory && this.listNotEqiupmentCategory) {
-      this.combinedListCategory.push(...this.listNotEqiupmentCategory,...separator,...this.listIsEqiupmentCategory);
+      this.combinedListCategory.push(...this.listNotEqiupmentCategory, ...separator, ...this.listIsEqiupmentCategory);
     }
     console.log(this.combinedListCategory);
-    
+
   }
 
   getSubCategory(event): void {
@@ -280,34 +280,51 @@ export class AddTransactionComponent implements OnInit {
   onCheckboxRecognize(event, isRecognize): void {
     console.log(event.detail.checked);
     this.isRecognize = event.detail.checked ? isRecognize : !isRecognize;
-    console.log("is recog: ",this.isRecognize);
-    
+    console.log("is recog: ", this.isRecognize);
+
   }
 
-  addClasssification(): void {
-    let formData;
-    if (this.equipmentType) {
-      formData = this.existCategoryNotEquipmentForm.value;
-    }
-    else {
-      formData = this.existCategoryEquipmentForm.value;
-    }
-    console.log("in class");
+  addClasssificationExistCategory(): void {
+    let formData: IClassifyTrans;
+    formData = this.existCategoryEquipmentForm.value;
+    formData.id = this.data.id;
+    formData.billName = this.data.billName;
+    formData.name = this.data.name;
     formData.category = this.categoryDetails.category;
     formData.subCategory = this.categoryDetails.subCategory;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
-    formData.vatPercent = this.categoryDetails.vatPercent;
-    formData.taxPercent = this.categoryDetails.taxPercent;
+    formData.vatPercent = +this.categoryDetails.vatPercent;
+    formData.taxPercent = +this.categoryDetails.taxPercent;
     formData.isEquipment = this.categoryDetails.isEquipment == "כן" ? true : false;;
-    formData.reductionPercent = this.categoryDetails.reductionPercent;
-    formData.isSingleMonth = this.date.isSingleMonth;
-    formData.month = this.date.month;
-    formData.year = this.date.year;
+    formData.reductionPercent = +this.categoryDetails.reductionPercent;
+    console.log(formData);
+    this.transactionsService.addClassifiction(formData, this.date)
+      .pipe(
+        catchError((err) => {
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        this.modalController.dismiss(null, 'cancel');
+        this.isOpenToast = true;
+        console.log(res);
+      })
+  }
+
+  addClasssificationNewCategory(): void {
+    let formData: IClassifyTrans;
+    if (this.isRecognize) {
+      formData = this.newCategoryIsRecognizeForm.value;
+    }
+    else {
+      formData = this.newCategoryNotRecognizedForm.value;
+    }
+    formData.isNewCategory = true;
     formData.id = this.data.id;
     formData.billName = this.data.billName;
     formData.name = this.data.name;
     console.log(formData);
-    this.transactionsService.addClassifiction(formData)
+    this.transactionsService.addClassifiction(formData, this.date)
       .pipe(
         catchError((err) => {
           return EMPTY;
@@ -344,7 +361,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   cancel(): void {
-    this.modalCtrl.dismiss(null,'cancel');
+    this.modalCtrl.dismiss(null, 'cancel');
   }
 
 }
