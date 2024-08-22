@@ -120,11 +120,6 @@ export class AddTransactionComponent implements OnInit {
   ngOnInit() {
     this.getIsEquipmentCategory();
     this.getNotEquipmentCategory();
-    // this.getAllCategory()
-    console.log(this.isRecognize);
-    console.log("date from input: ", this.date);
-    console.log("data from input: ", this.data);
-
   }
 
   segmentClicked(event): void {
@@ -174,6 +169,7 @@ export class AddTransactionComponent implements OnInit {
     console.log(this.combinedListCategory);
     
   }
+
   getSubCategory(event): void {
     this.subCategorySelected = false;
     console.log(event.value);
@@ -299,10 +295,10 @@ export class AddTransactionComponent implements OnInit {
     console.log("in class");
     formData.category = this.categoryDetails.category;
     formData.subCategory = this.categoryDetails.subCategory;
-    formData.isRecognized = this.categoryDetails.isRecognized;
+    formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
     formData.vatPercent = this.categoryDetails.vatPercent;
     formData.taxPercent = this.categoryDetails.taxPercent;
-    formData.isEquipment = this.categoryDetails.isEquipment;
+    formData.isEquipment = this.categoryDetails.isEquipment == "כן" ? true : false;;
     formData.reductionPercent = this.categoryDetails.reductionPercent;
     formData.isSingleMonth = this.date.isSingleMonth;
     formData.month = this.date.month;
