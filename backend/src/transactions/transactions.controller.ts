@@ -179,9 +179,7 @@ export class TransactionsController {
   async saveTransToExpenses(
     @Body() IDs: number[],
     @Headers('token') token: string,
-  ): Promise<void> {
-
-    
+  ): Promise<void> {   
     //const userId = await this.usersService.getFirbsaeIdByToken(token)
     this.transactionsService.saveTransactionsToExpenses(IDs);
   }
