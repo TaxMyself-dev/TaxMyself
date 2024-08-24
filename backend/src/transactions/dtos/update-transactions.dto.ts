@@ -1,29 +1,21 @@
 import { IsNumber, IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class UpdateTransactionsDto {
+
+  @IsNumber()
+  id: number;
+
+  @IsBoolean()
+  isSingleUpdate: boolean;
+
   @IsString()
-  @IsOptional()
   userId?: string;
 
   @IsString()
-  @IsOptional()
-  paymentIdentifier?: string;
+  billName?: string;
 
   @IsString()
-  @IsOptional()
   name?: string;
-
-  @IsNumber()
-  @IsOptional()
-  billDate?: number;
-
-  @IsNumber()
-  @IsOptional()
-  payDate?: number;
-
-  @IsNumber()
-  @IsOptional()
-  sum?: number;
 
   @IsString()
   @IsOptional()

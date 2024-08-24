@@ -17,7 +17,6 @@ import { SharedService } from 'src/shared/shared.service';
 //DTOs
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
-import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
 
 
 @Injectable()
@@ -72,6 +71,8 @@ export class TransactionsService {
       });
     });
 
+    let skippedTransactions = 0;
+
     for (const row of rows) {
       console.log("in 1 for");
       
@@ -84,6 +85,23 @@ export class TransactionsService {
       transaction.payDate = payDate;
       transaction.sum = parseFloat(row[sumIndex]);
       transaction.userId = userId;
+
+      // Check if a transaction with the same name, paymentIdentifier, billDate, sum, and userId already exists
+      const existingTransaction = await this.transactionsRepo.findOne({
+        where: {
+          name: transaction.name,
+          paymentIdentifier: transaction.paymentIdentifier,
+          billDate: transaction.billDate,
+          sum: transaction.sum,
+          userId: transaction.userId,
+        },
+      });
+
+      if (existingTransaction) {
+        console.log(`Transaction with name ${transaction.name}, paymentIdentifier ${transaction.paymentIdentifier}, billDate ${transaction.billDate}, and sum ${transaction.sum} already exists. Skipping.`);
+        skippedTransactions++;
+        continue;
+      }
 
       // Set the billName if paymentIdentifier is associated with a bill
       const billName = paymentIdentifierToBillName.get(transaction.paymentIdentifier);
@@ -107,7 +125,8 @@ export class TransactionsService {
       await this.transactionsRepo.save(transaction);
     }
 
-    return { message: `Successfully saved ${rows.length} transactions to the database.` };
+    return { message: `Successfully saved ${rows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
+
   }
 
 
@@ -116,7 +135,7 @@ export class TransactionsService {
   }
 
 
-  async classifyTransaction(classifyDto: UpdateNewTransactionDto, userId: string, startDate: number, endDate: number): Promise<void> {
+  async classifyTransaction(classifyDto: ClassifyTransactionDto, userId: string, startDate: number, endDate: number): Promise<void> {
 
     const {id, isSingleUpdate, isNewCategory, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
     let transactions: Transactions[];
@@ -195,6 +214,58 @@ export class TransactionsService {
       await this.classifiedTransactionsRepo.save(classifiedTransaction);
     }
   }
+
+
+  async updateTransaction(updateDto: UpdateTransactionsDto, userId: string, startDate: number, endDate: number): Promise<void> {
+    const {
+      id,
+      isSingleUpdate,
+      category,
+      subCategory,
+      isRecognized,
+      vatPercent,
+      taxPercent,
+      isEquipment,
+      reductionPercent
+    } = updateDto;
+  
+    let transactions: Transactions[];
+  
+    // Fetch the relevant transactions based on isSingleUpdate flag
+    if (isSingleUpdate) {
+      // Update only the specific transaction
+      transactions = await this.transactionsRepo.find({
+        where: {
+          id,
+          userId
+        },
+      });
+    } else {
+      // Update all transactions with the same name and billName within the specified date range
+      transactions = await this.transactionsRepo.find({
+        where: {
+          userId,
+          name: updateDto.name,
+          billName: updateDto.billName,
+          payDate: Between(startDate, endDate)
+        },
+      });
+    }
+  
+    // Update the specified fields in each transaction
+    transactions.forEach(transaction => {
+      transaction.category = category;
+      transaction.subCategory = subCategory;
+      transaction.isRecognized = isRecognized;
+      transaction.vatPercent = vatPercent;
+      transaction.taxPercent = taxPercent;
+      transaction.isEquipment = isEquipment;
+      transaction.reductionPercent = reductionPercent;
+    });
+  
+    // Save the updated transactions
+    await this.transactionsRepo.save(transactions);
+  }  
 
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -327,23 +398,6 @@ export class TransactionsService {
        allIdentifiers.push(...bill.sources.map(source => source.sourceName));
      });
 
-    console.log("allIdentifiers is ", allIdentifiers);
-    console.log("sources is ", sources);
-     
-
-    // Find transactions that match the criteria
-
-    // const transactions = await this.transactionsRepo.find({
-    //   where: 
-    //     {
-    //       userId,
-    //       //paymentIdentifier: In(sources),
-    //       //billDate: Between(startDate, endDate)
-    //     }
-    // });
-
-    console.log("start date is ", startDate);
-    console.log("end date is ", endDate);
 
     const transactions = await this.transactionsRepo.find({
     where: [
@@ -359,9 +413,6 @@ export class TransactionsService {
       }
     ]
   });
-
-  //console.log("transactions are", transactions);
-  
 
   return transactions;
 
@@ -380,6 +431,7 @@ export class TransactionsService {
 
   }
 
+
   async getExpensesTransactions(query: any): Promise<Transactions[]> {
 
     console.log("getExpensesTransactions - start");
@@ -393,32 +445,6 @@ export class TransactionsService {
   }
 
 
-  async updateTransactionsByCriteria(
-    startDate: number,
-    endDate: number,
-    updateData: UpdateTransactionsDto,
-  ): Promise<void> {
-    // Find transactions matching the criteria
-    const transactions = await this.transactionsRepo.find({
-      where: {
-        name: updateData.name,
-        paymentIdentifier: updateData.paymentIdentifier,
-        billDate: Between(startDate, endDate),
-      },
-    });
-
-    if (transactions.length === 0) {
-      throw new Error('No transactions found matching the criteria');
-    }
-
-    // Update each transaction with the provided data
-    for (const transaction of transactions) {
-      Object.assign(transaction, updateData);
-      await this.transactionsRepo.save(transaction);
-    }
-  }
-
-
   async saveTransactionsToExpenses(transactionIds: number[]): Promise<{ message: string }> {
 
     // Fetch transactions with the given IDs
@@ -427,8 +453,26 @@ export class TransactionsService {
     if (!transactions || transactions.length === 0) {
       throw new Error('No transactions found with the provided IDs.');
     }
+
+    const expenses: Expense[] = [];
+    let skippedTransactions = 0;
+
+    for (const transaction of transactions) {
+      // Check if an expense with the same date, supplier, and sum already exists
+      const existingExpense = await this.expenseRepo.findOne({
+        where: {
+          dateTimestamp: transaction.billDate,
+          supplier: transaction.name,
+          sum: transaction.sum
+        }
+      });
   
-    const expenses = transactions.map(transaction => {
+      if (existingExpense) {
+        console.log(`Transaction with ID ${transaction.id} already exists as an expense.`);
+        skippedTransactions++;
+        continue;
+      }
+  
       const expense = new Expense();
       expense.supplier = transaction.name;
       expense.supplierID = '';
@@ -446,13 +490,48 @@ export class TransactionsService {
       expense.expenseNumber = '';
       expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
-      return expense;
-    });
+      
+      expenses.push(expense);
+    }
   
-    // Save expenses to the database
-    await this.expenseRepo.save(expenses);
+    // Save new expenses to the database
+    if (expenses.length > 0) {
+      await this.expenseRepo.save(expenses);
+    }
   
-    return { message: `Successfully converted ${expenses.length} transactions to expenses.` };
+    const message = `Successfully converted ${expenses.length} transactions to expenses. ${skippedTransactions} transactions were skipped because they already exist as expenses.`;
+  
+    return { message };
+
+
+
+
+  
+    // const expense = transactions.map(transaction => {
+    //   const expense = new Expense();
+    //   expense.supplier = transaction.name;
+    //   expense.supplierID = '';
+    //   expense.category = transaction.category;
+    //   expense.subCategory = transaction.subCategory;
+    //   expense.sum = transaction.sum;
+    //   expense.taxPercent = transaction.taxPercent;
+    //   expense.vatPercent = transaction.vatPercent;
+    //   expense.dateTimestamp = transaction.billDate;
+    //   expense.note = '';
+    //   expense.file = '';
+    //   expense.isEquipment = transaction.isEquipment;
+    //   expense.userId = transaction.userId;
+    //   expense.loadingDate = Date.now();
+    //   expense.expenseNumber = '';
+    //   expense.reductionDone = false;
+    //   expense.reductionPercent = transaction.reductionPercent;
+    //   return expense;
+    // });
+  
+    // // Save expenses to the database
+    // await this.expenseRepo.save(expenses);
+  
+    // return { message: `Successfully converted ${expenses.length} transactions to expenses.` };
   }
 
 

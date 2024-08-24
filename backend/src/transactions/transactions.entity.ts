@@ -30,7 +30,7 @@ export class Transactions {
   @Column('bigint')
   payDate: number;
 
-  @Column('decimal')
+  @Column('decimal', { precision: 10, scale: 2 })
   sum: number;
 
   @Column()

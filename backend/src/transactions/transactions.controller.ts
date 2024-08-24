@@ -11,7 +11,7 @@ import { query } from 'express';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { log } from 'console';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
-import { UpdateNewTransactionDto } from './dtos/update-new-transaction.dto';
+import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -142,7 +142,6 @@ export class TransactionsController {
   ): Promise<void> {
 
     const userId = await this.usersService.getFirbsaeIdByToken(token)
-
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
     const startDateT = this.sharedService.convertDateToTimestamp(startDate);
     const endDateT = this.sharedService.convertDateToTimestamp(endDate);
@@ -150,28 +149,20 @@ export class TransactionsController {
   }
 
 
-  @Put('update-trans')
-  @UsePipes(new ValidationPipe({ transform: true }))
-  async updateTransactions(
-    @Query() query: GetTransactionsDto,
-    @Body() updateData: UpdateTransactionsDto,
-  ): Promise<void> {
-   
-    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+  @Patch('update-trans')
+  async updateTransaction(
+    @Body() updateDto: UpdateTransactionsDto,
+    @Headers('token') token: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('isSingleMonth') isSingleMonth: boolean
+  ): Promise<{ message: string }> {
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
     const startDateT = this.sharedService.convertDateToTimestamp(startDate);
     const endDateT = this.sharedService.convertDateToTimestamp(endDate);
-
-    // Ensure required fields are present in the body
-    if (!updateData.name || !updateData.paymentIdentifier) {
-      throw new BadRequestException('Both name and paymentIdentifier must be provided in the body');
-    }
-
-    // Call the service method to update transactions
-    await this.transactionsService.updateTransactionsByCriteria(
-      startDateT,
-      endDateT,
-      updateData,
-    );
+    await this.transactionsService.updateTransaction(updateDto, userId, startDateT, endDateT);
+    return { message: 'Transactions updated successfully' };
   }
 
 

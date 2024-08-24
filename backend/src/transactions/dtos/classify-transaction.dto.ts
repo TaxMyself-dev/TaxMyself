@@ -1,30 +1,43 @@
-import {
-    IsBooleanString,
-    IsNotEmpty,
-    IsString,
-} from 'class-validator'
-
+import { IsNumber, IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class ClassifyTransactionDto {
 
-    @IsString()
-    @IsNotEmpty()
-    year: string;
+  @IsNumber()
+  id: number;
 
-    @IsString()
-    @IsNotEmpty()
-    month: string;
+  @IsBoolean()
+  isSingleUpdate: boolean;
 
-    @IsBooleanString()
-    @IsNotEmpty()
-    isSingleMonth: boolean; // or boolean, depending on how you handle it
+  @IsBoolean()
+  isNewCategory: boolean;
 
-    @IsString()
-    @IsNotEmpty()
-    billId: string;
+  @IsString()
+  name: string;
 
-    // @IsString()
-    // @IsNotEmpty()
-    // kuku: string;
-    
+  @IsString()
+  billName: string;
+
+  @IsString()
+  @IsOptional()
+  category?: string;
+
+  @IsString()
+  subCategory: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isRecognized?: boolean;
+
+  @IsNumber()
+  vatPercent: number;
+
+  @IsNumber()
+  taxPercent: number;
+
+  @IsBoolean()
+  isEquipment: boolean;
+
+  @IsNumber()
+  reductionPercent: number;
+
 }
