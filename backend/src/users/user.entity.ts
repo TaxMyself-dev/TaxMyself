@@ -61,6 +61,15 @@ export class User {
     businessType: string;
 
     @Column()
+    businessId: string;
+
+    @Column()
+    businessInventory: boolean;
+
+    @Column()
+    businessDate: string;
+
+    @Column()
     employee: boolean;
 
     @Column()

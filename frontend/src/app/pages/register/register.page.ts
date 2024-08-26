@@ -8,6 +8,7 @@ import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { startWith, Subject, takeUntil, tap } from 'rxjs';
 import { IonicSelectableComponent } from 'ionic-selectable';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
+import { cloneDeep } from 'lodash';
 
 @Component({
   selector: 'app-register',
@@ -177,7 +178,7 @@ ngOnDestroy(): void {
   }
 
   get isNextButtonDisabled(): boolean {
-    return this.isCurrentFormValid();
+    return !this.isCurrentFormValid();
   }
 
   gelAllCities(): void {
@@ -232,8 +233,9 @@ ngOnDestroy(): void {
   }
 
   handleFormRegister() {
-    const formData = this.myForm.value;
-    console.log(formData);
+    const formData = cloneDeep(this.myForm.value);
+    formData.validation = {password: formData?.validation?.password};
+    formData.personal.city = formData?.personal?.city?.name;
     const data = { fromReg: false, email: formData.email };
     this.authService.SignUp(formData);
   }
@@ -357,15 +359,22 @@ ngOnDestroy(): void {
   private isCurrentFormValid(): boolean {
     switch(this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
-        return !this.passwordValid || this.myForm.invalid;
+        const baseFormValidation = this.personalForm.valid && this.businessForm.valid && this.validationForm.valid;
+        if (this.isSingle()) {
+          return baseFormValidation;
+        } else if (this.isMarried()) {
+          return baseFormValidation && this.spouseForm.valid && this.childrenForm.valid;
+        } else {
+          return baseFormValidation && this.childrenForm.valid;
+        }
       case RegisterFormModules.PERSONAL:
-        return this.personalForm.invalid;
+        return this.personalForm.valid;
       case RegisterFormModules.CHILDREN:
-        return this.childrenForm.invalid;
+        return this.childrenForm.valid;
       case RegisterFormModules.SPOUSE:
-        return this.spouseForm.invalid;
+        return this.spouseForm.valid;
       case RegisterFormModules.BUSINESS:
-        return this.businessForm.invalid;
+        return this.businessForm.valid;
       }
     }
 
