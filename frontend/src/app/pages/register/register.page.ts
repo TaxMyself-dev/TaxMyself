@@ -5,7 +5,7 @@ import { ICityData, IItemNavigate } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
-import { startWith, tap } from 'rxjs';
+import { startWith, Subject, takeUntil, tap } from 'rxjs';
 import { IonicSelectableComponent } from 'ionic-selectable';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 
@@ -19,6 +19,8 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormControls = RegisterFormControls;
   readonly ButtonClass = ButtonClass;
   readonly ButtonSize = ButtonSize;
+  
+  private ngUnsubscribe = new Subject();
   
   myForm: FormGroup;
   cities: ICityData[];
@@ -143,12 +145,12 @@ export class RegisterPage implements OnInit, OnDestroy {
     });
   }
 
-ngOnDestroy(): void {
-    this.authService.isVerfyEmail$.unsubscribe();
+ngOnDestroy(): void {    
+  this.ngUnsubscribe.complete();
 }
 
   ngOnInit() {
-    this.authService.isVerfyEmail$.subscribe((value) => {//TODO: unsubscribe
+    this.authService.isVerfyEmail$.pipe(takeUntil(this.ngUnsubscribe)).subscribe((value) => { //TODO: unsubscribe
       if (value) {
         this.registerMode = false;
       }
@@ -190,6 +192,7 @@ ngOnDestroy(): void {
 
   gelAllCities(): void {
     this.registerService.getCities().pipe(
+      takeUntil(this.ngUnsubscribe),
       startWith([]), 
       tap((res) => {
         if (res.length) {
