@@ -125,3 +125,8 @@
   ;
   }
 }
+
+.disable-click {
+  cursor: default;
+  pointer-events: none;
+}

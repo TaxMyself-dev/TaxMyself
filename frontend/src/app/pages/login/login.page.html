@@ -36,7 +36,7 @@
 </ion-header>
 <!-- </div> -->
 
-<form class="flex-center" [formGroup]="loginForm" (ngSubmit)="signin()">
+<form class="flex-center" [formGroup]="loginForm" (keyup.enter)="onEnterKeyPressed()">
   <ion-card class="login-card">
     <ion-card-header>
       <ion-card-title class="custom-title"><b>עצמאי בעצמי</b></ion-card-title>

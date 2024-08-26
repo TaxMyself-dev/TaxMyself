@@ -30,11 +30,12 @@ export interface IChildren{
 
 export interface IItemNavigate{
     name: string,
-    link?: string,
     icon: string,
+    index: string,
+    link?: string,
     selected?: boolean,
     id?: string,
-    index: string
+    disable?: boolean
 };
 
 

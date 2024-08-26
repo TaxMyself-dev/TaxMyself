@@ -14,6 +14,7 @@ import { ExpenseFormColumns, ExpenseFormHebrewColumns } from '../enums';
 export class ItemNavigateComponent  implements OnInit{
 
   @Input() navigationItems: IItemNavigate[];
+  @Input() disableClick = false;
 
   @Output() onNavButtonClicked = new EventEmitter<IItemNavigate>();
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense// TODO: what? why is this here? should be generic??
@@ -32,6 +33,8 @@ export class ItemNavigateComponent  implements OnInit{
   }
 
   onButtonClicked(selectedItem: IItemNavigate): void {
+    console.log("onButtonClicked");
+    
     if (selectedItem.link === "/add-expenses") {
       this.openPopupAddExpense();
       return;

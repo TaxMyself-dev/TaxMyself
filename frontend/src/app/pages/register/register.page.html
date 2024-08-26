@@ -43,7 +43,7 @@
       </ng-container>
     </ng-container>
 
-    <app-item-navigate class="navigate-item-container" [navigationItems]="itemsNavigate"
+    <app-item-navigate class="navigate-item-container" [navigationItems]="itemsNavigate" [disableClick]="true"
       (onNavButtonClicked)="navigateclicked($event)"></app-item-navigate>
 
     <!-------------- PRESONAL MODULE ------------->
@@ -74,8 +74,7 @@
               itemValueField="name"
               itemTextField="name"
               [canSearch]="true"
-              (onChange)="portChange($event)">
-            </ionic-selectable>
+            ></ionic-selectable>
           </ion-item>
           <!--------------- employee ------------->
           <app-generic-select [controlName]="registerFormControls.EMPLOYEE" title="סטטוס תעסוקתי" [items]="EmploymentStatusList" [parentForm]="personalForm"></app-generic-select>

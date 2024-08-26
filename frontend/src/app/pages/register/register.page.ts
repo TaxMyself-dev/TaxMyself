@@ -24,8 +24,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   
   myForm: FormGroup;
   cities: ICityData[];
-  ports: any;
-  port: any;
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
   registerMode: boolean = true;
@@ -41,14 +39,6 @@ export class RegisterPage implements OnInit, OnDestroy {
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
-
-
-  this.ports = [
-    { id: 1, name: 'Tokai' },
-    { id: 2, name: 'Vladivostok' },
-    { id: 3, name: 'Navlakhi' }
-  ];
-
 
     const personalForm = this.formBuilder.group({
       [RegisterFormControls.FIRSTNAME]: new FormControl(
@@ -212,13 +202,6 @@ ngOnDestroy(): void {
     return this.childrenArray.at(index) as FormGroup;
   }
 
-  portChange(event: {
-    component: IonicSelectableComponent,
-    value: any
-  }) {
-    console.log('port:', event.value);
-  }
-
   addChild() {
     console.log(this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN).value);
 
@@ -257,49 +240,66 @@ ngOnDestroy(): void {
 
   onBackBtnClicked(): void {
     switch(this.selectedFormModule) {
-        case RegisterFormModules.VALIDATION:
-    this.selectedFormModule = RegisterFormModules.BUSINESS;
-    this.setSelectedNavItem(RegisterFormModules.BUSINESS)
-    break;
-        case RegisterFormModules.BUSINESS:
-    this.selectedFormModule = RegisterFormModules.CHILDREN;
-    this.setSelectedNavItem(RegisterFormModules.CHILDREN)
-    break;
-        case RegisterFormModules.CHILDREN:
-    this.selectedFormModule = RegisterFormModules.SPOUSE;
-    this.setSelectedNavItem(RegisterFormModules.SPOUSE)
-    break;
-        case RegisterFormModules.SPOUSE:
-    this.selectedFormModule = RegisterFormModules.PERSONAL;
-    this.setSelectedNavItem(RegisterFormModules.PERSONAL)
-    break;
+      case RegisterFormModules.VALIDATION:
+        this.selectedFormModule = RegisterFormModules.BUSINESS;
+        this.setSelectedNavItem(RegisterFormModules.BUSINESS);
+        break;
+      case RegisterFormModules.BUSINESS:
+        if (this.isSingle()) {
+          this.selectedFormModule = RegisterFormModules.PERSONAL;
+          this.setSelectedNavItem(RegisterFormModules.PERSONAL);
+        } else {
+          this.selectedFormModule = RegisterFormModules.CHILDREN;
+          this.setSelectedNavItem(RegisterFormModules.CHILDREN);
+        }
+        break;
+      case RegisterFormModules.CHILDREN:
+        if (this.isMarried()) {
+          this.selectedFormModule = RegisterFormModules.SPOUSE;
+          this.setSelectedNavItem(RegisterFormModules.SPOUSE);
+        } else {
+          this.selectedFormModule = RegisterFormModules.PERSONAL;
+          this.setSelectedNavItem(RegisterFormModules.PERSONAL);
+        }
+        break;
+      case RegisterFormModules.SPOUSE:
+        this.selectedFormModule = RegisterFormModules.PERSONAL;
+        this.setSelectedNavItem(RegisterFormModules.PERSONAL);
+        break;
   }
     }
 
   onNextBtnClicked(): void {
     switch(this.selectedFormModule) {
-        case RegisterFormModules.VALIDATION:
-    this.handleFormRegister();
-    console.log(this.displayError);
-
-    break;
-        case RegisterFormModules.PERSONAL:
-    this.selectedFormModule = RegisterFormModules.SPOUSE;
-    this.setSelectedNavItem(RegisterFormModules.SPOUSE)
-    break;
-        case RegisterFormModules.CHILDREN:
-    this.selectedFormModule = RegisterFormModules.BUSINESS;
-    this.setSelectedNavItem(RegisterFormModules.BUSINESS)
-    break;
-        case RegisterFormModules.SPOUSE:
-    this.selectedFormModule = RegisterFormModules.CHILDREN;
-    this.setSelectedNavItem(RegisterFormModules.CHILDREN)
-    break;
-        case RegisterFormModules.BUSINESS:
-    this.selectedFormModule = RegisterFormModules.VALIDATION;
-    this.setSelectedNavItem(RegisterFormModules.VALIDATION)
-    break;
-  }
+      case RegisterFormModules.VALIDATION:
+        this.handleFormRegister();
+        console.log(this.displayError);
+        break;
+      case RegisterFormModules.PERSONAL:
+        if (this.isSingle()) {
+          this.selectedFormModule = RegisterFormModules.BUSINESS;
+          this.setSelectedNavItem(RegisterFormModules.BUSINESS);
+        } else if (this.isMarried()) {
+          this.selectedFormModule = RegisterFormModules.SPOUSE;
+          this.setSelectedNavItem(RegisterFormModules.SPOUSE);
+        } else {
+          this.selectedFormModule = RegisterFormModules.CHILDREN;
+          this.setSelectedNavItem(RegisterFormModules.CHILDREN);
+        }
+        break;
+      case RegisterFormModules.CHILDREN:
+        this.selectedFormModule = RegisterFormModules.BUSINESS;
+        this.setSelectedNavItem(RegisterFormModules.BUSINESS)
+        break;
+      case RegisterFormModules.SPOUSE:
+        this.selectedFormModule = RegisterFormModules.CHILDREN;
+        this.setSelectedNavItem(RegisterFormModules.CHILDREN)
+        break;
+      case RegisterFormModules.BUSINESS:
+        this.selectedFormModule = RegisterFormModules.VALIDATION;
+        this.setSelectedNavItem(RegisterFormModules.VALIDATION)
+        break;
+      }
     }
 
   // changePasswordValidinput(event: any) {
@@ -387,4 +387,11 @@ ngOnDestroy(): void {
       }
     }
 
+    private isSingle(): boolean {
+      return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === 0;
+    }
+
+    private isMarried(): boolean {
+      return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === 1;
+    }
 }
