@@ -153,7 +153,7 @@
           <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm" class="validation-form-register">
             <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
             <app-generic-input inputType="password" inputLabel="סיסמא" [controlName]="registerFormControls.PASSWORD" [parentForm]="validationForm" [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>
-            <app-generic-input inputType="password" inputLabel="אימות סיסמא" [required]="true" [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)" (onInputChange)="checkPassword($event)"></app-generic-input>
+            <app-generic-input inputType="password" inputLabel="אימות סיסמא" [controlName]="registerFormControls.CONFIRM_PASSWORD" [parentForm]="validationForm" [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)" (onInputChange)="checkPassword($event)"></app-generic-input>
           </form>
         </ng-container>
 

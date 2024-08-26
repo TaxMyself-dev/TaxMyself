@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, FormControl, FormArray } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl } from '@angular/forms';
 import { RegisterService } from './register.service';
 import { ICityData, IItemNavigate } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
@@ -129,6 +129,9 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.PASSWORD]: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
       ),
+      [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
+        '', [Validators.required, this.confirmPasswordValidator]
+      ),
     })
 
     this.myForm = this.formBuilder.group({
@@ -151,7 +154,7 @@ ngOnDestroy(): void {
       }
     })
     this.gelAllCities();
-  };
+  }
 
   get personalForm(): FormGroup {
     return this.myForm.get(RegisterFormModules.PERSONAL) as FormGroup;
@@ -360,6 +363,24 @@ ngOnDestroy(): void {
         return this.spouseForm.invalid;
       case RegisterFormModules.BUSINESS:
         return this.businessForm.invalid;
+      }
+    }
+
+    private confirmPasswordValidator(control: AbstractControl) {
+      const confirmPassword = control?.value;
+
+      if (!confirmPassword) {
+        return null;
+      }
+    
+      if (confirmPassword === control?.parent?.get('password')?.value) {
+        // input is valid
+        return null;
+      }
+      
+      // input is not valid
+      return {
+        match: false
       }
     }
 

@@ -4,41 +4,23 @@ import { DateService } from 'src/app/services/date.service';
 import { ButtonClass, ButtonSize } from '../button/button.enum';
 
 @Component({
-  selector: 'app-generic-input',
-  templateUrl: './generic-input.component.html',
-  styleUrls: ['./generic-input.component.scss', '../shared-styling.scss'],
+  selector: 'app-custom-input',
+  templateUrl: './custom-input.component.html',
+  styleUrls: ['./custom-input.component.scss', '../shared-styling.scss', '../generic-input/generic-input.component.scss'],
 })
-export class GenericInputComponent implements OnChanges {
+export class CustomInputComponent implements OnChanges {
 
   @Input() parentForm: FormGroup;
   @Input() controlName: string;
   @Input() errorText: string;
-  @Input() className: string;
   @Input() inputType = "text";
-  @Input() minDate: string;
-  @Input() fileTypes: string;
-  @Input() showAsterisk = true;
-  @Input() showError = true;  // for non form inputs
+  @Input() showError = false;  // for non form inputs
   @Input() required = false; // for non form inputs
-  @Input() set customMaxDate(val: string) {
-    this.maxDate = val;
-  }
   @Input() set inputLabel(val: string) {
     this.inputLabelName = val;
   }
 
   @Output() onInputChange: EventEmitter<string> = new EventEmitter<string>();  // for non form inputs
-
-  @Input() set disabled(val: boolean) {
-    const currentFormControl = this.currentFormControl();
-    if (currentFormControl) {
-      if (val) {
-        currentFormControl.disable();
-      } else {
-        currentFormControl.enable();
-      }
-    }
-  }
 
   readonly ButtonClass = ButtonClass;
   readonly ButtonSize = ButtonSize;
@@ -46,26 +28,23 @@ export class GenericInputComponent implements OnChanges {
   RequiredErrorMessage = "שדה זה הוא חובה";
   errorMessage: string;
   inputLabelName: string;
-  maxDate: string;
   showPassword = false;
   isFocused = false;
   isValid = false;
   isInvalid = false;
 
-  constructor(private dateService: DateService) {
-    this.maxDate = this.dateService.getTodaysDate();
-  }
+  constructor() {}
 
   ngOnChanges(changes: SimpleChanges): void {
     const isRequired = this.isRequired() || this.required;
 
     if (changes.errorText || changes.controlName) {
-      this.errorMessage = this.showError ? 
-        isRequired ? this.errorText ?? this.RequiredErrorMessage : this.errorText 
-        : '';
+      this.errorMessage = isRequired ? this.errorText ?? this.RequiredErrorMessage : this.errorText;
     }
-    if ((changes.inputLabel || changes.controlName) && this.showAsterisk) {
-      this.inputLabelName = isRequired ? this.inputLabelName + ' *' : this.inputLabelName;
+    if (changes.inputLabel || changes.controlName) {
+      if (changes.inputLabel.currentValue?.slice(-1) !== "*") {
+        this.inputLabelName = isRequired ? this.inputLabelName + ' *' : this.inputLabelName;
+      }
     }
   }
 
@@ -74,7 +53,7 @@ export class GenericInputComponent implements OnChanges {
   }
 
   isRequired(): boolean {
-    return this.required || !!this.currentFormControl()?.hasValidator(Validators.required);
+    return !!this.currentFormControl()?.hasValidator(Validators.required);
   }
 
   togglePasswordVisibility(): void {
@@ -83,15 +62,11 @@ export class GenericInputComponent implements OnChanges {
 
   onInputChanged(event): void {
     this.onInputKeyChange();
-    this.onInputChange?.emit(event?.detail?.value);
-  }
-  
-  onFileUpload(event): void {
-    this.onInputChange?.emit(event);
+    this.onInputChange.emit(event?.detail?.value);
   }
 
   onInputKeyChange(): void {
-    this.isValid = this.currentFormControl().valid;
+    this.isValid = !!this.currentFormControl()?.valid;
     this.isInvalid = !this.isValid;
   }
 
@@ -101,7 +76,8 @@ export class GenericInputComponent implements OnChanges {
 
   onBlur(): void {
     this.isFocused = false;
-    this.isValid = this.currentFormControl().valid;
+    this.isValid = !!this.currentFormControl()?.valid;
     this.isInvalid = !this.isValid;
   }
 }
+

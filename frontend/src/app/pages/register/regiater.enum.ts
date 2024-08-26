@@ -16,6 +16,7 @@ export enum RegisterFormControls {
         CHILD_LAST_NAME = "childLName",
         CHILD_ID = "childID",
         CHILD_DATE_OF_BIRTH = "childDate",
+        CONFIRM_PASSWORD = "confirmPassword",
         SPOUSEFIRSTNAME = "spouseFName",
         SPOUSELASTNAME = "spouseLName",
         SPOUSEID = "spouseId",

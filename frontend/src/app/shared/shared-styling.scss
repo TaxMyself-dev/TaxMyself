@@ -41,4 +41,23 @@
     &.wide {
         width: 250px;
     }
+
+    &.focused {
+        border-color: #3880ff;
+        border-width: 2px;
+    }
+
+    &.valid {
+        border-color: #2dd36f;
+    }
+
+    &.invalid {
+        border-color: rgb(235, 68, 90);
+    }
+}
+
+.errorText {
+    color: rgb(235, 68, 90);
+    margin-right: 16px;
+    font-size: 12px;
 }

@@ -1,0 +1,30 @@
+<form *ngIf="parentForm" class="generic-input-wrapper {{inputType}}" [formGroup]="parentForm">
+  <div 
+    class="generic-ionic-selectable-wrapper wide password-input-wrapper" 
+    [class.focused]="isFocused" 
+    [class.valid]="isValid && isFocused" 
+    [class.invalid]="isInvalid">
+    <ion-input 
+      [class.password-input]="inputType === 'password'" 
+      fill="outline" 
+      label-placement="floating" 
+      type="{{inputType === 'password' ? showPassword ? 'text' : 'password' : inputType}}"
+      [label]="inputLabelName" 
+      [formControlName]="controlName" 
+      [errorText]="errorMessage" 
+      (ionFocus)="onFocus()" 
+      (ionBlur)="onBlur()" 
+      (ionChange)="onInputChanged($event)" 
+      (ionInput)="onInputKeyChange()"
+    ></ion-input>
+    <app-button *ngIf="inputType === 'password'" 
+      class="password-eye-button" 
+      ariaLabel="{{showPassword ? 'הסתר סיסמא' : 'הראה סיסמא'}}" 
+      iconName="{{ showPassword ? 'eye-off' : 'eye' }}" 
+      iconPosition="end" 
+      [buttonSize]="ButtonSize.X_SMALL" 
+      [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" 
+      (onButtonClicked)="togglePasswordVisibility()"
+    ></app-button>
+  </div>
+</form>
