@@ -60,6 +60,8 @@ export class ExpenseDataService {
 
   public updateTable$: Subject<boolean> = new Subject();//I need to check what is do
   public isToastOpen$: Subject<boolean> = new Subject();
+  
+  token = localStorage.getItem('token');
 
 
   getColomnsOrder(): string[] {
@@ -91,18 +93,23 @@ export class ExpenseDataService {
     return this.http.get<any>(url, { params: params });
   }
 
-  getcategry(isEquipment: boolean): Observable<any[]> {
-    const url = `${environment.apiUrl}expenses/get-categories-list`
+  getcategry(isEquipment: boolean, isRecognized?: boolean): Observable<any[]> {
+    const url = `${environment.apiUrl}expenses/get-user-categories`;
+    const headers = {
+      'token': this.token
+    }
+    isRecognized ? null : isRecognized = true;//TODO: why i need to send it??
     const param = new HttpParams()
-      .set('isEquipment', isEquipment);
-    return this.http.get<any>(url, { params: param })
+      .set('isEquipment', isEquipment)
+      .set('isRecognized', isRecognized);
+    return this.http.get<any>(url, { params: param, headers: headers })
   }
 
   getAllSuppliers(): Observable<IGetSupplier[]> {
-    const token = localStorage.getItem('token');
+    //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;
     const param = new HttpParams()
-      .set('token', token);
+      .set('token', this.token);
     return this.http.get<IGetSupplier[]>(url, { params: param })
   }
 
@@ -117,9 +124,9 @@ export class ExpenseDataService {
   }
 
   deleteSupplier(id: number): Observable<any> {
-    const token = localStorage.getItem('token');
+    //const token = localStorage.getItem('token');
     const param = new HttpParams()
-      .set('token', token);
+      .set('token', this.token);
     const url = `${environment.apiUrl}expenses/delete-supplier/` + id;
     return this.http.delete(url, { params: param });
   }

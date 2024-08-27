@@ -131,9 +131,9 @@ export class AddTransactionComponent implements OnInit {
     this.expenseDataServise.getcategry(true)
       .pipe(
         map((res) => {
-          return res.map((item: string) => ({
-            name: item,
-            value: item
+          return res.map((item: IGetSubCategory) => ({
+            name: item.category,
+            value: item.category
           })
           )
         }))
@@ -148,9 +148,9 @@ export class AddTransactionComponent implements OnInit {
     this.expenseDataServise.getcategry(false)
       .pipe(
         map((res) => {
-          return res.map((item: string) => ({
-            name: item,
-            value: item
+          return res.map((item: IGetSubCategory) => ({
+            name: item.category,
+            value: item.category
           })
           )
         }))
@@ -197,8 +197,9 @@ export class AddTransactionComponent implements OnInit {
     }
     else {
       this.expenseDataServise.getSubCategory(event.value, false)
-        .pipe(
-          tap((data) => {
+      
+      .pipe(
+        tap((data) => {
             this.originalSubCategoryList = data;
             console.log(this.originalSubCategoryList);
           }),
