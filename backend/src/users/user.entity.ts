@@ -42,7 +42,7 @@ export class User {
     @Column()
     spouseId: string;
 
-    @Column('timestamp')
+    @Column({type: 'timestamp', nullable: true})
     spouseDateOfBirth: Date;
 
     @Column()

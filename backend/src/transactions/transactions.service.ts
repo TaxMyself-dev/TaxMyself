@@ -375,11 +375,11 @@ export class TransactionsService {
       } else {
         console.log("Bill sources before pushing:", bill.sources);
         bill.sources.forEach(source => {
-          console.log("Source being pushed:", source.sourceName);
+          //console.log("Source being pushed:", source.sourceName);
           sources.push(source.sourceName);
-          console.log("Sources array after pushing:", sources);
+          //console.log("Sources array after pushing:", sources);
         });
-        console.log("Bill sources after pushing:", sources);
+        //console.log("Bill sources after pushing:", sources);
       }
     });
     } else {

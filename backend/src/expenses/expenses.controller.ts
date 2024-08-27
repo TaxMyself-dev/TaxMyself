@@ -86,6 +86,7 @@ export class ExpensesController {
 
   @Get('get-categories-list')
   async getAllCategories(@Query('isEquipment') isEquipment: boolean): Promise<string[]> {
+    console.log("get-categories-list - start!");
     return this.expensesService.getAllCategories(isEquipment);
   }
 
@@ -95,6 +96,7 @@ export class ExpensesController {
           @Query('category') categoryQuery: string,
           @Query('isEquipment') isEquipmentQuery: boolean,
         ): Promise<DefaultCategory[]> {
+    console.log("get-sub-categories-list - start!");
     return this.expensesService.getSubcategoriesByCategory(categoryQuery, isEquipmentQuery);
   }
 
@@ -103,6 +105,7 @@ export class ExpensesController {
     @Headers('token') token: string,
     @Query('isEquipment') isEquipment: boolean | null,
     @Query('isRecognized') isRecognized: boolean | null): Promise<any[]> {
+    console.log("get-user-categories - start!");
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     //const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
     console.log("isEquipment_ is ", isEquipment);

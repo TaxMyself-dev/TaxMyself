@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNumber, IsPhoneNumber, IsDateString, IsBoolean, IsArray} from "class-validator";
+import { IsEmail, IsString, IsNumber, IsPhoneNumber, IsDateString, IsBoolean, IsArray, ValidateIf, IsOptional} from "class-validator";
 import { LargeNumberLike } from "crypto";
 import { ApiProperty } from '@nestjs/swagger'; // Import necessary decorators from '@nestjs/swagger' for API documentation
 
@@ -41,7 +41,9 @@ export class CreateUserDto {
     @IsNumber()
     spouseId: string;
 
+    @ValidateIf(o => o.familyStatus === 'נשוי')
     @IsString()
+    @IsOptional()
     spouseDateOfBirth: Date;
 
     @IsBoolean()
