@@ -5,9 +5,11 @@ import { SharedModule } from 'src/shared/shared.module';
 //Entities
 import { Expense } from './expenses.entity';
 import { User } from 'src/users/user.entity';
-import { DefaultCategory } from './categories.entity';
+import { DefaultSubCategory } from './default-sub-categories.entity copy';
+//import { DefaultCategory } from './categories.entity';
 import { Supplier } from './suppliers.entity';
-import { UserCategory } from './user-categories.entity';
+import { UserSubCategory } from './user-sub-categories.entity';
+//import { UserCategory } from './user-sub-categories.entity';
 //Controllers
 import { ExpensesController } from './expenses.controller';
 //Services
@@ -15,9 +17,10 @@ import { ExpensesService } from './expenses.service';
 import { AuthService } from 'src/users/auth.service';
 import { UsersService } from 'src/users/users.service';
 import { Child } from 'src/users/child.entity';
+import { Category } from './categories.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory, UserCategory, Supplier, Child ]),
+  imports: [TypeOrmModule.forFeature([Expense, User, Category, DefaultSubCategory, UserSubCategory, Supplier, Child ]),
             SharedModule],
   controllers: [ExpensesController],
   providers: [

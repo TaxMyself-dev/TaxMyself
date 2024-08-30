@@ -144,7 +144,7 @@ export class TransactionsService {
     if (isNewCategory) {
       try {
         const categoryData = {category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized};
-        await this.expenseService.addUserCategory(categoryData, userId);
+        //await this.expenseService.addUserCategory(categoryData, userId);
       } catch (error) {
         if (error instanceof ConflictException) {
           console.log('Category already exists:', error.message);

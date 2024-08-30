@@ -6,6 +6,7 @@ import {
  } from 'typeorm';
 import { Bill } from 'src/transactions/bill.entity';
 import { UserRole } from 'src/enum';
+import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
 
 @Entity()
 export class User {
@@ -84,4 +85,7 @@ export class User {
 
     @OneToMany(() => Bill, (bill) => bill.user)
     bills: Bill[];
+
+    @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.user)
+    userSubCategories: UserSubCategory[];
 }

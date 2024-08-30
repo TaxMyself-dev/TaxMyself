@@ -5,8 +5,12 @@ import { Repository} from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
-import { DefaultCategory } from './categories.entity';
-import { UserCategory } from './user-categories.entity';
+import { User } from 'src/users/user.entity';
+import { DefaultSubCategory } from './default-sub-categories.entity copy';
+import { Category } from './categories.entity';
+import { UserSubCategory } from './user-sub-categories.entity';
+//import { DefaultCategory } from './categories.entity';
+//import { UserCategory } from './user-sub-categories.entity';
 import { SharedService } from 'src/shared/shared.service';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -14,6 +18,7 @@ import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { CreateCategoryDto } from './dtos/create-category.dto';
+import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 
 //import { areNumbersEqual } 
 
@@ -25,8 +30,12 @@ export class ExpensesService {
     (
         private readonly sharedService: SharedService,
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
-        @InjectRepository(DefaultCategory) private defaultCategoryRepo: Repository<DefaultCategory>,
-        @InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
+        @InjectRepository(User) private userRepo: Repository<User>,
+        @InjectRepository(Category) private categoryRepo: Repository<Category>,
+        @InjectRepository(DefaultSubCategory) private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
+        @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
+        //@InjectRepository(DefaultCategory) private defaultCategoryRepo: Repository<DefaultCategory>,
+        //@InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
@@ -103,96 +112,281 @@ export class ExpensesService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    async addDefaultCategory(category: Partial<DefaultCategory>): Promise<DefaultCategory> {
-        console.log("addCategory - start");
-        const newCategory = this.defaultCategoryRepo.create(category);
-        return await this.defaultCategoryRepo.save(newCategory);
-    }
-
-
-
-    async addUserCategory(categoryData: Partial<CreateCategoryDto>, userId: string): Promise<UserCategory> {
-                                                
-        const existingUserCategory = await this.userCategoryRepo.findOne({ 
-            where: { userId: userId, category: categoryData.category, subCategory: categoryData.subCategory }
-        });
-
-        // const existingDefaultCategory = await this.defaultCategoryRepo.findOne({ 
-        //     where: { category: categoryData.category, subCategory: categoryData.subCategory }
-        // });
-
-        if (existingUserCategory) {
-            throw new ConflictException('Category and sub-category already exist for this user.');
+    async addUserCategory(
+        firebaseId: string,
+        createUserCategoryDto: CreateUserCategoryDto
+      ): Promise<UserSubCategory> {
+        
+        // Step 1: Validate that the user exists using the userId
+        const user = await this.userRepo.findOne({ where: { firebaseId } });
+        if (!user) {
+          throw new NotFoundException(`User with ID ${firebaseId} not found`);
         }
-
-        const newUserCategory = this.userCategoryRepo.create({ ...categoryData, userId });
-        return this.userCategoryRepo.save(newUserCategory);
-    }
-
-
-    async getAllCategories(isEquipment: boolean): Promise<string[]> {
-        const categories = await this.defaultCategoryRepo.find({
-            select: ['category'],
-            where: { isEquipment: isEquipment}
+    
+        // Step 2: Check if the category exists; if not, create it
+        let category = await this.categoryRepo.findOne({ where: { name: createUserCategoryDto.categoryName } });
+        if (!category) {
+          category = new Category();
+          category.name = createUserCategoryDto.categoryName;
+          category.isDefault = false; // Mark the category as user-defined
+          category = await this.categoryRepo.save(category);
+        }
+    
+        // Step 3: Check if the sub-category already exists for this user and category
+        const existingSubCategory = await this.userSubCategoryRepo.findOne({
+          where: {
+            name: createUserCategoryDto.subCategoryName,
+            category: category,
+            user: user,
+          },
         });
+    
+        if (existingSubCategory) {
+          throw new ConflictException(`Sub-category with name ${createUserCategoryDto.subCategoryName} already exists for this user and category`);
+        }
+    
+        // Step 4: Create and save the new user sub-category
+        const userSubCategory = new UserSubCategory();
+        userSubCategory.name = createUserCategoryDto.subCategoryName;
+        userSubCategory.taxPercent = createUserCategoryDto.taxPercent;
+        userSubCategory.vatPercent = createUserCategoryDto.vatPercent;
+        userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
+        userSubCategory.isEquipment = createUserCategoryDto.isEquipment;
+        userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
+        userSubCategory.category = category;
+        userSubCategory.user = user;  // Associate with the user found by userId
+    
+        return await this.userSubCategoryRepo.save(userSubCategory);
+      }
 
-        const uniqueCategoryNames = [...new Set(categories.map(category => category.category))];
-        return uniqueCategoryNames;
+
+    //   async getCategories(isDefault: boolean | null): Promise<Category[]> {
+
+    //     if (isDefault === null) {
+    //       return this.categoryRepo.find();
+    //     }
+    
+    //     return this.categoryRepo.find({ where: { isDefault } });
+    //   }
+
+
+      async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<Category[]> {
+
+        if (isDefault === null) {
+            if (!firebaseId) {
+                throw new Error('firebaseId must be provided to fetch user-specific categories.');
+            }
+            const query = this.categoryRepo.createQueryBuilder('category');
+            query.where('category.isDefault = :isDefault', { isDefault: true })
+                 .orWhere('category.firebaseId = :firebaseId', { firebaseId });
+            return query.getMany();
+        }
+    
+        // Case 2: isDefault is true or false
+        else if (isDefault === true) {
+            // Return only the default categories
+            return this.categoryRepo.find({ where: { isDefault: true } });
+        }
+        
+        else if (isDefault === false) {
+            // Return only the user-specific categories for the given firebaseId
+            if (!firebaseId) {
+                throw new Error('firebaseId must be provided to fetch user-specific categories.');
+            }
+            return this.categoryRepo.find({ where: { isDefault: false, firebaseId } });
+        }
     }
 
-    async getSubcategoriesByCategory(categoryName: string, isEquipment: boolean): Promise<DefaultCategory[]> {
-        return this.defaultCategoryRepo.find({
-          where: { 
-                    category: categoryName,
-                    isEquipment: isEquipment 
-                }
+
+      async getSubCategories(firebaseId: string, isEquipment: boolean | null, categoryId: number): Promise<UserSubCategory[]> {
+      
+        const userSubCategoryQuery = this.userSubCategoryRepo.createQueryBuilder('userSubCategory')
+            .innerJoinAndSelect('userSubCategory.category', 'category')
+            .innerJoin('userSubCategory.user', 'user') // Join the User entity
+            .where('user.firebaseId = :firebaseId', { firebaseId })
+            .andWhere('userSubCategory.category.id = :categoryId', { categoryId });
+      
+        // Apply the isEquipment filter if provided
+        if (isEquipment !== null) {
+          userSubCategoryQuery.andWhere('userSubCategory.isEquipment = :isEquipment', { isEquipment });
+        }
+      
+        const userSubCategories = await userSubCategoryQuery.getMany();
+      
+        // Step 3: Build the query for default sub-categories
+        const defaultSubCategoryQuery = this.defaultSubCategoryRepo.createQueryBuilder('defaultSubCategory')
+            .innerJoinAndSelect('defaultSubCategory.category', 'category')  // Eagerly load the category relation
+            .where('defaultSubCategory.category.id = :categoryId', { categoryId });
+      
+        // Apply the isEquipment filter if provided
+        if (isEquipment !== null) {
+          defaultSubCategoryQuery.andWhere('defaultSubCategory.isEquipment = :isEquipment', { isEquipment });
+        }
+      
+        const defaultSubCategories = await defaultSubCategoryQuery.getMany();
+      
+        // Step 4: Combine them, preferring user sub-categories in case of duplicates
+        const combinedSubCategories = new Map();
+      
+        // Add default sub-categories to the map
+        defaultSubCategories.forEach(subCategory => {
+          const key = `${subCategory.category.name}-${subCategory.name}`;
+          combinedSubCategories.set(key, subCategory);
         });
-    }
+      
+        // Add user sub-categories to the map, overriding any default sub-categories
+        userSubCategories.forEach(subCategory => {
+          const key = `${subCategory.category.name}-${subCategory.name}`;
+          combinedSubCategories.set(key, subCategory);
+        });
+      
+        // Step 5: Return the combined sub-categories as an array
+        return Array.from(combinedSubCategories.values());
+      }
 
 
-    async getDefaultAndUserCategories(userId: string, isEquipment: boolean | null, isRecognized: boolean | null): Promise<any[]> {
+     
 
-        console.log("combined categories start!");
-        console.log("isEquipment is ", isEquipment);
-        console.log("isRecognized is ", isRecognized);
+      
+
+    // async addUserCategory(
+    //     userId: string,
+    //     categoryName: string, // Change categoryId to categoryName
+    //     subCategoryData: Partial<UserSubCategory>
+    //   ): Promise<UserSubCategory> {
+    
+    //     // Step 1: Validate that the user exists
+    //     const user = await this.user_repo.findOne({ where: { userId } });
+    //     if (!user) {
+    //      throw new NotFoundException(`User with ID ${userId} not found`);
+    //     }
+    
+    //     // Step 2: Check if the category exists; if not, create it
+    //     let category = await this.categoryRepo.findOne({ where: { name: categoryName } });
+    //     if (!category) {
+    //       category = new Category();
+    //       category.name = categoryName;
+    //       category.isDefault = false; // Mark the category as user-defined
+    //       category = await this.categoryRepo.save(category);
+    //     }
+    
+    //     // Step 3: Check if the sub-category already exists for this user and category
+    //     const existingSubCategory = await this.userSubCategoryRepo.findOne({
+    //       where: {
+    //         name: subCategoryData.name,
+    //         category: category,
+    //         user: user,
+    //       },
+    //     });
+    
+    //     if (existingSubCategory) {
+    //       throw new ConflictException(`Sub-category with name ${subCategoryData.name} already exists for this user and category`);
+    //     }
+    
+    //     // Step 4: Create and save the new user sub-category
+    //     const userSubCategory = new UserSubCategory();
+    //     userSubCategory.name = subCategoryData.name;
+    //     userSubCategory.taxPercent = subCategoryData.taxPercent;
+    //     userSubCategory.vatPercent = subCategoryData.vatPercent;
+    //     userSubCategory.reductionPercent = subCategoryData.reductionPercent;
+    //     userSubCategory.isEquipment = subCategoryData.isEquipment;
+    //     userSubCategory.isRecognized = subCategoryData.isRecognized;
+    //     userSubCategory.category = category;
+    //     userSubCategory.user = user;
+    
+    //     return await this.userSubCategoryRepo.save(userSubCategory);
+    //   }
+
+
+
+
+
+    // async addDefaultCategory(category: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
+    //     console.log("addCategory - start");
+    //     const newCategory = this.defaultSubCategoryRepo.create(category);
+    //     return await this.defaultSubCategoryRepo.save(newCategory);
+    // }
+
+
+
+    // async addUserCategory(categoryData: Partial<CreateCategoryDto>, userId: string): Promise<UserSubCategory> {
+                                                
+    //     const existingUserCategory = await this.userSubCategoryRepo.findOne({ 
+    //         where: { userId: userId, category: categoryData.category, subCategory: categoryData.subCategory }
+    //     });
+
+    //     if (existingUserCategory) {
+    //         throw new ConflictException('Category and sub-category already exist for this user.');
+    //     }
+
+    //     const newUserCategory = this.userSubCategoryRepo.create({ ...categoryData, userId });
+    //     return this.userSubCategoryRepo.save(newUserCategory);
+    // }
+
+
+    // async getAllCategories(isEquipment: boolean): Promise<string[]> {
+    //     const categories = await this.defaultSubCategoryRepo.find({
+    //         select: ['category'],
+    //         where: { isEquipment: isEquipment}
+    //     });
+
+    //     const uniqueCategoryNames = [...new Set(categories.map(category => category.category))];
+    //     return uniqueCategoryNames;
+    // }
+
+    // async getSubcategoriesByCategory(categoryName: string, isEquipment: boolean): Promise<DefaultSubCategory[]> {
+    //     return this.defaultSubCategoryRepo.find({
+    //       where: { 
+    //                 category: categoryName,
+    //                 isEquipment: isEquipment 
+    //             }
+    //     });
+    // }
+
+
+    // async getDefaultAndUserCategories(userId: string, isEquipment: boolean | null, isRecognized: boolean | null): Promise<any[]> {
+
+    //     console.log("combined categories start!");
+    //     console.log("isEquipment is ", isEquipment);
+    //     console.log("isRecognized is ", isRecognized);
         
 
-        // Create dynamic query object
-        const categoryQuery: any = {};
+    //     // Create dynamic query object
+    //     const categoryQuery: any = {};
 
-        if (isEquipment !== null) {
-            categoryQuery.isEquipment = isEquipment;
-        }
+    //     if (isEquipment !== null) {
+    //         categoryQuery.isEquipment = isEquipment;
+    //     }
 
-        if (isRecognized !== null) {
-            categoryQuery.isRecognized = isRecognized;
-        }
+    //     if (isRecognized !== null) {
+    //         categoryQuery.isRecognized = isRecognized;
+    //     }
 
-        // Fetch user categories with userId
-        const userCategoryQuery = { ...categoryQuery, userId };
-        const userCategories = await this.userCategoryRepo.find({ where: userCategoryQuery });
+    //     // Fetch user categories with userId
+    //     const userCategoryQuery = { ...categoryQuery, userId };
+    //     const userCategories = await this.userSubCategoryRepo.find({ where: userCategoryQuery });
 
-        // Fetch default categories
-        const defaultCategories = await this.defaultCategoryRepo.find({ where: categoryQuery });
+    //     // Fetch default categories
+    //     const defaultCategories = await this.defaultSubCategoryRepo.find({ where: categoryQuery });
     
-        const combinedCategories = new Map();
+    //     const combinedCategories = new Map();
     
-        // Add default categories to the map
-        defaultCategories.forEach(category => {
-          const key = `${category.category}-${category.subCategory}`;
-          combinedCategories.set(key, category);
-        });
+    //     // Add default categories to the map
+    //     defaultCategories.forEach(category => {
+    //       const key = `${category.category}-${category.subCategory}`;
+    //       combinedCategories.set(key, category);
+    //     });
     
-        // Add user categories to the map, overriding any default categories
-        userCategories.forEach(category => {
-          const key = `${category.category}-${category.subCategory}`;
-          combinedCategories.set(key, category);
-        });
+    //     // Add user categories to the map, overriding any default categories
+    //     userCategories.forEach(category => {
+    //       const key = `${category.category}-${category.subCategory}`;
+    //       combinedCategories.set(key, category);
+    //     });
 
-        console.log("combimedCategories are ", combinedCategories);
+    //     console.log("combimedCategories are ", combinedCategories);
     
-        return Array.from(combinedCategories.values());
-    }
+    //     return Array.from(combinedCategories.values());
+    // }
 
 
     ///////////////////////////////////////////////////////////////////////////////////////////////

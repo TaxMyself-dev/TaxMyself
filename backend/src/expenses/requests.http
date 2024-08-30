@@ -150,3 +150,27 @@ GET http://localhost:3000/expenses?userId=8&price=450&tax_percent=25
 
 ### Delete a user with a given ID
 DELETE http://localhost:3000/expenses/1
+
+
+###
+POST http://localhost:3000/expenses/add-user-category
+Content-Type: application/json
+Authorization: Bearer <klsjdflaj>
+
+{
+  "categoryName": "Utilities",
+  "subCategoryName": "Electricity",
+  "taxPercent": 10,
+  "vatPercent": 17,
+  "reductionPercent": 5,
+  "isEquipment": false,
+  "isRecognized": true
+}
+
+
+
+### Test Case 1: Get all categories for a specific category
+GET http://localhost:3000/expenses/get-categories?isDefault=null
+
+### Test Case 1: Get all sub-categories for a specific category
+GET http://localhost:3000/expenses/get-sub-categories?categoryId=2

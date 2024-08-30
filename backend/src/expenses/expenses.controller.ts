@@ -1,9 +1,10 @@
 //General
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { Request } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
-import { DefaultCategory } from './categories.entity';
+import { DefaultSubCategory } from './default-sub-categories.entity copy';
+//import { DefaultCategory } from './categories.entity';
 //Services
 import { ExpensesService } from './expenses.service';
 import { UsersService } from 'src/users/users.service';
@@ -21,6 +22,8 @@ import { AdminGuard } from 'src/guards/admin.guard';
 
 import { parse } from 'date-fns';
 import { getDayOfYear } from 'date-fns';
+import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
+import { Category } from './categories.entity';
 
 
 @Controller('expenses')
@@ -70,48 +73,100 @@ export class ExpensesController {
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-  @Post('add-default-category')
-  @UseGuards(AdminGuard)
-  async addDefaultCategory(@Body() body: CreateCategoryDto) {
-    return await this.expensesService.addDefaultCategory(body); 
-  }
-  
+  // @Post('add-default-category')
+  // @UseGuards(AdminGuard)
+  // async addDefaultCategory(@Body() body: CreateCategoryDto) {
+  //   return await this.expensesService.addDefaultCategory(body); 
+  // }
 
   @Post('add-user-category')
-  async addUserCategory(@Body() body: CreateCategoryDto) {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    return await this.expensesService.addUserCategory(body, userId); 
-  } 
-
-
-  @Get('get-categories-list')
-  async getAllCategories(@Query('isEquipment') isEquipment: boolean): Promise<string[]> {
-    console.log("get-categories-list - start!");
-    return this.expensesService.getAllCategories(isEquipment);
+  async addUserCategory(
+  @Headers('token') token: string,
+  @Body() createUserCategoryDto: CreateUserCategoryDto) {
+    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    //const firebaseId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
+    return this.expensesService.addUserCategory(firebaseId, createUserCategoryDto);
   }
 
 
-  @Get('get-sub-categories-list')
-  async getSubCategoriesByCategory(
-          @Query('category') categoryQuery: string,
-          @Query('isEquipment') isEquipmentQuery: boolean,
-        ): Promise<DefaultCategory[]> {
-    console.log("get-sub-categories-list - start!");
-    return this.expensesService.getSubcategoriesByCategory(categoryQuery, isEquipmentQuery);
-  }
+  // @Get('get-categories')
+  // async getCategories(@Query('isDefault') isDefault: string): Promise<Category[]> {
+  //   // Convert the isDefault query parameter to boolean or null
+  //   const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
+  //   return this.expensesService.getCategories(isDefaultValue);
+  // }
 
-  @Get('get-user-categories')
-  async getDefaultAndUserCategories(
+  @Get('get-categories')
+  async getCategories(
     @Headers('token') token: string,
-    @Query('isEquipment') isEquipment: boolean | null,
-    @Query('isRecognized') isRecognized: boolean | null): Promise<any[]> {
-    console.log("get-user-categories - start!");
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
-    //const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
-    console.log("isEquipment_ is ", isEquipment);
-    console.log("isRecognized_ is ", isRecognized);
-    return this.expensesService.getDefaultAndUserCategories(userId, isEquipment, isRecognized);
+    @Query('isDefault') isDefault: string
+  ): Promise<any[]> {
+    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    //const firebaseId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
+    const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
+    return this.expensesService.getCategories(isDefaultValue, firebaseId);
   }
+
+
+  @Get('get-sub-categories')
+  async getSubCategories(
+    @Headers('token') token: string,
+    @Query('isEquipment') isEquipment: string,  // Query parameter to filter by isEquipment
+    @Query('categoryId') categoryId: string     // Query parameter for the categoryId
+  ): Promise<any[]> {
+
+    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    //const firebaseId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
+
+    // Convert isEquipment to boolean or null
+    const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
+
+    const categoryIdValue = parseInt(categoryId, 10);
+    if (isNaN(categoryIdValue)) {
+      throw new BadRequestException('Invalid categoryId');
+    }
+
+    // Call the service method to get the sub-categories
+    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, categoryIdValue);
+  }
+
+
+  // @Post('add-user-category')
+  // async addUserCategory(@Body() body: CreateCategoryDto) {
+
+  //   const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+  //   return await this.expensesService.addUserCategory(body, userId); 
+  // } 
+
+
+  // @Get('get-categories-list')
+  // async getAllCategories(@Query('isEquipment') isEquipment: boolean): Promise<string[]> {
+  //   console.log("get-categories-list - start!");
+  //   //return this.expensesService.getAllCategories(isEquipment);
+  // }
+
+
+  // @Get('get-sub-categories-list')
+  // async getSubCategoriesByCategory(
+  //         @Query('category') categoryQuery: string,
+  //         @Query('isEquipment') isEquipmentQuery: boolean,
+  //       ): Promise<DefaultSubCategory[]> {
+  //   console.log("get-sub-categories-list - start!");
+  //   return this.expensesService.getSubcategoriesByCategory(categoryQuery, isEquipmentQuery);
+  // }
+
+  // @Get('get-user-categories')
+  // async getDefaultAndUserCategories(
+  //   @Headers('token') token: string,
+  //   @Query('isEquipment') isEquipment: boolean | null,
+  //   @Query('isRecognized') isRecognized: boolean | null): Promise<any[]> {
+  //   console.log("get-user-categories - start!");
+  //   const userId = await this.usersService.getFirbsaeIdByToken(token);
+  //   //const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
+  //   console.log("isEquipment_ is ", isEquipment);
+  //   console.log("isRecognized_ is ", isRecognized);
+  //   return this.expensesService.getDefaultAndUserCategories(userId, isEquipment, isRecognized);
+  // }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////

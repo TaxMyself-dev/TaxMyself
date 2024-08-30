@@ -1,30 +1,60 @@
-import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany} from 'typeorm';
+
+import { DefaultSubCategory } from './default-sub-categories.entity copy';
+import { UserSubCategory } from './user-sub-categories.entity';
 
 @Entity()
-export class DefaultCategory {
+export class Category {
 
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column()
-    subCategory: string;
+  @Column()
+  name: string;
 
-    @Column()
-    category: string;
+  @Column({ default: false })
+  isDefault: boolean;
 
-    @Column('decimal')
-    taxPercent: number;
-  
-    @Column('decimal')
-    vatPercent: number;
+  @Column({ nullable: true })
+  firebaseId: string;
 
-    @Column('decimal')
-    reductionPercent: number;
+  @OneToMany(() => DefaultSubCategory, defaultSubCategory => defaultSubCategory.category)
+  defaultSubCategories: DefaultSubCategory[];
 
-    @Column('boolean')
-    isEquipment: boolean;
-
-    @Column('boolean')
-    isRecognized: boolean; 
-
+  @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.category)
+  userSubCategories: UserSubCategory[];
 }
+
+// @Entity()
+// export class DefaultCategory {
+
+//     @PrimaryGeneratedColumn()
+//     id: number;
+
+//     @Column()
+//     subCategory: string;
+
+//     @Column()
+//     category: string;
+
+//     @Column('decimal')
+//     taxPercent: number;
+  
+//     @Column('decimal')
+//     vatPercent: number;
+
+//     @Column('decimal')
+//     reductionPercent: number;
+
+//     @Column('boolean')
+//     isEquipment: boolean;
+
+//     @Column('boolean')
+//     isRecognized: boolean; 
+
+// }
+
+
+
+
+

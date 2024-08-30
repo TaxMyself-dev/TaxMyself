@@ -4,8 +4,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 //Entities
 import { Expense } from 'src/expenses/expenses.entity';
-import { DefaultCategory } from 'src/expenses/categories.entity';
-import { UserCategory } from 'src/expenses/user-categories.entity';
+import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity copy';
+//import { DefaultCategory } from 'src/expenses/categories.entity';
+import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+//import { UserCategory } from 'src/expenses/user-categories.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
 import { User } from 'src/users/user.entity';
 import { Child } from 'src/users/child.entity';
@@ -15,10 +17,11 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { ExpensesService } from 'src/expenses/expenses.service';
 import { UsersService } from 'src/users/users.service';
+import { Category } from 'src/expenses/categories.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, DefaultCategory, UserCategory, Supplier, User, Child]),
+  imports: [TypeOrmModule.forFeature([Expense, Category, DefaultSubCategory, UserSubCategory, Supplier, User, Child]),
             SharedModule],
   controllers: [ReportsController],
   providers: [ReportsService, ExpensesService, UsersService]

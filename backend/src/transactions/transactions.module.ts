@@ -13,12 +13,15 @@ import { Source } from './source.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { ExpensesService } from 'src/expenses/expenses.service';
-import { UserCategory } from 'src/expenses/user-categories.entity';
-import { DefaultCategory } from 'src/expenses/categories.entity';
+import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+//import { UserCategory } from 'src/expenses/user-categories.entity';
+import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity copy';
+//import { DefaultCategory } from 'src/expenses/categories.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
+import { Category } from 'src/expenses/categories.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, UserCategory, Supplier, ClassifiedTransactions, Bill, Source, Child])],
+  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, Category, DefaultSubCategory, UserSubCategory, Supplier, ClassifiedTransactions, Bill, Source, Child])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
