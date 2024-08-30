@@ -3,7 +3,7 @@ import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers,
 import { Request } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity copy';
+import { DefaultSubCategory } from './default-sub-categories.entity';
 //import { DefaultCategory } from './categories.entity';
 //Services
 import { ExpensesService } from './expenses.service';
@@ -73,12 +73,6 @@ export class ExpensesController {
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-  // @Post('add-default-category')
-  // @UseGuards(AdminGuard)
-  // async addDefaultCategory(@Body() body: CreateCategoryDto) {
-  //   return await this.expensesService.addDefaultCategory(body); 
-  // }
-
   @Post('add-user-category')
   async addUserCategory(
   @Headers('token') token: string,
@@ -88,13 +82,6 @@ export class ExpensesController {
     return this.expensesService.addUserCategory(firebaseId, createUserCategoryDto);
   }
 
-
-  // @Get('get-categories')
-  // async getCategories(@Query('isDefault') isDefault: string): Promise<Category[]> {
-  //   // Convert the isDefault query parameter to boolean or null
-  //   const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
-  //   return this.expensesService.getCategories(isDefaultValue);
-  // }
 
   @Get('get-categories')
   async getCategories(
@@ -129,44 +116,6 @@ export class ExpensesController {
     // Call the service method to get the sub-categories
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, categoryIdValue);
   }
-
-
-  // @Post('add-user-category')
-  // async addUserCategory(@Body() body: CreateCategoryDto) {
-
-  //   const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-  //   return await this.expensesService.addUserCategory(body, userId); 
-  // } 
-
-
-  // @Get('get-categories-list')
-  // async getAllCategories(@Query('isEquipment') isEquipment: boolean): Promise<string[]> {
-  //   console.log("get-categories-list - start!");
-  //   //return this.expensesService.getAllCategories(isEquipment);
-  // }
-
-
-  // @Get('get-sub-categories-list')
-  // async getSubCategoriesByCategory(
-  //         @Query('category') categoryQuery: string,
-  //         @Query('isEquipment') isEquipmentQuery: boolean,
-  //       ): Promise<DefaultSubCategory[]> {
-  //   console.log("get-sub-categories-list - start!");
-  //   return this.expensesService.getSubcategoriesByCategory(categoryQuery, isEquipmentQuery);
-  // }
-
-  // @Get('get-user-categories')
-  // async getDefaultAndUserCategories(
-  //   @Headers('token') token: string,
-  //   @Query('isEquipment') isEquipment: boolean | null,
-  //   @Query('isRecognized') isRecognized: boolean | null): Promise<any[]> {
-  //   console.log("get-user-categories - start!");
-  //   const userId = await this.usersService.getFirbsaeIdByToken(token);
-  //   //const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
-  //   console.log("isEquipment_ is ", isEquipment);
-  //   console.log("isRecognized_ is ", isRecognized);
-  //   return this.expensesService.getDefaultAndUserCategories(userId, isEquipment, isRecognized);
-  // }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////

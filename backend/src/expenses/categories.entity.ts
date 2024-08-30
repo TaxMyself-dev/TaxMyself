@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany} from 'typeorm';
 
-import { DefaultSubCategory } from './default-sub-categories.entity copy';
+import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 
 @Entity()

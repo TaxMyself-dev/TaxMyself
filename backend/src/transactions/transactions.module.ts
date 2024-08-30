@@ -14,9 +14,7 @@ import { SharedService } from 'src/shared/shared.service';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { ExpensesService } from 'src/expenses/expenses.service';
 import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
-//import { UserCategory } from 'src/expenses/user-categories.entity';
-import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity copy';
-//import { DefaultCategory } from 'src/expenses/categories.entity';
+import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
 import { Category } from 'src/expenses/categories.entity';
 

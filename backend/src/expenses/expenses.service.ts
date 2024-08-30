@@ -6,7 +6,7 @@ import { Repository} from 'typeorm';
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { User } from 'src/users/user.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity copy';
+import { DefaultSubCategory } from './default-sub-categories.entity';
 import { Category } from './categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 //import { DefaultCategory } from './categories.entity';
@@ -158,16 +158,6 @@ export class ExpensesService {
     
         return await this.userSubCategoryRepo.save(userSubCategory);
       }
-
-
-    //   async getCategories(isDefault: boolean | null): Promise<Category[]> {
-
-    //     if (isDefault === null) {
-    //       return this.categoryRepo.find();
-    //     }
-    
-    //     return this.categoryRepo.find({ where: { isDefault } });
-    //   }
 
 
       async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<Category[]> {

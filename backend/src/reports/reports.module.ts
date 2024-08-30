@@ -4,10 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 //Entities
 import { Expense } from 'src/expenses/expenses.entity';
-import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity copy';
-//import { DefaultCategory } from 'src/expenses/categories.entity';
+import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity';
 import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
-//import { UserCategory } from 'src/expenses/user-categories.entity';
 import { Supplier } from 'src/expenses/suppliers.entity';
 import { User } from 'src/users/user.entity';
 import { Child } from 'src/users/child.entity';

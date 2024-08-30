@@ -5,11 +5,9 @@ import { SharedModule } from 'src/shared/shared.module';
 //Entities
 import { Expense } from './expenses.entity';
 import { User } from 'src/users/user.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity copy';
-//import { DefaultCategory } from './categories.entity';
+import { DefaultSubCategory } from './default-sub-categories.entity';
 import { Supplier } from './suppliers.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
-//import { UserCategory } from './user-sub-categories.entity';
 //Controllers
 import { ExpensesController } from './expenses.controller';
 //Services
