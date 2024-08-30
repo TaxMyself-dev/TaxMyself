@@ -57,11 +57,11 @@
           <!-------id number------->
           <app-generic-input inputLabel="תעודת זהות" [controlName]="registerFormControls.ID" [parentForm]="personalForm"></app-generic-input>
           <!-----email ---->
-          <app-generic-input inputType="email" inputLabel="כתובת מייל" [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm"></app-generic-input>
+          <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="כתובת מייל" [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm"></app-generic-input>
           <!----phone ----->
-          <app-generic-input inputType="tel" inputLabel="מספר פלאפון" [controlName]="registerFormControls.PHONE" [parentForm]="personalForm"></app-generic-input>
+          <app-generic-input [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון" [controlName]="registerFormControls.PHONE" [parentForm]="personalForm"></app-generic-input>
           <!-----date of birth----->
-          <app-generic-input inputType="date" inputLabel="תאריך לידה" [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
+          <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
           <!---------city ----->
           <ion-item class="generic-ionic-selectable-wrapper">
             <ion-label>עיר</ion-label>
@@ -93,9 +93,9 @@
           <!-------id number------->
           <app-generic-input inputLabel="תעודת זהות" [controlName]="registerFormControls.SPOUSEID" [parentForm]="spouseForm"></app-generic-input>
           <!----phone ----->
-          <app-generic-input inputType="tel" inputLabel="מספר פלאפון" [controlName]="registerFormControls.SPOUSEPHONE" [parentForm]="spouseForm"></app-generic-input>
+          <app-generic-input [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון" [controlName]="registerFormControls.SPOUSEPHONE" [parentForm]="spouseForm"></app-generic-input>
           <!-----date of birth----->
-          <app-generic-input inputType="date" inputLabel="תאריך לידה" [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
+          <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
           <!--------------- employee ------------->
           <app-generic-select [controlName]="registerFormControls.SPOUSEINDEPENDET" title="סטטוס תעסוקתי" [items]="EmploymentStatusList" [parentForm]="spouseForm"></app-generic-select>
         </form>
@@ -118,7 +118,7 @@
                 <!-------id of child----->
                 <app-generic-input class="input-register-child" inputLabel="תעודת זהות של הילד" [controlName]="registerFormControls.CHILD_ID" [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                 <!-------dateBirth of child----->
-                <app-generic-input class="input-register-child" inputType="date" inputLabel="תאריך לידה" [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" [parentForm]="getChildFormByIndex(i)"></app-generic-input>
+                <app-generic-input class="input-register-child" [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                 <!------- buttons add and remove child----->
                 <app-button class="child-button" aria-label="הוסף ילד" iconName="add-outline" [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY" (onButtonClicked)="addChild()"></app-button>
                 <app-button class="child-button" aria-label="הסר ילד" iconName="remove-outline" [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY" [buttonStyle]="{}" (onButtonClicked)="removeChild(i)"></app-button>
@@ -141,7 +141,7 @@
             <!-------Business id------>
             <app-generic-input inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSID" [parentForm]="businessForm"></app-generic-input>
             <!------- business date ----->
-            <app-generic-input inputType="date" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input>
+            <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input>
             <!------- business inventory ----->
             <app-generic-select [controlName]="registerFormControls.BUSINESSINVENTORY" title="האם העסק מנהל מלאי?" [items]="employeeList" [parentForm]="businessForm"></app-generic-select>
           </form>
@@ -151,8 +151,8 @@
         <ng-container *ngSwitchCase="registerFormModules.VALIDATION">
           <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm" class="validation-form-register">
             <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
-            <app-generic-input inputType="password" inputLabel="סיסמא" [controlName]="registerFormControls.PASSWORD" [parentForm]="validationForm" [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>
-            <app-generic-input inputType="password" inputLabel="אימות סיסמא" [controlName]="registerFormControls.CONFIRM_PASSWORD" [parentForm]="validationForm" [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)" (onInputChange)="checkPassword($event)"></app-generic-input>
+            <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="סיסמא" [controlName]="registerFormControls.PASSWORD" [parentForm]="validationForm" [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>
+            <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="אימות סיסמא" [controlName]="registerFormControls.CONFIRM_PASSWORD" [parentForm]="validationForm" [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)" (onInputChange)="checkPassword($event)"></app-generic-input>
           </form>
         </ng-container>
 

@@ -43,6 +43,9 @@
           <ng-container *ngSwitchCase="ICellRenderer.CATEGORY">
             <ng-container *ngTemplateOutlet="categoryRenderCell"></ng-container>
           </ng-container>
+          <ng-container *ngSwitchCase="ICellRenderer.DATE">
+            <ng-container *ngTemplateOutlet="dateRenderCell"></ng-container>
+          </ng-container>
           <ng-container *ngSwitchDefault>
             <ng-container *ngTemplateOutlet="defaultCell"></ng-container>
           </ng-container>
@@ -75,12 +78,21 @@
           *ngIf="field.value === 'טרם סווג'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
-                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize"
+                [size]="columnsWidth?.get(field.key) ?? baseSize"
                 (click)="openAddTransaction(row)">
                 <span class="text-special-cell">טרם סווג</span>
           </ion-col>
         </ng-template>
-        
+
+        <ng-template #dateRenderCell>
+          <ion-col
+                *ngIf="!columnsToIgnore.includes(field.key)"
+                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                [size]="columnsWidth?.get(field.key) ?? baseSize">
+                {{+field.value*1000 | date:'shortDate'}}
+          </ion-col>
+        </ng-template>
+
       </ng-container>
       <ng-container  *ngIf="!disableCheckbox">
       <div class="checkbox">

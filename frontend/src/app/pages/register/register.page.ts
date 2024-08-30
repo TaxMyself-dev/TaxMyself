@@ -9,6 +9,7 @@ import { startWith, Subject, takeUntil, tap } from 'rxjs';
 import { IonicSelectableComponent } from 'ionic-selectable';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { cloneDeep } from 'lodash';
+import { FormTypes } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-register',
@@ -20,6 +21,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormControls = RegisterFormControls;
   readonly ButtonClass = ButtonClass;
   readonly ButtonSize = ButtonSize;
+  readonly formTypes = FormTypes;
   
   private ngUnsubscribe = new Subject();
   

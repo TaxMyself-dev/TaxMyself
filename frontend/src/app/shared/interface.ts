@@ -124,7 +124,7 @@ export interface ITransactionData {
     isRecognized: boolean | string,
     vatPercent: number,
     taxPercent: number,
-    isEquipment: boolean,
+    isEquipment: boolean | string,
     reductionPercent: number,
     id: number;
     name: string;

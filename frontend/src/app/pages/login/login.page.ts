@@ -6,6 +6,7 @@ import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
 import { EMPTY, Subject, catchError, finalize } from 'rxjs';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
+import { FormTypes } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-login',
@@ -15,6 +16,7 @@ import { ButtonSize } from 'src/app/shared/button/button.enum';
 })
 export class LoginPage implements OnInit {
   readonly ButtonSize = ButtonSize;
+  readonly formTypes = FormTypes;
 
   emailVerify: boolean = true;
   userEmailForReset: string = "";

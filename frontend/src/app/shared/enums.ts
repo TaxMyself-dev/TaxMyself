@@ -4,7 +4,10 @@ export enum FormTypes {
     DDL = 'ddl',
     FILE = 'file',
     DATE = 'date',
-    NUMBER = 'number'
+    NUMBER = 'number',
+    EMAIL = 'email',
+    PASSWORD = 'password',
+    TELEPHONE = 'tel'
 }
 
 export enum ExpenseFormHebrewColumns {
@@ -62,21 +65,23 @@ export enum ExpenseFormColumns {
   }
   
   export enum TransactionsOutcomesColumns {
+    TAX_PERCENT = 'taxPercent',
+    VAT_PERCENT = 'vatPercent',
     TOTAL_TAX = 'totalTaxPayable',
     TOTAL_VAT = 'totalVatPayable',
     ID = 'id',
-    // change this to dateTimeStamp
     REDUCTION_PERCENT = 'reductionPercent',
-  BILL_NUMBER = 'paymentIdentifier',
-  PAY_DATE = 'pay_date',
-  BILL_DATE = 'bill_date',
-  BILL_NAME = 'billName',
-  IS_RECOGNIZED = 'is_recognized',
-  NAME = 'name',
-  SUM = 'sum',
-  CATEGORY = 'category',
-  SUBCATEGORY = 'subCategory',
-  CHECKBOX = 'checkbox'
+    BILL_NUMBER = 'paymentIdentifier',
+    PAY_DATE = 'payDate',
+    BILL_DATE = 'billDate',
+    BILL_NAME = 'billName',
+    IS_RECOGNIZED = 'isRecognized',
+    IS_EQUIPMENT = 'isEquipment',
+    NAME = 'name',
+    SUM = 'sum',
+    CATEGORY = 'category',
+    SUBCATEGORY = 'subCategory',
+    CHECKBOX = 'checkbox'
 
 }
 
@@ -91,6 +96,7 @@ export enum TransactionsOutcomesHebrewColumns {
   subCategory = 'תת-קטגוריה',
   billName = 'חשבון',
   isRecognized = 'הוצאה מוכרת',
+  isEquipment = 'מוכר כציוד',
   reductionPercent = 'אחוז פחת',
   totalTax = 'מוכר למס',
   totalVat = 'מוכר למע"מ',
@@ -125,5 +131,6 @@ export enum TransactionsOutcomesHebrewColumns {
     CATEGORY = 'category',
     SUBCATEGORY = 'subCategory',
     BILL = 'billName',
-    CHECKBOX = 'checkbox'
+    CHECKBOX = 'checkbox',
+    DATE = 'date'
   }

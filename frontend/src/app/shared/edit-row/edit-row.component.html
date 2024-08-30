@@ -1,0 +1,13 @@
+<form *ngIf="parentForm" class="edit-row-screen">
+  <ng-container *ngFor="let field of fields">
+    <ng-container *ngIf="field.name ==='category' || field.name ==='subCategory'; else input">
+      <app-generic-select [items]="field.name === 'category' ? combinedListCategory : combinedListCategory " [parentForm]="parentForm" controlName="{{field.name}}" title="{{field.value}}"></app-generic-select>
+    </ng-container>
+
+    <ng-template #input>
+      <app-generic-input [parentForm]="parentForm" controlName="{{field.name}}" inputLabel="{{field.value}}"
+        [inputType]="field.type" [disabled]="disabledFields?.includes(field.name)"></app-generic-input>
+    </ng-template>
+  </ng-container>
+
+</form>

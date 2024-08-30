@@ -48,12 +48,12 @@
 
     <ion-card-content class="login-card-content">
       <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="signin()">
-        <app-generic-input inputType="email" inputLabel="אימייל" controlName="userName" className="wide" [parentForm]="loginForm" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
-        <app-generic-input inputType="password" inputLabel="סיסמא" controlName="password" [parentForm]="loginForm" [showAsterisk]="false" [showError]="false"></app-generic-input>  
+        <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="אימייל" controlName="userName" className="wide" [parentForm]="loginForm" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
+        <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="סיסמא" controlName="password" [parentForm]="loginForm" [showAsterisk]="false" [showError]="false"></app-generic-input>  
         <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.loginForm.invalid" buttonText="התחבר" (onButtonClicked)="signin()"></app-button>
       </ng-container>
       <ng-template #resetTemplate>
-        <app-generic-input (keyup.enter)="resetPassword()" inputType="email" inputLabel="אימייל" className="wide" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'" controlName="userName" [parentForm]="resetForm" (onInputChange)="saveEmailForReset($event)"></app-generic-input>
+        <app-generic-input (keyup.enter)="resetPassword()" [inputType]="formTypes.EMAIL" inputLabel="אימייל" className="wide" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'" controlName="userName" [parentForm]="resetForm" (onInputChange)="saveEmailForReset($event)"></app-generic-input>
         <div class="reset-buttons">
           <app-button [buttonSize]="ButtonSize.SMALL" buttonText="חזור" (onButtonClicked)="switchMode(false)"></app-button>
           <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.resetForm.invalid" buttonText="שלח" (onButtonClicked)="resetPassword()"></app-button>

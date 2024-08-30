@@ -58,7 +58,7 @@ export class FlowReportPage implements OnInit {
       }),
       map((data) => {
         data.forEach((row) => {
-          row.billDate = this.transactionService.timestampToDateStr(row.billDate as number)
+          //row.billDate = this.transactionService.timestampToDateStr(row.billDate as number)
         })
         return data;
       }),

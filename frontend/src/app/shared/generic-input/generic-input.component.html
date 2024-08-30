@@ -1,15 +1,15 @@
 <form *ngIf="parentForm; else notForm" class="generic-input-wrapper {{inputType}}" [formGroup]="parentForm">
   <ng-container [ngSwitch]="inputType">
-    <ion-input *ngSwitchCase="'date'" class="generic-input-style {{className}}" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate"></ion-input>
-    <app-custom-input *ngSwitchCase="'password'" [controlName]="controlName" [inputLabel]="inputLabelName" [errorText]="errorMessage" [inputType]="inputType" [parentForm]="parentForm"></app-custom-input>
-    <ion-input *ngSwitchCase="'file'" (input)="onFileUpload($event)" [formControlName]="controlName" type="file" [accept]="fileTypes" [errorText]="errorMessage"></ion-input>
-    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType"></ion-input>
+    <ion-input *ngSwitchCase="formTypes.DATE" class="generic-input-style {{className}}" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate"></ion-input>
+    <app-custom-input *ngSwitchCase="formTypes.PASSWORD" [controlName]="controlName" [inputLabel]="inputLabelName" [errorText]="errorMessage" [inputType]="inputType" [parentForm]="parentForm"></app-custom-input>
+    <ion-input *ngSwitchCase="formTypes.FILE" (input)="onFileUpload($event)" [formControlName]="controlName" [type]="formTypes.FILE" [accept]="fileTypes" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value"></ion-input>
+    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [value]="parentForm.get(controlName)?.value"></ion-input>
   </ng-container>
 </form>
 
 <ng-template #notForm>
   <ng-container [ngSwitch]="inputType">
-    <ion-input *ngSwitchCase="'date'" class="generic-input-style {{className}}" [label]="inputLabelName" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate" (ionChange)="onInputChanged($event)"></ion-input>
+    <ion-input *ngSwitchCase="formTypes.DATE" class="generic-input-style {{className}}" [label]="inputLabelName" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate" (ionChange)="onInputChanged($event)"></ion-input>
     <!-- TO DO: implement notform custom input -->
     <!-- <app-custom-input *ngSwitchCase="'password'" [inputLabel]="inputLabelName" [errorText]="errorMessage" [inputType]="inputType"></app-custom-input> -->
     <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" (ionChange)="onInputChanged($event)"></ion-input>

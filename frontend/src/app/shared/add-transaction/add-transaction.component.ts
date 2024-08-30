@@ -58,21 +58,6 @@ export class AddTransactionComponent implements OnInit {
       // )
     })
 
-    // this.existCategoryNotEquipmentForm = this.formBuilder.group({
-    //   isSingleUpdate: new FormControl(
-    //     false, [Validators.required,]
-    //   ),
-    //   category: new FormControl(
-    //     '', [Validators.required,]
-    //   ),
-    //   subCategory: new FormControl(
-    //     '', [Validators.required,]
-    //   ),
-      // isEquipment: new FormControl(
-      //   false, [Validators.required,]
-      // )
-    // })
-
     this.newCategoryIsRecognizeForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         '', [Validators.required,]

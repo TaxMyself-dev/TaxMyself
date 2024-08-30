@@ -9,6 +9,8 @@ import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { Router } from '@angular/router';
+import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
+import { DateService } from 'src/app/services/date.service';
 
 @Component({
   selector: 'app-transactions',
@@ -29,24 +31,44 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
   ];
-  fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+  editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.DATE },
-    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.DATE, cellRenderer: ICellRenderer.BILL },
+    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
     { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
-    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.IS_EQUIPMENT, value: TransactionsOutcomesHebrewColumns.isEquipment, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
   ];
-  readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
+  
+  fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
+    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
+    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
+    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
+    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
+    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE},
+    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
+  ];
+  // [TransactionsOutcomesColumns.TAX_PERCENT]: [data?.taxPercent || ''],
+  // [TransactionsOutcomesColumns.VAT_PERCENT]: [data?.vatPercent || ''],
+  // [TransactionsOutcomesColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
+  // [TransactionsOutcomesColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0],
+
+    readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
     [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
     [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
+    [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
+    [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
   ]);
-  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id'];
-  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized'];
+  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment','reductionPercent'];
+  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment' ,'reductionPercent'];
 
 
   rows: IRowDataTable[];
@@ -65,7 +87,7 @@ export class TransactionsPage implements OnInit {
   selectedFile: File = null;
   dateForUpdate = { 'isSingleMonth': true, 'month': "1", 'year': 2024 };
   checkClassifyBill: boolean = true;
-  constructor( private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController) {
+  constructor( private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService) {
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
         false, Validators.required,
@@ -89,6 +111,8 @@ export class TransactionsPage implements OnInit {
         '',
       ),
     });
+
+  
 
     this.expensesForm = this.formBuilder.group({
       expensesType: new FormControl(
@@ -204,7 +228,7 @@ export class TransactionsPage implements OnInit {
         name: 'delete',
         icon: 'create',
         action: (row: IRowDataTable) => {
-          this.openAddTransaction(row)
+          this.openEditRow(row)
         }
       },
     ]
@@ -281,20 +305,20 @@ export class TransactionsPage implements OnInit {
       console.log("data: ", data);
 
       data.forEach((row: ITransactionData) => {
-        const { userId, isEquipment, taxPercent, vatPercent, reductionPercent, ...data } = row;
+        const { userId, taxPercent, vatPercent, ...data } = row;
         console.log("payment", data.paymentIdentifier);
-        data.billDate = this.transactionsService.timestampToDateStr(data.billDate as number);
-        data.payDate = this.transactionsService.timestampToDateStr(data.payDate as number);
+        data.billDate = +data.billDate;
+        data.payDate = +data.payDate;
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
+        data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
         rows.push(data);
       }
       )
     }
     console.log("rows: ", rows);
-
     return rows;
   }
 
@@ -332,6 +356,56 @@ export class TransactionsPage implements OnInit {
     }
   }
 
+  openEditRow(data: IRowDataTable): void {
+    const editRowForm: FormGroup = this.formBuilder.group({
+      [TransactionsOutcomesColumns.CATEGORY]: [data?.category || '', Validators.required],
+      [TransactionsOutcomesColumns.SUBCATEGORY]: [data?.subCategory || '', Validators.required],
+      [TransactionsOutcomesColumns.IS_RECOGNIZED]: [data?.isRecognized || '', Validators.required],
+      [TransactionsOutcomesColumns.SUM]: [data?.sum || '', Validators.required],
+      [TransactionsOutcomesColumns.TAX_PERCENT]: [data?.taxPercent || ''],
+      [TransactionsOutcomesColumns.VAT_PERCENT]: [data?.vatPercent || ''],
+      [TransactionsOutcomesColumns.BILL_DATE]: [this.dateService.convertTimestampToDateInput(+data?.billDate) || Date, Validators.required,],
+      [TransactionsOutcomesColumns.BILL_NAME]: [data?.billName || '', Validators.required,],
+      [TransactionsOutcomesColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
+      [TransactionsOutcomesColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0],
+      [TransactionsOutcomesColumns.NAME]: [data?.name || 0],
+      [TransactionsOutcomesColumns.BILL_NUMBER]: [data?.paymentIdentifier || 0],
+    });
+    const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME];
+    from(this.modalController.create({
+
+      component: editRowComponent,
+      componentProps: {
+        date: this.dateForUpdate,
+        data,
+        fields: this.editFieldsNamesExpenses,
+        parentForm: editRowForm,
+        disabledFields
+      },
+      cssClass: 'edit-row-modal'
+    }))
+      .pipe(
+        catchError((err) => {
+          alert("openEditTransaction error");
+          return EMPTY;
+        }),
+        switchMap((modal) => from(modal.present())
+        .pipe(
+          switchMap(() => from(modal.onWillDismiss())
+          .pipe(
+             tap(() => this.getTransactions()) 
+            )
+          )
+        )),
+        catchError((err) => {
+          alert("openEditTransaction switchMap error");
+          console.log(err);
+          return EMPTY;
+        }))
+      .subscribe(() => {
+      });
+  }
+
   openAddTransaction(event): void {
     from(this.modalController.create({
 
@@ -339,7 +413,8 @@ export class TransactionsPage implements OnInit {
       componentProps: {
         date: this.dateForUpdate,
         data: event,
-      }
+      },
+      cssClass: 'expense-modal'
     }))
       .pipe(
         catchError((err) => {

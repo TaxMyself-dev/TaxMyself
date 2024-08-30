@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChange
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { DateService } from 'src/app/services/date.service';
 import { ButtonClass, ButtonSize } from '../button/button.enum';
+import { FormTypes } from '../enums';
 
 @Component({
   selector: 'app-custom-input',
@@ -24,6 +25,7 @@ export class CustomInputComponent implements OnChanges {
 
   readonly ButtonClass = ButtonClass;
   readonly ButtonSize = ButtonSize;
+  readonly formTypes = FormTypes;
   
   RequiredErrorMessage = "שדה זה הוא חובה";
   errorMessage: string;

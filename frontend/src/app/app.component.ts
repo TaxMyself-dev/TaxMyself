@@ -54,7 +54,7 @@ export class AppComponent implements OnInit {
         columns: this.columns,
         data: {},
       },
-      cssClass: 'custom-modal'
+      cssClass: 'expense-modal'
     })
     await modal.present();
   }

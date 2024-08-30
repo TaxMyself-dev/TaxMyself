@@ -5,10 +5,10 @@
     [class.valid]="isValid && isFocused" 
     [class.invalid]="isInvalid">
     <ion-input 
-      [class.password-input]="inputType === 'password'" 
+      [class.password-input]="inputType === formTypes.PASSWORD" 
       fill="outline" 
       label-placement="floating" 
-      type="{{inputType === 'password' ? showPassword ? 'text' : 'password' : inputType}}"
+      type="{{inputType === formTypes.PASSWORD ? showPassword ? formTypes.TEXT : formTypes.PASSWORD : inputType}}"
       [label]="inputLabelName" 
       [formControlName]="controlName" 
       [errorText]="errorMessage" 
@@ -17,7 +17,7 @@
       (ionChange)="onInputChanged($event)" 
       (ionInput)="onInputKeyChange()"
     ></ion-input>
-    <app-button *ngIf="inputType === 'password'" 
+    <app-button *ngIf="inputType === formTypes.PASSWORD" 
       class="password-eye-button" 
       ariaLabel="{{showPassword ? 'הסתר סיסמא' : 'הראה סיסמא'}}" 
       iconName="{{ showPassword ? 'eye-off' : 'eye' }}" 

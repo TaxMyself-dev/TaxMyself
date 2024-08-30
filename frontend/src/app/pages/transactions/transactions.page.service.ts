@@ -169,25 +169,4 @@ constructor(private http: HttpClient) {
     return this.http.post<any>(url,formData,{params:params,headers: headers});
   }
 
-  timestampToDateStr(timestamp: number): string {
-    let date: Date;
-
-    if (typeof timestamp === 'string') {
-      const parsedTimestamp = parseInt(timestamp);
-      if (isNaN(parsedTimestamp)) {
-        throw new Error('Invalid timestamp string');
-      }
-      date = new Date(parsedTimestamp * 1000);
-
-    }
-    else {
-      date = new Date(timestamp * 1000);
-    }
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-    const year = date.getFullYear().toString().slice(-2);
-
-    return `${day}/${month}/${year}`;
-  }
-
 }

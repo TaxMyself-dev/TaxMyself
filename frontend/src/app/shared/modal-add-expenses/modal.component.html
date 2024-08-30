@@ -1,3 +1,4 @@
+<!-- <ion-modal class="modal-content"> -->
 <ion-toolbar>
   <ion-header class="add-expense-header">
     <ion-list class="header-list">
@@ -29,7 +30,7 @@
                 *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span>
             </ng-container>
             <ng-container *ngSwitchCase="formTypes.DATE">
-              <app-generic-input class="inputs-wrapper" inputType="date" [inputLabel]="col.value" [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
+              <app-generic-input class="inputs-wrapper" [inputType]="formTypes.DATE" [inputLabel]="col.value" [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
             </ng-container>
             <ng-container *ngSwitchCase="formTypes.DDL">
               <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
@@ -69,7 +70,7 @@
             <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
           </div>
         </div>
-        <app-generic-input *ngIf="fileItem" inputType="file" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input>
+        <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input>
       </label>
     </div>
 
@@ -87,6 +88,7 @@
     </div>
   </form>
 </ion-content>
+<!-- </ion-modal> -->
 
 
 <ng-template #loader>
