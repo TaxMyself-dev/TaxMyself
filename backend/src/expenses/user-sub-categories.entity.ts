@@ -9,7 +9,7 @@ export class UserSubCategory {
   id: number;
 
   @Column()
-  name: string;
+  subCategory: string;
 
   @Column('decimal')
   taxPercent: number;

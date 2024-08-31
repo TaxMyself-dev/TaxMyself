@@ -124,10 +124,10 @@ export class ExpensesService {
         }
     
         // Step 2: Check if the category exists; if not, create it
-        let category = await this.categoryRepo.findOne({ where: { name: createUserCategoryDto.categoryName } });
+        let category = await this.categoryRepo.findOne({ where: { category: createUserCategoryDto.categoryName } });
         if (!category) {
           category = new Category();
-          category.name = createUserCategoryDto.categoryName;
+          category.category = createUserCategoryDto.categoryName;
           category.isDefault = false; // Mark the category as user-defined
           category = await this.categoryRepo.save(category);
         }
@@ -135,7 +135,7 @@ export class ExpensesService {
         // Step 3: Check if the sub-category already exists for this user and category
         const existingSubCategory = await this.userSubCategoryRepo.findOne({
           where: {
-            name: createUserCategoryDto.subCategoryName,
+            subCategory: createUserCategoryDto.subCategoryName,
             category: category,
             user: user,
           },
@@ -147,7 +147,7 @@ export class ExpensesService {
     
         // Step 4: Create and save the new user sub-category
         const userSubCategory = new UserSubCategory();
-        userSubCategory.name = createUserCategoryDto.subCategoryName;
+        userSubCategory.subCategory = createUserCategoryDto.subCategoryName;
         userSubCategory.taxPercent = createUserCategoryDto.taxPercent;
         userSubCategory.vatPercent = createUserCategoryDto.vatPercent;
         userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
@@ -220,13 +220,13 @@ export class ExpensesService {
       
         // Add default sub-categories to the map
         defaultSubCategories.forEach(subCategory => {
-          const key = `${subCategory.category.name}-${subCategory.name}`;
+          const key = `${subCategory.category.category}-${subCategory.subCategory}`;
           combinedSubCategories.set(key, subCategory);
         });
       
         // Add user sub-categories to the map, overriding any default sub-categories
         userSubCategories.forEach(subCategory => {
-          const key = `${subCategory.category.name}-${subCategory.name}`;
+          const key = `${subCategory.category.category}-${subCategory.subCategory}`;
           combinedSubCategories.set(key, subCategory);
         });
       

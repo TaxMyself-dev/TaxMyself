@@ -10,7 +10,7 @@ export class Category {
   id: number;
 
   @Column()
-  name: string;
+  category: string;
 
   @Column({ default: false })
   isDefault: boolean;
