@@ -86,22 +86,23 @@ export class ExpenseDataService {
   }
 
   getSubCategory(category: string, isEquipment: boolean): Observable<any> {
-    const url = `${environment.apiUrl}expenses/get-sub-categories-list`;
-    const params = new HttpParams()
-      .set('isEquipment', isEquipment)
-      .set('category', category);
-    return this.http.get<any>(url, { params: params });
-  }
-
-  getcategry(isEquipment: boolean, isRecognized?: boolean): Observable<any[]> {
-    const url = `${environment.apiUrl}expenses/get-user-categories`;
+    const url = `${environment.apiUrl}expenses/get-sub-categories`;
     const headers = {
       'token': this.token
     }
-    isRecognized ? null : isRecognized = true;//TODO: why i need to send it??
-    const param = new HttpParams()
+    const params = new HttpParams()
       .set('isEquipment', isEquipment)
-      .set('isRecognized', isRecognized);
+      .set('categoryId', category);
+    return this.http.get<any>(url, { params: params, headers: headers });
+  }
+
+  getcategry(isDefault: boolean): Observable<any[]> {
+    const url = `${environment.apiUrl}expenses/get-categories`;
+    const headers = {
+      'token': this.token
+    }
+    const param = new HttpParams()
+      .set('isDefault', isDefault)
     return this.http.get<any>(url, { params: param, headers: headers })
   }
 

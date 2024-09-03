@@ -19,16 +19,16 @@
 
 <ng-container *ngIf="existCategory; else newCategory">
   <div class="wrapp-exist-category">
-    <form class="form-exist-category" *ngIf="!equipmentType && listIsEqiupmentCategory && listNotEqiupmentCategory"
+    <form class="form-exist-category" *ngIf="!equipmentType && categoryList"
       [formGroup]="existCategoryEquipmentForm">
       <div class="wrapp-select" [class.disabled]="!!equipmentType">
         <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
           (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
         <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'category'" [items]="combinedListCategory"
-          [title]="'קטגוריה - מוגדר כציוד'"></app-generic-select>
+          [controlName]="'category'" [items]="categoryList"
+          [title]="'קטגוריה'"></app-generic-select>
         <app-generic-select (selectionChanged)="selectedSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'subCategory'" [items]="listSubCategory"
+          [controlName]="'subCategory'" [items]="combinedListSubCategory"
           [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
       </div>
     </form>
@@ -41,7 +41,7 @@
           <ng-container *ngFor="let item of categoryDetails | keyvalue">
             <div class="data-card">
               <p class="headers-table">{{displayHebrew[item.key]}} :&nbsp;&nbsp;</p>
-              <p>{{item.value}}</p>
+              <p>{{item.value['category'] ?? item.value}}</p>
             </div>
           </ng-container>
         </ion-card-content>

@@ -1,13 +1,17 @@
 <form *ngIf="parentForm" class="edit-row-screen">
   <ng-container *ngFor="let field of fields">
-    <ng-container *ngIf="field.name ==='category' || field.name ==='subCategory'; else input">
-      <app-generic-select [items]="field.name === 'category' ? combinedListCategory : combinedListCategory " [parentForm]="parentForm" controlName="{{field.name}}" title="{{field.value}}"></app-generic-select>
+    <ng-container [ngSwitch]="field.type">
+
+      <ng-container *ngSwitchCase="formTypes.DDL">
+        <app-generic-select [items]="field.listItems" controlName="{{field.name}}" title="{{field.value}}" [parentForm]="parentForm" (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
+      </ng-container>
+
+      <ng-container *ngSwitchDefault>
+        <app-generic-input controlName="{{field.name}}" inputLabel="{{field.value}}" [parentForm]="parentForm"
+          [inputType]="field.type" [disabled]="disabledFields?.includes(field.name)"></app-generic-input>
+      </ng-container>
     </ng-container>
 
-    <ng-template #input>
-      <app-generic-input [parentForm]="parentForm" controlName="{{field.name}}" inputLabel="{{field.value}}"
-        [inputType]="field.type" [disabled]="disabledFields?.includes(field.name)"></app-generic-input>
-    </ng-template>
   </ng-container>
-
+<app-button [buttonText]="'עדכן'" (onButtonClicked)="updateRow()"></app-button>
 </form>

@@ -5,6 +5,7 @@ import { environment } from 'src/environments/environment';
 import { IClassifyTrans, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
+import { h } from 'ionicons/dist/types/stencil-public-runtime';
 
 
 @Injectable({
@@ -167,6 +168,15 @@ constructor(private http: HttpClient) {
     .set('month', date.month)
     .set('isSingleMonth', date.isSingleMonth);
     return this.http.post<any>(url,formData,{params:params,headers: headers});
+  }
+
+  updateRow(formData): Observable<any> {
+    const url = `${environment.apiUrl}transactions/classify-trans`;
+    const headers = {
+      'token':
+       this.token
+    }
+    return this.http.patch<any>(url, formData, {headers:headers})
   }
 
 }

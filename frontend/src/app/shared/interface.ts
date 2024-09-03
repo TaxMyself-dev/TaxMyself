@@ -1,14 +1,16 @@
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
 
 export interface IRowDataTable {
-    [key: string]: string | number | Date | boolean;
+    [key: string]: string | number | Date | boolean | ISelectItem;
 }
 
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
-    name: TFormColumns,
-    value: TFormHebrewColumns,
-    type: FormTypes,
-    cellRenderer?: ICellRenderer
+    name: TFormColumns;
+    value: TFormHebrewColumns;
+    type: FormTypes;
+    listItems?: ISelectItem[];
+    cellRenderer?: ICellRenderer;
+    onChange?: (event?: any, parent?: any) => void;
 }
 
 export interface ISuppliers {
@@ -60,7 +62,12 @@ export interface ISortDate{
 export interface IGetSubCategory {
     id: number;
     subCategory: string;
-    category: string;
+    category: {
+        firebaesId: string,
+        id: number,
+        isDefault: boolean,
+        name: string
+    };
     taxPercent: string;
     vatPercent: string;
     isEquipment: boolean | string;

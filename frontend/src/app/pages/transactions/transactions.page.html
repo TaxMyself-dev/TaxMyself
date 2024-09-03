@@ -10,7 +10,9 @@
       </ion-input>
     </label>
     <button (click)="onUpload()">Upload</button>
-    <button (click)="openAddTransaction($event)">open</button>
+    <!-- <button (click)="openAddTransaction($event)">open</button> -->
+    <button (click)="getExpenseTransactionsData($event)">open</button>
+    
 
   </div>
   <div class="content-wrapper">
@@ -59,7 +61,7 @@
   <form class="generic-search-bar-content" [formGroup]="incomeForm">
     <app-generic-select [parentForm]="incomeForm" [controlName]="'incomeType'" [items]="typeIncomeList"
       [title]="'סוג ההכנסה'"></app-generic-select>
-    <app-generic-select [parentForm]="incomeForm" [controlName]="'category'" [items]="accountsList" [title]="'קטגוריה'"></app-generic-select>
+    <app-generic-select [parentForm]="incomeForm" [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'"></app-generic-select>
   </form>
 </ng-template>
 
@@ -69,6 +71,6 @@
   <form class="generic-search-bar-content" [formGroup]="expensesForm">
     <app-generic-select [parentForm]="expensesForm" [controlName]="'expensesType'" [items]="typeIncomeList"
       [title]="'סוג ההוצאה'"></app-generic-select>
-    <app-generic-select [controlName]="'category'" [items]="accountsList" [title]="'קטגוריה'"></app-generic-select>
+    <app-generic-select [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'" (selectionChanged)="filterByCategory($event)"></app-generic-select>
   </form>
 </ng-template>
