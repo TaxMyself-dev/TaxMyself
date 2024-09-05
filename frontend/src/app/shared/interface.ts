@@ -165,10 +165,10 @@ export interface IClassifyTrans {
   billName: string;
   category: string;
   subCategory: string;
-  isRecognized: boolean;
+  isRecognized: boolean | number;
   vatPercent: number;
   taxPercent: number;
-  isEquipment: boolean;
+  isEquipment: boolean | number;
   reductionPercent: number;
 }
 

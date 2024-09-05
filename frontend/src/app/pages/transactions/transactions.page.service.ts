@@ -170,13 +170,22 @@ constructor(private http: HttpClient) {
     return this.http.post<any>(url,formData,{params:params,headers: headers});
   }
 
-  updateRow(formData): Observable<any> {
-    const url = `${environment.apiUrl}transactions/classify-trans`;
+  updateRow(formData: IClassifyTrans): Observable<any> {
+    console.log("in update row service");
+    
+    const url = `${environment.apiUrl}transactions/update-trans`;
     const headers = {
       'token':
        this.token
     }
     return this.http.patch<any>(url, formData, {headers:headers})
   }
+
+  removeMinus(sum: string): string {
+    const withoutSign = sum.replace('-', '');
+    const withoutDecimal = withoutSign.split('.')[0];
+    return withoutDecimal
+  }
+
 
 }

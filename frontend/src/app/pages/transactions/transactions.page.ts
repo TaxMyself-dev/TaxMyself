@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, from, map, switchMap, tap, zip } from 'rxjs';
-import { IButtons, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, from, map, skip, switchMap, tap, zip } from 'rxjs';
+import { IButtons, IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
@@ -20,8 +20,8 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 })
 
 export class TransactionsPage implements OnInit {
-  
-  equipmentList: ISelectItem[] = [{ name: "לא", value: "0" }, { name: "כן", value: "1" }];
+
+  equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
   incomesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
 
@@ -46,9 +46,9 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.IS_EQUIPMENT, value: TransactionsOutcomesHebrewColumns.isEquipment, type: FormTypes.DDL, listItems: this.equipmentList },
     { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER},
+    { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER },
   ];
-  
+
   fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
@@ -57,19 +57,19 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE},
+    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
   ];
 
-    readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
+  readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
     [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
     [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
     [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
     [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
     [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
   ]);
-  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment','reductionPercent', 'taxPercent', 'vatPercent'];
-  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment' ,'reductionPercent', 'taxPercent', 'vatPercent'];
+  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
 
 
   rows: IRowDataTable[];
@@ -94,7 +94,7 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService)
 
-  constructor( private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
+  constructor(private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
 
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
@@ -129,7 +129,7 @@ export class TransactionsPage implements OnInit {
       ),
     })
 
-  this.editRowForm = this.formBuilder.group({
+    this.editRowForm = this.formBuilder.group({
       [TransactionsOutcomesColumns.CATEGORY]: ['', Validators.required],
       [TransactionsOutcomesColumns.SUBCATEGORY]: ['', Validators.required],
       [TransactionsOutcomesColumns.IS_RECOGNIZED]: ['', Validators.required],
@@ -138,7 +138,7 @@ export class TransactionsPage implements OnInit {
       [TransactionsOutcomesColumns.VAT_PERCENT]: [0],
       [TransactionsOutcomesColumns.BILL_DATE]: [Date, Validators.required,],
       [TransactionsOutcomesColumns.BILL_NAME]: ['', Validators.required,],
-      [TransactionsOutcomesColumns.IS_EQUIPMENT]:['', Validators.required],
+      [TransactionsOutcomesColumns.IS_EQUIPMENT]: ['', Validators.required],
       [TransactionsOutcomesColumns.REDUCTION_PERCENT]: [0],
       [TransactionsOutcomesColumns.NAME]: [''],
       [TransactionsOutcomesColumns.BILL_NUMBER]: [''],
@@ -182,7 +182,7 @@ export class TransactionsPage implements OnInit {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
     console.log("form data trans is ", formData);
-    
+
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
@@ -328,7 +328,7 @@ export class TransactionsPage implements OnInit {
       this.expensesData$.next(this.expensesData);
     }
 
-    
+
   }
 
   private handleTableData(data: ITransactionData[]) {
@@ -369,9 +369,12 @@ export class TransactionsPage implements OnInit {
         this.listCategory = res;
         this.listFilterCategory.push(...res);
         this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-        if (field.name === TransactionsOutcomesColumns.CATEGORY) {
-          field.listItems = res;
-        }});
+          if (field.name === TransactionsOutcomesColumns.CATEGORY) {
+            field.listItems = res;
+            console.log("list item of category :", field.listItems);
+            
+          }
+        });
         console.log("listCategory: ", this.listCategory);
       })
   }
@@ -379,9 +382,10 @@ export class TransactionsPage implements OnInit {
   getSubCategory(event): void {
     console.log(event);
     const combinedListSubCategory = [];
-  
-    const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, true);
-    const notEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, false);
+    if (typeof (event) !== 'string'){
+      const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, true);
+      const notEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, false);
+    
 
     zip(isEquipmentSubCategory, notEquipmentSubCategory)
       .pipe(
@@ -398,7 +402,7 @@ export class TransactionsPage implements OnInit {
             value: item.id
           })
           )
-          const combinedListSubCategory : ISelectItem[] = [];
+          const combinedListSubCategory: ISelectItem[] = [];
           const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
           if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
             combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
@@ -409,17 +413,22 @@ export class TransactionsPage implements OnInit {
           this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
             if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
               field.listItems = combinedListSubCategory;
-            }});
+            }
+          });
           console.log(combinedListSubCategory);
 
 
           return combinedListSubCategory;
+        }),
+        catchError((err) => {
+          console.log("err in get sub category: ", err);
+          return EMPTY;
         })
       )
       .subscribe((res) => {
         console.log("combine sub category :", res);
       })
-
+    }
   }
 
   selectedSubCategory(data): void {
@@ -428,13 +437,13 @@ export class TransactionsPage implements OnInit {
     if (this.originalSubCategoryList) {
       const chosen = this.originalSubCategoryList.find((item) => item.id === data);
       console.log(chosen);
-      chosen.isEquipment ? chosen.isEquipment = "כן" : chosen.isEquipment = "לא" 
-      chosen.isRecognized ? chosen.isRecognized = "כן" : chosen.isRecognized = "לא" 
+      // chosen.isEquipment ? chosen.isEquipment = "כן" : chosen.isEquipment = "לא" 
+      // chosen.isRecognized ? chosen.isRecognized = "כן" : chosen.isRecognized = "לא" 
       this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(chosen?.taxPercent || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(chosen?.vatPercent || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(chosen?.isEquipment || false),
-      this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(chosen?.reductionPercent || 0),
-      this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(chosen?.isRecognized || '')
+        this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(chosen?.vatPercent || ''),
+        this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(chosen?.isEquipment || false),
+        this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(chosen?.reductionPercent || 0),
+        this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(chosen?.isRecognized || '')
     }
   }
 
@@ -475,23 +484,23 @@ export class TransactionsPage implements OnInit {
   openEditRow(data: IRowDataTable): void {
     data?.isEquipment ? data.isEquipment = { name: "כן", value: "1" } : data.isEquipment = { name: "לא", value: "0" };
     data?.isRecognized ? data.isRecognized = { name: "כן", value: "1" } : data.isRecognized = { name: "לא", value: "0" };
-     console.log("data in edit row: ", data);
-     
-    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(data?.isRecognized.name || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(data?.isEquipment.name || false),
-    this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0),
+    console.log("data in edit row: ", data);
 
-    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).valueChanges.subscribe((res) => this.getSubCategory(res));
-    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).valueChanges.subscribe((res) => this.selectedSubCategory(res));
+    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(data?.isRecognized.name || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(data?.isEquipment.name || false),
+      this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
+      this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0),
+
+      this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.getSubCategory(res));
+    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.selectedSubCategory(res));
 
     const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME];
     from(this.modalController.create({
@@ -514,20 +523,45 @@ export class TransactionsPage implements OnInit {
           return EMPTY;
         }),
         switchMap((modal) => from(modal.present())
-        .pipe(
-          switchMap(() => from(modal.onWillDismiss())
           .pipe(
-             tap(() => this.getTransactions()) 
+            switchMap(() => from(modal.onWillDismiss())
+              .pipe(
+                tap(() => this.getTransactions())
+              )
             )
-          )
-        )),
+          )),
         catchError((err) => {
           alert("openEditTransaction switchMap error");
           console.log(err);
           return EMPTY;
         }))
-      .subscribe(() => {
+      .subscribe((res) => {
+        console.log("res in subscribe edit: ", res);
+        if (res.data == 'send') {
+          this.updateRow()
+        }
+
       });
+  }
+
+  updateRow(): void {
+    console.log("in update row");
+    let formData: IClassifyTrans;
+    formData = this.editRowForm.getRawValue();
+    console.log(this.editRowForm);
+    console.log(this.editRowForm.get('category').value);
+    console.log(this.listCategory);
+
+    const categoryId = this.listCategory.find((category) => category.name === this.editRowForm.get('category').value);
+    console.log(categoryId);
+    // formData.id = categoryId.value as number;
+    formData.id = this.editRowForm.get('category').value
+    formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
+    formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
+    formData.isSingleUpdate = true;
+    formData.isNewCategory = false;
+    console.log(formData);
+    this.transactionService.updateRow(formData);
   }
 
   openAddTransaction(event): void {
@@ -546,13 +580,13 @@ export class TransactionsPage implements OnInit {
           return EMPTY;
         }),
         switchMap((modal) => from(modal.present())
-        .pipe(
-          switchMap(() => from(modal.onWillDismiss())
           .pipe(
-             tap(() => this.getTransactions()) 
+            switchMap(() => from(modal.onWillDismiss())
+              .pipe(
+                tap(() => this.getTransactions())
+              )
             )
-          )
-        )),
+          )),
         catchError((err) => {
           alert("openAddTransaction switchMap error");
           console.log(err);
@@ -563,10 +597,10 @@ export class TransactionsPage implements OnInit {
   }
 
 
-  saveTransaction(): void {
-    console.log("save transaction");
+  // saveTransaction(): void {
+  //   console.log("save transaction");
 
-  }
+  // }
 
   onClickedCell(event: { str: string, data: IRowDataTable }): void {
     console.log(event);
@@ -583,17 +617,19 @@ export class TransactionsPage implements OnInit {
       date: this.dateForUpdate,
 
     }
-    this.router.navigate(['flow-report'], {queryParams: { 
-      month: this.dateForUpdate.month, 
-      year: this.dateForUpdate.year, 
-      isSingleMonth: this.dateForUpdate.isSingleMonth, 
-      accounts: 'null'
-    }})
+    this.router.navigate(['flow-report'], {
+      queryParams: {
+        month: this.dateForUpdate.month,
+        year: this.dateForUpdate.year,
+        isSingleMonth: this.dateForUpdate.isSingleMonth,
+        accounts: 'null'
+      }
+    })
   }
 
   getExpenseTransactionsData($event) {
-  this.transactionService.getExpenseTransactionsData(event)
-}
+    this.transactionService.getExpenseTransactionsData(event)
+  }
 
 
 

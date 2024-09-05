@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { IColumnDataTable, IRowDataTable, ISelectItem } from '../interface';
 import { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 import { FormTypes } from '../enums';
@@ -16,17 +16,18 @@ export class editRowComponent<TFormColumns, TFormHebrewColumns> implements OnIni
   @Input() fields: IColumnDataTable<TFormColumns, TFormHebrewColumns>[];
   @Input() disabledFields: TFormColumns[];
   //@Input() parent: any;
+  //@Output() sendData = new EventEmitter<any>();
 
   readonly formTypes = FormTypes;
 
   constructor(private modalCtrl: ModalController) { }
 
   ngOnInit() {
-    //console.log("in edit: ", this.data);    
+    console.log("in edit fields: ", this.fields);    
   }
   
   updateRow(): void {
-    this.modalCtrl.dismiss(this.parentForm)
+    this.modalCtrl.dismiss('send')
   }
 
   onSelectionChanged(event, fieldData): void {

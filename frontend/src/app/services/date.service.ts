@@ -41,4 +41,22 @@ export class DateService {
 
     return `${day}/${month}/${year}`;
   }
+
+  convertDateStrToTimestamp(dateString: string): number {
+    // Split the date string by '/' to get day, month, and year
+    const [day, month, year] = dateString.split('/').map(Number);
+  
+    // Note: Month in JavaScript's Date object is 0-indexed (0 for January, 11 for December)
+    const date = new Date(year, month - 1, day);
+  
+    // Get the timestamp
+    const timestamp = date.getTime();
+  
+    console.log(timestamp); // Outputs the timestamp
+    return timestamp;
+  }
+  
+  // Example usage
+  
+  
 }
