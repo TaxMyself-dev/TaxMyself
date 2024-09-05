@@ -17,6 +17,8 @@ import { SharedService } from 'src/shared/shared.service';
 //DTOs
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
+import { Category } from 'src/expenses/categories.entity';
+import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity';
 
 
 @Injectable()
@@ -34,11 +36,14 @@ export class TransactionsService {
     private sourceRepo: Repository<Source>,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
+    @InjectRepository(Category)
+    private categoryRepo: Repository<Category>,
+    @InjectRepository(DefaultSubCategory)
+    private defaultSubCategoryRepo: Repository<DefaultSubCategory>
   ) {}
 
 
   async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
-    console.log("in save tran");
     
     if (!file) {
       throw new BadRequestException('No file uploaded.');
@@ -50,7 +55,7 @@ export class TransactionsService {
     const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }); // Get rows as arrays of values, raw: false to get formatted strings
 
     // Assuming the first row contains headers
-    const headers = rows.shift();
+    const headers = rows.shift();    
 
     // Find index of each column based on header row
     const nameIndex = headers.findIndex(header => header === 'שם העסק');
@@ -74,7 +79,6 @@ export class TransactionsService {
     let skippedTransactions = 0;
 
     for (const row of rows) {
-      // console.log("in 1 for");
       
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
@@ -126,6 +130,76 @@ export class TransactionsService {
     }
 
     return { message: `Successfully saved ${rows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
+
+  }
+
+
+  async loadDefaultCategories(file: Express.Multer.File): Promise<{ message: string }> {
+    
+    if (!file) {
+      throw new BadRequestException('No file uploaded.');
+    }
+
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }); // Get rows as arrays of values, raw: false to get formatted strings
+
+    console.log("Extracted rows:", rows.slice(0, 5));
+
+    // Assuming the first row contains headers
+    const headers = rows.shift();
+    console.log("header is ",headers);
+
+    // Dynamically find the index of each column based on the header names
+    const categoryIndex = headers.findIndex(header => header === 'category');
+    const subCategoryIndex = headers.findIndex(header => header === 'subCategory');
+    const categoryIdIndex = headers.findIndex(header => header === 'categoryId');
+    const taxPercentIndex = headers.findIndex(header => header === 'taxPercent');
+    const vatPercentIndex = headers.findIndex(header => header === 'vatPercent');
+    const reductionPercentIndex = headers.findIndex(header => header === 'reductionPercent');
+    const isEquipmentIndex = headers.findIndex(header => header === 'isEquipment');
+    const isRecognizedIndex = headers.findIndex(header => header === 'isRecognized');
+
+
+  for (const row of rows) {
+    const categoryName = row[categoryIndex];
+    const subCategoryName = row[subCategoryIndex];
+    const categoryId = row[categoryIdIndex];
+    const taxPercent = parseFloat(row[taxPercentIndex]);
+    const vatPercent = parseFloat(row[vatPercentIndex]);
+    const reductionPercent = parseFloat(row[reductionPercentIndex]);
+    const isEquipment = row[isEquipmentIndex] == '1' || row[isEquipmentIndex] == 'true';  // Boolean conversion
+    const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
+
+    // Check if the category already exists
+    let category = await this.categoryRepo.findOne({ where: { category: categoryName, id: categoryId } });
+    if (!category) {
+      // Create a new category if it doesn't exist
+      category = this.categoryRepo.create({
+        category: categoryName,
+        id: categoryId,
+        isDefault: true,
+        firebaseId: null,
+      });
+      await this.categoryRepo.save(category);
+    }
+
+    // Create the sub-category
+    const subCategory = new DefaultSubCategory();
+    subCategory.subCategory = subCategoryName;
+    subCategory.taxPercent = taxPercent;
+    subCategory.vatPercent = vatPercent;
+    subCategory.reductionPercent = reductionPercent;
+    subCategory.isEquipment = isEquipment;
+    subCategory.isRecognized = isRecognized;
+    subCategory.category = category;
+
+    await this.defaultSubCategoryRepo.save(subCategory);
+
+  }
+
+  return { message: `Successfully saved categories and sub-categories.` };
 
   }
 

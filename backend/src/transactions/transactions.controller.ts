@@ -31,6 +31,14 @@ export class TransactionsController {
   }
 
 
+  @Post('load-default-categories')
+  @UseInterceptors(FileInterceptor('file'))
+  async loadDefaultCategories(
+    @UploadedFile() file: Express.Multer.File) {
+    return this.transactionsService.loadDefaultCategories(file)
+  }
+
+
   @Get('get_by_userID')
   async getTransactionsByUserID(@Query('billId') userID: string): Promise<Transactions[]> {
     console.log("this is user id thatttt i send: ", userID);

@@ -1,6 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne} from 'typeorm';
 import { Category } from './categories.entity';
-import { User } from 'src/users/user.entity';
 
 @Entity()
 export class DefaultSubCategory {
@@ -28,4 +27,5 @@ export class DefaultSubCategory {
 
   @ManyToOne(() => Category, category => category.defaultSubCategories, { onDelete: 'CASCADE' })
   category: Category;
+
 }

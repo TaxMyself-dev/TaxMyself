@@ -1,5 +1,13 @@
-POST http://localhost:3000/excel/try
+###
+POST http://localhost:3000/transactions/load-default-categories
+Content-Type: multipart/form-data; boundary=your-boundary
 
+--your-boundary
+Content-Disposition: form-data; name="file"; filename="categories.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< categories.xlsx
+--your-boundary--
 
 
 ###
