@@ -74,7 +74,7 @@ export class TransactionsService {
     let skippedTransactions = 0;
 
     for (const row of rows) {
-      console.log("in 1 for");
+      // console.log("in 1 for");
       
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
@@ -98,7 +98,7 @@ export class TransactionsService {
       });
 
       if (existingTransaction) {
-        console.log(`Transaction with name ${transaction.name}, paymentIdentifier ${transaction.paymentIdentifier}, billDate ${transaction.billDate}, and sum ${transaction.sum} already exists. Skipping.`);
+        // console.log(`Transaction with name ${transaction.name}, paymentIdentifier ${transaction.paymentIdentifier}, billDate ${transaction.billDate}, and sum ${transaction.sum} already exists. Skipping.`);
         skippedTransactions++;
         continue;
       }
@@ -360,7 +360,7 @@ export class TransactionsService {
     let sources: string[] = [];
     let allIdentifiers: string[] = [];
 
-    console.log("getTransactionsByBillAndUserId - start");
+    // console.log("getTransactionsByBillAndUserId - start");
 
 
     if (billId === "ALL_BILLS") {  
@@ -371,9 +371,9 @@ export class TransactionsService {
       // Collect all sources from the user's bills
       bills.forEach(bill => {
       if (!bill.sources) {
-        console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
+        // console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
       } else {
-        console.log("Bill sources before pushing:", bill.sources);
+        // console.log("Bill sources before pushing:", bill.sources);
         bill.sources.forEach(source => {
           //console.log("Source being pushed:", source.sourceName);
           sources.push(source.sourceName);
@@ -421,7 +421,7 @@ export class TransactionsService {
 
   async getIncomesTransactions(query: any): Promise<Transactions[]> {
 
-    console.log("getIncomesTransactions - start ");
+    // console.log("getIncomesTransactions - start ");
 
     const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
     //console.log("Transactions:\n", transactions)
@@ -434,7 +434,7 @@ export class TransactionsService {
 
   async getExpensesTransactions(query: any): Promise<Transactions[]> {
 
-    console.log("getExpensesTransactions - start");
+    // console.log("getExpensesTransactions - start");
     
     const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
     //console.log("Transactions:\n", transactions)
@@ -468,7 +468,7 @@ export class TransactionsService {
       });
   
       if (existingExpense) {
-        console.log(`Transaction with ID ${transaction.id} already exists as an expense.`);
+        // console.log(`Transaction with ID ${transaction.id} already exists as an expense.`);
         skippedTransactions++;
         continue;
       }

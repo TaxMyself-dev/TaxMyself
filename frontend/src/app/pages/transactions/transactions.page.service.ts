@@ -26,7 +26,7 @@ constructor(private http: HttpClient) {
   }
 
   getIncomeTransactionsData(formData: any): Observable<ITransactionData[]> {
-    console.log(formData.accounts);
+    // console.log(formData.accounts);
     
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
@@ -37,7 +37,7 @@ constructor(private http: HttpClient) {
     const headers = {
       'token': this.token
     }
-    console.log("param: ",param);
+    // console.log("param: ",param);
     
     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
   }
@@ -80,7 +80,7 @@ constructor(private http: HttpClient) {
       }),
     )
     .subscribe((bills) => {
-      console.log("bill list:", bills);
+      // console.log("bill list:", bills);
       this.updateAccountList(bills);
     })
   }
@@ -103,7 +103,7 @@ constructor(private http: HttpClient) {
     // Emit the updated transactions
     this.accountsList$.next([...[{ value: 'ALL_BILLS', name: 'כל החשבונות' }],...newData]);
     // this.accountsList$.next(updatedTransactions);
-    console.log(this.accountsList$.value);
+    // console.log(this.accountsList$.value);
     
   }
 
@@ -158,6 +158,9 @@ constructor(private http: HttpClient) {
   }
 
   addClassifiction(formData: IClassifyTrans, date: any): Observable<any> {
+    console.log("in add classificaion");
+    console.log("form data of classify trans: ",formData);
+    
     const url = `${environment.apiUrl}transactions/classify-trans`;
     const headers = {
       'token':
@@ -170,7 +173,8 @@ constructor(private http: HttpClient) {
     return this.http.post<any>(url,formData,{params:params,headers: headers});
   }
 
-  updateRow(formData: IClassifyTrans): Observable<any> {
+  updateRow(formData: any): Observable<any> {
+    // updateRow(formData: IClassifyTrans): Observable<any> {
     console.log("in update row service");
     
     const url = `${environment.apiUrl}transactions/update-trans`;
@@ -178,7 +182,7 @@ constructor(private http: HttpClient) {
       'token':
        this.token
     }
-    return this.http.patch<any>(url, formData, {headers:headers})
+    return this.http.post<any>(url, formData, {headers:headers})
   }
 
   removeMinus(sum: string): string {
@@ -186,6 +190,10 @@ constructor(private http: HttpClient) {
     const withoutDecimal = withoutSign.split('.')[0];
     return withoutDecimal
   }
+
+  
+
+
 
 
 }

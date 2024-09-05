@@ -223,13 +223,15 @@ export class AddTransactionComponent implements OnInit {
     formData.id = this.data.id;
     formData.billName = this.data.billName;
     formData.name = this.data.name;
-    formData.category = this.categoryDetails.category.name;
+    formData.category = this.categoryDetails.category.category;
     formData.subCategory = this.categoryDetails.subCategory;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
     formData.vatPercent = +this.categoryDetails.vatPercent;
     formData.taxPercent = +this.categoryDetails.taxPercent;
     formData.isEquipment = this.categoryDetails.isEquipment == "כן" ? true : false;;
     formData.reductionPercent = +this.categoryDetails.reductionPercent;
+    formData.isNewCategory = false;
+
     console.log(formData);
     this.transactionsService.addClassifiction(formData, this.date)
       .pipe(

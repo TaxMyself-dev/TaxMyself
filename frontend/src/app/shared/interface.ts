@@ -66,7 +66,7 @@ export interface IGetSubCategory {
         firebaesId: string,
         id: number,
         isDefault: boolean,
-        name: string
+        category: string
     };
     taxPercent: string;
     vatPercent: string;

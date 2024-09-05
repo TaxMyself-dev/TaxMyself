@@ -152,14 +152,16 @@ export class TransactionsPage implements OnInit {
     this.transactionsService.accountsList$.subscribe(
       (accountsList) => {
         this.accountsList = accountsList;
-        console.log(this.accountsList);
+        // console.log(this.accountsList);
       }
     );
     this.transactionsService.getAllSources().subscribe((data) => {
-      console.log("sources: ", data);
+      // console.log("sources: ", data);
       this.sourcesList = data;
     });
     this.getCategory();
+
+    // this.transactionService.updateRow(4);
   }
 
   // ngOnDestroy(): void {
@@ -181,12 +183,12 @@ export class TransactionsPage implements OnInit {
   getTransactions() {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
-    console.log("form data trans is ", formData);
+    // console.log("form data trans is ", formData);
 
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
-    console.log("dateForUpdate ", this.dateForUpdate);
+    // console.log("dateForUpdate ", this.dateForUpdate);
 
     const incomeData$ = this.transactionsService.getIncomeTransactionsData(formData);
 
@@ -335,11 +337,11 @@ export class TransactionsPage implements OnInit {
     const rows = [];
     //let rows: any[];
     if (data.length) {
-      console.log("data: ", data);
+      // console.log("data: ", data);
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
-        console.log("payment", data.paymentIdentifier);
+        // console.log("payment", data.paymentIdentifier);
         data.billDate = +data.billDate;
         data.payDate = +data.payDate;
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
@@ -351,7 +353,7 @@ export class TransactionsPage implements OnInit {
       }
       )
     }
-    console.log("rows: ", rows);
+    // console.log("rows: ", rows);
     return rows;
   }
 
@@ -371,11 +373,11 @@ export class TransactionsPage implements OnInit {
         this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
           if (field.name === TransactionsOutcomesColumns.CATEGORY) {
             field.listItems = res;
-            console.log("list item of category :", field.listItems);
+            // console.log("list item of category :", field.listItems);
             
           }
         });
-        console.log("listCategory: ", this.listCategory);
+        // console.log("listCategory: ", this.listCategory);
       })
   }
 
