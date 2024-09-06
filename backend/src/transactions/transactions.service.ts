@@ -65,7 +65,7 @@ export class TransactionsService {
     const sumIndex = headers.findIndex(header => header === 'סכום');
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
-
+    
     // Fetch user's bills and create a mapping from paymentIdentifier to billName
     const userBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
     const paymentIdentifierToBillName = new Map<string, string>();
@@ -76,9 +76,9 @@ export class TransactionsService {
       });
     });
 
-    let skippedTransactions = 0;
+    let skippedTransactions = 0;    
 
-    for (const row of rows) {
+    for (const row of rows) {      
       
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
@@ -128,6 +128,9 @@ export class TransactionsService {
   
       await this.transactionsRepo.save(transaction);
     }
+
+    console.log("rows = ", rows.length);
+    console.log("skippedTransactions = ", skippedTransactions);
 
     return { message: `Successfully saved ${rows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
 
@@ -415,27 +418,21 @@ export class TransactionsService {
 
       // Get all bills for the user
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      if (!bills || bills.length === 0) {
-        throw new Error('No bills found for the user');
+      
+      if (bills.length > 0) {
+        bills.forEach(bill => {
+          sources.push(...bill.sources.map(source => source.sourceName));
+        });
       }
-      //console.log("bills:", bills);
-      
-      bills.forEach(bill => {
-        sources.push(...bill.sources.map(source => source.sourceName));
-      });
-      //console.log("sources: ", sources);
-      
 
     return sources;
   }
+  
 
   async getTransactionsByBillAndUserId(billId: string, userId: string, startDate: number, endDate: number): Promise<Transactions[]> {
 
     let sources: string[] = [];
     let allIdentifiers: string[] = [];
-
-    // console.log("getTransactionsByBillAndUserId - start");
-
 
     if (billId === "ALL_BILLS") {  
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
@@ -447,13 +444,9 @@ export class TransactionsService {
       if (!bill.sources) {
         // console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
       } else {
-        // console.log("Bill sources before pushing:", bill.sources);
         bill.sources.forEach(source => {
-          //console.log("Source being pushed:", source.sourceName);
           sources.push(source.sourceName);
-          //console.log("Sources array after pushing:", sources);
         });
-        //console.log("Bill sources after pushing:", sources);
       }
     });
     } else {
@@ -495,8 +488,6 @@ export class TransactionsService {
 
   async getIncomesTransactions(query: any): Promise<Transactions[]> {
 
-    // console.log("getIncomesTransactions - start ");
-
     const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
@@ -507,8 +498,6 @@ export class TransactionsService {
 
 
   async getExpensesTransactions(query: any): Promise<Transactions[]> {
-
-    // console.log("getExpensesTransactions - start");
     
     const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
     //console.log("Transactions:\n", transactions)

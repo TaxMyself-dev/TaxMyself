@@ -111,10 +111,14 @@ export class SharedService {
     
     
     convertDateStrToTimestamp(dateStr: string): number {
-        const date = new Date(dateStr);
+
+        // Try parsing the date string with date-fns using the format "dd/MM/yyyy"
+        const date = parse(dateStr, 'dd/MM/yyyy', new Date());
+        
         if (isNaN(date.getTime())) {
           throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
         }
+        
         return Math.floor(date.getTime() / 1000);
     }
 
