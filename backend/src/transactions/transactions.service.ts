@@ -19,6 +19,7 @@ import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { Category } from 'src/expenses/categories.entity';
 import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity';
+import { CreateUserCategoryDto } from 'src/expenses/dtos/create-user-category.dto';
 
 
 @Injectable()
@@ -224,8 +225,17 @@ export class TransactionsService {
     // Add new user category if isNewCategory is true
     if (isNewCategory) {
       try {
-        const categoryData = {category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized};
-        //await this.expenseService.addUserCategory(categoryData, userId);
+         // Align to CreateUserCategoryDto
+         const categoryData: CreateUserCategoryDto = {
+          categoryName: category,
+          subCategoryName: subCategory,
+          taxPercent,
+          vatPercent,
+          reductionPercent,
+          isEquipment,
+          isRecognized
+        };
+        await this.expenseService.addUserCategory(userId, categoryData);
       } catch (error) {
         if (error instanceof ConflictException) {
           console.log('Category already exists:', error.message);
