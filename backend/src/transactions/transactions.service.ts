@@ -532,7 +532,7 @@ export class TransactionsService {
         where: {
           dateTimestamp: transaction.payDate,
           supplier: transaction.name,
-          sum: transaction.sum
+          sum: Math.abs(transaction.sum)
         }
       });
   
@@ -547,7 +547,7 @@ export class TransactionsService {
       expense.supplierID = '';
       expense.category = transaction.category;
       expense.subCategory = transaction.subCategory;
-      expense.sum = transaction.sum;
+      expense.sum = Math.abs(transaction.sum);
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
       expense.dateTimestamp = transaction.payDate;

@@ -84,16 +84,6 @@ export class TransactionsController {
   }
 
 
-  // @Get(':id/get-transactions')
-  // async getTransactionsForBill(
-  //   @Param('id') id: string,
-  //   @Body() body: any
-  // ): Promise<Transactions[]> {
-  //   const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-  //   return this.transactionsService.getTransactionsByBillAndUserId(id, userId);
-  // }
-
-
   @Get('get-incomes')
   @UsePipes(new ValidationPipe({ transform: true }))
   async getIncomesForBill(
@@ -141,7 +131,8 @@ export class TransactionsController {
 
   @Post('classify-trans')
   async classifyTransaction(
-    @Body() classifyDto: ClassifyTransactionDto,
+    //@Body() classifyDto: ClassifyTransactionDto,
+    @Body() classifyDto: any,
     @Headers('token') token: string,
     @Query('year') year: string,
     @Query('month') month: string,
