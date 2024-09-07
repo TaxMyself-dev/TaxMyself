@@ -108,18 +108,55 @@ export class SharedService {
 
         return daysForReduction;
     }
-    
-    
+
+
     convertDateStrToTimestamp(dateStr: string): number {
 
-        // Try parsing the date string with date-fns using the format "dd/MM/yyyy"
-        const date = parse(dateStr, 'dd/MM/yyyy', new Date());
-        
-        if (isNaN(date.getTime())) {
-          throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
+        //console.log("Original dateStr is ", dateStr);
+
+        // Split the date string into day, month, and year
+        let dateParts = dateStr.split('/');
+        if (dateParts.length !== 3) {
+            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use the format dd/MM/yyyy.`);
         }
-        
-        return Math.floor(date.getTime() / 1000);
+
+        // Pad day and month with leading zeros if necessary
+        let day = dateParts[0].padStart(2, '0');
+        let month = dateParts[1].padStart(2, '0');
+        let year = dateParts[2];
+
+        // If year is two digits, add the "20" prefix
+        if (year.length === 2) {
+            year = '20' + year;
+        }
+
+        // Reconstruct the date string with normalized values
+        dateStr = `${day}/${month}/${year}`;
+
+        //console.log("Normalized dateStr is ", dateStr);
+
+        // Regex to check if the fixed date format is dd/MM/yyyy
+        const dateFormatPattern = /^\d{2}\/\d{2}\/\d{4}$/;
+
+        // Validate the fixed date format
+        if (!dateFormatPattern.test(dateStr)) {
+            throw new BadRequestException(`Invalid date format provided after fix: ${dateStr}. Please use the format dd/MM/yyyy.`);
+        }
+
+        // Try parsing the date string with date-fns using the format "dd/MM/yyyy"
+        const date = new Date(`${year}-${month}-${day}T00:00:00`);
+
+        //console.log("Parsed date is ", date);
+
+        if (isNaN(date.getTime())) {
+            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
+        }
+
+        const timeStampDate = Math.floor(date.getTime() / 1000);
+        //console.log("timeStampDate is ", timeStampDate);
+
+        return timeStampDate;
+
     }
 
 

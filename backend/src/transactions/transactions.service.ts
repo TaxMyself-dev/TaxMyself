@@ -78,7 +78,9 @@ export class TransactionsService {
 
     let skippedTransactions = 0;    
 
-    for (const row of rows) {      
+    for (const row of rows) {    
+      
+      //console.log("row is ", row);
       
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
@@ -95,7 +97,7 @@ export class TransactionsService {
         where: {
           name: transaction.name,
           paymentIdentifier: transaction.paymentIdentifier,
-          billDate: transaction.billDate,
+          payDate: transaction.payDate,
           sum: transaction.sum,
           userId: transaction.userId,
         },
@@ -129,8 +131,10 @@ export class TransactionsService {
       await this.transactionsRepo.save(transaction);
     }
 
-    console.log("rows = ", rows.length);
+
+    console.log("Successfully saved = ", rows.length - skippedTransactions);
     console.log("skippedTransactions = ", skippedTransactions);
+    console.log("Loading transaction done");
 
     return { message: `Successfully saved ${rows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
 
@@ -436,19 +440,21 @@ export class TransactionsService {
 
     if (billId === "ALL_BILLS") {  
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      if (!bills || bills.length === 0) {
-        throw new Error('No bills found for the user');
-      }
+      //if (!bills || bills.length === 0) {
+      //  throw new Error('No bills found for the user');
+      //}
       // Collect all sources from the user's bills
-      bills.forEach(bill => {
-      if (!bill.sources) {
-        // console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
-      } else {
-        bill.sources.forEach(source => {
-          sources.push(source.sourceName);
+      if (bills.length > 0)  {
+        bills.forEach(bill => {
+          if (!bill.sources) {
+            // console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
+          } else {
+            bill.sources.forEach(source => {
+              sources.push(source.sourceName);
+            });
+          }
         });
       }
-    });
     } else {
       // Get the specific bill for the user
       const billIdNum = parseInt(billId, 10);
@@ -471,12 +477,12 @@ export class TransactionsService {
       {
         userId,
         paymentIdentifier: In(sources),
-        billDate: Between(startDate, endDate)
+        payDate: Between(startDate, endDate)
       },
       {
         userId,
         paymentIdentifier: Not(In(allIdentifiers)),
-        billDate: Between(startDate, endDate)
+        payDate: Between(startDate, endDate)
       }
     ]
   });
@@ -524,7 +530,7 @@ export class TransactionsService {
       // Check if an expense with the same date, supplier, and sum already exists
       const existingExpense = await this.expenseRepo.findOne({
         where: {
-          dateTimestamp: transaction.billDate,
+          dateTimestamp: transaction.payDate,
           supplier: transaction.name,
           sum: transaction.sum
         }
@@ -544,7 +550,7 @@ export class TransactionsService {
       expense.sum = transaction.sum;
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
-      expense.dateTimestamp = transaction.billDate;
+      expense.dateTimestamp = transaction.payDate;
       expense.note = '';
       expense.file = '';
       expense.isEquipment = transaction.isEquipment;
@@ -566,35 +572,6 @@ export class TransactionsService {
   
     return { message };
 
-
-
-
-  
-    // const expense = transactions.map(transaction => {
-    //   const expense = new Expense();
-    //   expense.supplier = transaction.name;
-    //   expense.supplierID = '';
-    //   expense.category = transaction.category;
-    //   expense.subCategory = transaction.subCategory;
-    //   expense.sum = transaction.sum;
-    //   expense.taxPercent = transaction.taxPercent;
-    //   expense.vatPercent = transaction.vatPercent;
-    //   expense.dateTimestamp = transaction.billDate;
-    //   expense.note = '';
-    //   expense.file = '';
-    //   expense.isEquipment = transaction.isEquipment;
-    //   expense.userId = transaction.userId;
-    //   expense.loadingDate = Date.now();
-    //   expense.expenseNumber = '';
-    //   expense.reductionDone = false;
-    //   expense.reductionPercent = transaction.reductionPercent;
-    //   return expense;
-    // });
-  
-    // // Save expenses to the database
-    // await this.expenseRepo.save(expenses);
-  
-    // return { message: `Successfully converted ${expenses.length} transactions to expenses.` };
   }
 
 
