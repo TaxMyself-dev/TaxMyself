@@ -1,32 +1,30 @@
 <ion-header>
   <ion-toolbar>
-<ion-list class="header-list">
+    <ion-list class="header-list">
 
-  <ion-segment (ionChange)="segmentClicked($event)" color="success" value="exist">
-    <ion-segment-button value="exist">
-      <ion-label>בחירת קטגוריה</ion-label>
-    </ion-segment-button>
-    <ion-segment-button value="new">
-      <ion-label>הוספת קטגוריה</ion-label>
-    </ion-segment-button>
-  </ion-segment>
-  <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
-  name="close-outline"></ion-icon>
-</ion-list>
+      <ion-segment (ionChange)="segmentClicked($event)" color="success" value="exist">
+        <ion-segment-button value="exist">
+          <ion-label>בחירה מקטגוריה קיימת</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="new">
+          <ion-label>הוספת קטגוריה חדשה</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+      <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
+        name="close-outline"></ion-icon>
+    </ion-list>
   </ion-toolbar>
-  </ion-header>
+</ion-header>
 
 
 <ng-container *ngIf="existCategory; else newCategory">
   <div class="wrapp-exist-category">
-    <form class="form-exist-category" *ngIf="!equipmentType && categoryList"
-      [formGroup]="existCategoryEquipmentForm">
+    <form class="form-exist-category" *ngIf="!equipmentType && categoryList" [formGroup]="existCategoryEquipmentForm">
       <div class="wrapp-select" [class.disabled]="!!equipmentType">
         <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
           (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
         <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-          [controlName]="'category'" [items]="categoryList"
-          [title]="'קטגוריה'"></app-generic-select>
+          [controlName]="'category'" [items]="categoryList" [title]="'קטגוריה'"></app-generic-select>
         <app-generic-select (selectionChanged)="selectedSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
           [controlName]="'subCategory'" [items]="combinedListSubCategory"
           [title]="'תת-קטגוריה - מוגדר כציוד'"></app-generic-select>
@@ -58,29 +56,44 @@
   <div class="new-category-screen">
     <div class="forms-wrapper">
       <div class="right-form-box" id="scorllbar-style">
-        <ion-checkbox class="recognized-checkbox-title" [class.disabled-form]="!isRecognize" labelPlacement="end" [checked]="isRecognize" (ionChange)="onCheckboxRecognize($event, true)">התנועה הינה הוצאה מוכרת</ion-checkbox>
+        <ion-checkbox class="recognized-checkbox-title" [class.disabled-form]="!isRecognize" labelPlacement="end"
+          [checked]="isRecognize" (ionChange)="onCheckboxRecognize($event, true)">התנועה הינה הוצאה מוכרת</ion-checkbox>
         <form class="form-is-recognized" [formGroup]="newCategoryIsRecognizeForm">
-          <app-generic-select className="wide" [items]="equipmentList" [controlName]="'isSingleUpdate'" [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="!isRecognize" [parentForm]="newCategoryIsRecognizeForm"></app-generic-select>
+          <app-generic-select className="wide" [items]="equipmentList" [controlName]="'isSingleUpdate'"
+            [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="!isRecognize"
+            [parentForm]="newCategoryIsRecognizeForm"></app-generic-select>
           <app-generic-select className="wide" [items]="equipmentList" [controlName]="'isEquipment'"
             [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה מוגדרת כציוד?'"
             (selectionChanged)="setValueEquipment($event)" [disabled]="!isRecognize"></app-generic-select>
-          <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'קטגוריה'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
-          <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'תת-קטגוריה'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
-          <app-generic-input className="wide" [controlName]="'taxPercent'"  [inputLabel]="'אחוז מוכר למס'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
-          <app-generic-input className="wide" [controlName]="'vatPercent'"  [inputLabel]="'אחוז מוכר למעמ'" [parentForm]="newCategoryIsRecognizeForm"[disabled]="!isRecognize"></app-generic-input>
-          <app-generic-input className="wide" [controlName]="'reductionPercent'"  [inputLabel]="'אחוז פחת'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
+          <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'קטגוריה'"
+            [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
+          <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'תת-קטגוריה'"
+            [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
+          <app-generic-input className="wide" [controlName]="'taxPercent'" [inputLabel]="'אחוז מוכר למס'"
+            [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
+          <app-generic-input className="wide" [controlName]="'vatPercent'" [inputLabel]="'אחוז מוכר למעמ'"
+            [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
+          <app-generic-input className="wide" [controlName]="'reductionPercent'" [inputLabel]="'אחוז פחת'"
+            [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize"></app-generic-input>
         </form>
       </div>
       <div class="break-border"></div>
       <div>
-        <ion-checkbox class="recognized-checkbox-title" [class.disabled-form]="isRecognize" labelPlacement="end" [checked]="!isRecognize" (ionChange)="onCheckboxRecognize($event, false)">התנועה אינה הוצאה מוכרת</ion-checkbox>
+        <ion-checkbox class="recognized-checkbox-title" [class.disabled-form]="isRecognize" labelPlacement="end"
+          [checked]="!isRecognize" (ionChange)="onCheckboxRecognize($event, false)">התנועה אינה הוצאה
+          מוכרת</ion-checkbox>
         <form class="form-not-recognized" [formGroup]="newCategoryNotRecognizedForm">
-          <app-generic-select className="wide" [items]="equipmentList" [controlName]="'isSingleUpdate'" [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="isRecognize" [parentForm]="newCategoryNotRecognizedForm"></app-generic-select>
-          <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'הכנס קטגוריה'" [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize" ></app-generic-input>
-          <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'" [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
+          <app-generic-select className="wide" [items]="equipmentList" [controlName]="'isSingleUpdate'"
+            [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="isRecognize"
+            [parentForm]="newCategoryNotRecognizedForm"></app-generic-select>
+          <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'הכנס קטגוריה'"
+            [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
+          <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'"
+            [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
         </form>
       </div>
-      <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssificationNewCategory()"></app-button>
-
+      
     </div>
-<ion-toast message="התנועה סווגה בהצלחה" [isOpen]="isOpenToast" [duration]="5000"></ion-toast>
+    <app-button [buttonText]="'הוסף וסווג תנועה'" (onButtonClicked)="addClasssificationNewCategory()"></app-button>
+  </div>
+    <ion-toast message="התנועה סווגה בהצלחה" [isOpen]="isOpenToast" [duration]="5000"></ion-toast>

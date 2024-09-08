@@ -10,7 +10,10 @@ import { environment } from 'src/environments/environment';
 })
 export class ExpenseDataService {
 
-  constructor(private http: HttpClient) { }
+  token: string;
+  constructor(private http: HttpClient) { 
+    this.token = localStorage.getItem('token');
+  }
 
   private readonly columnsAddExpense: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE },
@@ -61,7 +64,7 @@ export class ExpenseDataService {
   public updateTable$: Subject<boolean> = new Subject();//I need to check what is do
   public isToastOpen$: Subject<boolean> = new Subject();
   
-  token = localStorage.getItem('token');
+  
 
 
   getColomnsOrder(): string[] {

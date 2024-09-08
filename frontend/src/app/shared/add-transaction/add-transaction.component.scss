@@ -85,7 +85,7 @@ ion-segment-button.md {
 }
 
 .new-category-screen {
-    height: 100%;
+    height: 85%;
     display: flex;
     flex-direction: column;
     justify-content: space-around;
@@ -139,7 +139,6 @@ ion-segment-button.md {
 }
 
 .right-form-box {
-    overflow-y: scroll;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -157,6 +156,7 @@ ion-segment-button.md {
 }
 
 .forms-wrapper {
+    overflow-y: scroll;
     display: flex;
     flex-direction: row-reverse;
     justify-content: space-around;
