@@ -159,7 +159,7 @@ export interface IButtons {
 
 export interface IClassifyTrans {
   id: number;
-  isSingleUpdate: boolean;
+  isSingleUpdate: boolean | number;
   isNewCategory: boolean;
   name: string;
   billName: string;

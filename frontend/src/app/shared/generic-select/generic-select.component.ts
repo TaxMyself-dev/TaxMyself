@@ -38,7 +38,7 @@ export class GenericSelectComponent implements OnChanges{
     return this.currentFormControl() ? this.currentFormControl().touched && this.currentFormControl().invalid : false;
   }
 
-  constructor() { }
+  constructor() {}
 
   ngOnChanges(changes: SimpleChanges): void {
     const isRequired = this.isRequired();

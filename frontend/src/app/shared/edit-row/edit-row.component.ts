@@ -11,7 +11,7 @@ import { ModalController } from '@ionic/angular';
 })
 export class editRowComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
 
-  //@Input() data: IRowDataTable;
+  @Input() data: IRowDataTable;
   @Input() parentForm: FormGroup;
   @Input() fields: IColumnDataTable<TFormColumns, TFormHebrewColumns>[];
   @Input() disabledFields: TFormColumns[];
@@ -27,7 +27,7 @@ export class editRowComponent<TFormColumns, TFormHebrewColumns> implements OnIni
   }
   
   updateRow(): void {
-    this.modalCtrl.dismiss('send')
+    this.modalCtrl.dismiss(this.data,'send')
   }
 
   onSelectionChanged(event, fieldData): void {

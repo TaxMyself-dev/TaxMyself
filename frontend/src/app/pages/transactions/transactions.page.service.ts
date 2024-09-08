@@ -4,8 +4,6 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { IClassifyTrans, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
-import * as fs from 'fs';
-import { h } from 'ionicons/dist/types/stencil-public-runtime';
 
 
 @Injectable({
@@ -66,8 +64,15 @@ constructor(private http: HttpClient) {
     this.http.get<any[]>(url, {headers: headers})
     .pipe(
       catchError((err) => {
+        console.log("in if err");
+        
+        if (err.error.status === 404) {
+          this.accountsList$.next([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
+        }
+        else{
+          this.accountsList$.next([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
+        }
         console.log("err in get all bills: ", err);
-        this.accountsList$.next([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
         return EMPTY;
       }),
       map((data) => {
@@ -182,7 +187,7 @@ constructor(private http: HttpClient) {
       'token':
        this.token
     }
-    return this.http.post<any>(url, formData, {headers:headers})
+    return this.http.patch<any>(url, formData, {headers:headers})
   }
 
   removeMinus(sum: string): string {

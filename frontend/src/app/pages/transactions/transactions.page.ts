@@ -132,13 +132,13 @@ export class TransactionsPage implements OnInit {
     this.editRowForm = this.formBuilder.group({
       [TransactionsOutcomesColumns.CATEGORY]: ['', Validators.required],
       [TransactionsOutcomesColumns.SUBCATEGORY]: ['', Validators.required],
-      [TransactionsOutcomesColumns.IS_RECOGNIZED]: ['', Validators.required],
+      [TransactionsOutcomesColumns.IS_RECOGNIZED]: [0, Validators.required],
       [TransactionsOutcomesColumns.SUM]: ['', Validators.required],
       [TransactionsOutcomesColumns.TAX_PERCENT]: [0],
       [TransactionsOutcomesColumns.VAT_PERCENT]: [0],
       [TransactionsOutcomesColumns.BILL_DATE]: [Date, Validators.required,],
       [TransactionsOutcomesColumns.BILL_NAME]: ['', Validators.required,],
-      [TransactionsOutcomesColumns.IS_EQUIPMENT]: ['', Validators.required],
+      [TransactionsOutcomesColumns.IS_EQUIPMENT]: [0, Validators.required],
       [TransactionsOutcomesColumns.REDUCTION_PERCENT]: [0],
       [TransactionsOutcomesColumns.NAME]: [''],
       [TransactionsOutcomesColumns.BILL_NUMBER]: [''],
@@ -152,13 +152,12 @@ export class TransactionsPage implements OnInit {
     this.transactionsService.accountsList$.subscribe(
       (accountsList) => {
         this.accountsList = accountsList;
-        // console.log(this.accountsList);
       }
     );
-    this.transactionsService.getAllSources().subscribe((data) => {
-      // console.log("sources: ", data);
-      this.sourcesList = data;
-    });
+    // this.transactionsService.getAllSources().subscribe((data) => {
+    //   // console.log("sources: ", data);
+    //   this.sourcesList = data;
+    // });
     this.getCategory();
 
     // this.transactionService.updateRow(4);
@@ -209,6 +208,18 @@ export class TransactionsPage implements OnInit {
         this.incomesData$.next(this.incomesData);
         this.expensesData$.next(data.expenses);
       });
+  }
+
+  getExpensesData(): void {
+    const formData = this.transactionsForm.value;
+    // console.log("form data trans is ", formData);
+
+    this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
+    this.dateForUpdate.month = formData.month;
+    this.dateForUpdate.year = formData.year;
+    this.transactionsService.getExpenseTransactionsData(formData).subscribe((res) => {
+      this.expensesData$.next(this.handleTableData(res));
+    });
   }
 
   columnsOrderByFunc(a, b): number {
@@ -353,7 +364,7 @@ export class TransactionsPage implements OnInit {
       }
       )
     }
-    // console.log("rows: ", rows);
+    console.log("rows: ", rows);
     return rows;
   }
 
@@ -374,7 +385,7 @@ export class TransactionsPage implements OnInit {
           if (field.name === TransactionsOutcomesColumns.CATEGORY) {
             field.listItems = res;
             // console.log("list item of category :", field.listItems);
-            
+
           }
         });
         // console.log("listCategory: ", this.listCategory);
@@ -383,53 +394,57 @@ export class TransactionsPage implements OnInit {
 
   getSubCategory(event): void {
     console.log(event);
+    console.log("in get sub category");
+    
     const combinedListSubCategory = [];
-    if (typeof (event) !== 'string'){
+    if (typeof (event) !== 'string') {
       const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, true);
       const notEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, false);
-    
 
-    zip(isEquipmentSubCategory, notEquipmentSubCategory)
-      .pipe(
-        map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
-          console.log(isEquipmentSubCategory, notEquipmentSubCategory);
-          this.originalSubCategoryList = [...isEquipmentSubCategory, ...notEquipmentSubCategory];
-          const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
-            name: item.subCategory,
-            value: item.id
-          })
-          );
-          const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
-            name: item.subCategory,
-            value: item.id
-          })
-          )
-          const combinedListSubCategory: ISelectItem[] = [];
-          const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
-          if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
-            combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
-          }
-          else {
-            isEquipmentSubCategoryList ? combinedListSubCategory.push(...isEquipmentSubCategoryList) : combinedListSubCategory.push(...notEquipmentSubCategoryList);
-          }
-          this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-            if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
-              field.listItems = combinedListSubCategory;
+
+      zip(isEquipmentSubCategory, notEquipmentSubCategory)
+        .pipe(
+          map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
+            console.log(isEquipmentSubCategory, notEquipmentSubCategory);
+            this.originalSubCategoryList = [...isEquipmentSubCategory, ...notEquipmentSubCategory];
+            console.log("originalSubCategoryList: ",this.originalSubCategoryList);
+            
+            const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
+              name: item.subCategory,
+              value: item.id
+            })
+            );
+            const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
+              name: item.subCategory,
+              value: item.id
+            })
+            )
+            const combinedListSubCategory: ISelectItem[] = [];
+            const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
+            if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
+              combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
             }
-          });
-          console.log(combinedListSubCategory);
+            else {
+              isEquipmentSubCategoryList ? combinedListSubCategory.push(...isEquipmentSubCategoryList) : combinedListSubCategory.push(...notEquipmentSubCategoryList);
+            }
+            this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
+              if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
+                field.listItems = combinedListSubCategory;
+              }
+            });
+            console.log(combinedListSubCategory);
 
 
-          return combinedListSubCategory;
-        }),
-        catchError((err) => {
-          console.log("err in get sub category: ", err);
-          return EMPTY;
+            return combinedListSubCategory;
+          }),
+          catchError((err) => {
+            console.log("err in get sub category: ", err);
+            return EMPTY;
+          })
+        )
+        .subscribe((res) => {
+          console.log("combine sub category :", res);
         })
-      )
-      .subscribe((res) => {
-        console.log("combine sub category :", res);
-      })
     }
   }
 
@@ -484,19 +499,32 @@ export class TransactionsPage implements OnInit {
   }
 
   openEditRow(data: IRowDataTable): void {
-    data?.isEquipment ? data.isEquipment = { name: "כן", value: "1" } : data.isEquipment = { name: "לא", value: "0" };
-    data?.isRecognized ? data.isRecognized = { name: "כן", value: "1" } : data.isRecognized = { name: "לא", value: "0" };
-    console.log("data in edit row: ", data);
+    console.log("data in edit row before: ", data);
+    const categoryId = this.listCategory.find((category) => {
+      return category.name === data.category;
+    });
+    // this.getSubCategory(categoryId.value);
+    // const subCategoryId = this.originalSubCategoryList.find((subCategory) => {
+    //   return subCategory.subCategory === data.subCategory;
+    // })
+
+    // console.log(categoryId);
+
+    data.category = categoryId.value;
+    // data.category = subCategoryId.id;
+    data?.isEquipment === "לא" ? data.isEquipment = 0 : data.isEquipment = 1;
+    data?.isRecognized === "כן" ? data.isRecognized = 1 : data.isRecognized = 0;
+    console.log("data in edit row after: ", data);
 
     this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(data?.isRecognized.name || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(data?.isRecognized || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
       this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(data?.isEquipment.name || false),
+      this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(data?.isEquipment || false),
       this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
       this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
       this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0),
@@ -510,7 +538,7 @@ export class TransactionsPage implements OnInit {
       component: editRowComponent,
       componentProps: {
         //date: this.dateForUpdate,
-        //data,
+        data,
         fields: this.editFieldsNamesExpenses,
         parentForm: this.editRowForm,
         disabledFields,
@@ -539,14 +567,14 @@ export class TransactionsPage implements OnInit {
         }))
       .subscribe((res) => {
         console.log("res in subscribe edit: ", res);
-        if (res.data == 'send') {
-          this.updateRow()
+        if (res.role == 'send') {
+          this.updateRow(res.data.id)
         }
 
       });
   }
 
-  updateRow(): void {
+  updateRow(id: number): void {
     console.log("in update row");
     let formData: IClassifyTrans;
     formData = this.editRowForm.getRawValue();
@@ -554,16 +582,21 @@ export class TransactionsPage implements OnInit {
     console.log(this.editRowForm.get('category').value);
     console.log(this.listCategory);
 
-    const categoryId = this.listCategory.find((category) => category.name === this.editRowForm.get('category').value);
-    console.log(categoryId);
-    // formData.id = categoryId.value as number;
-    formData.id = this.editRowForm.get('category').value
+    const category = this.listCategory.find((category) => category.value === this.editRowForm.get('category').value);
+    const subCategory = this.originalSubCategoryList.find((subCategory) => subCategory.id === this.editRowForm.get('subCategory').value);
+    console.log(category);
+    console.log(subCategory);
+    formData.id = id;
+    formData.category = category.name as string;
+    formData.subCategory = subCategory.subCategory as string;
     formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
     formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
     formData.isSingleUpdate = true;
     formData.isNewCategory = false;
+    formData.vatPercent = +formData.vatPercent;
+    formData.taxPercent = +formData.taxPercent;
     console.log(formData);
-    this.transactionService.updateRow(formData);
+    this.transactionService.updateRow(formData).subscribe((res) => this.getExpensesData());
   }
 
   openAddTransaction(event): void {

@@ -250,9 +250,21 @@ export class AddTransactionComponent implements OnInit {
     let formData: IClassifyTrans;
     if (this.isRecognize) {
       formData = this.newCategoryIsRecognizeForm.value;
+      formData.isEquipment === 1 ? formData.isEquipment = true : formData.isEquipment = false; 
+      formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false; 
+      formData.taxPercent = +formData.taxPercent;
+      formData.vatPercent = +formData.vatPercent;
+      formData.reductionPercent = +formData.reductionPercent;
     }
     else {
       formData = this.newCategoryNotRecognizedForm.value;
+      formData.vatPercent = 0;
+      formData.taxPercent = 0;
+      formData.reductionPercent = 0;
+      formData.isEquipment = false;
+      formData.isRecognized = false;
+
+
     }
     formData.isNewCategory = true;
     formData.id = this.data.id;

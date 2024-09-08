@@ -28,7 +28,7 @@ export class SharedService {
         const whereConditions = this.buildWhereConditions<T>(conditions);
         return repository.find({ where: whereConditions });
     }
-  
+
 
     private getRepository<T>(entity: EntityTarget<T>): Repository<T> {
         switch (entity) {
@@ -56,33 +56,39 @@ export class SharedService {
 
 
     getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
+        // console.log("yearStr: ", yearStr, "monthStr: ", monthStr);
 
-        //console.log("isSingleMonth = ", isSingleMonth);
-
-        // Ensure `isSingleMonth` is a boolean
-        isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
-        //console.log("isSingleMonth = ", isSingleMonth, " (type:", typeof isSingleMonth, ")");
-
-        const year = parseInt(yearStr, 10);
-        const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
-    
-        // Start date is always the first day of the specified month in UTC
-        let startDate = new Date(Date.UTC(year, month, 1));
-        // Calculate the end date in UTC
-        let endDate: Date;
-        if (isSingleMonth) {
-            // Last day of the specified month
-            // console.log("single true");
-            
-            endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
-        } else {
-            // Last day of the next month
-            // console.log("single false");
-            endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
+        if (yearStr === undefined || monthStr === undefined) {
+            return {startDate: null, endDate: null};
         }
-        //console.log("getStartAndEndDate - debug:\n startDate is ", startDate, "\nendDate is ", endDate);
-        
-        return { startDate, endDate };
+        else {
+            //console.log("isSingleMonth = ", isSingleMonth);
+
+            // Ensure `isSingleMonth` is a boolean
+            isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
+            //console.log("isSingleMonth = ", isSingleMonth, " (type:", typeof isSingleMonth, ")");
+
+            const year = parseInt(yearStr, 10);
+            const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
+
+            // Start date is always the first day of the specified month in UTC
+            let startDate = new Date(Date.UTC(year, month, 1));
+            // Calculate the end date in UTC
+            let endDate: Date;
+            if (isSingleMonth) {
+                // Last day of the specified month
+                // console.log("single true");
+
+                endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+            } else {
+                // Last day of the next month
+                // console.log("single false");
+                endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
+            }
+            //console.log("getStartAndEndDate - debug:\n startDate is ", startDate, "\nendDate is ", endDate);
+
+            return { startDate, endDate };
+        }
 
     }
 
@@ -93,7 +99,7 @@ export class SharedService {
         const formatDate = parse("31.12.2023", formatString, new Date());
         const dayOfYear = getDayOfYear(formatDate);
         // console.log(dayOfYear);  
-        return(dayOfYear)
+        return (dayOfYear)
     }
 
 
@@ -101,9 +107,9 @@ export class SharedService {
         let daysForReduction: number;
         const dayOfYear = this.getDayOfYearFromDate(activeDate);
         const activeYear = activeDate.getFullYear();
-        const yearsForReduction = 1/(reductionPercent/100) + 2;
+        const yearsForReduction = 1 / (reductionPercent / 100) + 2;
         if (year == activeYear) {
-            daysForReduction = (reductionPercent/365) * (365-dayOfYear);
+            daysForReduction = (reductionPercent / 365) * (365 - dayOfYear);
         }
 
         return daysForReduction;
@@ -112,7 +118,7 @@ export class SharedService {
 
     convertDateStrToTimestamp(dateStr: string): number {
 
-        //console.log("Original dateStr is ", dateStr);
+        // console.log("Original dateStr is ", dateStr);
 
         // Split the date string into day, month, and year
         let dateParts = dateStr.split('/');
@@ -133,7 +139,7 @@ export class SharedService {
         // Reconstruct the date string with normalized values
         dateStr = `${day}/${month}/${year}`;
 
-        //console.log("Normalized dateStr is ", dateStr);
+        // console.log("Normalized dateStr is ", dateStr);
 
         // Regex to check if the fixed date format is dd/MM/yyyy
         const dateFormatPattern = /^\d{2}\/\d{2}\/\d{4}$/;
@@ -146,14 +152,14 @@ export class SharedService {
         // Try parsing the date string with date-fns using the format "dd/MM/yyyy"
         const date = new Date(`${year}-${month}-${day}T00:00:00`);
 
-        //console.log("Parsed date is ", date);
+        // console.log("Parsed date is ", date);
 
         if (isNaN(date.getTime())) {
             throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
         }
 
         const timeStampDate = Math.floor(date.getTime() / 1000);
-        //console.log("timeStampDate is ", timeStampDate);
+        // console.log("timeStampDate is ", timeStampDate);
 
         return timeStampDate;
 
@@ -161,8 +167,11 @@ export class SharedService {
 
 
     convertDateToTimestamp(date: Date): number {
+        if (date === null) {
+            return null;
+        }
         if (isNaN(date.getTime())) {
-          throw new BadRequestException(`Invalid date format provided: ${date}. Please use a valid ISO 8601 date format.`);
+            throw new BadRequestException(`Invalid date format provided: ${date}. Please use a valid ISO 8601 date format.`);
         }
         return Math.floor(date.getTime() / 1000);
     }

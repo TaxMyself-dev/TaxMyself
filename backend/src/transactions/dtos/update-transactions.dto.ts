@@ -8,8 +8,9 @@ export class UpdateTransactionsDto {
   @IsBoolean()
   isSingleUpdate: boolean;
 
-  @IsString()
-  userId?: string;
+  // @IsString()
+  // @IsOptional()
+  // userId?: string;
 
   @IsString()
   billName?: string;

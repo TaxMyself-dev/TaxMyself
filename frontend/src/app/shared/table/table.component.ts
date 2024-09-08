@@ -35,7 +35,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   allID: number[] =[];
   isSelected: boolean = false;
 
-  constructor() { }
+  constructor() {}
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes.fieldsNames) {
@@ -44,26 +44,19 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   }
 
   openAddBill(event: IRowDataTable): any {
-    console.log("click on bill");
-    
     this.onClickedCell.emit({str: "bill", data: event})
   }
   openAddTransaction(event: IRowDataTable): any {
-    console.log("click on tran");
-    
     this.onClickedCell.emit({str: "tran", data: event})
   }
 
   onCheckedClicked(event: any): void {
-    console.log(event.row.id);
-    console.log(event.$event.detail.checked);
     this.onChecked.emit({id: event.row.id, checked: event.$event.detail.checked})
   }
   
   selectAll(event: IRowDataTable[]): void {
     this.isSelected = !this.isSelected;
     this.isSelected ? this.checkboxData.columnName = "בטל הכול" :  this.checkboxData.columnName = "בחר הכול"
-    console.log(event);
     this.isSelected ? event.forEach((row) => {this.allID.push(row.id as number)}) : this.allID = [];
     this.onCheckedAll.emit({id: this.allID, checked: this.isSelected})
     //console.log(this.allID);

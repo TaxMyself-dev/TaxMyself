@@ -421,9 +421,19 @@ export class TransactionsService {
 
   async getBillsByUserId(userId: string): Promise<Bill[]> {
 
-    return this.billRepo.find({
+    const bills = await this.billRepo.find({
       where: { userId: userId}
     });
+    if (!bills || bills.length === 0) {
+      throw new HttpException({
+        status: HttpStatus.NOT_FOUND,
+        error: `not found`
+    }, HttpStatus.NOT_FOUND);
+    }
+    return bills;
+    // return this.billRepo.find({
+    //   where: { userId: userId}
+    // });
 
   }
 
@@ -432,6 +442,14 @@ export class TransactionsService {
 
       // Get all bills for the user
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+      if (!bills || bills.length === 0) {
+        // throw new Error('No bills found for the user');
+        throw new HttpException({
+          status: HttpStatus.NOT_FOUND,
+          error: `not found`
+      }, HttpStatus.NOT_FOUND);
+      }
+      //console.log("bills:", bills);
       
       if (bills.length > 0) {
         bills.forEach(bill => {
@@ -450,9 +468,13 @@ export class TransactionsService {
 
     if (billId === "ALL_BILLS") {  
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      //if (!bills || bills.length === 0) {
-      //  throw new Error('No bills found for the user');
-      //}
+      if (!bills || bills.length === 0) {
+        throw new HttpException({
+          status: HttpStatus.NOT_FOUND,
+          error: `not found`
+      }, HttpStatus.NOT_FOUND);
+        // throw new Error('No bills found for the user');
+      }
       // Collect all sources from the user's bills
       if (bills.length > 0)  {
         bills.forEach(bill => {
