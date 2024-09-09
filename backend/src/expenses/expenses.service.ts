@@ -129,16 +129,17 @@ export class ExpensesService {
           category = new Category();
           category.category = createUserCategoryDto.categoryName;
           category.isDefault = false; // Mark the category as user-defined
+          category.firebaseId = firebaseId;
           category = await this.categoryRepo.save(category);
         }
-    
+
         // Step 3: Check if the sub-category already exists for this user and category
         const existingSubCategory = await this.userSubCategoryRepo.findOne({
-          where: {
-            subCategory: createUserCategoryDto.subCategoryName,
-            category: category,
-            user: user,
-          },
+            where: {
+                subCategory: createUserCategoryDto.subCategoryName,
+                category: { id: category.id },   // Compare using the category ID
+                user: { index: user.index },     // Compare using the user ID (or index in your case)
+            },
         });
     
         if (existingSubCategory) {
@@ -160,9 +161,10 @@ export class ExpensesService {
       }
 
 
-      async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<Category[]> {
+      async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<Category[]> {        
 
         if (isDefault === null) {
+            
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user-specific categories.');
             }
