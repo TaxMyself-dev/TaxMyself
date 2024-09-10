@@ -150,7 +150,11 @@ export class SharedService {
         }
 
         // Try parsing the date string with date-fns using the format "dd/MM/yyyy"
-        const date = new Date(`${year}-${month}-${day}T00:00:00`);
+        //const date = new Date(`${year}-${month}-${day}T00:00:00`);
+
+        // Use Date.UTC() to ensure the date is created in UTC
+        const date = new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10)));
+
 
         // console.log("Parsed date is ", date);
 
