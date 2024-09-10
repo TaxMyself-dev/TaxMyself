@@ -388,7 +388,7 @@ export class TransactionsPage implements OnInit {
 
           }
         });
-        // console.log("listCategory: ", this.listCategory);
+        console.log("listCategory: ", this.listCategory);
       })
   }
 
@@ -508,15 +508,14 @@ export class TransactionsPage implements OnInit {
     //   return subCategory.subCategory === data.subCategory;
     // })
 
-    // console.log(categoryId);
+    console.log(categoryId);
 
-    data.category = categoryId.value;
     // data.category = subCategoryId.id;
     data?.isEquipment === "לא" ? data.isEquipment = 0 : data.isEquipment = 1;
     data?.isRecognized === "כן" ? data.isRecognized = 1 : data.isRecognized = 0;
     console.log("data in edit row after: ", data);
 
-    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(categoryId?.value || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(data?.isRecognized || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
@@ -582,8 +581,8 @@ export class TransactionsPage implements OnInit {
     console.log(this.editRowForm.get('category').value);
     console.log(this.listCategory);
 
-    const category = this.listCategory.find((category) => category.value === this.editRowForm.get('category').value);
-    const subCategory = this.originalSubCategoryList.find((subCategory) => subCategory.id === this.editRowForm.get('subCategory').value);
+    const category = this.listCategory?.find((category) => category.value === this.editRowForm?.get('category').value);
+    const subCategory = this.originalSubCategoryList?.find((subCategory) => subCategory.id === this.editRowForm?.get('subCategory').value);
     console.log(category);
     console.log(subCategory);
     formData.id = id;

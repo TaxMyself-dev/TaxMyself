@@ -72,6 +72,7 @@ export class ExpenseDataService {
   }
 
   getExpenseByUser(userID?: string): Observable<IRowDataTable[]> {
+    const token = localStorage.getItem('token');
     //const url = this.baseURL+"/expenses/get_by_userID";
     const url = `${environment.apiUrl}expenses/get_by_userID`;
     const options = {
@@ -89,9 +90,10 @@ export class ExpenseDataService {
   }
 
   getSubCategory(category: string, isEquipment: boolean): Observable<any> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-sub-categories`;
     const headers = {
-      'token': this.token
+      'token': token
     }
     const params = new HttpParams()
       .set('isEquipment', isEquipment)
@@ -100,9 +102,10 @@ export class ExpenseDataService {
   }
 
   getcategry(isDefault: boolean): Observable<any[]> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-categories`;
     const headers = {
-      'token': this.token
+      'token': token
     }
     const param = new HttpParams()
       .set('isDefault', isDefault)
@@ -110,40 +113,45 @@ export class ExpenseDataService {
   }
 
   getAllSuppliers(): Observable<IGetSupplier[]> {
-    //const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;
     const param = new HttpParams()
-      .set('token', this.token);
+      .set('token', token);
     return this.http.get<IGetSupplier[]>(url, { params: param })
   }
 
   addSupplier(formData: any): Observable<any> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-supplier`;
     return this.http.post(url, formData);
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/update-supplier/` + id;
     return this.http.patch(url, formData);
   }
 
   deleteSupplier(id: number): Observable<any> {
-    //const token = localStorage.getItem('token');
-    const param = new HttpParams()
-      .set('token', this.token);
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/delete-supplier/` + id;
+    const param = new HttpParams()
+    .set('token', this.token);
     return this.http.delete(url, { params: param });
   }
-
+  
   addExpenseData(data: any): Observable<any> {
-    console.log("formdata in send",data);
-    return this.http.post(`${environment.apiUrl}expenses/add-expense`, data);
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}expenses/add-expense`;
+    //console.log("formdata in send",data);
+    return this.http.post(url, data);
+    // return this.http.post(`${environment.apiUrl}expenses/add-expense`, data);
   }
-
+  
   updateExpenseData(data: any, id: number): Observable<any> {
-    console.log("id of update: ", id);
-    
-    return this.http.patch(`${environment.apiUrl}expenses/update-expense/${id}`, data);
+    const url = `${environment.apiUrl}expenses/update-expense/${id}`;
+    //console.log("id of update: ", id);
+    return this.http.patch(url, data);
   }
 
 

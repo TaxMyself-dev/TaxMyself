@@ -10,6 +10,7 @@ export class SearchBarComponent {
 
   @Input() customTemplate: TemplateRef<any>;
   @Input() isDisabled = false;
+  @Input() iconName = 'search';
   
   @Output() onSearchClick = new EventEmitter<void>();
 
