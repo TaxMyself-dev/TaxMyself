@@ -9,23 +9,32 @@ import * as XLSX from 'xlsx';
 @Injectable({
   providedIn: 'root'
 })
-export class TransactionsService {
+export class TransactionsService implements OnInit{
 
 token:string;
 accountsList$ = new BehaviorSubject<any[]>([{ value: 'ALL_BILLS', name: 'כל החשבונות' }]);
 
 // accountsList = [{ value: 'null', name: 'כל החשבונות' }];
 constructor(private http: HttpClient) { 
-  this.setUserId();
+  console.log("in transaction service");
+  
 };
 
-  private setUserId(): void {
+ngOnInit(): void {
+  console.log("in on init trans service");
+  
+  this.setUserId();
+}
+
+ setUserId(): void {
+    console.log("in set token");
+
     this.token = localStorage.getItem('token');
   }
 
   getIncomeTransactionsData(formData: any): Observable<ITransactionData[]> {
     // console.log(formData.accounts);
-    
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
     .set('billId', formData.accounts)
@@ -33,7 +42,7 @@ constructor(private http: HttpClient) {
     .set('year', formData.year)
     .set('isSingleMonth', formData.isSingleMonth)
     const headers = {
-      'token': this.token
+      'token': token
     }
     // console.log("param: ",param);
     
@@ -42,7 +51,7 @@ constructor(private http: HttpClient) {
   
   getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
     console.log(formData.accounts);
-    
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
     .set('billId', formData.accounts)
@@ -50,28 +59,29 @@ constructor(private http: HttpClient) {
     .set('year', formData.year)
     .set('isSingleMonth', formData.isSingleMonth)
     const headers = {
-      'token': this.token
+      'token': token
     }
     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
   }
   
   getAllBills(): void {
-    console.log("get bills");
+    const token = localStorage.getItem('token');
+    // console.log("get bills");
     const url = `${environment.apiUrl}transactions/get-bills`;
     const headers = {
-      'token': this.token
+      'token': token
     }
     this.http.get<any[]>(url, {headers: headers})
     .pipe(
       catchError((err) => {
-        console.log("in if err");
+        console.log("in if err", err);
         
         if (err.error.status === 404) {
           this.accountsList$.next([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
         }
-        else{
+        // else{
           this.accountsList$.next([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
-        }
+        // }
         console.log("err in get all bills: ", err);
         return EMPTY;
       }),
@@ -91,11 +101,12 @@ constructor(private http: HttpClient) {
   }
 
   getAllSources(): Observable<string[]> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/get-sources`;
     const headers = {
-      'token': this.token
+      'token': token
     }
-    console.log(this.token);
+    // console.log(this.token);
     
     return this.http.get<any[]>(url, {headers: headers})
   }
@@ -120,24 +131,26 @@ constructor(private http: HttpClient) {
   }
   
   addSource(billId: string, source: string): Observable<any> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
     const headers = {
-      'token': this.token
+      'token': token
     }
     return this.http.post<any[]>(url,{sourceName: source},{headers:headers});
   }
 
   addBill(billName: string): Observable<any> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/add-bill`;
     const headers = {
-      'token': this.token
+      'token': token
     }
     return this.http.post<any[]>(url,{billName: billName},{headers:headers});
   }
   
   uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
     console.log("file buffer in service: ", fileBuffer);
-    
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/load-file`;
     const formData = new FormData();
     const blob = new Blob([fileBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -145,7 +158,7 @@ constructor(private http: HttpClient) {
     formData.append('file', blob, 'file.xlsx');
     console.log("form data: ", formData.get('file'));
     const headers = {
-      'token': this.token
+      'token': token
     }
     return this.http.post<any>(url, formData,{headers: headers});
   }
@@ -165,11 +178,11 @@ constructor(private http: HttpClient) {
   addClassifiction(formData: IClassifyTrans, date: any): Observable<any> {
     console.log("in add classificaion");
     console.log("form data of classify trans: ",formData);
-    
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/classify-trans`;
     const headers = {
       'token':
-       this.token
+       token
     }
     const params = new HttpParams()
     .set('year', date.year)
@@ -181,11 +194,11 @@ constructor(private http: HttpClient) {
   updateRow(formData: any): Observable<any> {
     // updateRow(formData: IClassifyTrans): Observable<any> {
     console.log("in update row service");
-    
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/update-trans`;
     const headers = {
       'token':
-       this.token
+       token
     }
     return this.http.patch<any>(url, formData, {headers:headers})
   }
