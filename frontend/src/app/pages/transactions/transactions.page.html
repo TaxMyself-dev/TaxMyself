@@ -4,12 +4,19 @@
 
     <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent" [isDisabled]="transactionsForm.invalid"
     (onSearchClick)="getTransactions()"></app-search-bar>
-    <label class="label-file-transaction">
-        <ion-icon size="small" name="cloud-upload-outline"></ion-icon>
+    
+    <div class="wrap-upload">
+      <label class="label-file-transaction">
+        <ion-icon name="attach-outline"></ion-icon>
+        <label class="string-label">בחר קובץ</label>
         <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".pdf, .xlsx">
       </ion-input>
     </label>
-    <button (click)="onUpload()">Upload</button>
+    <!-- <button (click)="onUpload()">Upload</button> -->
+    <app-button [buttonClass]="" [buttonSize]="'small'" [iconName]="'cloud-upload-outline'" (onButtonClicked)="onUpload()"></app-button>
+    </div>
+    <!-- <app-search-bar class="generic-searchbar-wrapper" [iconName]="'x'" (onSearchClick)="onUpload()" [customTemplate]="searchBarFile"></app-search-bar> -->
+    
     <!-- <button (click)="openAddTransaction($event)">open</button> -->
     <!-- <button (click)="getExpenseTransactionsData($event)">open</button> -->
     
@@ -67,10 +74,15 @@
 
 
 
+
 <ng-template #expensesSearchBar>
   <form class="generic-search-bar-content" [formGroup]="expensesForm">
     <app-generic-select [parentForm]="expensesForm" [controlName]="'expensesType'" [items]="typeIncomeList"
       [title]="'סוג ההוצאה'"></app-generic-select>
     <app-generic-select [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'" (selectionChanged)="filterByCategory($event)"></app-generic-select>
   </form>
-</ng-template>
+</ng-template >
+
+<!-- <ng-template #searchBarFile> -->
+
+<!-- </ng-template> -->

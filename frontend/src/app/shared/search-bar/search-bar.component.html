@@ -1,7 +1,7 @@
 
 <div class="searchbar-wrapper">
   <ng-container *ngTemplateOutlet="customTemplate"></ng-container>
-  <ion-button class="search-button" type="button" [disabled]="isDisabled" (click)="onSearchClicked($event)">
-    <ion-icon size="large" name="search"></ion-icon>
+  <ion-button *ngIf="iconName !=='x'" class="search-button" type="button" [disabled]="isDisabled" (click)="onSearchClicked($event)">
+    <ion-icon size="large" [name]="iconName"></ion-icon>
   </ion-button>
 </div>

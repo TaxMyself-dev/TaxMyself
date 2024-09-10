@@ -55,8 +55,8 @@ export class AuthService {
 
   signIn(user: UserCredential): any {
     const url = `${environment.apiUrl}auth/signin`
-    console.log("url is ",url);
-    console.log("firebase is ",environment.firebase);
+    //console.log("url is ",url);
+    //console.log("firebase is ",environment.firebase);
     
     return from(user.user.getIdToken())
       .pipe(
