@@ -197,6 +197,45 @@ ion-col {
   color: black;
 }
 
+.checkbox-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.label-file-table {
+  // border: 1px solid;
+  // border-radius: 50%;
+  width: 55%;
+  height: 50px;
+  // background-color: rgb(79, 171, 79);
+  // color: white;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.label-file-table ion-icon:hover   {
+  cursor: pointer;
+}
+
+.label-file-table ion-icon {
+  // --ionicon-stroke-width: 2px;
+  width: 30%;
+  height: 60%;
+}
+
+.label-file-table ion-input[type="file"] {
+  display: none;
+}
+
+.trash-icon {
+  width: 10px;
+  height: 10px;
+  //border: 1px solid;
+  //border-radius: 50%;
+}
+
 
 
 

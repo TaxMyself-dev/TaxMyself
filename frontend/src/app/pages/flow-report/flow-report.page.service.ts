@@ -28,7 +28,7 @@ import { environment } from "src/environments/environment";
 
     getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
         console.log(formData.accounts);
-        
+        const token = localStorage.getItem('token');
         const url = `${environment.apiUrl}transactions/get-expenses`;
         const param = new HttpParams()
         .set('billId', 'ALL_BILLS')
@@ -37,15 +37,16 @@ import { environment } from "src/environments/environment";
         .set('year', formData.year)
         .set('isSingleMonth', formData.isSingleMonth)
         const headers = {
-            'token': this.token
+            'token': token
         }
         return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
     }
     
     addTransToExpense(IDs): Observable<any> {
+      const token = localStorage.getItem('token');
         const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
         const headers = {
-            'token': this.token
+            'token': token
         }
         return this.http.post<any>(url,IDs)
     }

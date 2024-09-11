@@ -1,10 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITransactionData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
 import { BehaviorSubject, EMPTY, Observable, catchError, map } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.page.service';
+import { FilesService } from 'src/app/services/files.service';
+//const { FilePicker } = Plugins;
+
 
 @Component({
   selector: 'app-flow-report',
@@ -12,7 +15,7 @@ import { TransactionsService } from '../transactions/transactions.page.service';
   styleUrls: ['./flow-report.page.scss'],
 })
 export class FlowReportPage implements OnInit {
-
+  readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   expensesData: any[];
   // expensesData$: Observable<any>;
 
@@ -20,7 +23,7 @@ export class FlowReportPage implements OnInit {
   year: string;
   isSingleMonth: string;
   params:{};
-  columnsToIgnore = ['id', 'payDate', 'isRecognized', 'isEquipment','paymentIdentifier','userId','billName'];
+  columnsToIgnore = ['id', 'payDate', 'isRecognized', 'isEquipment','paymentIdentifier','userId','billName', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: number[] = [];
   //params: { month: string, year: string, isSingleMonth: string }
 
@@ -35,8 +38,9 @@ export class FlowReportPage implements OnInit {
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
 
   ];
+  tableActions: ITableRowAction[];
 
-  constructor(private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService) { }
+  constructor(private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService) { }
 
   ngOnInit() {
     this.route.queryParams.subscribe(params => {
@@ -46,7 +50,21 @@ export class FlowReportPage implements OnInit {
       this.year = params['year'];
       this.isSingleMonth = params['isSingleMonth'];
       this.getExpenses();
-  })
+  });
+  this.setTableActions();
+}
+
+private setTableActions(): void {
+  this.tableActions = [
+    {
+      name: 'upload',
+      icon: 'attach-outline',
+      fieldName: this.UPLOAD_FILE_FIELD_NAME,
+      action: (event: any, row: IRowDataTable) => {
+        this.addFile(event, row);
+      }
+    },
+  ]
 }
 
   getExpenses(): void {
@@ -109,9 +127,10 @@ export class FlowReportPage implements OnInit {
     }
   }
 
-  checkedClicked(event: { id: number, checked: boolean }): void {
-    console.log(event);
-    event.checked ? this.chosenTrans.push(event.id) : this.chosenTrans = this.chosenTrans.filter((id) => {
+    checkedClicked(event:{id: number, checked: boolean}): void {
+    console.log(event.checked);
+    console.log(event.id);
+    event.checked ? this.chosenTrans.push(event.id as number) : this.chosenTrans = this.chosenTrans.filter((id) => {
       return id !== event.id;
     })
     console.log(this.chosenTrans);
@@ -143,6 +162,16 @@ export class FlowReportPage implements OnInit {
       console.log("res from add trans to expense:", res);
       
     })  
+  }
+
+  addFile(event, row: IRowDataTable): void {
+    console.log(event);
+    console.log(event.target.files[0]);
+    row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
+    this.fileService.fileSelected(event);
+    // row.fileIcon = 'document-attach-outline';
+    // this.tableActions.find((el) => el.name === 'upload').tooltip = event.target.files[0].name;
+    
   }
   
 

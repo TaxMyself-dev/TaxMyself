@@ -20,21 +20,26 @@
 <div class="grid-container">
   <ion-grid class="grid">
     <ion-row>
+      <ion-col *ngIf="displayCheckbox" size="1" class="row-header action">
+      סמן הכל
+      </ion-col>
       <ion-col
         *ngFor="let col of fieldsNames"
         [size]="columnsWidth?.get(col.name) ?? baseSize"
         class="row-header {{col.name}}">
         {{col.value}}
       </ion-col>
-      <ion-button *ngIf="!disableCheckbox" (click)="selectAll(rows)" class="checkbox-header">{{checkboxData.columnName}}</ion-button>
+      <!-- <ion-button *ngIf="!disableCheckbox" (click)="selectAll(rows)" class="checkbox-header">{{checkboxData.columnName}}</ion-button> -->
       <!-- <ion-button class="checkbox-header"><ion-col *ngIf="!disableCheckbox" size="0.5" class="checkbox-header" >{{checkboxData.columnName}}</ion-col></ion-button> -->
       <ion-col *ngIf="actions?.length" size="2" class="row-header action">
         פעולות
       </ion-col>
     </ion-row>
     <ion-row *ngFor="let row of rows; let i = index">
+      <ion-col class="checkbox-col" *ngIf="displayCheckbox" size="1">
+        <ion-checkbox (ionChange)="onChecked($event, row)"></ion-checkbox>
+      </ion-col>
       <ng-container *ngFor="let field of row | keyvalue: columnsOrderByFunc">
-        <!-- TODO: remove the specific dateTimestampfrom size -->
         <ng-container [ngSwitch]="specialColumnsCellRendering?.get(field.key)">
           
           <ng-container *ngSwitchCase="ICellRenderer.BILL">
@@ -94,13 +99,23 @@
         </ng-template>
 
       </ng-container>
-      <ng-container  *ngIf="!disableCheckbox">
-      <div class="checkbox">
+      <ng-container  *ngIf="!displayCheckbox">
+      <!-- <div class="checkbox">
         <ion-checkbox [checked]="isSelected" (ionChange)="onCheckedClicked({$event,row})"></ion-checkbox>
-      </div>
+      </div> -->
         </ng-container>
+
       <ion-col *ngIf="actions?.length" size="2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
-        <ion-icon *ngFor="let action of actions" class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
+        <ng-container *ngFor="let action of actions" >
+          <ion-icon *ngIf="action.name !== 'upload'"  class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
+          <label *ngIf="action.name === 'upload'" class="label-file-table">
+            <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'" [title]="row[action.fieldName] ?? ''"></ion-icon>
+            <!-- <label></label> -->
+            <ion-input  (change)="action.action($event, row)" label-placement="floating" type="file" accept=".pdf, .xlsx">
+            </ion-input>
+          </label>
+          <!-- <ion-icon [title]="'מחק קובץ'" class="trash-icon" size="small" *ngIf="row[action.fieldName]"name="close-circle-outline"></ion-icon> -->
+        </ng-container>
       </ion-col>
     </ion-row>
   </ion-grid>

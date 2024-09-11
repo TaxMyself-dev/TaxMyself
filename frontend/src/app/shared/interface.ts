@@ -146,7 +146,8 @@ export interface ITransactionData {
 export interface ITableRowAction {
     name: string;
     icon: string;
-    action: (row: IRowDataTable) => void;
+    fieldName?: string;
+    action: (event?: any, row?: IRowDataTable) => void;
 }
 
 export interface IButtons {

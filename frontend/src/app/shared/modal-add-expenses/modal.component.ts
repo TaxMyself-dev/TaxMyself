@@ -697,6 +697,7 @@ export class ModalExpensesComponent {
     }
     event.preventDefault();
   }
+  
  }
 
 

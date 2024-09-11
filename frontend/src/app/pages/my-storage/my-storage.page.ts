@@ -186,6 +186,8 @@ export class MyStoragePage implements OnInit {
 
   onDownloadFileClicked(expense: IRowDataTable): void {
       const selectedExpense = this.rows.find((row) => row.id === expense.id);
+      console.log(selectedExpense);
+      
       const fileName = selectedExpense.file;
       if (!(fileName === undefined || fileName === "" || fileName === null)) {
   

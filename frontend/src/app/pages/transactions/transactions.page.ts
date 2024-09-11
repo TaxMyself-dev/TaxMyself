@@ -395,7 +395,7 @@ export class TransactionsPage implements OnInit {
   getSubCategory(event): void {
     console.log(event);
     console.log("in get sub category");
-    
+
     const combinedListSubCategory = [];
     if (typeof (event) !== 'string') {
       const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, true);
@@ -407,8 +407,8 @@ export class TransactionsPage implements OnInit {
           map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
             console.log(isEquipmentSubCategory, notEquipmentSubCategory);
             this.originalSubCategoryList = [...isEquipmentSubCategory, ...notEquipmentSubCategory];
-            console.log("originalSubCategoryList: ",this.originalSubCategoryList);
-            
+            console.log("originalSubCategoryList: ", this.originalSubCategoryList);
+
             const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
               name: item.subCategory,
               value: item.id
@@ -500,101 +500,97 @@ export class TransactionsPage implements OnInit {
 
   openEditRow(data: IRowDataTable): void {
     console.log("data in edit row before: ", data);
-    const categoryId = this.listCategory.find((category) => {
-      return category.name === data.category;
-    });
-    // this.getSubCategory(categoryId.value);
-    // const subCategoryId = this.originalSubCategoryList.find((subCategory) => {
-    //   return subCategory.subCategory === data.subCategory;
-    // })
 
-    console.log(categoryId);
-
-    // data.category = subCategoryId.id;
-    data?.isEquipment === "לא" ? data.isEquipment = 0 : data.isEquipment = 1;
-    data?.isRecognized === "כן" ? data.isRecognized = 1 : data.isRecognized = 0;
-    console.log("data in edit row after: ", data);
+    const categoryId = this.listCategory.find((category) => category.name === data.category);
+    const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
+    const isRecognizedEdit = data?.isEquipment === "לא" ? 0 : 1;
+    const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE];
 
     this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(categoryId?.value || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(data?.isRecognized || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
-      this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(data?.isEquipment || false),
-      this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
-      this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-      this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0),
+    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
+    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || false),
+    this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
+    this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0),
 
-      this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.getSubCategory(res));
+    //skip on first update
+    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.getSubCategory(res));
     this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.selectedSubCategory(res));
 
-    const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME];
-    from(this.modalController.create({
-
-      component: editRowComponent,
-      componentProps: {
-        //date: this.dateForUpdate,
-        data,
-        fields: this.editFieldsNamesExpenses,
-        parentForm: this.editRowForm,
-        disabledFields,
-        parent: this
-      },
-      cssClass: 'edit-row-modal',
-
-    }))
-      .pipe(
-        catchError((err) => {
-          alert("openEditTransaction error");
-          return EMPTY;
-        }),
-        switchMap((modal) => from(modal.present())
-          .pipe(
-            switchMap(() => from(modal.onWillDismiss())
-              .pipe(
-                tap(() => this.getTransactions())
+    if (data.category !== "טרם סווג" && data.category !== undefined) {
+      from(this.modalController.create({
+        component: editRowComponent,
+        componentProps: {
+          //date: this.dateForUpdate,
+          data,
+          fields: this.editFieldsNamesExpenses,
+          parentForm: this.editRowForm,
+          disabledFields,
+          parent: this
+        },
+        cssClass: 'edit-row-modal',
+      }))
+        .pipe(
+          catchError((err) => {
+            alert("open Edit Row error");
+            console.log("open Edit Row error: ", err);
+            return EMPTY;
+          }),
+          switchMap((modal) => from(modal.present())
+            .pipe(
+              switchMap(() => from(modal.onWillDismiss())
+                .pipe(
+                  tap(() => this.getTransactions())
+                )
               )
-            )
-          )),
-        catchError((err) => {
-          alert("openEditTransaction switchMap error");
-          console.log(err);
-          return EMPTY;
-        }))
-      .subscribe((res) => {
-        console.log("res in subscribe edit: ", res);
-        if (res.role == 'send') {
-          this.updateRow(res.data.id)
-        }
-
-      });
+            )),
+          catchError((err) => {
+            alert("open Edit row switchMap error");
+            console.log("open Edit row switchMap error: ",err);
+            return EMPTY;
+          }))
+        .subscribe((res) => {
+          if (res.role == 'send') {
+            this.updateRow(res.data.id)
+          }
+        });
+    }
+    else {
+      alert("חובה לסווג תנועה כדי לאפשר עריכה")
+    }
   }
 
   updateRow(id: number): void {
     console.log("in update row");
-    let formData: IClassifyTrans;
-    formData = this.editRowForm.getRawValue();
-    console.log(this.editRowForm);
-    console.log(this.editRowForm.get('category').value);
-    console.log(this.listCategory);
+
+    let formData: IClassifyTrans = this.editRowForm.getRawValue();
 
     const category = this.listCategory?.find((category) => category.value === this.editRowForm?.get('category').value);
+    console.log(this.originalSubCategoryList);
+
     const subCategory = this.originalSubCategoryList?.find((subCategory) => subCategory.id === this.editRowForm?.get('subCategory').value);
-    console.log(category);
-    console.log(subCategory);
-    formData.id = id;
+
+    if (this.originalSubCategoryList) {
+      formData.subCategory = subCategory.subCategory as string;
+    }
+    
     formData.category = category.name as string;
-    formData.subCategory = subCategory.subCategory as string;
+    formData.id = id;
     formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
     formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
     formData.isSingleUpdate = true;
     formData.isNewCategory = false;
     formData.vatPercent = +formData.vatPercent;
     formData.taxPercent = +formData.taxPercent;
+    formData.reductionPercent = +formData.reductionPercent;
     console.log(formData);
+    
     this.transactionService.updateRow(formData).subscribe((res) => this.getExpensesData());
   }
 
