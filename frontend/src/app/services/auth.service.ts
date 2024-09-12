@@ -31,16 +31,45 @@ export class AuthService {
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
 
 
+  // userVerify(email: string, password: string): Observable<UserCredential> {
+  //   return from(this.afAuth.signInWithEmailAndPassword(email, password))
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("err in sign in with email: ", err);
+  //         this.handleErrorLogin(err.code);
+  //         return EMPTY;
+  //       }),
+  //       tap((user) => { localStorage.setItem('user', JSON.stringify(user.user)); })
+  //     )
+  // }
+
   userVerify(email: string, password: string): Observable<UserCredential> {
-    return from(this.afAuth.signInWithEmailAndPassword(email, password))
-      .pipe(
+    // Set token persistence to 'local' (persist the session across browser reloads and sessions)
+    return from(this.afAuth.setPersistence('local').then(() => {
+        // After persistence is set, attempt to sign in
+        return this.afAuth.signInWithEmailAndPassword(email, password);
+    })).pipe(
         catchError((err) => {
-          console.log("err in sign in with email: ", err);
+          console.log("Error in sign in with email: ", err);
           this.handleErrorLogin(err.code);
           return EMPTY;
         }),
-        tap((user) => { localStorage.setItem('user', JSON.stringify(user.user)); })
-      )
+        tap((user) => {
+          // Store the user information locally after successful login
+          localStorage.setItem('user', JSON.stringify(user.user));
+
+          // Listen for automatic token changes and refresh using onIdTokenChanged
+          this.afAuth.onIdTokenChanged((currentUser) => {
+            if (currentUser) {
+              currentUser.getIdToken().then((token) => {
+                console.log('Token refreshed:', token);
+                // Optionally store the refreshed token
+                localStorage.setItem('token', token);
+              });
+            }
+          });
+        })
+    );
   }
 
   handleErrorLogin(err: string): void {
