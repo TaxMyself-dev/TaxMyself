@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 import { IColumnDataTable, IGetSupplier, IRowDataTable } from '../shared/interface';
-import { Observable, Subject } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, from, switchMap } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../shared/enums';
 import { environment } from 'src/environments/environment';
+import { LoadingController } from '@ionic/angular';
+
 
 @Injectable({
   providedIn: 'root'
@@ -11,7 +13,7 @@ import { environment } from 'src/environments/environment';
 export class ExpenseDataService {
 
   token: string;
-  constructor(private http: HttpClient) { 
+  constructor(private http: HttpClient, private loader: LoadingController) { 
     this.token = localStorage.getItem('token');
   }
 
@@ -152,6 +154,34 @@ export class ExpenseDataService {
     const url = `${environment.apiUrl}expenses/update-expense/${id}`;
     //console.log("id of update: ", id);
     return this.http.patch(url, data);
+  }
+
+  getLoader(): Observable<any> {
+    return from(this.loader.create({
+      message: 'Please wait...',
+      spinner: 'crescent'
+    }))
+    .pipe(
+        catchError((err) => {
+          console.log("err in create loader in save supplier", err);
+          return EMPTY;
+        }),
+        switchMap((loader) => {
+          if (loader) {
+            return from(loader.present())
+          }
+            console.log("loader in save supplier is null");
+            return EMPTY;
+        }),
+        catchError((err) => {
+          console.log("err in open loader in save supplier", err);
+          return EMPTY;
+        })
+      )
+  }
+
+  closeLoader(): void {
+    this.loader.dismiss();
   }
 
 

@@ -187,7 +187,6 @@ export class AuthService {
     return user !== null && user.emailVerified !== false ? true : false;
   }
 
-  // Sign out
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('user');

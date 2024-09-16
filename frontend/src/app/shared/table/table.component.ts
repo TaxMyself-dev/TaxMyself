@@ -22,7 +22,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   }
 
   @Output() onClickedCell = new EventEmitter<{str: string, data: IRowDataTable}>();
-  @Output() onCheckedClicked = new EventEmitter<{id: number, checked: boolean}>();
+  @Output() onCheckedClicked = new EventEmitter<{row: IRowDataTable, checked: boolean}>();
   @Output() onCheckedAll = new EventEmitter<{id: number[], checked: boolean}>();
 
   get rows(): IRowDataTable[] {
@@ -51,7 +51,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   }
 
   onChecked(event: any, row: IRowDataTable): void {
-    this.onCheckedClicked.emit({id: row.id as number, checked: event.detail?.checked})
+    this.onCheckedClicked.emit({row: row, checked: event.detail?.checked})
   }
 
 

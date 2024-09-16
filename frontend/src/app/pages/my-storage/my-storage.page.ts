@@ -26,9 +26,9 @@ export class MyStoragePage implements OnInit {
     [ExpenseFormColumns.SUPPLIER, 1.2],
     [ExpenseFormColumns.DATE, 1.5]
   ]);
-  readonly COLUMNS_TO_IGNORE = ['id']; 
+  readonly COLUMNS_TO_IGNORE = ['id', 'file'];
   readonly ButtonSize = ButtonSize;
-  
+
   // columns: IColumnDataTable = {};//Titles of table
   items$: Observable<IRowDataTable[]>;//Data of expenses
   item: IRowDataTable;
@@ -54,16 +54,16 @@ export class MyStoragePage implements OnInit {
 
   constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder) {
     this.storageForm = this.formBuilder.group({
-      from: new FormControl (
+      from: new FormControl(
         '', Validators.required,
       ),
-      until: new FormControl (
+      until: new FormControl(
         '', Validators.required,
       ),
-      supplier: new FormControl (
+      supplier: new FormControl(
         '', Validators.required,
       ),
-      category: new FormControl (
+      category: new FormControl(
         '', Validators.required,
       )
     })
@@ -71,11 +71,11 @@ export class MyStoragePage implements OnInit {
 
   ngOnInit() {
     this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
-    console.log("this.fieldsNames", this.fieldsNamesToAdd) ;
+    console.log("this.fieldsNames", this.fieldsNamesToAdd);
 
     this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
-    console.log("this.fieldsNames", this.fieldsNamesToShow) ;
-    
+    console.log("this.fieldsNames", this.fieldsNamesToShow);
+
     this.setUserId();
     this.setRowsData();
     this.setTableActions();
@@ -102,7 +102,7 @@ export class MyStoragePage implements OnInit {
         throw new Error('Invalid timestamp string');
       }
       date = new Date(parsedTimestamp * 1000);
-    } 
+    }
     else {
       date = new Date(timestamp * 1000);
     }
@@ -115,63 +115,63 @@ export class MyStoragePage implements OnInit {
   // Get the data from server and update items
   setRowsData(): void {
     this.items$ = this.expenseDataService.getExpenseByUser(this.uid)
-    .pipe(
-      map((data) => {
-        const rows = [];
-      data.forEach(row => {
-        const { id, reductionDone, reductionPercent, expenseNumber, file, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
-        tableData.dateTimestamp = this.timestampToDateStr(tableData.dateTimestamp as number);
-        rows.push(tableData);
-      })
-      this.rows = rows;
-    return rows
-  })
-    )
+      .pipe(
+        map((data) => {
+          const rows = [];
+          data.forEach(row => {
+            const { id, reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
+            tableData.dateTimestamp = this.timestampToDateStr(tableData.dateTimestamp as number);
+            rows.push(tableData);
+          })
+          this.rows = rows;
+          return rows
+        })
+      )
     console.log(this.items$);
-    
+
   }
 
   openPopupAddExpense(data?: IRowDataTable): void {
-    console.log("this.fieldsNames in open", this.fieldsNamesToAdd) ;
-    console.log("data in open", data) ;
-      from(this.modalController.create({
+    console.log("this.fieldsNames in open", this.fieldsNamesToAdd);
+    console.log("data in open", data);
+    from(this.modalController.create({
 
-        component: ModalExpensesComponent,
-        //showBackdrop: false,
-        componentProps: {
-          columns: this.fieldsNamesToAdd,
-          editMode: !!Object.keys(data).length,
-          data
-        }
-      })).pipe(catchError((err) => {
-        alert("openPopupAddExpense error");
-        return EMPTY;
-      }), switchMap((modal) => from(modal.present())), catchError((err) => {
-        alert("openPopupAddExpense switchMap error");
-        console.log(err);
-        
-        return EMPTY;
-      })).subscribe();
+      component: ModalExpensesComponent,
+      //showBackdrop: false,
+      componentProps: {
+        columns: this.fieldsNamesToAdd,
+        editMode: !!Object.keys(data).length,
+        data
+      }
+    })).pipe(catchError((err) => {
+      alert("openPopupAddExpense error");
+      return EMPTY;
+    }), switchMap((modal) => from(modal.present())), catchError((err) => {
+      alert("openPopupAddExpense switchMap error");
+      console.log(err);
+
+      return EMPTY;
+    })).subscribe();
   }
 
-  onUpdateClicked(expense: IRowDataTable ): void {
+  onUpdateClicked(expense: IRowDataTable): void {
     console.log("in my storage", expense);
     const expenseData = this.rows.find((row) => row.id === expense.id);
     //alert("open modal for: !!"+(event.toString()));
-     
+
     this.openPopupAddExpense(cloneDeep(expenseData));
   }
 
   onDeleteClicked(event: number): void {
     const token = localStorage.getItem('token');
     const options = {
-      params: new HttpParams().set("token",token),
+      params: new HttpParams().set("token", token),
     }
     const url = `${environment.apiUrl}expenses/delete-expense/` + event
     this.getLoader()
-    .pipe(
-      finalize(() => this.loadingController.dismiss()),
-      switchMap(() => this.http.delete(url,options)),
+      .pipe(
+        finalize(() => this.loadingController.dismiss()),
+        switchMap(() => this.http.delete(url, options)),
         catchError((err) => {
           this.toastMessage = "אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר";
           this.isToastOpen = true;
@@ -181,54 +181,59 @@ export class MyStoragePage implements OnInit {
           console.log("resfrom delete: ", res);
           this.setRowsData();
         })
-        
+
   }
 
   onDownloadFileClicked(expense: IRowDataTable): void {
-      const selectedExpense = this.rows.find((row) => row.id === expense.id);
-      console.log(selectedExpense);
-      
-      const fileName = selectedExpense.file;
-      if (!(fileName === undefined || fileName === "" || fileName === null)) {
-  
-        const storage = getStorage();
-        getDownloadURL(ref(storage, fileName as string))
-          .then((url) => {
-            // `url` is the download URL for 'images/stars.jpg'
-            console.log("'url: ", url);
-  
-            // This can be downloaded directly:
-            const xhr = new XMLHttpRequest();
-            xhr.responseType = 'blob';
-            xhr.onload = (event) => {
-              const blob = new Blob([xhr.response], { type: 'image/jpg' });
-              const a: any = document.createElement('a');
-              a.style = 'display: none';
-              document.body.appendChild(a);
-              const url = window.URL.createObjectURL(blob);
-              a.href = url;
-              a.download = fileName;
-              a.click();
-              window.URL.revokeObjectURL(url);
-            };
-            xhr.open('GET', url);
-            xhr.send();
-          })
-          .catch((error) => {
-            console.log("dhgsedgsdf", error);
-            alert("לא ניתן להוריד את הקובץ")
-          });
-      }
-      else {
-        alert("לא נשמר קובץ עבור הוצאה זו")
-      }
-    }
+    const selectedExpense = this.rows.find((row) => row.id === expense.id);
+    console.log(selectedExpense);
 
-    onPreviewFileClicked(expense: IRowDataTable): void {
-      const selectedExpense = this.rows.find((row) => row.id === expense.id);
     const fileName = selectedExpense.file;
     if (!(fileName === undefined || fileName === "" || fileName === null)) {
-      from(this.filesService.downloadFile(fileName as string)).pipe(catchError((err) => {
+      this.filesService.downloadFile(fileName as string)
+    }
+    else {
+      alert("לא נשמר קובץ עבור הוצאה זו")
+    }
+    //   const storage = getStorage();
+    //   getDownloadURL(ref(storage, fileName as string))
+    //     .then((url) => {
+    //       // `url` is the download URL for 'images/stars.jpg'
+    //       console.log("'url: ", url);
+
+    //       // This can be downloaded directly:
+    //       const xhr = new XMLHttpRequest();
+    //       xhr.responseType = 'blob';
+    //       xhr.onload = (event) => {
+    //         const blob = new Blob([xhr.response], { type: 'image/jpg' });
+    //         const a: any = document.createElement('a');
+    //         a.style = 'display: none';
+    //         document.body.appendChild(a);
+    //         const url = window.URL.createObjectURL(blob);
+    //         a.href = url;
+    //         a.download = fileName;
+    //         a.click();
+    //         window.URL.revokeObjectURL(url);
+    //       };
+    //       xhr.open('GET', url);
+    //       xhr.send();
+    //     })
+    //     .catch((error) => {
+    //       console.log("dhgsedgsdf", error);
+    //       alert("לא ניתן להוריד את הקובץ")
+    //     });
+    // }
+    // else {
+    //   alert("לא נשמר קובץ עבור הוצאה זו")
+    // }
+  }
+
+  onPreviewFileClicked(expense: IRowDataTable): void {
+    const selectedExpense = this.rows.find((row) => row.id === expense.id);
+    const fileName = selectedExpense.file;
+
+    if (!(fileName === undefined || fileName === "" || fileName === null)) {
+      from(this.filesService.previewFile(fileName as string)).pipe(catchError((err) => {
         console.log("err in try to open file: ", err);
         alert("לא ניתן לפתוח את הקובץ");
         return EMPTY;
@@ -239,14 +244,14 @@ export class MyStoragePage implements OnInit {
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")
     }
-    }
+  }
 
   getLoader(): Observable<any> {
     return from(this.loadingController.create({
       message: 'Please wait...',
       spinner: 'crescent'
     }))
-    .pipe(
+      .pipe(
         catchError((err) => {
           console.log("err in create loader in save supplier", err);
           return EMPTY;
@@ -255,8 +260,8 @@ export class MyStoragePage implements OnInit {
           if (loader) {
             return from(loader.present())
           }
-            console.log("loader in save supplier is null");
-            return EMPTY;
+          console.log("loader in save supplier is null");
+          return EMPTY;
         }),
         catchError((err) => {
           console.log("err in open loader in save supplier", err);
@@ -297,10 +302,10 @@ export class MyStoragePage implements OnInit {
       'totalTax',
       'totalVat',
     ];
-  
+
     const indexA = columnsAddExpenseOrder.indexOf(a.key);
     const indexB = columnsAddExpenseOrder.indexOf(b.key);
-    
+
     if (indexA === -1 && indexB !== -1) {
       return 1; // objA is not in the order list, move it to the end
     } else if (indexA !== -1 && indexB === -1) {
