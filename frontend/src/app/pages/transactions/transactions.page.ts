@@ -12,6 +12,7 @@ import { Router } from '@angular/router';
 import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
 import { DateService } from 'src/app/services/date.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 
 @Component({
   selector: 'app-transactions',
@@ -70,7 +71,10 @@ export class TransactionsPage implements OnInit {
   ]);
   readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  readonly buttonSize = ButtonSize;
+  readonly ButtonClass = ButtonClass;
 
+ //readonly buttonClass= B
 
   rows: IRowDataTable[];
   tableActions: ITableRowAction[];
@@ -495,6 +499,7 @@ export class TransactionsPage implements OnInit {
       reader.readAsArrayBuffer(this.selectedFile);
     } else {
       console.error('No file selected.');
+      alert("אנא בחר קובץ")
     }
   }
 
