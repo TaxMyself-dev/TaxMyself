@@ -42,7 +42,7 @@ export class ModalExpensesComponent {
       this.getCategory(val);
       if (val.file != "" && val.file != undefined){
         this.editModeFile = "loading"; // for the icon of choose file does not show
-        this.fileService.downloadFile(val.file as string)
+        this.fileService.previewFile(val.file as string)
         .then((res) => {
           console.log(res);
           
@@ -106,6 +106,7 @@ export class ModalExpensesComponent {
   //safePdfBase64String$ = new BehaviorSubject<SafeResourceUrl>('');
   pdfLoaded: boolean = false;
   maxDate: string;
+  fileToUpload: File;
 
   constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private navParams: NavParams, private loadingController: LoadingController, private router: Router, private sanitizer: DomSanitizer) {
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
@@ -166,54 +167,55 @@ export class ModalExpensesComponent {
   }
 
   async fileSelected(event: any) {
-    console.log("in filelelel");
+    this.fileToUpload = event.target.files[0];
+    // console.log("in filelelel");
     
-    this.pdfLoaded = false;// on change pdf to image
+    // this.pdfLoaded = false;// on change pdf to image
     
-    let file = event.target.files[0];
-    console.log("fileeeeeeeeeeee", file);
+    // let file = event.target.files[0];
+    // console.log("fileeeeeeeeeeee", file);
     
-    if (!file) {
-      return;
-    }
+    // if (!file) {
+    //   return;
+    // }
 
-    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-    const extension = file.name.split('.').pop().toLowerCase();
+    // const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
+    // const extension = file.name.split('.').pop().toLowerCase();
     
-    if (!allowedExtensions.includes(`.${extension}`)) {
-      alert('Please upload only PDF, PNG, or JPEG files.');
-      return;
-    } 
+    // if (!allowedExtensions.includes(`.${extension}`)) {
+    //   alert('Please upload only PDF, PNG, or JPEG files.');
+    //   return;
+    // } 
     
-    if (extension === "pdf"){
-      console.log("in pdf");
-      const target = event.target as HTMLInputElement;
-      const files = target.files as FileList;
-      const file = files.item(0);
-      console.log("pdf file:", file);
+    // if (extension === "pdf"){
+    //   console.log("in pdf");
+    //   const target = event.target as HTMLInputElement;
+    //   const files = target.files as FileList;
+    //   const file = files.item(0);
+    //   console.log("pdf file:", file);
 
-      if (!file) {
-        return;
-      }
+    //   if (!file) {
+    //     return;
+    //   }
 
-      const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
-      this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
-      this.pdfLoaded = true;
-    }
+    //   const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
+    //   this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
+    //   this.pdfLoaded = true;
+    // }
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      if (this.isEditMode) {
-        this.editModeFile = reader.result as string;
-        this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
-      }
-      else{
-        this.selectedFile = reader.result as string;
-      }
-      console.log(this.selectedFile);
+    // const reader = new FileReader();
+    // reader.readAsDataURL(file);
+    // reader.onload = () => {
+    //   if (this.isEditMode) {
+    //     this.editModeFile = reader.result as string;
+    //     this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
+    //   }
+    //   else{
+    //     this.selectedFile = reader.result as string;
+    //   }
+    //   console.log(this.selectedFile);
       
-    }
+    // }
 
     
   }
@@ -261,6 +263,7 @@ export class ModalExpensesComponent {
       }),
       map((res) => {
         if (res) {
+          console.log("full path of firebase file: ",res);
           filePath = res.metadata.fullPath;
         }
         const token = localStorage.getItem('token');
@@ -296,7 +299,7 @@ export class ModalExpensesComponent {
   }
 
   getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path and if not returns null
-    return this.selectedFile ? this.fileService.uploadFileViaFront(this.selectedFile) : of(null);
+    return this.fileToUpload ? this.fileService.uploadFileViaFront(this.fileToUpload) : of(null);
   }
 
   update(): void {
