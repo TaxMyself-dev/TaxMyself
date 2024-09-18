@@ -88,8 +88,8 @@ export enum ExpenseFormColumns {
 export enum TransactionsOutcomesHebrewColumns {
   id = 'מספר עסקה',
   paymentIdentifier = 'אמצעי תשלום',
-  payDate = 'תאריך עסקה',
-  billDate = 'תאריך חיוב',
+  payDate = 'תאריך החיוב בחשבון',
+  billDate = 'תאריך תשלום',
   name = 'שם העסק',
   sum = 'סכום',
   category = 'קטגוריה',

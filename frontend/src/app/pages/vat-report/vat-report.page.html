@@ -20,9 +20,12 @@
       </div>
     </ng-container>
     <div class="wrap-buttons">
-      <app-button buttonText="פירוט הוצאות"></app-button>
+      <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()"></app-button>
       <app-button buttonText="לתשלום באתר מעמ" href="" target="_blank"></app-button>
     </div>
+    <app-table *ngIf="expenses_details" [fieldsNames]="">
+
+    </app-table>
   </div>
 
 </ion-content>

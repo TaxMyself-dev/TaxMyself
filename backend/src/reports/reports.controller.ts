@@ -15,18 +15,37 @@ export class ReportsController {
                 private sharedService: SharedService,
                 private usersService: UsersService) {}
 
-    @Get('vat-report')
-        async getVatReport(
-            @Headers('token') token: string,
-            @Query() query: VatReportRequestDto): Promise<VatReportDto> {
+    // @Get('vat-report')
+    //     async getVatReport(
+    //         @Headers('token') token: string,
+    //         @Query() query: VatReportRequestDto): Promise<VatReportDto> {
           
-            const userId = await this.usersService.getFirbsaeIdByToken(token);
-            const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
-            const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-            const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    //         const userId = await this.usersService.getFirbsaeIdByToken(token);
+    //         const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    //         const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    //         const endDateT = this.sharedService.convertDateToTimestamp(endDate);
         
-            const vatReport = await this.reportsService.createVatReport(userId, startDateT, endDateT, query.vatableTurnover, query.nonVatableTurnover);
-            return vatReport;
+    //         const vatReport = await this.reportsService.createVatReport(userId, startDateT, endDateT, query.vatableTurnover, query.nonVatableTurnover);
+    //         return vatReport;
+    // }
+
+
+    @Get('vat-report')
+    async getVatReport(
+        @Headers('token') token: string,
+        @Query() query: VatReportRequestDto,
+        //@Query('isSingleMonth') isSingleMonth: string,
+        //@Query('monthReport') monthReport: number
+    ): Promise<VatReportDto> {
+      
+        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    
+        // Convert isSingleMonth from string to boolean
+        //const singleMonth = query.isSingleMonth === 'true' ? true : false;
+    
+        const vatReport = await this.reportsService.createVatReport(firebaseId, query.isSingleMonth, query.monthReport, query.vatableTurnover, query.nonVatableTurnover);
+
+        return vatReport;
     }
 
     

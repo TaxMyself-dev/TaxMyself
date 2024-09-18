@@ -32,6 +32,7 @@ export class VatReportPage implements OnInit {
   // optionTypeReport = [{key: 'oneMonth', value: 'חודשי'}, {key: 'twoMonth', value: 'דו-חודשי'}];
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
+  expenses_details: boolean = false;
   vatReportForm: FormGroup;
   token: string;
 
@@ -121,6 +122,10 @@ export class VatReportPage implements OnInit {
       console.log("report is ", this.report);
     });
 
+  }
+
+  showExpenses() {
+    this.expenses_details = !this.expenses_details
   }
 
 
