@@ -8,12 +8,11 @@
     <div class="wrap-upload">
       <label class="label-file-transaction">
         <ion-icon name="attach-outline"></ion-icon>
-        <label class="string-label">בחר קובץ</label>
+        <div class="string-label">בחר קובץ</div>
         <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".pdf, .xlsx">
       </ion-input>
     </label>
-    <!-- <button (click)="onUpload()">Upload</button> -->
-    <app-button [buttonSize]="'small'" [iconName]="'cloud-upload-outline'" (onButtonClicked)="onUpload()"></app-button>
+      <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'" (onButtonClicked)="onUpload()"></app-button>
     </div>
     <!-- <app-search-bar class="generic-searchbar-wrapper" [iconName]="'x'" (onSearchClick)="onUpload()" [customTemplate]="searchBarFile"></app-search-bar> -->
     
@@ -33,7 +32,7 @@
     <ng-template #expensesCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar" [isDisabled]="expensesForm.invalid"
         (onSearchClick)="expensesFilter()"></app-search-bar>
-      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES" [actions]="tableActions"
+      <app-table [iconName]="'create'" [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES" [actions]="tableActions"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
   

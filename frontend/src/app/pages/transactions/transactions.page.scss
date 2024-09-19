@@ -30,12 +30,8 @@
 }
 
 .label-file-transaction {
-    // border: 1px solid;
-    // border-radius: 50%;
     width: 55%;
     height: 50px;
-    // background-color: rgb(79, 171, 79);
-    // color: white;
     display: flex;
     justify-content: flex-start;
     align-items: center;
@@ -64,7 +60,11 @@
     border: 2px solid rgb(79, 171, 79);
     border-radius: 15px;
     display: flex;
-    justify-content: space-between;
+    justify-content: space-around;
     align-items: center;
     width: 200px;
+}
+
+.string-label:hover {
+    cursor: pointer;
 }

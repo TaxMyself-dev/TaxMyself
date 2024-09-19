@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, forkJoin, map, tap } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -24,9 +24,9 @@ export class FlowReportPage implements OnInit {
   month: string;
   year: string;
   isSingleMonth: string;
-  params:{};
-  columnsToIgnore = ['firebaseFile','id', 'payDate', 'isRecognized', 'isEquipment','paymentIdentifier','userId','billName', this.UPLOAD_FILE_FIELD_NAME];
-  chosenTrans: {id: number, file?: File | string}[] = [];
+  params: {};
+  columnsToIgnore = ['firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', this.UPLOAD_FILE_FIELD_NAME];
+  chosenTrans: { id: number, file?: File | string }[] = [];
   previousFile: string;
   //params: { month: string, year: string, isSingleMonth: string }
 
@@ -53,42 +53,42 @@ export class FlowReportPage implements OnInit {
       this.year = params['year'];
       this.isSingleMonth = params['isSingleMonth'];
       this.getTransaction();
-  });
-  this.setTableActions();
-}
+    });
+    this.setTableActions();
+  }
 
-private setTableActions(): void {
-  this.tableActions = [
-    {
-      name: 'upload',
-      icon: 'attach-outline',
-      fieldName: this.UPLOAD_FILE_FIELD_NAME,
-      action: (event: any, row: IRowDataTable) => {
-        this.addFile(event, row);
-      }
-    },
-  ]
-}
+  private setTableActions(): void {
+    this.tableActions = [
+      {
+        name: 'upload',
+        icon: 'attach-outline',
+        fieldName: this.UPLOAD_FILE_FIELD_NAME,
+        action: (event: any, row: IRowDataTable) => {
+          this.addFile(event, row);
+        }
+      },
+    ]
+  }
 
   getTransaction(): void {
     this.flowReportService.getExpenseTransactionsData(this.params)
-    .pipe(
-      catchError((err) => {
-        console.log("error in get expenses flow-report: ", err);
-        return EMPTY;
-      }),
-      map((data) => {
-        data.forEach((row) => {
-          //row.billDate = this.transactionService.timestampToDateStr(row.billDate as number)
+      .pipe(
+        catchError((err) => {
+          console.log("error in get expenses flow-report: ", err);
+          return EMPTY;
+        }),
+        map((data) => {
+          data.forEach((row) => {
+            //row.billDate = this.transactionService.timestampToDateStr(row.billDate as number)
+          })
+          return data;
+        }),
+        map((data) => {
+          const isRecognized = data.filter((tran) => {
+            return tran.isRecognized;
+          })
+          return isRecognized;
         })
-        return data;
-      }),
-      map((data) =>{
-        const isRecognized = data.filter((tran) => {
-          return tran.isRecognized;
-        })
-        return isRecognized;
-      })
       )
       .subscribe((res) => {
         console.log("res expenses in flow-report :", res);
@@ -130,18 +130,18 @@ private setTableActions(): void {
     }
   }
 
-    checkedClicked(event:{row: IRowDataTable, checked: boolean}): void {
+  checkedClicked(event: { row: IRowDataTable, checked: boolean }): void {
     //console.log(event.checked);
     //console.log(event.id);
-    event.checked ? this.chosenTrans.push({id: event.row.id as number, file: event.row.firebaseFile as string}) : this.chosenTrans = this.chosenTrans.filter((item) => {
+    event.checked ? this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string }) : this.chosenTrans = this.chosenTrans.filter((item) => {
       return item.id !== event.row.id;
     })
     console.log(this.chosenTrans);
-    
-    
+
+
   }
 
-  selectedAll(event: {id: number[], checked: boolean}): void {
+  selectedAll(event: { id: number[], checked: boolean }): void {
     // console.log(event);
     // event.checked ? event.id.forEach((id) => {
     //   if (!this.chosenTrans.includes(id)){
@@ -150,97 +150,146 @@ private setTableActions(): void {
     // })
     //     : this.chosenTrans = [];
     // console.log(this.chosenTrans);
-    
+
   }
+
+  //   addTransToExpense(): void {
+  //     console.log("chosen trans :", this.chosenTrans);
+
+  //     this.chosenTrans.map((tran) => {
+  //       console.log("tran in map: ", tran);
+
+  //       return (
+  //         this.fileService.uploadFileViaFront(tran.file as File)
+  //         .pipe(
+  //           catchError((error) => {
+  //             console.log("error in upload file: ", error);
+  //             alert("אירעה שגיאה לא ניתן להעלות את הקובץ")
+  //             return EMPTY;
+  //           })
+  //           )
+  //           .subscribe((res) => {
+  //             tran.file = res.metadata.fullPath;
+  //             console.log("in res uplpoad file: ", tran.file );
+
+  //             // if (this.previousFile) {
+  //             //   this.fileService.deleteFile(this.previousFile);
+  //             //   this.previousFile = null;
+  //             // }
+  //             // this.chosenTrans.map((item) => {
+  //             //   if (item.id === row.id) {
+  //             //     item.file = res.metadata.fullPath;
+  //             //     console.log(this.chosenTrans);
+  //             //   }
+  //             // }
+  //             // )
+  //             //row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
+  //             //this.expenseDataService.closeLoader();
+  //           })
+
+  //         )
+  //     })
+  // console.log("after up before send: ",this.chosenTrans);
+
+  //     this.flowReportService.addTransToExpense(this.chosenTrans)
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("err in add trans to expense: ", err);
+  //         return EMPTY;
+  //       })
+  //       )
+  //     .subscribe((res) => {
+  //       console.log("res from add trans to expense:", res);
+
+  //     })  
+  //     console.log("trans after file: ",this.chosenTrans);
+
+  //   }
 
   addTransToExpense(): void {
+
+    const totalFiles = this.chosenTrans.length;
+    let filesUploaded = 0;
+
     console.log("chosen trans :", this.chosenTrans);
-    
-    this.chosenTrans.map((tran) => {
-      return (
-        this.fileService.uploadFileViaFront(tran.file as File)
-        .pipe(
+    this.expenseDataService.getLoader().subscribe();
+    this.expenseDataService.updateLoaderMessage(`Uploading files... ${0}%`);
+    // Create an array of observables for each file upload
+    const fileUploadObservables = this.chosenTrans.map((tran) => {
+      if (tran.file) {
+        return this.fileService.uploadFileViaFront(tran.file as File).pipe(
           catchError((error) => {
             console.log("error in upload file: ", error);
-            alert("אירעה שגיאה לא ניתן להעלות את הקובץ")
+            alert("Error uploading file");
             return EMPTY;
+          }),
+          tap((res) => {
+            tran.file = res.metadata.fullPath;  // Update the file path after upload
+            console.log("Uploaded file path: ", tran.file);
+            filesUploaded++;
+            // Update loader message with progress
+            const progress = Math.round((filesUploaded / totalFiles) * 100);
+            this.expenseDataService.updateLoaderMessage(`Uploading files... ${progress}%`);
+
           })
+        );
+      } else {
+        return EMPTY;  // In case there is no file
+      }
+    });
+
+    // Use forkJoin to wait for all file uploads to finish
+    forkJoin(fileUploadObservables).subscribe({
+      next: () => {
+        // After all uploads, send the data to the server
+        console.log("All files uploaded, now sending to server: ", this.chosenTrans);
+
+        this.flowReportService.addTransToExpense(this.chosenTrans)
+          .pipe(
+            catchError((err) => {
+              console.log("Error in addTransToExpense: ", err);
+              return EMPTY;
+            })
           )
           .subscribe((res) => {
-            tran.file = res.metadata.fullPath;
-            // if (this.previousFile) {
-            //   this.fileService.deleteFile(this.previousFile);
-            //   this.previousFile = null;
-            // }
-            // this.chosenTrans.map((item) => {
-            //   if (item.id === row.id) {
-            //     item.file = res.metadata.fullPath;
-            //     console.log(this.chosenTrans);
-            //   }
-            // }
-            // )
-            //row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
-            //this.expenseDataService.closeLoader();
-          })
-          
-        )
-    })
-
-    // this.flowReportService.addTransToExpense(this.chosenTrans)
-    // .pipe(
-    //   catchError((err) => {
-    //     console.log("err in add trans to expense: ", err);
-    //     return EMPTY;
-    //   })
-    //   )
-    // .subscribe((res) => {
-    //   console.log("res from add trans to expense:", res);
-      
-    // })  
-    console.log("trans after file: ",this.chosenTrans);
-    
+            console.log("Response from addTransToExpense:", res);
+          });
+      },
+      error: (error) => {
+        console.log("Error during file uploads:", error);
+      },
+      complete: () => {
+        console.log("All file uploads complete.");
+        this.expenseDataService.dismissLoader();
+      }
+    });
   }
+
 
   addFile(event: any, row: IRowDataTable): void {
     console.log(event);
+    console.log(row);
     console.log(event.target.files[0]);
     //change file
-    if (row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null){
+    if (row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null) {
       this.previousFile = row.firebaseFile as string;
     }
 
     row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0];
     row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
+    this.chosenTrans.map((tran) => {
+      console.log(tran.id, row.id);
 
-    //this.expenseDataService.getLoader().subscribe()
-    // this.fileService.uploadFileViaFront(event.target.files[0])
-    // .pipe(
-    //   catchError((error) => {
-    //     console.log("error in upload file: ", error);
-    //     alert("אירעה שגיאה לא ניתן להעלות את הקובץ")
-    //     return EMPTY;
-    //   })
-    //   )
-      // .subscribe((res) => {
-      //   if (this.previousFile) {
-      //     this.fileService.deleteFile(this.previousFile);
-      //     this.previousFile = null;
-      //   }
-      //   this.chosenTrans.map((item) => {
-      //     if (item.id === row.id) {
-      //       item.file = res.metadata.fullPath;
-      //       console.log(this.chosenTrans);
-      //     }
-      //   }
-      //   )
-      //   row[this.UPLOAD_FILE_FIELD_FIREBASE] = res.metadata.fullPath;
-      //   this.expenseDataService.closeLoader();
-      // })
-    
-    // row.fileIcon = 'document-attach-outline';
-    // this.tableActions.find((el) => el.name === 'upload').tooltip = event.target.files[0].name;
-    
+      if (tran.id === row.id) {
+        console.log("in if")
+        return (
+          tran.file = event.target.files[0]
+        )
+      }
+
+    })
+    console.log(this.chosenTrans);
   }
-  
+
 
 }
