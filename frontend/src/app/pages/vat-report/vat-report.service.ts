@@ -27,7 +27,7 @@ export class VatReportService {
     const url = `${environment.apiUrl}reports/vat-report`;
     const params = new HttpParams()
     .set('year', formData.year)
-    .set('month', formData.month)
+    .set('monthReport', formData.month)
     .set('isSingleMonth', formData.isSingleMonth)
     .set('vatableTurnover', formData.vatableTurnover.toString())
     .set('nonVatableTurnover', formData.nonVatableTurnover.toString())

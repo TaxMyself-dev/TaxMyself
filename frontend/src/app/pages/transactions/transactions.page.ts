@@ -364,6 +364,7 @@ export class TransactionsPage implements OnInit {
         data.subCategory ? null : data.subCategory = "טרם סווג";
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
+        data.sum = Math.abs(data.sum);
         rows.push(data);
       }
       )

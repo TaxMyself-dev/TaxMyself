@@ -51,10 +51,6 @@ export class Expense {
   @Column('bigint')
   loadingDate: number;
 
-  //@Column('date')
-  //@Column({ type: 'date', select: false, insert: false, update: false })
-  //loadingDate: Date;
-
   @Column()
   expenseNumber: string;
 
@@ -70,11 +66,27 @@ export class Expense {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   totalVatPayable: number;
 
+  @Column('int')
+  monthReport: number;
+
+  @Column('boolean')
+  isReported: boolean;
+
   @BeforeInsert()
   @BeforeUpdate()
   calculateSums() {
     this.totalTaxPayable = this.sum * (this.taxPercent/100);
     this.totalVatPayable = (this.sum/1.17) * 0.17 * (this.vatPercent/100);
+
+    // Calculate the monthReport field based on dateTimestamp
+    this.calculateMonthReport();
+  }
+
+  private calculateMonthReport() {
+    // Convert dateTimestamp to a JavaScript Date object
+    const date = new Date(this.dateTimestamp * 1000); // dateTimestamp is in seconds, Date needs milliseconds
+    // Get the month (JavaScript months are zero-indexed, so add 1)
+    this.monthReport = date.getUTCMonth() + 1; // getUTCMonth() returns 0 for January, 1 for February, so we add 1
   }
 
 }

@@ -19,9 +19,51 @@ export class ReportsService {
     ) {}
 
 
-    //async createVatReport(vatReportRequest: VatReportRequestDto): Promise<VatReportDto> {
-    async createVatReport(userId: string, startDate: number, endDate: number, vatableTurnover:number, nonVatableTurnover: number): Promise<VatReportDto> {
+    // //async createVatReport(vatReportRequest: VatReportRequestDto): Promise<VatReportDto> {
+    // async createVatReport(userId: string, startDate: number, endDate: number, vatableTurnover:number, nonVatableTurnover: number): Promise<VatReportDto> {
 
+    //     const vatReport: VatReportDto = {
+    //         vatableTurnover: vatableTurnover,
+    //         nonVatableTurnover: nonVatableTurnover,
+    //         vatRefundOnAssets: 0,
+    //         vatRefundOnExpenses: 0,
+    //         vatPayment: 0
+    //     }; 
+
+    //     const vatRegularExpensesSum = await this.expense_repo.createQueryBuilder('expense')
+    //         .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
+    //         .where('expense.userId = :userId', { userId: userId })
+    //         .andWhere('expense.isEquipment = :isEquipment', { isEquipment: false })
+    //         .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
+    //             endDate: endDate })
+    //         .getRawOne();
+
+    //     vatReport.vatRefundOnExpenses = Math.round(vatRegularExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
+
+    //     const vatAssetsExpensesSum = await this.expense_repo.createQueryBuilder('expense')
+    //     .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
+    //     .where('expense.userId = :userId', { userId: userId })
+    //     .andWhere('expense.isEquipment = :isEquipment', { isEquipment: true })
+    //     .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
+    //         endDate: endDate })
+    //     .getRawOne();
+
+    //     vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
+
+    //     vatReport.vatPayment = Math.round(vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+
+    //     return vatReport;
+    // }
+
+
+    async createVatReport(
+        userId: string,
+        isSingleMonth: boolean,
+        monthReport: number,
+        vatableTurnover: number,
+        nonVatableTurnover: number
+    ): Promise<VatReportDto> {
+    
         const vatReport: VatReportDto = {
             vatableTurnover: vatableTurnover,
             nonVatableTurnover: nonVatableTurnover,
@@ -29,58 +71,36 @@ export class ReportsService {
             vatRefundOnExpenses: 0,
             vatPayment: 0
         };
-
-        console.log('getTotalExpenses - start');
-        console.log("userId is ", userId);
-        console.log("startDate is ", startDate);
-        console.log("endDate is ", endDate);
-        
-
-        const vatRegularExpensesSum = await this.expense_repo.createQueryBuilder('expense')
-            .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
-            .where('expense.userId = :userId', { userId: userId })
-            .andWhere('expense.isEquipment = :isEquipment', { isEquipment: false })
-            .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
-                endDate: endDate })
-            .getRawOne();
-
-        vatReport.vatRefundOnExpenses = Math.round(vatRegularExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
-
-        const vatAssetsExpensesSum = await this.expense_repo.createQueryBuilder('expense')
-        .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
-        .where('expense.userId = :userId', { userId: userId })
-        .andWhere('expense.isEquipment = :isEquipment', { isEquipment: true })
-        .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
-            endDate: endDate })
-        .getRawOne();
-
-        vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
-
-        vatReport.vatPayment = Math.round(vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
-
-        console.log("vatRefundOnExpenses is ", vatReport.vatRefundOnExpenses);
-        console.log("vatRefundOnAssets is ", vatReport.vatRefundOnAssets);
-        console.log("vatPayment is ", vatReport.vatPayment);
-
-        
-
-        // console.log(filter);
-
-        // // Fetch individual expenses
-        // const expenses = await this.expense_repo.createQueryBuilder('expense')
-        //     .select(['expense.id', 'expense.sum', 'expense.vatPercent', 'expense.date'])
-        //     .where('expense.userId = :userId', { userId: filter.userId })
-        //     //.andWhere('expense.equipment = :equipment', { equipment: false })
-        //     .andWhere('expense.date >= :startDate AND expense.date <= :endDate', { startDate: filter.startDate, endDate: filter.endDate })
-        //     .getMany();
     
-        // // Log each expense
-        // expenses.forEach(expense => {
-        //     console.log('Expense:', expense);
-        // });
-
+        // Step 1: Fetch expenses using the function we wrote based on monthReport
+        const expenses = await this.expensesService.getExpensesForVatReport(userId, isSingleMonth, monthReport);
+    
+        // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
+        const regularExpenses = expenses.filter(expense => !expense.isEquipment);
+        const assetsExpenses = expenses.filter(expense => expense.isEquipment);
+    
+        // Step 3: Calculate VAT for regular expenses
+        const vatRegularExpensesSum = regularExpenses.reduce((sum, expense) => {
+            return sum + (expense.sum * (expense.vatPercent / 100));
+        }, 0);
+    
+        // Calculate VAT refund on expenses
+        vatReport.vatRefundOnExpenses = Math.round(vatRegularExpensesSum * (1 - (1 / (1 + VAT_RATE_2023))));
+    
+        // Step 4: Calculate VAT for assets (equipment)
+        const vatAssetsExpensesSum = assetsExpenses.reduce((sum, expense) => {
+            return sum + (expense.sum * (expense.vatPercent / 100));
+        }, 0);
+    
+        // Calculate VAT refund on assets
+        vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum * (1 - (1 / (1 + VAT_RATE_2023))));
+    
+        // Step 5: Calculate VAT payment
+        vatReport.vatPayment = Math.round(vatableTurnover * VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+    
         return vatReport;
     }
+    
 
 
     async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {

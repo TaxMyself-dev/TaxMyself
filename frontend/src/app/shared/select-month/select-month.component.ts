@@ -9,6 +9,8 @@ import { FormGroup } from '@angular/forms';
 export class SelectMonthComponent {
   @Input() oneMonth: boolean = false;
   @Input() parentForm: FormGroup;
+  @Input() controlName: string = 'month';
+
 
   selectedMonth: string = '';
 
