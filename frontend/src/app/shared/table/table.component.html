@@ -94,7 +94,7 @@
                 *ngIf="!columnsToIgnore.includes(field.key)"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
-                {{+field.value*1000 | date:'shortDate'}}
+                {{+field.value*1000 | date:'dd/MM/yyyy'}}
           </ion-col>
         </ng-template>
 
