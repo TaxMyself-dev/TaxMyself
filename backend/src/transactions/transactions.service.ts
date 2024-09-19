@@ -431,9 +431,6 @@ export class TransactionsService {
     }, HttpStatus.NOT_FOUND);
     }
     return bills;
-    // return this.billRepo.find({
-    //   where: { userId: userId}
-    // });
 
   }
 
@@ -546,7 +543,10 @@ export class TransactionsService {
   }
 
 
-  async saveTransactionsToExpenses(transactionIds: number[]): Promise<{ message: string }> {
+  async saveTransactionsToExpenses(transactionData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
+
+    // Extract IDs from the transactionData array
+    const transactionIds = transactionData.map(td => td.id);
 
     // Fetch transactions with the given IDs
     const transactions = await this.transactionsRepo.findBy({ id: In(transactionIds) });
@@ -559,9 +559,18 @@ export class TransactionsService {
     let skippedTransactions = 0;
 
     for (const transaction of transactions) {
+
+      if (transaction.userId !== userId) {
+        throw new Error(`Error: Transaction with ID ${transaction.id} does not belong to the user.`);
+      }
+
+      // Find the corresponding file from the input data
+      const transactionFile = transactionData.find(td => td.id === transaction.id)?.file || '';
+
       // Check if an expense with the same date, supplier, and sum already exists
       const existingExpense = await this.expenseRepo.findOne({
         where: {
+          userId: transaction.userId,
           dateTimestamp: transaction.payDate,
           supplier: transaction.name,
           sum: Math.abs(transaction.sum)
@@ -584,7 +593,7 @@ export class TransactionsService {
       expense.vatPercent = transaction.vatPercent;
       expense.dateTimestamp = transaction.payDate;
       expense.note = '';
-      expense.file = '';
+      expense.file = transactionFile;
       expense.isEquipment = transaction.isEquipment;
       expense.userId = transaction.userId;
       expense.loadingDate = Date.now();
