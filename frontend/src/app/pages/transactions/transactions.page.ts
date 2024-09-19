@@ -663,7 +663,7 @@ export class TransactionsPage implements OnInit {
     })
   }
 
-  getExpenseTransactionsData($event) {
+  getExpenseTransactionsData(event) {
     this.transactionService.getExpenseTransactionsData(event)
   }
 

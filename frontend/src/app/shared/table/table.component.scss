@@ -236,6 +236,18 @@ ion-col {
   //border-radius: 50%;
 }
 
+.ion-col-with-icon {
+  position: relative;
+}
+
+.wrap-button-category {
+  position: absolute; /* The child is positioned relative to its parent */
+  top: 28px; /* Distance from the top of the parent */
+  left: 60px; /* Distance from the left of the parent */
+}
+
+
+
 
 
 
