@@ -17,16 +17,16 @@ import { catchError, EMPTY, finalize, from, map, Observable, switchMap } from 'r
 })
 export class AppComponent implements OnInit {
   public appPages = [
-    { title: 'דף-הבית', url: 'home', icon: 'home' },
+    //{ title: 'דף-הבית', url: 'home', icon: 'home' },
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
     { title: 'הענן שלי', url: 'my-storage', icon: 'cloud-download' },
-    { title: 'דוח תזרים', url: 'flow-report', icon: 'cloud-download' },
+    //{ title: 'דוח תזרים', url: 'flow-report', icon: 'cloud-download' },
     { title: ' הגשת דוחות', url: 'reports', icon: 'documents' },
     { title: 'הוספת חשבונית', url: 'add-expenses', icon: 'cloud-upload' },
-    { title: 'יעוץ פיננסי', url: 'spam', icon: 'chatbubbles' },
-    { title: 'הרשמה', url: 'register', icon: 'log-in' },
+    //{ title: 'יעוץ פיננסי', url: 'spam', icon: 'chatbubbles' },
+    //{ title: 'הרשמה', url: 'register', icon: 'log-in' },
     { title: 'כניסה', url: 'login', icon: 'log-in' },
-    { title: 'logOut', url: 'login', icon: 'log-out' },
+    //{ title: 'logOut', url: 'login', icon: 'log-out' },
     //{ title: 'דו"ח שנתי', url: 'annual-report', icon: 'chatbubbles' },
     //{ title: 'דו"ח מע"מ', url: 'vat-report', icon: 'chatbubbles' },
 
