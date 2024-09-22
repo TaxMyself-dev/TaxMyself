@@ -2,6 +2,10 @@ import { Injectable, BadRequestException, NotFoundException, HttpException, Http
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not } from 'typeorm';
 import * as XLSX from 'xlsx';
+import { Express } from 'express'; 
+
+
+
 
 //Entities
 import { Transactions } from './transactions.entity';
@@ -43,9 +47,8 @@ export class TransactionsService {
     private defaultSubCategoryRepo: Repository<DefaultSubCategory>
   ) {}
 
+  async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> { // משתמש ב-Express.Multer.File
 
-  async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
-    
     if (!file) {
       throw new BadRequestException('No file uploaded.');
     }

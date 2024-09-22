@@ -1,9 +1,14 @@
 import { Component, OnInit, Input } from '@angular/core';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { startOfMonth, endOfMonth } from 'date-fns';
+import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, tap } from 'rxjs';
 import { months, singleMonths } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
+import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+
 
 interface ReportData {
   vatableTurnover: string;
@@ -27,14 +32,28 @@ export class VatReportPage implements OnInit {
   @Input() isSingleMonth: boolean = false;
 
   readonly ButtonSize = ButtonSize;
+
+  readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
+    [ExpenseFormColumns.CATEGORY, 1.2],
+    [ExpenseFormColumns.SUB_CATEGORY, 1.1],
+    [ExpenseFormColumns.SUPPLIER, 1.2],
+    [ExpenseFormColumns.DATE, 1.5]
+  ]);
   // months = months;
   // singleMonths = singleMonths;
   // optionTypeReport = [{key: 'oneMonth', value: 'חודשי'}, {key: 'twoMonth', value: 'דו-חודשי'}];
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
-  expenses_details: boolean = false;
+  expensesDetails: boolean = false;
   vatReportForm: FormGroup;
   token: string;
+  fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
+  tableData$: Observable<IRowDataTable[]>;
+
+  items$: Observable<IRowDataTable[]>;//Data of expenses
+  item: IRowDataTable;
+  rows: IRowDataTable[] = [];
+
 
 
   reportOrder: string[] = [
@@ -54,7 +73,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder) {
+  constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl (
         '', Validators.required,
@@ -76,6 +95,7 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
+    this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
     //this.token = localStorage.getItem('token');
   }
 
@@ -125,7 +145,7 @@ export class VatReportPage implements OnInit {
   }
 
   showExpenses() {
-    this.expenses_details = !this.expenses_details
+    this.expensesDetails = !this.expensesDetails
   }
 
 

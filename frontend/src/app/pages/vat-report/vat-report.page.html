@@ -23,7 +23,7 @@
       <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()"></app-button>
       <app-button buttonText="לתשלום באתר מעמ" href="" target="_blank"></app-button>
     </div>
-    <app-table *ngIf="expenses_details" [fieldsNames]="">
+    <app-table *ngIf="expensesDetails" [fieldsNames]="fieldsNamesToShow">
 
     </app-table>
   </div>

@@ -12,6 +12,7 @@ import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { log } from 'console';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
+import multer from 'multer';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -25,7 +26,8 @@ export class TransactionsController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
-    @Headers('token') token: string) {
+    @Headers('token') token: string,
+  ) {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     return this.transactionsService.saveTransactions(file, userId);
   }
