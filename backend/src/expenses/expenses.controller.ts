@@ -7,8 +7,8 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 //import { DefaultCategory } from './categories.entity';
 //Services
 import { ExpensesService } from './expenses.service';
-import { UsersService } from 'src/users/users.service';
-import { SharedService } from 'src/shared/shared.service';
+import { UsersService } from '../users/users.service';
+import { SharedService } from '../shared/shared.service';
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -18,7 +18,7 @@ import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 //Guards
-import { AdminGuard } from 'src/guards/admin.guard';
+import { AdminGuard } from '../guards/admin.guard';
 
 import { parse } from 'date-fns';
 import { getDayOfYear } from 'date-fns';

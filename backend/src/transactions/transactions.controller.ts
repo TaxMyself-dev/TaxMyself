@@ -1,9 +1,9 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe, Put } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
-import { SharedService } from 'src/shared/shared.service';
+import { SharedService } from '../shared/shared.service';
 import { Transactions } from './transactions.entity';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import { Source } from './source.entity';
 import { CreateSourceDto } from './dtos/create-source.dto';

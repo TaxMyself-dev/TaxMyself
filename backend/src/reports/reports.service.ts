@@ -1,13 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Expense } from 'src/expenses/expenses.entity';
+import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
 import { ReductionReportDto } from './dtos/reduction-report.dto';
-import { ExpensesService } from 'src/expenses/expenses.service';
-import { VAT_RATE_2023 } from 'src/constants';
+import { ExpensesService } from '../expenses/expenses.service';
+import { VAT_RATE_2023 } from '../constants';
 
 
 @Injectable()

@@ -2,7 +2,7 @@ import { Body, Controller, Post, Get, Patch, Delete,
          Param, Query, NotFoundException, Session, UseGuards, Req} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
-import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 
 @Controller('auth')
 // @Serialize(UserDto)
@@ -40,19 +40,5 @@ export class UsersController {
             
         }
     }
-    // @Post('/signout')
-    // signOut(@Session() session: any) {
-    //     session.userId = null;
-    // }
-
-    // @Delete('/:id')
-    // removeUser(@Param('id') id: string) {
-    //     return this.userService.remove(parseInt(id));
-    // }
-
-    // @Patch('/:id')
-    // updateUser(@Param('id') id: string, @Body() body: UpdateUserDto) {
-    //     return this.userService.update(parseInt(id), body);
-    // }
 
 }

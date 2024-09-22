@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
 import { CreateUserDto, createChildDto } from './dtos/create-user.dto';
-import { UserRole } from 'src/enum';
+import { UserRole } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 
@@ -87,25 +87,6 @@ export class UsersService {
         const user = await this.user_repo.findOneBy({firebaseId: userId});
         return user?.role === UserRole.ADMIN;
     }
-
-
-    // async update(id: number, attrs: Partial<User>) {
-    //     const user = await this.findOne(id);
-    //     if (!user) {
-    //         throw new NotFoundException('user not found');
-    //     }
-    //     Object.assign(user, attrs);
-    //     return this.user_repo.save(user);
-    // }
-
-
-    // async remove(id: number) {
-    //     const user = await this.findOne(id);
-    //     if (!user) {
-    //         throw new NotFoundException('user not found');
-    //     }
-    //     return this.user_repo.remove(user);
-    // }
 
 
 }

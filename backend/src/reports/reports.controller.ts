@@ -2,8 +2,8 @@
 import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe } from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
-import { SharedService } from 'src/shared/shared.service';
-import { UsersService } from 'src/users/users.service';
+import { SharedService } from '../shared/shared.service';
+import { UsersService } from '../users/users.service';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { log } from 'console';

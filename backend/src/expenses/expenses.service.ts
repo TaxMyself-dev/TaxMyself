@@ -5,13 +5,13 @@ import { Repository} from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
-import { User } from 'src/users/user.entity';
+import { User } from '../users/user.entity';
 import { DefaultSubCategory } from './default-sub-categories.entity';
 import { Category } from './categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 //import { DefaultCategory } from './categories.entity';
 //import { UserCategory } from './user-sub-categories.entity';
-import { SharedService } from 'src/shared/shared.service';
+import { SharedService } from '../shared/shared.service';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';

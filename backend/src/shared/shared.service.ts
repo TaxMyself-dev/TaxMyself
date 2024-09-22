@@ -9,8 +9,8 @@ import { startOfMonth, endOfMonth } from 'date-fns';
 import { parse } from 'date-fns';
 import { getDayOfYear } from 'date-fns';
 
-import { Expense } from 'src/expenses/expenses.entity';
-import { Transactions } from 'src/transactions/transactions.entity';
+import { Expense } from '../expenses/expenses.entity';
+import { Transactions } from '../transactions/transactions.entity';
 
 @Injectable()
 export class SharedService {

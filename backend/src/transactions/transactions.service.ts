@@ -8,18 +8,18 @@ import { Transactions } from './transactions.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
-import { ExpensesService } from 'src/expenses/expenses.service';
-import { Expense } from 'src/expenses/expenses.entity';
+import { ExpensesService } from '../expenses/expenses.service';
+import { Expense } from '../expenses/expenses.entity';
 
 //Services
-import { SharedService } from 'src/shared/shared.service';
+import { SharedService } from '../shared/shared.service';
 
 //DTOs
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
-import { Category } from 'src/expenses/categories.entity';
-import { DefaultSubCategory } from 'src/expenses/default-sub-categories.entity';
-import { CreateUserCategoryDto } from 'src/expenses/dtos/create-user-category.dto';
+import { Category } from '../expenses/categories.entity';
+import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
+import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
 
 
 @Injectable()
