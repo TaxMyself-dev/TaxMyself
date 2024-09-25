@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, from, map, skip, switchMap, tap, zip } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, from, map, skip, switchMap, tap, zip, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
 import { IButtons, IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
@@ -25,13 +25,14 @@ export class TransactionsPage implements OnInit {
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
   incomesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
+  destroy$ = new Subject<void>();
 
   fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER, },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
     { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.DDL },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
   ];
@@ -39,8 +40,8 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.DDL, cellRenderer: ICellRenderer.CATEGORY, listItems: [] },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.DDL, cellRenderer: ICellRenderer.SUBCATEGORY, listItems: [] },
+    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY},
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY},
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DDL, listItems: this.equipmentList },
@@ -74,7 +75,6 @@ export class TransactionsPage implements OnInit {
   readonly buttonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
 
- //readonly buttonClass= B
 
   rows: IRowDataTable[];
   tableActions: ITableRowAction[];
@@ -134,8 +134,8 @@ export class TransactionsPage implements OnInit {
     })
 
     this.editRowForm = this.formBuilder.group({
-      [TransactionsOutcomesColumns.CATEGORY]: ['', Validators.required],
-      [TransactionsOutcomesColumns.SUBCATEGORY]: ['', Validators.required],
+      [TransactionsOutcomesColumns.CATEGORY]: [0, Validators.required],
+      [TransactionsOutcomesColumns.SUBCATEGORY]: [0, Validators.required],
       [TransactionsOutcomesColumns.IS_RECOGNIZED]: [0, Validators.required],
       [TransactionsOutcomesColumns.SUM]: ['', Validators.required],
       [TransactionsOutcomesColumns.TAX_PERCENT]: [0],
@@ -153,7 +153,7 @@ export class TransactionsPage implements OnInit {
   ngOnInit(): void {
     this.setTableActions();
     this.transactionsService.getAllBills();
-    this.transactionsService.accountsList$.subscribe(
+    this.transactionsService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
       (accountsList) => {
         this.accountsList = accountsList;
       }
@@ -162,10 +162,15 @@ export class TransactionsPage implements OnInit {
     //   // console.log("sources: ", data);
     //   this.sourcesList = data;
     // });
-    this.getCategory();
+    // this.getCategory();
 
     // this.transactionService.updateRow(4);
   }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+}
 
   // ngOnDestroy(): void {
   //     this.transactionsService.accountsList$.unsubscribe();
@@ -284,12 +289,15 @@ export class TransactionsPage implements OnInit {
       componentProps: {
         paymentMethod: this.selectBill,
       }
-    })).pipe(catchError((err) => {
+    })).pipe(
+      takeUntil(this.destroy$),
+      catchError((err) => {
       alert("openPopupAddBill error");
       return EMPTY;
     }),
       switchMap((modal) => from(modal.present())
         .pipe(
+          takeUntil(this.destroy$),
           switchMap(() => from(modal.onWillDismiss()))
         )),
       catchError((err) => {
@@ -373,101 +381,100 @@ export class TransactionsPage implements OnInit {
     return rows;
   }
 
-  getCategory(): void {
-    this.expenseDataService.getcategry(null)
-      .pipe(
-        map((res) => {
-          return res.map((item: any) => ({
-            name: item.category,
-            value: item.id
-          })
-          )
-        }))
-      .subscribe((res) => {
-        this.listCategory = res;
-        this.listFilterCategory.push(...res);
-        this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-          if (field.name === TransactionsOutcomesColumns.CATEGORY) {
-            field.listItems = res;
-            // console.log("list item of category :", field.listItems);
+  // getCategory(): void {
+  //   this.expenseDataService.getcategry(null)
+  //     .pipe(
+  //       takeUntil(this.destroy$),
+  //       map((res) => {
+  //         return res.map((item: any) => ({
+  //           name: item.category,
+  //           value: item.id
+  //         })
+  //         )
+  //       }))
+  //     .subscribe((res) => {
+  //       this.listCategory = res;
+  //       this.listFilterCategory.push(...res);
+  //       this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
+  //         if (field.name === TransactionsOutcomesColumns.CATEGORY) {
+  //           field.listItems = res;
+  //           // console.log("list item of category :", field.listItems);
 
-          }
-        });
-        console.log("listCategory: ", this.listCategory);
-      })
-  }
+  //         }
+  //       });
+  //       console.log("listCategory: ", this.listCategory);
+  //     })
+  // }
 
-  getSubCategory(event): void {
-    console.log(event);
-    console.log("in get sub category");
+  // getSubCategory(category, subCategory): void {
+  //   console.log(event);
+  //   console.log("in get sub category");
 
-    const combinedListSubCategory = [];
-    if (typeof (event) !== 'string') {
-      const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, true);
-      const notEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(event, false);
-
-
-      zip(isEquipmentSubCategory, notEquipmentSubCategory)
-        .pipe(
-          map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
-            console.log(isEquipmentSubCategory, notEquipmentSubCategory);
-            this.originalSubCategoryList = [...isEquipmentSubCategory, ...notEquipmentSubCategory];
-            console.log("originalSubCategoryList: ", this.originalSubCategoryList);
-
-            const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
-              name: item.subCategory,
-              value: item.id
-            })
-            );
-            const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
-              name: item.subCategory,
-              value: item.id
-            })
-            )
-            const combinedListSubCategory: ISelectItem[] = [];
-            const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
-            if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
-              combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
-            }
-            else {
-              isEquipmentSubCategoryList ? combinedListSubCategory.push(...isEquipmentSubCategoryList) : combinedListSubCategory.push(...notEquipmentSubCategoryList);
-            }
-            this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-              if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
-                field.listItems = combinedListSubCategory;
-              }
-            });
-            console.log(combinedListSubCategory);
+  //   const combinedListSubCategory = [];
+  //     const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(category, true);
+  //     const notEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(category, false);
 
 
-            return combinedListSubCategory;
-          }),
-          catchError((err) => {
-            console.log("err in get sub category: ", err);
-            return EMPTY;
-          })
-        )
-        .subscribe((res) => {
-          console.log("combine sub category :", res);
-        })
-    }
-  }
+  //     zip(isEquipmentSubCategory, notEquipmentSubCategory)
+  //       .pipe(
+  //         takeUntil(this.destroy$),
+  //         map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
+  //           console.log(isEquipmentSubCategory, notEquipmentSubCategory);
+  //           this.originalSubCategoryList = [...isEquipmentSubCategory, ...notEquipmentSubCategory];
+  //           console.log("originalSubCategoryList: ", this.originalSubCategoryList);
 
-  selectedSubCategory(data): void {
-    console.log(data);
-    console.log(this.originalSubCategoryList);
-    if (this.originalSubCategoryList) {
-      const chosen = this.originalSubCategoryList.find((item) => item.id === data);
-      console.log(chosen);
-      // chosen.isEquipment ? chosen.isEquipment = "כן" : chosen.isEquipment = "לא" 
-      // chosen.isRecognized ? chosen.isRecognized = "כן" : chosen.isRecognized = "לא" 
-      this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(chosen?.taxPercent || ''),
-        this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(chosen?.vatPercent || ''),
-        this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(chosen?.isEquipment || false),
-        this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(chosen?.reductionPercent || 0),
-        this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(chosen?.isRecognized || '')
-    }
-  }
+  //           const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
+  //             name: item.subCategory,
+  //             value: item.id
+  //           })
+  //           );
+  //           const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
+  //             name: item.subCategory,
+  //             value: item.id
+  //           })
+  //           )
+  //           const combinedListSubCategory: ISelectItem[] = [];
+  //           const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
+  //           if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
+  //             combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
+  //           }
+  //           else {
+  //             isEquipmentSubCategoryList ? combinedListSubCategory.push(...isEquipmentSubCategoryList) : combinedListSubCategory.push(...notEquipmentSubCategoryList);
+  //           }
+  //           this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
+  //             if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
+  //               field.listItems = combinedListSubCategory;
+  //             }
+  //           });
+  //           console.log(combinedListSubCategory);
+
+
+  //           return combinedListSubCategory;
+  //         }),
+  //         catchError((err) => {
+  //           console.log("err in get sub category: ", err);
+  //           return EMPTY;
+  //         })
+  //       )
+  //       .subscribe((res) => {
+  //         console.log("combine sub category :", res);
+  //         const subCategoryId = this.getSubCategoryId(subCategory);
+  //         this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(subCategoryId);
+  //       })
+  // }
+
+  // getSubCategoryId(subCategory): number {
+  //     const chosen = this.originalSubCategoryList?.find((item: IGetSubCategory) => item.subCategory === subCategory);
+  //     return chosen?.id || 0;
+  //     // console.log(chosen);
+  //     // const isEquipmentVal = chosen.isEquipment ? 1 : 0; 
+  //     // const isRecognizedVal = chosen.isRecognized ? 1 : 0; 
+  //     // this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(chosen?.taxPercent || ''),
+  //     // this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(chosen?.vatPercent || ''),
+  //     // this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentVal),
+  //     // this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(chosen?.reductionPercent || 0),
+  //     // this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedVal)
+  // }
 
   onFileSelected(event: any): void {
     console.log("in file");
@@ -484,7 +491,7 @@ export class TransactionsPage implements OnInit {
         console.log("array buffer: ", arrayBuffer);
 
         this.transactionsService.uploadFile(arrayBuffer as ArrayBuffer)
-          .pipe()
+          .pipe(takeUntil(this.destroy$))
           .subscribe(
             (response) => {
               console.log(response.message);
@@ -507,28 +514,31 @@ export class TransactionsPage implements OnInit {
   openEditRow(data: IRowDataTable): void {
     console.log("data in edit row before: ", data);
 
-    const categoryId = this.listCategory.find((category) => category.name === data.category);
+    // const categoryId = this.listCategory.find((category) => category.name === data.category);
     const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
     const isRecognizedEdit = data?.isEquipment === "לא" ? 0 : 1;
-    const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE];
+    const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
 
-    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(categoryId?.value || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || ''),
+    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
+    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
+    this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
     this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
     this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
     this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
     this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
     this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || false),
+    this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
     this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
     this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0),
+    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
 
-    //skip on first update
-    this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.getSubCategory(res));
-    this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).valueChanges.pipe(skip(1)).subscribe((res) => this.selectedSubCategory(res));
+    this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
+      if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
+        field.listItems = [{name: data?.subCategory as string, value: 0}];
+      }
+    });
 
+    
     if (data.category !== "טרם סווג" && data.category !== undefined) {
       from(this.modalController.create({
         component: editRowComponent,
@@ -537,12 +547,12 @@ export class TransactionsPage implements OnInit {
           data,
           fields: this.editFieldsNamesExpenses,
           parentForm: this.editRowForm,
-          disabledFields,
-          parent: this
+          disabledFields
         },
         cssClass: 'edit-row-modal',
       }))
         .pipe(
+          takeUntil(this.destroy$),
           catchError((err) => {
             alert("open Edit Row error");
             console.log("open Edit Row error: ", err);
@@ -550,8 +560,10 @@ export class TransactionsPage implements OnInit {
           }),
           switchMap((modal) => from(modal.present())
             .pipe(
+              takeUntil(this.destroy$),
               switchMap(() => from(modal.onWillDismiss())
                 .pipe(
+                  takeUntil(this.destroy$),
                   tap(() => this.getTransactions())
                 )
               )
@@ -597,7 +609,7 @@ export class TransactionsPage implements OnInit {
     formData.reductionPercent = +formData.reductionPercent;
     console.log(formData);
     
-    this.transactionService.updateRow(formData).subscribe((res) => this.getExpensesData());
+    this.transactionService.updateRow(formData).pipe(takeUntil(this.destroy$)).subscribe((res) => this.getExpensesData());
   }
 
   openAddTransaction(event): void {
