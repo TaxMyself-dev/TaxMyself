@@ -514,9 +514,8 @@ export class TransactionsPage implements OnInit {
   openEditRow(data: IRowDataTable): void {
     console.log("data in edit row before: ", data);
 
-    // const categoryId = this.listCategory.find((category) => category.name === data.category);
     const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
-    const isRecognizedEdit = data?.isEquipment === "לא" ? 0 : 1;
+    const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
     const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
 
     this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
@@ -531,13 +530,6 @@ export class TransactionsPage implements OnInit {
     this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
     this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
     this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-
-    this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-      if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
-        field.listItems = [{name: data?.subCategory as string, value: 0}];
-      }
-    });
-
     
     if (data.category !== "טרם סווג" && data.category !== undefined) {
       from(this.modalController.create({
@@ -585,20 +577,9 @@ export class TransactionsPage implements OnInit {
   }
 
   updateRow(id: number): void {
-    console.log("in update row");
-
     let formData: IClassifyTrans = this.editRowForm.getRawValue();
-
-    const category = this.listCategory?.find((category) => category.value === this.editRowForm?.get('category').value);
-    console.log(this.originalSubCategoryList);
-
-    const subCategory = this.originalSubCategoryList?.find((subCategory) => subCategory.id === this.editRowForm?.get('subCategory').value);
-
-    if (this.originalSubCategoryList) {
-      formData.subCategory = subCategory.subCategory as string;
-    }
     
-    formData.category = category.name as string;
+    // formData.category = category.name as string;
     formData.id = id;
     formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
     formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
