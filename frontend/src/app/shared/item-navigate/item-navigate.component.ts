@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { ModalExpensesComponent } from '../modal-add-expenses/modal.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ModalController } from '@ionic/angular';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns } from '../enums';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, NavigationItemClass } from '../enums';
 
 @Component({
   selector: 'app-item-navigate',
@@ -15,7 +15,9 @@ export class ItemNavigateComponent  implements OnInit{
 
   @Input() navigationItems: IItemNavigate[];
   @Input() disableClick = false;
-
+  @Input() navigationClass = NavigationItemClass.CIRCLE;
+  @Input() navigationItemStyle: string;
+  
   @Output() onNavButtonClicked = new EventEmitter<IItemNavigate>();
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense// TODO: what? why is this here? should be generic??
 

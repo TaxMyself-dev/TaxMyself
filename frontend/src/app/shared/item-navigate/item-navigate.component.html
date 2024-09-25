@@ -1,8 +1,8 @@
 
 <ion-list class="nav-buttons-wrapper">
   <ion-button *ngFor="let item of navigationItems" 
-    [class]="item.index" 
-    [ngClass]="{'button-item-navigate-register': page === '/register', 'button-item-navigate-my-account': page === '/my-account', 'disable-click': disableClick}" 
+    class="{{item.index}} {{navigationClass}} {{navigationItemStyle}}" 
+    [ngClass]="{'disable-click': disableClick}" 
     shape="round" 
     [class.selected]="item.selected" 
     [disabled]="item.disable" 
