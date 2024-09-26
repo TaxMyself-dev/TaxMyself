@@ -1,5 +1,5 @@
-.button-item-navigate-register {
-    --box-shadow: 0;
+.circle {
+  --box-shadow: 0;
     --background: transparent;
     --color: black;
     font-weight: bolder;
@@ -7,7 +7,9 @@
     border-radius: 50%;
     width: 150px;
     height: 150px;
+}
 
+.button-item-navigate-register {
     &:not(:first-of-type) {
       margin-right: 15px ;
 
@@ -42,15 +44,6 @@
   }
 
   .button-item-navigate-my-account {
-    --box-shadow: 0;
-    --background: transparent;
-    --color: black;
-    font-weight: bolder;
-    border: 3px solid rgb(5, 5, 30);
-    border-radius: 50%;
-    width: 150px;
-    height: 150px;
-
     &.selected {
         border-color: rgb(79, 171, 79);
     }

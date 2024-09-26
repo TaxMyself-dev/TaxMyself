@@ -134,3 +134,7 @@ export enum TransactionsOutcomesHebrewColumns {
     CHECKBOX = 'checkbox',
     DATE = 'date'
   }
+
+  export enum NavigationItemClass {
+    CIRCLE = 'circle'
+  }

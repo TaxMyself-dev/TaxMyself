@@ -3,7 +3,7 @@
     <ng-container [ngSwitch]="field.type">
 
       <ng-container *ngSwitchCase="formTypes.DDL">
-        <app-generic-select [items]="field.listItems" controlName="{{field.name}}" title="{{field.value}}" [parentForm]="parentForm" (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
+        <app-generic-select [items]="field.listItems" controlName="{{field.name}}" title="{{field.value}}" [parentForm]="parentForm" [disabled]="disabledFields?.includes(field.name)" (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
       </ng-container>
 
       <ng-container *ngSwitchDefault>
