@@ -31,7 +31,7 @@ export class MyStoragePage implements OnInit {
 
   // columns: IColumnDataTable = {};//Titles of table
   items$: Observable<IRowDataTable[]>;//Data of expenses
-  item: IRowDataTable;
+  //item: IRowDataTable;
   rows: IRowDataTable[] = [];
   tableActions: ITableRowAction[] = [];
   uid: string;
@@ -114,7 +114,7 @@ export class MyStoragePage implements OnInit {
 
   // Get the data from server and update items
   setRowsData(): void {
-    this.items$ = this.expenseDataService.getExpenseByUser(this.uid)
+    this.items$ = this.expenseDataService.getExpenseByUser()
       .pipe(
         map((data) => {
           const rows = [];

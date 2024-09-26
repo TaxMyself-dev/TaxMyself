@@ -4,7 +4,8 @@
 
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
-  <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate" [isDisabled]="vatReportForm.invalid"></app-search-bar>
+    <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"
+      [isDisabled]="vatReportForm.invalid"></app-search-bar>
     <ng-container *ngIf="!report">
       <p class="text-before-report">
         אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח
@@ -20,12 +21,12 @@
       </div>
     </ng-container>
     <div class="wrap-buttons">
-      <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()"></app-button>
+      <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()" [disabled]="reportClick"></app-button>
       <app-button buttonText="לתשלום באתר מעמ" href="" target="_blank"></app-button>
     </div>
-    <app-table *ngIf="expensesDetails" [fieldsNames]="fieldsNamesToShow">
-
-    </app-table>
+    <div *ngIf="displayExpenses && items$ | async as items"  class="table-wrapper">
+      <app-table [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+    </div>
   </div>
 
 </ion-content>
@@ -35,7 +36,9 @@
     <app-select-month-format [parentForm]="vatReportForm"></app-select-month-format>
     <app-select-month [parentForm]="vatReportForm"></app-select-month>
     <app-select-year [parentForm]="vatReportForm"></app-select-year>
-    <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'" [parentForm]="vatReportForm"></app-generic-input>
-    <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'" [parentForm]="vatReportForm"></app-generic-input>
+    <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'"
+      [parentForm]="vatReportForm"></app-generic-input>
+    <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'"
+      [parentForm]="vatReportForm"></app-generic-input>
   </form>
 </ng-template>

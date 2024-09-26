@@ -170,12 +170,13 @@ export class TransactionsController {
 
   @Post('save-trans-to-expenses')
   async saveTransToExpenses(
-  @Body() transactionData: { id: number, file: string | null }[],
+  @Body() transactionData: any,
   @Headers('token') token: string,
 ): Promise<{ message: string }> {
 
   console.log("in save trans: ", transactionData);
-
+  console.log(token);
+  
   const userId = await this.usersService.getFirbsaeIdByToken(token);
 
   return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);

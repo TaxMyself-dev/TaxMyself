@@ -24,6 +24,7 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { Category } from '../expenses/categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
+import { log } from 'console';
 
 
 @Injectable()
@@ -548,6 +549,10 @@ export class TransactionsService {
 
   async saveTransactionsToExpenses(transactionData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
 
+    console.log("id is ", transactionData[0].id);
+    console.log("file is ", transactionData[0].file);
+    
+
     // Extract IDs from the transactionData array
     const transactionIds = transactionData.map(td => td.id);
 
@@ -595,6 +600,7 @@ export class TransactionsService {
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
       expense.dateTimestamp = transaction.payDate;
+      expense.monthReport = this.sharedService.getMonthFromTimestamp(transaction.payDate);
       expense.note = '';
       expense.file = transactionFile;
       expense.isEquipment = transaction.isEquipment;

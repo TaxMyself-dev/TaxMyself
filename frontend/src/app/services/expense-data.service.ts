@@ -77,14 +77,28 @@ export class ExpenseDataService {
     return this.columnsAddExpenseOrder;
   }
 
-  getExpenseByUser(userID?: string): Observable<IRowDataTable[]> {
+  getExpenseByUser(): Observable<IRowDataTable[]> {
     const token = localStorage.getItem('token');
-    //const url = this.baseURL+"/expenses/get_by_userID";
-    const url = `${environment.apiUrl}expenses/get_by_userID`;
-    const options = {
-      params: new HttpParams().set("userID", userID),
+    const headers = {
+      'token': token
     }
-    return this.http.get<IRowDataTable[]>(url, options);
+    const url = `${environment.apiUrl}expenses/get_by_userID`;
+    // const options = {
+    //   params: new HttpParams().set("userID", userID),
+    // }
+    return this.http.get<IRowDataTable[]>(url, { headers: headers });
+  }
+
+  getExpenseForVatReport(isSingleMonth: boolean, monthReport: number): Observable<IRowDataTable[]> {
+    const token = localStorage.getItem('token');
+    const headers = {
+      'token': token
+    }
+    const params = new HttpParams()
+      .set('isSingleMonth', isSingleMonth)
+      .set('monthReport', monthReport);
+    const url = `${environment.apiUrl}expenses/get-expenses-for-vat-report`;
+    return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
   }
 
   getShowExpenseColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {

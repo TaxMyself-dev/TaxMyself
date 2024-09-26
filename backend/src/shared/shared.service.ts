@@ -181,4 +181,10 @@ export class SharedService {
     }
 
 
+    getMonthFromTimestamp(timestamp: number): number {
+        const date = new Date(timestamp);
+        return date.getMonth() + 1; // getMonth() returns 0 for January, so we add 1
+    }
+
+
 }

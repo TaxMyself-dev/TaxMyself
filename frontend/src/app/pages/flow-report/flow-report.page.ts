@@ -38,7 +38,7 @@ export class FlowReportPage implements OnInit {
     { name: TransactionsOutcomesColumns.TOTAL_TAX, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.DATE },
     { name: TransactionsOutcomesColumns.TOTAL_VAT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.DATE },
     { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.DATE, },
-    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
 
   ];
   tableActions: ITableRowAction[];
@@ -212,7 +212,7 @@ export class FlowReportPage implements OnInit {
     let filesUploaded = 0;
 
     console.log("chosen trans :", this.chosenTrans);
-    this.expenseDataService.getLoader().subscribe();
+    //this.expenseDataService.getLoader().subscribe();
     this.expenseDataService.updateLoaderMessage(`Uploading files... ${0}%`);
     // Create an array of observables for each file upload
     const fileUploadObservables = this.chosenTrans.map((tran) => {

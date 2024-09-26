@@ -19,43 +19,6 @@ export class ReportsService {
     ) {}
 
 
-    // //async createVatReport(vatReportRequest: VatReportRequestDto): Promise<VatReportDto> {
-    // async createVatReport(userId: string, startDate: number, endDate: number, vatableTurnover:number, nonVatableTurnover: number): Promise<VatReportDto> {
-
-    //     const vatReport: VatReportDto = {
-    //         vatableTurnover: vatableTurnover,
-    //         nonVatableTurnover: nonVatableTurnover,
-    //         vatRefundOnAssets: 0,
-    //         vatRefundOnExpenses: 0,
-    //         vatPayment: 0
-    //     }; 
-
-    //     const vatRegularExpensesSum = await this.expense_repo.createQueryBuilder('expense')
-    //         .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
-    //         .where('expense.userId = :userId', { userId: userId })
-    //         .andWhere('expense.isEquipment = :isEquipment', { isEquipment: false })
-    //         .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
-    //             endDate: endDate })
-    //         .getRawOne();
-
-    //     vatReport.vatRefundOnExpenses = Math.round(vatRegularExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
-
-    //     const vatAssetsExpensesSum = await this.expense_repo.createQueryBuilder('expense')
-    //     .select("SUM(expense.sum * expense.vatPercent / 100)", "total")
-    //     .where('expense.userId = :userId', { userId: userId })
-    //     .andWhere('expense.isEquipment = :isEquipment', { isEquipment: true })
-    //     .andWhere('expense.dateTimestamp >= :startDate AND expense.dateTimestamp <= :endDate', { startDate: startDate, 
-    //         endDate: endDate })
-    //     .getRawOne();
-
-    //     vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum.total * (1 - (1 / (1 + VAT_RATE_2023))));
-
-    //     vatReport.vatPayment = Math.round(vatableTurnover*VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
-
-    //     return vatReport;
-    // }
-
-
     async createVatReport(
         userId: string,
         isSingleMonth: boolean,
@@ -102,9 +65,7 @@ export class ReportsService {
     }
     
 
-
     async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {
-    //async createReductionReport(userId: string, year: number): Promise<any[]> {
 
         const startDate = new Date(year, 0, 1); // 1st January of the year
         const endDate = new Date(year, 11, 31); // 31st December of the year
@@ -134,28 +95,5 @@ export class ReportsService {
 
     }
 
-
-
-//     async findUserEquipmentExpensesForYear(userId: number, year: number): Promise<ExpenseSummaryDTO[]> {
-
-//     const startDate = new Date(year, 0, 1); // 1st January of the year
-//     const endDate = new Date(year, 11, 31); // 31st December of the year
-
-//     const expenses = await this.expenseRepository
-//       .createQueryBuilder("expense")
-//       .select(["expense.date", "expense.sum", "expense.reductionPercent"])
-//       .where("expense.userId = :userId", { userId })
-//       .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
-//       .andWhere("expense.date BETWEEN :startDate AND :endDate", { startDate, endDate })
-//       .getMany();
-
-//     return expenses.map(expense => {
-//       const calculatedValue = expense.sum * (expense.reductionPercent / 100);
-//       return {
-//         date: expense.date,
-//         sum: expense.sum,
-//         calculatedValue: calculatedValue
-//       } as ExpenseSummaryDTO;
-//     });
-//   }
+    
 }

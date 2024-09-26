@@ -498,7 +498,9 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
         }
       
         // Execute the query and return the results
-        return await query.getMany();
+        const results = await query.getMany();
+        return results;
+
     }  
 
 

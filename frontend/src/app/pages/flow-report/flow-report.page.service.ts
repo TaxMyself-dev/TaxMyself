@@ -48,6 +48,8 @@ import { environment } from "src/environments/environment";
         const headers = {
             'token': token
         }
-        return this.http.post<any>(url,IDs)
+        console.log("ids are", IDs);
+        
+        return this.http.post<any>(url, IDs, {headers})
     }
   }

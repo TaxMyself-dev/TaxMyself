@@ -63,7 +63,6 @@ export class ExpensesController {
   @Get('get_by_userID')
   async getExpensesByUserID(@Query('userID') userID: string): Promise<Expense[]> {
     console.log("this is user id that i send: ", userID);
-
     return await this.expensesService.getExpensesByUserID(userID);
   }
 
@@ -75,22 +74,13 @@ export class ExpensesController {
     @Query('monthReport') monthReport: number
   ) {
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-    // Convert isSingleMonth from string to boolean
     const singleMonth = isSingleMonth === 'true' ? true : false;
+
     // Validate that monthReport is a valid number
     if (!monthReport || monthReport < 1 || monthReport > 12) {
       throw new BadRequestException('Invalid monthReport. It must be a number between 1 and 12.');
     }
-    // Call the service function
     return await this.expensesService.getExpensesForVatReport(firebaseId, singleMonth, monthReport);
-
-    //return expenses;
-  }
-
-
-  @Get('get-expenses-for-vat-report')
-  async getExpensesForVatReport(@Query('userID') userID: string): Promise<Expense[]> {
-    return await this.expensesService.getExpensesByUserID(userID);
   }
 
 
@@ -104,7 +94,6 @@ export class ExpensesController {
   @Headers('token') token: string,
   @Body() createUserCategoryDto: CreateUserCategoryDto) {
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-    //const firebaseId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
     return this.expensesService.addUserCategory(firebaseId, createUserCategoryDto);
   }
 
@@ -115,7 +104,6 @@ export class ExpensesController {
     @Query('isDefault') isDefault: string
   ): Promise<any[]> {
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-    //const firebaseId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
     const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
     return this.expensesService.getCategories(isDefaultValue, firebaseId);
   }
@@ -129,7 +117,6 @@ export class ExpensesController {
   ): Promise<any[]> {
 
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-    //const firebaseId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2";
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
