@@ -22,11 +22,13 @@
     </ng-container>
     <div class="wrap-buttons">
       <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()" [disabled]="reportClick"></app-button>
-      <app-button buttonText="לתשלום באתר מעמ" href="" target="_blank"></app-button>
+      <app-button buttonText="לתשלום באתר מעמ" [href]="'https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true'" [disabled]="reportClick" target=""></app-button>
     </div>
-    <div *ngIf="displayExpenses && items$ | async as items"  class="table-wrapper">
-      <app-table [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
-    </div>
+    <ng-container *ngIf="items$ | async as items">
+      <div *ngIf="displayExpenses"  class="table-wrapper">
+        <app-table [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+      </div>
+    </ng-container>
   </div>
 
 </ion-content>

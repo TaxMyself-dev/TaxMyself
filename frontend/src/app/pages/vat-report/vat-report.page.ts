@@ -8,6 +8,7 @@ import { FormTypes, ICellRenderer, months, singleMonths } from 'src/app/shared/e
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { Router } from '@angular/router';
 
 
 interface ReportData {
@@ -29,20 +30,14 @@ interface FieldTitles {
 })
 export class VatReportPage implements OnInit {
 
-  //@Input() isSingleMonth: boolean = false;
-
   readonly ButtonSize = ButtonSize;
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-    [ExpenseFormColumns.CATEGORY, 1.2],
-    [ExpenseFormColumns.SUB_CATEGORY, 1.1],
-    [ExpenseFormColumns.SUPPLIER, 1.2],
+    [ExpenseFormColumns.CATEGORY, 2],
+    [ExpenseFormColumns.SUB_CATEGORY, 2],
+    [ExpenseFormColumns.SUPPLIER, 2],
     [ExpenseFormColumns.DATE, 1.5]
   ]);
-
-  // months = months;
-  // singleMonths = singleMonths;
-  // optionTypeReport = [{key: 'oneMonth', value: 'חודשי'}, {key: 'twoMonth', value: 'דו-חודשי'}];
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
@@ -87,7 +82,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor(public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService) {
+  constructor(private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl (
         '', Validators.required,
@@ -118,8 +113,6 @@ export class VatReportPage implements OnInit {
     const formData = this.vatReportForm.value;
     this.reportClick = false;
     this.setRowsData();
-    console.log(formData);
-    
     this.getVarReportData(formData.month, formData.year, formData.isSingleMonth);
   }
 
@@ -128,67 +121,38 @@ export class VatReportPage implements OnInit {
 
     const formData = this.vatReportForm.value;
 
-    console.log("form data debug is ",formData);
-    
-    // Create a date object for the first day of the specified month and year
-    let startDateofMonth = startOfMonth(new Date(year, month));
-    let monthAdjusted = isSingleMonth ? Number(month) : Number(month) + 1;
-    let lastDayOfMonth = endOfMonth(new Date(year, monthAdjusted));
-
-    //this.vatReportService.getVatReportData(startDateofMonth, lastDayOfMonth, formData.vatableTurnover, formData.nonVatableTurnover, this.token)
     this.vatReportService.getVatReportData(formData)
     .subscribe((res) => {
-      console.log("res of vat report is", res);
       this.report = res;
-      console.log("report is ", this.report);
     });
 
   }
 
-
-    // supplier: 'מנוי riseup',
-    // category: 'הוצאות עסקיות',
-    // subCategory: 'הנהלת חשבונות',
-    // sum: '45',
-    // vatPercent: '100',
-    // totalVatPayable: '6.54',
-    // monthReport: 5,
-    // isReported: false
 
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.vatReportForm.value;
     console.log("setRowsData - start");
     this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month)
-    //this.items$ = this.expenseDataService.getExpenseByUser()
       .pipe(
         map((data) => {
           const rows = [];
-          console.log("data 1 in setRowsData is", data);
           
           data.forEach(row => {
-            const { id, reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
+            const { id, reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, file, isReported, monthReport, ...tableData } = row;
             row.dateTimestamp = +row.dateTimestamp;
 
+            console.log("table data for vat report is ", tableData);
+            
             //tableData.dateTimestamp = this.timestampToDateStr(tableData.dateTimestamp as number);
             rows.push(tableData);
           })
-          console.log("data 2 in setRowsData is", data);
 
           this.rows = rows;
           return rows
         })
       )
-    console.log(this.items$);
   }
-
-
-  // private setUserId(): void {
-  //   const tempA = localStorage.getItem('user');
-  //   const tempB = JSON.parse(tempA)
-  //   this.uid = tempB.uid;
-  //   console.log(this.uid);
-  // }
 
 
   showExpenses() {
@@ -199,14 +163,14 @@ export class VatReportPage implements OnInit {
   columnsOrderByFunc(a, b): number {
     const columnsAddExpenseOrder = [
       'supplier',
-      'dateTimestamp',
       'sum',
+      'dateTimestamp',
       'category',
       'subCategory',
       'vatPercent',
       'taxPercent',
-      'totalTax',
       'totalVat',
+      'totalTax',
     ];
 
     const indexA = columnsAddExpenseOrder.indexOf(a.key);
@@ -229,6 +193,11 @@ export class VatReportPage implements OnInit {
     }
   }
 
+  // openVatReportLink(): void {
+  
+  //   this.router.navigate(https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true, {
+  //   })
+  // }
 
 
 

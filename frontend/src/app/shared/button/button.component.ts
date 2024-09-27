@@ -16,7 +16,8 @@ export class ButtonComponent {
   @Input() iconPosition = "start";
   @Input() ariaLabel: string;
   @Input() iconStyle: Partial<CSSStyleDeclaration> = {margin: '0'};
-  @Input() buttonStyle: Partial<CSSStyleDeclaration> = {}
+  @Input() buttonStyle: Partial<CSSStyleDeclaration> = {};
+  @Input() href: string;
 
   @Output() onButtonClicked: EventEmitter<void> = new EventEmitter<void>();
   
@@ -26,6 +27,10 @@ export class ButtonComponent {
   constructor() {}
 
   onClick(): void {
-    this.onButtonClicked.emit();
+    if (this.href) {
+      window.open(this.href, '_blank'); // Handle navigation if href is provided
+    } else {
+      this.onButtonClicked.emit();
+    }
   }
 }
