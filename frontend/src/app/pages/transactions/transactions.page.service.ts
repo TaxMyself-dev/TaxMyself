@@ -66,7 +66,7 @@ ngOnInit(): void {
   
   getAllBills(): void {
     const token = localStorage.getItem('token');
-    // console.log("get bills");
+    console.log("get bills");
     const url = `${environment.apiUrl}transactions/get-bills`;
     const headers = {
       'token': token

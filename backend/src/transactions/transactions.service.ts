@@ -425,15 +425,21 @@ export class TransactionsService {
 
   async getBillsByUserId(userId: string): Promise<Bill[]> {
 
+    console.log("getBillsByUserId - start");
+    
+
     const bills = await this.billRepo.find({
       where: { userId: userId}
     });
     if (!bills || bills.length === 0) {
-      throw new HttpException({
-        status: HttpStatus.NOT_FOUND,
-        error: `not found`
-    }, HttpStatus.NOT_FOUND);
+      return [];
     }
+    // if (!bills || bills.length === 0) {
+    //   throw new HttpException({
+    //     status: HttpStatus.NOT_FOUND,
+    //     error: `not found`
+    // }, HttpStatus.NOT_FOUND);
+    // }
     return bills;
 
   }
@@ -444,11 +450,12 @@ export class TransactionsService {
       // Get all bills for the user
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
       if (!bills || bills.length === 0) {
-        // throw new Error('No bills found for the user');
-        throw new HttpException({
-          status: HttpStatus.NOT_FOUND,
-          error: `not found`
-      }, HttpStatus.NOT_FOUND);
+        return [];
+      //   // throw new Error('No bills found for the user');
+      //   throw new HttpException({
+      //     status: HttpStatus.NOT_FOUND,
+      //     error: `not found`
+      // }, HttpStatus.NOT_FOUND);
       }
       //console.log("bills:", bills);
       
@@ -470,11 +477,6 @@ export class TransactionsService {
     if (billId === "ALL_BILLS") {  
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
       if (!bills || bills.length === 0) {
-        throw new HttpException({
-          status: HttpStatus.NOT_FOUND,
-          error: `not found`
-      }, HttpStatus.NOT_FOUND);
-        // throw new Error('No bills found for the user');
       }
       // Collect all sources from the user's bills
       if (bills.length > 0)  {
@@ -485,6 +487,15 @@ export class TransactionsService {
             bill.sources.forEach(source => {
               sources.push(source.sourceName);
             });
+          }
+        });
+      }
+      // If there are no sources, return all transactions within the date range
+      if (sources.length === 0) {
+        return await this.transactionsRepo.find({
+          where: {
+            userId,
+            payDate: Between(startDate, endDate)
           }
         });
       }
