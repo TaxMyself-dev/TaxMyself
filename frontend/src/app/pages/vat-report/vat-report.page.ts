@@ -4,7 +4,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { startOfMonth, endOfMonth } from 'date-fns';
 import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, tap } from 'rxjs';
-import { FormTypes, ICellRenderer, months, singleMonths } from 'src/app/shared/enums';
+import { FormTypes, ICellRenderer, months, singleMonths, TransactionsOutcomesColumns } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
@@ -54,9 +54,13 @@ export class VatReportPage implements OnInit {
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
     { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
+    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
   ];
+
+  readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
+    [ExpenseFormColumns.DATE, ICellRenderer.DATE],
+  ]);
 
   tableData$: Observable<IRowDataTable[]>;
 
@@ -163,8 +167,8 @@ export class VatReportPage implements OnInit {
   columnsOrderByFunc(a, b): number {
     const columnsAddExpenseOrder = [
       'supplier',
-      'sum',
       'dateTimestamp',
+      'sum',
       'category',
       'subCategory',
       'vatPercent',

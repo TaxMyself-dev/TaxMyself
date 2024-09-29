@@ -26,7 +26,7 @@
     </div>
     <ng-container *ngIf="items$ | async as items">
       <div *ngIf="displayExpenses"  class="table-wrapper">
-        <app-table [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+        <app-table [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
       </div>
     </ng-container>
   </div>

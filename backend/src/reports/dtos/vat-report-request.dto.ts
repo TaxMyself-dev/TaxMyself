@@ -26,7 +26,7 @@ export class VatReportRequestDto {
 
     @IsBooleanString()
     @IsNotEmpty()
-    isSingleMonth: boolean; // or boolean, depending on how you handle it
+    isSingleMonth: string;
 
     @IsNotEmpty()
     @Validate(IsNumberString)

@@ -477,18 +477,18 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
     async getExpensesForVatReport(userId: string, isSingleMonth: boolean, monthReport: number): Promise<Expense[]> {
 
         // Valid months when isSingleMonth is false
-        const validMonths = [1, 3, 5, 7, 9, 11];
+        const validMonths = [1, 3, 5, 7, 9, 11];        
       
         // Check if monthReport is valid when isSingleMonth is false
         if (!isSingleMonth && !validMonths.includes(monthReport)) {
           throw new Error('Invalid monthReport. When isSingleMonth is false, monthReport must be one of [1, 3, 5, 7, 9, 11].');
-        }
+        }        
       
         // Build the query to fetch expenses for the user
         let query = this.expense_repo.createQueryBuilder('expense')
           .where('expense.userId = :userId', { userId });
       
-        if (isSingleMonth) {
+        if (isSingleMonth) {            
           // If isSingleMonth is true, return only expenses for the specified month
           query = query.andWhere('expense.monthReport = :monthReport', { monthReport });
         } else {

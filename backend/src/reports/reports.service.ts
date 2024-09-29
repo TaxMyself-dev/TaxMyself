@@ -26,7 +26,9 @@ export class ReportsService {
         vatableTurnover: number,
         nonVatableTurnover: number
     ): Promise<VatReportDto> {
-    
+
+        console.log("createVatReport - start");
+        
         const vatReport: VatReportDto = {
             vatableTurnover: vatableTurnover,
             nonVatableTurnover: nonVatableTurnover,
@@ -36,7 +38,7 @@ export class ReportsService {
         };
     
         // Step 1: Fetch expenses using the function we wrote based on monthReport
-        const expenses = await this.expensesService.getExpensesForVatReport(userId, isSingleMonth, monthReport);
+        const expenses = await this.expensesService.getExpensesForVatReport(userId, isSingleMonth, monthReport);        
     
         // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
         const regularExpenses = expenses.filter(expense => !expense.isEquipment);
