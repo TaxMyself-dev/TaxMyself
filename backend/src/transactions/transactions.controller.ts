@@ -169,6 +169,23 @@ export class TransactionsController {
   }
 
 
+  @Get('get-transactions-to-build-report')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getTransactionsToBuildReport(
+    @Query() query: GetTransactionsDto,
+    @Headers('token') token: string
+  ): Promise<Transactions[]> {
+
+    console.log("getTransactionsToBuildReport - start");
+    
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    return this.transactionsService.getTransactionsToBuildReport(userId, startDateT, endDateT);
+  }
+
+
   @Post('save-trans-to-expenses')
   async saveTransToExpenses(
   @Body() transactionData: any,

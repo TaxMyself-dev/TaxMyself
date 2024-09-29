@@ -26,8 +26,6 @@ export class ReportsService {
         vatableTurnover: number,
         nonVatableTurnover: number
     ): Promise<VatReportDto> {
-
-        console.log("createVatReport - start");
         
         const vatReport: VatReportDto = {
             vatableTurnover: vatableTurnover,

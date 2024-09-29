@@ -209,9 +209,4 @@ ngOnInit(): void {
     return withoutDecimal
   }
 
-  
-
-
-
-
 }

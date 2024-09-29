@@ -71,7 +71,8 @@ export class FlowReportPage implements OnInit {
   }
 
   getTransaction(): void {
-    this.flowReportService.getExpenseTransactionsData(this.params)
+    //this.flowReportService.getExpenseTransactionsData(this.params)
+    this.flowReportService.getFlowReportData(this.params)
       .pipe(
         catchError((err) => {
           console.log("error in get expenses flow-report: ", err);

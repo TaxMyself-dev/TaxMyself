@@ -35,10 +35,7 @@ export class VatReportService {
     const headers = {
       'token': this.token
     }
-    // const param = new HttpParams()
-    //   .set('startDate', startDate.toISOString())
-    //   .set('endDate', endDate.toISOString())
-    //   .set('token', token);
+   
     return this.http.get<any>(url, { params: params, headers: headers})
   }
 

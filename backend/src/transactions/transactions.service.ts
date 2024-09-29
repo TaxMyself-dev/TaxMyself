@@ -83,10 +83,7 @@ export class TransactionsService {
 
     let skippedTransactions = 0;    
 
-    for (const row of rows) {    
-      
-      //console.log("row is ", row);
-      
+    for (const row of rows) {          
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
@@ -94,6 +91,7 @@ export class TransactionsService {
       const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
       transaction.billDate = billDate;
       transaction.payDate = payDate;
+      transaction.monthReport = this.sharedService.getMonthFromTimestamp(transaction.payDate);
       transaction.sum = parseFloat(row[sumIndex]);
       transaction.userId = userId;
 
@@ -434,12 +432,6 @@ export class TransactionsService {
     if (!bills || bills.length === 0) {
       return [];
     }
-    // if (!bills || bills.length === 0) {
-    //   throw new HttpException({
-    //     status: HttpStatus.NOT_FOUND,
-    //     error: `not found`
-    // }, HttpStatus.NOT_FOUND);
-    // }
     return bills;
 
   }
@@ -451,13 +443,7 @@ export class TransactionsService {
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
       if (!bills || bills.length === 0) {
         return [];
-      //   // throw new Error('No bills found for the user');
-      //   throw new HttpException({
-      //     status: HttpStatus.NOT_FOUND,
-      //     error: `not found`
-      // }, HttpStatus.NOT_FOUND);
       }
-      //console.log("bills:", bills);
       
       if (bills.length > 0) {
         bills.forEach(bill => {
@@ -558,6 +544,32 @@ export class TransactionsService {
   }
 
 
+  async getTransactionsToBuildReport(
+    userId: string,
+    startDate: number,
+    endDate: number,
+  ): Promise<Transactions[]> {
+  
+    const sixMonthsInMilliseconds = 6 * 30 * 24 * 60 * 60 * 1000;
+
+    return await this.transactionsRepo
+      .createQueryBuilder('transactions')
+        .where(
+          'transactions.userId = :userId', { userId }
+        )
+        // Condition 1: (startDate <= payDate <= endDate) and isRecognized = true
+        .andWhere(
+          '(transactions.payDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', { startDate, endDate }
+        )
+        // Condition 2: (payDate is max half year before startDate) and monthReport = null
+        .orWhere(
+          '(transactions.payDate < :startDate AND transactions.payDate >= :halfYearBeforeStartDate AND transactions.monthReport IS NULL)',
+          { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
+        )
+    .getMany();
+  }
+
+
   async saveTransactionsToExpenses(transactionData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
 
     console.log("id is ", transactionData[0].id);
@@ -618,6 +630,7 @@ export class TransactionsService {
       expense.userId = transaction.userId;
       expense.loadingDate = Date.now();
       expense.expenseNumber = '';
+      expense.transId = transaction.id;
       expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
       

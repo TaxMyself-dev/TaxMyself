@@ -67,6 +67,9 @@ export class Expense {
   totalVatPayable: number;
 
   @Column('int')
+  transId: number;
+
+  @Column('int')
   monthReport: number;
 
   @Column('boolean')

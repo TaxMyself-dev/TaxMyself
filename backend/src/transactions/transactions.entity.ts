@@ -39,7 +39,7 @@ export class Transactions {
   @Column()
   subCategory: string;
 
-  @Column()
+  @Column('boolean', { default: false })
   isRecognized: boolean;
 
   @Column()
@@ -48,10 +48,13 @@ export class Transactions {
   @Column()
   taxPercent: number;
 
-  @Column()
+  @Column('boolean', { default: false })
   isEquipment: boolean;
 
   @Column()
   reductionPercent: number;
+
+  @Column('int')
+  monthReport: number;
 
 }

@@ -26,20 +26,35 @@ import { environment } from "src/environments/environment";
         this.token = localStorage.getItem('token');
       }
 
-    getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
-        console.log(formData.accounts);
-        const token = localStorage.getItem('token');
-        const url = `${environment.apiUrl}transactions/get-expenses`;
-        const param = new HttpParams()
-        .set('billId', 'ALL_BILLS')
-        //.set('billId', formData.accounts)
-        .set('month', formData.month)
-        .set('year', formData.year)
-        .set('isSingleMonth', formData.isSingleMonth)
-        const headers = {
-            'token': token
-        }
-        return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
+    // getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
+    //     console.log(formData.accounts);
+    //     const token = localStorage.getItem('token');
+    //     const url = `${environment.apiUrl}transactions/get-expenses`;
+    //     const param = new HttpParams()
+    //     .set('billId', 'ALL_BILLS')
+    //     //.set('billId', formData.accounts)
+    //     .set('month', formData.month)
+    //     .set('year', formData.year)
+    //     .set('isSingleMonth', formData.isSingleMonth)
+    //     const headers = {
+    //         'token': token
+    //     }
+    //     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
+    // }
+
+    getFlowReportData(formData: any): Observable<any> {
+      console.log("getFlowReportData - start");
+      const token = localStorage.getItem('token');
+      const url = `${environment.apiUrl}transactions/get-transactions-to-build-report`;
+      const headers = {
+        'token': token
+      }
+      const params = new HttpParams()
+      .set('billId', 'ALL_BILLS')
+      .set('year', formData.year)
+      .set('month', formData.month)
+      .set('isSingleMonth', formData.isSingleMonth);
+      return this.http.get<any>(url, {params:params, headers: headers});
     }
     
     addTransToExpense(IDs): Observable<any> {
