@@ -2,9 +2,6 @@ import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from 
 import { ICheckboxCellData, IColumnDataTable, IRowDataTable, ITableRowAction } from '../interface';
 import { ICellRenderer } from '../enums';
 import { ButtonClass, ButtonSize } from '../button/button.enum';
-// import { IonicModule, IonIcon } from '@ionic/angular';
-// import { addIcons } from 'ionicons';
-// import customIcon from '../../../assets/icon/icons8-edit.svg';
 
 
 
@@ -22,6 +19,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   @Input() specialColumnsCellRendering: Map<TFormColumns | string, ICellRenderer>;
   //@Input() checkboxData: ICheckboxCellData = {columnName: "בחר הכול"};
   @Input() displayCheckbox = false;
+  @Input() iconSrc: string;
   @Input() iconName: string;
   @Input() iconToolTip: string;
   @Input() set rows(val: IRowDataTable[]) {
@@ -56,6 +54,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   openAddBill(event: IRowDataTable): any {
     this.onClickedCell.emit({str: "bill", data: event})
   }
+  
   openAddTransaction(event: IRowDataTable): any {
     this.onClickedCell.emit({str: "tran", data: event})
   }

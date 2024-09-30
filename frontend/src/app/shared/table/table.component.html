@@ -72,7 +72,7 @@
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value}}
                 <div class="wrap-button-category">
-                  <app-button [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip" (onButtonClicked)="openAddTransaction(row)" [iconName]="iconName" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+                  <app-button  [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip" (onButtonClicked)="openAddTransaction(row)" [iconSrc]="iconSrc" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
                 </div>
           </ion-col>
         </ng-template>

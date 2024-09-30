@@ -11,5 +11,7 @@
     [disabled]="disabled"
     (click)="onClick()"
 >
+
 <ion-icon *ngIf="iconName" [ariaLabel]="ariaLabel" [ngStyle]="iconStyle" [slot]="iconPosition" [name]="iconName"></ion-icon>
+<ion-icon *ngIf="iconSrc" size="0.5" [ariaLabel]="ariaLabel" [ngStyle]="iconStyle" [slot]="iconPosition"  [src]="iconSrc"></ion-icon>
 {{buttonText}}</ion-button>

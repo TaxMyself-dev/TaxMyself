@@ -13,6 +13,8 @@ import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
 import { DateService } from 'src/app/services/date.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
+import { addIcons } from 'ionicons';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-transactions',
@@ -36,6 +38,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
   ];
+
   editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
@@ -71,6 +74,7 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
     [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
   ]);
+
   readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
@@ -97,9 +101,9 @@ export class TransactionsPage implements OnInit {
   listCategory: ISelectItem[];
   listFilterCategory: ISelectItem[] = [{ value: null, name: 'הכל' }];
   originalSubCategoryList: IGetSubCategory[];
-  expenseDataService = inject(ExpenseDataService)
-
-  constructor(private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
+  expenseDataService = inject(ExpenseDataService);
+  myIcon: string;
+  constructor(private sanitizer: DomSanitizer, private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
 
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
@@ -118,19 +122,19 @@ export class TransactionsPage implements OnInit {
 
     this.incomeForm = this.formBuilder.group({
       incomeType: new FormControl(
-        '',
+        null,
       ),
       category: new FormControl(
-        '',
+        null,
       ),
     });
 
     this.expensesForm = this.formBuilder.group({
       expensesType: new FormControl(
-        '',
+        null,
       ),
       category: new FormControl(
-        '',
+        null,
       ),
     })
 
@@ -152,6 +156,11 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
+    // const myIcon = this.sanitizer.bypassSecurityTrustResourceUrl(');
+    //this.myIcon = 'assets/icon/customEdit.png';
+    addIcons({
+      'myIcon': "https://www.svgrepo.com/show/42233/pencil-edit-button.svg",
+    });
     this.setTableActions();
     this.transactionsService.getAllBills();
     this.transactionsService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
@@ -163,7 +172,7 @@ export class TransactionsPage implements OnInit {
     //   // console.log("sources: ", data);
     //   this.sourcesList = data;
     // });
-    // this.getCategory();
+    this.getCategory();
 
     // this.transactionService.updateRow(4);
   }
@@ -216,7 +225,9 @@ export class TransactionsPage implements OnInit {
         this.incomesData = data.incomes;
         this.expensesData = data.expenses;
         this.incomesData$.next(this.incomesData);
+        this.filterIncomes(); // for after update table the table will stay filtered according to the search-bar
         this.expensesData$.next(data.expenses);
+        this.filterExpenses(); // for after update table the table will stay filtered according to the search-bar
       });
   }
 
@@ -314,7 +325,23 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-  incomeFilter(): void {
+  print(){
+    console.log("in print");
+    console.log(this.expensesForm.value);
+    
+  }
+
+  filterIncomes(): void {
+    this.incomesFilterByCategory();
+    this.incomesFilterByClassify();
+  }
+
+  filterExpenses(): void {
+    this.expensesFilterByCategory();
+    this.expensesFilterByClassify();
+  }
+
+  incomesFilterByClassify(): void {
     console.log("income filter");
     const formData = this.incomeForm.value;
     console.log(formData);
@@ -329,9 +356,22 @@ export class TransactionsPage implements OnInit {
     }
   }
 
-  expensesFilter(): void {
-    console.log("expens filter");
+  incomesFilterByCategory(): void {
+    const formData = this.incomeForm.value;
+    console.log(formData);
+    const categoryName = this.listCategory.find((category) => category.value === formData.category);
+    console.log(categoryName);
+    if (categoryName) {
+      this.expensesData$.next(this.expensesData.filter((expense) => expense.category === categoryName.name));
+    }
+    else {
+      this.expensesData$.next(this.expensesData);
+    }
+  }
+
+  expensesFilterByClassify(): void {
     const formData = this.expensesForm.value;
+    console.log(formData);
     console.log(this.expensesForm.get('expensesType').value);
     if (formData.expensesType === "notClassification") {
       this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג"));
@@ -344,9 +384,10 @@ export class TransactionsPage implements OnInit {
     }
   }
 
-  filterByCategory(event): void {
-    console.log(event.value);
-    const categoryName = this.listCategory.find((category) => category.value === event.value);
+  expensesFilterByCategory(): void {
+    const formData = this.expensesForm.value;
+    console.log(formData);
+    const categoryName = this.listCategory.find((category) => category.value === formData.category);
     console.log(categoryName);
     if (categoryName) {
       this.expensesData$.next(this.expensesData.filter((expense) => expense.category === categoryName.name));
@@ -354,8 +395,6 @@ export class TransactionsPage implements OnInit {
     else {
       this.expensesData$.next(this.expensesData);
     }
-
-
   }
 
   private handleTableData(data: ITransactionData[]) {
@@ -384,30 +423,30 @@ export class TransactionsPage implements OnInit {
     return rows;
   }
 
-  // getCategory(): void {
-  //   this.expenseDataService.getcategry(null)
-  //     .pipe(
-  //       takeUntil(this.destroy$),
-  //       map((res) => {
-  //         return res.map((item: any) => ({
-  //           name: item.category,
-  //           value: item.id
-  //         })
-  //         )
-  //       }))
-  //     .subscribe((res) => {
-  //       this.listCategory = res;
-  //       this.listFilterCategory.push(...res);
-  //       this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-  //         if (field.name === TransactionsOutcomesColumns.CATEGORY) {
-  //           field.listItems = res;
-  //           // console.log("list item of category :", field.listItems);
+  getCategory(): void {
+    this.expenseDataService.getcategry(null)
+      .pipe(
+        takeUntil(this.destroy$),
+        map((res) => {
+          return res.map((item: any) => ({
+            name: item.category,
+            value: item.id
+          })
+          )
+        }))
+      .subscribe((res) => {
+        this.listCategory = res;
+        this.listFilterCategory.push(...res);
+        this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
+          if (field.name === TransactionsOutcomesColumns.CATEGORY) {
+            field.listItems = res;
+            // console.log("list item of category :", field.listItems);
 
-  //         }
-  //       });
-  //       console.log("listCategory: ", this.listCategory);
-  //     })
-  // }
+          }
+        });
+        console.log("listCategory: ", this.listCategory);
+      })
+  }
 
   // getSubCategory(category, subCategory): void {
   //   console.log(event);
@@ -559,7 +598,13 @@ export class TransactionsPage implements OnInit {
               switchMap(() => from(modal.onWillDismiss())
                 .pipe(
                   takeUntil(this.destroy$),
-                  tap(() => this.getTransactions())
+                  tap((data) => {
+                    console.log(data);
+                    
+                    if (data.role != 'backdrop' && data.role != 'cancel') {
+                      this.getTransactions()
+                    }
+                  })
                 )
               )
             )),
@@ -615,7 +660,12 @@ export class TransactionsPage implements OnInit {
           .pipe(
             switchMap(() => from(modal.onWillDismiss())
               .pipe(
-                tap(() => this.getTransactions())
+                tap((data) => {
+                  console.log(data);
+                  if (data.role != 'backdrop' && data.role != 'cancel') {
+                    this.getTransactions()
+                  }
+                })
               )
             )
           )),

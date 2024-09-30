@@ -31,14 +31,14 @@
 
     <ng-template #expensesCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar" [isDisabled]="expensesForm.invalid"
-        (onSearchClick)="expensesFilter()"></app-search-bar>
-      <app-table [iconName]="'create'" [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES" [actions]="tableActions"
+        (onSearchClick)="filterExpenses()"></app-search-bar>
+      <app-table iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'" [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES" [actions]="tableActions"
         [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
   
     <ng-template #incomeCollapse>
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar" [isDisabled]="incomeForm.invalid"
-        (onSearchClick)="incomeFilter()"></app-search-bar>
+        (onSearchClick)="filterIncomes()"></app-search-bar>
       <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" [actions]="tableActions"  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
         [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"></app-table>
     </ng-template>
@@ -78,7 +78,7 @@
   <form class="generic-search-bar-content" [formGroup]="expensesForm">
     <app-generic-select [parentForm]="expensesForm" [controlName]="'expensesType'" [items]="typeIncomeList"
       [title]="'סוג ההוצאה'"></app-generic-select>
-    <app-generic-select [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'" (selectionChanged)="filterByCategory($event)"></app-generic-select>
+    <app-generic-select [parentForm]="expensesForm" [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'"></app-generic-select>
   </form>
 </ng-template >
 

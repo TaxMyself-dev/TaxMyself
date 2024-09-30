@@ -238,13 +238,25 @@ ion-col {
 
 .ion-col-with-icon {
   position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .wrap-button-category {
   position: absolute; /* The child is positioned relative to its parent */
-  top: 28px; /* Distance from the top of the parent */
-  left: 60px; /* Distance from the left of the parent */
+  top: -10px; /* Distance from the top of the parent */
+  right: 0px; /* Distance from the left of the parent */
+  visibility: hidden;
 }
+
+.ion-col-with-icon:hover
+.wrap-button-category {
+  visibility: visible;
+}
+
+
+
 
 
 

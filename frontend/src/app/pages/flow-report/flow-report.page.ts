@@ -41,6 +41,10 @@ export class FlowReportPage implements OnInit {
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
 
   ];
+  readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
+    [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
+    [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
+  ]);
   tableActions: ITableRowAction[];
 
   constructor(private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
@@ -79,12 +83,15 @@ export class FlowReportPage implements OnInit {
           return EMPTY;
         }),
         map((data) => {
+          console.log(data);
+          
           data.forEach((row) => {
-            //row.billDate = this.transactionService.timestampToDateStr(row.billDate as number)
+            row.billDate = +row.billDate;
+            row.payDate = +row.payDate;
           })
           return data;
         }),
-        map((data) => {
+        map((data) => { // filter only if transaction.isRecognized is true 
           const isRecognized = data.filter((tran) => {
             return tran.isRecognized;
           })
@@ -154,59 +161,6 @@ export class FlowReportPage implements OnInit {
 
   }
 
-  //   addTransToExpense(): void {
-  //     console.log("chosen trans :", this.chosenTrans);
-
-  //     this.chosenTrans.map((tran) => {
-  //       console.log("tran in map: ", tran);
-
-  //       return (
-  //         this.fileService.uploadFileViaFront(tran.file as File)
-  //         .pipe(
-  //           catchError((error) => {
-  //             console.log("error in upload file: ", error);
-  //             alert("אירעה שגיאה לא ניתן להעלות את הקובץ")
-  //             return EMPTY;
-  //           })
-  //           )
-  //           .subscribe((res) => {
-  //             tran.file = res.metadata.fullPath;
-  //             console.log("in res uplpoad file: ", tran.file );
-
-  //             // if (this.previousFile) {
-  //             //   this.fileService.deleteFile(this.previousFile);
-  //             //   this.previousFile = null;
-  //             // }
-  //             // this.chosenTrans.map((item) => {
-  //             //   if (item.id === row.id) {
-  //             //     item.file = res.metadata.fullPath;
-  //             //     console.log(this.chosenTrans);
-  //             //   }
-  //             // }
-  //             // )
-  //             //row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
-  //             //this.expenseDataService.closeLoader();
-  //           })
-
-  //         )
-  //     })
-  // console.log("after up before send: ",this.chosenTrans);
-
-  //     this.flowReportService.addTransToExpense(this.chosenTrans)
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.log("err in add trans to expense: ", err);
-  //         return EMPTY;
-  //       })
-  //       )
-  //     .subscribe((res) => {
-  //       console.log("res from add trans to expense:", res);
-
-  //     })  
-  //     console.log("trans after file: ",this.chosenTrans);
-
-  //   }
-
   addTransToExpense(): void {
 
     const totalFiles = this.chosenTrans.length;
@@ -249,6 +203,7 @@ export class FlowReportPage implements OnInit {
           .pipe(
             catchError((err) => {
               console.log("Error in addTransToExpense: ", err);
+              this.expenseDataService.dismissLoader();
               return EMPTY;
             })
           )

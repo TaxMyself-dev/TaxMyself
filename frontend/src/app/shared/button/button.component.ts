@@ -13,6 +13,7 @@ export class ButtonComponent {
   @Input() buttonClass: string = ButtonClass.PRIMARY;
   @Input() buttonSize: string = ButtonSize.BIG;
   @Input() iconName: string;
+  @Input() iconSrc: string;
   @Input() iconPosition = "start";
   @Input() ariaLabel: string;
   @Input() iconStyle: Partial<CSSStyleDeclaration> = {margin: '0'};
