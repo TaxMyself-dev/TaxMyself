@@ -4,13 +4,9 @@ import {
     PrimaryGeneratedColumn,
     OneToMany
  } from 'typeorm';
- import { Bill } from '../transactions/bill.entity';
-//import { Bill } from './transactions/bill.entity';
-//import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import { Bill } from '../transactions/bill.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
-
-//import { Bill } from 'src/transactions/bill.entity';
-import { UserRole } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType } from '../enum';
 
 
 @Entity()
@@ -93,4 +89,19 @@ export class User {
 
     @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.user)
     userSubCategories: UserSubCategory[];
+
+    @Column({
+      type: 'enum',
+      enum: VATReportingType,
+      default: VATReportingType.NOT_REQUIRED,  // Default value
+    })
+    vatReportingType: VATReportingType;
+
+    @Column({
+      type: 'enum',
+      enum: TaxReportingType,
+      default: TaxReportingType.NOT_REQUIRED,  // Default value
+    })
+    taxReportingType: TaxReportingType;
+
 }

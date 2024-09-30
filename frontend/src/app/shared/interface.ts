@@ -141,6 +141,7 @@ export interface ITransactionData {
     category: string;
     userId: string;
     billName: string;
+    monthReport: string;
 }
 
 export interface ITableRowAction {

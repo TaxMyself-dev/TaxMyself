@@ -1,3 +1,4 @@
+import { SingleMonthReport, DualMonthReport } from 'src/enum';
 import { 
     Entity, 
     Column, 
@@ -69,8 +70,12 @@ export class Expense {
   @Column('int')
   transId: number;
 
-  @Column('int')
-  monthReport: number;
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    default: null,
+  })
+  vatReportingDate: SingleMonthReport | DualMonthReport | null;
 
   @Column('boolean')
   isReported: boolean;
@@ -82,14 +87,14 @@ export class Expense {
     this.totalVatPayable = (this.sum/1.17) * 0.17 * (this.vatPercent/100);
 
     // Calculate the monthReport field based on dateTimestamp
-    this.calculateMonthReport();
+    //this.calculateMonthReport();
   }
 
-  private calculateMonthReport() {
-    // Convert dateTimestamp to a JavaScript Date object
-    const date = new Date(this.dateTimestamp * 1000); // dateTimestamp is in seconds, Date needs milliseconds
-    // Get the month (JavaScript months are zero-indexed, so add 1)
-    this.monthReport = date.getUTCMonth() + 1; // getUTCMonth() returns 0 for January, 1 for February, so we add 1
-  }
+  // private calculateMonthReport() {
+  //   // Convert dateTimestamp to a JavaScript Date object
+  //   const date = new Date(this.dateTimestamp * 1000); // dateTimestamp is in seconds, Date needs milliseconds
+  //   // Get the month (JavaScript months are zero-indexed, so add 1)
+  //   this.vatReportingDate = date.getUTCMonth() + 1; // getUTCMonth() returns 0 for January, 1 for February, so we add 1
+  // }
 
 }

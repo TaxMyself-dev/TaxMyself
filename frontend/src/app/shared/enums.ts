@@ -80,6 +80,7 @@ export enum ExpenseFormColumns {
     SUM = 'sum',
     CATEGORY = 'category',
     SUBCATEGORY = 'subCategory',
+    MONTH_REPORT = 'monthReport',
     CHECKBOX = 'checkbox'
 
 }
@@ -93,6 +94,7 @@ export enum TransactionsOutcomesHebrewColumns {
   sum = 'סכום',
   category = 'קטגוריה',
   subCategory = 'תת-קטגוריה',
+  monthReport = 'דווח לחודש',
   billName = 'חשבון',
   isRecognized = 'הוצאה מוכרת',
   isEquipment = 'מוכר כציוד',

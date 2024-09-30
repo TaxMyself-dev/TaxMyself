@@ -1,11 +1,9 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Between, Not } from 'typeorm';
+import { Repository, In, Between, Not, Brackets } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express'; 
-
-
-
+import { VATReportingType} from 'src/enum';
 
 //Entities
 import { Transactions } from './transactions.entity';
@@ -25,6 +23,7 @@ import { Category } from '../expenses/categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
 import { log } from 'console';
+import { User } from 'src/users/user.entity';
 
 
 @Injectable()
@@ -32,6 +31,8 @@ export class TransactionsService {
   constructor(
     private readonly sharedService: SharedService,
     private readonly expenseService: ExpensesService,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
     @InjectRepository(ClassifiedTransactions)
@@ -91,7 +92,7 @@ export class TransactionsService {
       const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
       transaction.billDate = billDate;
       transaction.payDate = payDate;
-      transaction.monthReport = this.sharedService.getMonthFromTimestamp(transaction.payDate);
+      //transaction.vatReportingDate = null;
       transaction.sum = parseFloat(row[sumIndex]);
       transaction.userId = userId;
 
@@ -551,22 +552,24 @@ export class TransactionsService {
   ): Promise<Transactions[]> {
   
     const sixMonthsInMilliseconds = 6 * 30 * 24 * 60 * 60 * 1000;
-
+  
     return await this.transactionsRepo
       .createQueryBuilder('transactions')
-        .where(
-          'transactions.userId = :userId', { userId }
-        )
-        // Condition 1: (startDate <= payDate <= endDate) and isRecognized = true
+        .where('transactions.userId = :userId', { userId })
+        // Group the two conditions so they both apply to the same userId
         .andWhere(
-          '(transactions.payDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', { startDate, endDate }
+          new Brackets(qb => {
+            qb.where(
+              '(transactions.payDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', 
+              { startDate, endDate }
+            )
+            .orWhere(
+              '(transactions.payDate < :startDate AND transactions.payDate >= :halfYearBeforeStartDate AND transactions.vatReportingDate IS NULL)', 
+              { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
+            );
+          })
         )
-        // Condition 2: (payDate is max half year before startDate) and monthReport = null
-        .orWhere(
-          '(transactions.payDate < :startDate AND transactions.payDate >= :halfYearBeforeStartDate AND transactions.monthReport IS NULL)',
-          { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
-        )
-    .getMany();
+      .getMany();
   }
 
 
@@ -574,7 +577,8 @@ export class TransactionsService {
 
     console.log("id is ", transactionData[0].id);
     console.log("file is ", transactionData[0].file);
-    
+
+    const user = await this.userRepo.findOne({ where: { firebaseId: userId } });
 
     // Extract IDs from the transactionData array
     const transactionIds = transactionData.map(td => td.id);
@@ -614,6 +618,8 @@ export class TransactionsService {
         continue;
       }
   
+      console.log("user is ", user);
+      
       const expense = new Expense();
       expense.supplier = transaction.name;
       expense.supplierID = '';
@@ -623,7 +629,7 @@ export class TransactionsService {
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
       expense.dateTimestamp = transaction.payDate;
-      expense.monthReport = this.sharedService.getMonthFromTimestamp(transaction.payDate);
+      expense.vatReportingDate = this.sharedService.getVATReportingDate(expense.dateTimestamp, user.vatReportingType);
       expense.note = '';
       expense.file = transactionFile;
       expense.isEquipment = transaction.isEquipment;
@@ -633,6 +639,8 @@ export class TransactionsService {
       expense.transId = transaction.id;
       expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
+
+      console.log("expense is ", expense);
       
       expenses.push(expense);
     }

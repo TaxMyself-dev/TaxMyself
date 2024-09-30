@@ -4,7 +4,7 @@ import {
     PrimaryGeneratedColumn,
     ManyToOne
 } from 'typeorm'
-import { Bill } from './bill.entity';
+import { DualMonthReport, SingleMonthReport } from 'src/enum';
 
 @Entity()
 export class Transactions {
@@ -54,7 +54,11 @@ export class Transactions {
   @Column()
   reductionPercent: number;
 
-  @Column('int')
-  monthReport: number;
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    default: null,
+  })
+  vatReportingDate: SingleMonthReport | DualMonthReport | null;
 
 }

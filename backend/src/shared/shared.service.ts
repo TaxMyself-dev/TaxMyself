@@ -11,6 +11,7 @@ import { getDayOfYear } from 'date-fns';
 
 import { Expense } from '../expenses/expenses.entity';
 import { Transactions } from '../transactions/transactions.entity';
+import { VATReportingType, SingleMonthReport, DualMonthReport } from 'src/enum';
 
 @Injectable()
 export class SharedService {
@@ -186,5 +187,52 @@ export class SharedService {
         return date.getMonth() + 1; // getMonth() returns 0 for January, so we add 1
     }
 
+
+    getVATReportingDate(timestamp: number, vatReportingType: VATReportingType): SingleMonthReport | DualMonthReport {
+
+    const date = new Date(timestamp * 1000);
+    const month = date.getUTCMonth() + 1; // getUTCMonth is zero-based, so we add 1
+    const year = date.getUTCFullYear();
+
+    console.log("getVATReportingDate - start");
+    console.log("timestamp is ", timestamp);
+    console.log("vatReportingType is ", vatReportingType);
+    console.log("date is ", date);
+    console.log("month is ", month);
+    console.log("year is ", year);
+
+    let result: SingleMonthReport | DualMonthReport | null = null;
+  
+    if (vatReportingType === VATReportingType.SINGLE_MONTHLY) {
+      result = `${month}/${year}` as SingleMonthReport;
+      console.log("SingleMonthReport - result is ", result);
+      
+    }
+    else if (vatReportingType === VATReportingType.DUAL_MONTHLY) {
+        const dualMonthPairs = {
+            1: `1-2/${year}`,
+            2: `1-2/${year}`,
+            3: `3-4/${year}`,
+            4: `3-4/${year}`,
+            5: `5-6/${year}`,
+            6: `5-6/${year}`,
+            7: `7-8/${year}`,
+            8: `7-8/${year}`,
+            9: `9-10/${year}`,
+            10: `9-10/${year}`,
+            11: `11-12/${year}`,
+            12: `11-12/${year}`,
+        };  
+        result = dualMonthPairs[month] as DualMonthReport;
+        console.log("DualMonthReport - result is ", result);
+    }
+    else {
+        result = null;
+        console.log("null - result is ", result);
+    }
+
+    return result;
+  
+  }
 
 }

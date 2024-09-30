@@ -61,6 +61,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
   ];
 
   readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
@@ -242,7 +243,8 @@ export class TransactionsPage implements OnInit {
       'sum',
       'payDate',
       'billDate',
-      'isRecognized'
+      'isRecognized',
+      'monthReport'
     ];
 
     const indexA = columnsOrder.indexOf(a.key);
@@ -373,6 +375,7 @@ export class TransactionsPage implements OnInit {
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
         data.sum = Math.abs(data.sum);
+        //data.monthReport = data.monthReport;
         rows.push(data);
       }
       )
