@@ -575,9 +575,6 @@ export class TransactionsService {
 
   async saveTransactionsToExpenses(transactionData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
 
-    console.log("id is ", transactionData[0].id);
-    console.log("file is ", transactionData[0].file);
-
     const user = await this.userRepo.findOne({ where: { firebaseId: userId } });
 
     // Extract IDs from the transactionData array
@@ -617,8 +614,6 @@ export class TransactionsService {
         skippedTransactions++;
         continue;
       }
-  
-      console.log("user is ", user);
       
       const expense = new Expense();
       expense.supplier = transaction.name;
@@ -640,7 +635,9 @@ export class TransactionsService {
       expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
 
-      console.log("expense is ", expense);
+      // Save the updated transaction
+      transaction.vatReportingDate = expense.vatReportingDate;
+      await this.transactionsRepo.save(transaction);
       
       expenses.push(expense);
     }

@@ -25,7 +25,7 @@ export class FlowReportPage implements OnInit {
   year: string;
   isSingleMonth: string;
   params: {};
-  columnsToIgnore = ['firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', this.UPLOAD_FILE_FIELD_NAME];
+  columnsToIgnore = ['firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: { id: number, file?: File | string }[] = [];
   previousFile: string;
   //params: { month: string, year: string, isSingleMonth: string }

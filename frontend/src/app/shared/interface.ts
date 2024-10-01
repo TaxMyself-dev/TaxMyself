@@ -141,7 +141,7 @@ export interface ITransactionData {
     category: string;
     userId: string;
     billName: string;
-    monthReport: string;
+    vatReportingDate: string;
 }
 
 export interface ITableRowAction {

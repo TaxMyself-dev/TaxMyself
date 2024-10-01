@@ -414,7 +414,7 @@ export class TransactionsPage implements OnInit {
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
         data.sum = Math.abs(data.sum);
-        //data.monthReport = data.monthReport;
+        data.vatReportingDate ? null: data.vatReportingDate = "טרם דווח";
         rows.push(data);
       }
       )
