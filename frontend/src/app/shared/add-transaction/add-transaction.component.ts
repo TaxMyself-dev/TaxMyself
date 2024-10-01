@@ -240,7 +240,7 @@ export class AddTransactionComponent implements OnInit {
         })
       )
       .subscribe((res) => {
-        this.modalController.dismiss(null, 'cancel');
+        this.modalController.dismiss(null, 'send');
         this.isOpenToast = true;
         console.log(res);
       })
