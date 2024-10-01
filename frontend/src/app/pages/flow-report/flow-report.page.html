@@ -4,4 +4,4 @@
 <!-- <app-table *ngIf="expensesData" [fieldsNames]="fieldsNames" [rows]="expensesData" [columnsToIgnore]="columnsToIgnore" [columnsOrderByFunc]="columnsOrderByFunc" [disableCheckbox]="false" (onChecked)="checkedClicked($event)" (onCheckedAll)="selectedAll($event)"></app-table> -->
 <app-table *ngIf="expensesData" [fieldsNames]="fieldsNames" [rows]="expensesData" [columnsToIgnore]="columnsToIgnore" [columnsOrderByFunc]="columnsOrderByFunc" [displayCheckbox]="true" (onCheckedClicked)="checkedClicked($event)" [actions]="tableActions" (onCheckedAll)="selectedAll($event)" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
 
-<app-button [buttonText]="'הוסף'" (onButtonClicked)="addTransToExpense()"></app-button>
+<app-button [buttonText]="'הוסף'" (onButtonClicked)="addTransToExpense()" [disabled]="!isCheckboxClicked"></app-button>

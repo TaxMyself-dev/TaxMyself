@@ -29,6 +29,7 @@ export class FlowReportPage implements OnInit {
   chosenTrans: { id: number, file?: File | string }[] = [];
   previousFile: string;
   //params: { month: string, year: string, isSingleMonth: string }
+  isCheckboxClicked: boolean = false;
 
   fieldsNames: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
@@ -138,15 +139,29 @@ export class FlowReportPage implements OnInit {
     }
   }
 
+  // checkedClicked(event: { row: IRowDataTable, checked: boolean }): void {
+  //   this.isCheckboxClicked = true;
+  //   event.checked ? this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string }) : this.chosenTrans = this.chosenTrans.filter((item) => {
+  //     return item.id !== event.row.id;
+  //   })
+  //   console.log(this.chosenTrans);
+  // }
+
   checkedClicked(event: { row: IRowDataTable, checked: boolean }): void {
-    //console.log(event.checked);
-    //console.log(event.id);
-    event.checked ? this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string }) : this.chosenTrans = this.chosenTrans.filter((item) => {
-      return item.id !== event.row.id;
-    })
+    // If the checkbox is checked, add it to chosenTrans
+    if (event.checked) {
+      this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string });
+    } else {
+      // If unchecked, remove it from chosenTrans
+      this.chosenTrans = this.chosenTrans.filter((item) => {
+        return item.id !== event.row.id;
+      });
+    }
+  
+    // Update isCheckboxClicked flag based on whether there are any selected items
+    this.isCheckboxClicked = this.chosenTrans.length > 0;
+  
     console.log(this.chosenTrans);
-
-
   }
 
   selectedAll(event: { id: number[], checked: boolean }): void {
