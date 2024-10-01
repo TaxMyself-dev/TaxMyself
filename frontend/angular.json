@@ -21,9 +21,9 @@
             "inlineStyleLanguage": "scss",
             "assets": [
               {
-                "glob": "**/*.svg",
-                "input": "src/assets/custom-ion-icons",
-                "output": "./svg"
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets"
               },
               {
                 "glob": "**/*.svg",
