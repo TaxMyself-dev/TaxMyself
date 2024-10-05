@@ -6,6 +6,7 @@ import { log } from 'console';
 import { nanoid } from 'nanoid';
 import { EMPTY, Observable, catchError, from, of, switchMap, throwError } from 'rxjs';
 import { environment } from 'src/environments/environment';
+import * as Tesseract from 'tesseract.js';
 
 @Injectable({
   providedIn: 'root'
@@ -265,6 +266,23 @@ export class FilesService {
 
 
   // }
+
+
+  async extractTextFromFile(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      Tesseract.recognize(
+        file,
+        'eng', // Set the language
+        { logger: info => console.log(info) }
+      )
+      .then(({ data: { text } }) => {
+        resolve(text);
+      })
+      .catch(error => {
+        reject(error);
+      });
+    });
+  }
 
   getSuppliersList(token: string): Observable<any> {
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;

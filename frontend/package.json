@@ -46,6 +46,7 @@
     "ngx-image-compress": "^15.1.6",
     "ngx-pipes": "^3.2.2",
     "rxjs": "~7.8.0",
+    "tesseract.js": "^5.1.1",
     "tslib": "^2.3.0",
     "xlsx": "^0.18.5",
     "zone.js": "~0.13.0"
