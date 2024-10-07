@@ -1,0 +1,21 @@
+{
+    "2022": {
+      "averageSalary": 10564,
+      "taxRate": 0.20,
+      "inflationRate": 0.03,
+      "unemploymentRate": 0.06
+    },
+    "2023": {
+      "averageSalary": 11899,
+      "taxRate": 0.22,
+      "inflationRate": 0.025,
+      "unemploymentRate": 0.055
+    },
+    "2024": {
+      "averageSalary": 12345,
+      "taxRate": 0.21,
+      "inflationRate": 0.027,
+      "unemploymentRate": 0.052
+    }
+  }
+  

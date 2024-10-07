@@ -25,15 +25,16 @@ import { AddBillComponent } from './add-bill/add-bill.component';
 import { AddTransactionComponent } from './add-transaction/add-transaction.component';
 import { CustomInputComponent } from './custom-input/custom-input.component';
 import { editRowComponent } from './edit-row/edit-row.component';
+import { TabBarComponent } from './tab-bar/tab-bar.component';
 
 @NgModule({
-  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent],
+  declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent],
   imports: [
     CommonModule,
     IonicModule,
     ReactiveFormsModule,
     NgArrayPipesModule,
     ],
-  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent]
+  exports: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent]
 })
 export class SharedModule { }

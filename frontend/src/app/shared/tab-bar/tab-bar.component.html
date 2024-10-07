@@ -1,0 +1,7 @@
+<ion-toolbar class="custom-toolbar">
+  <ion-buttons slot="start" *ngFor="let tab of tabs">
+    <ion-button [color]="selectedTab === tab.id ? 'primary' : 'medium'" (click)="selectTab(tab.id)">
+      {{tab.label}}
+    </ion-button>
+  </ion-buttons>
+</ion-toolbar>
