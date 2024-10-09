@@ -58,6 +58,7 @@
 
         <ng-template #defaultCell>
           <ion-col
+          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
@@ -67,7 +68,7 @@
 
         <ng-template #defaultCellWithIcon>
           <ion-col 
-                class="ion-col-with-icon"
+          class="text-cell ion-col-with-icon" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value}}
@@ -80,6 +81,7 @@
         <ng-template #billRenderCell>
           <ng-container *ngIf="field.value === 'זמני'; else defaultCell">
           <ion-col
+          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
           *ngIf="field.value === 'זמני'; else defaultCell"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
@@ -92,6 +94,7 @@
         
         <ng-template #categoryRenderCell>
           <ion-col
+          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
           *ngIf="field.value === 'טרם סווג'; else defaultCellWithIcon"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
@@ -103,6 +106,7 @@
 
         <ng-template #dateRenderCell>
           <ion-col
+          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{+field.value*1000 | date:'dd/MM/yyyy'}}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
