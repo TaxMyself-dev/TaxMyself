@@ -6,6 +6,7 @@ import {
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
+import { UserYearlyData } from './user-yearly-data.entity';
 import { UserRole, TaxReportingType, VATReportingType } from '../enum';
 
 
@@ -93,15 +94,18 @@ export class User {
     @Column({
       type: 'enum',
       enum: VATReportingType,
-      default: VATReportingType.NOT_REQUIRED,  // Default value
+      default: VATReportingType.NOT_REQUIRED
     })
     vatReportingType: VATReportingType;
 
     @Column({
       type: 'enum',
       enum: TaxReportingType,
-      default: TaxReportingType.NOT_REQUIRED,  // Default value
+      default: TaxReportingType.NOT_REQUIRED
     })
     taxReportingType: TaxReportingType;
+
+    @OneToMany(() => UserYearlyData, (yearlyData) => yearlyData.user)
+    yearlyData: UserYearlyData[];
 
 }

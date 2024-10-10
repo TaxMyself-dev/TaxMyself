@@ -1,40 +1,12 @@
 <app-custom-toolbar></app-custom-toolbar>
 
 <ion-content [fullscreen]="true">
-  
-  <app-tab-bar 
-  [tabs]="tabs" 
-  [selectedTab]="selectedSection" 
-  (tabChanged)="showSection($event)">
-</app-tab-bar>
+  <!-- Use direct property and event binding for selectedTab -->
+  <app-tab-bar [tabs]="tabs" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
 
-<!-- Conditionally display content based on selected section -->
-<div *ngIf="selectedSection === 'paymentsStatus'">
-  <h2>תשלומים</h2>
-  <div class="wrap-screen">
-    <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="paymentStatusTemplate"
-    ></app-search-bar>
-  </div>
-</div>
-
-<div *ngIf="selectedSection === 'updateDetails'">
-  <h2>עדכון פרטים</h2>
-</div>
-
-<div *ngIf="selectedSection === 'manageCategories'">
-  <h2>ניהול קטגוריות</h2>
-</div>
-
-  
-  
+  <!-- Conditionally load components based on the selected tab -->
+  <!-- <app-status-payments *ngIf="selectedTab === 'status-payments'"></app-status-payments> -->
+  <app-update-data *ngIf="selectedTab === 'update-details'" [blocksData]="blocksData"></app-update-data>
+  <!-- <app-manage-categories *ngIf="selectedTab === 'manage-categories'"></app-manage-categories> -->
+  <!-- <app-track-expenses *ngIf="selectedTab === 'track-expenses'"></app-track-expenses> -->
 </ion-content>
-
-<ng-template #paymentStatusTemplate>
-  <!-- <form class="generic-search-bar-content" [formGroup]="">
-    <app-select-year [parentForm]="vatReportForm"></app-select-year>
-    <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'"
-      [parentForm]="vatReportForm"></app-generic-input>
-    <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'"
-      [parentForm]="vatReportForm"></app-generic-input>
-  </form> -->
-</ng-template>

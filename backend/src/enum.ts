@@ -4,6 +4,12 @@ export enum UserRole {
   ADMIN = 'admin'
 }
 
+export enum BusinessType {
+  EXEMPT_DEALER,
+  AUTHORIZED_DEALER,
+  LIMITED_COMPANY,
+}
+
 export enum VATReportingType {
   NOT_REQUIRED,
   DUAL_MONTHLY,

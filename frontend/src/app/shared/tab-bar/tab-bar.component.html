@@ -1,7 +1,35 @@
-<ion-toolbar class="custom-toolbar">
-  <ion-buttons slot="start" *ngFor="let tab of tabs">
-    <ion-button [color]="selectedTab === tab.id ? 'primary' : 'medium'" (click)="selectTab(tab.id)">
-      {{tab.label}}
-    </ion-button>
-  </ion-buttons>
-</ion-toolbar>
+
+<!-- <ion-segment [(ngModel)]="selectedTab" (ionChange)="onTabSelect($event)">
+  <ion-segment-button *ngFor="let tab of tabs" [value]="tab.value">
+    <ion-label>{{ tab.label }}</ion-label>
+  </ion-segment-button>
+</ion-segment> -->
+
+<ion-segment [value]="selectedTab" (ionChange)="onTabSelect($event)">
+  <ion-segment-button *ngFor="let tab of tabs" [value]="tab.value">
+    <ion-label>{{ tab.label }}</ion-label>
+  </ion-segment-button>
+</ion-segment>
+
+
+
+
+
+
+
+<!-- <ion-segment [(ngModel)]="selectedTab">
+  <ion-segment-button *ngFor="let tab of tabs" [value]="tab.value">
+    <ion-label>{{ tab.label }}</ion-label>
+  </ion-segment-button>
+</ion-segment> -->
+
+<!-- <div *ngFor="let tab of tabs" [ngSwitch]="selectedTab">
+  <ng-container *ngIf="tab.value === selectedTab">
+    <ng-container *ngIf="tab.type === 'component'">
+      <ng-container *ngComponentOutlet="tab.component"></ng-container>
+    </ng-container>
+    <ng-container *ngIf="tab.type === 'static'">
+      <div [innerHTML]="tab.content"></div>
+    </ng-container>
+  </ng-container>
+</div> -->

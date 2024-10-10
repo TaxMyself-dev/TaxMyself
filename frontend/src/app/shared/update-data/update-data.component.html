@@ -1,0 +1,26 @@
+<form [formGroup]="updateForm">
+  <div formArrayName="blocks">
+    <div *ngFor="let block of blocks.controls; let blockIndex = index" [formGroupName]="blockIndex" class="update-block">
+      
+      <!-- Block Title -->
+      <div>
+        <label>{{ blocks.at(blockIndex).get('title').value }}:</label>
+      </div>
+
+      <!-- Fields -->
+      <div formArrayName="fields" class="fields-container">
+        <div *ngFor="let field of blocks.at(blockIndex).get('fields')['controls']; let fieldIndex = index" [formGroupName]="fieldIndex">
+          
+          <div class="field">
+            <label>{{ field.get('name').value }}:</label>
+            <input type="text" formControlName="value" />
+          </div>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Button -->
+  <button type="button" (click)="saveChanges()">Save Changes</button>
+</form>
