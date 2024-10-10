@@ -92,7 +92,7 @@ serviceAccount = {
       entities: [User, Child, Expense, Supplier, Transactions, ClassifiedTransactions, Bill, Source, Category, DefaultSubCategory, UserSubCategory, UserYearlyData],
       synchronize: process.env.NODE_ENV !== 'production'}),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
-  controllers: [AppController],
+    controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {

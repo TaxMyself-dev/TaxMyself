@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Patch, Delete,
+import { Body, Controller, Post, Get, Patch, Delete, Headers,
          Param, Query, NotFoundException, Session, UseGuards, Req} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
@@ -26,18 +26,20 @@ export class UsersController {
         return user[0];
     }
 
+
     @Get('/get-user')
-    async getUser(@Query() token: any) {
+    async getUser(@Headers('token') token: string) {
         try {
-            const userID = await this.userService.getFirbsaeIdByToken(token.token);
-            const user = await this.userService.findFireUser(userID);
+            const userId = await this.userService.getFirbsaeIdByToken(token);
+            const user = await this.userService.findFireUser(userId);
             if (user) {
+                console.log("get-user: user data is", user);
+                
                 return user;
             }
             throw new NotFoundException("user not exist");
         } 
-        catch (error) {
-            
+        catch (error) { 
         }
     }
 

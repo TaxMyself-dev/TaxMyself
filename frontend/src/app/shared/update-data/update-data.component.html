@@ -1,6 +1,6 @@
 <form [formGroup]="updateForm">
   <div formArrayName="blocks">
-    <div *ngFor="let block of blocks.controls; let blockIndex = index" [formGroupName]="blockIndex" class="update-block">
+    <div *ngFor="let block of blocks.controls; let blockIndex = index" [formGroupName]="blockIndex" class="wrap-output-update">
       
       <!-- Block Title -->
       <div>
@@ -8,7 +8,7 @@
       </div>
 
       <!-- Fields -->
-      <div formArrayName="fields" class="fields-container">
+      <div formArrayName="fields" class="update-block">
         <div *ngFor="let field of blocks.at(blockIndex).get('fields')['controls']; let fieldIndex = index" [formGroupName]="fieldIndex">
           
           <div class="field">
@@ -22,5 +22,5 @@
   </div>
 
   <!-- Save Button -->
-  <button type="button" (click)="saveChanges()">Save Changes</button>
+  <button type="button" (click)="saveChanges()" class="wrap-buttons">עדכן</button>
 </form>

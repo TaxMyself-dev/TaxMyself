@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { UpdateDataComponent } from 'src/app/shared/update-data/update-data.component';
+import { MyStatusService } from './my-status.page.service';
 
 
 @Component({
@@ -11,6 +12,7 @@ import { UpdateDataComponent } from 'src/app/shared/update-data/update-data.comp
 export class MyStatusPage {
 
   selectedTab: string = 'status-payments'; // Set default tab value
+  userData: any = null;
 
   tabs = [
     //{ label: 'סטטוס תשלומים', value: 'status-payments', component: StatusPaymentsComponent },
@@ -44,17 +46,51 @@ export class MyStatusPage {
     }
   ]; 
 
+
   onTabChange(newTabValue: string) {
     this.selectedTab = newTabValue;
+    console.log('Selected tab on tab change:', this.selectedTab);
+    if (this.selectedTab === 'update-details') {
+      this.fetchUpdateDetailsData();
+    }
   }
+
   
-  constructor() {
+  constructor(private myStatusService: MyStatusService) {
     console.log('Selected Tab on Load:', this.selectedTab);  // Debugging log
   }
 
-  ngOnChanges() {
-    console.log('Selected Tab Changed:', this.selectedTab);  // Debugging log
+
+  ngOnInit() {
+    // Optionally fetch initial data
+    console.log('Selected tab on init:', this.selectedTab);
+
+    if (this.selectedTab === 'update-details') {
+      this.fetchUpdateDetailsData();
+    }
   }
+
+
+  fetchUpdateDetailsData() {
+    this.myStatusService.getUserDetails().subscribe(
+      (data) => {
+        console.log("User data fetched: ", data);  // Log the actual data
+        this.userData = data;  // Store user data
+        //this.processUserData(this.userData);  // Process the data to fit blocksData
+      },
+      (error) => {
+        console.error("Error fetching user data: ", error);  // Handle error
+      }
+    );
+  }
+
+
+  // fetchUpdateDetailsData() {
+  //   this.myStatusService.getUserDetails().subscribe((data) => {
+  //     this.userData = data;  // Store the data fetched from the backend
+  //   });
+  //   console.log("user data is ", this.userData);
+  // }
 
   // vatReportForm: FormGroup;
 

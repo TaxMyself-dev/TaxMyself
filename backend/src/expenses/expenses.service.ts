@@ -490,11 +490,11 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
       
         if (isSingleMonth) {            
           // If isSingleMonth is true, return only expenses for the specified month
-          query = query.andWhere('expense.monthReport = :monthReport', { monthReport });
+          query = query.andWhere('expense.vatReportingDate = :monthReport', { monthReport });
         } else {
           // If isSingleMonth is false, return expenses for the current month and the next month
           const nextMonth = monthReport + 1;
-          query = query.andWhere('expense.monthReport IN (:...months)', { months: [monthReport, nextMonth] });
+          query = query.andWhere('expense.vatReportingDate IN (:...months)', { months: [monthReport, nextMonth] });
         }
       
         // Execute the query and return the results
