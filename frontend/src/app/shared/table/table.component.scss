@@ -211,8 +211,8 @@ ion-col {
   // background-color: rgb(79, 171, 79);
   // color: white;
   display: flex;
-  justify-content: flex-start;
-  align-items: center;
+  //justify-content: flex-start;
+  //align-items: center;
 }
 
 .label-file-table ion-icon:hover   {
@@ -239,8 +239,8 @@ ion-col {
 .ion-col-with-icon {
   position: relative;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  //justify-content: center;
+  //align-items: center;
 }
 
 .wrap-button-category {
@@ -253,6 +253,23 @@ ion-col {
 .ion-col-with-icon:hover
 .wrap-button-category {
   visibility: visible;
+}
+
+.text-cell {
+  //display: flex;
+  //align-items: center;
+  white-space: nowrap;          /* Prevent text wrapping */
+  overflow: hidden;             /* Hide overflowing text */
+  text-overflow: ellipsis;      /* Show ellipsis for overflow */
+  cursor: pointer;              /* Indicate clickable element */
+  width: 100%;                  /* Full width of the cell */
+  transition: all 0.3s ease-in-out;  /* Smooth transition for resizing */
+}
+
+.text-cell.expanded {
+  white-space: normal;          /* Allow text to wrap */
+  overflow: visible;            /* Show all text */
+  height: auto;                 /* Expand to fit content */
 }
 
 

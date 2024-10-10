@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, forkJoin, map, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, forkJoin, map, of, tap } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -30,6 +30,10 @@ export class FlowReportPage implements OnInit {
   previousFile: string;
   //params: { month: string, year: string, isSingleMonth: string }
   isCheckboxClicked: boolean = false;
+  isToastOpen: boolean = false;
+  messageToast: string = "";
+
+
 
   fieldsNames: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
@@ -48,7 +52,7 @@ export class FlowReportPage implements OnInit {
   ]);
   tableActions: ITableRowAction[];
 
-  constructor(private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
+  constructor(private router: Router, private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
 
   ngOnInit() {
     this.route.queryParams.subscribe(params => {
@@ -85,7 +89,7 @@ export class FlowReportPage implements OnInit {
         }),
         map((data) => {
           console.log(data);
-          
+
           data.forEach((row) => {
             row.billDate = +row.billDate;
             row.payDate = +row.payDate;
@@ -157,10 +161,10 @@ export class FlowReportPage implements OnInit {
         return item.id !== event.row.id;
       });
     }
-  
+
     // Update isCheckboxClicked flag based on whether there are any selected items
     this.isCheckboxClicked = this.chosenTrans.length > 0;
-  
+
     console.log(this.chosenTrans);
   }
 
@@ -178,18 +182,57 @@ export class FlowReportPage implements OnInit {
 
   addTransToExpense(): void {
 
-    const totalFiles = this.chosenTrans.length;
+    const totalTransactions = this.chosenTrans.length;
     let filesUploaded = 0;
+    let transactionsWithFiles = 0;
+    let transactionsWithoutFiles = 0;
 
-    console.log("chosen trans :", this.chosenTrans);
-    //this.expenseDataService.getLoader().subscribe();
+    // Count transactions with and without files
+    this.chosenTrans.forEach(tran => {
+      if (tran.file) {
+        transactionsWithFiles++;
+      } else {
+        transactionsWithoutFiles++;
+      }
+    });
+
+    console.log("chosen trans:", this.chosenTrans);
+
+    // If no transactions have files, skip file uploads and proceed directly
+    if (transactionsWithFiles === 0) {
+      this.expenseDataService.getLoader().subscribe();
+      console.log("No transactions with files, skipping file upload...");
+      this.expenseDataService.updateLoaderMessage('Uploading transactions without files...');
+
+      // Directly call addTransToExpense since there are no files to upload
+      this.flowReportService.addTransToExpense(this.chosenTrans)
+        .pipe(
+          catchError((err) => {
+            console.log("Error in addTransToExpense: ", err);
+            this.expenseDataService.dismissLoader();
+            return EMPTY;
+          })
+        )
+        .subscribe((res) => {
+          console.log("Response from addTransToExpense:", res);
+          this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+          this.isToastOpen = true;
+          this.expenseDataService.dismissLoader();
+          this.router.navigate(['vat-report']);
+        });
+      return; // Exit the function since file uploads are skipped
+    }
+
+    // Update loader for transactions with files
+    this.expenseDataService.getLoader().subscribe();
     this.expenseDataService.updateLoaderMessage(`Uploading files... ${0}%`);
+
     // Create an array of observables for each file upload
     const fileUploadObservables = this.chosenTrans.map((tran) => {
       if (tran.file) {
         return this.fileService.uploadFileViaFront(tran.file as File).pipe(
           catchError((error) => {
-            console.log("error in upload file: ", error);
+            console.log("Error in uploading file: ", error);
             alert("Error uploading file");
             return EMPTY;
           }),
@@ -197,44 +240,39 @@ export class FlowReportPage implements OnInit {
             tran.file = res.metadata.fullPath;  // Update the file path after upload
             console.log("Uploaded file path: ", tran.file);
             filesUploaded++;
-            // Update loader message with progress
-            const progress = Math.round((filesUploaded / totalFiles) * 100);
+            const progress = Math.round((filesUploaded / transactionsWithFiles) * 100);
             this.expenseDataService.updateLoaderMessage(`Uploading files... ${progress}%`);
-
           })
         );
       } else {
-        return EMPTY;  // In case there is no file
+        return of(null);  // Return an observable that emits null for transactions without files
       }
     });
 
     // Use forkJoin to wait for all file uploads to finish
-    forkJoin(fileUploadObservables).subscribe({
-      next: () => {
-        // After all uploads, send the data to the server
-        console.log("All files uploaded, now sending to server: ", this.chosenTrans);
-
-        this.flowReportService.addTransToExpense(this.chosenTrans)
-          .pipe(
-            catchError((err) => {
-              console.log("Error in addTransToExpense: ", err);
-              this.expenseDataService.dismissLoader();
-              return EMPTY;
-            })
-          )
-          .subscribe((res) => {
-            console.log("Response from addTransToExpense:", res);
-          });
-      },
-      error: (error) => {
-        console.log("Error during file uploads:", error);
-      },
-      complete: () => {
-        console.log("All file uploads complete.");
-        this.expenseDataService.dismissLoader();
-      }
-    });
+    forkJoin(fileUploadObservables)
+      .pipe(
+        catchError((err) => {
+          console.log("Error in addTransToExpense: ", err);
+          this.expenseDataService.dismissLoader();
+          return EMPTY;
+        }),
+        tap(() => {
+          console.log("All file uploads complete.");
+          this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+          this.isToastOpen = true;
+          this.expenseDataService.dismissLoader();
+          this.router.navigate(['vat-report']);
+        })
+      )
+      .subscribe();
   }
+
+
+  setOpenToast(): void {
+    this.isToastOpen = false;
+  }
+
 
 
   addFile(event: any, row: IRowDataTable): void {
