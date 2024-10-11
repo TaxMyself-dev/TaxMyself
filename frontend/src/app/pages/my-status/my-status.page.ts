@@ -21,31 +21,6 @@ export class MyStatusPage {
     //{ label: 'מעקב הוצאות', value: 'track-expenses', component: TrackExpensesComponent }
   ];
   
-  // tabs = [
-  //   { label: 'סטטוס תשלומים', value: 'status-payments', type: 'static', content: '<p>Status payments static content goes here.</p>' },
-  //   { label: 'עדכון פרטים', value: 'update-details', type: 'component', component: UpdateDataComponent },
-  //   { label: 'ניהול קטגוריות', value: 'manage-categories', type: 'static', content: '<p>Manage categories static content goes here.</p>' },
-  //   { label: 'מעקב הוצאות', value: 'track-expenses', type: 'static', content: '<p>Track your expenses with this static content.</p>' }
-  // ];
-
-  blocksData = [
-    {
-      title: 'פרטים אישיים',
-      fields: [
-        { name: 'שם פרטי', value: 'אלי' },
-        { name: 'שם משפחה', value: 'חיות' },
-        { name: 'ת.ז.', value: '345789022' }
-      ]
-    },
-    {
-      title: 'פרטי העסק',
-      fields: [
-        { name: 'שם העסק', value: 'עסק מורשה' },
-        { name: 'סוג העסק', value: 'עוסק מורשה' }
-      ]
-    }
-  ]; 
-
 
   onTabChange(newTabValue: string) {
     this.selectedTab = newTabValue;
@@ -76,7 +51,7 @@ export class MyStatusPage {
       (data) => {
         console.log("User data fetched: ", data);  // Log the actual data
         this.userData = data;  // Store user data
-        //this.processUserData(this.userData);  // Process the data to fit blocksData
+        this.processUserData(this.userData);  // Process the data to fit blocksData
       },
       (error) => {
         console.error("Error fetching user data: ", error);  // Handle error
@@ -85,26 +60,33 @@ export class MyStatusPage {
   }
 
 
-  // fetchUpdateDetailsData() {
-  //   this.myStatusService.getUserDetails().subscribe((data) => {
-  //     this.userData = data;  // Store the data fetched from the backend
-  //   });
-  //   console.log("user data is ", this.userData);
-  // }
+  processUserData(data: any) {
 
-  // vatReportForm: FormGroup;
+    console.log("processUserData: user data is ", data);
 
-  // constructor(private formBuilder: FormBuilder) {
-  //   this.vatReportForm = this.formBuilder.group({
-  //     vatableTurnover: new FormControl (
-  //       '', Validators.required,
-  //     ),
-  //     nonVatableTurnover: new FormControl (
-  //       '', Validators.required,
-  //     ),
-  //     year: new FormControl (
-  //       '', Validators.required,
-  //     ),
-  //   })
-  // }
+    const getUserData = data[0];
+    
+    this.userData = [
+      {
+        title: 'פרטים אישיים',  // Personal details block
+        fields: [
+          { name: 'שם פרטי', value: getUserData.fName },   // First name field
+          { name: 'שם משפחה', value: getUserData.lName },   // Last name field
+          { name: 'ת.ז.', value: getUserData.id }        // ID number field
+        ]
+      },
+      {
+        title: 'פרטי העסק',  // Business details block
+        fields: [
+          { name: 'שם העסק', value: getUserData.businessName }, // Business name field
+          { name: 'סוג העסק', value: getUserData.businessType }  // Business type field
+        ]
+      }
+    ];
+
+    console.log("Mapped userData: ", this.userData);
+
+  }
+
+
 }

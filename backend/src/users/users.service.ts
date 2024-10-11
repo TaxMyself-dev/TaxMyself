@@ -7,6 +7,7 @@ import { CreateUserDto, createChildDto } from './dtos/create-user.dto';
 import { UserRole } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
+import { UpdateUserDto } from './dtos/update-user.dto';
 
 
 @Injectable()
@@ -45,6 +46,16 @@ export class UsersService {
         const user = await this.findFireUser(firebaseId);
         //console.log("debug token:\n", token);
         return user;
+    }
+
+
+    async updateUser(userId: string, updateUserDto: UpdateUserDto): Promise<User> {
+        const user = await this.user_repo.findOneBy({ firebaseId: userId });
+        if (!user) {
+          throw new Error('User not found');
+        }
+        Object.assign(user, updateUserDto);
+        return this.user_repo.save(user);
     }
 
 

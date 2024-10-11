@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { FormBuilder, FormGroup, FormArray } from '@angular/forms';
 
 @Component({
@@ -6,7 +6,7 @@ import { FormBuilder, FormGroup, FormArray } from '@angular/forms';
   templateUrl: './update-data.component.html',
   styleUrls: ['./update-data.component.scss']
 })
-export class UpdateDataComponent implements OnInit {
+export class UpdateDataComponent implements OnInit, OnChanges {
   @Input() blocksData: { title: string, fields: { name: string, value: string }[] }[] = [];
 
   updateForm: FormGroup;
@@ -17,9 +17,13 @@ export class UpdateDataComponent implements OnInit {
     this.updateForm = this.fb.group({
       blocks: this.fb.array([]),
     });
+  }
 
-    // Initialize the form with predefined blocks and fields
-    this.initializeBlocks(this.blocksData);
+  // Handle changes to @Input() blocksData, this will be called when blocksData is updated asynchronously
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes.blocksData && changes.blocksData.currentValue) {
+      this.initializeBlocks(changes.blocksData.currentValue);
+    }
   }
 
   // Get the blocks array
@@ -29,22 +33,32 @@ export class UpdateDataComponent implements OnInit {
 
   // Initialize the form blocks and fields based on input data
   initializeBlocks(blocksData: { title: string, fields: { name: string, value: string }[] }[]) {
+
+    console.log("initializeBlocks: blocksData is ", blocksData);  // Log blocksData
+    
+    const blocksFormArray = this.fb.array([]) as FormArray;  // Explicitly typed as FormArray
+  
     blocksData.forEach(blockData => {
+      // Create a FormGroup for each block
       const block = this.fb.group({
         title: [blockData.title],
-        fields: this.fb.array([]),
+        fields: this.fb.array([]),  // FormArray for the fields in this block
       });
-
+  
+      // Loop through each field in the block and add it to the fields array
       blockData.fields.forEach(fieldData => {
         const field = this.fb.group({
           name: [fieldData.name],
           value: [fieldData.value],
         });
-        (block.get('fields') as FormArray).push(field);
+        (block.get('fields') as FormArray).push(field);  // Push the field into the FormArray
       });
-
-      this.blocks.push(block);
+  
+      blocksFormArray.push(block);  // Push the block (FormGroup) into the blocksFormArray
     });
+  
+    // Reset the form array with new data
+    this.updateForm.setControl('blocks', blocksFormArray);
   }
 
   saveChanges() {
