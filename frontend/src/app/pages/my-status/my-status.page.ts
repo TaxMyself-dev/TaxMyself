@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { UpdateDataComponent } from 'src/app/shared/update-data/update-data.component';
 import { MyStatusService } from './my-status.page.service';
+import { employmentTypeOptionsList } from 'src/app/shared/enums';
 
 
 @Component({
@@ -65,24 +66,93 @@ export class MyStatusPage {
     console.log("processUserData: user data is ", data);
 
     const getUserData = data[0];
-    
+
     this.userData = [
       {
-        title: 'פרטים אישיים',  // Personal details block
+        title: 'פרטים אישיים',
         fields: [
-          { name: 'שם פרטי', value: getUserData.fName },   // First name field
-          { name: 'שם משפחה', value: getUserData.lName },   // Last name field
-          { name: 'ת.ז.', value: getUserData.id }        // ID number field
+          { name: 'שם פרטי', value: getUserData.fName },
+          { name: 'שם משפחה', value: getUserData.lName },
+          { name: 'ת.ז', value: getUserData.id },
+          { name: 'תאריך לידה', value: getUserData.dateOfBirth },
+          { name: 'מספר פלאפון', value: getUserData.phone },
+          { name: 'אימייל', value: getUserData.email },
+          { name: 'כתובת', value: getUserData.city },
+          { name: 'סטטוס משפחתי', value: getUserData.familyStatus },
+          { name: 'סטטוס תעסוקתי', value: getUserData.employmentType, type: 'select', options: employmentTypeOptionsList, controlName: 'employmentType' }
         ]
       },
       {
-        title: 'פרטי העסק',  // Business details block
+        title: 'פרטי בן/בת הזוג',
+        enabled: getUserData.familyStatus !== "רווק",
         fields: [
-          { name: 'שם העסק', value: getUserData.businessName }, // Business name field
-          { name: 'סוג העסק', value: getUserData.businessType }  // Business type field
+          { name: 'שם פרטי', value: getUserData.spouseFName },
+          { name: 'שם משפחה', value: getUserData.spouseLName },
+          { name: 'ת.ז.', value: getUserData.spouseId },
+          { name: 'תאריך לידה', value: getUserData.spouseDateOfBirth },
+        ]
+      },
+      {
+        title: 'פרטי העסק',
+        fields: [
+          { name: 'שם העסק', value: getUserData.businessName },
+          { name: 'סוג העסק', value: getUserData.businessType },
+          { name: 'מספר עוסק', value: getUserData.businessId },
+          { name: 'תאריך פתיחת העסק', value: getUserData.businessDate },
+          { name: 'סוג דיווח למע"מ', value: getUserData.vatReportingType },
+          { name: 'סוג דיווח מקדמות מס הכנסה', value: getUserData.taxReportingType },
+        ]
+      },
+      {
+        title: 'חשבונות',
+        fields: [
+          { name: 'חשבונות', value: getUserData.bills },
         ]
       }
     ];
+    
+
+    // this.userData = [
+    //   {
+    //     title: 'פרטים אישיים',
+    //     fields: [
+    //       { name: 'שם פרטי', value: getUserData.fName },
+    //       { name: 'שם משפחה', value: getUserData.lName },
+    //       { name: 'ת.ז', value: getUserData.id },
+    //       { name: 'תאריך לידה', value: getUserData.dateOfBirth },
+    //       { name: 'מספר פלאפון', value: getUserData.phone },
+    //       { name: 'אימייל', value: getUserData.email },
+    //       { name: 'כתובת', value: getUserData.city },
+    //       { name: 'סטטוס משפחתי', value: getUserData.familyStatus },
+    //     ]
+    //   },
+    //   {
+    //     title: 'פרטי בן/בת הזוג',
+    //     fields: [
+    //       { name: 'שם פרטי', value: getUserData.spouseFName },
+    //       { name: 'שם משפחה ', value: getUserData.spouseLName },
+    //       { name: 'ת.ז.', value: getUserData.spouseId },
+    //       { name: 'תאריך לידה', value: getUserData.spouseDateOfBirth },
+    //     ]
+    //   },
+    //   {
+    //     title: 'פרטי העסק',
+    //     fields: [
+    //       { name: 'שם העסק', value: getUserData.businessName },
+    //       { name: 'סוג העסק', value: getUserData.businessType },
+    //       { name: 'מספר עוסק', value: getUserData.businessId },
+    //       { name: 'תאריך פתיחת העסק', value: getUserData.businessDate },
+    //       { name: 'סוג דיווח למע"מ', value: getUserData.vatReportingType },
+    //       { name: 'סוג דיווח מקדמות מס הכנסה', value: getUserData.taxReportingType },
+    //     ]
+    //   },
+    //   {
+    //     title: 'חשבונות',
+    //     fields: [
+    //       { name: 'חשבונות', value: getUserData.bills },
+    //     ]
+    //   }
+    // ];
 
     console.log("Mapped userData: ", this.userData);
 

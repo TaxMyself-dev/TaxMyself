@@ -7,7 +7,30 @@ import { FormBuilder, FormGroup, FormArray } from '@angular/forms';
   styleUrls: ['./update-data.component.scss']
 })
 export class UpdateDataComponent implements OnInit, OnChanges {
-  @Input() blocksData: { title: string, fields: { name: string, value: string }[] }[] = [];
+
+  // @Input() blocksData: { 
+  //   title: string; 
+  //   enabled?: boolean;  // Optional enabled flag for the block
+  //   fields: { 
+  //     name: string; 
+  //     value: string; 
+  //     enabled?: boolean;  // Optional enabled flag for the field
+  //   }[] 
+  // }[] = [];
+
+  @Input() blocksData: { 
+    title: string; 
+    enabled?: boolean;  // Optional enabled flag for the block
+    fields: { 
+      name: string; 
+      value: string; 
+      enabled?: boolean;  // Optional enabled flag for the field
+      type?: string;  // Optional type field (e.g., 'select')
+      options?: { value: string | number; name: string }[];  // Optional list of options for select fields
+      controlName?: string;  // Optional form control name for select fields
+    }[] 
+  }[] = [];
+  
 
   updateForm: FormGroup;
 

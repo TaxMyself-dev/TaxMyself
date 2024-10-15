@@ -1,26 +1,41 @@
 <form [formGroup]="updateForm">
   <div formArrayName="blocks">
-    <div *ngFor="let block of blocks.controls; let blockIndex = index" [formGroupName]="blockIndex" class="wrap-output-update">
-      
-      <!-- Block Title -->
-      <div>
-        <label>{{ blocks.at(blockIndex).get('title').value }}:</label>
-      </div>
+    <ng-container *ngFor="let block of blocks.controls; let blockIndex = index" class="wrap-output-update">
+      <!-- Only show the block if it's enabled or enabled is not defined (default to true) -->
+      <ng-container *ngIf="blocksData[blockIndex]?.enabled ?? true">
+        <div [formGroupName]="blockIndex">
+          <!-- Block Title -->
+          <h3>{{ blocksData[blockIndex]?.title }}</h3>
 
-      <!-- Fields -->
-      <div formArrayName="fields" class="update-block">
-        <div *ngFor="let field of blocks.at(blockIndex).get('fields')['controls']; let fieldIndex = index" [formGroupName]="fieldIndex">
-          
-          <div class="field">
-            <label>{{ field.get('name').value }}:</label>
-            <input type="text" formControlName="value" />
+          <!-- Fields -->
+          <div formArrayName="fields" class="update-block">
+            <ng-container *ngFor="let field of blocks.at(blockIndex).get('fields')['controls']; let fieldIndex = index">
+              <!-- Only show the field if it's enabled or enabled is not defined (default to true) -->
+              <ng-container *ngIf="blocksData[blockIndex]?.fields[fieldIndex]?.enabled ?? true">
+                <div [formGroupName]="fieldIndex">
+                  <label>{{ blocksData[blockIndex]?.fields[fieldIndex]?.name }}</label>
+
+                  <!-- Use GenericSelectComponent if the field type is 'select' -->
+                  <ng-container *ngIf="blocksData[blockIndex]?.fields[fieldIndex]?.type === 'select'; else textInput">
+                    <app-generic-select 
+                      [controlName]="blocksData[blockIndex]?.fields[fieldIndex]?.controlName" 
+                      title="{{ blocksData[blockIndex]?.fields[fieldIndex]?.name }}" 
+                      [items]="blocksData[blockIndex]?.fields[fieldIndex]?.options" 
+                      [parentForm]="updateForm">
+                    </app-generic-select>
+                  </ng-container>
+
+                  <!-- Default to text input if not 'select' -->
+                  <ng-template #textInput>
+                    <input type="text" formControlName="value" />
+                  </ng-template>
+                </div>
+              </ng-container>
+            </ng-container>
           </div>
-          
         </div>
-      </div>
-    </div>
+      </ng-container>
+    </ng-container>
   </div>
-
-  <!-- Save Button -->
   <button type="button" (click)="saveChanges()" class="wrap-buttons">עדכן</button>
 </form>

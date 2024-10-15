@@ -139,3 +139,57 @@ export enum TransactionsOutcomesHebrewColumns {
   export enum NavigationItemClass {
     CIRCLE = 'circle'
   }
+
+  export enum FamilyStatus {
+    MARRIED = 'married',
+    SINGLE = 'single',
+    DIVORCED = 'divorced'
+  }
+  
+  export const FamilyStatusLabels = {
+    [FamilyStatus.MARRIED]: 'נשוי',
+    [FamilyStatus.SINGLE]: 'רווק',
+    [FamilyStatus.DIVORCED]: 'גרוש'
+  };
+
+  export const familyStatusOptionsList = [
+    { value: FamilyStatus.SINGLE, name: FamilyStatusLabels[FamilyStatus.SINGLE] },
+    { value: FamilyStatus.MARRIED, name: FamilyStatusLabels[FamilyStatus.MARRIED] },
+    { value: FamilyStatus.DIVORCED, name: FamilyStatusLabels[FamilyStatus.DIVORCED] }
+  ];
+
+  export enum BusinessType {
+    EXEMPT = 'exempt',
+    LICENSED = 'licensed',
+    COMPANY = 'company'
+  }
+  
+  export const BusinessTypeLabels = {
+    [BusinessType.EXEMPT]: 'עוסק פטור',
+    [BusinessType.LICENSED]: 'עוסק מורשה',
+    [BusinessType.COMPANY]: 'חברה בע"מ'
+  };
+
+  export const businessTypeOptionsList = [
+    { value: BusinessType.EXEMPT, name: BusinessTypeLabels[BusinessType.EXEMPT] },
+    { value: BusinessType.LICENSED, name: BusinessTypeLabels[BusinessType.LICENSED] },
+    { value: BusinessType.COMPANY, name: BusinessTypeLabels[BusinessType.COMPANY] }
+  ];
+
+  export enum EmploymentType {
+    SELF_EMPLOYED = 'selfEmployed',
+    BOTH = 'both',
+    EMPLOYEE = 'employee'
+  }
+  
+  export const EmploymentTypeLabels = {
+    [EmploymentType.SELF_EMPLOYED]: 'עצמאי',
+    [EmploymentType.BOTH]: 'עצמאי ושכיר',
+    [EmploymentType.EMPLOYEE]: 'שכיר'
+  };
+
+  export const employmentTypeOptionsList = [
+    { value: EmploymentType.SELF_EMPLOYED, name: EmploymentTypeLabels[EmploymentType.SELF_EMPLOYED] },
+    { value: EmploymentType.BOTH, name: EmploymentTypeLabels[EmploymentType.BOTH] },
+    { value: EmploymentType.EMPLOYEE, name: EmploymentTypeLabels[EmploymentType.EMPLOYEE] }
+  ];

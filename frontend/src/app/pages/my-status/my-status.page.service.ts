@@ -34,10 +34,8 @@ getUserDetails(): Observable<any> {
     const headers = {
       'token': token
     }
-    const userData = this.http.get<any>(url, {headers: headers});
-    console.log("getUserDetails: user data is ", userData);
-    
-    return userData;
+    return this.http.get<any>(url, {headers: headers});    
+    //return userData;
     //return this.http.get<any>(url, {headers: headers})
 }
   

@@ -147,6 +147,8 @@ export class AuthService {
         switchMap(() => {
           const url = `${environment.apiUrl}auth/signup`
           formData.personal.firebaseId = uid;
+          console.log("formData debug is ", formData);
+          
           return this.http.post(url, formData);
 
         }),
@@ -162,7 +164,7 @@ export class AuthService {
       )
       .subscribe((res) => {
         console.log("res in sub signup", res);
-        this.router.navigate(['login']);
+        //this.router.navigate(['login']);
       })
   }
 
