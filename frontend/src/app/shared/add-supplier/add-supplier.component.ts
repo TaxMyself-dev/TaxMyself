@@ -55,14 +55,17 @@ export class addSupplierComponent implements OnInit {
   constructor(private expenseDataService: ExpenseDataService, private formBuilder: FormBuilder, private popoverController: PopoverController) { }
 
   ngOnInit() {
-    this.getCategoryFromServer(this.supplierData);
+    //this.getCategoryFromServer(this.supplierData);
     console.log(this.categoryList);
     console.log(this.subCategoryList);
+    this.categoryList = this.expenseDataService.getcategry();
+    console.log("categories: ", this.categoryList);
+    
     
   }
 
   initForm(data: ICreateSupplier): void {
-    console.log(data);
+    //console.log(data);
     
     this.myForm = this.formBuilder.group({
       category: [data?.category || '', Validators.required],
@@ -155,36 +158,36 @@ export class addSupplierComponent implements OnInit {
     }
   }
 
-  getCategoryFromServer(data?: any): void {
-    console.log("in get from server", data);
+  // getCategoryFromServer(data?: any): void {
+  //   //console.log("in get from server", data);
     
-    const categoryList = this.categoriesListDataMap.get(this.isEquipment);
-    console.log("before if:", categoryList);
-    if (categoryList) {
-      console.log("in if:", categoryList);
+  //   // const categoryList = this.categoriesListDataMap.get(this.isEquipment);
+  //   // console.log("before if:", categoryList);
+  //   // if (categoryList) {
+  //   //   console.log("in if:", categoryList);
       
-      this.categoryList = categoryList;
-      return;
-    } 
-    console.log(data.category);
+  //   //   this.categoryList = categoryList;
+  //   //   return;
+  //   // } 
+  //   console.log(data.category);
     
-    this.expenseDataService.getcategry(this.isEquipment)
-        .pipe(
-          map((res) => {
-            return res.map((item) => ({
-              key: item,
-              value: item
-            })
-            )
-          }), tap((res) => {
-          this.categoryList = res;
-          }),
-          switchMap(() => this.getSubCategoryFromServer(data.category as string)),
-          tap((res) => {this.subCategoryList = res})
-          )
-          .subscribe();
+  //   this.expenseDataService.getcategry(this.isEquipment)
+  //       .pipe(
+  //         map((res) => {
+  //           return res.map((item) => ({
+  //             key: item,
+  //             value: item
+  //           })
+  //           )
+  //         }), tap((res) => {
+  //         this.categoryList = res;
+  //         }),
+  //         switchMap(() => this.getSubCategoryFromServer(data.category as string)),
+  //         tap((res) => {this.subCategoryList = res})
+  //         )
+  //         .subscribe();
 
-  }
+  // }
 
   getListCategory(): {} {
     if (this.isEquipment != undefined) {
@@ -243,11 +246,11 @@ export class addSupplierComponent implements OnInit {
     }
     if (value == "0") {
       this.isEquipment = false;
-      this.getCategoryFromServer();
+      //this.getCategoryFromServer();
     }
     else {
       this.isEquipment = true;
-      this.getCategoryFromServer();
+      //this.getCategoryFromServer();
     }
   }
 

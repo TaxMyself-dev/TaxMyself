@@ -14,36 +14,47 @@
 <ion-content>
   <form *ngIf="addExpenseForm; else loader" class="form-expense" [formGroup]="addExpenseForm" scrollY="true">
     <div class="modal-content">
-      <ion-list class="list-expense">
-        <ng-container *ngFor="let col of columns">
-          <ng-container [ngSwitch]="col.type">
-            <ng-container *ngSwitchCase="formTypes.TEXT">
-              <!-- <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
+      <div class="wrap-supplier-list">
+        <div class="wrap-select-supplier">
+          <div class="supplier-text">לרשימת הספקים</div>
+          <app-button (onButtonClicked)="openSelectSupplier()" [buttonSize]="ButtonSize.X_SMALL" [iconName]="'arrow-forward-outline'"
+            [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+        </div>
+        <ion-list class="list-expense">
+          <ng-container *ngFor="let col of columns">
+            <ng-container [ngSwitch]="col.type">
+              <ng-container *ngSwitchCase="formTypes.TEXT">
+                <!-- <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
                 [class.supplier]="col.name === 'supplier'" [class.note]="col.name === 'note'"
                 [class.reductionPercent]="col.name === 'reductionPercent'"
                 [class.vatPercent]="col.name === 'vatPercent'" [class.taxPercent]="col.name === 'taxPercent'"
                 [class.supplierID]="col.name === 'supplierID'" class="input-expense text" label-placement="floating"
                 [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input> -->
+                <!-- <div *ngIf="col.name === 'supplier'"  class="wrap-add-expense-supplier"> -->
+                <app-generic-input class="inputs-wrapper"  [inputLabel]="col.value" [className]="col.name"
+                  [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
+                <!-- <span  class="supplier-span" (click)="openSelectSupplier($event)"
+                *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span> -->
 
-                <app-generic-input class="inputs-wrapper" [inputLabel]="col.value" [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
-              <span position="fixed" class="supplier-span" (click)="openSelectSupplier($event)"
-                *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span>
-            </ng-container>
-            <ng-container *ngSwitchCase="formTypes.DATE">
-              <app-generic-input class="inputs-wrapper" [inputType]="formTypes.DATE" [inputLabel]="col.value" [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
-            </ng-container>
-            <ng-container *ngSwitchCase="formTypes.DDL">
-              <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
-                [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
-                class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
-                (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
-                <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
-                  [value]="option.value">{{option.key}}</ion-select-option>
-              </ion-select>
+                <!-- </div> -->
+              </ng-container>
+              <ng-container *ngSwitchCase="formTypes.DATE">
+                <app-generic-input class="inputs-wrapper" [inputType]="formTypes.DATE" [inputLabel]="col.value"
+                  [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
+              </ng-container>
+              <ng-container *ngSwitchCase="formTypes.DDL">
+                <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
+                  [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
+                  class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
+                  (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
+                  <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
+                    [value]="option.value">{{option.key}}</ion-select-option>
+                </ion-select>
+              </ng-container>
             </ng-container>
           </ng-container>
-        </ng-container>
-      </ion-list>
+        </ion-list>
+      </div>
       <label *ngIf="fileItem" class="label-file-add-expense">
         <div class="div-wrap">
           <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
@@ -70,7 +81,8 @@
             <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
           </div>
         </div>
-        <ion-input (change)="fileSelected($event)" label-placement="floating" type="file" accept=".pdf, .png, .jpeg, .jpg">
+        <ion-input (change)="fileSelected($event)" label-placement="floating" type="file"
+          accept=".pdf, .png, .jpeg, .jpg">
         </ion-input>
         <!-- <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input> -->
       </label>
@@ -79,7 +91,8 @@
     <!-- <ng-container *ngTemplateOutlet="customFooterTemplate"></ng-container> -->
 
     <ng-container *ngFor="let button of buttons">
-      <app-button [buttonSize]="button.size" [buttonText]="button.text" [disabled]="button.disabled" (onButtonClicked)="button.action()"></app-button>
+      <app-button [buttonSize]="button.size" [buttonText]="button.text" [disabled]="button.disabled"
+        (onButtonClicked)="button.action()"></app-button>
     </ng-container>
 
     <div class="wrapp-btn-expense">

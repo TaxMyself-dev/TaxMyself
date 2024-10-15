@@ -11,3 +11,18 @@
     padding-top: 9px;
     padding-left: 6px;;
 }
+
+.add-expense-supplier {
+    position: relative;
+}
+
+.note {
+    width: 100%;
+    --border-style: none;
+    border-bottom: 1px solid gray;
+    border-radius: 0px;
+}
+
+.sum .expenseNumber .supplier .supplierID .taxPercent .vatPercent .reductionPercent {
+    width: 30%;
+}
