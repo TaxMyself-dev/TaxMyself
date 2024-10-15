@@ -166,90 +166,95 @@ export class ModalExpensesComponent {
     });
   }
 
-  async fileSelected(event: any) {
+  // async fileSelected(event: any) {
+  //   console.log("fileSelected - start");
+    
+  //   this.fileToUpload = event.target.files[0];
+
+  //   // Trigger OCR after file selection
+  //   if (this.fileToUpload) {
+  //     // Call the OCR service to extract text from the file
+  //     const extractedText = await this.fileService.extractTextFromFile(this.fileToUpload);
+  //     console.log("extractedText is ", extractedText);
+      
+  //     // Automatically fill the form fields with the extracted text
+  //     this.autoFillForm(extractedText);
+  //   }
+  // }
+
+
+  // autoFillForm(extractedText: string) {
+  //   // Split the text by lines or use regex to extract specific information
+  //   const lines = extractedText.split('\n');
+  
+  //   // Example of mapping text to form fields
+  //   this.addExpenseForm.patchValue({
+  //     [ExpenseFormColumns.SUPPLIER]: this.extractValueFromText(lines, 'Supplier:'),
+  //     [ExpenseFormColumns.SUM]: this.extractValueFromText(lines, 'Sum:'),
+  //     [ExpenseFormColumns.DATE]: this.extractValueFromText(lines, 'Date:'),
+  //     // Map more fields as needed
+  //   });
+  // }
+  
+  // extractValueFromText(lines: string[], key: string): string {
+  //   // A helper function to find a specific key and return the corresponding value
+  //   const line = lines.find(line => line.includes(key));
+  //   return line ? line.split(key)[1].trim() : '';
+  // }
+
+
+   async fileSelected(event: any) {
     console.log("fileSelected - start");
     
-    this.fileToUpload = event.target.files[0];
+    console.log("in filelelel");
+    
+    this.pdfLoaded = false;// on change pdf to image
+    
+    let file = event.target.files[0];
+    console.log("fileeeeeeeeeeee", file);
+    
+    if (!file) {
+      return;
+    }
 
-    // Trigger OCR after file selection
-    if (this.fileToUpload) {
-      // Call the OCR service to extract text from the file
-      const extractedText = await this.fileService.extractTextFromFile(this.fileToUpload);
-      console.log("extractedText is ", extractedText);
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const extension = file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedExtensions.includes(`.${extension}`)) {
+      alert('Please upload only PDF, PNG, or JPEG files.');
+      return;
+    } 
+    
+    if (extension === "pdf"){
+      console.log("in pdf");
+      const target = event.target as HTMLInputElement;
+      const files = target.files as FileList;
+      const file = files.item(0);
+      console.log("pdf file:", file);
+
+      if (!file) {
+        return;
+      }
+
+      const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
+      this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
+      this.pdfLoaded = true;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (this.isEditMode) {
+        this.editModeFile = reader.result as string;
+        this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
+      }
+      else{
+        this.selectedFile = reader.result as string;
+      }
+      console.log(this.selectedFile);
       
-      // Automatically fill the form fields with the extracted text
-      this.autoFillForm(extractedText);
     }
   }
-
-
-  autoFillForm(extractedText: string) {
-    // Split the text by lines or use regex to extract specific information
-    const lines = extractedText.split('\n');
-  
-    // Example of mapping text to form fields
-    this.addExpenseForm.patchValue({
-      [ExpenseFormColumns.SUPPLIER]: this.extractValueFromText(lines, 'Supplier:'),
-      [ExpenseFormColumns.SUM]: this.extractValueFromText(lines, 'Sum:'),
-      [ExpenseFormColumns.DATE]: this.extractValueFromText(lines, 'Date:'),
-      // Map more fields as needed
-    });
-  }
-  
-  extractValueFromText(lines: string[], key: string): string {
-    // A helper function to find a specific key and return the corresponding value
-    const line = lines.find(line => line.includes(key));
-    return line ? line.split(key)[1].trim() : '';
-  }
-    // console.log("in filelelel");
-    
-    // this.pdfLoaded = false;// on change pdf to image
-    
-    // let file = event.target.files[0];
-    // console.log("fileeeeeeeeeeee", file);
-    
-    // if (!file) {
-    //   return;
-    // }
-
-    // const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-    // const extension = file.name.split('.').pop().toLowerCase();
-    
-    // if (!allowedExtensions.includes(`.${extension}`)) {
-    //   alert('Please upload only PDF, PNG, or JPEG files.');
-    //   return;
-    // } 
-    
-    // if (extension === "pdf"){
-    //   console.log("in pdf");
-    //   const target = event.target as HTMLInputElement;
-    //   const files = target.files as FileList;
-    //   const file = files.item(0);
-    //   console.log("pdf file:", file);
-
-    //   if (!file) {
-    //     return;
-    //   }
-
-    //   const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
-    //   this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
-    //   this.pdfLoaded = true;
-    // }
-
-    // const reader = new FileReader();
-    // reader.readAsDataURL(file);
-    // reader.onload = () => {
-    //   if (this.isEditMode) {
-    //     this.editModeFile = reader.result as string;
-    //     this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
-    //   }
-    //   else{
-    //     this.selectedFile = reader.result as string;
-    //   }
-    //   console.log(this.selectedFile);
-      
-    // }
-  //}
 
   getPdfData(): SafeResourceUrl {
     return this.safePdfBase64String;

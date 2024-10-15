@@ -66,11 +66,13 @@
           </ng-template>
           <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
           <div class="wrap-del-change-file">
-            <p><b>{{(isEditMode && !editModeFile) ? "בחר קובץ" : "שנה קובץ"}}</b></p>
+            <p><b>{{((isEditMode && !editModeFile) || selectedFile || pdfLoaded ) ? "שנה קובץ" : "בחר קובץ"}}</b></p>
             <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
           </div>
         </div>
-        <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input>
+        <ion-input (change)="fileSelected($event)" label-placement="floating" type="file" accept=".pdf, .png, .jpeg, .jpg">
+        </ion-input>
+        <!-- <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input> -->
       </label>
     </div>
 
