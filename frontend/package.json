@@ -38,7 +38,7 @@
     "capacitor-file-picker": "^1.0.10",
     "cordova-plugin-file": "^8.0.1",
     "date-fns": "^3.6.0",
-    "firebase": "^9.16.0",
+    "firebase": "^10.14.1",
     "ionic-select-searchable": "^2.10.0",
     "ionic-selectable": "^5.0.0",
     "ionicons": "^7.0.0",

@@ -12,7 +12,7 @@ import { selectSupplierComponent } from '../select-supplier/popover-select-suppl
 import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of, BehaviorSubject } from 'rxjs';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { ButtonSize } from '../button/button.enum';
+import { ButtonClass, ButtonSize } from '../button/button.enum';
 import { Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
@@ -76,6 +76,23 @@ export class ModalExpensesComponent {
   readonly formTypes = FormTypes;
   readonly expenseFormColumns = ExpenseFormColumns;
   readonly ButtonSize = ButtonSize;
+  readonly ButtonClass = ButtonClass;
+  // readonly inputStyles = new Map<ExpenseFormColumns, Partial<CSSStyleDeclaration>>([
+    readonly inputStyles = new Map<ExpenseFormColumns, {}>([
+    [ExpenseFormColumns.DATE, {'width': '30%'}],
+    [ExpenseFormColumns.SUM, {'width': '30%'}],
+    [ExpenseFormColumns.EXPENSE_NUMBER, {'width': '30%'}],
+    [ExpenseFormColumns.SUPPLIER, {'width': '47%'}],
+    [ExpenseFormColumns.SUPPLIER_ID, {'width': '47%'}],
+    [ExpenseFormColumns.TAX_PERCENT, {'width': '30%'}],
+    [ExpenseFormColumns.VAT_PERCENT, {'width': '30%'}],
+    [ExpenseFormColumns.REDUCTION_PERCENT, {'width': '30%'}],
+    [ExpenseFormColumns.NOTE, {'width': '100%', '--border-style':'none', 'border-bottom':'1px solid gray', 'border-radius':'0px'}],
+  ]);
+
+  //readonly inputStyles = new Map<ExpenseFormColumns, Partial<CSSStyleDeclaration>>();
+
+
 
   isEnlarged: boolean = false;
   isEquipment: boolean;
@@ -119,6 +136,7 @@ export class ModalExpensesComponent {
     
     console.log("xdfgdgfgf", this.columns);
     this.getSuppliers();
+    this.getCategory();
     this.initForm();
   }
 
@@ -166,90 +184,95 @@ export class ModalExpensesComponent {
     });
   }
 
-  async fileSelected(event: any) {
+  // async fileSelected(event: any) {
+  //   console.log("fileSelected - start");
+    
+  //   this.fileToUpload = event.target.files[0];
+
+  //   // Trigger OCR after file selection
+  //   if (this.fileToUpload) {
+  //     // Call the OCR service to extract text from the file
+  //     const extractedText = await this.fileService.extractTextFromFile(this.fileToUpload);
+  //     console.log("extractedText is ", extractedText);
+      
+  //     // Automatically fill the form fields with the extracted text
+  //     this.autoFillForm(extractedText);
+  //   }
+  // }
+
+
+  // autoFillForm(extractedText: string) {
+  //   // Split the text by lines or use regex to extract specific information
+  //   const lines = extractedText.split('\n');
+  
+  //   // Example of mapping text to form fields
+  //   this.addExpenseForm.patchValue({
+  //     [ExpenseFormColumns.SUPPLIER]: this.extractValueFromText(lines, 'Supplier:'),
+  //     [ExpenseFormColumns.SUM]: this.extractValueFromText(lines, 'Sum:'),
+  //     [ExpenseFormColumns.DATE]: this.extractValueFromText(lines, 'Date:'),
+  //     // Map more fields as needed
+  //   });
+  // }
+  
+  // extractValueFromText(lines: string[], key: string): string {
+  //   // A helper function to find a specific key and return the corresponding value
+  //   const line = lines.find(line => line.includes(key));
+  //   return line ? line.split(key)[1].trim() : '';
+  // }
+
+
+   async fileSelected(event: any) {
     console.log("fileSelected - start");
     
-    this.fileToUpload = event.target.files[0];
+    console.log("in filelelel");
+    
+    this.pdfLoaded = false;// on change pdf to image
+    
+    let file = event.target.files[0];
+    console.log("fileeeeeeeeeeee", file);
+    
+    if (!file) {
+      return;
+    }
 
-    // Trigger OCR after file selection
-    if (this.fileToUpload) {
-      // Call the OCR service to extract text from the file
-      const extractedText = await this.fileService.extractTextFromFile(this.fileToUpload);
-      console.log("extractedText is ", extractedText);
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const extension = file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedExtensions.includes(`.${extension}`)) {
+      alert('Please upload only PDF, PNG, or JPEG files.');
+      return;
+    } 
+    
+    if (extension === "pdf"){
+      console.log("in pdf");
+      const target = event.target as HTMLInputElement;
+      const files = target.files as FileList;
+      const file = files.item(0);
+      console.log("pdf file:", file);
+
+      if (!file) {
+        return;
+      }
+
+      const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
+      this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
+      this.pdfLoaded = true;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (this.isEditMode) {
+        this.editModeFile = reader.result as string;
+        this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
+      }
+      else{
+        this.selectedFile = reader.result as string;
+      }
+      console.log(this.selectedFile);
       
-      // Automatically fill the form fields with the extracted text
-      this.autoFillForm(extractedText);
     }
   }
-
-
-  autoFillForm(extractedText: string) {
-    // Split the text by lines or use regex to extract specific information
-    const lines = extractedText.split('\n');
-  
-    // Example of mapping text to form fields
-    this.addExpenseForm.patchValue({
-      [ExpenseFormColumns.SUPPLIER]: this.extractValueFromText(lines, 'Supplier:'),
-      [ExpenseFormColumns.SUM]: this.extractValueFromText(lines, 'Sum:'),
-      [ExpenseFormColumns.DATE]: this.extractValueFromText(lines, 'Date:'),
-      // Map more fields as needed
-    });
-  }
-  
-  extractValueFromText(lines: string[], key: string): string {
-    // A helper function to find a specific key and return the corresponding value
-    const line = lines.find(line => line.includes(key));
-    return line ? line.split(key)[1].trim() : '';
-  }
-    // console.log("in filelelel");
-    
-    // this.pdfLoaded = false;// on change pdf to image
-    
-    // let file = event.target.files[0];
-    // console.log("fileeeeeeeeeeee", file);
-    
-    // if (!file) {
-    //   return;
-    // }
-
-    // const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-    // const extension = file.name.split('.').pop().toLowerCase();
-    
-    // if (!allowedExtensions.includes(`.${extension}`)) {
-    //   alert('Please upload only PDF, PNG, or JPEG files.');
-    //   return;
-    // } 
-    
-    // if (extension === "pdf"){
-    //   console.log("in pdf");
-    //   const target = event.target as HTMLInputElement;
-    //   const files = target.files as FileList;
-    //   const file = files.item(0);
-    //   console.log("pdf file:", file);
-
-    //   if (!file) {
-    //     return;
-    //   }
-
-    //   const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
-    //   this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
-    //   this.pdfLoaded = true;
-    // }
-
-    // const reader = new FileReader();
-    // reader.readAsDataURL(file);
-    // reader.onload = () => {
-    //   if (this.isEditMode) {
-    //     this.editModeFile = reader.result as string;
-    //     this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
-    //   }
-    //   else{
-    //     this.selectedFile = reader.result as string;
-    //   }
-    //   console.log(this.selectedFile);
-      
-    // }
-  //}
 
   getPdfData(): SafeResourceUrl {
     return this.safePdfBase64String;
@@ -375,7 +398,7 @@ export class ModalExpensesComponent {
   }
 
   onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
-    console.log(event);
+    // console.log(event);
     console.log(colData);
     
     switch (colData.name) {
@@ -384,6 +407,8 @@ export class ModalExpensesComponent {
         this.setValueEquipment(event);
         break;
       case ExpenseFormColumns.CATEGORY:
+        console.log(event.detail.value);
+        
         this.getSubCategory(event.detail.value).
         pipe(
           tap((res) => {this.subCategoryList = res})
@@ -415,12 +440,13 @@ export class ModalExpensesComponent {
     return formData;
   }
 
-  openSelectSupplier(event:Event) {
-    event.preventDefault();
-    console.log(event);
+  openSelectSupplier(event?:Event) {
+    //event.preventDefault();
+    //console.log(event);
     
     from(this.modalCtrl.create({
       component: selectSupplierComponent,
+      cssClass: 'expense-modal'
     })).pipe(
       catchError((err) => {
         console.log("openSelectSupplier failed in create ", err);
@@ -449,7 +475,7 @@ export class ModalExpensesComponent {
       console.log("res.role: ", res.role);
       console.log("type:",typeof (res.data));
       
-      if (res.role !== 'backdrop') {// if the popover closed due to onblur dont change values 
+      if (res.role === 'success') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
           if (res){
             
@@ -578,12 +604,17 @@ export class ModalExpensesComponent {
 
   getSubCategory(category: string): Observable<any> {
     console.log("category in get sub", category);
-    const subList = this.subCategoriesListDataMap.get(category);
-    return subList ? of(subList) :
-    this.expenseDataServise.getSubCategory(category, this.isEquipment)
+    //const subList = this.subCategoriesListDataMap.get(category);
+   // console.log("subList: ",subList);
+    console.log("isEquipment: ",this.isEquipment);
+    
+    //return subList ? of(subList) :
+    return this.expenseDataServise.getSubCategory(category, this.isEquipment)
       .pipe(
         finalize(() => this.doneLoadingSubCategoryList$.next(true)),
         map((res) => {
+          console.log("res sub category: ", res);
+          
           return res.map((item: IGetSubCategory) => ({
             ...item,
             key: item.subCategory,
@@ -600,27 +631,32 @@ export class ModalExpensesComponent {
   }
 
   getCategory(data?: IRowDataTable): void {
+    console.log("in get category");
     const categoryList = this.categoriesListDataMap.get(this.isEquipment);
     if (categoryList) {
+      console.log("in category list");
+      
       this.categoryList = categoryList;
       return;
     } 
 
-    this.expenseDataServise.getcategry(this.isEquipment)
+    this.expenseDataServise.getcategry()
         .pipe(
           map((res) => {
+            console.log(res);
+            
             return res.map((item) => ({
-              key: item,
-              value: item
+              key: item.category,
+              value: item.id
             })
             )
           }), tap((res) => {
-          console.log(res);
-          this.categoryList = res;
+            this.categoryList = res;
+          console.log("category list:", res);
           }),
-          switchMap(() => this.getSubCategory(data.category as string)),
+          // switchMap((data) => this.getSubCategory(data. as string)),
           tap((res)=> {
-            console.log('res of sub category', res);
+            console.log('res of category', res);
             
             if (data && this.isEditMode || data && this.isSelectSupplierMode) {
               console.log("datta: ", data);
@@ -646,16 +682,21 @@ export class ModalExpensesComponent {
   setValueEquipment(event: any): void {
     const value = event.detail.value;
     console.log("in set value", value);
+    console.log(this.isEquipment);
+    
     console.log("category form value", this.addExpenseForm.get(ExpenseFormColumns.CATEGORY).value);
     
     if (value != this.isEquipment){
       this.addExpenseForm.patchValue({'category': ""})
     }
     if (value == "0") {
+      console.log("in value 0");
+      
       this.isEquipment = false;
       this.getCategory();
     }
     else {
+      console.log("in value 1");
       this.isEquipment = true;
       this.getCategory();
     }

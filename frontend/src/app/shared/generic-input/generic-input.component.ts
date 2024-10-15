@@ -15,6 +15,7 @@ export class GenericInputComponent implements OnChanges {
   @Input() controlName: string;
   @Input() errorText: string;
   @Input() className: string;
+  @Input() inputCustomStyle: Partial<CSSStyleDeclaration> = {};
   @Input() inputType: FormTypes = FormTypes.TEXT;
   @Input() minDate: string;
   @Input() fileTypes: string;

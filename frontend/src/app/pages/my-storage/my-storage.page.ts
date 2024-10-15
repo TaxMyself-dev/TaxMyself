@@ -142,7 +142,8 @@ export class MyStoragePage implements OnInit {
         columns: this.fieldsNamesToAdd,
         editMode: !!Object.keys(data).length,
         data
-      }
+      },
+      cssClass: 'expense-modal'
     })).pipe(catchError((err) => {
       alert("openPopupAddExpense error");
       return EMPTY;

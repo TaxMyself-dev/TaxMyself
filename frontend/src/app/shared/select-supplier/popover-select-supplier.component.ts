@@ -51,7 +51,12 @@ export class selectSupplierComponent implements OnInit {
   }
   
   cancel(data?: IGetSupplier) {
-    this.modalCtrl.dismiss(data);
+    if (data) {
+      this.modalCtrl.dismiss(data,'success');
+    }
+    else {
+      this.modalCtrl.dismiss(null,'cancel');
+    }
   }
 
   editSupplier(supplier: IGetSupplier): void{

@@ -168,7 +168,7 @@ export class ExpensesService {
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user-specific categories.');
             }
-            const query = this.categoryRepo.createQueryBuilder('category');
+            const query = await this.categoryRepo.createQueryBuilder('category');
             query.where('category.isDefault = :isDefault', { isDefault: true })
                  .orWhere('category.firebaseId = :firebaseId', { firebaseId });
             return query.getMany();
@@ -177,7 +177,7 @@ export class ExpensesService {
         // Case 2: isDefault is true or false
         else if (isDefault === true) {
             // Return only the default categories
-            return this.categoryRepo.find({ where: { isDefault: true } });
+            return await this.categoryRepo.find({ where: { isDefault: true } });
         }
         
         else if (isDefault === false) {
@@ -185,7 +185,7 @@ export class ExpensesService {
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user-specific categories.');
             }
-            return this.categoryRepo.find({ where: { isDefault: false, firebaseId } });
+            return await this.categoryRepo.find({ where: { isDefault: false, firebaseId } });
         }
     }
 
