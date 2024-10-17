@@ -7,9 +7,10 @@ import { User } from './user.entity';
 import { Child } from './child.entity';
 import { Bill } from 'src/transactions/bill.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
+import { SharedModule } from 'src/shared/shared.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Child])],
+  imports: [TypeOrmModule.forFeature([User, Child]), SharedModule],
   controllers: [UsersController],
   providers: [
     UsersService, 

@@ -477,6 +477,7 @@ ngOnDestroy(): void {
     }
 
     private isMarried(): boolean {
-      return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === 1;
+      //return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === 1;
+      return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.MARRIED;
     }
 }

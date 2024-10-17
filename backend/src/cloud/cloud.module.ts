@@ -7,9 +7,10 @@ import { UsersService } from '../users/users.service';
 import { CloudController } from './cloud.controller';
 import { CloudService } from './cloud.service';
 import { Child } from '../users/child.entity';
+import { SharedModule } from 'src/shared/shared.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Child])],
+  imports: [TypeOrmModule.forFeature([Expense, User, Child]), SharedModule],
   controllers: [CloudController],
   providers: [
     CloudService,

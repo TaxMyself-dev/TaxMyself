@@ -76,6 +76,7 @@ export class MyStatusPage {
           { name: 'שם פרטי', value: getUserData.fName, type: 'input' },
           { name: 'שם משפחה', value: getUserData.lName, type: 'input' },
           { name: 'ת.ז', value: getUserData.id, type: 'input' },
+          { name: 'תאריך לידה', value: getUserData.dateOfBirth, type: 'input' },
         ]
       },
       {
@@ -84,6 +85,7 @@ export class MyStatusPage {
           { name: 'שם העסק', value: getUserData.businessName, type: 'input' },
           { name: 'סוג העסק', value: getUserData.businessType, type: 'select', options: businessTypeOptionsList},
           { name: 'מספר עוסק', value: getUserData.businessId, type: 'input' },
+          { name: 'תאריך פתיחת העסק', value: getUserData.businessDate, type: 'input' },
         ]
       }
     ];

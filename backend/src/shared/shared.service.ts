@@ -118,6 +118,58 @@ export class SharedService {
 
 
     convertDateStrToTimestamp(dateStr: string): number {
+        
+        // Remove any extra spaces
+        dateStr = dateStr.trim();
+    
+        // Split the date string using /, ., or -
+        const dateParts = dateStr.split(/[./-]/);
+        
+        // Check if the split resulted in 3 parts (day, month, year or year, month, day)
+        if (dateParts.length !== 3) {
+            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid date format.`);
+        }
+    
+        let day: number, month: number, year: number;
+    
+        // Handle different date formats
+        if (dateParts[2].length === 4) {
+            // Format: dd/MM/yyyy or MM/dd/yyyy (year is the 3rd part)
+            if (parseInt(dateParts[1], 10) > 12) {
+                // Likely dd/MM/yyyy
+                day = parseInt(dateParts[0], 10);
+                month = parseInt(dateParts[1], 10) - 1;  // Month is 0-indexed in JavaScript Date
+                year = parseInt(dateParts[2], 10);
+            } else {
+                // Likely MM/dd/yyyy
+                month = parseInt(dateParts[0], 10) - 1;
+                day = parseInt(dateParts[1], 10);
+                year = parseInt(dateParts[2], 10);
+            }
+        } else if (dateParts[0].length === 4) {
+            // Format: yyyy-MM-dd
+            year = parseInt(dateParts[0], 10);
+            month = parseInt(dateParts[1], 10) - 1;
+            day = parseInt(dateParts[2], 10);
+        } else {
+            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid date format like dd/MM/yyyy, MM/dd/yyyy, or yyyy-MM-dd.`);
+        }
+    
+        // Create a new Date object using UTC to avoid timezone issues
+        const date = new Date(Date.UTC(year, month, day));
+    
+        // Check if the date is valid
+        if (isNaN(date.getTime())) {
+            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please provide a valid date.`);
+        }
+    
+        // Return the timestamp in seconds (if you want milliseconds, just return date.getTime())
+        return Math.floor(date.getTime() / 1000);
+    }
+    
+
+
+    convertDateStrToTimestampOld(dateStr: string): number {
 
         // console.log("Original dateStr is ", dateStr);
 
@@ -150,12 +202,8 @@ export class SharedService {
             throw new BadRequestException(`Invalid date format provided after fix: ${dateStr}. Please use the format dd/MM/yyyy.`);
         }
 
-        // Try parsing the date string with date-fns using the format "dd/MM/yyyy"
-        //const date = new Date(`${year}-${month}-${day}T00:00:00`);
-
         // Use Date.UTC() to ensure the date is created in UTC
         const date = new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10)));
-
 
         // console.log("Parsed date is ", date);
 

@@ -8,6 +8,7 @@ import { UserRole } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
+import { SharedService } from 'src/shared/shared.service';
 
 
 @Injectable()
@@ -17,6 +18,7 @@ export class UsersService {
     private readonly firebaseAuth: admin.auth.Auth;
     constructor
     (
+        private readonly sharedService: SharedService,
         @InjectRepository(User) private user_repo: Repository<User>, 
         @InjectRepository(Child) private child_repo: Repository<Child>
     )
@@ -27,6 +29,28 @@ export class UsersService {
 
     async signup({personal,spouse,children,business,validation}:any) {
         const newChildren = children?.children;
+
+        console.log("signup in service");
+
+        personal.dateOfBirth = this.sharedService.convertDateStrToTimestamp(personal.dateOfBirth);
+        console.log("personal.dateOfBirth is ", personal.dateOfBirth);
+        spouse.spouseDateOfBirth = this.sharedService.convertDateStrToTimestamp(spouse.spouseDateOfBirth);
+        console.log("spouse.spouseDateOfBirth is ", spouse.spouseDateOfBirth);
+        business.businessDate = this.sharedService.convertDateStrToTimestamp(business.businessDate);
+        console.log("business.businessDate is ", business.businessDate);
+
+
+
+        // if (personal.dateOfBirth) {
+        //     personal.dateOfBirth = new Date(personal.dateOfBirth).getTime();
+        // }
+        // if (spouse.spouseDateOfBirth) {
+        //     spouse.spouseDateOfBirth = new Date(spouse.spouseDateOfBirth).getTime();
+        // }
+        // if (business.businessDate) {
+        //     business.businessDate = new Date(business.businessDate).getTime();
+        // }
+
         let newUser = {...personal, ...spouse, ...business};
         if (newChildren.length > 0) {
             for (let i = 0; i < newChildren.length; i++){
@@ -101,3 +125,8 @@ export class UsersService {
 
 
 }
+
+// function convertDateStrToTimestamp(dateOfBirth: any): any {
+//     throw new Error('Function not implemented.');
+// }
+
