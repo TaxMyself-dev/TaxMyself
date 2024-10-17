@@ -13,22 +13,32 @@
               <!-- Only show the field if it's enabled or enabled is not defined (default to true) -->
               <ng-container *ngIf="blocksData[blockIndex]?.fields[fieldIndex]?.enabled ?? true">
                 <div [formGroupName]="fieldIndex">
-                  <label>{{ blocksData[blockIndex]?.fields[fieldIndex]?.name }}</label>
 
-                  <!-- Use GenericSelectComponent if the field type is 'select' -->
-                  <ng-container *ngIf="blocksData[blockIndex]?.fields[fieldIndex]?.type === 'select'; else textInput">
-                    <app-generic-select 
-                      [controlName]="blocksData[blockIndex]?.fields[fieldIndex]?.controlName" 
-                      title="{{ blocksData[blockIndex]?.fields[fieldIndex]?.name }}" 
-                      [items]="blocksData[blockIndex]?.fields[fieldIndex]?.options" 
-                      [parentForm]="updateForm">
-                    </app-generic-select>
+                  <!-- Use app-generic-input for input fields -->
+                  <ng-container *ngIf="blocksData[blockIndex]?.fields[fieldIndex]?.type === 'input'">
+                    <app-generic-input 
+                      [inputLabel]="blocksData[blockIndex]?.fields[fieldIndex]?.name"
+                      [controlName]="'value'" 
+                      [parentForm]="field">
+                    </app-generic-input>
                   </ng-container>
 
+                  <!-- Use app-generic-select for select fields -->
+                  <ng-container *ngIf="blocksData[blockIndex]?.fields[fieldIndex]?.type === 'select'">
+                    <app-generic-select 
+                      [title]="blocksData[blockIndex]?.fields[fieldIndex]?.name"
+                      [controlName]="'value'" 
+                      [parentForm]="field"
+                      [items]="blocksData[blockIndex]?.fields[fieldIndex]?.options">
+                    </app-generic-select>
+                  </ng-container>
+                  
+                
+
                   <!-- Default to text input if not 'select' -->
-                  <ng-template #textInput>
+                  <!-- <ng-template #textInput>
                     <input type="text" formControlName="value" />
-                  </ng-template>
+                  </ng-template> -->
                 </div>
               </ng-container>
             </ng-container>

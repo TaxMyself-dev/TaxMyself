@@ -8,81 +8,59 @@ import { FormBuilder, FormGroup, FormArray } from '@angular/forms';
 })
 export class UpdateDataComponent implements OnInit, OnChanges {
 
-  // @Input() blocksData: { 
-  //   title: string; 
-  //   enabled?: boolean;  // Optional enabled flag for the block
-  //   fields: { 
-  //     name: string; 
-  //     value: string; 
-  //     enabled?: boolean;  // Optional enabled flag for the field
-  //   }[] 
-  // }[] = [];
-
-  @Input() blocksData: { 
-    title: string; 
-    enabled?: boolean;  // Optional enabled flag for the block
-    fields: { 
-      name: string; 
-      value: string; 
-      enabled?: boolean;  // Optional enabled flag for the field
-      type?: string;  // Optional type field (e.g., 'select')
-      options?: { value: string | number; name: string }[];  // Optional list of options for select fields
-      controlName?: string;  // Optional form control name for select fields
-    }[] 
-  }[] = [];
-  
+  @Input() blocksData: any[] = [];
 
   updateForm: FormGroup;
+  formTypes: any;
 
   constructor(private fb: FormBuilder) {}
 
   ngOnInit() {
     this.updateForm = this.fb.group({
-      blocks: this.fb.array([]),
+      blocks: this.fb.array([]), // Start with an empty array for blocks
     });
   }
 
-  // Handle changes to @Input() blocksData, this will be called when blocksData is updated asynchronously
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes.blocksData && changes.blocksData.currentValue) {
-      this.initializeBlocks(changes.blocksData.currentValue);
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.blocksData && this.blocksData) {
+      console.log("Debug block data is ", this.blocksData);
+      // Dynamically create form controls when blocksData changes
+      this.initializeBlocks(this.blocksData);
     }
   }
+  
 
   // Get the blocks array
   get blocks(): FormArray {
     return this.updateForm.get('blocks') as FormArray;
   }
 
-  // Initialize the form blocks and fields based on input data
-  initializeBlocks(blocksData: { title: string, fields: { name: string, value: string }[] }[]) {
 
-    console.log("initializeBlocks: blocksData is ", blocksData);  // Log blocksData
-    
-    const blocksFormArray = this.fb.array([]) as FormArray;  // Explicitly typed as FormArray
+  initializeBlocks(blocksData: any[]) {
+    const blocksFormArray = this.updateForm.get('blocks') as FormArray;
   
     blocksData.forEach(blockData => {
-      // Create a FormGroup for each block
+      // Create a form group for each block
       const block = this.fb.group({
-        title: [blockData.title],
-        fields: this.fb.array([]),  // FormArray for the fields in this block
+        fields: this.fb.array([]),  // Each block contains an array of fields
       });
   
-      // Loop through each field in the block and add it to the fields array
+      const fieldsFormArray = block.get('fields') as FormArray;
+  
+      // Loop through each field in the block and create a form group for each field
       blockData.fields.forEach(fieldData => {
         const field = this.fb.group({
-          name: [fieldData.name],
-          value: [fieldData.value],
+          value: this.fb.control(fieldData.value)  // Each field has a 'value' control
         });
-        (block.get('fields') as FormArray).push(field);  // Push the field into the FormArray
+        fieldsFormArray.push(field);  // Add the field to the fields array
       });
   
-      blocksFormArray.push(block);  // Push the block (FormGroup) into the blocksFormArray
+      // Add the block to the blocks array
+      blocksFormArray.push(block);
     });
-  
-    // Reset the form array with new data
-    this.updateForm.setControl('blocks', blocksFormArray);
   }
+
 
   saveChanges() {
     console.log(this.updateForm.value);
