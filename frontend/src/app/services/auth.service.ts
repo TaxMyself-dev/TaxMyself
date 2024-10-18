@@ -189,6 +189,13 @@ export class AuthService {
     return user !== null && user.emailVerified !== false ? true : false;
   }
 
+  updateUser(updatedData: any): Observable<any> {
+    const token = localStorage.getItem('token');  // Assuming you have a token stored
+    const headers = { 'token': token };  // Add the token to the headers
+    const url = `${environment.apiUrl}/auth/update-user`;  // Backend endpoint for updating user
+    return this.http.patch(url, updatedData, { headers });
+  }
+
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('user');

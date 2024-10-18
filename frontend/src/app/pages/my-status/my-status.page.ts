@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { UpdateDataComponent } from 'src/app/shared/update-data/update-data.component';
 import { MyStatusService } from './my-status.page.service';
+import { DateService } from 'src/app/services/date.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { employmentTypeOptionsList, familyStatusOptionsList, businessTypeOptionsList } from 'src/app/shared/enums';
 import { FormTypes } from 'src/app/shared/enums';
 
@@ -34,7 +36,9 @@ export class MyStatusPage {
   }
 
   
-  constructor(private myStatusService: MyStatusService) {
+  constructor(private myStatusService: MyStatusService,
+              private dateService: DateService,
+              private authService: AuthService) {
     console.log('Selected Tab on Load:', this.selectedTab);  // Debugging log
   }
 
@@ -42,6 +46,8 @@ export class MyStatusPage {
   ngOnInit() {
     // Optionally fetch initial data
     console.log('Selected tab on init:', this.selectedTab);
+    console.log('updateUser function:', this.updateUser);
+
 
     if (this.selectedTab === 'update-details') {
       this.fetchUpdateDetailsData();
@@ -68,6 +74,9 @@ export class MyStatusPage {
     console.log("processUserData: user data is ", data);
 
     const getUserData = data[0];
+    console.log("timestamp spouse is", getUserData.spouseDateOfBirth);
+    console.log("date spouse is", this.dateService.convertTimestampToDateInput(getUserData.businessDate));
+    
 
     this.userData = [
       {
@@ -76,7 +85,17 @@ export class MyStatusPage {
           { name: 'שם פרטי', value: getUserData.fName, type: 'input' },
           { name: 'שם משפחה', value: getUserData.lName, type: 'input' },
           { name: 'ת.ז', value: getUserData.id, type: 'input' },
-          { name: 'תאריך לידה', value: getUserData.dateOfBirth, type: 'input' },
+          { name: 'תאריך לידה', value: this.dateService.convertTimestampToDateInput(getUserData.dateOfBirth), type: 'input' },
+        ]
+      },
+      {
+        title: 'פרטי בן/בת הזוג',
+        enabled: getUserData.familyStatus !== "single",
+        fields: [
+          { name: 'שם פרטי', value: getUserData.spouseFName, type: 'input' },
+          { name: 'שם משפחה', value: getUserData.spouseLName, type: 'input' },
+          { name: 'ת.ז.', value: getUserData.spouseId, type: 'input' },
+          { name: 'תאריך לידה', value: this.dateService.convertTimestampToDateInput(getUserData.spouseDateOfBirth), type: 'input' },
         ]
       },
       {
@@ -85,7 +104,7 @@ export class MyStatusPage {
           { name: 'שם העסק', value: getUserData.businessName, type: 'input' },
           { name: 'סוג העסק', value: getUserData.businessType, type: 'select', options: businessTypeOptionsList},
           { name: 'מספר עוסק', value: getUserData.businessId, type: 'input' },
-          { name: 'תאריך פתיחת העסק', value: getUserData.businessDate, type: 'input' },
+          { name: 'תאריך פתיחת העסק', value: this.dateService.convertTimestampToDateInput(getUserData.businessDate), type: 'input' },
         ]
       }
     ];
@@ -139,6 +158,18 @@ export class MyStatusPage {
 
     console.log("Mapped userData: ", this.userData);
 
+  }
+
+
+  // Define the user update function
+  updateUser(data: any) {
+    console.log("updateUser data is ", data);
+    
+    this.authService.updateUser(data).subscribe({
+      next: (response) => console.log('User updated successfully:', response),
+      error: (error) => console.error('Error updating user:', error),
+      complete: () => console.log('Update process completed.')
+    });
   }
 
 

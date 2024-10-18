@@ -33,9 +33,7 @@ export class UsersController {
         try {
             const userId = await this.userService.getFirbsaeIdByToken(token);
             const user = await this.userService.findFireUser(userId);
-            if (user) {
-                console.log("get-user: user data is", user);
-                
+            if (user) {                
                 return user;
             }
             throw new NotFoundException("user not exist");
@@ -46,9 +44,10 @@ export class UsersController {
 
 
     @Patch('update-user')
-    async updateUser(@Headers('token') token: string, @Body() body: any) {      
-      const userId = await this.userService.getFirbsaeIdByToken(token)
-      return this.userService.updateUser (userId, body);
+    async updateUser(@Headers('token') token: string, @Body() body: any) {  
+        console.log("update-user - data is ", body);
+        const userId = await this.userService.getFirbsaeIdByToken(token)
+        return this.userService.updateUser (userId, body);
     }
 
 }

@@ -16,9 +16,18 @@ export class DateService {
     return new Date(date);
   }
 
+  // convertTimestampToDateInput(timestamp: number): string {
+  //   return new Date(timestamp * 1000).toISOString().slice(0, 10);
+  // }
+
   convertTimestampToDateInput(timestamp: number): string {
-    return new Date(timestamp * 1000).toISOString().slice(0, 10);
-  }
+    const date = new Date(timestamp * 1000);  // Convert timestamp to Date object
+    const day = String(date.getUTCDate()).padStart(2, '0');  // Get the day and pad with 0 if necessary
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');  // Get the month and pad with 0
+    const year = date.getUTCFullYear();  // Get the year
+
+    return `${day}-${month}-${year}`;  // Format as dd-MM-yyyy
+}
 
 
   timestampToDateStr(timestamp: number): string {

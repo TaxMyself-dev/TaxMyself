@@ -24,8 +24,8 @@ export class User {
     @Column()
     id: string;
 
-    @Column('timestamp')
-    dateOfBirth: Date;
+    @Column('bigint')
+    dateOfBirth: number;
 
     @Column()
     phone: string;
@@ -45,8 +45,8 @@ export class User {
     @Column()
     spouseId: string;
 
-    @Column({type: 'timestamp', nullable: true})
-    spouseDateOfBirth: Date;
+    @Column('bigint')
+    spouseDateOfBirth: number;
 
     @Column()
     spouseIndependet: boolean;
@@ -69,8 +69,8 @@ export class User {
     @Column()
     businessInventory: boolean;
 
-    @Column()
-    businessDate: string;
+    @Column('bigint')
+    businessDate: number;
 
     @Column()
     employee: boolean;
