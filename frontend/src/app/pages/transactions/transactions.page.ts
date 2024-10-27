@@ -37,14 +37,15 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.DDL },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
   ];
 
   editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY},
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY},
+    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
+    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DDL, listItems: this.equipmentList },
@@ -180,12 +181,7 @@ export class TransactionsPage implements OnInit {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
-}
-
-  // ngOnDestroy(): void {
-  //     this.transactionsService.accountsList$.unsubscribe();
-
-  // }
+  }
 
   renameFields(obj: any): any {
     return {
@@ -305,9 +301,9 @@ export class TransactionsPage implements OnInit {
     })).pipe(
       takeUntil(this.destroy$),
       catchError((err) => {
-      alert("openPopupAddBill error");
-      return EMPTY;
-    }),
+        alert("openPopupAddBill error");
+        return EMPTY;
+      }),
       switchMap((modal) => from(modal.present())
         .pipe(
           takeUntil(this.destroy$),
@@ -325,75 +321,67 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-  print(){
-    console.log("in print");
-    console.log(this.expensesForm.value);
-    
-  }
 
   filterIncomes(): void {
-    this.incomesFilterByCategory();
-    this.incomesFilterByClassify();
-  }
-
-  filterExpenses(): void {
-    this.expensesFilterByCategory();
-    this.expensesFilterByClassify();
-  }
-
-  incomesFilterByClassify(): void {
-    console.log("income filter");
     const formData = this.incomeForm.value;
     console.log(formData);
-    if (formData.incomeType === "notClassification") {
-      this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג"));
-    }
-    else if (formData.incomeType === null) {
+    console.log(formData.incomeType);
+    const categoryName = this.listCategory.find((category) => category.value === formData.category);
+
+    if (!categoryName && !formData.incomeType) {
       this.incomesData$.next(this.incomesData);
     }
+    else if (!categoryName) {
+      if (formData.incomeType === "notClassification") {
+        this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג"));
+      }
+      else {
+        this.incomesData$.next(this.incomesData.filter((income) => income.category !== "טרם סווג"));
+      }
+    }
+    else if (!formData.incomeType) {
+      this.incomesData$.next(this.incomesData.filter((income) => income.category === categoryName.name));
+    }
     else {
-      this.incomesData$.next(this.incomesData.filter((income) => income.category !== "טרם סווג"));
+      if (formData.incomeType === "notClassification") {
+        this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג" ||  income.category === categoryName.name));
+      }
+      else {
+        this.incomesData$.next(this.incomesData.filter((income) => income.category !== "טרם סווג" && income.category === categoryName.name));
+      }
+
     }
   }
 
-  incomesFilterByCategory(): void {
-    const formData = this.incomeForm.value;
+
+  filterExpenses(): void {
+    const formData = this.expensesForm.value;
     console.log(formData);
+    console.log(formData.expensesType);
     const categoryName = this.listCategory.find((category) => category.value === formData.category);
-    console.log(categoryName);
-    if (categoryName) {
+
+    if (!categoryName && !formData.expensesType) {
+      this.expensesData$.next(this.expensesData);
+    }
+    else if (!categoryName) {
+      if (formData.expensesType === "notClassification") {
+        this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג"));
+      }
+      else {
+        this.expensesData$.next(this.expensesData.filter((expense) => expense.category !== "טרם סווג"));
+      }
+    }
+    else if (!formData.expensesType) {
       this.expensesData$.next(this.expensesData.filter((expense) => expense.category === categoryName.name));
     }
     else {
-      this.expensesData$.next(this.expensesData);
-    }
-  }
+      if (formData.expensesType === "notClassification") {
+        this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג" ||  expense.category === categoryName.name));
+      }
+      else {
+        this.expensesData$.next(this.expensesData.filter((expense) => expense.category !== "טרם סווג" && expense.category === categoryName.name));
+      }
 
-  expensesFilterByClassify(): void {
-    const formData = this.expensesForm.value;
-    console.log(formData);
-    console.log(this.expensesForm.get('expensesType').value);
-    if (formData.expensesType === "notClassification") {
-      this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג"));
-    }
-    else if (formData.expensesType === null) {
-      this.expensesData$.next(this.expensesData);
-    }
-    else {
-      this.expensesData$.next(this.expensesData.filter((expense) => expense.category !== "טרם סווג"));
-    }
-  }
-
-  expensesFilterByCategory(): void {
-    const formData = this.expensesForm.value;
-    console.log(formData);
-    const categoryName = this.listCategory.find((category) => category.value === formData.category);
-    console.log(categoryName);
-    if (categoryName) {
-      this.expensesData$.next(this.expensesData.filter((expense) => expense.category === categoryName.name));
-    }
-    else {
-      this.expensesData$.next(this.expensesData);
     }
   }
 
@@ -414,7 +402,7 @@ export class TransactionsPage implements OnInit {
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
         data.sum = Math.abs(data.sum);
-        data.vatReportingDate ? null: data.vatReportingDate = "טרם דווח";
+        data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         rows.push(data);
       }
       )
@@ -563,16 +551,16 @@ export class TransactionsPage implements OnInit {
     this.editRowForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
     this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
     this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-    this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-    this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-    
+      this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+      this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
+      this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
+      this.editRowForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
+
     if (data.category !== "טרם סווג" && data.category !== undefined) {
       from(this.modalController.create({
         component: editRowComponent,
@@ -600,7 +588,7 @@ export class TransactionsPage implements OnInit {
                   takeUntil(this.destroy$),
                   tap((data) => {
                     console.log(data);
-                    
+
                     if (data.role != 'backdrop' && data.role != 'cancel') {
                       this.getTransactions()
                     }
@@ -610,7 +598,7 @@ export class TransactionsPage implements OnInit {
             )),
           catchError((err) => {
             alert("open Edit row switchMap error");
-            console.log("open Edit row switchMap error: ",err);
+            console.log("open Edit row switchMap error: ", err);
             return EMPTY;
           }))
         .subscribe((res) => {
@@ -626,7 +614,7 @@ export class TransactionsPage implements OnInit {
 
   updateRow(id: number): void {
     let formData: IClassifyTrans = this.editRowForm.getRawValue();
-    
+
     // formData.category = category.name as string;
     formData.id = id;
     formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
@@ -637,7 +625,7 @@ export class TransactionsPage implements OnInit {
     formData.taxPercent = +formData.taxPercent;
     formData.reductionPercent = +formData.reductionPercent;
     console.log(formData);
-    
+
     this.transactionService.updateRow(formData).pipe(takeUntil(this.destroy$)).subscribe((res) => this.getExpensesData());
   }
 
@@ -677,12 +665,6 @@ export class TransactionsPage implements OnInit {
       .subscribe(() => {
       });
   }
-
-
-  // saveTransaction(): void {
-  //   console.log("save transaction");
-
-  // }
 
   onClickedCell(event: { str: string, data: IRowDataTable }): void {
     console.log(event);

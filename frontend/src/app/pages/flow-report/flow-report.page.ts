@@ -218,7 +218,15 @@ export class FlowReportPage implements OnInit {
           this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
           this.isToastOpen = true;
           this.expenseDataService.dismissLoader();
-          this.router.navigate(['vat-report']);
+          //this.router.navigate(['vat-report']);
+
+          // this.router.navigate(['vat-report'], {
+          //   queryParams: {
+          //     isToastOpen: true,
+          //     messageToast:  `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+          //   }
+          // })
+
         });
       return; // Exit the function since file uploads are skipped
     }
@@ -262,7 +270,13 @@ export class FlowReportPage implements OnInit {
           this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
           this.isToastOpen = true;
           this.expenseDataService.dismissLoader();
-          this.router.navigate(['vat-report']);
+          //this.router.navigate(['vat-report']);
+          // this.router.navigate(['vat-report'], {
+          //   queryParams: {
+          //     isToastOpen: true,
+          //     messageToast:  `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+          //   }
+          // })
         })
       )
       .subscribe();
