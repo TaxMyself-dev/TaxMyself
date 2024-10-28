@@ -25,6 +25,37 @@ export class MyStatusPage {
     //{ label: 'ניהול קטגוריות', value: 'manage-categories', component: ManageCategoriesComponent },
     //{ label: 'מעקב הוצאות', value: 'track-expenses', component: TrackExpensesComponent }
   ];
+
+  fieldMapping: { [key: string]: { [key: string]: string } } = {
+    'פרטים אישיים': {
+      'שם פרטי': 'fName',
+      'שם משפחה': 'lName',
+      'ת.ז': 'id',
+      'תאריך לידה': 'dateOfBirth'
+    },
+    'פרטי בן/בת הזוג': {
+      'שם פרטי': 'spouseFName',
+      'שם משפחה': 'spouseLName'
+    },
+    'פרטי העסק': {
+      'שם העסק': 'businessName',
+      'סוג העסק': 'businessType',
+      'מספר עוסק': 'businessId',
+      'תאריך פתיחת העסק': 'businessDate'
+    }
+  };
+
+  // fieldMapping = {
+  //   'שם פרטי': 'fName',
+  //   'שם משפחה': 'lName',
+  //   'ת.ז': 'id',
+  //   'תאריך לידה': 'dateOfBirth',
+  //   'שם העסק': 'businessName',
+  //   'סוג העסק': 'businessType',
+  //   'מספר עוסק': 'businessId',
+  //   'תאריך פתיחת העסק': 'businessDate',
+  //   // Add more mappings as needed
+  // };
   
 
   onTabChange(newTabValue: string) {
@@ -109,7 +140,9 @@ export class MyStatusPage {
       }
     ];
 
+
    
+
 
     // this.userData = [
     //   {
@@ -161,16 +194,61 @@ export class MyStatusPage {
   }
 
 
-  // Define the user update function
-  updateUser(data: any) {
-    console.log("updateUser data is ", data);
-    
+  updateUser = (data: any) => {
+    //const flattenedData = this.flattenFormData(data, this.userData, this.fieldMapping);
+    console.log('My-status page updateUser data is ', data);
+
     this.authService.updateUser(data).subscribe({
       next: (response) => console.log('User updated successfully:', response),
       error: (error) => console.error('Error updating user:', error),
-      complete: () => console.log('Update process completed.')
     });
   }
+
+  // updateUser(data: any) {
+  //   const flattenedData = this.flattenFormData(data, this.userData, this.fieldMapping);
+  //   console.log('Flattened Data:', flattenedData);
+
+  //   this.authService.updateUser(flattenedData).subscribe({
+  //     next: (response) => console.log('User updated successfully:', response),
+  //     error: (error) => console.error('Error updating user:', error),
+  //   });
+  // }
+
+
+  // updateUser = (data: any) => {  
+  //   this.authService.updateUser(data).subscribe({
+  //     next: (response) => console.log('User updated successfully:', response),
+  //     error: (error) => {
+  //       console.error('Error updating user:', error);
+  //       if (error.status === 404) {
+  //         console.error('Endpoint not found (404). Check your URL.');
+  //       } else if (error.status === 500) {
+  //         console.error('Server error (500).');
+  //       } else {
+  //         console.error('Unknown error:', error.message);
+  //       }
+  //     },
+  //     complete: () => console.log('Update process completed.')
+  //   });
+  // }
+
+
+  // flattenFormData(formData: any, blocksData: any[], fieldMapping: any): any {
+  //   const flattenedData = {};
+
+  //   formData.blocks.forEach((block, blockIndex) => {
+  //     block.fields.forEach((field, fieldIndex) => {
+  //       // Use the field's name from blocksData to create the flattened structure
+  //       const fieldName = blocksData[blockIndex]?.fields[fieldIndex]?.name;
+  //       if (fieldName && fieldMapping[fieldName]) {
+  //         // Map form field to database field and add to flattenedData
+  //         flattenedData[fieldMapping[fieldName]] = field.value;
+  //       }
+  //     });
+  //   });
+
+  //   return flattenedData;
+  // }
 
 
 }

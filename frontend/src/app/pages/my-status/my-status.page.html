@@ -8,10 +8,11 @@
   <app-update-data 
     *ngIf="selectedTab === 'update-details'" 
     [blocksData]="userData" 
-    [updateFunction]="updateUser">
+    [updateFunction]="updateUser"
+    [fieldMapping]="fieldMapping">
   </app-update-data>
 
   <!-- <app-manage-categories *ngIf="selectedTab === 'manage-categories'"></app-manage-categories> -->
   <!-- <app-track-expenses *ngIf="selectedTab === 'track-expenses'"></app-track-expenses> -->
-   
+
 </ion-content>

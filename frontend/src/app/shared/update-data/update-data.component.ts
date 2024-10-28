@@ -11,6 +11,7 @@ export class UpdateDataComponent implements OnInit, OnChanges {
 
   @Input() blocksData: any[] = [];
   @Input() updateFunction: (data: any) => void;  // Accept a generic update function
+  @Input() fieldMapping: { [key: string]: any };  // Field mapping input
 
   updateForm: FormGroup;
   formTypes: any;
@@ -29,6 +30,9 @@ export class UpdateDataComponent implements OnInit, OnChanges {
       console.log("Debug block data is ", this.blocksData);
       // Dynamically create form controls when blocksData changes
       this.initializeBlocks(this.blocksData);
+    }
+    if (changes.updateFunction) {
+      console.log('updateFunction passed to update-data component:', this.updateFunction);  // Logs current value
     }
   }
   
@@ -67,8 +71,6 @@ export class UpdateDataComponent implements OnInit, OnChanges {
   // saveChanges() {
   //   if (this.updateFunction) {
   //     const updatedData = this.updateForm.value;
-  //     console.log("saveChanges - updateData is ", updatedData);
-      
   //     this.updateFunction(updatedData);  // Call the function passed by the parent
   //   } else {
   //     console.error('No update function provided.');
@@ -76,33 +78,87 @@ export class UpdateDataComponent implements OnInit, OnChanges {
   // }
 
 
+  // Called when the user clicks the save button
   saveChanges() {
     if (this.updateFunction) {
       const updatedData = this.flattenFormData(this.updateForm.value, this.blocksData);
-      console.log("saveChanges - dynamically flattened data is ", updatedData);
-      this.updateFunction(updatedData);  // Call the function passed by the parent
+      this.updateFunction(updatedData);  // Pass the transformed data to the parent for server update
     } else {
       console.error('No update function provided.');
     }
   }
 
+  // saveChanges() {
+  //   if (this.updateFunction) {
+  //     const updatedData = this.flattenFormData(this.updateForm.value, this.blocksData);
+  //     this.updateFunction(updatedData);  // Call the function passed by the parent
+  //   } else {
+  //     console.error('No update function provided.');
+  //   }
+  // }
+
+
+  // flattenFormData(formData: any, blocksData: any[]): any {
+  //   const flattenedData = {};
+  
+  //   formData.blocks.forEach((block, blockIndex) => {
+  //     block.fields.forEach((field, fieldIndex) => {
+  //       // Use the field's name from blocksData to create the flattened structure
+  //       const fieldName = blocksData[blockIndex]?.fields[fieldIndex]?.name;
+  //       if (fieldName) {
+  //         // Assign the field value to the corresponding field name in flattenedData
+  //         flattenedData[fieldName] = field.value;
+  //       }
+  //     });
+  //   });
+  
+  //   return flattenedData;
+  // }
+
 
   flattenFormData(formData: any, blocksData: any[]): any {
     const flattenedData = {};
-  
+
     formData.blocks.forEach((block, blockIndex) => {
       block.fields.forEach((field, fieldIndex) => {
-        // Use the field's name from blocksData to create the flattened structure
+        // Get the field name from the UI
         const fieldName = blocksData[blockIndex]?.fields[fieldIndex]?.name;
-        if (fieldName) {
-          // Assign the field value to the corresponding field name in flattenedData
-          flattenedData[fieldName] = field.value;
+
+        // Map the field name using the fieldMapping
+        if (fieldName && this.fieldMapping) {
+          const mappedField = this.getMappedField(blockIndex, fieldName);
+          if (mappedField) {
+            flattenedData[mappedField] = field.value;
+          }
         }
       });
     });
-  
+
     return flattenedData;
   }
+
+
+
+  getMappedField(blockIndex: number, fieldName: string): string | null {
+    const blockTitle = this.blocksData[blockIndex]?.title;
+    const blockMapping = this.fieldMapping[blockTitle];  // Get the mapping for the block (if it exists)
+  
+    if (blockMapping) {
+      return blockMapping[fieldName] || null;  // Return the mapped field name if it exists in this block
+    } else {
+      return null;  // Return null if no mapping is found
+    }
+  }
+
+  // getMappedField(blockIndex: number, fieldName: string): string | null {
+  //   const blockMapping = this.fieldMapping[this.blocksData[blockIndex]?.title];
+  
+  //   if (blockMapping) {
+  //     return blockMapping[fieldName] || null;  // Return mapped field name if it exists
+  //   } else {
+  //     return this.fieldMapping[fieldName] || null;  // Fallback to top-level mapping or return null
+  //   }
+  // }
 
 
 }

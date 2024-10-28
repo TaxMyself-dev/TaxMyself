@@ -45,7 +45,7 @@ export class UsersController {
 
     @Patch('update-user')
     async updateUser(@Headers('token') token: string, @Body() body: any) {  
-        console.log("update-user - data is ", body);
+        //console.log("update-user - data is ", body);
         const userId = await this.userService.getFirbsaeIdByToken(token)
         return this.userService.updateUser (userId, body);
     }

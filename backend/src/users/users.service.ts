@@ -74,12 +74,59 @@ export class UsersService {
 
 
     async updateUser(userId: string, updateUserDto: UpdateUserDto): Promise<User> {
+
         const user = await this.user_repo.findOneBy({ firebaseId: userId });
         if (!user) {
           throw new Error('User not found');
         }
-        Object.assign(user, updateUserDto);
+
+        // Field mapping between incoming fields and User entity fields
+        // const fieldMapping = {
+        //     'שם פרטי': 'fName',
+        //     'שם משפחה': 'lName',
+        //     'ת.ז': 'id',
+        //     'תאריך לידה': 'dateOfBirth',
+        //     'שם העסק': 'businessName',
+        //     'סוג העסק': 'businessType',
+        //     'מספר עוסק': 'businessId',
+        //     'תאריך פתיחת העסק': 'businessDate'
+        // };
+
+        // Loop through the updateUserDto fields and map them to the correct fields
+        // for (const key in updateUserDto) {
+        //     if (updateUserDto.hasOwnProperty(key) && fieldMapping[key]) {
+        //         user[fieldMapping[key]] = updateUserDto[key];
+        //     }
+        // }
+
+        console.log("Before processing:", updateUserDto);
+
+        // Convert date fields to timestamps
+        const processedUserData = this.processDateFields(updateUserDto);
+    
+        // Assign updated fields to the user entity
+        Object.assign(user, processedUserData);
+        console.log("user is ", user);
+        
         return this.user_repo.save(user);
+    }
+
+
+    private processDateFields(updateUserDto: any): any {
+
+        const dateFields = ['dateOfBirth', 'businessDate'];  // List of fields expected to be dates
+        const processedData = { ...updateUserDto };
+    
+        for (const key in processedData) {
+          if (processedData.hasOwnProperty(key) && dateFields.includes(key)) {
+            console.log("convert to date: ", key );
+            processedData[key] = this.sharedService.convertDateStrToTimestamp(processedData[key]);
+            console.log("after convert: ", processedData[key]);
+            
+          }
+        }
+    
+        return processedData;
     }
 
 
