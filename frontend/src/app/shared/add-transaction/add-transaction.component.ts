@@ -218,6 +218,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   addClasssificationExistCategory(): void {
+    this.expenseDataServise.getLoader().subscribe();
     let formData: IClassifyTrans;
     formData = this.existCategoryEquipmentForm.value;
     formData.id = this.data.id;
@@ -241,12 +242,14 @@ export class AddTransactionComponent implements OnInit {
       )
       .subscribe((res) => {
         this.modalController.dismiss(null, 'send');
+        this.expenseDataServise.dismissLoader()
         this.isOpenToast = true;
         console.log(res);
       })
   }
 
   addClasssificationNewCategory(): void {
+    this.expenseDataServise.getLoader().subscribe()
     let formData: IClassifyTrans;
     if (this.isRecognize) {
       formData = this.newCategoryIsRecognizeForm.value;
@@ -258,6 +261,7 @@ export class AddTransactionComponent implements OnInit {
     }
     else {
       formData = this.newCategoryNotRecognizedForm.value;
+      formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false; 
       formData.vatPercent = 0;
       formData.taxPercent = 0;
       formData.reductionPercent = 0;
@@ -278,7 +282,8 @@ export class AddTransactionComponent implements OnInit {
         })
       )
       .subscribe((res) => {
-        this.modalController.dismiss(null, 'cancel');
+        this.expenseDataServise.dismissLoader()
+        this.modalController.dismiss(null, 'send');
         this.isOpenToast = true;
         console.log(res);
       })

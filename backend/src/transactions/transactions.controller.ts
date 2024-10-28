@@ -132,15 +132,12 @@ export class TransactionsController {
 
   @Post('classify-trans')
   async classifyTransaction(
-    //@Body() classifyDto: ClassifyTransactionDto,
-    @Body() classifyDto: any,
+    @Body() classifyDto: ClassifyTransactionDto,
     @Headers('token') token: string,
     @Query('year') year: string,
     @Query('month') month: string,
     @Query('isSingleMonth') isSingleMonth: boolean
   ): Promise<void> {
-    console.log("in classify trans");
-    console.log("classifyDto: ", classifyDto);
     
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);

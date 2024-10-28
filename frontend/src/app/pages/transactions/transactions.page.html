@@ -1,56 +1,59 @@
 <app-custom-toolbar></app-custom-toolbar>
 <ion-content>
+  <div class="transaction-screen">
   <div class="header-transaction">
 
-    <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent" [isDisabled]="transactionsForm.invalid"
-    (onSearchClick)="getTransactions()"></app-search-bar>
+    <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
+      [isDisabled]="transactionsForm.invalid" (onSearchClick)="getTransactions()"></app-search-bar>
 
     <div class="wrap-upload">
       <label class="label-file-transaction">
         <ion-icon name="attach-outline"></ion-icon>
         <div class="string-label">בחר קובץ</div>
         <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".pdf, .xlsx">
-      </ion-input>
-    </label>
-      <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'" (onButtonClicked)="onUpload()"></app-button>
+        </ion-input>
+      </label>
+      <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL"
+        [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'"
+        (onButtonClicked)="onUpload()"></app-button>
     </div>
-    <!-- <app-search-bar class="generic-searchbar-wrapper" [iconName]="'x'" (onSearchClick)="onUpload()" [customTemplate]="searchBarFile"></app-search-bar> -->
-    
-    <!-- <button (click)="openAddTransaction($event)">open</button> -->
-    <!-- <button (click)="getExpenseTransactionsData($event)">open</button> -->
-    
-
   </div>
   <div class="content-wrapper">
-    <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse" (handleOpen)="onOpenClicked($event)"
-      [title]="'הכנסות'"></app-collapse>
+    <p *ngIf="!(incomesData.length > 0)">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</p>
+    <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse"
+      (handleOpen)="onOpenClicked($event)" [title]="'הכנסות'"></app-collapse>
     <ng-container *ngIf="isOpen">
     </ng-container>
-    <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse" (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
-  
+    <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse"
+      (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
+
 
     <ng-template #expensesCollapse>
-      <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar" [isDisabled]="expensesForm.invalid"
-        (onSearchClick)="filterExpenses()"></app-search-bar>
-      <app-table iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'" [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData" [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES" [actions]="tableActions"
-        [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+      <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar"
+        [isDisabled]="expensesForm.invalid" (onSearchClick)="filterExpenses()"></app-search-bar>
+      <app-table iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'"
+        [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)"
+        [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData"
+        [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"
+        [actions]="tableActions" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
     </ng-template>
-  
+
     <ng-template #incomeCollapse>
-      <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar" [isDisabled]="incomeForm.invalid"
-        (onSearchClick)="filterIncomes()"></app-search-bar>
-      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering" [actions]="tableActions"  *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
-        [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"></app-table>
+      <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
+        [isDisabled]="incomeForm.invalid" (onSearchClick)="filterIncomes()"></app-search-bar>
+      <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering"
+        [actions]="tableActions" *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome"
+        [rows]="incomesData" [columnsOrderByFunc]="columnsOrderByFunc"
+        [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"></app-table>
     </ng-template>
 
     <ng-container *ngIf="addPayment">
-      <app-add-bill [paymentMethod]="this.selectBill" ></app-add-bill>
+      <app-add-bill [paymentMethod]="this.selectBill"></app-add-bill>
     </ng-container>
 
   </div>
-
- <app-button [buttonText]="'הפקת דוח'" (onButtonClicked)="openFlowReport()"></app-button>
-
+  <app-button *ngIf="(incomesData.length > 0)" [buttonText]="'הפקת דוח'" (onButtonClicked)="openFlowReport()"></app-button>
+</div>
 </ion-content>
 
 <ng-template #searchBarContent>
@@ -67,7 +70,8 @@
   <form class="generic-search-bar-content" [formGroup]="incomeForm">
     <app-generic-select [parentForm]="incomeForm" [controlName]="'incomeType'" [items]="typeIncomeList"
       [title]="'סוג ההכנסה'"></app-generic-select>
-    <app-generic-select [parentForm]="incomeForm" [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'"></app-generic-select>
+    <app-generic-select [parentForm]="incomeForm" [controlName]="'category'" [items]="listFilterCategory"
+      [title]="'קטגוריה'"></app-generic-select>
   </form>
 </ng-template>
 
@@ -78,9 +82,10 @@
   <form class="generic-search-bar-content" [formGroup]="expensesForm">
     <app-generic-select [parentForm]="expensesForm" [controlName]="'expensesType'" [items]="typeIncomeList"
       [title]="'סוג ההוצאה'"></app-generic-select>
-    <app-generic-select [parentForm]="expensesForm" [controlName]="'category'" [items]="listFilterCategory" [title]="'קטגוריה'"></app-generic-select>
+    <app-generic-select [parentForm]="expensesForm" [controlName]="'category'" [items]="listFilterCategory"
+      [title]="'קטגוריה'"></app-generic-select>
   </form>
-</ng-template >
+</ng-template>
 
 <!-- <ng-template #searchBarFile> -->
 
