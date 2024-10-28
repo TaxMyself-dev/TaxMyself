@@ -57,16 +57,16 @@
           <!-------id number------->
           <app-generic-input inputLabel="תעודת זהות" [controlName]="registerFormControls.ID" [parentForm]="personalForm"></app-generic-input>
           <!-----email ---->
-          <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="כתובת מייל" [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm"></app-generic-input>
+          <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="כתובת מייל" [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm" className="wide"></app-generic-input>
           <!----phone ----->
           <app-generic-input [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון" [controlName]="registerFormControls.PHONE" [parentForm]="personalForm"></app-generic-input>
           <!-----date of birth----->
           <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
           <!---------city ----->
           <ion-item class="generic-ionic-selectable-wrapper">
-            <ion-label>עיר</ion-label>
+            <ion-label *ngIf="!(personalForm.get('city').value)">עיר</ion-label>
             <ionic-selectable
-              class="generic-ionic-selectable-content"
+              class="generic-ionic-selectable-content" 
               formControlName="city"
               [shouldFocusSearchbar]="true"
               [searchDebounce]="1"

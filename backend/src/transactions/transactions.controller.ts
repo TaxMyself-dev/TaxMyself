@@ -190,7 +190,7 @@ export class TransactionsController {
 
   @Post('save-trans-to-expenses')
   async saveTransToExpenses(
-  @Body() transactionData: any,
+  @Body() transactionData: {id: number, file: string | null}[],
   @Headers('token') token: string,
 ): Promise<{ message: string }> {
 

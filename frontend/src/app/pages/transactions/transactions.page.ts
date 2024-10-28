@@ -104,7 +104,7 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
-  constructor(private sanitizer: DomSanitizer, private router: Router, private transactionsService: TransactionsService, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
+  constructor(private sanitizer: DomSanitizer, private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
 
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
@@ -163,8 +163,8 @@ export class TransactionsPage implements OnInit {
       'myIcon': "https://www.svgrepo.com/show/42233/pencil-edit-button.svg",
     });
     this.setTableActions();
-    this.transactionsService.getAllBills();
-    this.transactionsService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
+    this.transactionService.getAllBills();
+    this.transactionService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
       (accountsList) => {
         this.accountsList = accountsList;
       }
@@ -204,9 +204,9 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.year = formData.year;
     // console.log("dateForUpdate ", this.dateForUpdate);
 
-    const incomeData$ = this.transactionsService.getIncomeTransactionsData(formData);
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(formData);
 
-    const expensesData$ = this.transactionsService.getExpenseTransactionsData(formData);
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(formData);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -234,7 +234,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
-    this.transactionsService.getExpenseTransactionsData(formData).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData(formData).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }
@@ -326,7 +326,7 @@ export class TransactionsPage implements OnInit {
     const formData = this.incomeForm.value;
     console.log(formData);
     console.log(formData.incomeType);
-    const categoryName = this.listCategory.find((category) => category.value === formData.category);
+    const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
     if (!categoryName && !formData.incomeType) {
       this.incomesData$.next(this.incomesData);
@@ -358,7 +358,7 @@ export class TransactionsPage implements OnInit {
     const formData = this.expensesForm.value;
     console.log(formData);
     console.log(formData.expensesType);
-    const categoryName = this.listCategory.find((category) => category.value === formData.category);
+    const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
     if (!categoryName && !formData.expensesType) {
       this.expensesData$.next(this.expensesData);
@@ -520,7 +520,7 @@ export class TransactionsPage implements OnInit {
         const arrayBuffer = reader.result;
         console.log("array buffer: ", arrayBuffer);
 
-        this.transactionsService.uploadFile(arrayBuffer as ArrayBuffer)
+        this.transactionService.uploadFile(arrayBuffer as ArrayBuffer)
           .pipe(takeUntil(this.destroy$))
           .subscribe(
             (response) => {

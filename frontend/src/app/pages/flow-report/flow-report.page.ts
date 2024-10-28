@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, forkJoin, map, of, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -91,8 +91,9 @@ export class FlowReportPage implements OnInit {
           console.log(data);
 
           data.forEach((row) => {
-            row.billDate = +row.billDate;
-            row.payDate = +row.payDate;
+            //row.billDate = +row.billDate;
+            //row.payDate = +row.payDate;
+            row.sum = Math.abs(row.sum)
           })
           return data;
         }),
@@ -200,18 +201,24 @@ export class FlowReportPage implements OnInit {
 
     // If no transactions have files, skip file uploads and proceed directly
     if (transactionsWithFiles === 0) {
-      this.expenseDataService.getLoader().subscribe();
+      this.expenseDataService.getLoader().subscribe()
       console.log("No transactions with files, skipping file upload...");
       this.expenseDataService.updateLoaderMessage('Uploading transactions without files...');
 
       // Directly call addTransToExpense since there are no files to upload
       this.flowReportService.addTransToExpense(this.chosenTrans)
         .pipe(
+          finalize(() => {
+            this.expenseDataService.dismissLoader();
+          }),
           catchError((err) => {
             console.log("Error in addTransToExpense: ", err);
             this.expenseDataService.dismissLoader();
+
+            this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+            this.isToastOpen = true;
             return EMPTY;
-          })
+          }),
         )
         .subscribe((res) => {
           console.log("Response from addTransToExpense:", res);
@@ -228,7 +235,7 @@ export class FlowReportPage implements OnInit {
           // })
 
         });
-      return; // Exit the function since file uploads are skipped
+        return; // Exit the function since file uploads are skipped
     }
 
     // Update loader for transactions with files
@@ -239,18 +246,24 @@ export class FlowReportPage implements OnInit {
     const fileUploadObservables = this.chosenTrans.map((tran) => {
       if (tran.file) {
         return this.fileService.uploadFileViaFront(tran.file as File).pipe(
+          finalize(() => {
+            this.expenseDataService.dismissLoader();
+          }),
           catchError((error) => {
             console.log("Error in uploading file: ", error);
+            //this.expenseDataService.dismissLoader();
             alert("Error uploading file");
             return EMPTY;
           }),
           tap((res) => {
-            tran.file = res.metadata.fullPath;  // Update the file path after upload
-            console.log("Uploaded file path: ", tran.file);
-            filesUploaded++;
-            const progress = Math.round((filesUploaded / transactionsWithFiles) * 100);
-            this.expenseDataService.updateLoaderMessage(`Uploading files... ${progress}%`);
-          })
+              tran.file = res.metadata.fullPath;  // Update the file path after upload
+              console.log("Uploaded file path: ", tran.file);
+              filesUploaded++;
+              const progress = Math.round((filesUploaded / transactionsWithFiles) * 100);
+              this.expenseDataService.updateLoaderMessage(`Uploading files... ${progress}%`);
+              this.expenseDataService.dismissLoader();
+            }
+          )
         );
       } else {
         return of(null);  // Return an observable that emits null for transactions without files
@@ -261,9 +274,23 @@ export class FlowReportPage implements OnInit {
     forkJoin(fileUploadObservables)
       .pipe(
         catchError((err) => {
-          console.log("Error in addTransToExpense: ", err);
+          console.log("Error in forkJoin: ", err);
           this.expenseDataService.dismissLoader();
           return EMPTY;
+        }),
+        switchMap(() => this.flowReportService.addTransToExpense(this.chosenTrans)),
+        catchError((err) => {
+          console.log("err in send transaction to server: ", err);
+          this.chosenTrans.forEach((tran) => {
+            if (tran.file) {
+              this.fileService.deleteFile(tran.file as string);
+              console.log("file: ", tran.file, "is delete");
+            }
+          })
+          this.expenseDataService.dismissLoader();
+          this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+          this.isToastOpen = true;
+          return EMPTY
         }),
         tap(() => {
           console.log("All file uploads complete.");
@@ -277,7 +304,10 @@ export class FlowReportPage implements OnInit {
           //     messageToast:  `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
           //   }
           // })
-        })
+        }),
+        finalize(() => {
+          this.expenseDataService.dismissLoader();
+        }),
       )
       .subscribe();
   }

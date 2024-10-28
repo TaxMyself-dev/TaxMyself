@@ -2,11 +2,12 @@ import { Injectable, NgZone } from '@angular/core';
 import { AngularFirestore, AngularFirestoreDocument } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject } from 'rxjs';
+import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject, finalize } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { UserCredential } from '@firebase/auth-types';
 import { sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
+import { ExpenseDataService } from './expense-data.service';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +19,7 @@ export class AuthService {
   userDetails: any;
 
   constructor(
+    private expenseDataService: ExpenseDataService,
     public afs: AngularFirestore, // Inject Firestore service
     public afAuth: AngularFireAuth, // Inject Firebase auth service
     public router: Router,
@@ -127,10 +129,12 @@ export class AuthService {
     }
   }
 
-  SignUp(formData: any): void {
+  SignUp(formData: any): Observable<any> {
     let uid: string = "";
-    from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.validation.password))
+    this.expenseDataService.getLoader().subscribe();
+    return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.validation.password))
       .pipe(
+        finalize(() => this.expenseDataService.dismissLoader()),
         catchError((err) => {
           console.log("err in create user: ", err);
           this.handleErrorSignup(err.code);
@@ -162,10 +166,10 @@ export class AuthService {
           return EMPTY;
         })
       )
-      .subscribe((res) => {
-        console.log("res in sub signup", res);
-        //this.router.navigate(['login']);
-      })
+      // .subscribe((res) => {
+      //   console.log("res in sub signup", res);
+      //   //this.router.navigate(['login']);
+      // })
   }
 
   SendVerificationMail(): Observable<any> {

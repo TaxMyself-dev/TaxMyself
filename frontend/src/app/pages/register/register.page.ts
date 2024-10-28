@@ -11,6 +11,7 @@ import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FamilyStatusLabels, FormTypes } from 'src/app/shared/enums';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 
 @Component({
   selector: 'app-register',
@@ -43,7 +44,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   //familyStatusOptionsList = [{value: FamilyStatus.SINGLE, name: FamilyStatusLabels[FamilyStatus.SINGLE]}, {value: 1, name: "נשוי"}, {value: 2, name: "גרוש"}]
   familyStatusOptionsList = familyStatusOptionsList;
-  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
+  constructor(private expensesDataService: ExpenseDataService, private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
 
     // const personalForm = this.formBuilder.group({
@@ -99,7 +100,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         false, Validators.required,
       ),
       [RegisterFormControls.CITY]: new FormControl(
-        'אשדוד', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.FAMILYSTATUS]: new FormControl(
         'רווק', Validators.required,
@@ -309,11 +310,14 @@ ngOnDestroy(): void {
   }
 
   handleFormRegister() {
+    //this.expensesDataService.getLoader().subscribe();
     const formData = cloneDeep(this.myForm.value);
     formData.validation = {password: formData?.validation?.password};
     formData.personal.city = formData?.personal?.city?.name;
     const data = { fromReg: false, email: formData.email };
-    this.authService.SignUp(formData);
+    this.authService.SignUp(formData).subscribe(() => {
+      this.router.navigate(['login'])
+    })
   }
 
   onBackBtnClicked(): void {

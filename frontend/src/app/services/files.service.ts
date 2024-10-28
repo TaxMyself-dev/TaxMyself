@@ -89,7 +89,7 @@ export class FilesService {
     return this.convertFileToBase64(file).pipe(
       catchError((err) => {
         console.log("error in convert file to base 64: ", err);
-        return EMPTY;
+        throw err ;
       }),
       switchMap((base64: string) => {
         //console.log('Base64 result:', base64);
@@ -97,7 +97,7 @@ export class FilesService {
       }),
       catchError((error) => {
         console.error('Error during file upload:', error);
-        return EMPTY;  // Handle the error and rethrow
+        throw error;  // Handle the error and rethrow
       })
     );
   }

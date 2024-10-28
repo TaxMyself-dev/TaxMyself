@@ -32,11 +32,11 @@ export class UsersService {
 
         console.log("signup in service");
 
-        personal.dateOfBirth = this.sharedService.convertDateStrToTimestamp(personal.dateOfBirth);
+       // personal.dateOfBirth = this.sharedService.convertDateStrToTimestamp(personal.dateOfBirth);
         console.log("personal.dateOfBirth is ", personal.dateOfBirth);
-        spouse.spouseDateOfBirth = this.sharedService.convertDateStrToTimestamp(spouse.spouseDateOfBirth);
+        //spouse.spouseDateOfBirth = this.sharedService.convertDateStrToTimestamp(spouse.spouseDateOfBirth);
         console.log("spouse.spouseDateOfBirth is ", spouse.spouseDateOfBirth);
-        business.businessDate = this.sharedService.convertDateStrToTimestamp(business.businessDate);
+        //business.businessDate = this.sharedService.convertDateStrToTimestamp(business.businessDate);
         console.log("business.businessDate is ", business.businessDate);
 
 
