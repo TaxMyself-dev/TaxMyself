@@ -33,10 +33,14 @@ export class VatReportPage implements OnInit {
   readonly ButtonSize = ButtonSize;
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-    [ExpenseFormColumns.CATEGORY, 2],
-    [ExpenseFormColumns.SUB_CATEGORY, 2],
-    [ExpenseFormColumns.SUPPLIER, 2],
-    [ExpenseFormColumns.DATE, 1.5]
+
+    [ExpenseFormColumns.CATEGORY, 1.3],
+    [ExpenseFormColumns.SUB_CATEGORY, 1.5],
+    [ExpenseFormColumns.DATE, 1.1 ],
+    [ExpenseFormColumns.TAX_PERCENT, 1.5],
+    [ExpenseFormColumns.VAT_PERCENT, 1.5],
+    [ExpenseFormColumns.TOTAL_TAX, 1.5],
+    [ExpenseFormColumns.TOTAL_VAT, 1.6],
   ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);

@@ -24,6 +24,7 @@ export class VatReportService {
 
   //getVatReportData(startDate: Date, endDate: Date, vatableTurnover: number, nonVatableTurnover: number, token: string): Observable<any> {
   getVatReportData(formData: any): Observable<any> {
+    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/vat-report`;
     const params = new HttpParams()
     .set('year', formData.year)
@@ -33,7 +34,7 @@ export class VatReportService {
     .set('nonVatableTurnover', formData.nonVatableTurnover.toString())
   
     const headers = {
-      'token': this.token
+      'token': token
     }
    
     return this.http.get<any>(url, { params: params, headers: headers})

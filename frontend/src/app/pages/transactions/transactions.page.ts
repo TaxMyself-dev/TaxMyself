@@ -76,6 +76,30 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
   ]);
 
+  readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
+    [TransactionsOutcomesColumns.NAME, 1.6],
+    [TransactionsOutcomesColumns.CATEGORY, 1.3],
+    [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
+    [TransactionsOutcomesColumns.PAY_DATE, 2 ],
+    [TransactionsOutcomesColumns.BILL_NUMBER, 1.6],
+    [TransactionsOutcomesColumns.BILL_NAME, 1.3],
+    [TransactionsOutcomesColumns.MONTH_REPORT, 1.6],
+    [TransactionsOutcomesColumns.SUM, 1.3],
+    [TransactionsOutcomesColumns.ACTIONS, 1.3],
+  ]);
+
+  readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
+    [TransactionsOutcomesColumns.NAME, 1],
+    [TransactionsOutcomesColumns.CATEGORY, 1],
+    [TransactionsOutcomesColumns.SUBCATEGORY, 1.4],
+    [TransactionsOutcomesColumns.PAY_DATE, 1.6],
+    [TransactionsOutcomesColumns.BILL_NUMBER, 1],
+    [TransactionsOutcomesColumns.BILL_NAME, 1],
+    [TransactionsOutcomesColumns.MONTH_REPORT, 1],
+    [TransactionsOutcomesColumns.SUM, 1],
+    [TransactionsOutcomesColumns.ACTIONS, 1],
+  ]);
+
   readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
@@ -248,8 +272,8 @@ export class TransactionsPage implements OnInit {
       'category',
       'subCategory',
       'sum',
-      'payDate',
       'billDate',
+      'payDate',
       'isRecognized',
       'monthReport'
     ];

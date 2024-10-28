@@ -35,16 +35,16 @@
           [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)"
           [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData"
           [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"
-          [actions]="tableActions" [columnsOrderByFunc]="columnsOrderByFunc"></app-table>
+          [actions]="tableActions" [columnsOrderByFunc]="columnsOrderByFunc" [columnsWidth]="COLUMNS_WIDTH_EXPENSES"></app-table>
       </ng-template>
 
       <ng-template #incomeCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
           [isDisabled]="incomeForm.invalid" (onSearchClick)="filterIncomes()"></app-search-bar>
         <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering"
-          [actions]="tableActions" *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome"
+         *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome"
           [rows]="incomesData" [columnsOrderByFunc]="columnsOrderByFunc"
-          [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"></app-table>
+          [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES" [columnsWidth]="COLUMNS_WIDTH_INCOME"></app-table>
       </ng-template>
 
       <ng-container *ngIf="addPayment">

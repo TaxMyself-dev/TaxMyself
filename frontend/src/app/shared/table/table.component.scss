@@ -107,16 +107,22 @@ ion-col {
 }
 
 .grid{
-  // width: 1300px;
+  min-width: 654px;
   border: 2px solid rgb(79, 171, 79);
   border-radius: 15px;
   margin: 10px;
   padding: 10px;
 }
 
-.row-header{
+// .row-headers{
+//   background-color: red;
+//   //display: contents;
+// }
+
+.col-header{
   background-color:rgba(0, 15, 0, 0.33); 
   text-align: center;
+  font-size: small;
   // &.date{
   //   //border: solid blue;
   // }

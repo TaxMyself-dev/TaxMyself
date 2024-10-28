@@ -19,19 +19,19 @@
 
 <div class="grid-container">
   <ion-grid class="grid">
-    <ion-row>
-      <ion-col *ngIf="displayCheckbox" size="1" class="row-header action">
+    <ion-row class="row-headers">
+      <ion-col *ngIf="displayCheckbox" size="1" class="col-header action">
       סמן הכל
       </ion-col>
       <ion-col
         *ngFor="let col of fieldsNames"
         [size]="columnsWidth?.get(col.name) ?? baseSize"
-        class="row-header {{col.name}}">
+        class="col-header {{col.name}}">
         {{col.value}}
       </ion-col>
       <!-- <ion-button *ngIf="!disableCheckbox" (click)="selectAll(rows)" class="checkbox-header">{{checkboxData.columnName}}</ion-button> -->
       <!-- <ion-button class="checkbox-header"><ion-col *ngIf="!disableCheckbox" size="0.5" class="checkbox-header" >{{checkboxData.columnName}}</ion-col></ion-button> -->
-      <ion-col *ngIf="actions?.length" size="2" class="row-header action">
+      <ion-col *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2" class="col-header action">
         פעולות
       </ion-col>
     </ion-row>
@@ -131,7 +131,7 @@
       </div> -->
         </ng-container>
 
-      <ion-col *ngIf="actions?.length" size="2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
+      <ion-col *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
         <ng-container *ngFor="let action of actions" >
           <ion-icon *ngIf="action.name !== 'upload'"  class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
           <label *ngIf="action.name === 'upload'" class="label-file-table">

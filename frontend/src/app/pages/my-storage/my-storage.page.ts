@@ -26,7 +26,7 @@ export class MyStoragePage implements OnInit {
     [ExpenseFormColumns.SUPPLIER, 1.2],
     [ExpenseFormColumns.DATE, 1.5]
   ]);
-  readonly COLUMNS_TO_IGNORE = ['id', 'file'];
+  readonly COLUMNS_TO_IGNORE = ['id', 'file', 'isReported', 'vatReportingDate', 'transId'];
   readonly ButtonSize = ButtonSize;
 
   // columns: IColumnDataTable = {};//Titles of table
@@ -120,7 +120,6 @@ export class MyStoragePage implements OnInit {
           const rows = [];
           data.forEach(row => {
             const { id, reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
-            tableData.dateTimestamp = this.timestampToDateStr(tableData.dateTimestamp as number);
             rows.push(tableData);
           })
           this.rows = rows;
@@ -294,7 +293,7 @@ export class MyStoragePage implements OnInit {
   columnsOrderByFunc(a, b): number {
     const columnsAddExpenseOrder = [
       'supplier',
-      'dateTimestamp',
+      'date',
       'sum',
       'category',
       'subCategory',
