@@ -394,8 +394,8 @@ export class TransactionsPage implements OnInit {
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
         // console.log("payment", data.paymentIdentifier);
-        data.billDate = +data.billDate;
-        data.payDate = +data.payDate;
+        //data.billDate = +data.billDate;
+        //data.payDate = +data.payDate;
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";

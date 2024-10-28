@@ -56,42 +56,78 @@ export class SharedService {
     }
 
 
+    // getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
+    //     // console.log("yearStr: ", yearStr, "monthStr: ", monthStr);
+
+    //     if (yearStr === undefined || monthStr === undefined) {
+    //         return {startDate: null, endDate: null};
+    //     }
+    //     else {
+    //         //console.log("isSingleMonth = ", isSingleMonth);
+
+    //         // Ensure `isSingleMonth` is a boolean
+    //         isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
+    //         //console.log("isSingleMonth = ", isSingleMonth, " (type:", typeof isSingleMonth, ")");
+
+    //         const year = parseInt(yearStr, 10);
+    //         const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
+
+    //         // Start date is always the first day of the specified month in UTC
+    //         let startDate = new Date(Date.UTC(year, month, 1));
+    //         // Calculate the end date in UTC
+    //         let endDate: Date;
+    //         if (isSingleMonth) {
+    //             // Last day of the specified month
+    //             // console.log("single true");
+
+    //             endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+    //         } else {
+    //             // Last day of the next month
+    //             // console.log("single false");
+    //             endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
+    //         }
+    //         //console.log("getStartAndEndDate - debug:\n startDate is ", startDate, "\nendDate is ", endDate);
+
+    //         return { startDate, endDate };
+    //     }
+
+    // }
+
+
+
     getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
-        // console.log("yearStr: ", yearStr, "monthStr: ", monthStr);
-
         if (yearStr === undefined || monthStr === undefined) {
-            return {startDate: null, endDate: null};
+            return { startDate: null, endDate: null };
         }
-        else {
-            //console.log("isSingleMonth = ", isSingleMonth);
-
-            // Ensure `isSingleMonth` is a boolean
-            isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
-            //console.log("isSingleMonth = ", isSingleMonth, " (type:", typeof isSingleMonth, ")");
-
-            const year = parseInt(yearStr, 10);
-            const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
-
-            // Start date is always the first day of the specified month in UTC
-            let startDate = new Date(Date.UTC(year, month, 1));
-            // Calculate the end date in UTC
-            let endDate: Date;
-            if (isSingleMonth) {
-                // Last day of the specified month
-                // console.log("single true");
-
-                endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
-            } else {
-                // Last day of the next month
-                // console.log("single false");
-                endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
-            }
-            //console.log("getStartAndEndDate - debug:\n startDate is ", startDate, "\nendDate is ", endDate);
-
-            return { startDate, endDate };
-        }
-
+    
+        console.log("yearStr is ", yearStr);
+        console.log("monthStr is ", monthStr);
+        console.log("isSingleMonth is ", isSingleMonth);
+    
+        isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
+    
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10) - 1;
+    
+        // Start date: first day of the specified month at 00:00:00 UTC
+        const startDate = new Date(Date.UTC(year, month, 1));
+    
+        // End date: last day of the month or the following month at 23:59:59 UTC
+        const endDate = isSingleMonth
+            ? new Date(Date.UTC(year, month + 1, 0, 23, 59, 59)) // Last day of the specified month
+            : new Date(Date.UTC(year, month + 2, 0, 23, 59, 59)); // Last day of the next month
+    
+        // console.log("startDate is ", startDate);
+        // console.log("type of startDate is ", typeof startDate);
+        // console.log("endDate is ", endDate);
+        // console.log("type of endDate is ", typeof endDate);
+    
+        return { startDate, endDate };
     }
+    
+    
+    
+    
 
 
     getDayOfYearFromDate(date: Date): number {
@@ -236,14 +272,14 @@ export class SharedService {
     }
 
 
-    getVATReportingDate(timestamp: number, vatReportingType: VATReportingType): SingleMonthReport | DualMonthReport {
+    getVATReportingDate(date: Date, vatReportingType: VATReportingType): SingleMonthReport | DualMonthReport {
 
-    const date = new Date(timestamp * 1000);
+    //const date = new Date(timestamp * 1000);
     const month = date.getUTCMonth() + 1; // getUTCMonth is zero-based, so we add 1
     const year = date.getUTCFullYear();
 
     console.log("getVATReportingDate - start");
-    console.log("timestamp is ", timestamp);
+    //console.log("timestamp is ", timestamp);
     console.log("vatReportingType is ", vatReportingType);
     console.log("date is ", date);
     console.log("month is ", month);
@@ -282,5 +318,56 @@ export class SharedService {
     return result;
   
   }
+
+
+// parseDateString(dateString: string): Date {
+//     const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'dd.MM.yyyy'];
+    
+//     for (const format of formats) {
+//       try {
+//         const parsedDate = parse(dateString, format, new Date());
+//         if (!isNaN(parsedDate.getTime())) { // Check if parsedDate is a valid date
+//           return parsedDate;
+//         }
+//       } catch (error) {
+//         // Continue to next format if parsing fails
+//       }
+//     }
+  
+//     throw new Error(`Invalid date format: ${dateString}`);
+//   }
+
+
+  //import { parse } from 'date-fns';
+
+// Enhanced date parsing function that adjusts two-digit years
+parseDateString(dateString: string): Date {
+  // First, check if the date has a two-digit year (e.g., "dd/MM/yy")
+  const twoDigitYearRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
+
+  if (twoDigitYearRegex.test(dateString)) {
+    // If a two-digit year is detected, prepend "20" to convert it to a four-digit year
+    dateString = dateString.replace(twoDigitYearRegex, (match, day, month, year) => `${day}/${month}/20${year}`);
+  }
+
+  const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'dd.MM.yyyy'];
+  
+  for (const format of formats) {
+    try {
+      const parsedDate = parse(dateString, format, new Date());
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    } catch (error) {
+      // Continue to the next format if parsing fails
+    }
+  }
+
+  throw new Error(`Invalid date format: ${dateString}`);
+}
+
+
+
+  
 
 }

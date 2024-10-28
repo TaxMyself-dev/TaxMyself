@@ -104,13 +104,23 @@
           </ion-col>
         </ng-template>
 
-        <ng-template #dateRenderCell>
+        <!-- <ng-template #dateRenderCell>
           <ion-col
           class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{+field.value*1000 | date:'dd/MM/yyyy'}}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
                 [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{+field.value*1000 | date:'dd/MM/yyyy'}}
+          </ion-col>
+        </ng-template> -->
+
+        <ng-template #dateRenderCell>
+          <ion-col
+          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{field.value}"
+                *ngIf="!columnsToIgnore.includes(field.key)"
+                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
+                [size]="columnsWidth?.get(field.key) ?? baseSize">
+                {{field.value}}
           </ion-col>
         </ng-template>
 

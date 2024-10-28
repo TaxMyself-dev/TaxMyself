@@ -44,9 +44,11 @@ export class ExpensesService {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
-        newExpense.dateTimestamp = this.sharedService.convertDateStrToTimestamp(expense.date);
+        //newExpense.dateTimestamp = this.sharedService.convertDateStrToTimestamp(expense.date);
+        newExpense.date = expense.date;
         const currentDate = (new Date()).toISOString();
-        newExpense.loadingDate = this.sharedService.convertDateStrToTimestamp(currentDate);
+        //newExpense.loadingDate = this.sharedService.convertDateStrToTimestamp(currentDate);
+        newExpense.loadingDate = new Date();
         newExpense.reductionDone = false;
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0){

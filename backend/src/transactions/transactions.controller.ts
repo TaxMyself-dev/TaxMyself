@@ -117,13 +117,18 @@ export class TransactionsController {
   ): Promise<Transactions[]> {
     query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
-    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    // console.log("controller");
+    // console.log("startDate is ", startDate);
+    // console.log("type of startDate is ", typeof(startDate));
+    // console.log("endDate is ", endDate);
+    // console.log("type of endDate is ", typeof(endDate));
+    //const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    //const endDateT = this.sharedService.convertDateToTimestamp(endDate);
     // Construct a new query object with the additional fields
     const modifiedQuery = {
       ...query,
-      startDate: startDateT,
-      endDate: endDateT,
+      startDate: startDate,
+      endDate: endDate,
       userId: await this.usersService.getFirbsaeIdByToken(token)
     };
     return this.transactionsService.getExpensesTransactions(modifiedQuery);
@@ -141,9 +146,9 @@ export class TransactionsController {
     
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
-    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
-    return this.transactionsService.classifyTransaction(classifyDto, userId, startDateT, endDateT);
+    //const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    //const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    return this.transactionsService.classifyTransaction(classifyDto, userId, startDate, endDate);
   }
 
 
@@ -159,9 +164,9 @@ export class TransactionsController {
     
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
-    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
-    await this.transactionsService.updateTransaction(updateDto, userId, startDateT, endDateT);
+    //const startDateT = this.sharedService.convertDateToTimestamp(startDate);
+    //const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    await this.transactionsService.updateTransaction(updateDto, userId, startDate, endDate);
     return { message: 'Transactions updated successfully' };
   }
 

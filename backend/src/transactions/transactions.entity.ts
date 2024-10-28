@@ -24,11 +24,17 @@ export class Transactions {
   @Column()
   name: string;
 
-  @Column('bigint')
-  billDate: number;
+  // @Column('bigint')
+  // billDate: number;
 
-  @Column('bigint')
-  payDate: number;
+  // @Column('bigint')
+  // payDate: number;
+
+  @Column('date')
+  billDate: Date;
+
+  @Column('date')
+  payDate: Date;
 
   @Column('decimal', { precision: 10, scale: 2 })
   sum: number;

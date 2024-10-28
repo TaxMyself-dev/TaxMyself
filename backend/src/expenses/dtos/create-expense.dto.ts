@@ -41,7 +41,7 @@ export class CreateExpenseDto {
     vatPercent: number;
 
     @IsDateString()
-    date: string;
+    date: Date;
     
     @IsOptional()
     @IsString()

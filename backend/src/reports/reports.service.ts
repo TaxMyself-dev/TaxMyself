@@ -83,8 +83,8 @@ export class ReportsService {
             const calculatedValue = expense.sum * (expense.reductionPercent / 100);
             return {
                 category: expense.category,
-                billDate: expense.dateTimestamp,
-                activeDate: expense.dateTimestamp,
+                billDate: expense.date,
+                activeDate: expense.date,
                 redunctionPercnet: expense.reductionPercent,
                 redunctionForPeriod: calculatedValue
             } as unknown as ReductionReportDto;
