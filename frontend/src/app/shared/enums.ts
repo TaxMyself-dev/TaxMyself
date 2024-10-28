@@ -159,9 +159,9 @@ export enum TransactionsOutcomesHebrewColumns {
   ];
 
   export enum BusinessType {
-    EXEMPT = 'exempt',
-    LICENSED = 'licensed',
-    COMPANY = 'company'
+    EXEMPT = 'EXEMPT',
+    LICENSED = 'LICENSED',
+    COMPANY = 'COMPANY'
   }
   
   export const BusinessTypeLabels = {

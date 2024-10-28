@@ -5,9 +5,9 @@ export enum UserRole {
 }
 
 export enum BusinessType {
-  EXEMPT_DEALER,
-  AUTHORIZED_DEALER,
-  LIMITED_COMPANY,
+  EXEMPT = 'EXEMPT',
+  LICENSED = 'LICENSED',
+  COMPANY = 'COMPANY',
 }
 
 export enum VATReportingType {

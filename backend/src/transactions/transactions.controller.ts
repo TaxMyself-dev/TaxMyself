@@ -6,10 +6,10 @@ import { Transactions } from './transactions.entity';
 import { UsersService } from '../users/users.service';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import { Source } from './source.entity';
-import { CreateSourceDto } from './dtos/create-source.dto';
-import { query } from 'express';
+//import { CreateSourceDto } from './dtos/create-source.dto';
+//import { query } from 'express';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
-import { log } from 'console';
+//import { log } from 'console';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
@@ -95,16 +95,14 @@ export class TransactionsController {
   ): Promise<Transactions[]> {
     
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
-    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+    
     // Construct a new query object with the additional fields
     const modifiedQuery = {
       ...query,
-      startDate: startDateT,
-      endDate: endDateT,
+      startDate: startDate,
+      endDate: endDate,
       userId: await this.usersService.getFirbsaeIdByToken(token)
     };
-    // console.log('Modified query:', modifiedQuery);
     return this.transactionsService.getIncomesTransactions(modifiedQuery);
   }
 
@@ -115,15 +113,10 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
+
     query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
-    // console.log("controller");
-    // console.log("startDate is ", startDate);
-    // console.log("type of startDate is ", typeof(startDate));
-    // console.log("endDate is ", endDate);
-    // console.log("type of endDate is ", typeof(endDate));
-    //const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    //const endDateT = this.sharedService.convertDateToTimestamp(endDate);
+  
     // Construct a new query object with the additional fields
     const modifiedQuery = {
       ...query,

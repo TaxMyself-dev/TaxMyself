@@ -7,7 +7,7 @@ import {
 import { Bill } from '../transactions/bill.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UserYearlyData } from './user-yearly-data.entity';
-import { UserRole, TaxReportingType, VATReportingType } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType } from '../enum';
 
 
 @Entity()
@@ -60,8 +60,16 @@ export class User {
     @Column()
     businessField: string;
 
-    @Column()
-    businessType: string;
+    // @Column()
+    // businessType: string;
+
+    @Column({
+      type: 'enum',
+      enum: BusinessType,
+      enumName: 'BusinessType', // Optional: allows TypeORM to name the enum type
+      default: BusinessType.EXEMPT
+    })
+    businessType: BusinessType;
 
     @Column()
     businessId: string;

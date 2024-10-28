@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
 import { CreateUserDto, createChildDto } from './dtos/create-user.dto';
-import { UserRole } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -52,6 +52,7 @@ export class UsersService {
         // }
 
         let newUser = {...personal, ...spouse, ...business};
+
         if (newChildren.length > 0) {
             for (let i = 0; i < newChildren.length; i++){
                 const child: Child = newChildren[i];
@@ -60,6 +61,27 @@ export class UsersService {
                 const addChild = await this.child_repo.save(newChild);
             }
         }
+
+        if (newUser.businessType == BusinessType.EXEMPT) {
+            console.log("newUser.businessType is EXEMPT"); 
+            newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
+            newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+        }
+        else if (newUser.businessType == BusinessType.LICENSED) {
+            console.log("newUser.businessType is LICENSED");
+            newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+            newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+        }
+        else if (newUser.businessType == BusinessType.COMPANY) {
+            console.log("newUser.businessType is COMPANY");
+            newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+            newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+        }
+        else {
+            console.log("newUser.businessType is none of the option, is ", newUser.businessType);
+            //throw new Error('User business type is not valid');
+        }
+
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
     }
