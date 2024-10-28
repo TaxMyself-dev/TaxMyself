@@ -207,8 +207,6 @@ export class SharedService {
 
     convertDateStrToTimestampOld(dateStr: string): number {
 
-        // console.log("Original dateStr is ", dateStr);
-
         // Split the date string into day, month, and year
         let dateParts = dateStr.split('/');
         if (dateParts.length !== 3) {
@@ -228,8 +226,6 @@ export class SharedService {
         // Reconstruct the date string with normalized values
         dateStr = `${day}/${month}/${year}`;
 
-        // console.log("Normalized dateStr is ", dateStr);
-
         // Regex to check if the fixed date format is dd/MM/yyyy
         const dateFormatPattern = /^\d{2}\/\d{2}\/\d{4}$/;
 
@@ -241,14 +237,11 @@ export class SharedService {
         // Use Date.UTC() to ensure the date is created in UTC
         const date = new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10)));
 
-        // console.log("Parsed date is ", date);
-
         if (isNaN(date.getTime())) {
             throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
         }
 
         const timeStampDate = Math.floor(date.getTime() / 1000);
-        // console.log("timeStampDate is ", timeStampDate);
 
         return timeStampDate;
 
@@ -274,97 +267,69 @@ export class SharedService {
 
     getVATReportingDate(date: Date, vatReportingType: VATReportingType): SingleMonthReport | DualMonthReport {
 
-    //const date = new Date(timestamp * 1000);
-    const month = date.getUTCMonth() + 1; // getUTCMonth is zero-based, so we add 1
-    const year = date.getUTCFullYear();
+        const monthIndex = date.getMonth(); // Returns 0-based month index (e.g., 0 for January)
+        const month = monthIndex + 1; // Adjust to 1-based month (e.g., 1 for January)
+        const year = date.getFullYear();
 
-    console.log("getVATReportingDate - start");
-    //console.log("timestamp is ", timestamp);
-    console.log("vatReportingType is ", vatReportingType);
-    console.log("date is ", date);
-    console.log("month is ", month);
-    console.log("year is ", year);
-
-    let result: SingleMonthReport | DualMonthReport | null = null;
-  
-    if (vatReportingType === VATReportingType.SINGLE_MONTHLY) {
-      result = `${month}/${year}` as SingleMonthReport;
-      console.log("SingleMonthReport - result is ", result);
-      
-    }
-    else if (vatReportingType === VATReportingType.DUAL_MONTHLY) {
-        const dualMonthPairs = {
-            1: `1-2/${year}`,
-            2: `1-2/${year}`,
-            3: `3-4/${year}`,
-            4: `3-4/${year}`,
-            5: `5-6/${year}`,
-            6: `5-6/${year}`,
-            7: `7-8/${year}`,
-            8: `7-8/${year}`,
-            9: `9-10/${year}`,
-            10: `9-10/${year}`,
-            11: `11-12/${year}`,
-            12: `11-12/${year}`,
-        };  
-        result = dualMonthPairs[month] as DualMonthReport;
-        console.log("DualMonthReport - result is ", result);
-    }
-    else {
-        result = null;
-        console.log("null - result is ", result);
-    }
-
-    return result;
-  
-  }
-
-
-// parseDateString(dateString: string): Date {
-//     const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'dd.MM.yyyy'];
+        let result: SingleMonthReport | DualMonthReport | null = null;
     
-//     for (const format of formats) {
-//       try {
-//         const parsedDate = parse(dateString, format, new Date());
-//         if (!isNaN(parsedDate.getTime())) { // Check if parsedDate is a valid date
-//           return parsedDate;
-//         }
-//       } catch (error) {
-//         // Continue to next format if parsing fails
-//       }
-//     }
-  
-//     throw new Error(`Invalid date format: ${dateString}`);
-//   }
+        if (vatReportingType === VATReportingType.SINGLE_MONTH_REPORT) {
+        result = `${month}/${year}` as SingleMonthReport;
+        console.log("SingleMonthReport - result is ", result);
+        
+        }
+        else if (vatReportingType === VATReportingType.DUAL_MONTH_REPORT) {
+            const dualMonthPairs = {
+                1: `1-2/${year}`,
+                2: `1-2/${year}`,
+                3: `3-4/${year}`,
+                4: `3-4/${year}`,
+                5: `5-6/${year}`,
+                6: `5-6/${year}`,
+                7: `7-8/${year}`,
+                8: `7-8/${year}`,
+                9: `9-10/${year}`,
+                10: `9-10/${year}`,
+                11: `11-12/${year}`,
+                12: `11-12/${year}`,
+            };  
+            result = dualMonthPairs[month] as DualMonthReport;
+            console.log("DualMonthReport - result is ", result);
+        }
+        else {
+            result = null;
+            console.log("null - result is ", result);
+        }        
 
-
-  //import { parse } from 'date-fns';
-
-// Enhanced date parsing function that adjusts two-digit years
-parseDateString(dateString: string): Date {
-  // First, check if the date has a two-digit year (e.g., "dd/MM/yy")
-  const twoDigitYearRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
-
-  if (twoDigitYearRegex.test(dateString)) {
-    // If a two-digit year is detected, prepend "20" to convert it to a four-digit year
-    dateString = dateString.replace(twoDigitYearRegex, (match, day, month, year) => `${day}/${month}/20${year}`);
+        return result;
+    
   }
 
-  const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'dd.MM.yyyy'];
-  
-  for (const format of formats) {
-    try {
-      const parsedDate = parse(dateString, format, new Date());
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate;
-      }
-    } catch (error) {
-      // Continue to the next format if parsing fails
+
+    parseDateString(dateString: string): Date {
+        // First, check if the date has a two-digit year (e.g., "dd/MM/yy")
+        const twoDigitYearRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
+
+        if (twoDigitYearRegex.test(dateString)) {
+            // If a two-digit year is detected, prepend "20" to convert it to a four-digit year
+            dateString = dateString.replace(twoDigitYearRegex, (match, day, month, year) => `${day}/${month}/20${year}`);
+        }
+
+        const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'dd.MM.yyyy'];
+        
+        for (const format of formats) {
+            try {
+            const parsedDate = parse(dateString, format, new Date());
+            if (!isNaN(parsedDate.getTime())) {
+                return parsedDate;
+            }
+            } catch (error) {
+            // Continue to the next format if parsing fails
+            }
+        }
+
+        throw new Error(`Invalid date format: ${dateString}`);
     }
-  }
-
-  throw new Error(`Invalid date format: ${dateString}`);
-}
 
 
 

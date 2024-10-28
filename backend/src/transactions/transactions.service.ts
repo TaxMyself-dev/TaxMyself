@@ -649,7 +649,7 @@ export class TransactionsService {
         // console.log(`Transaction with ID ${transaction.id} already exists as an expense.`);
         skippedTransactions++;
         continue;
-      }
+      }      
       
       const expense = new Expense();
       expense.supplier = transaction.name;
@@ -660,7 +660,7 @@ export class TransactionsService {
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
       expense.date = transaction.payDate;
-      expense.vatReportingDate = this.sharedService.getVATReportingDate(expense.date, user.vatReportingType);
+      expense.vatReportingDate = this.sharedService.getVATReportingDate(new Date(expense.date), user.vatReportingType);
       expense.note = '';
       expense.file = transactionFile;
       expense.isEquipment = transaction.isEquipment;
@@ -673,7 +673,7 @@ export class TransactionsService {
 
       // Save the updated transaction
       transaction.vatReportingDate = expense.vatReportingDate;
-      await this.transactionsRepo.save(transaction);
+      await this.transactionsRepo.save(transaction);      
       
       expenses.push(expense);
     }

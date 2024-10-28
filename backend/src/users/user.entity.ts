@@ -94,6 +94,7 @@ export class User {
     @Column({
       type: 'enum',
       enum: VATReportingType,
+      enumName: 'VATReportingType', // Optional: allows TypeORM to name the enum type
       default: VATReportingType.NOT_REQUIRED
     })
     vatReportingType: VATReportingType;
@@ -101,6 +102,7 @@ export class User {
     @Column({
       type: 'enum',
       enum: TaxReportingType,
+      enumName: 'TaxReportingType', // Optional: allows TypeORM to name the enum type
       default: TaxReportingType.NOT_REQUIRED
     })
     taxReportingType: TaxReportingType;
