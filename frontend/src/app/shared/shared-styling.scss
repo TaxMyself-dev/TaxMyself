@@ -25,6 +25,17 @@
     &.wide {
         width: 250px;
     }
+
+    &.narrow {
+        width: 140px;
+    }
+
+    &.note {
+        width: 100%;
+        --border-style: none;
+        border-bottom: 1px solid gray;
+        border-radius: 0px;
+    }
 }
 
 .generic-ionic-selectable-content  {

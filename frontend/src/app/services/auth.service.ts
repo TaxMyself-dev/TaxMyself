@@ -8,6 +8,8 @@ import { UserCredential } from '@firebase/auth-types';
 import { sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
+import {jwtDecode} from 'jwt-decode';
+import { getAuth } from "firebase/auth";
 
 @Injectable({
   providedIn: 'root'
@@ -25,7 +27,9 @@ export class AuthService {
     public router: Router,
     private http: HttpClient,
     public ngZone: NgZone, // NgZone service to remove outside scope warning
-  ) { }
+  ) { 
+    this.refreshTokenIfNeeded();
+  }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   public error$ = new BehaviorSubject<string>("");
@@ -45,6 +49,31 @@ export class AuthService {
   //     )
   // }
 
+  async refreshTokenIfNeeded() {
+    const auth = getAuth();
+    const user = auth.currentUser;
+  
+    if (!user) {
+      console.log("User is not logged in.");
+      return;
+    }
+  console.log("user in refresh: ", user);
+  
+    const token = await user.getIdToken();
+    const decodedToken = jwtDecode(token);
+  
+    // Check if the token will expire in the next 5 minutes (300 seconds)
+    const currentTime = Math.floor(Date.now() / 1000);  // Convert to seconds
+    if (decodedToken.exp - currentTime < 300) {
+      // Token expires within 5 minutes, force refresh
+      const newToken = await user.getIdToken(true);
+      localStorage.setItem('token', newToken);
+      console.log("Token refreshed:", newToken);
+    } else {
+      console.log("Token is still valid, no need to refresh.");
+    }
+  }
+
   userVerify(email: string, password: string): Observable<UserCredential> {
     // Set token persistence to 'local' (persist the session across browser reloads and sessions)
     return from(this.afAuth.setPersistence('local').then(() => {
@@ -63,7 +92,7 @@ export class AuthService {
           // Listen for automatic token changes and refresh using onIdTokenChanged
           this.afAuth.onIdTokenChanged((currentUser) => {
             if (currentUser) {
-              currentUser.getIdToken().then((token) => {
+              currentUser.getIdToken(true).then((token) => {
                 console.log('Token refreshed:', token);
                 // Optionally store the refreshed token
                 localStorage.setItem('token', token);

@@ -17,8 +17,10 @@
       <div class="wrap-supplier-list">
         <div class="wrap-select-supplier">
           <div class="supplier-text">לרשימת הספקים</div>
-          <app-button (onButtonClicked)="openSelectSupplier()" [buttonSize]="ButtonSize.X_SMALL" [iconName]="'arrow-forward-outline'"
+          <div class="select-supplier-button">
+            <app-button (onButtonClicked)="openSelectSupplier()" [buttonSize]="ButtonSize.X_SMALL" [iconName]="'arrow-forward-outline'"
             [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+          </div>
         </div>
         <ion-list class="list-expense">
           <ng-container *ngFor="let col of columns">
@@ -31,7 +33,7 @@
                 [class.supplierID]="col.name === 'supplierID'" class="input-expense text" label-placement="floating"
                 [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input> -->
                 <!-- <div *ngIf="col.name === 'supplier'"  class="wrap-add-expense-supplier"> -->
-                <app-generic-input class="inputs-wrapper"  [inputLabel]="col.value" [className]="col.name"
+                <app-generic-input [class]="col.name !== 'note' ? 'modal-input-text' : 'modal-input-note' " [className]="col.name === 'note' ? 'note' : 'narrow'"  [inputLabel]="col.value" 
                   [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
                 <!-- <span  class="supplier-span" (click)="openSelectSupplier($event)"
                 *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span> -->
@@ -39,7 +41,7 @@
                 <!-- </div> -->
               </ng-container>
               <ng-container *ngSwitchCase="formTypes.DATE">
-                <app-generic-input class="inputs-wrapper" [inputType]="formTypes.DATE" [inputLabel]="col.value"
+                <app-generic-input class="modal-input-date" className="narrow" [inputType]="formTypes.DATE" [inputLabel]="col.value"
                   [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
               </ng-container>
               <ng-container *ngSwitchCase="formTypes.DDL">

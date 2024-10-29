@@ -42,6 +42,7 @@
     "ionic-select-searchable": "^2.10.0",
     "ionic-selectable": "^5.0.0",
     "ionicons": "^7.0.0",
+    "jwt-decode": "^4.0.0",
     "nanoid": "^5.0.4",
     "ngx-image-compress": "^15.1.6",
     "ngx-pipes": "^3.2.2",

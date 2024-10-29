@@ -14,19 +14,27 @@
 .wrap-supplier-list {
     display: flex;
     flex-direction: column;
-    width: 40%;
+    width: 50%;
 }
 
 .wrap-select-supplier {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 200px;
-    //margin-right: 2px;
+    width: 116px;
+    height: 22px;
     border: 1px solid;
     border-radius: 35px;
 }
 
+.supplier-text {
+    font-size: 11px
+}
+
+.select-supplier-button {
+    height: 40px;
+    width: 24px;
+}
 // .wrap-select-supplier:hover {
 //     cursor: pointer;
 // }
@@ -59,23 +67,18 @@
 .modal-content {
     display: flex;
     flex-direction: row;
+    width: 99%;
 }
 
-.list-expense {
-    display: flex;
-    flex: 1.5;
-    flex-wrap: wrap;
-    justify-content: center;
-    height: 100%;
-}
+
 
 .input-expense {
     --border-radius: 15px;
     margin: 5px 5px 20px 5px;
 
-    &.text {
-        width: 100%;
-    }
+    // &.text {
+    //     width: 100%;
+    // }
 
     &.date {
         width: 30%;
@@ -110,13 +113,13 @@
     }
 
     &.category {
-        // width: 47%;
-        flex-basis: calc(50% - 10px);
+         width: 47%;
+        //flex-basis: calc(50% - 10px);
     }
 
     &.subCategory {
-        flex-basis: calc(50% - 10px);
-        // width: 47%;
+        //flex-basis: calc(50% - 10px);
+         width: 47%;
     }
 
     &.taxPercent {
@@ -199,7 +202,7 @@
 }
 
 .image-file {
-    display: block;
+    //display: block;
     max-width: 100%;
     max-height: auto;
     object-fit: contain;
@@ -238,8 +241,17 @@
 }
 
 
+.list-expense {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    overflow-y: auto;
+}
 
-@media only screen and (max-width:1120px) {
+
+
+// @media only screen and (max-width:1120px) {
+    @media only screen and (max-width:600px) {
     .modal-content {
         display: flex;
         flex-direction: column-reverse;
@@ -255,13 +267,9 @@
 
     .list-expense {
         display: flex;
-        // flex: 1.5;
         flex-wrap: wrap;
         justify-content: space-between;
-        // height: 40vh;
-        // margin-top: 100vh;
         overflow-y: auto;
-        // background-color: #ffffff;
     }
 
     .label-file-add-expense {
@@ -286,6 +294,14 @@
     }
 }
 
-// .inputs-wrapper {
-//     margin-right: 8px;
-// }
+.modal-input-date{
+    width: 30%;
+}
+
+.modal-input-text {
+    width: 30%;
+}
+
+.modal-input-note {
+    width: 100%;
+}
