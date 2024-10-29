@@ -32,6 +32,8 @@ export class VatReportPage implements OnInit {
 
   readonly ButtonSize = ButtonSize;
 
+  readonly COLUMNS_TO_IGNORE = ['id', 'transId', 'vatReportingDate'];
+
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
 
     [ExpenseFormColumns.CATEGORY, 1.3],
@@ -171,7 +173,7 @@ export class VatReportPage implements OnInit {
   columnsOrderByFunc(a, b): number {
     const columnsAddExpenseOrder = [
       'supplier',
-      'dateTimestamp',
+      'date',
       'sum',
       'category',
       'subCategory',

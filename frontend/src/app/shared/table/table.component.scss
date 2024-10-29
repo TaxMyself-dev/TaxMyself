@@ -262,8 +262,6 @@ ion-col {
 }
 
 .text-cell {
-  //display: flex;
-  //align-items: center;
   white-space: nowrap;          /* Prevent text wrapping */
   overflow: hidden;             /* Hide overflowing text */
   text-overflow: ellipsis;      /* Show ellipsis for overflow */
@@ -275,7 +273,9 @@ ion-col {
 .text-cell.expanded {
   white-space: normal;          /* Allow text to wrap */
   overflow: visible;            /* Show all text */
-  height: auto;                 /* Expand to fit content */
+  height: auto; 
+  //max-width: 100px;
+  //width: auto;                /* Expand to fit content */
 }
 
 

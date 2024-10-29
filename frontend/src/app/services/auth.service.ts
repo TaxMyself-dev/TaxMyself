@@ -89,7 +89,7 @@ export class AuthService {
     //console.log("url is ",url);
     //console.log("firebase is ",environment.firebase);
     
-    return from(user.user.getIdToken())
+    return from(user.user.getIdToken(true))
       .pipe(
         catchError((err) => {
           console.log("err in get id token: ", err);

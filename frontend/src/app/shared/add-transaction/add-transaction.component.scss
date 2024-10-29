@@ -59,13 +59,14 @@ ion-segment-button.md {
 
 .content-card {
     display: flex;
-    flex-direction: column;
+    justify-content: start;
     flex-wrap: wrap;
     height: 50%;
 }
 
 .data-card {
     display: flex;
+    margin-left: 12px;
 }
 
 .headers-table {
