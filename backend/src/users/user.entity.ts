@@ -8,6 +8,7 @@ import { Bill } from '../transactions/bill.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UserYearlyData } from './user-yearly-data.entity';
 import { UserRole, TaxReportingType, VATReportingType, BusinessType } from '../enum';
+import { UserCategory } from 'src/expenses/user-categories.entity';
 
 
 @Entity()
@@ -60,9 +61,6 @@ export class User {
     @Column()
     businessField: string;
 
-    // @Column()
-    // businessType: string;
-
     @Column({
       type: 'enum',
       enum: BusinessType,
@@ -95,6 +93,9 @@ export class User {
 
     @OneToMany(() => Bill, (bill) => bill.user)
     bills: Bill[];
+
+    // @OneToMany(() => UserCategory, userCategory => userCategory.user)
+    // userCategories: UserCategory[];
 
     @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.user)
     userSubCategories: UserSubCategory[];

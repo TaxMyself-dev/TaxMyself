@@ -8,19 +8,22 @@ export class DefaultCategory {
   @PrimaryGeneratedColumn()
   id: number;
 
+  // @Column()
+  // category: string;
+
   @Column()
-  category: string;
+  name: string;
 
-  @Column({ default: false })
-  isDefault: boolean;
+  // @Column({ default: false })
+  // isDefault: boolean;
 
-  @Column({ nullable: true })
-  firebaseId: string;
+  // @Column({ nullable: true })
+  // firebaseId: string;
 
   @OneToMany(() => DefaultSubCategory, defaultSubCategory => defaultSubCategory.category)
   defaultSubCategories: DefaultSubCategory[];
 
-  @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.category)
-  userSubCategories: UserSubCategory[];
+  // @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.category)
+  // userSubCategories: UserSubCategory[];
   
 }

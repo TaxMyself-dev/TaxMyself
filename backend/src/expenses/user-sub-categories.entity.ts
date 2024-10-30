@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne} from 'typeorm';
 import { DefaultCategory } from './default-categories.entity';
 import { User } from '../users/user.entity';
+import { UserCategory } from './user-categories.entity';
 
 @Entity()
 export class UserSubCategory {
@@ -9,7 +10,7 @@ export class UserSubCategory {
   id: number;
 
   @Column()
-  subCategory: string;
+  name: string;
 
   @Column('decimal')
   taxPercent: number;
@@ -26,8 +27,8 @@ export class UserSubCategory {
   @Column('boolean')
   isRecognized: boolean;
 
-  @ManyToOne(() => DefaultCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
-  category: DefaultCategory;
+  @ManyToOne(() => UserCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
+  category: UserCategory;
 
   @ManyToOne(() => User, user => user.userSubCategories, { onDelete: 'CASCADE' })
   user: User;

@@ -24,12 +24,6 @@ export class Transactions {
   @Column()
   name: string;
 
-  // @Column('bigint')
-  // billDate: number;
-
-  // @Column('bigint')
-  // payDate: number;
-
   @Column('date')
   billDate: Date;
 

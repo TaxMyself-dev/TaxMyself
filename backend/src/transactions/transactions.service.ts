@@ -24,6 +24,7 @@ import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
 import { log } from 'console';
 import { User } from 'src/users/user.entity';
+import { UserCategory } from 'src/expenses/user-categories.entity';
 
 
 @Injectable()
@@ -45,11 +46,13 @@ export class TransactionsService {
     private expenseRepo: Repository<Expense>,
     @InjectRepository(DefaultCategory)
     private categoryRepo: Repository<DefaultCategory>,
+    @InjectRepository(UserCategory)
+    private userCategoryRepo: Repository<UserCategory>,
     @InjectRepository(DefaultSubCategory)
     private defaultSubCategoryRepo: Repository<DefaultSubCategory>
   ) {}
 
-  async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> { // משתמש ב-Express.Multer.File
+  async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
 
     if (!file) {
       throw new BadRequestException('No file uploaded.');
@@ -58,8 +61,6 @@ export class TransactionsService {
     const workbook = XLSX.read(file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    //const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true }); // Use `raw: true` to keep all data as strings
-
     const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }); // Get rows as arrays of values, raw: false to get formatted strings
 
     // Assuming the first row contains headers
@@ -213,21 +214,21 @@ export class TransactionsService {
     const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
 
     // Check if the category already exists
-    let category = await this.categoryRepo.findOne({ where: { category: categoryName, id: categoryId } });
+    let category = await this.categoryRepo.findOne({ where: { name: categoryName, id: categoryId } });
     if (!category) {
       // Create a new category if it doesn't exist
       category = this.categoryRepo.create({
-        category: categoryName,
+        name: categoryName,
         id: categoryId,
-        isDefault: true,
-        firebaseId: null,
+        //isDefault: true,
+        //firebaseId: null,
       });
       await this.categoryRepo.save(category);
     }
 
     // Create the sub-category
     const subCategory = new DefaultSubCategory();
-    subCategory.subCategory = subCategoryName;
+    subCategory.name = subCategoryName;
     subCategory.taxPercent = taxPercent;
     subCategory.vatPercent = vatPercent;
     subCategory.reductionPercent = reductionPercent;

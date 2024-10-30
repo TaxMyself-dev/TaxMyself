@@ -1,6 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany} from 'typeorm';
-import { DefaultSubCategory } from './default-sub-categories.entity';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne} from 'typeorm';
 import { UserSubCategory } from './user-sub-categories.entity';
+import { User } from 'src/users/user.entity';
 
 @Entity()
 export class UserCategory {
@@ -9,18 +9,15 @@ export class UserCategory {
   id: number;
 
   @Column()
-  category: string;
+  name: string;
 
   // @Column({ default: false })
   // isDefault: boolean;
 
-  // @Column({ nullable: true })
-  // firebaseId: string;
+  @Column({ nullable: true })
+  firebaseId: string;
 
-  // @OneToMany(() => DefaultSubCategory, defaultSubCategory => defaultSubCategory.category)
-  // defaultSubCategories: DefaultSubCategory[];
-
-  // @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.category)
-  // userSubCategories: UserSubCategory[];
+  @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.category)
+  userSubCategories: UserSubCategory[];
   
 }

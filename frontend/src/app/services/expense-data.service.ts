@@ -122,6 +122,8 @@ export class ExpenseDataService {
   }
 
   getcategry(isDefault?: boolean): Observable<any[]> {
+    console.log("isDefault is ", isDefault);
+    
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-categories`;
     const headers = {

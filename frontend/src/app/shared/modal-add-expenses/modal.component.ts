@@ -399,6 +399,7 @@ export class ModalExpensesComponent {
   onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
     // console.log(event);
     console.log(colData);
+    console.log("event is ", event.detail);
     
     switch (colData.name) {
       case ExpenseFormColumns.IS_EQUIPMENT:
@@ -641,8 +642,8 @@ export class ModalExpensesComponent {
             console.log(res);
             
             return res.map((item) => ({
-              key: item.category,
-              value: item.id
+              key: item.name,
+              value: item.name
             })
             )
           }), tap((res) => {

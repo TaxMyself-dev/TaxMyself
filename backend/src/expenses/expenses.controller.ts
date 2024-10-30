@@ -103,6 +103,7 @@ export class ExpensesController {
     @Headers('token') token: string,
     @Query('isDefault') isDefault: string
   ): Promise<any[]> {
+    console.log("get-categories");
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
     const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
     return this.expensesService.getCategories(isDefaultValue, firebaseId);
@@ -113,7 +114,7 @@ export class ExpensesController {
   async getSubCategories(
     @Headers('token') token: string,
     @Query('isEquipment') isEquipment: string,  // Query parameter to filter by isEquipment
-    @Query('categoryId') categoryId: string     // Query parameter for the categoryId
+    @Query('categoryId') categoryName: string     // Query parameter for the categoryId
   ): Promise<any[]> {
 
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
@@ -121,13 +122,15 @@ export class ExpensesController {
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
 
-    const categoryIdValue = parseInt(categoryId, 10);
-    if (isNaN(categoryIdValue)) {
-      throw new BadRequestException('Invalid categoryId');
-    }
+    const isDefaultValue = null; //TODO: get the value from the query
+
+    // const categoryIdValue = parseInt(categoryId, 10);
+    // if (isNaN(categoryIdValue)) {
+    //   throw new BadRequestException('Invalid categoryId');
+    // }
 
     // Call the service method to get the sub-categories
-    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, categoryIdValue);
+    return this.expensesService.getSubCategories(isDefaultValue, firebaseId, isEquipmentValue, categoryName);
   }
 
 

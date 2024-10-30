@@ -8,9 +8,8 @@ import { Supplier } from './suppliers.entity';
 import { User } from '../users/user.entity';
 import { DefaultCategory } from './default-categories.entity';
 import { DefaultSubCategory } from './default-sub-categories.entity';
+import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
-//import { DefaultCategory } from './categories.entity';
-//import { UserCategory } from './user-sub-categories.entity';
 import { SharedService } from '../shared/shared.service';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
@@ -31,8 +30,9 @@ export class ExpensesService {
         private readonly sharedService: SharedService,
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
         @InjectRepository(User) private userRepo: Repository<User>,
-        @InjectRepository(DefaultCategory) private categoryRepo: Repository<DefaultCategory>,
+        @InjectRepository(DefaultCategory) private defaultCategoryRepo: Repository<DefaultCategory>,
         @InjectRepository(DefaultSubCategory) private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
+        @InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
         @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
@@ -124,19 +124,19 @@ export class ExpensesService {
         }
     
         // Step 2: Check if the category exists; if not, create it
-        let category = await this.categoryRepo.findOne({ where: { category: createUserCategoryDto.categoryName } });
+        let category = await this.userCategoryRepo.findOne({ where: { name: createUserCategoryDto.categoryName } });
         if (!category) {
-          category = new DefaultCategory();
-          category.category = createUserCategoryDto.categoryName;
-          category.isDefault = false; // Mark the category as user-defined
+          category = new UserCategory();
+          category.name = createUserCategoryDto.categoryName;
+          //category.isDefault = false; // Mark the category as user-defined
           category.firebaseId = firebaseId;
-          category = await this.categoryRepo.save(category);
+          category = await this.defaultCategoryRepo.save(category);
         }
 
         // Step 3: Check if the sub-category already exists for this user and category
         const existingSubCategory = await this.userSubCategoryRepo.findOne({
             where: {
-                subCategory: createUserCategoryDto.subCategoryName,
+                name: createUserCategoryDto.subCategoryName,
                 category: { id: category.id },   // Compare using the category ID
                 user: { index: user.index },     // Compare using the user ID (or index in your case)
             },
@@ -148,7 +148,7 @@ export class ExpensesService {
     
         // Step 4: Create and save the new user sub-category
         const userSubCategory = new UserSubCategory();
-        userSubCategory.subCategory = createUserCategoryDto.subCategoryName;
+        userSubCategory.name = createUserCategoryDto.subCategoryName;
         userSubCategory.taxPercent = createUserCategoryDto.taxPercent;
         userSubCategory.vatPercent = createUserCategoryDto.vatPercent;
         userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
@@ -161,42 +161,84 @@ export class ExpensesService {
       }
 
 
-      async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<DefaultCategory[]> {        
+    //   async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<DefaultCategory[]> {        
+
+    //     if (isDefault === null) {
+            
+    //         if (!firebaseId) {
+    //             throw new Error('firebaseId must be provided to fetch user-specific categories.');
+    //         }
+    //         const query = await this.defaultCategoryRepo.createQueryBuilder('category');
+    //         query.where('category.isDefault = :isDefault', { isDefault: true })
+    //              .orWhere('category.firebaseId = :firebaseId', { firebaseId });
+    //         return query.getMany();
+    //     }
+    
+    //     else if (isDefault === true) {
+    //         // Return only the default categories
+    //         return await this.defaultCategoryRepo.find({ where: { isDefault: true } });
+    //     }
+        
+    //     else if (isDefault === false) {
+    //         // Return only the user-specific categories for the given firebaseId
+    //         if (!firebaseId) {
+    //             throw new Error('firebaseId must be provided to fetch user-specific categories.');
+    //         }
+    //         return await this.defaultCategoryRepo.find({ where: { isDefault: false, firebaseId } });
+    //     }
+    // }
+
+
+    async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<(UserCategory | DefaultCategory)[]> {
 
         if (isDefault === null) {
-            
+
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user-specific categories.');
             }
-            const query = await this.categoryRepo.createQueryBuilder('category');
-            query.where('category.isDefault = :isDefault', { isDefault: true })
-                 .orWhere('category.firebaseId = :firebaseId', { firebaseId });
-            return query.getMany();
-        }
     
-        // Case 2: isDefault is true or false
+            const defaultCategories = await this.defaultCategoryRepo.find();
+            const userCategories = await this.userCategoryRepo.find({ where: { firebaseId } });
+    
+            const categoryMap = new Map<string, UserCategory | DefaultCategory>();
+    
+            // First, add all default categories
+            defaultCategories.forEach(category => {
+                categoryMap.set(category.name, category);
+            });
+    
+            // Then, add/override with user-specific categories (preference for user categories)
+            userCategories.forEach(category => {
+                categoryMap.set(category.name, category);
+            });
+    
+            // Convert the map back to an array
+            return Array.from(categoryMap.values());
+        } 
+        
         else if (isDefault === true) {
             // Return only the default categories
-            return await this.categoryRepo.find({ where: { isDefault: true } });
-        }
+            return await this.defaultCategoryRepo.find();
+        } 
         
         else if (isDefault === false) {
             // Return only the user-specific categories for the given firebaseId
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user-specific categories.');
             }
-            return await this.categoryRepo.find({ where: { isDefault: false, firebaseId } });
+            return await this.userCategoryRepo.find({ where: { firebaseId } });
         }
     }
+    
 
 
-      async getSubCategories(firebaseId: string, isEquipment: boolean | null, categoryId: number): Promise<UserSubCategory[]> {
+      async getSubCategories(isDefault: boolean | null, firebaseId: string | null, isEquipment: boolean | null, categoryName: string): Promise<UserSubCategory[]> {
       
         const userSubCategoryQuery = this.userSubCategoryRepo.createQueryBuilder('userSubCategory')
             .innerJoinAndSelect('userSubCategory.category', 'category')
             .innerJoin('userSubCategory.user', 'user') // Join the User entity
             .where('user.firebaseId = :firebaseId', { firebaseId })
-            .andWhere('userSubCategory.category.id = :categoryId', { categoryId });
+            .andWhere('userSubCategory.category.id = :categoryName', { categoryName });
       
         // Apply the isEquipment filter if provided
         if (isEquipment !== null) {
@@ -208,7 +250,7 @@ export class ExpensesService {
         // Step 3: Build the query for default sub-categories
         const defaultSubCategoryQuery = this.defaultSubCategoryRepo.createQueryBuilder('defaultSubCategory')
             .innerJoinAndSelect('defaultSubCategory.category', 'category')  // Eagerly load the category relation
-            .where('defaultSubCategory.category.id = :categoryId', { categoryId });
+            .where('defaultSubCategory.category.id = :categoryName', { categoryName });
       
         // Apply the isEquipment filter if provided
         if (isEquipment !== null) {
@@ -222,13 +264,13 @@ export class ExpensesService {
       
         // Add default sub-categories to the map
         defaultSubCategories.forEach(subCategory => {
-          const key = `${subCategory.category.category}-${subCategory.subCategory}`;
+          const key = `${subCategory.category.name}-${subCategory.name}`;
           combinedSubCategories.set(key, subCategory);
         });
       
         // Add user sub-categories to the map, overriding any default sub-categories
         userSubCategories.forEach(subCategory => {
-          const key = `${subCategory.category.category}-${subCategory.subCategory}`;
+          const key = `${subCategory.category.name}-${subCategory.name}`;
           combinedSubCategories.set(key, subCategory);
         });
       
