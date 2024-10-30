@@ -15,11 +15,12 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UsersService } from '../users/users.service';
-import { Category } from '../expenses/categories.entity';
+import { DefaultCategory } from '../expenses/default-categories.entity';
+import { UserCategory } from '../expenses/user-categories.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, Category, DefaultSubCategory, UserSubCategory, Supplier, User, Child]),
+  imports: [TypeOrmModule.forFeature([Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, User, Child]),
             SharedModule],
   controllers: [ReportsController],
   providers: [ReportsService, ExpensesService, UsersService]

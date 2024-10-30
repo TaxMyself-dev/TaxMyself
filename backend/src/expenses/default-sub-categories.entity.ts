@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne} from 'typeorm';
-import { Category } from './categories.entity';
+import { DefaultCategory } from './default-categories.entity';
 
 @Entity()
 export class DefaultSubCategory {
@@ -25,7 +25,7 @@ export class DefaultSubCategory {
   @Column('boolean')
   isRecognized: boolean;
 
-  @ManyToOne(() => Category, category => category.defaultSubCategories, { onDelete: 'CASCADE' })
-  category: Category;
+  @ManyToOne(() => DefaultCategory, category => category.defaultSubCategories, { onDelete: 'CASCADE' })
+  category: DefaultCategory;
 
 }

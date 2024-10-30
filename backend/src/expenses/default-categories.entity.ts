@@ -3,7 +3,7 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 
 @Entity()
-export class Category {
+export class DefaultCategory {
 
   @PrimaryGeneratedColumn()
   id: number;

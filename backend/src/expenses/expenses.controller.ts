@@ -23,7 +23,7 @@ import { AdminGuard } from '../guards/admin.guard';
 import { parse } from 'date-fns';
 import { getDayOfYear } from 'date-fns';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
-import { Category } from './categories.entity';
+import { DefaultCategory } from './default-categories.entity';
 
 
 @Controller('expenses')

@@ -19,7 +19,7 @@ import { SharedService } from '../shared/shared.service';
 //DTOs
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
-import { Category } from '../expenses/categories.entity';
+import { DefaultCategory } from '../expenses/default-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
 import { log } from 'console';
@@ -43,8 +43,8 @@ export class TransactionsService {
     private sourceRepo: Repository<Source>,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
-    @InjectRepository(Category)
-    private categoryRepo: Repository<Category>,
+    @InjectRepository(DefaultCategory)
+    private categoryRepo: Repository<DefaultCategory>,
     @InjectRepository(DefaultSubCategory)
     private defaultSubCategoryRepo: Repository<DefaultSubCategory>
   ) {}

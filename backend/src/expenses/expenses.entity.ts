@@ -34,9 +34,6 @@ export class Expense {
   @Column('decimal')
   vatPercent: number;
 
-  // @Column('bigint')
-  // dateTimestamp: number;
-
   @Column('date')
   date: Date;
 
@@ -51,9 +48,6 @@ export class Expense {
 
   @Column()
   userId: string;
-
-  // @Column('bigint')
-  // loadingDate: number;
 
   @Column('date')
   loadingDate: Date;

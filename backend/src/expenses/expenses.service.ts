@@ -6,8 +6,8 @@ import { Repository} from 'typeorm';
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
 import { User } from '../users/user.entity';
+import { DefaultCategory } from './default-categories.entity';
 import { DefaultSubCategory } from './default-sub-categories.entity';
-import { Category } from './categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 //import { DefaultCategory } from './categories.entity';
 //import { UserCategory } from './user-sub-categories.entity';
@@ -31,11 +31,9 @@ export class ExpensesService {
         private readonly sharedService: SharedService,
         @InjectRepository(Expense) private expense_repo: Repository<Expense>,
         @InjectRepository(User) private userRepo: Repository<User>,
-        @InjectRepository(Category) private categoryRepo: Repository<Category>,
+        @InjectRepository(DefaultCategory) private categoryRepo: Repository<DefaultCategory>,
         @InjectRepository(DefaultSubCategory) private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
         @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
-        //@InjectRepository(DefaultCategory) private defaultCategoryRepo: Repository<DefaultCategory>,
-        //@InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
         @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
     ) {}
 
@@ -128,7 +126,7 @@ export class ExpensesService {
         // Step 2: Check if the category exists; if not, create it
         let category = await this.categoryRepo.findOne({ where: { category: createUserCategoryDto.categoryName } });
         if (!category) {
-          category = new Category();
+          category = new DefaultCategory();
           category.category = createUserCategoryDto.categoryName;
           category.isDefault = false; // Mark the category as user-defined
           category.firebaseId = firebaseId;
@@ -163,7 +161,7 @@ export class ExpensesService {
       }
 
 
-      async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<Category[]> {        
+      async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<DefaultCategory[]> {        
 
         if (isDefault === null) {
             

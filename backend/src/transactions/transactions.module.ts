@@ -16,10 +16,11 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { Supplier } from '../expenses/suppliers.entity';
-import { Category } from '../expenses/categories.entity';
+import { DefaultCategory } from '../expenses/default-categories.entity';
+import { UserCategory } from '../expenses/user-categories.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, Category, DefaultSubCategory, UserSubCategory, Supplier, ClassifiedTransactions, Bill, Source, Child])],
+  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, ClassifiedTransactions, Bill, Source, Child])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
