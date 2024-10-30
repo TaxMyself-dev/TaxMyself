@@ -132,18 +132,22 @@ export class ExpenseDataService {
     return this.http.get<any>(url, { params: param, headers: headers })
   }
 
-  getAllSuppliers(): Observable<IGetSupplier[]> {
+  getAllSuppliers(): Observable<IRowDataTable[]> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;
     const param = new HttpParams()
       .set('token', token);
-    return this.http.get<IGetSupplier[]>(url, { params: param })
+    return this.http.get<IRowDataTable[]>(url, { params: param })
   }
 
   addSupplier(formData: any): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-supplier`;
-    return this.http.post(url, formData);
+    const headers = {
+      'token':
+       token
+    }
+    return this.http.post(url, formData,{headers});
   }
 
   editSupplier(formData: any, id: number): Observable<any> {

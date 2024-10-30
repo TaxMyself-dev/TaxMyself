@@ -12,7 +12,7 @@ export class Supplier {
     id: number;
 
     @Column()
-    name: string;
+    supplier: string;
 
     @Column()
     category: string;

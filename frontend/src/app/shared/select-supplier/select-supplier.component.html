@@ -36,43 +36,12 @@
       </p>
     </h2>
   </div>
-  <ion-list *ngIf="suppliersList; else loader" class="list-supplier-table">
-    <table  class="supplier-table">
 
-      <tr class="tr-header">
-        <th>
-          שם ספק
-        </th>
-        <th>
-          ח.פ ספק
-        </th>
-        <th>
-          פעולות
-        </th>
-      </tr>
-      <ng-container *ngFor="let supplier of suppliersList">
-        <tr class="tr-content">
-          <td>
-            {{supplier.name}}
-          </td>
-          <td>
-            {{supplier.supplierID}}
-          </td>
-          <td>
-            <ion-button (click)="selectedSupplier(supplier)">בחר</ion-button>
-          </td>
-          <td>
-            <ion-button (click)="editSupplier(supplier)">עריכה</ion-button>
-          </td>
-          <td>
-            <ion-button (click)="confirmDel(supplier.id)">מחיקה</ion-button>
-          </td>
+  <ng-container *ngIf="suppliersList$ | async as supplierList ">
+    <app-table [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="supplierList"></app-table>
+  </ng-container>
 
-        </tr>
-      </ng-container>
-    </table>
-  </ion-list>
-
+  
   <ng-template #loader>
     <ion-spinner></ion-spinner>
   </ng-template>

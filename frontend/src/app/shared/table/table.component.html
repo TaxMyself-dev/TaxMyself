@@ -19,7 +19,7 @@
 
 <div class="grid-container">
   <ion-grid class="grid">
-    <ion-row class="row-headers">
+    <ion-row class="table-headers">
       <ion-col *ngIf="displayCheckbox" size="1" class="col-header action">
       סמן הכל
       </ion-col>
@@ -35,7 +35,7 @@
         פעולות
       </ion-col>
     </ion-row>
-    <ion-row *ngFor="let row of rows; let i = index">
+    <ion-row *ngFor="let row of rows; let i = index" class="table-row">
       <ion-col class="checkbox-col" *ngIf="displayCheckbox" size="1">
         <ion-checkbox (ionChange)="onChecked($event, row)"></ion-checkbox>
       </ion-col>
@@ -60,8 +60,7 @@
           <ion-col
           class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
-                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
-                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize">
+                [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value}}
           </ion-col>
         </ng-template>
@@ -69,7 +68,6 @@
         <ng-template #defaultCellWithIcon>
           <ion-col 
           class="text-cell ion-col-with-icon" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
-                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value}}
                 <div class="wrap-button-category">
@@ -83,7 +81,6 @@
           <ion-col
           class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
           *ngIf="field.value === 'זמני'; else defaultCell"
-                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
                 [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize" 
                 (click)="openAddBill(row)">
@@ -96,7 +93,6 @@
           <ion-col
           class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
           *ngIf="field.value === 'טרם סווג'; else defaultCellWithIcon"
-                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 class="special-cell"
                 [size]="columnsWidth?.get(field.key) ?? baseSize"
                 (click)="openAddTransaction(row)">
@@ -118,7 +114,6 @@
           <ion-col
           class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{field.value}}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
-                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value}}
           </ion-col>
@@ -131,7 +126,7 @@
       </div> -->
         </ng-container>
 
-      <ion-col *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2" [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0">
+      <ion-col *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
         <ng-container *ngFor="let action of actions" >
           <ion-icon *ngIf="action.name !== 'upload'"  class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
           <label *ngIf="action.name === 'upload'" class="label-file-table">

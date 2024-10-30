@@ -83,6 +83,8 @@ export interface IGetSupplier {
     vatPercent: string;
     name: string;
     supplierID: string;
+    isEquipment: boolean;
+    reductionPercent: number;
 }
 
 export interface IMonthData {

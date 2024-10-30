@@ -96,7 +96,7 @@
 // }
 //=============================================================================
 ion-col {
-  border: solid 1px #fff;
+  font-family: 'lato', sans-serif;
   color: black;
   text-align: center;
 }
@@ -114,55 +114,10 @@ ion-col {
   padding: 10px;
 }
 
-// .row-headers{
-//   background-color: red;
-//   //display: contents;
-// }
-
 .col-header{
   background-color:rgba(0, 15, 0, 0.33); 
   text-align: center;
   font-size: small;
-  // &.date{
-  //   //border: solid blue;
-  // }
-  // &.sum{
-  //   //border:solid red;
-  // }
-  // &.supplier{
-  //   //border: solid green;
-  // }
-  // &.category{
-  //   //border: solid darkblue;
-  // }
-  // &.subCategory{
-  //   //border: solid chartreuse;
-  // }
-  // &.vatPercent{
-  //   //border: solid aqua;
-  // }
-  // &.taxPercent{
-  //   //border: solid hotpink;
-  // }
-  // &.totalTaxPayable{
-  //   //border: solid lightcoral;
-  // }
-  // &.totalVatPayable{
-  //   //border: chocolate;
-  // }
-  // &.action{
-   
-  //   //border: solid teal;
-  // }
-  
-}
-
-.even-row {
-  background-color:rgba(0, 15, 0, 0.13); 
-}
-
-.odd-row {
-  background-color:rgba(0, 15, 0, 0.33); 
 }
 
 .icon-table{
@@ -277,6 +232,57 @@ ion-col {
   //max-width: 100px;
   //width: auto;                /* Expand to fit content */
 }
+
+
+
+//=======================================================
+.table-headers{
+  background-color: #e7e6dd;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  //padding-right: 10px;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.table-row {
+    margin-bottom: 6px;
+    background-color: #ffffff;
+    box-shadow: 0px 0px 9px 0px rgba(0,0,0,0.1);
+    padding-right: 10px;
+}
+
+.table-row:hover{
+  background-color: #e7e6dd;
+}
+
+// @media only screen and (max-width: 767px) {
+//   .table-headers {
+//     //display: none;
+//   }
+//   .table-row{
+//     width: 25%;
+//     display: flex;
+//     flex-direction: column;
+//     flex-wrap: wrap;
+//   }
+
+//   .grid {
+//     display: flex;
+//     flex-wrap: wrap;
+//   }
+
+//   ion-col {
+//     display: flex;
+//     flex-wrap: wrap;
+//   }
+
+//   .text-cell {
+//     overflow: visible;      /* Show ellipsis for overflow */
+//   }
+// }
 
 
 

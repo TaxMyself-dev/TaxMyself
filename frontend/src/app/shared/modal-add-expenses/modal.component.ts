@@ -135,7 +135,6 @@ export class ModalExpensesComponent {
     console.log(this.maxDate);
     
     console.log("xdfgdgfgf", this.columns);
-    this.getSuppliers();
     this.getCategory();
     this.initForm();
   }
@@ -520,13 +519,9 @@ export class ModalExpensesComponent {
   }
 
  addSupplier(): void {
-    const token = localStorage.getItem('token');
-    const name = this.addExpenseForm.get('supplier').value;
     const formData = this.addExpenseForm.value;
-    formData.token = this.formBuilder.control(token).value;
-    formData.name = this.formBuilder.control(name).value;
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
-    const { date, file, sum, note, expenseNumber, supplier,  ...newFormData }=formData;
+    const { date, file, sum, note, expenseNumber,  ...newFormData }=formData;
     this.getLoader();
     
 
@@ -710,26 +705,26 @@ export class ModalExpensesComponent {
     
   }
 
-  getSuppliers(): void {
-    this.expenseDataServise.getAllSuppliers()
-    .pipe(
-      catchError((err) => {
-        console.log("err in get suppliers:", err);
-        return EMPTY;
-      }),
-      map((res) => {
-          return res.map((item) => ({
-            ...item,
-            key: item.name,
-            value: item.name
-          }))
-      })
-      )
-    .subscribe((res) => {
-      console.log(res);
-      this.suppliersList = res
-    })
-  }
+  // getSuppliers(): void {
+  //   this.expenseDataServise.getAllSuppliers()
+  //   .pipe(
+  //     catchError((err) => {
+  //       console.log("err in get suppliers:", err);
+  //       return EMPTY;
+  //     }),
+  //     map((res) => {
+  //         return res.map((item) => ({
+  //           ...item,
+  //           key: item.name,
+  //           value: item.name
+  //         }))
+  //     })
+  //     )
+  //   .subscribe((res) => {
+  //     console.log(res);
+  //     this.suppliersList = res
+  //   })
+  // }
 
   selectedSupplier(data: IGetSupplier): void {
     this.addExpenseForm.patchValue({category: data.category});

@@ -137,9 +137,9 @@ export class ExpensesController {
 
 
   @Post('add-supplier')
-  async addSupplier(@Body() body: any) {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    return await this.expensesService.addSupplier(body, userId, body.name); 
+  async addSupplier(@Body() body: any, @Headers('token') token: string) {
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
+    return await this.expensesService.addSupplier(body, userId); 
   } 
 
 

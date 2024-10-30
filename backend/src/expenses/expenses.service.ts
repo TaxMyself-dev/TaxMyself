@@ -242,9 +242,10 @@ export class ExpensesService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    async addSupplier(supplier: Partial<Supplier>, userId: string, name:string){
+    async addSupplier(supplier: Partial<Supplier>, userId: string){
         console.log("addSupplier - start");
-        const isAlreadyExist = await this.supplier_repo.findOne({where: {name}});
+        
+        const isAlreadyExist = await this.supplier_repo.findOne({where: {supplier:supplier.supplier}});
         console.log("is allready: ",isAlreadyExist);
         if (isAlreadyExist) {
             throw new HttpException({

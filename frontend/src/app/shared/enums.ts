@@ -26,7 +26,8 @@ export enum ExpenseFormHebrewColumns {
     totalTaxPayable = 'החזר מס',
     isEquipment = 'האם ההוצאה הינה עבור רכוש קבוע?',
     loadingDate = 'תאריך העלאת קובץ',
-    reductionPercent = 'פחת'
+    reductionPercent = 'פחת',
+    actions = 'פעולות'
     
 }
 
@@ -60,7 +61,8 @@ export enum ExpenseFormColumns {
     TOTAL_VAT = 'totalVatPayable',
     IS_EQUIPMENT = 'isEquipment',
     REDUCTION_PERCENT = 'reductionPercent',
-    LOADING_DATE = 'loadingDate' 
+    LOADING_DATE = 'loadingDate',
+    ACTIONS = 'actions'
   }
   
   export enum TransactionsOutcomesColumns {
