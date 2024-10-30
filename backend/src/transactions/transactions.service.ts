@@ -583,8 +583,8 @@ export class TransactionsService {
 
   async getTransactionsToBuildReport(
     userId: string,
-    startDate: number,
-    endDate: number,
+    startDate: Date,
+    endDate: Date,
   ): Promise<Transactions[]> {
   
     const sixMonthsInMilliseconds = 6 * 30 * 24 * 60 * 60 * 1000;
@@ -599,10 +599,11 @@ export class TransactionsService {
               '(transactions.payDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', 
               { startDate, endDate }
             )
-            .orWhere(
-              '(transactions.payDate < :startDate AND transactions.payDate >= :halfYearBeforeStartDate AND transactions.vatReportingDate IS NULL)', 
-              { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
-            );
+            //TODO: Need to Add here the condition of half year back && isRecognized && not reported!!!
+            // .orWhere(
+            //   '(transactions.payDate < :startDate AND transactions.payDate >= :halfYearBeforeStartDate AND transactions.vatReportingDate IS NULL)', 
+            //   { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
+            // );
           })
         )
       .getMany();

@@ -139,8 +139,6 @@ export class TransactionsController {
     
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
-    //const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    //const endDateT = this.sharedService.convertDateToTimestamp(endDate);
     return this.transactionsService.classifyTransaction(classifyDto, userId, startDate, endDate);
   }
 
@@ -157,8 +155,6 @@ export class TransactionsController {
     
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
-    //const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    //const endDateT = this.sharedService.convertDateToTimestamp(endDate);
     await this.transactionsService.updateTransaction(updateDto, userId, startDate, endDate);
     return { message: 'Transactions updated successfully' };
   }
@@ -175,9 +171,7 @@ export class TransactionsController {
     
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
-    const startDateT = this.sharedService.convertDateToTimestamp(startDate);
-    const endDateT = this.sharedService.convertDateToTimestamp(endDate);
-    return this.transactionsService.getTransactionsToBuildReport(userId, startDateT, endDateT);
+    return this.transactionsService.getTransactionsToBuildReport(userId, startDate, endDate);
   }
 
 
