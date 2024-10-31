@@ -12,7 +12,7 @@ export class DefaultCategory {
   // category: string;
 
   @Column()
-  name: string;
+  categoryName: string;
 
   // @Column({ default: false })
   // isDefault: boolean;

@@ -61,7 +61,7 @@ export interface ISortDate{
 
 export interface IGetSubCategory {
     id: number;
-    subCategory: string;
+    subCategoryName: string;
     category: {
         firebaesId: string,
         id: number,

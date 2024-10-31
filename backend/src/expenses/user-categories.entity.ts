@@ -9,7 +9,7 @@ export class UserCategory {
   id: number;
 
   @Column()
-  name: string;
+  categoryName: string;
 
   // @Column({ default: false })
   // isDefault: boolean;

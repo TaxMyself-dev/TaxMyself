@@ -182,7 +182,7 @@ export class AddTransactionComponent implements OnInit {
       delete this.categoryDetails.id;
     }
     else {
-      this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategory === event.value);
+      this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategoryName === event.value);
       this.newCategoryIsRecognizeForm.patchValue({ reductionPercent: this.categoryDetails.reductionPercent });
       this.newCategoryIsRecognizeForm.patchValue({ vatPercent: this.categoryDetails.vatPercent });
       this.newCategoryIsRecognizeForm.patchValue({ taxPercent: this.categoryDetails.taxPercent });
@@ -225,7 +225,7 @@ export class AddTransactionComponent implements OnInit {
     formData.billName = this.data.billName;
     formData.name = this.data.name;
     formData.category = this.categoryDetails.category.category;
-    formData.subCategory = this.categoryDetails.subCategory;
+    formData.subCategory = this.categoryDetails.subCategoryName;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
     formData.vatPercent = +this.categoryDetails.vatPercent;
     formData.taxPercent = +this.categoryDetails.taxPercent;

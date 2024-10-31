@@ -8,7 +8,7 @@ export class DefaultSubCategory {
   id: number;
 
   @Column()
-  name: string;
+  subCategoryName: string;
 
   @Column('decimal')
   taxPercent: number;

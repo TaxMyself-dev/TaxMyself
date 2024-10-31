@@ -117,6 +117,8 @@ export class ExpensesController {
     @Query('categoryId') categoryName: string     // Query parameter for the categoryId
   ): Promise<any[]> {
 
+    console.log("get-sub-categories");
+
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
 
     // Convert isEquipment to boolean or null
@@ -130,7 +132,7 @@ export class ExpensesController {
     // }
 
     // Call the service method to get the sub-categories
-    return this.expensesService.getSubCategories(isDefaultValue, firebaseId, isEquipmentValue, categoryName);
+    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, categoryName);
   }
 
 

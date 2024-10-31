@@ -193,9 +193,9 @@ export class TransactionsService {
     console.log("header is ",headers);
 
     // Dynamically find the index of each column based on the header names
-    const categoryIndex = headers.findIndex(header => header === 'category');
-    const subCategoryIndex = headers.findIndex(header => header === 'subCategory');
-    const categoryIdIndex = headers.findIndex(header => header === 'categoryId');
+    const categoryIndex = headers.findIndex(header => header === 'categoryName');
+    const subCategoryIndex = headers.findIndex(header => header === 'subCategoryName');
+    //const categoryIdIndex = headers.findIndex(header => header === 'categoryId');
     const taxPercentIndex = headers.findIndex(header => header === 'taxPercent');
     const vatPercentIndex = headers.findIndex(header => header === 'vatPercent');
     const reductionPercentIndex = headers.findIndex(header => header === 'reductionPercent');
@@ -206,7 +206,7 @@ export class TransactionsService {
   for (const row of rows) {
     const categoryName = row[categoryIndex];
     const subCategoryName = row[subCategoryIndex];
-    const categoryId = row[categoryIdIndex];
+    //const categoryId = row[categoryIdIndex];
     const taxPercent = parseFloat(row[taxPercentIndex]);
     const vatPercent = parseFloat(row[vatPercentIndex]);
     const reductionPercent = parseFloat(row[reductionPercentIndex]);
@@ -214,12 +214,13 @@ export class TransactionsService {
     const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
 
     // Check if the category already exists
-    let category = await this.categoryRepo.findOne({ where: { name: categoryName, id: categoryId } });
+    //let category = await this.categoryRepo.findOne({ where: { categoryName: categoryName, id: categoryId } });
+    let category = await this.categoryRepo.findOne({ where: { categoryName: categoryName} });
     if (!category) {
       // Create a new category if it doesn't exist
       category = this.categoryRepo.create({
-        name: categoryName,
-        id: categoryId,
+        categoryName: categoryName,
+        //id: categoryId,
         //isDefault: true,
         //firebaseId: null,
       });
@@ -228,7 +229,7 @@ export class TransactionsService {
 
     // Create the sub-category
     const subCategory = new DefaultSubCategory();
-    subCategory.name = subCategoryName;
+    subCategory.subCategoryName = subCategoryName;
     subCategory.taxPercent = taxPercent;
     subCategory.vatPercent = vatPercent;
     subCategory.reductionPercent = reductionPercent;

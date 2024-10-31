@@ -141,7 +141,7 @@ export class addSupplierComponent implements OnInit {
           ).subscribe();
         break;
       case 'subCategory':
-        const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
+        const subCategoryDetails = this.subCategoryList.find(item => item.subCategoryName === event.detail.value);
         this.selectedSubcategory(subCategoryDetails);
         break;
     }
@@ -212,8 +212,8 @@ export class addSupplierComponent implements OnInit {
           
           return res.map((item: IGetSubCategory) => ({
             ...item,
-            key: item.subCategory,
-            value: item.subCategory,
+            key: item.subCategoryName,
+            value: item.subCategoryName,
 
           })
           )

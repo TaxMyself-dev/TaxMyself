@@ -9,8 +9,11 @@ export class UserSubCategory {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ nullable: true })
+  firebaseId: string;
+
   @Column()
-  name: string;
+  subCategoryName: string;
 
   @Column('decimal')
   taxPercent: number;

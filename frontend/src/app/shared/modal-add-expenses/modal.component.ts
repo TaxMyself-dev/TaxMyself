@@ -415,7 +415,7 @@ export class ModalExpensesComponent {
           ).subscribe();
         break;
       case ExpenseFormColumns.SUB_CATEGORY:
-        const subCategoryDetails = this.subCategoryList.find(item => item.subCategory === event.detail.value);
+        const subCategoryDetails = this.subCategoryList.find(item => item.subCategoryName === event.detail.value);
         this.selectedSubcategory(subCategoryDetails);
         break;
       case ExpenseFormColumns.SUPPLIER:
@@ -613,8 +613,8 @@ export class ModalExpensesComponent {
           
           return res.map((item: IGetSubCategory) => ({
             ...item,
-            key: item.subCategory,
-            value: item.subCategory,
+            key: item.subCategoryName,
+            value: item.subCategoryName,
 
           })
           )
@@ -642,8 +642,8 @@ export class ModalExpensesComponent {
             console.log(res);
             
             return res.map((item) => ({
-              key: item.name,
-              value: item.name
+              key: item.categoryName,
+              value: item.categoryName
             })
             )
           }), tap((res) => {
