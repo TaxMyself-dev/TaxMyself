@@ -114,8 +114,8 @@ export class AddTransactionComponent implements OnInit {
       .pipe(
         map((res) => {
           return res.map((item: any) => ({
-            name: item.category,
-            value: item.id
+            name: item.categoryName,
+            value: item.categoryName
           })
           )
         }))
@@ -139,13 +139,13 @@ export class AddTransactionComponent implements OnInit {
           console.log(isEquipmentSubCategory, notEquipmentSubCategory);
           this.originalSubCategoryList.push(...isEquipmentSubCategory, ...notEquipmentSubCategory);
           const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
-            name: item.subCategory,
-            value: item.id
+            name: item.subCategoryName,
+            value: item.subCategoryName
           })
           );
           const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
-            name: item.subCategory,
-            value: item.id
+            name: item.subCategoryName,
+            value: item.subCategoryName
           })
           )
 

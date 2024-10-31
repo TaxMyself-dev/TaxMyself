@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn} from 'typeorm';
 import { User } from '../users/user.entity';
 import { UserCategory } from './user-categories.entity';
 
@@ -29,7 +29,11 @@ export class UserSubCategory {
   @Column('boolean')
   isRecognized: boolean;
 
+  // @ManyToOne(() => UserCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
+  // category: UserCategory;
+
   @ManyToOne(() => UserCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'categoryId' }) // Define the column name explicitly
   category: UserCategory;
 
   @ManyToOne(() => User, user => user.userSubCategories, { onDelete: 'CASCADE' })

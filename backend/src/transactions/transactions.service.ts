@@ -22,7 +22,6 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
-import { log } from 'console';
 import { User } from 'src/users/user.entity';
 import { UserCategory } from 'src/expenses/user-categories.entity';
 
@@ -91,11 +90,7 @@ export class TransactionsService {
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
-
-      console.log("billDate is ", row[billDateIndex]);
-      console.log("payDate is ", row[payDateIndex]);
       
-
       try {
         transaction.billDate = this.sharedService.parseDateString(row[billDateIndex]);
         transaction.payDate = this.sharedService.parseDateString(row[payDateIndex]);
@@ -104,20 +99,8 @@ export class TransactionsService {
         throw new BadRequestException(`Invalid date format in the file: ${error.message}`);
       }
 
-      //const billDate = this.sharedService.convertDateStrToTimestamp(row[billDateIndex]);
-      //const billDate = row[billDateIndex];
-      //const payDate = this.sharedService.convertDateStrToTimestamp(row[payDateIndex]);
-      //const payDate = row[payDateIndex];
-      //transaction.billDate = billDate;
-      //transaction.payDate = payDate;
-      //transaction.vatReportingDate = null;
       transaction.sum = parseFloat(row[sumIndex]);
       transaction.userId = userId;
-
-      console.log("bill date is ", transaction.billDate);
-      console.log(typeof transaction.billDate);
-      console.log("pay date is ", transaction.payDate);
-      console.log(typeof transaction.payDate);
 
       // Check if a transaction with the same name, paymentIdentifier, billDate, sum, and userId already exists
       const existingTransaction = await this.transactionsRepo.findOne({
@@ -155,16 +138,9 @@ export class TransactionsService {
         transaction.reductionPercent = matchingClassifiedTransaction.reductionPercent;
       }
 
-      // console.log("bill date is ", transaction.billDate);
-      // console.log(typeof transaction.billDate);
-      // console.log("pay date is ", transaction.payDate);
-      // console.log(typeof transaction.payDate);
-
-      
-  
       await this.transactionsRepo.save(transaction);
-    }
 
+    }
 
     console.log("Successfully saved = ", rows.length - skippedTransactions);
     console.log("skippedTransactions = ", skippedTransactions);
@@ -186,11 +162,8 @@ export class TransactionsService {
     const worksheet = workbook.Sheets[sheetName];
     const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }); // Get rows as arrays of values, raw: false to get formatted strings
 
-    console.log("Extracted rows:", rows.slice(0, 5));
-
     // Assuming the first row contains headers
     const headers = rows.shift();
-    console.log("header is ",headers);
 
     // Dynamically find the index of each column based on the header names
     const categoryIndex = headers.findIndex(header => header === 'categoryName');
@@ -260,6 +233,7 @@ export class TransactionsService {
          const categoryData: CreateUserCategoryDto = {
           categoryName: category,
           subCategoryName: subCategory,
+          firebaseId: userId,
           taxPercent,
           vatPercent,
           reductionPercent,
@@ -452,9 +426,6 @@ export class TransactionsService {
 
   async getBillsByUserId(userId: string): Promise<Bill[]> {
 
-    console.log("getBillsByUserId - start");
-    
-
     const bills = await this.billRepo.find({
       where: { userId: userId}
     });
@@ -464,6 +435,7 @@ export class TransactionsService {
     return bills;
 
   }
+  
 
   async getSources(userId: string): Promise<string[]> {
     let sources: string[] = [];
@@ -530,12 +502,6 @@ export class TransactionsService {
        allIdentifiers.push(...bill.sources.map(source => source.sourceName));
      });
 
-
-     console.log("startDate is ", startDate);
-     console.log("type of startDate is ", typeof(startDate));
-     console.log("endDate is ", endDate);
-     console.log("type of endDate is ", typeof(endDate));
-
     const transactions = await this.transactionsRepo.find({
     where: [
       {
@@ -550,8 +516,6 @@ export class TransactionsService {
       }
     ]
   });
-
-  console.log("transactions are ", transactions);
   
   return transactions;
 

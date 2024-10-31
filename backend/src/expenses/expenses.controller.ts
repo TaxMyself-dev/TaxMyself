@@ -93,6 +93,7 @@ export class ExpensesController {
   async addUserCategory(
   @Headers('token') token: string,
   @Body() createUserCategoryDto: CreateUserCategoryDto) {
+    console.log("controller: add-user-category");
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
     return this.expensesService.addUserCategory(firebaseId, createUserCategoryDto);
   }

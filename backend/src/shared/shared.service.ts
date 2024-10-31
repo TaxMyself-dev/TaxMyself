@@ -100,9 +100,9 @@ export class SharedService {
             return { startDate: null, endDate: null };
         }
     
-        console.log("yearStr is ", yearStr);
-        console.log("monthStr is ", monthStr);
-        console.log("isSingleMonth is ", isSingleMonth);
+        // console.log("yearStr is ", yearStr);
+        // console.log("monthStr is ", monthStr);
+        // console.log("isSingleMonth is ", isSingleMonth);
     
         isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
     

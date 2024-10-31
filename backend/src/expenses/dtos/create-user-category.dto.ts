@@ -8,6 +8,9 @@ export class CreateUserCategoryDto {
   @IsString()
   subCategoryName: string;
 
+  @IsString()
+  firebaseId: string;
+
   @IsNumber()
   @IsOptional()
   taxPercent?: number;
