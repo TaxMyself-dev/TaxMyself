@@ -417,9 +417,6 @@ export class TransactionsPage implements OnInit {
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
-        // console.log("payment", data.paymentIdentifier);
-        //data.billDate = +data.billDate;
-        //data.payDate = +data.payDate;
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
@@ -459,76 +456,6 @@ export class TransactionsPage implements OnInit {
         console.log("listCategory: ", this.listCategory);
       })
   }
-
-  // getSubCategory(category, subCategory): void {
-  //   console.log(event);
-  //   console.log("in get sub category");
-
-  //   const combinedListSubCategory = [];
-  //     const isEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(category, true);
-  //     const notEquipmentSubCategory: Observable<IGetSubCategory[]> = this.expenseDataService.getSubCategory(category, false);
-
-
-  //     zip(isEquipmentSubCategory, notEquipmentSubCategory)
-  //       .pipe(
-  //         takeUntil(this.destroy$),
-  //         map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
-  //           console.log(isEquipmentSubCategory, notEquipmentSubCategory);
-  //           this.originalSubCategoryList = [...isEquipmentSubCategory, ...notEquipmentSubCategory];
-  //           console.log("originalSubCategoryList: ", this.originalSubCategoryList);
-
-  //           const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
-  //             name: item.subCategory,
-  //             value: item.id
-  //           })
-  //           );
-  //           const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
-  //             name: item.subCategory,
-  //             value: item.id
-  //           })
-  //           )
-  //           const combinedListSubCategory: ISelectItem[] = [];
-  //           const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
-  //           if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
-  //             combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
-  //           }
-  //           else {
-  //             isEquipmentSubCategoryList ? combinedListSubCategory.push(...isEquipmentSubCategoryList) : combinedListSubCategory.push(...notEquipmentSubCategoryList);
-  //           }
-  //           this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-  //             if (field.name === TransactionsOutcomesColumns.SUBCATEGORY) {
-  //               field.listItems = combinedListSubCategory;
-  //             }
-  //           });
-  //           console.log(combinedListSubCategory);
-
-
-  //           return combinedListSubCategory;
-  //         }),
-  //         catchError((err) => {
-  //           console.log("err in get sub category: ", err);
-  //           return EMPTY;
-  //         })
-  //       )
-  //       .subscribe((res) => {
-  //         console.log("combine sub category :", res);
-  //         const subCategoryId = this.getSubCategoryId(subCategory);
-  //         this.editRowForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(subCategoryId);
-  //       })
-  // }
-
-  // getSubCategoryId(subCategory): number {
-  //     const chosen = this.originalSubCategoryList?.find((item: IGetSubCategory) => item.subCategory === subCategory);
-  //     return chosen?.id || 0;
-  //     // console.log(chosen);
-  //     // const isEquipmentVal = chosen.isEquipment ? 1 : 0; 
-  //     // const isRecognizedVal = chosen.isRecognized ? 1 : 0; 
-  //     // this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(chosen?.taxPercent || ''),
-  //     // this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(chosen?.vatPercent || ''),
-  //     // this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentVal),
-  //     // this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(chosen?.reductionPercent || 0),
-  //     // this.editRowForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedVal)
-  // }
 
   onFileSelected(event: any): void {
     console.log("in file");

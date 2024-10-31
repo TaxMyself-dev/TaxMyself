@@ -113,23 +113,14 @@ export class ExpensesController {
   @Get('get-sub-categories')
   async getSubCategories(
     @Headers('token') token: string,
-    @Query('isEquipment') isEquipment: string,  // Query parameter to filter by isEquipment
-    @Query('categoryId') categoryName: string     // Query parameter for the categoryId
+    @Query('isEquipment') isEquipment: string,
+    @Query('categoryName') categoryName: string
   ): Promise<any[]> {
-
-    console.log("get-sub-categories");
 
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
-
-    const isDefaultValue = null; //TODO: get the value from the query
-
-    // const categoryIdValue = parseInt(categoryId, 10);
-    // if (isNaN(categoryIdValue)) {
-    //   throw new BadRequestException('Invalid categoryId');
-    // }
 
     // Call the service method to get the sub-categories
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, categoryName);

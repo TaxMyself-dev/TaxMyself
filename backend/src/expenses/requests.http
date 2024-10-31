@@ -172,5 +172,4 @@ Authorization: Bearer <klsjdflaj>
 ### Test Case 1: Get all categories for a specific category
 GET http://localhost:3000/expenses/get-categories?isDefault=null
 
-### Test Case 1: Get all sub-categories for a specific category
-GET http://localhost:3000/expenses/get-sub-categories?categoryId=2
+

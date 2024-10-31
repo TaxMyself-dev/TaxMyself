@@ -11,9 +11,6 @@ export class UserCategory {
   @Column()
   categoryName: string;
 
-  // @Column({ default: false })
-  // isDefault: boolean;
-
   @Column({ nullable: true })
   firebaseId: string;
 
