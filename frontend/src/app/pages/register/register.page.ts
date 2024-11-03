@@ -35,15 +35,13 @@ export class RegisterPage implements OnInit, OnDestroy {
   passwordValid = true;
   displayError: string = "disabled";
   passwordValidInput!: string;
-  //EmploymentStatusList = [{name: "עצמאי", value: 0}, {name: "שכיר", value: 1}, {name: "עצמאי ושכיר", value: 2}];
   employmentTypeOptionsList = employmentTypeOptionsList;
   listBusinessField = [{ value: "build", name: "בניין" }, { value: "electric", name: "חשמל" }, { value: "photo", name: "צילום" }, { value: "architecture", name: "אדריכלות" }]
-  //listBusinessType = [{ value: "licensed", name: "עוסק מורשה" }, { value: "exempt", name: "עוסק פטור" }, { value: "company", name: "חברה" }]
   businessTypeOptionsList = businessTypeOptionsList;
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one'}, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
-  //familyStatusOptionsList = [{value: FamilyStatus.SINGLE, name: FamilyStatusLabels[FamilyStatus.SINGLE]}, {value: 1, name: "נשוי"}, {value: 2, name: "גרוש"}]
   familyStatusOptionsList = familyStatusOptionsList;
+  
   constructor(private expensesDataService: ExpenseDataService, private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
 

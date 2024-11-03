@@ -67,11 +67,18 @@ export class TransactionsService {
 
     // Find index of each column based on header row
     //billDate = תאריך עסקה כלומר היום בו קניתי את המוצר. payDate = תאריך תשלום כלומר היום בו בפועל ירד לי כסף מהחשבון
-    const nameIndex = headers.findIndex(header => header === 'שם העסק');
-    const paymentIdentifierIndex = headers.findIndex(header => header === 'אמצעי זיהוי התשלום');
-    const billDateIndex = headers.findIndex(header => header === 'תאריך החיוב בחשבון');
-    const payDateIndex = headers.findIndex(header => header === 'תאריך התשלום');
-    const sumIndex = headers.findIndex(header => header === 'סכום');
+    //const nameIndex = headers.findIndex(header => header === 'שם העסק');
+    const nameIndex = headers.findIndex(header => header === 'הערות 1');
+    //const paymentIdentifierIndex = headers.findIndex(header => header === 'אמצעי זיהוי התשלום');
+    const paymentIdentifierIndex = headers.findIndex(header => header === 'קוד חשבון הנהח"ש');
+    //const billDateIndex = headers.findIndex(header => header === 'תאריך החיוב בחשבון');
+    const billDateIndex = headers.findIndex(header => header === 'תאריך');
+    //const payDateIndex = headers.findIndex(header => header === 'תאריך התשלום');
+    //const sumIndex = headers.findIndex(header => header === 'סכום');
+     // Find the index of the sum, חובה, and זכות columns
+     const sumIndex = headers.findIndex(header => header === 'סכום');
+     const debitIndex = headers.findIndex(header => header === 'חובה');
+     const creditIndex = headers.findIndex(header => header === 'זכות');
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
     
@@ -93,14 +100,25 @@ export class TransactionsService {
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
       
       try {
-        transaction.billDate = this.sharedService.parseDateString(row[billDateIndex]);
-        transaction.payDate = this.sharedService.parseDateString(row[payDateIndex]);
+                
+        transaction.billDate = this.sharedService.parseDateStringToDate(row[billDateIndex], "dd/MM/yyyy");
+        //transaction.payDate = this.sharedService.parseDateStringToDate(row[payDateIndex], "dd/MM/yyyy");
       } catch (error) {
         console.error(`Failed to parse date for row: ${row}, error: ${error.message}`);
         throw new BadRequestException(`Invalid date format in the file: ${error.message}`);
       }
 
-      transaction.sum = parseFloat(row[sumIndex]);
+      // Determine the sum based on which columns are available, handling commas in numbers
+      if (sumIndex !== -1) {
+        transaction.sum = parseFloat(row[sumIndex].toString().replace(/,/g, ''));
+      } else if (debitIndex !== -1 && creditIndex !== -1) {
+        const debit = parseFloat(row[debitIndex]?.toString().replace(/,/g, '') || '0');
+        const credit = parseFloat(row[creditIndex]?.toString().replace(/,/g, '') || '0');
+        transaction.sum = debit > 0 ? -debit : credit;
+      } else {
+        throw new BadRequestException("The file must contain either 'סכום' or both 'חובה' and 'זכות' columns.");
+      }
+
       transaction.userId = userId;
 
       // Check if a transaction with the same name, paymentIdentifier, billDate, sum, and userId already exists
@@ -191,9 +209,6 @@ export class TransactionsService {
       // Create a new category if it doesn't exist
       category = this.categoryRepo.create({
         categoryName: categoryName,
-        //id: categoryId,
-        //isDefault: true,
-        //firebaseId: null,
       });
       await this.categoryRepo.save(category);
     }
@@ -470,7 +485,6 @@ export class TransactionsService {
       if (bills.length > 0)  {
         bills.forEach(bill => {
           if (!bill.sources) {
-            // console.log("Bill has no sources:", JSON.stringify(bill, null, 2));
           } else {
             bill.sources.forEach(source => {
               sources.push(source.sourceName);

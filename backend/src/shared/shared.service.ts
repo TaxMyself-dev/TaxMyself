@@ -3,12 +3,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityTarget, FindOptionsWhere, Between, Timestamp } from 'typeorm';
-import { startOfMonth, endOfMonth } from 'date-fns';
-
-
-import { parse } from 'date-fns';
-import { getDayOfYear } from 'date-fns';
-
+import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 import { Transactions } from '../transactions/transactions.entity';
 import { VATReportingType, SingleMonthReport, DualMonthReport } from 'src/enum';
@@ -153,118 +148,6 @@ export class SharedService {
     }
 
 
-    convertDateStrToTimestamp(dateStr: string): number {
-        
-        // Remove any extra spaces
-        dateStr = dateStr.trim();
-    
-        // Split the date string using /, ., or -
-        const dateParts = dateStr.split(/[./-]/);
-        
-        // Check if the split resulted in 3 parts (day, month, year or year, month, day)
-        if (dateParts.length !== 3) {
-            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid date format.`);
-        }
-    
-        let day: number, month: number, year: number;
-    
-        // Handle different date formats
-        if (dateParts[2].length === 4) {
-            // Format: dd/MM/yyyy or MM/dd/yyyy (year is the 3rd part)
-            if (parseInt(dateParts[1], 10) > 12) {
-                // Likely dd/MM/yyyy
-                day = parseInt(dateParts[0], 10);
-                month = parseInt(dateParts[1], 10) - 1;  // Month is 0-indexed in JavaScript Date
-                year = parseInt(dateParts[2], 10);
-            } else {
-                // Likely MM/dd/yyyy
-                month = parseInt(dateParts[0], 10) - 1;
-                day = parseInt(dateParts[1], 10);
-                year = parseInt(dateParts[2], 10);
-            }
-        } else if (dateParts[0].length === 4) {
-            // Format: yyyy-MM-dd
-            year = parseInt(dateParts[0], 10);
-            month = parseInt(dateParts[1], 10) - 1;
-            day = parseInt(dateParts[2], 10);
-        } else {
-            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid date format like dd/MM/yyyy, MM/dd/yyyy, or yyyy-MM-dd.`);
-        }
-    
-        // Create a new Date object using UTC to avoid timezone issues
-        const date = new Date(Date.UTC(year, month, day));
-    
-        // Check if the date is valid
-        if (isNaN(date.getTime())) {
-            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please provide a valid date.`);
-        }
-    
-        // Return the timestamp in seconds (if you want milliseconds, just return date.getTime())
-        return Math.floor(date.getTime() / 1000);
-    }
-    
-
-
-    convertDateStrToTimestampOld(dateStr: string): number {
-
-        // Split the date string into day, month, and year
-        let dateParts = dateStr.split('/');
-        if (dateParts.length !== 3) {
-            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use the format dd/MM/yyyy.`);
-        }
-
-        // Pad day and month with leading zeros if necessary
-        let day = dateParts[0].padStart(2, '0');
-        let month = dateParts[1].padStart(2, '0');
-        let year = dateParts[2];
-
-        // If year is two digits, add the "20" prefix
-        if (year.length === 2) {
-            year = '20' + year;
-        }
-
-        // Reconstruct the date string with normalized values
-        dateStr = `${day}/${month}/${year}`;
-
-        // Regex to check if the fixed date format is dd/MM/yyyy
-        const dateFormatPattern = /^\d{2}\/\d{2}\/\d{4}$/;
-
-        // Validate the fixed date format
-        if (!dateFormatPattern.test(dateStr)) {
-            throw new BadRequestException(`Invalid date format provided after fix: ${dateStr}. Please use the format dd/MM/yyyy.`);
-        }
-
-        // Use Date.UTC() to ensure the date is created in UTC
-        const date = new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10)));
-
-        if (isNaN(date.getTime())) {
-            throw new BadRequestException(`Invalid date format provided: ${dateStr}. Please use a valid ISO 8601 date format.`);
-        }
-
-        const timeStampDate = Math.floor(date.getTime() / 1000);
-
-        return timeStampDate;
-
-    }
-
-
-    convertDateToTimestamp(date: Date): number {
-        if (date === null) {
-            return null;
-        }
-        if (isNaN(date.getTime())) {
-            throw new BadRequestException(`Invalid date format provided: ${date}. Please use a valid ISO 8601 date format.`);
-        }
-        return Math.floor(date.getTime() / 1000);
-    }
-
-
-    getMonthFromTimestamp(timestamp: number): number {
-        const date = new Date(timestamp);
-        return date.getMonth() + 1; // getMonth() returns 0 for January, so we add 1
-    }
-
-
     getVATReportingDate(date: Date, vatReportingType: VATReportingType): SingleMonthReport | DualMonthReport {
 
         const monthIndex = date.getMonth(); // Returns 0-based month index (e.g., 0 for January)
@@ -303,36 +186,29 @@ export class SharedService {
 
         return result;
     
-  }
-
-
-    parseDateString(dateString: string): Date {
-        // First, check if the date has a two-digit year (e.g., "dd/MM/yy")
-        const twoDigitYearRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
-
-        if (twoDigitYearRegex.test(dateString)) {
-            // If a two-digit year is detected, prepend "20" to convert it to a four-digit year
-            dateString = dateString.replace(twoDigitYearRegex, (match, day, month, year) => `${day}/${month}/20${year}`);
-        }
-
-        const formats = ['dd/MM/yyyy', 'dd-MM-yyyy', 'dd.MM.yyyy'];
-        
-        for (const format of formats) {
-            try {
-            const parsedDate = parse(dateString, format, new Date());
-            if (!isNaN(parsedDate.getTime())) {
-                return parsedDate;
-            }
-            } catch (error) {
-            // Continue to the next format if parsing fails
-            }
-        }
-
-        throw new Error(`Invalid date format: ${dateString}`);
     }
 
 
+    parseDateStringToDate(dateString: string, inputFormat: string): Date {
 
-  
+        console.log("Input dateString:", dateString);  // Log the input to confirm it’s not undefined
+        console.log("Input format:", inputFormat);
+
+        try {
+            // Parse the date string based on the provided format
+            const parsedDate = parse(dateString, inputFormat, new Date());
+    
+            // Check if the parsed date is valid
+            if (isNaN(parsedDate.getTime())) {
+                throw new Error('Invalid date');
+            }
+    
+            // Return the Date object
+            return parsedDate;
+        } catch (error) {
+            throw new Error(`Failed to parse date: ${dateString} with format: ${inputFormat}`);
+        }
+    }
+
 
 }

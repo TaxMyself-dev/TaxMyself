@@ -30,26 +30,9 @@ export class UsersService {
     async signup({personal,spouse,children,business,validation}:any) {
         const newChildren = children?.children;
 
-        console.log("signup in service");
-
-       // personal.dateOfBirth = this.sharedService.convertDateStrToTimestamp(personal.dateOfBirth);
-        console.log("personal.dateOfBirth is ", personal.dateOfBirth);
-        //spouse.spouseDateOfBirth = this.sharedService.convertDateStrToTimestamp(spouse.spouseDateOfBirth);
-        console.log("spouse.spouseDateOfBirth is ", spouse.spouseDateOfBirth);
-        //business.businessDate = this.sharedService.convertDateStrToTimestamp(business.businessDate);
-        console.log("business.businessDate is ", business.businessDate);
-
-
-
-        // if (personal.dateOfBirth) {
-        //     personal.dateOfBirth = new Date(personal.dateOfBirth).getTime();
-        // }
-        // if (spouse.spouseDateOfBirth) {
-        //     spouse.spouseDateOfBirth = new Date(spouse.spouseDateOfBirth).getTime();
-        // }
-        // if (business.businessDate) {
-        //     business.businessDate = new Date(business.businessDate).getTime();
-        // }
+        personal.dateOfBirth = this.sharedService.parseDateStringToDate(personal.dateOfBirth, 'yyyy-MM-dd');
+        spouse.spouseDateOfBirth = this.sharedService.parseDateStringToDate(spouse.spouseDateOfBirth, 'yyyy-MM-dd');
+        business.businessDate = this.sharedService.parseDateStringToDate(business.businessDate, 'yyyy-MM-dd');
 
         let newUser = {...personal, ...spouse, ...business};
 
@@ -57,7 +40,7 @@ export class UsersService {
             for (let i = 0; i < newChildren.length; i++){
                 const child: Child = newChildren[i];
                 const newChild =  this.child_repo.create(child);
-                newChild.fatherID = personal.firebaseId
+                newChild.fatherID = personal.firebaseId;
                 const addChild = await this.child_repo.save(newChild);
             }
         }
@@ -102,35 +85,13 @@ export class UsersService {
           throw new Error('User not found');
         }
 
-        // Field mapping between incoming fields and User entity fields
-        // const fieldMapping = {
-        //     'שם פרטי': 'fName',
-        //     'שם משפחה': 'lName',
-        //     'ת.ז': 'id',
-        //     'תאריך לידה': 'dateOfBirth',
-        //     'שם העסק': 'businessName',
-        //     'סוג העסק': 'businessType',
-        //     'מספר עוסק': 'businessId',
-        //     'תאריך פתיחת העסק': 'businessDate'
-        // };
-
-        // Loop through the updateUserDto fields and map them to the correct fields
-        // for (const key in updateUserDto) {
-        //     if (updateUserDto.hasOwnProperty(key) && fieldMapping[key]) {
-        //         user[fieldMapping[key]] = updateUserDto[key];
-        //     }
-        // }
-
-        console.log("Before processing:", updateUserDto);
-
         // Convert date fields to timestamps
         const processedUserData = this.processDateFields(updateUserDto);
     
         // Assign updated fields to the user entity
         Object.assign(user, processedUserData);
-        console.log("user is ", user);
-        
         return this.user_repo.save(user);
+        
     }
 
 
@@ -142,9 +103,8 @@ export class UsersService {
         for (const key in processedData) {
           if (processedData.hasOwnProperty(key) && dateFields.includes(key)) {
             console.log("convert to date: ", key );
-            processedData[key] = this.sharedService.convertDateStrToTimestamp(processedData[key]);
+            processedData[key] = this.sharedService.parseDateStringToDate(processedData[key], "dd/MM/yyyy");
             console.log("after convert: ", processedData[key]);
-            
           }
         }
     
@@ -194,8 +154,3 @@ export class UsersService {
 
 
 }
-
-// function convertDateStrToTimestamp(dateOfBirth: any): any {
-//     throw new Error('Function not implemented.');
-// }
-
