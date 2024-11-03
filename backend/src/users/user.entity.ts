@@ -7,7 +7,7 @@ import {
 import { Bill } from '../transactions/bill.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UserYearlyData } from './user-yearly-data.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType } from '../enum';
 import { UserCategory } from 'src/expenses/user-categories.entity';
 
 
@@ -25,8 +25,8 @@ export class User {
     @Column()
     id: string;
 
-    @Column('bigint')
-    dateOfBirth: number;
+    @Column('date')
+    dateOfBirth: Date;
 
     @Column()
     phone: string;
@@ -46,8 +46,8 @@ export class User {
     @Column()
     spouseId: string;
 
-    @Column('bigint')
-    spouseDateOfBirth: number;
+    @Column('date')
+    spouseDateOfBirth: Date;
 
     @Column()
     spouseIndependet: boolean;
@@ -64,7 +64,7 @@ export class User {
     @Column({
       type: 'enum',
       enum: BusinessType,
-      enumName: 'BusinessType', // Optional: allows TypeORM to name the enum type
+      enumName: 'BusinessType',
       default: BusinessType.EXEMPT
     })
     businessType: BusinessType;
@@ -75,35 +75,37 @@ export class User {
     @Column()
     businessInventory: boolean;
 
-    @Column('bigint')
-    businessDate: number;
-
-    @Column()
-    employee: boolean;
-
-    @Column()
-    familyStatus: string;
+    @Column('date')
+    businessDate: Date;
 
     @Column({
-        type: 'enum',
-        enum: UserRole,
-        default: UserRole.FREE_USER,
-      })
-      role: UserRole;
+      type: 'enum',
+      enum: EmploymentType,
+      enumName: 'EmploymentType',
+      default: EmploymentType.SELF_EMPLOYED
+    })
+    employmentStatus: EmploymentType;
 
-    @OneToMany(() => Bill, (bill) => bill.user)
-    bills: Bill[];
+    @Column({
+      type: 'enum',
+      enum: FamilyStatus,
+      enumName: 'FamilyStatus',
+      default: FamilyStatus.SINGLE
+    })
+    familyStatus: FamilyStatus;
 
-    // @OneToMany(() => UserCategory, userCategory => userCategory.user)
-    // userCategories: UserCategory[];
-
-    @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.user)
-    userSubCategories: UserSubCategory[];
+    @Column({
+      type: 'enum',
+      enum: UserRole,
+      enumName: 'UserRole',
+      default: UserRole.FREE_USER
+    })
+    role: UserRole;
 
     @Column({
       type: 'enum',
       enum: VATReportingType,
-      enumName: 'VATReportingType', // Optional: allows TypeORM to name the enum type
+      enumName: 'VATReportingType',
       default: VATReportingType.NOT_REQUIRED
     })
     vatReportingType: VATReportingType;
@@ -111,12 +113,15 @@ export class User {
     @Column({
       type: 'enum',
       enum: TaxReportingType,
-      enumName: 'TaxReportingType', // Optional: allows TypeORM to name the enum type
+      enumName: 'TaxReportingType',
       default: TaxReportingType.NOT_REQUIRED
     })
     taxReportingType: TaxReportingType;
 
     @OneToMany(() => UserYearlyData, (yearlyData) => yearlyData.user)
     yearlyData: UserYearlyData[];
+
+    @OneToMany(() => Bill, (bill) => bill.user)
+    bills: Bill[];
 
 }

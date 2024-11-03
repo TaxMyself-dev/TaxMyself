@@ -29,14 +29,11 @@ export class UserSubCategory {
   @Column('boolean')
   isRecognized: boolean;
 
-  // @ManyToOne(() => UserCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
-  // category: UserCategory;
-
   @ManyToOne(() => UserCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'categoryId' }) // Define the column name explicitly
   category: UserCategory;
 
-  @ManyToOne(() => User, user => user.userSubCategories, { onDelete: 'CASCADE' })
-  user: User;
+  // @ManyToOne(() => User, user => user.userSubCategories, { onDelete: 'CASCADE' })
+  // user: User;
   
 }

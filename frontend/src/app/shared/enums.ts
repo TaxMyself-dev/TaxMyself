@@ -145,9 +145,9 @@ export enum TransactionsOutcomesHebrewColumns {
   }
 
   export enum FamilyStatus {
-    MARRIED = 'married',
-    SINGLE = 'single',
-    DIVORCED = 'divorced'
+    MARRIED = 'MARRIED',
+    SINGLE = 'SINGLE',
+    DIVORCED = 'DIVORCED'
   }
   
   export const FamilyStatusLabels = {
@@ -181,9 +181,9 @@ export enum TransactionsOutcomesHebrewColumns {
   ];
 
   export enum EmploymentType {
-    SELF_EMPLOYED = 'selfEmployed',
-    BOTH = 'both',
-    EMPLOYEE = 'employee'
+    SELF_EMPLOYED = 'SELF_EMPLOYED',
+    BOTH = 'BOTH',
+    EMPLOYEE = 'EMPLOYEE'
   }
   
   export const EmploymentTypeLabels = {

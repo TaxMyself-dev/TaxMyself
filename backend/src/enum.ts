@@ -1,13 +1,25 @@
 export enum UserRole {
-  FREE_USER = 'free_user',
-  PAID_USER = 'paid_user',
-  ADMIN = 'admin'
+  FREE_USER = 'FREE_USER',
+  PAID_USER = 'PAID_USER',
+  ADMIN = 'ADMIN'
 }
 
 export enum BusinessType {
   EXEMPT = 'EXEMPT',
   LICENSED = 'LICENSED',
   COMPANY = 'COMPANY',
+}
+
+export enum FamilyStatus {
+  MARRIED = 'MARRIED',
+  SINGLE = 'SINGLE',
+  DIVORCED = 'DIVORCED'
+}
+
+export enum EmploymentType {
+  SELF_EMPLOYED = 'SELF_EMPLOYED',
+  BOTH = 'BOTH',
+  EMPLOYEE = 'EMPLOYEE'
 }
 
 export enum VATReportingType {

@@ -116,8 +116,6 @@ export class ExpensesService {
         firebaseId: string,
         createUserCategoryDto: CreateUserCategoryDto
       ): Promise<UserSubCategory> {
-
-        console.log("service: add-user-category");
         
         // Step 1: Validate that the user exists using the userId
         const user = await this.userRepo.findOne({ where: { firebaseId } });
@@ -145,11 +143,9 @@ export class ExpensesService {
         const existingSubCategory = await this.userSubCategoryRepo.findOne({
             where: {
                 subCategoryName: createUserCategoryDto.subCategoryName,
-                //category: { id: category.id },   // Compare using the category ID
-                user: { index: user.index },     // Compare using the user ID (or index in your case)
+                firebaseId: createUserCategoryDto.firebaseId
             },
         });
-    
         if (existingSubCategory) {
           throw new ConflictException(`Sub-category with name ${createUserCategoryDto.subCategoryName} already exists for this user and category`);
         }
@@ -166,9 +162,9 @@ export class ExpensesService {
         userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
         userSubCategory.isEquipment = createUserCategoryDto.isEquipment;
         userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
-        //userSubCategory.firebaseId = createUserCategoryDto.
+        userSubCategory.firebaseId = createUserCategoryDto.firebaseId;
         userSubCategory.category = category;
-        userSubCategory.user = user;  // Associate with the user found by userId
+        //userSubCategory.user = user;
     
         console.log("new sub category is ", userSubCategory.subCategoryName);
 
@@ -218,19 +214,68 @@ export class ExpensesService {
     }
     
 
+    // async getSubCategories(firebaseId: string | null, isEquipment: boolean | null, categoryName: string): Promise<(UserSubCategory | DefaultSubCategory)[]> {
+
+    //     if (!firebaseId) {
+    //         throw new Error('firebaseId must be provided for user-specific subcategory search.');
+    //     }
+    
+    //     // Search in userSubCategoryRepo for all matching subcategories by joining the category and filtering by categoryName
+    //     const userSubCategories = await this.userSubCategoryRepo
+    //         .createQueryBuilder('subcategory')
+    //         .leftJoinAndSelect('subcategory.category', 'category')
+    //         .where('subcategory.firebaseId = :firebaseId', { firebaseId })
+    //         .andWhere('subcategory.isEquipment = :isEquipment', { isEquipment })
+    //         .andWhere('category.categoryName = :categoryName', { categoryName })
+    //         .getMany();
+    
+    //     // If user-specific subcategories are found, return them
+    //     if (userSubCategories.length > 0) {
+    //         return userSubCategories;
+    //     }
+    
+    //     // If no results in userSubCategoryRepo, search in defaultSubCategoryRepo by joining the category and filtering by categoryName
+    //     const defaultSubCategories = await this.defaultSubCategoryRepo
+    //         .createQueryBuilder('subcategory')
+    //         .leftJoinAndSelect('subcategory.category', 'category')
+    //         .where('subcategory.isEquipment = :isEquipment', { isEquipment })
+    //         .andWhere('category.categoryName = :categoryName', { categoryName })
+    //         .getMany();
+    
+    //     if (defaultSubCategories.length > 0) {
+    //         return defaultSubCategories;
+    //     }
+    
+    //     // If no results in either repository, throw an error
+    //     throw new Error('No subcategories found in either user or default repository.');
+    // }
+
+
     async getSubCategories(firebaseId: string | null, isEquipment: boolean | null, categoryName: string): Promise<(UserSubCategory | DefaultSubCategory)[]> {
         if (!firebaseId) {
             throw new Error('firebaseId must be provided for user-specific subcategory search.');
         }
     
+        console.log("firebaseId is ", firebaseId);
+        console.log("isEquipment is ", isEquipment);
+        console.log("categoryName is ", categoryName);
+        
         // Search in userSubCategoryRepo for all matching subcategories by joining the category and filtering by categoryName
-        const userSubCategories = await this.userSubCategoryRepo
+        const userQuery = this.userSubCategoryRepo
             .createQueryBuilder('subcategory')
             .leftJoinAndSelect('subcategory.category', 'category')
             .where('subcategory.firebaseId = :firebaseId', { firebaseId })
-            .andWhere('subcategory.isEquipment = :isEquipment', { isEquipment })
-            .andWhere('category.categoryName = :categoryName', { categoryName })
-            .getMany();
+            .andWhere('category.categoryName = :categoryName', { categoryName });
+    
+        // Add the isEquipment condition only if it’s true or false (not null)
+        // if (isEquipment !== null) {
+        //     userQuery.andWhere('subcategory.isEquipment = :isEquipment', { isEquipment });
+        // }
+    
+        const userSubCategories = await userQuery.getMany();
+
+        console.log("isEuipment is, ", isEquipment, "userSubCategories is ", userSubCategories);
+        
     
         // If user-specific subcategories are found, return them
         if (userSubCategories.length > 0) {
@@ -238,20 +283,26 @@ export class ExpensesService {
         }
     
         // If no results in userSubCategoryRepo, search in defaultSubCategoryRepo by joining the category and filtering by categoryName
-        const defaultSubCategories = await this.defaultSubCategoryRepo
+        const defaultQuery = this.defaultSubCategoryRepo
             .createQueryBuilder('subcategory')
             .leftJoinAndSelect('subcategory.category', 'category')
-            .where('subcategory.isEquipment = :isEquipment', { isEquipment })
-            .andWhere('category.categoryName = :categoryName', { categoryName })
-            .getMany();
+            .where('category.categoryName = :categoryName', { categoryName });
+    
+        // Add the isEquipment condition only if it’s true or false (not null)
+        // if (isEquipment !== null) {
+        //     defaultQuery.andWhere('subcategory.isEquipment = :isEquipment', { isEquipment });
+        // }
+    
+        const defaultSubCategories = await defaultQuery.getMany();
     
         if (defaultSubCategories.length > 0) {
             return defaultSubCategories;
         }
     
-        // If no results in either repository, throw an error
-        throw new Error('No subcategories found in either user or default repository.');
+        // // If no results in either repository, throw an error
+        // throw new Error('No subcategories found in either user or default repository.');
     }
+    
     
 
 
