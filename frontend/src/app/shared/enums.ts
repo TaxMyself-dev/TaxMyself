@@ -10,6 +10,20 @@ export enum FormTypes {
     TELEPHONE = 'tel'
 }
 
+export enum displayColumnsExpense {
+  supplier = 'ספק',
+  date = 'תאריך',
+  sum = 'סכום',
+  category = 'קטגוריה',
+  subCategory = 'תת-קטגוריה',
+  vatPercent =  'מוכר למעמ',
+  taxPercent =  'מוכר למס',
+  month = 'דווח לחודש',
+  isEquipment = 'מוגדר כציוד',
+  isRecognized = 'הוצאה מוכרת',
+  reductionPercent = 'אחוז פחת'
+}
+
 export enum ExpenseFormHebrewColumns {
     date = 'תאריך',
     sum = 'סכום',
@@ -27,22 +41,9 @@ export enum ExpenseFormHebrewColumns {
     isEquipment = 'האם ההוצאה הינה עבור רכוש קבוע?',
     loadingDate = 'תאריך העלאת קובץ',
     reductionPercent = 'פחת',
+    checkbox = 'בחר',
     actions = 'פעולות'
     
-}
-
-export enum displayColumnsExpense {
-    supplier = 'ספק',
-    date = 'תאריך',
-    sum = 'סכום',
-    category = 'קטגוריה',
-    subCategory = 'תת-קטגוריה',
-    vatPercent =  'מוכר למעמ',
-    taxPercent =  'מוכר למס',
-    month = 'דווח לחודש',
-    isEquipment = 'מוגדר כציוד',
-    isRecognized = 'הוצאה מוכרת',
-    reductionPercent = 'אחוז פחת'
 }
 
 export enum ExpenseFormColumns {
@@ -62,7 +63,8 @@ export enum ExpenseFormColumns {
     IS_EQUIPMENT = 'isEquipment',
     REDUCTION_PERCENT = 'reductionPercent',
     LOADING_DATE = 'loadingDate',
-    ACTIONS = 'actions'
+    ACTIONS = 'actions',
+    CHECKBOX = 'checkbox'
   }
   
   export enum TransactionsOutcomesColumns {
@@ -91,8 +93,8 @@ export enum ExpenseFormColumns {
 export enum TransactionsOutcomesHebrewColumns {
   id = 'מספר עסקה',
   paymentIdentifier = 'אמצעי תשלום',
-  payDate = 'תאריך החיוב בחשבון',
-  billDate = 'תאריך תשלום',
+  payDate = 'תאריך החיוב',
+  billDate = 'תאריך עסקה',
   name = 'שם העסק',
   sum = 'סכום',
   category = 'קטגוריה',

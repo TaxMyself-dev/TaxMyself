@@ -9,12 +9,9 @@ import {
 
 export class UpdateSupplierDto {
 
-    @IsString()
-    token: string;
-
     @IsOptional()
     @IsString()
-    name: string;
+    supplier: string;
 
     @IsOptional()
     @IsString()

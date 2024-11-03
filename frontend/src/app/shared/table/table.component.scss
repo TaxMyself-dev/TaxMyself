@@ -95,11 +95,13 @@
 //   }
 // }
 //=============================================================================
-ion-col {
-  font-family: 'lato', sans-serif;
-  color: black;
-  text-align: center;
-}
+// ion-col {
+//   font-family: 'lato', sans-serif;
+//   color: black;
+//   text-align: center;
+//   display: flex;
+//   justify-content: center;
+// }
 
 .grid-container{
   width: 100%;
@@ -165,15 +167,10 @@ ion-col {
 }
 
 .label-file-table {
-  // border: 1px solid;
-  // border-radius: 50%;
-  width: 55%;
+  width: 80%;
   height: 50px;
-  // background-color: rgb(79, 171, 79);
-  // color: white;
   display: flex;
-  //justify-content: flex-start;
-  //align-items: center;
+  justify-content: center;
 }
 
 .label-file-table ion-icon:hover   {
@@ -181,7 +178,6 @@ ion-col {
 }
 
 .label-file-table ion-icon {
-  // --ionicon-stroke-width: 2px;
   width: 30%;
   height: 60%;
 }
@@ -193,15 +189,11 @@ ion-col {
 .trash-icon {
   width: 10px;
   height: 10px;
-  //border: 1px solid;
-  //border-radius: 50%;
 }
 
 .ion-col-with-icon {
   position: relative;
   display: flex;
-  //justify-content: center;
-  //align-items: center;
 }
 
 .wrap-button-category {
@@ -217,11 +209,13 @@ ion-col {
 }
 
 .text-cell {
+  display: flex;
+  justify-content: space-evenly;
   white-space: nowrap;          /* Prevent text wrapping */
   overflow: hidden;             /* Hide overflowing text */
   text-overflow: ellipsis;      /* Show ellipsis for overflow */
   cursor: pointer;              /* Indicate clickable element */
-  width: 100%;                  /* Full width of the cell */
+  //width: 100%;                  /* Full width of the cell */
   transition: all 0.3s ease-in-out;  /* Smooth transition for resizing */
 }
 
@@ -229,8 +223,6 @@ ion-col {
   white-space: normal;          /* Allow text to wrap */
   overflow: visible;            /* Show all text */
   height: auto; 
-  //max-width: 100px;
-  //width: auto;                /* Expand to fit content */
 }
 
 
@@ -241,7 +233,6 @@ ion-col {
   font-size: 14px;
   letter-spacing: 0.03em;
   border-radius: 3px;
-  //padding-right: 10px;
   display: flex;
   justify-content: space-between;
   margin-bottom: 10px;
@@ -251,7 +242,6 @@ ion-col {
     margin-bottom: 6px;
     background-color: #ffffff;
     box-shadow: 0px 0px 9px 0px rgba(0,0,0,0.1);
-    padding-right: 10px;
 }
 
 .table-row:hover{

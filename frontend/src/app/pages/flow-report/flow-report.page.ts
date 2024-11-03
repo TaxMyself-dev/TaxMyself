@@ -34,16 +34,29 @@ export class FlowReportPage implements OnInit {
   messageToast: string = "";
 
 
+  readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
+    [TransactionsOutcomesColumns.CHECKBOX, 0.5],
+    [TransactionsOutcomesColumns.NAME, 1.4],
+    [TransactionsOutcomesColumns.SUM, 1],
+    [TransactionsOutcomesColumns.CATEGORY, 1.4],
+    [TransactionsOutcomesColumns.SUBCATEGORY, 1.4],
+    [TransactionsOutcomesColumns.TAX_PERCENT, 1.2],
+    [TransactionsOutcomesColumns.VAT_PERCENT, 1.2],
+    [TransactionsOutcomesColumns.REDUCTION_PERCENT, 1.2],
+    [TransactionsOutcomesColumns.BILL_DATE, 1.6],
+    [TransactionsOutcomesColumns.ACTIONS, 1],
+  ]);
+
 
   fieldsNames: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.TOTAL_TAX, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.DATE },
-    { name: TransactionsOutcomesColumns.TOTAL_VAT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.DATE },
+    { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.DATE },
     { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.DATE, },
-    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
+    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
 
   ];
   readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([

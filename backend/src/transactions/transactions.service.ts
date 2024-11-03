@@ -66,6 +66,7 @@ export class TransactionsService {
     const headers = rows.shift();    
 
     // Find index of each column based on header row
+    //billDate = תאריך עסקה כלומר היום בו קניתי את המוצר. payDate = תאריך תשלום כלומר היום בו בפועל ירד לי כסף מהחשבון
     const nameIndex = headers.findIndex(header => header === 'שם העסק');
     const paymentIdentifierIndex = headers.findIndex(header => header === 'אמצעי זיהוי התשלום');
     const billDateIndex = headers.findIndex(header => header === 'תאריך החיוב בחשבון');

@@ -28,9 +28,10 @@ export class selectSupplierComponent implements OnInit {
   ];
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-    [ExpenseFormColumns.SUPPLIER, 4],
-    [ExpenseFormColumns.SUPPLIER_ID, 4],
-    [ExpenseFormColumns.ACTIONS, 4]
+    [ExpenseFormColumns.SUPPLIER, 3.9],
+    [ExpenseFormColumns.SUPPLIER_ID, 3.8],
+    [ExpenseFormColumns.ACTIONS, 3.8],
+    [ExpenseFormColumns.CHECKBOX, 0.5]
   ]);
 
   tableActions: ITableRowAction[] = [];
@@ -39,6 +40,7 @@ export class selectSupplierComponent implements OnInit {
   isOpen: boolean = false;
   message: string = "האם אתה בטוח שברצונך למחוק ספק זה?";
   id: number;
+  checkedSupplier: any;
 
   constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController, private popoverController: PopoverController) { }
 
@@ -50,13 +52,6 @@ export class selectSupplierComponent implements OnInit {
   private setTableActions(): void {
     this.tableActions = [
 
-      {
-        name: 'download file',
-        icon: 'checkmark-done-circle-outline',
-        action: (row: IRowDataTable) => {
-          this.selectedSupplier(row);
-        }
-      },
       {
         name: 'delete',
         icon: 'trash-outline',
@@ -94,8 +89,8 @@ export class selectSupplierComponent implements OnInit {
     // })
   }
 
-  selectedSupplier(data: IRowDataTable): void {
-    this.cancel(data);
+  selectedSupplier(): void {
+    this.cancel(this.checkedSupplier.row);
   }
   
   cancel(data?: IRowDataTable) {
@@ -108,23 +103,22 @@ export class selectSupplierComponent implements OnInit {
   }
 
   editSupplier(supplier: IRowDataTable): void{
-        from(this.popoverController.create({
+        from(this.modalCtrl.create({
           component: addSupplierComponent,
-          //event: ev,
-          // translucent: false,
           componentProps: {
             supplier: supplier,
             editMode: true
-          }
+          },
+          cssClass: 'edit-supplier'
         })).pipe(
           catchError((err) => {
             console.log("openEditSupplier failed in create", err);
             return EMPTY;
           }),
-          switchMap((popover) => {
-            if (popover) {
-              return from(popover.present()).pipe(
-                switchMap(() => from(popover.onDidDismiss())),
+          switchMap((modal) => {
+            if (modal) {
+              return from(modal.present()).pipe(
+                switchMap(() => from(modal.onDidDismiss())),
                 catchError((err) => {
                   console.log("openEditSupplier failed in present", err);
                   return EMPTY;
@@ -139,7 +133,8 @@ export class selectSupplierComponent implements OnInit {
             ).subscribe((res) => {
               console.log(res.data?.value);
               this.getSuppliers();
-              this.popoverController.dismiss(res.data?.value);//close the popover of suppliers list
+              // if (res.role === "send")
+              // this.modalCtrl.dismiss(res.data?.value);//close the popover of suppliers list
         })
         
   }
@@ -169,6 +164,18 @@ export class selectSupplierComponent implements OnInit {
     console.log("event in confirm ", id);
     this.id = id;
     this.isOpen = true;
+  }
+
+  onChecked(event: any): void {
+    console.log("checked event: ", event);
+    if (event.checked) {
+      this.checkedSupplier = event;
+    }
+    else {
+      this.checkedSupplier = null
+    }
+    console.log("checkedSupplier: ",this.checkedSupplier);
+    
   }
 }
 

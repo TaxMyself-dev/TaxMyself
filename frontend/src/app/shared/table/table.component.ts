@@ -20,6 +20,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   //@Input() checkboxData: ICheckboxCellData = {columnName: "בחר הכול"};
   @Input() displayCheckbox = false;
   @Input() iconSrc: string;
+  @Input() checkedId: number;
   @Input() iconName: string;
   @Input() iconToolTip: string;
   @Input() set rows(val: IRowDataTable[]) {
@@ -63,10 +64,23 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
 
   onChecked(event: any, row: IRowDataTable): void {
     this.onCheckedClicked.emit({row: row, checked: event.detail?.checked})
+    //this.showChecked();
   }
 
   toggleExpand() {
     this.isExpanded = !this.isExpanded;  // Toggle between expanded and collapsed state
+  }
+
+  showChecked(data: IRowDataTable): boolean {
+    if (data.id === this.checkedId) {
+      console.log("in true chcked");
+      
+      return true;
+    }
+    else {
+      console.log("in false chcked");
+      return false;
+    }
   }
 
 
