@@ -58,21 +58,26 @@ export interface ISortDate{
 }
 
 
-
-export interface IGetSubCategory {
-    id: number;
+export interface IDisplayCategorytDetails {
     subCategoryName: string;
+    categoryName: string;
+    taxPercent: string;
+    vatPercent: string;
+    isEquipment: string | boolean;
+    isRecognized: string | boolean;
+    reductionPercent: string;
+}
+
+export interface IGetSubCategory extends IDisplayCategorytDetails {
+    id: number;
     category: {
         firebaesId: string,
         id: number,
         isDefault: boolean,
-        category: string
+        categoryName: string
     };
-    taxPercent: string;
-    vatPercent: string;
-    isEquipment: boolean | string;
-    isRecognized: boolean | string;
-    reductionPercent: string;
+    isEquipment: boolean;
+    isRecognized: boolean;
 }
 
 export interface IGetSupplier {

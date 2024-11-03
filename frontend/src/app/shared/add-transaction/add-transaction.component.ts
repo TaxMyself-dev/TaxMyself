@@ -1,7 +1,7 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { IClassifyTrans, IColumnDataTable, IGetSubCategory, ISelectItem } from '../interface';
+import { IClassifyTrans, IColumnDataTable, IDisplayCategorytDetails, IGetSubCategory, ISelectItem } from '../interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
 import { EMPTY, catchError, finalize, map, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
@@ -28,7 +28,7 @@ export class AddTransactionComponent implements OnInit {
   listSubCategory: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[] = [];
   subCategorySelected: boolean = false;
-  categoryDetails: IGetSubCategory;
+  categoryDetails: IDisplayCategorytDetails = {categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: ""};;
   equipmentType = 0;
   isRecognize: boolean = false;
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
@@ -137,9 +137,19 @@ export class AddTransactionComponent implements OnInit {
       .pipe(
         map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
           console.log(isEquipmentSubCategory, notEquipmentSubCategory);
+          // The if condition are to avoid undifiend  errors 
           if (isEquipmentSubCategory && notEquipmentSubCategory) {
             this.originalSubCategoryList.push(...isEquipmentSubCategory, ...notEquipmentSubCategory);
           }
+          else if (isEquipmentSubCategory) {
+            this.originalSubCategoryList.push(...isEquipmentSubCategory);
+          }
+          else if (notEquipmentSubCategory) {
+            this.originalSubCategoryList.push(...notEquipmentSubCategory);
+          }
+          // else {
+          //   this.originalSubCategoryList.push([{value: "לא קיימים תתי קטגוריות", name: ""}]);
+          // }
           const isEquipmentSubCategoryList = isEquipmentSubCategory?.map((item: any) => ({
             name: item.subCategoryName,
             value: item.subCategoryName
@@ -175,13 +185,22 @@ export class AddTransactionComponent implements OnInit {
 
   selectedSubCategory(event): void {
     console.log(event);
-    
+    console.log("originalSubCategoryList: ", this.originalSubCategoryList);
+
     if (this.existCategory) {
       this.subCategorySelected = true;
-      this.categoryDetails = this.originalSubCategoryList?.find((item) => item.id === event.value);
-      this.categoryDetails?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
-      this.categoryDetails?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
-      delete this.categoryDetails?.id;
+      const categoryDetailsFromServer: IGetSubCategory = this.originalSubCategoryList?.find((item) => item.subCategoryName === event.value);
+      console.log("categoryDetailsFromServer :", categoryDetailsFromServer);
+      
+     this.categoryDetails.categoryName = categoryDetailsFromServer.category.categoryName;
+     this.categoryDetails.reductionPercent = categoryDetailsFromServer.reductionPercent;
+     this.categoryDetails.subCategoryName = categoryDetailsFromServer.subCategoryName;
+     this.categoryDetails.taxPercent = categoryDetailsFromServer.taxPercent;
+     this.categoryDetails.vatPercent = categoryDetailsFromServer.vatPercent;
+    categoryDetailsFromServer?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
+    categoryDetailsFromServer?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
+    console.log("category details: ", this.categoryDetails);
+    
     }
     else {
       this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategoryName === event.value);
@@ -226,7 +245,7 @@ export class AddTransactionComponent implements OnInit {
     formData.id = this.data.id;
     formData.billName = this.data.billName;
     formData.name = this.data.name;
-    formData.category = this.categoryDetails.category.category;
+    formData.category = this.categoryDetails.categoryName;
     formData.subCategory = this.categoryDetails.subCategoryName;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
     formData.vatPercent = +this.categoryDetails.vatPercent;
