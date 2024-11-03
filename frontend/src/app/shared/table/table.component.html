@@ -115,16 +115,11 @@
           class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{field.value}}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
-                {{field.value}}
+                {{field.value | dateFormat}}
           </ion-col>
         </ng-template>
 
       </ng-container>
-      <!-- <ng-container  *ngIf="!displayCheckbox"> -->
-      <!-- <div class="checkbox">
-        <ion-checkbox [checked]="isSelected" (ionChange)="onCheckedClicked({$event,row})"></ion-checkbox>
-      </div> -->
-        <!-- </ng-container> -->
 
       <ion-col class="text-cell" *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
         <ng-container *ngFor="let action of actions" >

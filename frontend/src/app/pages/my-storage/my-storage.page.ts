@@ -6,7 +6,7 @@ import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, 
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, ICellRenderer } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { environment } from 'src/environments/environment';
@@ -26,7 +26,11 @@ export class MyStoragePage implements OnInit {
     [ExpenseFormColumns.SUPPLIER, 1.2],
     [ExpenseFormColumns.DATE, 1.5]
   ]);
-  readonly COLUMNS_TO_IGNORE = ['id', 'file', 'isReported', 'vatReportingDate', 'transId'];
+
+  readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
+    [ExpenseFormColumns.DATE, ICellRenderer.DATE],
+  ]);
+  readonly COLUMNS_TO_IGNORE = ['reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId','id', 'file', 'isReported', 'vatReportingDate', 'transId'];
   readonly ButtonSize = ButtonSize;
 
   // columns: IColumnDataTable = {};//Titles of table
@@ -116,13 +120,14 @@ export class MyStoragePage implements OnInit {
   setRowsData(): void {
     this.items$ = this.expenseDataService.getExpenseByUser()
       .pipe(
-        map((data) => {
+        tap((data) => {
           const rows = [];
-          data.forEach(row => {
-            const { id, reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, ...tableData } = row;
-            rows.push(tableData);
+          data.forEach((row) => {
+            rows.push(row);
           })
           this.rows = rows;
+          console.log(rows);
+          
           return rows
         })
       )
