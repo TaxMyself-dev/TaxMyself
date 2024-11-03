@@ -81,3 +81,13 @@ $app-theme: mat.define-light-theme((
     --height: fit-content;
     --width: 80%;
 }
+
+.edit-supplier {
+  --border-color: rgb(79, 171, 79);
+  --border-width: 2px;
+  --border-style: solid;
+  --border-radius: 15px;
+  --height: 90%;
+  --width: 275px;
+
+}

@@ -101,13 +101,13 @@ export interface User {
  export interface ICreateSupplier{
     category: string,
     subCategory: string,
-    name: string,
+    supplier: string,
     taxPercent: string,
     vatPercent: string,
     supplierID: string,
     id: number,
     isEquipment: string,
-    reductionPercent: number
+    reductionPercent: number | string
 }
 
 export interface ICheckboxCellData {

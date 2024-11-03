@@ -141,8 +141,8 @@ export class ExpensesController {
 
 
   @Patch('update-supplier/:id')
-  async updateSupplier(@Param('id') id: number, @Body() body: UpdateSupplierDto) {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+  async updateSupplier(@Param('id') id: number, @Headers('token') token: string, @Body() body: UpdateSupplierDto) {
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.updateSupplier(id, userId, body);
   }
 
@@ -155,15 +155,15 @@ export class ExpensesController {
 
 
   @Get('get-suppliers-list')
-  async getSupplierNamesByUserId(@Query('token') token: string): Promise<SupplierResponseDto[]> {
+  async getSupplierNamesByUserId(@Headers('token') token: string): Promise<SupplierResponseDto[]> {
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.getSupplierNamesByUserId(userId);
   }
 
 
   @Get('get-supplier/:id')
-  async getSupplierById(@Param('id') id: number, @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
+  async getSupplierById(@Param('id') id: number, @Headers('token') token: string, @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
+    const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.getSupplierById(id, userId);
   }
 

@@ -137,9 +137,10 @@ export class ExpenseDataService {
   getAllSuppliers(): Observable<IRowDataTable[]> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;
-    const param = new HttpParams()
-      .set('token', token);
-    return this.http.get<IRowDataTable[]>(url, { params: param })
+    const headers = {
+      'token': token
+    }
+    return this.http.get<IRowDataTable[]>(url, { headers })
   }
 
   addSupplier(formData: any): Observable<any> {
@@ -155,7 +156,11 @@ export class ExpenseDataService {
   editSupplier(formData: any, id: number): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/update-supplier/` + id;
-    return this.http.patch(url, formData);
+    const headers = {
+      'token':
+       token
+    }
+    return this.http.patch(url, formData,{headers});
   }
 
   deleteSupplier(id: number): Observable<any> {

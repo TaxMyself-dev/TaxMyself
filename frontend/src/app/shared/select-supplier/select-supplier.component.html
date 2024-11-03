@@ -38,8 +38,10 @@
   </div>
 
   <ng-container *ngIf="suppliersList$ | async as supplierList ">
-    <app-table [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="supplierList"></app-table>
+    <app-table [checkedId]="checkedSupplier?.row?.id" [displayCheckbox]="true" (onCheckedClicked)="onChecked($event)" [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="supplierList"></app-table>
   </ng-container>
+
+  <app-button (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
 
   
   <ng-template #loader>

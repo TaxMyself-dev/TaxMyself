@@ -437,9 +437,11 @@ export class TransactionsPage implements OnInit {
       .pipe(
         takeUntil(this.destroy$),
         map((res) => {
+          console.log(res);
+          
           return res.map((item: any) => ({
-            name: item.category,
-            value: item.id
+            name: item.categoryName,
+            value: item.categoryName
           })
           )
         }))

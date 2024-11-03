@@ -20,8 +20,8 @@
 <div class="grid-container">
   <ion-grid class="grid">
     <ion-row class="table-headers">
-      <ion-col *ngIf="displayCheckbox" size="1" class="col-header action">
-      סמן הכל
+      <ion-col *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
+      בחר
       </ion-col>
       <ion-col
         *ngFor="let col of fieldsNames"
@@ -36,8 +36,8 @@
       </ion-col>
     </ion-row>
     <ion-row *ngFor="let row of rows; let i = index" class="table-row">
-      <ion-col class="checkbox-col" *ngIf="displayCheckbox" size="1">
-        <ion-checkbox (ionChange)="onChecked($event, row)"></ion-checkbox>
+      <ion-col class="checkbox-col" *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize">
+        <ion-checkbox [checked]="showChecked(row)" (ionChange)="onChecked($event, row)"></ion-checkbox>
       </ion-col>
       <ng-container *ngFor="let field of row | keyvalue: columnsOrderByFunc">
         <ng-container [ngSwitch]="specialColumnsCellRendering?.get(field.key)">
@@ -120,13 +120,13 @@
         </ng-template>
 
       </ng-container>
-      <ng-container  *ngIf="!displayCheckbox">
+      <!-- <ng-container  *ngIf="!displayCheckbox"> -->
       <!-- <div class="checkbox">
         <ion-checkbox [checked]="isSelected" (ionChange)="onCheckedClicked({$event,row})"></ion-checkbox>
       </div> -->
-        </ng-container>
+        <!-- </ng-container> -->
 
-      <ion-col *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
+      <ion-col class="text-cell" *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
         <ng-container *ngFor="let action of actions" >
           <ion-icon *ngIf="action.name !== 'upload'"  class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
           <label *ngIf="action.name === 'upload'" class="label-file-table">

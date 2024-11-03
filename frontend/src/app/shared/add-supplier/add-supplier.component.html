@@ -3,34 +3,51 @@
     <ion-title>
       עריכת ספק
     </ion-title>
-    <ion-icon class="add-supplier-icon-header" (click)="cancel()" aria-label="back" size="large"
+    <ion-icon class="add-supplier-icon-header" (click)="cancel('cancel')" aria-label="back" size="large"
       name="close-outline"></ion-icon>
   </ion-header>
 </ion-toolbar>
-<form *ngIf="myForm; else lineLoader" [formGroup]="myForm" (ngSubmit)="saveSupplier()">
-  <ion-list>
+
+<ion-content>
+
+  <form *ngIf="myForm; else lineLoader" [formGroup]="myForm" class="edit-supplier-form">
     <ng-container *ngFor="let field of arrFields">
       <ng-container [ngSwitch]="field.type">
         <ng-container *ngSwitchCase="'ddl'">
-          <ion-select *ngIf="field.key == 'category' || 'subCategory' || 'reductionPercent'" class="input-expense ddl"
-            fill="outline" label=" * {{field.value}}" [formControlName]="field.key" label-placement="floating"
-            interface="action-sheet" (ionChange)="onDdlSelectionChange($event, field)">
-            <ion-select-option *ngFor="let option of getListOptionsByKey(field.key)"
-              [value]="option.value">{{option.key}}</ion-select-option>
-          </ion-select>
+          <app-generic-select [className]="'wide'" [errorText]="'שדה חובה'" [controlName]="field.key" [parentForm]="myForm" (selectionChanged)="onDdlSelectionChange($event, field)" [title]="field.value" [items]="getListOptionsByKey(field.key)"></app-generic-select>
         </ng-container>
         <ng-container *ngSwitchCase="'text'">
-          <ion-item>
-            <ion-input (keyup.enter)="onEnterKeyPressed()" label="{{field.value}}" label-placement="floating"
-              formControlName="{{field.key}}" type="text"></ion-input>
-          </ion-item>
+          <app-generic-input [parentForm]="myForm" [className]="'wide'" [errorText]="'שדה חובה'" [controlName]="field.key" [inputLabel]="field.value" ></app-generic-input>
         </ng-container>
       </ng-container>
     </ng-container>
-    <!-- </ng-template> -->
-  </ion-list>
-  <ion-button type="submit" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>
-</form>
+  </form>
+
+  <!-- <form *ngIf="myForm; else lineLoader" [formGroup]="myForm" (ngSubmit)="saveSupplier()">
+    <ion-list>
+      <ng-container *ngFor="let field of arrFields">
+        <ng-container [ngSwitch]="field.type">
+          <ng-container *ngSwitchCase="'ddl'">
+            <ion-select *ngIf="field.key == 'category' || 'subCategory' || 'reductionPercent'" class="input-expense ddl"
+              fill="outline" label=" * {{field.value}}" [formControlName]="field.key" label-placement="floating"
+              interface="popover" (ionChange)="onDdlSelectionChange($event, field)">
+              <ion-select-option *ngFor="let option of getListOptionsByKey(field.key)"
+                [value]="option.value">{{option.key}}</ion-select-option>
+            </ion-select>
+          </ng-container>
+          <ng-container *ngSwitchCase="'text'">
+            <ion-item>
+              <ion-input (keyup.enter)="onEnterKeyPressed()" label="{{field.value}}" label-placement="floating"
+                formControlName="{{field.key}}" type="text"></ion-input>
+            </ion-item>
+          </ng-container>
+        </ng-container>
+      </ng-container>
+      </ng-template>
+    </ion-list>
+  </form> -->
+  <ion-button (click)="saveSupplier()" [disabled]="disableSave()">{{editMode ? 'שמור' : 'הוסף' }}</ion-button>
+</ion-content>
 
 <ng-template #lineLoader>
   <ion-loading></ion-loading>

@@ -30,11 +30,11 @@ export class ModalExpensesComponent {
   @Input() set data(val: IRowDataTable) {
     if (val) {
       console.log("val in modal",val);
-      if (val.isEquipment == false) {        
+      if (val.isEquipment === false) {        
         val.isEquipment = "0";
         this.isEquipment = false;
       }
-      else{
+      else if (val.isEquipment === true){
         val.isEquipment = "1";
         this.isEquipment = true;
       }
@@ -77,8 +77,7 @@ export class ModalExpensesComponent {
   readonly expenseFormColumns = ExpenseFormColumns;
   readonly ButtonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
-  // readonly inputStyles = new Map<ExpenseFormColumns, Partial<CSSStyleDeclaration>>([
-    readonly inputStyles = new Map<ExpenseFormColumns, {}>([
+  readonly inputStyles = new Map<ExpenseFormColumns, {}>([
     [ExpenseFormColumns.DATE, {'width': '30%'}],
     [ExpenseFormColumns.SUM, {'width': '30%'}],
     [ExpenseFormColumns.EXPENSE_NUMBER, {'width': '30%'}],
@@ -89,9 +88,6 @@ export class ModalExpensesComponent {
     [ExpenseFormColumns.REDUCTION_PERCENT, {'width': '30%'}],
     [ExpenseFormColumns.NOTE, {'width': '100%', '--border-style':'none', 'border-bottom':'1px solid gray', 'border-radius':'0px'}],
   ]);
-
-  //readonly inputStyles = new Map<ExpenseFormColumns, Partial<CSSStyleDeclaration>>();
-
 
 
   isEnlarged: boolean = false;
@@ -107,7 +103,7 @@ export class ModalExpensesComponent {
   selectedFile: string = "";
   editModeFile: string = "";
   id: number;
-  equipmentList: Record<string, string>[] = [{ key: "לא", value: "0" }, { key: "כן", value: "1" }];
+  equipmentList: Record<string, string>[] = [{ name: "לא", value: "0" }, { name: "כן", value: "1" }];
   categoryList: {};
   subCategoryList: IGetSubCategory[];
   suppliersList: IGetSupplier[];
@@ -130,6 +126,8 @@ export class ModalExpensesComponent {
   }
   
   ngOnInit() {
+    console.log(this.isEquipment);
+    
     const today = new Date();
     this.maxDate = this.formatDate(today);
     console.log(this.maxDate);
@@ -145,10 +143,14 @@ export class ModalExpensesComponent {
 
   initForm(data?: IRowDataTable): void {
     console.log("data in init form modal edit", data);
-    
+    this.getSubCategory(data?.category as string).subscribe((res) => {
+      console.log(res);
+      this.subCategoryList = res;
+    });
+
     this.addExpenseForm = this.formBuilder.group({
-      [ExpenseFormColumns.CATEGORY]: [data?.category || '', Validators.required],
-      [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
+      [ExpenseFormColumns.CATEGORY]: [{name: data?.category, value: data?.category} || '', Validators.required],
+      [ExpenseFormColumns.SUB_CATEGORY]: [{name: data?.subCategory, value: data?.subCategory}  || '', Validators.required],
       [ExpenseFormColumns.SUPPLIER]: [data?.supplier || data?.name || '', Validators.required],
       [ExpenseFormColumns.SUM]: [data?.sum || '', Validators.required],
       [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || ''],
@@ -397,18 +399,12 @@ export class ModalExpensesComponent {
   }
 
   onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
-    // console.log(event);
-    console.log(colData);
-    console.log("event is ", event.detail);
     
     switch (colData.name) {
       case ExpenseFormColumns.IS_EQUIPMENT:
-        console.log("in equipment");
         this.setValueEquipment(event);
         break;
       case ExpenseFormColumns.CATEGORY:
-        console.log(event.detail.value);
-        
         this.getSubCategory(event.detail.value).
         pipe(
           tap((res) => {this.subCategoryList = res})
@@ -585,7 +581,7 @@ export class ModalExpensesComponent {
       return this.subCategoryList;
     }
     else {
-      return [{ key: "נא לבחור קטגוריה", value: "" }];
+      return [{ name: "נא לבחור קטגוריה", value: "" }];
     }
   }
 
@@ -594,7 +590,7 @@ export class ModalExpensesComponent {
       return this.categoryList;
     }
     else {
-      return [{ key: "נא לבחור מוגדר כציוד או לא", value: "" }];
+      return [{ name: "נא לבחור מוגדר כציוד או לא", value: "" }];
     }
   }
 
@@ -613,7 +609,7 @@ export class ModalExpensesComponent {
           
           return res.map((item: IGetSubCategory) => ({
             ...item,
-            key: item.subCategoryName,
+            name: item.subCategoryName,
             value: item.subCategoryName,
 
           })
@@ -642,7 +638,7 @@ export class ModalExpensesComponent {
             console.log(res);
             
             return res.map((item) => ({
-              key: item.categoryName,
+              name: item.categoryName,
               value: item.categoryName
             })
             )
