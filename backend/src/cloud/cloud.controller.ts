@@ -9,9 +9,6 @@ export class CloudController {
   @Get('search')
   async searchExpenses(@Req() request: Request) {
     //const userId = await this.usersService.getFirbsaeIdByToken(token)
-    console.log("hello world");
-    console.log(request.body);
-    console.log(request.query);
     
     const userId = "L5gJkrdQZ5gGmte5XxRgagkqpOL2"
   

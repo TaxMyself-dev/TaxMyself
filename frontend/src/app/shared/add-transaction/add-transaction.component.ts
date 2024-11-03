@@ -137,13 +137,15 @@ export class AddTransactionComponent implements OnInit {
       .pipe(
         map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
           console.log(isEquipmentSubCategory, notEquipmentSubCategory);
-          this.originalSubCategoryList.push(...isEquipmentSubCategory, ...notEquipmentSubCategory);
-          const isEquipmentSubCategoryList = isEquipmentSubCategory.map((item: any) => ({
+          if (isEquipmentSubCategory && notEquipmentSubCategory) {
+            this.originalSubCategoryList.push(...isEquipmentSubCategory, ...notEquipmentSubCategory);
+          }
+          const isEquipmentSubCategoryList = isEquipmentSubCategory?.map((item: any) => ({
             name: item.subCategoryName,
             value: item.subCategoryName
           })
           );
-          const notEquipmentSubCategoryList = notEquipmentSubCategory.map((item: any) => ({
+          const notEquipmentSubCategoryList = notEquipmentSubCategory?.map((item: any) => ({
             name: item.subCategoryName,
             value: item.subCategoryName
           })
@@ -176,10 +178,10 @@ export class AddTransactionComponent implements OnInit {
     
     if (this.existCategory) {
       this.subCategorySelected = true;
-      this.categoryDetails = this.originalSubCategoryList.find((item) => item.id === event.value);
-      this.categoryDetails.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
-      this.categoryDetails.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
-      delete this.categoryDetails.id;
+      this.categoryDetails = this.originalSubCategoryList?.find((item) => item.id === event.value);
+      this.categoryDetails?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
+      this.categoryDetails?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
+      delete this.categoryDetails?.id;
     }
     else {
       this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategoryName === event.value);

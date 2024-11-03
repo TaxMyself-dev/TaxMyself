@@ -126,7 +126,7 @@ export class TransactionsService {
         where: {
           name: transaction.name,
           paymentIdentifier: transaction.paymentIdentifier,
-          payDate: transaction.payDate,
+          billDate: transaction.billDate,
           sum: transaction.sum,
           userId: transaction.userId,
         },
@@ -272,7 +272,7 @@ export class TransactionsService {
           userId,
           name,
           billName,
-          payDate: Between(startDate, endDate)
+          billDate: Between(startDate, endDate)
         },
       });
     } else {
@@ -359,7 +359,7 @@ export class TransactionsService {
           userId,
           name: updateDto.name,
           billName: updateDto.billName,
-          payDate: Between(startDate, endDate)
+          billDate: Between(startDate, endDate)
         },
       });
     }
@@ -497,7 +497,7 @@ export class TransactionsService {
         return await this.transactionsRepo.find({
           where: {
             userId,
-            payDate: Between(startDate, endDate)
+            billDate: Between(startDate, endDate)
           }
         });
       }
@@ -511,23 +511,27 @@ export class TransactionsService {
       sources = bill.sources.map(source => source.sourceName);
     }
 
-     // Get all paymentIdentifiers for all bills
-     const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-     allBills.forEach(bill => {
-       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
-     });
+    // Get all paymentIdentifiers for all bills
+    const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+    allBills.forEach(bill => {
+      allIdentifiers.push(...bill.sources.map(source => source.sourceName));
+    });
+
+    console.log("startDate is ", startDate);
+    console.log("endDate is ", endDate);
+    
 
     const transactions = await this.transactionsRepo.find({
     where: [
       {
         userId,
         paymentIdentifier: In(sources),
-        payDate: Between(startDate, endDate)
+        billDate: Between(startDate, endDate)
       },
       {
         userId,
         paymentIdentifier: Not(In(allIdentifiers)),
-        payDate: Between(startDate, endDate)
+        billDate: Between(startDate, endDate)
       }
     ]
   });
@@ -574,12 +578,12 @@ export class TransactionsService {
         .andWhere(
           new Brackets(qb => {
             qb.where(
-              '(transactions.payDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', 
+              '(transactions.billDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', 
               { startDate, endDate }
             )
             //TODO: Need to Add here the condition of half year back && isRecognized && not reported!!!
             // .orWhere(
-            //   '(transactions.payDate < :startDate AND transactions.payDate >= :halfYearBeforeStartDate AND transactions.vatReportingDate IS NULL)', 
+            //   '(transactions.billDate < :startDate AND transactions.billDate >= :halfYearBeforeStartDate AND transactions.vatReportingDate IS NULL)', 
             //   { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
             // );
           })
@@ -618,7 +622,7 @@ export class TransactionsService {
       const existingExpense = await this.expenseRepo.findOne({
         where: {
           userId: transaction.userId,
-          date: transaction.payDate,
+          date: transaction.billDate,
           supplier: transaction.name,
           sum: Math.abs(transaction.sum)
         }
@@ -638,7 +642,7 @@ export class TransactionsService {
       expense.sum = Math.abs(transaction.sum);
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
-      expense.date = transaction.payDate;
+      expense.date = transaction.billDate;
       expense.vatReportingDate = this.sharedService.getVATReportingDate(new Date(expense.date), user.vatReportingType);
       expense.note = '';
       expense.file = transactionFile;
