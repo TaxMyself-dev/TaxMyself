@@ -16,7 +16,7 @@
   </ion-toolbar>
 </ion-header>
 
-
+<ion-content>
 <ng-container *ngIf="existCategory; else newCategory">
   <div class="wrapp-exist-category">
     <form class="form-exist-category" *ngIf="!equipmentType && categoryList" [formGroup]="existCategoryEquipmentForm">
@@ -36,12 +36,22 @@
           <ion-card-title>פרטי קטגוריה נבחרת</ion-card-title>
         </ion-card-header>
         <ion-card-content class="content-card">
+          <ng-container *ngIf="categoryDetails.isRecognized === 'כן'; else notRecognized ">
           <ng-container *ngFor="let item of categoryDetails | keyvalue">
             <div class="data-card">
               <p class="headers-table">{{displayHebrew[item.key]}} :&nbsp;&nbsp;</p>
               <p>{{item.value['category'] ?? item.value}}</p>
             </div>
           </ng-container>
+        </ng-container>
+          <ng-template #notRecognized>
+            <div class="data-card">
+              <p class="headers-table">קטגוריה:&nbsp;&nbsp;</p>
+              <p>{{categoryDetails.categoryName}}</p> &nbsp;&nbsp;&nbsp;&nbsp;
+              <p class="headers-table">תת-קטגוריה:&nbsp;&nbsp;</p>
+              <p>{{categoryDetails.subCategoryName}}</p>
+            </div>
+          </ng-template>
         </ion-card-content>
       </ion-card>
     </div>
@@ -51,6 +61,7 @@
   </div>
 
 </ng-container>
+</ion-content>
 
 <ng-template #newCategory>
   <div class="new-category-screen">
