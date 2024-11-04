@@ -221,7 +221,7 @@ export class TransactionsService {
     subCategory.reductionPercent = reductionPercent;
     subCategory.isEquipment = isEquipment;
     subCategory.isRecognized = isRecognized;
-    subCategory.category = category;
+    subCategory.categoryName = categoryName;
 
     await this.defaultSubCategoryRepo.save(subCategory);
 

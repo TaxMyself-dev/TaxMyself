@@ -1,5 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne} from 'typeorm';
-import { DefaultCategory } from './default-categories.entity';
+import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
 
 @Entity()
 export class DefaultSubCategory {
@@ -9,6 +8,9 @@ export class DefaultSubCategory {
 
   @Column()
   subCategoryName: string;
+
+  @Column()
+  categoryName: string;
 
   @Column('decimal')
   taxPercent: number;
@@ -24,8 +26,5 @@ export class DefaultSubCategory {
 
   @Column('boolean')
   isRecognized: boolean;
-
-  @ManyToOne(() => DefaultCategory, category => category.defaultSubCategories, { onDelete: 'CASCADE' })
-  category: DefaultCategory;
 
 }

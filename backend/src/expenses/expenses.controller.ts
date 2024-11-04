@@ -1,29 +1,18 @@
 //General
 import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
-import { Request } from 'express';
 //Entities
 import { Expense } from './expenses.entity';
-import { DefaultSubCategory } from './default-sub-categories.entity';
-//import { DefaultCategory } from './categories.entity';
 //Services
 import { ExpensesService } from './expenses.service';
 import { UsersService } from '../users/users.service';
 import { SharedService } from '../shared/shared.service';
 //DTOs
 import { CreateExpenseDto } from './dtos/create-expense.dto';
-import { UpdateExpenseDto } from './dtos/update-expense.dto';
-import { CreateCategoryDto } from './dtos/create-category.dto';
-import { UpdateCategoryDto } from './dtos/update-category.dto';
-import { CreateSupplierDto } from './dtos/create-supplier.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
+import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
-
-import { parse } from 'date-fns';
-import { getDayOfYear } from 'date-fns';
-import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
-import { DefaultCategory } from './default-categories.entity';
 
 
 @Controller('expenses')

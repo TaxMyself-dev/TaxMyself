@@ -1,6 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn} from 'typeorm';
-import { User } from '../users/user.entity';
-import { UserCategory } from './user-categories.entity';
+import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
 
 @Entity()
 export class UserSubCategory {
@@ -13,6 +11,9 @@ export class UserSubCategory {
 
   @Column()
   subCategoryName: string;
+
+  @Column()
+  categoryName: string;
 
   @Column('decimal')
   taxPercent: number;
@@ -28,12 +29,5 @@ export class UserSubCategory {
 
   @Column('boolean')
   isRecognized: boolean;
-
-  @ManyToOne(() => UserCategory, category => category.userSubCategories, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'categoryId' }) // Define the column name explicitly
-  category: UserCategory;
-
-  // @ManyToOne(() => User, user => user.userSubCategories, { onDelete: 'CASCADE' })
-  // user: User;
   
 }

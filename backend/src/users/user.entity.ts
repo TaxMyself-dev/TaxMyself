@@ -6,7 +6,6 @@ import {
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
-import { UserYearlyData } from './user-yearly-data.entity';
 import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType } from '../enum';
 import { UserCategory } from 'src/expenses/user-categories.entity';
 
@@ -117,9 +116,6 @@ export class User {
       default: TaxReportingType.NOT_REQUIRED
     })
     taxReportingType: TaxReportingType;
-
-    @OneToMany(() => UserYearlyData, (yearlyData) => yearlyData.user)
-    yearlyData: UserYearlyData[];
 
     @OneToMany(() => Bill, (bill) => bill.user)
     bills: Bill[];

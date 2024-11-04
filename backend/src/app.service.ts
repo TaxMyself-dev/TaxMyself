@@ -6,8 +6,3 @@ export class AppService {
     return 'Hello ' + email + '!';
   }
 }
-//export class AppService {
-//  getHello(): string {
-//    return 'Hello World!';
-//  }
-//}

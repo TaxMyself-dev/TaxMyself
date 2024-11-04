@@ -3,7 +3,6 @@ import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { CreateUserDto, createChildDto } from './dtos/create-user.dto';
 import { UserRole, BusinessType, VATReportingType, TaxReportingType } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';

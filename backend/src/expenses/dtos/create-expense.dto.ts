@@ -1,12 +1,9 @@
 import {
     IsString,
     IsNumber,
-    Min,
-    Max,
     IsDateString,
     IsBoolean,
-    IsOptional,
-    IsDate
+    IsOptional
 } from 'class-validator'
 
 

@@ -1,6 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne} from 'typeorm';
-import { UserSubCategory } from './user-sub-categories.entity';
-import { User } from 'src/users/user.entity';
+import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
 
 @Entity()
 export class UserCategory {
@@ -13,8 +11,5 @@ export class UserCategory {
 
   @Column({ nullable: true })
   firebaseId: string;
-
-  @OneToMany(() => UserSubCategory, userSubCategory => userSubCategory.category)
-  userSubCategories: UserSubCategory[];
   
 }

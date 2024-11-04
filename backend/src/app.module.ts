@@ -19,7 +19,6 @@ import { DefaultSubCategory } from './expenses/default-sub-categories.entity';
 import { UserCategory } from './expenses/user-categories.entity';
 import { UserSubCategory } from './expenses/user-sub-categories.entity';
 import { User } from './users/user.entity';
-import { UserYearlyData } from './users/user-yearly-data.entity';
 import { Child } from './users/child.entity';
 import { Bill } from './transactions/bill.entity';
 import { Source } from './transactions/source.entity';
@@ -90,7 +89,7 @@ serviceAccount = {
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Supplier, Transactions, ClassifiedTransactions, Bill, Source, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, UserYearlyData],
+      entities: [User, Child, Expense, Supplier, Transactions, ClassifiedTransactions, Bill, Source, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory],
       synchronize: process.env.NODE_ENV !== 'production'}),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
     controllers: [AppController],
