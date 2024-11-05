@@ -67,6 +67,10 @@ const routes: Routes = [
     path: 'flow-report',
     loadChildren: () => import('./pages/flow-report/flow-report.module').then( m => m.FlowReportPageModule)
   },
+  {
+    path: 'admin-panel',
+    loadChildren: () => import('./pages/admin-panel/admin-panel.module').then( m => m.AdminPanelPageModule)
+  },
  
 ];
 

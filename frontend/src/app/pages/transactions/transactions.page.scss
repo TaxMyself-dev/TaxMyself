@@ -66,9 +66,15 @@
     width: 94%;
 }
 
-.wrap-upload {
+.wrap-upload-and-name {
+    display: flex;
+    flex-direction: column;
     border: 2px solid rgb(79, 171, 79);
     border-radius: 15px;
+    align-items: center;
+}
+
+.wrap-upload {
     display: flex;
     justify-content: space-around;
     align-items: center;

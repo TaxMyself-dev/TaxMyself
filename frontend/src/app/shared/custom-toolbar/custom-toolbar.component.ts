@@ -15,7 +15,6 @@ export class CustomToolbarComponent implements OnInit {
   constructor(private location: Location, public authService: AuthService) { };
 
   public folder!: string;
-  userDetails: any;
   public name: string = "";
   ngOnInit() {
     if (this.title != "") {
@@ -70,15 +69,14 @@ export class CustomToolbarComponent implements OnInit {
           case "flow-report":
           this.folder = 'דוח-תזרים'
           break;
+        case "admin-panel":
+          this.folder = 'פאנל ניהול'
+          break;
         default:
           this.folder = "עצמאי בעצמי"
           break;
       }
     }
-
-    this.userDetails = this.authService.userDetails;
-    console.log(this.userDetails);
-
   };
 
 

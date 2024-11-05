@@ -5,7 +5,15 @@
       <ion-menu-button></ion-menu-button>
       <ion-content>
         <ion-list id="inbox-list">
+         
           <ion-menu-toggle side="end" auto-hide="false" *ngFor="let p of appPages; let i = index">
+            <ng-container *ngIf="p.url === 'admin-panel' && userData.role === 'ADMIN'">
+              <ion-item class="icon" [routerLink]="'admin-panel'" side="end" routerDirection="root"
+                lines="none" detail="false" routerLinkActive="selected">
+                <ion-icon  aria-hidden="true" slot="start" [name]="'settings-outline'"></ion-icon>
+                <ion-label>פאנל ניהול</ion-label>
+              </ion-item>
+            </ng-container>
             <ng-container *ngIf="p.title === 'logOut'">
               <ion-item class="icon" (click)="openCloseLogOutPopup()" side="end" routerDirection="root"
                 lines="none" detail="false" routerLinkActive="selected">
@@ -22,10 +30,11 @@
                 <ion-label>הוספת הוצאה</ion-label>
               </ion-item>
             </ng-container>
-            <ng-container *ngIf="p.title !== 'logOut' && p.url !== 'add-expenses'">
+           
+            <ng-container *ngIf="p.title !== 'logOut' && p.url !== 'add-expenses' && p.url !== 'admin-panel' ">
               <ion-item side="end" routerDirection="root" [routerLink]="[p.url]" lines="none" detail="false"
                 routerLinkActive="selected">
-                <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
+                <ion-icon aria-hidden="true" slot="start" [name]="p.icon + '-outline'"
                   [md]="p.icon + '-sharp'"></ion-icon>
                 <ion-label>{{ p.title }}</ion-label>
               </ion-item>

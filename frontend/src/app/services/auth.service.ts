@@ -28,26 +28,13 @@ export class AuthService {
     private http: HttpClient,
     public ngZone: NgZone, // NgZone service to remove outside scope warning
   ) { 
-    this.refreshTokenIfNeeded();
+    //this.refreshTokenIfNeeded();
   }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   public error$ = new BehaviorSubject<string>("");
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
-
-
-  // userVerify(email: string, password: string): Observable<UserCredential> {
-  //   return from(this.afAuth.signInWithEmailAndPassword(email, password))
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.log("err in sign in with email: ", err);
-  //         this.handleErrorLogin(err.code);
-  //         return EMPTY;
-  //       }),
-  //       tap((user) => { localStorage.setItem('user', JSON.stringify(user.user)); })
-  //     )
-  // }
 
   async refreshTokenIfNeeded() {
     const auth = getAuth();
@@ -73,6 +60,19 @@ export class AuthService {
       console.log("Token is still valid, no need to refresh.");
     }
   }
+
+signOut(): void {
+  console.log("in sign out new");
+  
+  this.afAuth.authState.subscribe((user) => {
+    console.log("user is sign out: ", user);
+    
+    if (!user) {
+      // If user is null, they're logged out or the token is invalid
+      this.router.navigate(['/login']); // Redirect to login page
+    }
+  });
+}
 
   userVerify(email: string, password: string): Observable<UserCredential> {
     // Set token persistence to 'local' (persist the session across browser reloads and sessions)
@@ -103,6 +103,11 @@ export class AuthService {
     );
   }
 
+  getUserDataFromLocalStorage(): any {
+    const tempA = localStorage.getItem('userData');
+    return JSON.parse(tempA)
+  }
+
   handleErrorLogin(err: string): void {
     if (err === "auth/wrong-password") {
       this.error$.next("password");
@@ -125,7 +130,8 @@ export class AuthService {
           return EMPTY;
         }),
         tap((token) => {
-          localStorage.setItem('token', token)
+          localStorage.setItem('token', token);
+          this.signOut();
         } ),
         switchMap((token) => this.http.post(url, { token: token })),
         catchError((err) => {
@@ -136,6 +142,9 @@ export class AuthService {
       )
 
   }
+
+  
+  
 
   handleErrorSignup(err: string): void {
     switch (err) {

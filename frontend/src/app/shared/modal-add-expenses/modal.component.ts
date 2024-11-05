@@ -143,10 +143,12 @@ export class ModalExpensesComponent {
 
   initForm(data?: IRowDataTable): void {
     console.log("data in init form modal edit", data);
-    this.getSubCategory(data?.category as string).subscribe((res) => {
-      console.log(res);
-      this.subCategoryList = res;
-    });
+    if (data) {
+      this.getSubCategory(data?.category as string).subscribe((res) => {
+        console.log(res);
+        this.subCategoryList = res;
+      });
+    }
 
     this.addExpenseForm = this.formBuilder.group({
       [ExpenseFormColumns.CATEGORY]: [{name: data?.category, value: data?.category} || '', Validators.required],

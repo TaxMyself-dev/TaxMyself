@@ -128,6 +128,8 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
+  isToastOpen: boolean = false;
+  messageToast: string = "";
   constructor(private sanitizer: DomSanitizer, private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
 
     this.transactionsForm = this.formBuilder.group({
@@ -181,11 +183,6 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
-    // const myIcon = this.sanitizer.bypassSecurityTrustResourceUrl(');
-    //this.myIcon = 'assets/icon/customEdit.png';
-    addIcons({
-      'myIcon': "https://www.svgrepo.com/show/42233/pencil-edit-button.svg",
-    });
     this.setTableActions();
     this.transactionService.getAllBills();
     this.transactionService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
@@ -193,13 +190,7 @@ export class TransactionsPage implements OnInit {
         this.accountsList = accountsList;
       }
     );
-    // this.transactionsService.getAllSources().subscribe((data) => {
-    //   // console.log("sources: ", data);
-    //   this.sourcesList = data;
-    // });
     this.getCategory();
-
-    // this.transactionService.updateRow(4);
   }
 
   ngOnDestroy() {
@@ -345,7 +336,6 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-
   filterIncomes(): void {
     const formData = this.incomeForm.value;
     console.log(formData);
@@ -376,7 +366,6 @@ export class TransactionsPage implements OnInit {
 
     }
   }
-
 
   filterExpenses(): void {
     const formData = this.expensesForm.value;
@@ -411,10 +400,7 @@ export class TransactionsPage implements OnInit {
 
   private handleTableData(data: ITransactionData[]) {
     const rows = [];
-    //let rows: any[];
     if (data.length) {
-      // console.log("data: ", data);
-
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
@@ -451,8 +437,6 @@ export class TransactionsPage implements OnInit {
         this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
           if (field.name === TransactionsOutcomesColumns.CATEGORY) {
             field.listItems = res;
-            // console.log("list item of category :", field.listItems);
-
           }
         });
         console.log("listCategory: ", this.listCategory);
@@ -467,6 +451,7 @@ export class TransactionsPage implements OnInit {
 
   onUpload(): void {
     if (this.selectedFile) {
+      this.expenseDataService.getLoader().subscribe()
       const reader = new FileReader();
 
       reader.onload = (e) => {
@@ -474,17 +459,22 @@ export class TransactionsPage implements OnInit {
         console.log("array buffer: ", arrayBuffer);
 
         this.transactionService.uploadFile(arrayBuffer as ArrayBuffer)
-          .pipe(takeUntil(this.destroy$))
+          .pipe(
+            finalize(() => this.expenseDataService.dismissLoader()),
+            takeUntil(this.destroy$))
           .subscribe(
             (response) => {
+              this.messageToast = `הקובץ ${this.selectedFile.name} הועלה בהצלחה`;
+              this.isToastOpen = true;
               console.log(response.message);
               // Handle successful response
             },
             error => {
               console.error('Error uploading file', error);
               // Handle error response
+              alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר")
             }
-          );
+            );
       };
 
       reader.readAsArrayBuffer(this.selectedFile);
@@ -646,6 +636,10 @@ export class TransactionsPage implements OnInit {
 
   getExpenseTransactionsData(event) {
     this.transactionService.getExpenseTransactionsData(event)
+  }
+
+  setOpenToast(): void {
+    this.isToastOpen = false;
   }
 
 

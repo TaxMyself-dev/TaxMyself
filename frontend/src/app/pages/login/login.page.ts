@@ -61,7 +61,6 @@ export class LoginPage implements OnInit {
         spinner: 'crescent'
       });
       await loading.present();
-
       const formData = this.loginForm.value;
       this.authService.userVerify(formData.userName, formData.password)
       .pipe(
@@ -81,7 +80,7 @@ export class LoginPage implements OnInit {
             this.authService.signIn(res)
               .subscribe((res) => {
                 console.log("res from server",res);
-                this.authService.userDetails = res;
+                localStorage.setItem('userData', JSON.stringify(res));
                 this.router.navigate(['my-account']);
               })
           }

@@ -18,11 +18,12 @@ import { catchError, EMPTY, finalize, from, map, Observable, switchMap } from 'r
 export class AppComponent implements OnInit {
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
+    { title: 'פאנל ניהול', url: 'admin-panel', icon: 'settings' },
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
     { title: 'הענן שלי', url: 'my-storage', icon: 'cloud-download' },
-    //{ title: 'דוח תזרים', url: 'flow-report', icon: 'cloud-download' },
     { title: ' הגשת דוחות', url: 'reports', icon: 'documents' },
     { title: 'הוספת חשבונית', url: 'add-expenses', icon: 'cloud-upload' },
+    { title: 'תזרים', url: 'transactions', icon: 'swap-vertical' },
     //{ title: 'יעוץ פיננסי', url: 'spam', icon: 'chatbubbles' },
     //{ title: 'הרשמה', url: 'register', icon: 'log-in' },
     { title: 'כניסה', url: 'login', icon: 'log-in' },
@@ -34,11 +35,15 @@ export class AppComponent implements OnInit {
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
-
+  userData: any;
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private loadingController: LoadingController) { };
 
   ngOnInit() {
     this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    console.log("this.userData.role: ", this.userData.role);
+    console.log("this.userData: ", this.userData);
+    
   }
 
   openCloseLogOutPopup() {
@@ -69,54 +74,6 @@ export class AppComponent implements OnInit {
 
   toggleMenu() {
     this.showMenu = !this.showMenu;
-  }
-
-  add(): void {
-    // let filePath = '';
-
-    // this.getLoader().pipe(
-    //   finalize(() => {
-    //     this.loadingController.dismiss();
-    //   }),
-    //   switchMap(() => this.getFileData()),
-    //   catchError((err) => {
-    //     alert('Something Went Wrong in first catchError: ' + err.message)
-    //     return EMPTY;
-    //   }),
-    //   map((res) => {
-    //     if (res) {
-    //       filePath = res.metadata.fullPath;
-    //     }
-    //     const token = localStorage.getItem('token');
-    //     return this.setFormData(filePath, token);
-    //   }),
-    //   switchMap((res) => this.expenseDataServise.addExpenseData(res)),
-    //   finalize(() => {
-    //     this.modalCtrl.dismiss();
-    //   }),
-    //   catchError((err) => {
-    //     console.log(err);
-    //     if (err.status == 401) {
-    //       this. errorString = "משתמש לא חוקי , אנא התחבר למערכת";
-    //       this.isOpen = true;
-    //     }
-    //     if (err.status == 0) {
-    //       this.loadingController.dismiss();
-    //       this. errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
-    //       this.isOpen = true;
-    //     }
-    //     if (filePath !== '') {
-    //       this.fileService.deleteFile(filePath);
-    //     }
-    //     return EMPTY;
-    //   })
-    // ).subscribe((res) => {
-    //   this.router.navigate(['my-storage']);
-    //   console.log('Saved expense data in DB. The response is: ', res);
-    //   if (res) {
-    //     this.expenseDataServise.updateTable$.next(true);
-    //   }
-    // });
   }
 
   getLoader(): Observable<any> {
