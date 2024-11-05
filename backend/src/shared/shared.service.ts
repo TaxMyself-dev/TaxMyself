@@ -191,8 +191,30 @@ export class SharedService {
 
     parseDateStringToDate(dateString: string, inputFormat: string): Date {
 
-        console.log("Input dateString:", dateString);  // Log the input to confirm it’s not undefined
+        console.log("Input dateString 1:", dateString);
         console.log("Input format:", inputFormat);
+
+        // Only proceed with the modification if inputFormat is 'dd/MM/yyyy'
+        //if (inputFormat === 'dd/MM/yyyy' && /^\d{2}\/\d{2}\/\d{2}$/.test(dateString)) {
+        if (inputFormat === 'dd/MM/yyyy' && /^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateString)) {
+
+            // Modify the date string to convert the two-digit year to four digits
+            const parts = dateString.split('/');
+            const day = parts[0];
+            const month = parts[1];
+            let year = parts[2];
+
+            // Prepend '20' to the year to make it four digits
+            year = '20' + year;
+
+            // Update the date string with the modified year
+            dateString = `${day}/${month}/${year}`;
+
+            console.log("Input dateString 2:", dateString);
+        }
+
+        console.log("Input dateString 3:", dateString);
+
 
         try {
             // Parse the date string based on the provided format

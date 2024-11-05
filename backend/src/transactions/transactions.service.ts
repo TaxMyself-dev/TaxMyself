@@ -58,12 +58,21 @@ export class TransactionsService {
     }
 
     const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }); // Get rows as arrays of values, raw: false to get formatted strings
+    //const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false}); // Get rows as arrays of values, raw: false to get formatted strings
+
+    const rows: any[][] = XLSX.utils
+    .sheet_to_json(worksheet, { header: 1, raw: false }) as any[][];
+
+     // Filter out rows that are entirely empty
+     const filteredRows = rows.filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ""));
+
+
 
     // Assuming the first row contains headers
-    const headers = rows.shift();    
+    const headers = filteredRows.shift();    
 
     // Find index of each column based on header row
     //billDate = תאריך עסקה כלומר היום בו קניתי את המוצר. payDate = תאריך תשלום כלומר היום בו בפועל ירד לי כסף מהחשבון
@@ -94,14 +103,16 @@ export class TransactionsService {
 
     let skippedTransactions = 0;    
 
-    for (const row of rows) {          
+    for (const row of filteredRows) {          
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
       
       try {
                 
+        console.log("save transaction: date is ", row[billDateIndex], ", type is ", typeof(row[billDateIndex]));
         transaction.billDate = this.sharedService.parseDateStringToDate(row[billDateIndex], "dd/MM/yyyy");
+        
         //transaction.payDate = this.sharedService.parseDateStringToDate(row[payDateIndex], "dd/MM/yyyy");
       } catch (error) {
         console.error(`Failed to parse date for row: ${row}, error: ${error.message}`);
@@ -161,11 +172,11 @@ export class TransactionsService {
 
     }
 
-    console.log("Successfully saved = ", rows.length - skippedTransactions);
+    console.log("Successfully saved = ", filteredRows.length - skippedTransactions);
     console.log("skippedTransactions = ", skippedTransactions);
     console.log("Loading transaction done");
 
-    return { message: `Successfully saved ${rows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
+    return { message: `Successfully saved ${filteredRows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
 
   }
 
