@@ -28,7 +28,7 @@ export class AddTransactionComponent implements OnInit {
   listSubCategory: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[] = [];
   subCategorySelected: boolean = false;
-  categoryDetails: IDisplayCategorytDetails = {categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: ""};;
+  categoryDetails: IGetSubCategory = {id: 0, categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: ""};;
   equipmentType = 0;
   isRecognize: boolean = false;
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
@@ -192,11 +192,12 @@ export class AddTransactionComponent implements OnInit {
       const categoryDetailsFromServer: IGetSubCategory = this.originalSubCategoryList?.find((item) => item.subCategoryName === event.value);
       console.log("categoryDetailsFromServer :", categoryDetailsFromServer);
       
-     this.categoryDetails.categoryName = categoryDetailsFromServer.category.categoryName;
-     this.categoryDetails.reductionPercent = categoryDetailsFromServer.reductionPercent;
-     this.categoryDetails.subCategoryName = categoryDetailsFromServer.subCategoryName;
-     this.categoryDetails.taxPercent = categoryDetailsFromServer.taxPercent;
-     this.categoryDetails.vatPercent = categoryDetailsFromServer.vatPercent;
+     this.categoryDetails.id = categoryDetailsFromServer?.id; 
+     this.categoryDetails.categoryName = categoryDetailsFromServer?.categoryName;
+     this.categoryDetails.reductionPercent = categoryDetailsFromServer?.reductionPercent;
+     this.categoryDetails.subCategoryName = categoryDetailsFromServer?.subCategoryName;
+     this.categoryDetails.taxPercent = categoryDetailsFromServer?.taxPercent;
+     this.categoryDetails.vatPercent = categoryDetailsFromServer?.vatPercent;
     categoryDetailsFromServer?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
     categoryDetailsFromServer?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
     console.log("category details: ", this.categoryDetails);
@@ -245,7 +246,7 @@ export class AddTransactionComponent implements OnInit {
     formData.id = this.data.id;
     formData.billName = this.data.billName;
     formData.name = this.data.name;
-    formData.category = this.categoryDetails.categoryName;
+    formData.category = this.categoryDetails.categoryName as string ;
     formData.subCategory = this.categoryDetails.subCategoryName;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
     formData.vatPercent = +this.categoryDetails.vatPercent;
