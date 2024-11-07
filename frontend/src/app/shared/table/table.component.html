@@ -21,11 +21,9 @@
   <ion-grid class="grid">
     <ion-row class="table-headers">
       <ion-col *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
-      בחר
+        בחר
       </ion-col>
-      <ion-col
-        *ngFor="let col of fieldsNames"
-        [size]="columnsWidth?.get(col.name) ?? baseSize"
+      <ion-col *ngFor="let col of fieldsNames" [size]="columnsWidth?.get(col.name) ?? baseSize"
         class="col-header {{col.name}}">
         {{col.value}}
       </ion-col>
@@ -41,7 +39,7 @@
       </ion-col>
       <ng-container *ngFor="let field of row | keyvalue: columnsOrderByFunc">
         <ng-container [ngSwitch]="specialColumnsCellRendering?.get(field.key)">
-          
+
           <ng-container *ngSwitchCase="ICellRenderer.BILL">
             <ng-container *ngTemplateOutlet="billRenderCell"></ng-container>
           </ng-container>
@@ -57,46 +55,40 @@
         </ng-container>
 
         <ng-template #defaultCell>
-          <ion-col
-          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
-                *ngIf="!columnsToIgnore.includes(field.key)"
-                [size]="columnsWidth?.get(field.key) ?? baseSize">
-                {{field.value}}
+          <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
+            *ngIf="!columnsToIgnore.includes(field.key)" [size]="columnsWidth?.get(field.key) ?? baseSize">
+            {{field.value}}
           </ion-col>
         </ng-template>
 
         <ng-template #defaultCellWithIcon>
-          <ion-col 
-          class="text-cell ion-col-with-icon" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
-                [size]="columnsWidth?.get(field.key) ?? baseSize">
-                {{field.value}}
-                <div class="wrap-button-category">
-                  <app-button  [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip" (onButtonClicked)="openAddTransaction(row)" [iconSrc]="iconSrc" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
-                </div>
+          <ion-col class="text-cell ion-col-with-icon" [class.expanded]="isExpanded" (click)="toggleExpand()"
+            title="{{ field.value }}" [size]="columnsWidth?.get(field.key) ?? baseSize">
+            {{field.value}}
+            <div class="wrap-button-category">
+              <app-button [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip"
+                (onButtonClicked)="openAddTransaction(row)" [iconSrc]="iconSrc"
+                [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+            </div>
           </ion-col>
         </ng-template>
-        
+
         <ng-template #billRenderCell>
           <ng-container *ngIf="field.value === 'זמני'; else defaultCell">
-          <ion-col
-          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
-          *ngIf="field.value === 'זמני'; else defaultCell"
-                class="special-cell"
-                [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize" 
-                (click)="openAddBill(row)">
-               <span class="text-special-cell">שייך לחשבון</span> 
-          </ion-col>
-        </ng-container>
+            <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
+              *ngIf="field.value === 'זמני'; else defaultCell" class="special-cell"
+              [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize"
+              (click)="openAddBill(row)">
+              <span class="text-special-cell">שייך לחשבון</span>
+            </ion-col>
+          </ng-container>
         </ng-template>
-        
+
         <ng-template #categoryRenderCell>
-          <ion-col
-          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
-          *ngIf="field.value === 'טרם סווג'; else defaultCellWithIcon"
-                class="special-cell"
-                [size]="columnsWidth?.get(field.key) ?? baseSize"
-                (click)="openAddTransaction(row)">
-                <span class="text-special-cell">טרם סווג</span>
+          <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
+            *ngIf="field.value === 'טרם סווג'; else defaultCellWithIcon" class="special-cell"
+            [size]="columnsWidth?.get(field.key) ?? baseSize" (click)="openAddTransaction(row)">
+            <span class="text-special-cell">טרם סווג</span>
           </ion-col>
         </ng-template>
 
@@ -111,26 +103,31 @@
         </ng-template> -->
 
         <ng-template #dateRenderCell>
-          <ion-col
-          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{field.value | dateFormat}}"
-                *ngIf="!columnsToIgnore.includes(field.key)"
-                [size]="columnsWidth?.get(field.key) ?? baseSize">
-                {{field.value | dateFormat}}
+          <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()"
+            title="{{field.value | dateFormat}}" *ngIf="!columnsToIgnore.includes(field.key)"
+            [size]="columnsWidth?.get(field.key) ?? baseSize">
+            {{field.value | dateFormat}}
           </ion-col>
         </ng-template>
 
       </ng-container>
 
       <ion-col class="text-cell" *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
-        <ng-container *ngFor="let action of actions" >
-          <ion-icon *ngIf="action.name !== 'upload' && !(row.file) ? !actionsToIgnore.includes(action.name): true" class="icon-table" (click)="action.action(row)" [name]="action.icon" [title]="action.title ?? ''"></ion-icon>
-          <label *ngIf="action.name === 'upload'" class="label-file-table">
-            <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'" [title]="action.title ?? ''"></ion-icon>
-            <!-- <label></label> -->
-            <ion-input (click)="beforeFile ?? beforeChooseFile($event, row)"  (change)="action.action($event, row)" label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
+        <ng-container *ngFor="let action of actions">
+          <ng-container *ngIf="action.name === 'upload'; else defaultIcon" >
+          <label class="label-file-table">
+            <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'"
+              [title]="action.title ?? ''"></ion-icon>
+            <ion-input (click)="beforeFile ?? beforeChooseFile($event, row)" (change)="action.action($event, row)"
+              label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
             </ion-input>
           </label>
-          <!-- <ion-icon [title]="'מחק קובץ'" class="trash-icon" size="small" *ngIf="row[action.fieldName]"name="close-circle-outline"></ion-icon> -->
+        </ng-container>
+          <ng-template #defaultIcon>
+            <ion-icon *ngIf="action.name !== 'upload' && !(row.file) ? !actionsToIgnore.includes(action.name): true"
+              class="icon-table" (click)="action.action(row)" [name]="action.icon" [title]="action.title ?? ''">
+            </ion-icon>
+          </ng-template>
         </ng-container>
       </ion-col>
     </ion-row>

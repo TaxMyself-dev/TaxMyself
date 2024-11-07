@@ -37,7 +37,7 @@ export class VatReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   readonly COLUMNS_TO_IGNORE = ['id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
-  // readonly ACTIONS_TO_IGNORE = ['preview']
+  readonly ACTIONS_TO_IGNORE = ['preview']
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
 
     [ExpenseFormColumns.CATEGORY, 1.3],
