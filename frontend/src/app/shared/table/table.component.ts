@@ -13,6 +13,7 @@ import { ButtonClass, ButtonSize } from '../button/button.enum';
 export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChanges {
   @Input() columnsWidth: Map<TFormColumns | string, number>;
   @Input() columnsToIgnore: (TFormColumns | string)[] = [];
+  @Input() actionsToIgnore: string[] = [];
   @Input() fieldsNames: IColumnDataTable<TFormColumns, TFormHebrewColumns>[];
   @Input() actions: ITableRowAction[]; 
   @Input() columnsOrderByFunc: (a, b) => number;

@@ -31,6 +31,7 @@ export class MyStoragePage implements OnInit {
     [ExpenseFormColumns.DATE, ICellRenderer.DATE],
   ]);
   readonly COLUMNS_TO_IGNORE = ['reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId','id', 'file', 'isReported', 'vatReportingDate', 'transId'];
+  readonly ACTIONS_TO_IGNORE = ['share', 'preview', 'download file'];
   readonly ButtonSize = ButtonSize;
 
   // columns: IColumnDataTable = {};//Titles of table
@@ -47,14 +48,7 @@ export class MyStoragePage implements OnInit {
   isOpen: boolean = false;
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
-  storageForm: FormGroup;
-
-
-  // tableTitle = "הוצאות אחרונות";
-  public chooseYear = [
-    1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-    2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017
-  ]
+  storageForm: FormGroup
 
   constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder) {
     this.storageForm = this.formBuilder.group({
@@ -80,7 +74,6 @@ export class MyStoragePage implements OnInit {
     this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
     console.log("this.fieldsNames", this.fieldsNamesToShow);
 
-    this.setUserId();
     this.setRowsData();
     this.setTableActions();
     this.expenseDataService.updateTable$.subscribe(
@@ -89,31 +82,6 @@ export class MyStoragePage implements OnInit {
           this.setRowsData();
         }
       })
-  }
-
-  private setUserId(): void {
-    const tempA = localStorage.getItem('user');
-    const tempB = JSON.parse(tempA)
-    this.uid = tempB.uid;
-    console.log(this.uid);
-  }
-
-  timestampToDateStr(timestamp: number): string {
-    let date: Date;
-    if (typeof timestamp === 'string') {
-      const parsedTimestamp = parseInt(timestamp);
-      if (isNaN(parsedTimestamp)) {
-        throw new Error('Invalid timestamp string');
-      }
-      date = new Date(parsedTimestamp * 1000);
-    }
-    else {
-      date = new Date(timestamp * 1000);
-    }
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are zero-based
-    const year = date.getFullYear().toString().slice(-2);
-    return `${day}/${month}/${year}`;
   }
 
   // Get the data from server and update items
@@ -162,8 +130,6 @@ export class MyStoragePage implements OnInit {
   onUpdateClicked(expense: IRowDataTable): void {
     console.log("in my storage", expense);
     const expenseData = this.rows.find((row) => row.id === expense.id);
-    //alert("open modal for: !!"+(event.toString()));
-
     this.openPopupAddExpense(cloneDeep(expenseData));
   }
 
@@ -200,45 +166,15 @@ export class MyStoragePage implements OnInit {
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")
     }
-    //   const storage = getStorage();
-    //   getDownloadURL(ref(storage, fileName as string))
-    //     .then((url) => {
-    //       // `url` is the download URL for 'images/stars.jpg'
-    //       console.log("'url: ", url);
-
-    //       // This can be downloaded directly:
-    //       const xhr = new XMLHttpRequest();
-    //       xhr.responseType = 'blob';
-    //       xhr.onload = (event) => {
-    //         const blob = new Blob([xhr.response], { type: 'image/jpg' });
-    //         const a: any = document.createElement('a');
-    //         a.style = 'display: none';
-    //         document.body.appendChild(a);
-    //         const url = window.URL.createObjectURL(blob);
-    //         a.href = url;
-    //         a.download = fileName;
-    //         a.click();
-    //         window.URL.revokeObjectURL(url);
-    //       };
-    //       xhr.open('GET', url);
-    //       xhr.send();
-    //     })
-    //     .catch((error) => {
-    //       console.log("dhgsedgsdf", error);
-    //       alert("לא ניתן להוריד את הקובץ")
-    //     });
-    // }
-    // else {
-    //   alert("לא נשמר קובץ עבור הוצאה זו")
-    // }
   }
 
   onPreviewFileClicked(expense: IRowDataTable): void {
-    const selectedExpense = this.rows.find((row) => row.id === expense.id);
-    const fileName = selectedExpense.file;
-
-    if (!(fileName === undefined || fileName === "" || fileName === null)) {
-      from(this.filesService.previewFile(fileName as string)).pipe(catchError((err) => {
+    if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
+      this.expenseDataService.getLoader().subscribe();
+      from(this.filesService.previewFile(expense.file as string))
+      .pipe(
+        finalize(()=> this.expenseDataService.dismissLoader()),
+        catchError((err) => {
         console.log("err in try to open file: ", err);
         alert("לא ניתן לפתוח את הקובץ");
         return EMPTY;
@@ -333,6 +269,7 @@ export class MyStoragePage implements OnInit {
       {
         name: 'delete',
         icon: 'trash-outline',
+        title: 'מחק הוצאה',
         action: (row: IRowDataTable) => {
           this.confirmDel(row);
         }
@@ -340,6 +277,7 @@ export class MyStoragePage implements OnInit {
       {
         name: 'share',
         icon: 'share-social-outline',
+        title: 'שתף קובץ',
         action: (row: IRowDataTable) => {
           console.log('TODO: share-social-outline');
         }
@@ -347,6 +285,7 @@ export class MyStoragePage implements OnInit {
       {
         name: 'preview',
         icon: 'glasses-outline',
+        title: 'הצג קובץ',
         action: (row: IRowDataTable) => {
           this.onPreviewFileClicked(row);
         }
@@ -354,6 +293,7 @@ export class MyStoragePage implements OnInit {
       {
         name: 'update',
         icon: 'create-outline',
+        title: 'ערוך הוצאה',
         action: (row: IRowDataTable) => {
           this.onUpdateClicked(row);
         }
@@ -361,6 +301,7 @@ export class MyStoragePage implements OnInit {
       {
         name: 'download file',
         icon: 'cloud-download-outline',
+        title: 'הורד קובץ',
         action: (row: IRowDataTable) => {
           this.onDownloadFileClicked(row);
         }
