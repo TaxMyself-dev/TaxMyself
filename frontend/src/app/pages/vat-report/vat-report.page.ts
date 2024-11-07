@@ -3,12 +3,15 @@ import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { startOfMonth, endOfMonth } from 'date-fns';
-import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { FormTypes, ICellRenderer, months, singleMonths, TransactionsOutcomesColumns } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
+import { FilesService } from 'src/app/services/files.service';
+import { ModalController } from '@ionic/angular';
+import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
 
 
 interface ReportData {
@@ -31,18 +34,20 @@ interface FieldTitles {
 export class VatReportPage implements OnInit {
 
   readonly ButtonSize = ButtonSize;
-
-  readonly COLUMNS_TO_IGNORE = ['id', 'transId', 'vatReportingDate'];
+  readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
+  readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
+  readonly COLUMNS_TO_IGNORE = ['id', 'file', 'transId', 'vatReportingDate','firebaseFile','fileName'];
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
 
     [ExpenseFormColumns.CATEGORY, 1.3],
-    [ExpenseFormColumns.SUB_CATEGORY, 1.5],
-    [ExpenseFormColumns.DATE, 1.1 ],
-    [ExpenseFormColumns.TAX_PERCENT, 1.5],
-    [ExpenseFormColumns.VAT_PERCENT, 1.5],
-    [ExpenseFormColumns.TOTAL_TAX, 1.5],
-    [ExpenseFormColumns.TOTAL_VAT, 1.6],
+    [ExpenseFormColumns.SUB_CATEGORY, 1.4],
+    [ExpenseFormColumns.DATE, 1.4 ],
+    [ExpenseFormColumns.TAX_PERCENT, 1],
+    [ExpenseFormColumns.VAT_PERCENT, 1],
+    [ExpenseFormColumns.TOTAL_TAX, 1.4],
+    [ExpenseFormColumns.TOTAL_VAT, 1.5],
+    [ExpenseFormColumns.ACTIONS, 1],
   ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
@@ -51,6 +56,16 @@ export class VatReportPage implements OnInit {
   vatReportForm: FormGroup;
   token: string;
   reportClick: boolean = true;
+  tableActions: ITableRowAction[];
+  arrayFile: {id: number, file: File | string}[] = [];
+  previousFile: string;
+  tableData$: Observable<IRowDataTable[]>;
+  items$: Observable<IRowDataTable[]>;
+  item: IRowDataTable;
+  rows: IRowDataTable[] = [];
+  messageToast: string;
+  isToastOpen: boolean;
+
 
   readonly fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
@@ -67,13 +82,6 @@ export class VatReportPage implements OnInit {
   readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
     [ExpenseFormColumns.DATE, ICellRenderer.DATE],
   ]);
-
-  tableData$: Observable<IRowDataTable[]>;
-
-  items$: Observable<IRowDataTable[]>;
-  item: IRowDataTable;
-  rows: IRowDataTable[] = [];
-
 
   reportOrder: string[] = [
     'vatableTurnover',
@@ -92,7 +100,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor(private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService) {
+  constructor(private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private fileService: FilesService, private modalController: ModalController) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl (
         '', Validators.required,
@@ -114,9 +122,80 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
-    //this.setRowsData();
+    this.setTableActions()
   }
 
+  private setTableActions(): void {
+    this.tableActions = [
+      {
+        name: 'upload',
+        icon: 'attach-outline',
+        fieldName: this.UPLOAD_FILE_FIELD_NAME,
+        action: (event: any, row: IRowDataTable) => {
+          this.addFile(event, row);
+        }
+      },
+    ]
+  }
+
+  beforeSelectFile (event) {
+    console.log(event);
+    event.event.preventDefault()
+    //alert("להוצאה זו כבר שמור קובץ, אתה בטוח שברצונך להחליפו?");
+    //prevent.default()
+    if (event.data.file != ""){
+    
+    from(this.modalController.create({
+
+      component: PopupMessageComponent,
+      //showBackdrop: false,
+      componentProps: {
+        message: "להוצאה זו כבר שמור קובץ, אתה בטוח שברצונך להחליפו?",
+        buttonTextConfirm: "כן",
+        buttonTextCancel: "ביטול"
+      },
+      //cssClass: 'expense-modal'
+    })).pipe(catchError((err) => {
+      alert("openPopupMessage error");
+      return EMPTY;
+    }), switchMap((modal) => from(modal.present())), catchError((err) => {
+      alert("openPopupMessage switchMap error");
+      console.log(err);
+
+      return EMPTY;
+    })).subscribe();
+  }
+  }
+
+  addFile(event: any, row: IRowDataTable): void {
+    console.log("file: ", row.file);
+    
+    if ((row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null)) { // if already exist file
+      if (event.target.files[0]) { // choose another file
+      row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0]; // chnage file in row
+      row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
+      this.arrayFile.map((expense) => { // change file in array
+        if (expense.id === row.id) {
+          expense.file = event.target.files[0];
+        }
+      })
+      }
+      else { // for delete file
+        row[this.UPLOAD_FILE_FIELD_FIREBASE] = "";
+        row[this.UPLOAD_FILE_FIELD_NAME] = "";
+        this.arrayFile = this.arrayFile.filter((expense) => {
+          return expense.id !== row.id
+        })
+      }
+    }
+    else { // first time selected file
+      row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0];
+      row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
+      this.arrayFile.push({id: row.id as number, file: event.target.files[0]})
+      }
+      console.log("row after update: ", row);
+      console.log(this.arrayFile);
+    }
 
   onSubmit() {
     console.log("onSubmit - start");
@@ -125,7 +204,6 @@ export class VatReportPage implements OnInit {
     this.setRowsData();
     this.getVarReportData(formData.month, formData.year, formData.isSingleMonth);
   }
-
 
   async getVarReportData(month: number , year: number, isSingleMonth: boolean) {
 
@@ -138,7 +216,6 @@ export class VatReportPage implements OnInit {
 
   }
 
-
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.vatReportForm.value;
@@ -149,7 +226,7 @@ export class VatReportPage implements OnInit {
           const rows = [];
           
           data.forEach(row => {
-            const { id, reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, file, isReported, monthReport, ...tableData } = row;
+            const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
             row.dateTimestamp = +row.dateTimestamp;
 
             console.log("table data for vat report is ", tableData);
@@ -164,11 +241,9 @@ export class VatReportPage implements OnInit {
       )
   }
 
-
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
-
 
   columnsOrderByFunc(a, b): number {
     const columnsAddExpenseOrder = [
@@ -208,6 +283,123 @@ export class VatReportPage implements OnInit {
   //   this.router.navigate(https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true, {
   //   })
   // }
+
+  addFileToExpense(): void {
+
+    const totalTransactions = this.arrayFile.length;
+    let filesUploaded = 0;
+
+    console.log("array file:", this.arrayFile);
+
+    // If no transactions have files, skip file uploads and proceed directly
+    // if (transactionsWithFiles === 0) {
+    //   this.expenseDataService.getLoader().subscribe()
+    //   console.log("No transactions with files, skipping file upload...");
+    //   this.expenseDataService.updateLoaderMessage('Uploading transactions without files...');
+
+    //   // Directly call addTransToExpense since there are no files to upload
+    //   this.flowReportService.addTransToExpense(this.chosenTrans)
+    //     .pipe(
+    //       finalize(() => {
+    //         this.expenseDataService.dismissLoader();
+    //       }),
+    //       catchError((err) => {
+    //         console.log("Error in addTransToExpense: ", err);
+    //         this.expenseDataService.dismissLoader();
+
+    //         this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+    //         this.isToastOpen = true;
+    //         return EMPTY;
+    //       }),
+    //     )
+    //     .subscribe((res) => {
+    //       console.log("Response from addTransToExpense:", res);
+    //       this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+    //       this.isToastOpen = true;
+    //       this.chosenTrans = [];
+    //       console.log("chosenTrans after upload: ", this.chosenTrans);
+    //       this.getTransaction();
+    //       this.expenseDataService.dismissLoader();
+    //       //this.router.navigate(['vat-report']);
+
+    //       // this.router.navigate(['vat-report'], {
+    //       //   queryParams: {
+    //       //     isToastOpen: true,
+    //       //     messageToast:  `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+    //       //   }
+    //       // })
+
+    //     });
+    //     return; // Exit the function since file uploads are skipped
+    // }
+
+    // Update loader for transactions with files
+    
+    this.expenseDataService.getLoader().subscribe();
+    this.expenseDataService.updateLoaderMessage(`Uploading files... ${0}%`);
+
+    // Create an array of observables for each file upload
+    const fileUploadObservables = this.arrayFile.map((tran) => {
+      if (tran.file) {
+        return this.fileService.uploadFileViaFront(tran.file as File).pipe(
+          finalize(() => {
+            this.expenseDataService.dismissLoader();
+          }),
+          catchError((error) => {
+            console.log("Error in get vat report uploading file: ", error);
+            alert("Error uploading file");
+            return EMPTY;
+          }),
+          tap((res) => {
+              tran.file = res.metadata.fullPath;  // Update the file path after upload
+              console.log("Uploaded file path: ", tran.file);
+              filesUploaded++;
+              const progress = Math.round((filesUploaded / totalTransactions) * 100);
+              this.expenseDataService.updateLoaderMessage(`Uploading files... ${progress}%`);
+              this.expenseDataService.dismissLoader();
+            }
+          )
+        );
+      } else {
+        return of(null);  // Return an observable that emits null for transactions without files
+      }
+    });
+
+    // Use forkJoin to wait for all file uploads to finish
+    forkJoin(fileUploadObservables)
+      .pipe(
+        catchError((err) => {
+          console.log("Error in get vat report forkJoin: ", err);
+          this.expenseDataService.dismissLoader();
+          return EMPTY;
+        }),
+        switchMap(() => this.vatReportService.addFileToExpenses(this.arrayFile)),
+        catchError((err) => {
+          console.log("err in send transaction to server: ", err);
+          this.arrayFile.forEach((tran) => {
+            if (tran.file) {
+              this.fileService.deleteFile(tran.file as string);
+              console.log("file: ", tran.file, "is delete");
+            }
+          })
+          this.expenseDataService.dismissLoader();
+          this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+          this.isToastOpen = true;
+          return EMPTY
+        }),
+        tap(() => {
+          console.log("All file uploads complete.");
+          this.messageToast = `הועלו ${totalTransactions} קבצים `
+          this.isToastOpen = true;
+          this.expenseDataService.dismissLoader();
+        }),
+        finalize(() => {
+          this.expenseDataService.dismissLoader();
+        }),
+      )
+      .subscribe();
+  }
+
 
 
 

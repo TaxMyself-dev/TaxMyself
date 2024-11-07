@@ -72,6 +72,13 @@ export class ExpensesController {
     return await this.expensesService.getExpensesForVatReport(firebaseId, singleMonth, monthReport);
   }
 
+  @Patch('add-file-to-expense')
+  async addFileToExpense(@Headers('token') token: string,
+    @Body() expensesData: {id: number, file: string | null}[]) {
+      console.log('expensesData in add file: ', expensesData);
+      
+    }
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////               Categories            /////////////////////////////

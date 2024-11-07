@@ -22,13 +22,12 @@ export class AuthService {
 
   constructor(
     private expenseDataService: ExpenseDataService,
-    public afs: AngularFirestore, // Inject Firestore service
-    public afAuth: AngularFireAuth, // Inject Firebase auth service
+    public afs: AngularFirestore,
+    public afAuth: AngularFireAuth, 
     public router: Router,
     private http: HttpClient,
-    public ngZone: NgZone, // NgZone service to remove outside scope warning
+    public ngZone: NgZone, 
   ) { 
-    //this.refreshTokenIfNeeded();
   }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
@@ -36,43 +35,8 @@ export class AuthService {
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
 
-  async refreshTokenIfNeeded() {
-    const auth = getAuth();
-    const user = auth.currentUser;
-  
-    if (!user) {
-      console.log("User is not logged in.");
-      return;
-    }
-  console.log("user in refresh: ", user);
-  
-    const token = await user.getIdToken();
-    const decodedToken = jwtDecode(token);
-  
-    // Check if the token will expire in the next 5 minutes (300 seconds)
-    const currentTime = Math.floor(Date.now() / 1000);  // Convert to seconds
-    if (decodedToken.exp - currentTime < 300) {
-      // Token expires within 5 minutes, force refresh
-      const newToken = await user.getIdToken(true);
-      localStorage.setItem('token', newToken);
-      console.log("Token refreshed:", newToken);
-    } else {
-      console.log("Token is still valid, no need to refresh.");
-    }
-  }
 
-signOut(): void {
-  console.log("in sign out new");
-  
-  this.afAuth.authState.subscribe((user) => {
-    console.log("user is sign out: ", user);
-    
-    if (!user) {
-      // If user is null, they're logged out or the token is invalid
-      this.router.navigate(['/login']); // Redirect to login page
-    }
-  });
-}
+
 
   userVerify(email: string, password: string): Observable<UserCredential> {
     // Set token persistence to 'local' (persist the session across browser reloads and sessions)
@@ -87,7 +51,7 @@ signOut(): void {
         }),
         tap((user) => {
           // Store the user information locally after successful login
-          localStorage.setItem('user', JSON.stringify(user.user));
+          localStorage.setItem('firebaseUserData', JSON.stringify(user.user));
 
           // Listen for automatic token changes and refresh using onIdTokenChanged
           this.afAuth.onIdTokenChanged((currentUser) => {
@@ -120,8 +84,6 @@ signOut(): void {
 
   signIn(user: UserCredential): any {
     const url = `${environment.apiUrl}auth/signin`
-    //console.log("url is ",url);
-    //console.log("firebase is ",environment.firebase);
     
     return from(user.user.getIdToken(true))
       .pipe(
@@ -131,7 +93,6 @@ signOut(): void {
         }),
         tap((token) => {
           localStorage.setItem('token', token);
-          this.signOut();
         } ),
         switchMap((token) => this.http.post(url, { token: token })),
         catchError((err) => {
@@ -227,7 +188,7 @@ signOut(): void {
 
   // Returns true when user is looged in and email is verified
   get isLoggedIn(): boolean {
-    const user = JSON.parse(localStorage.getItem('user')!);
+    const user = JSON.parse(localStorage.getItem('firebaseUserData')!);
     return user !== null && user.emailVerified !== false ? true : false;
   }
 
@@ -251,7 +212,8 @@ signOut(): void {
 
   async SignOut() {
     return this.afAuth.signOut().then(() => {
-      localStorage.removeItem('user');
+      localStorage.removeItem('userData');
+      localStorage.removeItem('firebaseUserData');
       localStorage.removeItem('token');
       this.router.navigate(['login']);
     });

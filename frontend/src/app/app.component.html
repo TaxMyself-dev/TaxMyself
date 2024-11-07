@@ -7,7 +7,7 @@
         <ion-list id="inbox-list">
          
           <ion-menu-toggle side="end" auto-hide="false" *ngFor="let p of appPages; let i = index">
-            <ng-container *ngIf="p.url === 'admin-panel' && userData.role === 'ADMIN'">
+            <ng-container *ngIf="p.url === 'admin-panel' && userData?.role === 'ADMIN'">
               <ion-item class="icon" [routerLink]="'admin-panel'" side="end" routerDirection="root"
                 lines="none" detail="false" routerLinkActive="selected">
                 <ion-icon  aria-hidden="true" slot="start" [name]="'settings-outline'"></ion-icon>

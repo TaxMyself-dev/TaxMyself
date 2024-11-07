@@ -26,8 +26,9 @@
     </div>
     <ng-container *ngIf="items$ | async as items">
       <div *ngIf="displayExpenses"  class="table-wrapper">
-        <app-table [columnsToIgnore]="COLUMNS_TO_IGNORE" [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
+        <app-table (onBeforeSelectFile)="beforeSelectFile($event)" [beforeFile]="true" [actions]="tableActions" [columnsToIgnore]="COLUMNS_TO_IGNORE" [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
       </div>
+      <app-button (onButtonClicked)="addFileToExpense()" [buttonSize]="ButtonSize.SMALL" [buttonText]="'העלה קבצים'" [disabled]="!(arrayFile?.length > 0)"></app-button>
     </ng-container>
   </div>
 
