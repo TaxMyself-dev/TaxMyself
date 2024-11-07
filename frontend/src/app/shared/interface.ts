@@ -155,6 +155,7 @@ export interface ITableRowAction {
     name: string;
     icon: string;
     fieldName?: string;
+    title?: string,
     action: (event?: any, row?: IRowDataTable) => void;
 }
 

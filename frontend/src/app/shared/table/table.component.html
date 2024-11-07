@@ -123,11 +123,11 @@
 
       <ion-col class="text-cell" *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
         <ng-container *ngFor="let action of actions" >
-          <ion-icon *ngIf="action.name !== 'upload'"  class="icon-table" (click)="action.action(row)" [name]="action.icon"></ion-icon>
+          <ion-icon *ngIf="action.name !== 'upload' && !(row.file) ? !actionsToIgnore.includes(action.name): true" class="icon-table" (click)="action.action(row)" [name]="action.icon" [title]="action.title ?? ''"></ion-icon>
           <label *ngIf="action.name === 'upload'" class="label-file-table">
-            <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'" [title]="row[action.fieldName] ?? ''"></ion-icon>
+            <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'" [title]="action.title ?? ''"></ion-icon>
             <!-- <label></label> -->
-            <ion-input (click)="beforeFile? beforeChooseFile($event, row): null"  (change)="action.action($event, row)" label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
+            <ion-input (click)="beforeFile ?? beforeChooseFile($event, row)"  (change)="action.action($event, row)" label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
             </ion-input>
           </label>
           <!-- <ion-icon [title]="'מחק קובץ'" class="trash-icon" size="small" *ngIf="row[action.fieldName]"name="close-circle-outline"></ion-icon> -->

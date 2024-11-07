@@ -35,7 +35,7 @@
   </ng-container>
 </ion-header>
 <!-- </div> -->
-
+<ion-content>
 <form class="flex-center" [formGroup]="loginForm" (keyup.enter)="onEnterKeyPressed()">
   <ion-card class="login-card">
     <ion-card-header>
@@ -81,6 +81,7 @@
     </ion-card-content>
   </ion-card>
 </form>
+</ion-content>
 <ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="3000" (didDismiss)="setOpenToast()"></ion-toast>
 
 <!-- </div> -->

@@ -91,3 +91,12 @@ $app-theme: mat.define-light-theme((
   --width: 275px;
 
 }
+
+.vatReport-modal {
+  --border-color: red;
+  --border-width: 2px;
+  --border-style: solid;
+  --border-radius: 15px;
+  --height: 100px;
+  --width: 275px;
+}
