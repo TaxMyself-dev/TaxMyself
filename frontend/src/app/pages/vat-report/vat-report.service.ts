@@ -40,4 +40,14 @@ export class VatReportService {
     return this.http.get<any>(url, { params: params, headers: headers})
   }
 
+  addFileToExpenses(formData: {id:number, file: string | File}[]): Observable<any> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}expnses/add-file-to-expense`;
+    const headers = {
+      'token': token
+    }
+    return this.http.patch<any>(url, { formData, headers: headers})
+
+  }
+
 }

@@ -41,7 +41,7 @@ export class AppComponent implements OnInit {
   ngOnInit() {
     this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
     this.userData = this.authService.getUserDataFromLocalStorage();
-    console.log("this.userData.role: ", this.userData.role);
+    console.log("this.userData.role: ", this.userData?.role);
     console.log("this.userData: ", this.userData);
     
   }

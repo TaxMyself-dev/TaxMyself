@@ -112,7 +112,7 @@
 
         <ng-template #dateRenderCell>
           <ion-col
-          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{field.value}}"
+          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{field.value | dateFormat}}"
                 *ngIf="!columnsToIgnore.includes(field.key)"
                 [size]="columnsWidth?.get(field.key) ?? baseSize">
                 {{field.value | dateFormat}}
@@ -127,7 +127,7 @@
           <label *ngIf="action.name === 'upload'" class="label-file-table">
             <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'" [title]="row[action.fieldName] ?? ''"></ion-icon>
             <!-- <label></label> -->
-            <ion-input  (change)="action.action($event, row)" label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
+            <ion-input (click)="beforeFile? beforeChooseFile($event, row): null"  (change)="action.action($event, row)" label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
             </ion-input>
           </label>
           <!-- <ion-icon [title]="'מחק קובץ'" class="trash-icon" size="small" *ngIf="row[action.fieldName]"name="close-circle-outline"></ion-icon> -->

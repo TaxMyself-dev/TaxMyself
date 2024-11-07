@@ -19,8 +19,6 @@ export class FlowReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   expensesData: any[];
-  // expensesData$: Observable<any>;
-
   month: string;
   year: string;
   isSingleMonth: string;
@@ -28,7 +26,6 @@ export class FlowReportPage implements OnInit {
   columnsToIgnore = ['firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: { id: number, file?: File | string }[] = [];
   previousFile: string;
-  //params: { month: string, year: string, isSingleMonth: string }
   isCheckboxClicked: boolean = false;
   isToastOpen: boolean = false;
   messageToast: string = "";
@@ -46,7 +43,6 @@ export class FlowReportPage implements OnInit {
     [TransactionsOutcomesColumns.BILL_DATE, 1.6],
     [TransactionsOutcomesColumns.ACTIONS, 1],
   ]);
-
 
   fieldsNames: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
@@ -157,15 +153,8 @@ export class FlowReportPage implements OnInit {
     }
   }
 
-  // checkedClicked(event: { row: IRowDataTable, checked: boolean }): void {
-  //   this.isCheckboxClicked = true;
-  //   event.checked ? this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string }) : this.chosenTrans = this.chosenTrans.filter((item) => {
-  //     return item.id !== event.row.id;
-  //   })
-  //   console.log(this.chosenTrans);
-  // }
-
   checkedClicked(event: { row: IRowDataTable, checked: boolean }): void {
+    
     // If the checkbox is checked, add it to chosenTrans
     if (event.checked) {
       this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string });
@@ -237,6 +226,9 @@ export class FlowReportPage implements OnInit {
           console.log("Response from addTransToExpense:", res);
           this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
           this.isToastOpen = true;
+          this.chosenTrans = [];
+          console.log("chosenTrans after upload: ", this.chosenTrans);
+          this.getTransaction();
           this.expenseDataService.dismissLoader();
           //this.router.navigate(['vat-report']);
 
@@ -325,17 +317,11 @@ export class FlowReportPage implements OnInit {
       .subscribe();
   }
 
-
   setOpenToast(): void {
     this.isToastOpen = false;
   }
 
-
-
   addFile(event: any, row: IRowDataTable): void {
-    console.log(event);
-    console.log(row);
-    console.log(event.target.files[0]);
     //change file
     if (row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null) {
       this.previousFile = row.firebaseFile as string;
@@ -347,7 +333,6 @@ export class FlowReportPage implements OnInit {
       console.log(tran.id, row.id);
 
       if (tran.id === row.id) {
-        console.log("in if")
         return (
           tran.file = event.target.files[0]
         )

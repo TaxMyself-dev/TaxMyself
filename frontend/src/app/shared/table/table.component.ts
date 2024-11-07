@@ -20,6 +20,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   //@Input() checkboxData: ICheckboxCellData = {columnName: "בחר הכול"};
   @Input() displayCheckbox = false;
   @Input() iconSrc: string;
+  @Input() beforeFile: boolean = false;
   @Input() checkedId: number;
   @Input() iconName: string;
   @Input() iconToolTip: string;
@@ -30,6 +31,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   @Output() onClickedCell = new EventEmitter<{str: string, data: IRowDataTable}>();
   @Output() onCheckedClicked = new EventEmitter<{row: IRowDataTable, checked: boolean}>();
   @Output() onCheckedAll = new EventEmitter<{id: number[], checked: boolean}>();
+  @Output() onBeforeSelectFile = new EventEmitter<{event: any, data: IRowDataTable}>();
 
   get rows(): IRowDataTable[] {
     return this.tableRows;
@@ -54,6 +56,12 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
     }
   }
 
+  beforeChooseFile(event: any, data: IRowDataTable): any {
+    console.log("in before file in table");
+    
+    this.onBeforeSelectFile.emit({event: event, data: data})
+  }
+
   openAddBill(event: IRowDataTable): any {
     this.onClickedCell.emit({str: "bill", data: event})
   }
@@ -73,12 +81,12 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
 
   showChecked(data: IRowDataTable): boolean {
     if (data.id === this.checkedId) {
-      console.log("in true chcked");
+      //console.log("in true chcked");
       
       return true;
     }
     else {
-      console.log("in false chcked");
+      //console.log("in false chcked");
       return false;
     }
   }
