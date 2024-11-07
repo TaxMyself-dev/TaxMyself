@@ -45,51 +45,21 @@ export class RegisterPage implements OnInit, OnDestroy {
   constructor(private expensesDataService: ExpenseDataService, private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
 
-    // const personalForm = this.formBuilder.group({
-    //   [RegisterFormControls.FIRSTNAME]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.LASTNAME]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.ID]: new FormControl(
-    //     '', [Validators.required, Validators.pattern(/^\d{9}$/)]
-    //   ),
-    //   [RegisterFormControls.EMAIL]: new FormControl(
-    //     '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
-    //   ),
-    //   [RegisterFormControls.PHONE]: new FormControl(
-    //     '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
-    //   ),
-    //   [RegisterFormControls.DATEOFBIRTH]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.EMPLOYEE]: new FormControl(
-    //     false, Validators.required,
-    //   ),
-    //   [RegisterFormControls.CITY]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.FAMILYSTATUS]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    // })
-
     const personalForm = this.formBuilder.group({
       [RegisterFormControls.FIRSTNAME]: new FormControl(
-        'רוחמי', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.LASTNAME]: new FormControl(
-        'לייבוביץ', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.ID]: new FormControl(
-        '123456789', [Validators.required, Validators.pattern(/^\d{9}$/)]
+        '', [Validators.required, Validators.pattern(/^\d{9}$/)]
       ),
       [RegisterFormControls.EMAIL]: new FormControl(
-        'ruhami@gmail.com', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '0545412345', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
+        '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
         '', Validators.required,
@@ -101,40 +71,50 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', Validators.required,
       ),
       [RegisterFormControls.FAMILYSTATUS]: new FormControl(
-        'רווק', Validators.required,
+        '', Validators.required,
       ),
     })
 
-    // const spouseForm = this.formBuilder.group({
-    //   [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
+    // //For register debug:
+    // const personalForm = this.formBuilder.group({
+    //   [RegisterFormControls.FIRSTNAME]: new FormControl(
+    //     'רוחמי', Validators.required,
+    //   ),
+    //   [RegisterFormControls.LASTNAME]: new FormControl(
+    //     'לייבוביץ', Validators.required,
+    //   ),
+    //   [RegisterFormControls.ID]: new FormControl(
+    //     '123456789', [Validators.required, Validators.pattern(/^\d{9}$/)]
+    //   ),
+    //   [RegisterFormControls.EMAIL]: new FormControl(
+    //     'ruhami@gmail.com', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+    //   ),
+    //   [RegisterFormControls.PHONE]: new FormControl(
+    //     '0545412345', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
+    //   ),
+    //   [RegisterFormControls.DATEOFBIRTH]: new FormControl(
     //     '', Validators.required,
     //   ),
-    //   [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.SPOUSEID]: new FormControl(
-    //     '', [Validators.required, Validators.pattern(/^\d{9}$/)],
-    //   ),
-    //   [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
+    //   [RegisterFormControls.EMPLOYEE]: new FormControl(
     //     false, Validators.required,
     //   ),
-    //   [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-    //     '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
+    //   [RegisterFormControls.CITY]: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    //   [RegisterFormControls.FAMILYSTATUS]: new FormControl(
+    //     'רווק', Validators.required,
     //   ),
     // })
 
     const spouseForm = this.formBuilder.group({
       [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-        'הרשי', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-        'לייבויץ', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.SPOUSEID]: new FormControl(
-        '009008007', [Validators.required, Validators.pattern(/^\d{9}$/)],
+        '', [Validators.required, Validators.pattern(/^\d{9}$/)],
       ),
       [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
         '', Validators.required,
@@ -143,55 +123,78 @@ export class RegisterPage implements OnInit, OnDestroy {
         false, Validators.required,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        '0506782211', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
+        '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
       ),
     })
+
+    // //For register debug:
+    // const spouseForm = this.formBuilder.group({
+    //   [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
+    //     'הרשי', Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
+    //     'לייבויץ', Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSEID]: new FormControl(
+    //     '009008007', [Validators.required, Validators.pattern(/^\d{9}$/)],
+    //   ),
+    //   [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
+    //     false, Validators.required,
+    //   ),
+    //   [RegisterFormControls.SPOUSEPHONE]: new FormControl(
+    //     '0506782211', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
+    //   ),
+    // })
 
     const childrenForm = this.formBuilder.group({
       [RegisterFormControls.CHILDREN]: this.formBuilder.array([]),
     })
 
-    // const businessForm = this.formBuilder.group({
-    //   [RegisterFormControls.BUSINESSNAME]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSFIELD]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSDATE]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSID]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    // })
-
     const businessForm = this.formBuilder.group({
       [RegisterFormControls.BUSINESSNAME]: new FormControl(
-        'פדיקור', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.BUSINESSFIELD]: new FormControl(
-        'איפור', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-        'עוסק פטור', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.BUSINESSDATE]: new FormControl(
         '', Validators.required,
       ),
       [RegisterFormControls.BUSINESSID]: new FormControl(
-        '224567', Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
         '', Validators.required,
       ),
     })
+
+    // //For register debug:
+    // const businessForm = this.formBuilder.group({
+    //   [RegisterFormControls.BUSINESSNAME]: new FormControl(
+    //     'פדיקור', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSFIELD]: new FormControl(
+    //     'איפור', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+    //     'עוסק פטור', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSDATE]: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSID]: new FormControl(
+    //     '224567', Validators.required,
+    //   ),
+    //   [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    // })
 
     const validationForm = this.formBuilder.group({
       [RegisterFormControls.PASSWORD]: new FormControl(
