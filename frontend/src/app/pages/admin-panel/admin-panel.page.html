@@ -1,19 +1,14 @@
+<app-custom-toolbar></app-custom-toolbar>
+
 <ion-content [fullscreen]="true">
 
-  <!-- <div class="wrap-upload-and-name">
-    <div class="wrap-upload">
-      <label class="label-file-transaction">
-        <ion-icon name="attach-outline"></ion-icon>
-        <div class="string-label">בחר קובץ</div>
-        <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".xlsx">
-        </ion-input>
-      </label>
-      <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL"
-        [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'"
-        (onButtonClicked)="onUpload()">
-      </app-button>
-    </div>
-    <p *ngIf="selectedFile">{{selectedFile.name}}</p>
-  </div> -->
+  <!-- Use direct property and event binding for selectedTab -->
+  <app-tab-bar [tabs]="tabs" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
+
+  <app-category-management *ngIf="selectedTab === 'category-management'">
+  </app-category-management>
+
+  <!-- <app-manage-categories *ngIf="selectedTab === 'manage-categories'"></app-manage-categories> -->
+  <!-- <app-track-expenses *ngIf="selectedTab === 'track-expenses'"></app-track-expenses> -->
 
 </ion-content>

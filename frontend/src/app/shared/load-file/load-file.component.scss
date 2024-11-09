@@ -1,0 +1,40 @@
+.label-file {
+    width: 55%;
+    height: 50px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.label-file ion-icon:hover   {
+    cursor: pointer;
+}
+
+.label-file ion-icon {
+    width: 30%;
+    height: 60%;
+}
+
+.label-file ion-input[type="file"] {
+    display: none;
+}
+
+.wrap-upload-and-name {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid rgb(79, 171, 79);
+    border-radius: 15px;
+    align-items: center;
+}
+
+.wrap-upload {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    width: 200px;
+}
+
+.string-label:hover {
+    cursor: pointer;
+}

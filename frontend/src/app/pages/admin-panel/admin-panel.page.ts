@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
+import { CategoryManagementComponent } from 'src/app/shared/category-management/category-management.component';
 
 
 @Component({
@@ -9,6 +10,14 @@ import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 })
 export class AdminPanelPage implements OnInit {
 
+  tabs = [
+    //{ label: 'סטטוס תשלומים', value: 'status-payments', component: StatusPaymentsComponent },
+    { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
+  ];
+
+  selectedTab: string = 'category-management'; // Set default tab value
+
+
   readonly buttonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
   selectedFile: File = null;
@@ -17,6 +26,10 @@ export class AdminPanelPage implements OnInit {
   constructor() { }
 
   ngOnInit() {
+  }
+
+  onTabChange(newTabValue: string) {
+    this.selectedTab = newTabValue;
   }
 
   onFileSelected(event: any): void {

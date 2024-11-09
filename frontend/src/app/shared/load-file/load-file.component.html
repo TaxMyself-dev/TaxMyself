@@ -1,0 +1,15 @@
+<div class="wrap-upload-and-name">
+  <div class="wrap-upload">
+    <label class="label-file">
+      <ion-icon name="attach-outline"></ion-icon>
+      <div class="string-label">בחר קובץ</div>
+      <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".xlsx">
+      </ion-input>
+    </label>
+    <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL"
+      [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'"
+      (onButtonClicked)="onUpload()"></app-button>
+    </div>
+    <p *ngIf="selectedFile">{{selectedFile.name}}</p>
+</div>
+
