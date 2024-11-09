@@ -163,17 +163,7 @@ ngOnInit(): void {
     return this.http.post<any>(url, formData,{headers: headers});
   }
 
-  convertXlsxToBuffer(filePath) {
-    // Read the file from the filesystem
-    const workbook = XLSX.readFile("");
-  console.log("workbook: ", workbook);
-  
-    // Write the workbook to a buffer
-    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-  console.log("buffer: ", buffer);
-  
-    return buffer;
-  }
+ 
 
   addClassifiction(formData: IClassifyTrans, date: any): Observable<any> {
     console.log("in add classificaion");

@@ -12,6 +12,7 @@ import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.
 import { environment } from 'src/environments/environment';
 import { cloneDeep } from 'lodash';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-my-storage',
@@ -50,7 +51,7 @@ export class MyStoragePage implements OnInit {
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
   storageForm: FormGroup
 
-  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder) {
+  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder, private genericService: GenericService) {
     this.storageForm = this.formBuilder.group({
       from: new FormControl(
         '', Validators.required,
@@ -170,10 +171,10 @@ export class MyStoragePage implements OnInit {
 
   onPreviewFileClicked(expense: IRowDataTable): void {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
-      this.expenseDataService.getLoader().subscribe();
+      this.genericService.getLoader().subscribe();
       from(this.filesService.previewFile(expense.file as string))
       .pipe(
-        finalize(()=> this.expenseDataService.dismissLoader()),
+        finalize(()=> this.genericService.dismissLoader()),
         catchError((err) => {
         console.log("err in try to open file: ", err);
         alert("לא ניתן לפתוח את הקובץ");

@@ -12,6 +12,7 @@ import { Router } from '@angular/router';
 import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
+import { GenericService } from 'src/app/services/generic.service';
 
 
 interface ReportData {
@@ -38,8 +39,8 @@ export class VatReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   readonly COLUMNS_TO_IGNORE = ['id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
+  
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-
     [ExpenseFormColumns.CATEGORY, 1.3],
     [ExpenseFormColumns.SUB_CATEGORY, 1.4],
     [ExpenseFormColumns.DATE, 1.4],
@@ -101,7 +102,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor( private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private fileService: FilesService, private modalController: ModalController) {
+  constructor(private genericService: GenericService,  private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl(
         '', Validators.required,
@@ -233,10 +234,10 @@ export class VatReportPage implements OnInit {
 
   onPreviewFileClicked(expense: IRowDataTable): void {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
-      this.expenseDataService.getLoader().subscribe();
+      this.genericService.getLoader().subscribe();
       from(this.filesService.previewFile(expense.file as string))
       .pipe(
-        finalize(()=> this.expenseDataService.dismissLoader()),
+        finalize(()=> this.genericService.dismissLoader()),
         catchError((err) => {
         console.log("err in try to open file: ", err);
         alert("לא ניתן לפתוח את הקובץ");
@@ -387,15 +388,15 @@ export class VatReportPage implements OnInit {
 
     // Update loader for transactions with files
 
-    this.expenseDataService.getLoader().subscribe();
-    this.expenseDataService.updateLoaderMessage(`Uploading files... ${0}%`);
+    this.genericService.getLoader().subscribe();
+    this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
 
     // Create an array of observables for each file upload
     const fileUploadObservables = this.arrayFile.map((tran) => {
       if (tran.file) {
-        return this.fileService.uploadFileViaFront(tran.file as File).pipe(
+        return this.filesService.uploadFileViaFront(tran.file as File).pipe(
           finalize(() => {
-            this.expenseDataService.dismissLoader();
+            this.genericService.dismissLoader();
           }),
           catchError((error) => {
             console.log("Error in get vat report uploading file: ", error);
@@ -407,8 +408,8 @@ export class VatReportPage implements OnInit {
             console.log("Uploaded file path: ", tran.file);
             filesUploaded++;
             const progress = Math.round((filesUploaded / totalTransactions) * 100);
-            this.expenseDataService.updateLoaderMessage(`Uploading files... ${progress}%`);
-            this.expenseDataService.dismissLoader();
+            this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
+            this.genericService.dismissLoader();
           }
           )
         );
@@ -422,7 +423,7 @@ export class VatReportPage implements OnInit {
       .pipe(
         catchError((err) => {
           console.log("Error in get vat report forkJoin: ", err);
-          this.expenseDataService.dismissLoader();
+          this.genericService.dismissLoader();
           return EMPTY;
         }),
         switchMap(() => this.vatReportService.addFileToExpenses(this.arrayFile)),
@@ -430,11 +431,11 @@ export class VatReportPage implements OnInit {
           console.log("err in send transaction to server: ", err);
           this.arrayFile.forEach((tran) => {
             if (tran.file) {
-              this.fileService.deleteFile(tran.file as string);
+              this.filesService.deleteFile(tran.file as string);
               console.log("file: ", tran.file, "is delete");
             }
           })
-          this.expenseDataService.dismissLoader();
+          this.genericService.dismissLoader();
           this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
           this.isToastOpen = true;
           return EMPTY
@@ -443,10 +444,10 @@ export class VatReportPage implements OnInit {
           console.log("All file uploads complete.");
           this.messageToast = `הועלו ${totalTransactions} קבצים `
           this.isToastOpen = true;
-          this.expenseDataService.dismissLoader();
+          this.genericService.dismissLoader();
         }),
         finalize(() => {
-          this.expenseDataService.dismissLoader();
+          this.genericService.dismissLoader();
         }),
       )
       .subscribe();

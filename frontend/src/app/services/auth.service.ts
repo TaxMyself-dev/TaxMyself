@@ -10,6 +10,7 @@ import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import {jwtDecode} from 'jwt-decode';
 import { getAuth } from "firebase/auth";
+import { GenericService } from './generic.service';
 
 @Injectable({
   providedIn: 'root'
@@ -21,6 +22,7 @@ export class AuthService {
   userDetails: any;
 
   constructor(
+    private genericService: GenericService,
     private expenseDataService: ExpenseDataService,
     public afs: AngularFirestore,
     public afAuth: AngularFireAuth, 
@@ -130,10 +132,10 @@ export class AuthService {
 
   SignUp(formData: any): Observable<any> {
     let uid: string = "";
-    this.expenseDataService.getLoader().subscribe();
+    this.genericService.getLoader().subscribe();
     return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.validation.password))
       .pipe(
-        finalize(() => this.expenseDataService.dismissLoader()),
+        finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log("err in create user: ", err);
           this.handleErrorSignup(err.code);

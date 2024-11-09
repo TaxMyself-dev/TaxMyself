@@ -7,6 +7,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { ICreateSupplier, IGetSubCategory, IRowDataTable, ISelectItem } from '../interface';
 import { cloneDeep, isEqual } from 'lodash';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-add-supplier',
@@ -51,7 +52,7 @@ export class addSupplierComponent implements OnInit {
   doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
   doneLoadingSubCategoryList$ = new BehaviorSubject<boolean>(false);
 
-  constructor(private expenseDataService: ExpenseDataService, private formBuilder: FormBuilder, private modalController: ModalController) { }
+  constructor(private genericService: GenericService, private expenseDataService: ExpenseDataService, private formBuilder: FormBuilder, private modalController: ModalController) { }
 
   ngOnInit() {
     this.getCategory();
@@ -90,14 +91,14 @@ export class addSupplierComponent implements OnInit {
   }
 
   saveSupplier(): void {
-    this.expenseDataService.getLoader().subscribe();
+    this.genericService.getLoader().subscribe();
     console.log("save");
     console.log("edit?", this.editMode);
     const formData = this.setFormData();
     console.log("form data supplier", formData);
 
     this.confirm(formData).pipe(
-      finalize(() => this.expenseDataService.dismissLoader()),
+      finalize(() => this.genericService.dismissLoader()),
       catchError((err) => {
         console.log("somthing faild", err);
         return EMPTY;

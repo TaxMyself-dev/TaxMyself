@@ -15,6 +15,8 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { addIcons } from 'ionicons';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { FilesService } from 'src/app/services/files.service';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-transactions',
@@ -80,7 +82,7 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.NAME, 1.6],
     [TransactionsOutcomesColumns.CATEGORY, 1.3],
     [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
-    [TransactionsOutcomesColumns.PAY_DATE, 2 ],
+    [TransactionsOutcomesColumns.PAY_DATE, 2],
     [TransactionsOutcomesColumns.BILL_NUMBER, 1.6],
     [TransactionsOutcomesColumns.BILL_NAME, 1.3],
     [TransactionsOutcomesColumns.MONTH_REPORT, 1.6],
@@ -130,7 +132,7 @@ export class TransactionsPage implements OnInit {
   myIcon: string;
   isToastOpen: boolean = false;
   messageToast: string = "";
-  constructor(private sanitizer: DomSanitizer, private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService) {
+  constructor( private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private filesService: FilesService, private genericService: GenericService) {
 
     this.transactionsForm = this.formBuilder.group({
       isSingleMonth: new FormControl(
@@ -358,7 +360,7 @@ export class TransactionsPage implements OnInit {
     }
     else {
       if (formData.incomeType === "notClassification") {
-        this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג" ||  income.category === categoryName.name));
+        this.incomesData$.next(this.incomesData.filter((income) => income.category === "טרם סווג" || income.category === categoryName.name));
       }
       else {
         this.incomesData$.next(this.incomesData.filter((income) => income.category !== "טרם סווג" && income.category === categoryName.name));
@@ -389,7 +391,7 @@ export class TransactionsPage implements OnInit {
     }
     else {
       if (formData.expensesType === "notClassification") {
-        this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג" ||  expense.category === categoryName.name));
+        this.expensesData$.next(this.expensesData.filter((expense) => expense.category === "טרם סווג" || expense.category === categoryName.name));
       }
       else {
         this.expensesData$.next(this.expensesData.filter((expense) => expense.category !== "טרם סווג" && expense.category === categoryName.name));
@@ -424,7 +426,7 @@ export class TransactionsPage implements OnInit {
         takeUntil(this.destroy$),
         map((res) => {
           console.log(res);
-          
+
           return res.map((item: any) => ({
             name: item.categoryName,
             value: item.categoryName
@@ -443,46 +445,23 @@ export class TransactionsPage implements OnInit {
       })
   }
 
-  onFileSelected(event: any): void {
-    console.log("in file");
-    this.selectedFile = event.target.files[0];
-    console.log(this.selectedFile);
-  }
+  // onFileSelected(event: any): void {
+  //   console.log("in file");
+  //   this.selectedFile = event.target.files[0];
+  //   console.log(this.selectedFile);
+  // }
 
-  onUpload(): void {
-    if (this.selectedFile) {
-      this.expenseDataService.getLoader().subscribe()
-      const reader = new FileReader();
-
-      reader.onload = (e) => {
-        const arrayBuffer = reader.result;
-        console.log("array buffer: ", arrayBuffer);
-
-        this.transactionService.uploadFile(arrayBuffer as ArrayBuffer)
-          .pipe(
-            finalize(() => this.expenseDataService.dismissLoader()),
-            takeUntil(this.destroy$))
-          .subscribe(
-            (response) => {
-              this.messageToast = `הקובץ ${this.selectedFile.name} הועלה בהצלחה`;
-              this.isToastOpen = true;
-              console.log(response.message);
-              // Handle successful response
-            },
-            error => {
-              console.error('Error uploading file', error);
-              // Handle error response
-              alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר")
-            }
-            );
-      };
-
-      reader.readAsArrayBuffer(this.selectedFile);
-    } else {
-      console.error('No file selected.');
-      alert("אנא בחר קובץ")
-    }
-  }
+  // onUpload(): void {
+  //   this.genericService.getLoader().subscribe();
+  //   this.filesService.uploadExcelFile(this.selectedFile,'transactions/load-file')
+  //   .pipe(
+  //     finalize(() => this.genericService.dismissLoader())
+  //   )
+  //   .subscribe((res) =>{
+  //     console.log("res in new upload:",res);
+      
+  //   })
+  // }
 
   openEditRow(data: IRowDataTable): void {
     console.log("data in edit row before: ", data);

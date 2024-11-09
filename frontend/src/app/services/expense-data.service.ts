@@ -13,8 +13,7 @@ import { LoadingController } from '@ionic/angular';
 export class ExpenseDataService {
 
   token: string;
-  private loaderMessage$ = new BehaviorSubject<string>("Please wait...");
-  private loaderInstance: HTMLIonLoadingElement | null = null; // Keep a reference to the loader instance
+ 
 
 
   constructor(private http: HttpClient, private loader: LoadingController) { 
@@ -185,61 +184,8 @@ export class ExpenseDataService {
     return this.http.patch(url, data);
   }
 
-  // updateLoaderMessage(message: string): void {
-  //   console.log(message);
-    
-  //   this.loaderMessage$.next(message);  // Update the message dynamically
-  // }
+  
 
-  getLoader(): Observable<any> {
-    return from(this.loader.create({
-      message: this.loaderMessage$.getValue(),
-      spinner: 'crescent'
-    }))
-    .pipe(
-      catchError((err) => {
-        console.log("Error in creating loader", err);
-        return EMPTY;
-      }),
-      switchMap((loader) => {
-        if (loader) {
-          this.loaderInstance = loader;  // Store the loader instance
-          return from(loader.present())
-            .pipe(
-              // Listen to changes in the message and update the loader's message in real time
-              switchMap(() => this.loaderMessage$.asObservable()
-                .pipe(
-                  tap((message) => {
-                    if (this.loaderInstance) {
-                      this.loaderInstance.message = message;  // Update loader message dynamically
-                    }
-                  })
-                )
-              )
-            );
-        }
-        console.log("Loader is null");
-        return EMPTY;
-      }),
-      catchError((err) => {
-        console.log("Error in presenting loader", err);
-        return EMPTY;
-      })
-    );
-  }
-
-  // Method to update the loader's message dynamically
-  updateLoaderMessage(message: string): void {
-    console.log("Updating loader message to:", message);
-    this.loaderMessage$.next(message);  // Trigger message update
-  }
-
-  dismissLoader(): void {
-    if (this.loaderInstance) {
-      this.loaderInstance.dismiss();
-      this.loaderInstance = null; // Reset the reference after dismissing
-    }
-  }
 
 
 

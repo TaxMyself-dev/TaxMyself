@@ -4,9 +4,11 @@ import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@an
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { log } from 'console';
 import { nanoid } from 'nanoid';
-import { EMPTY, Observable, catchError, from, of, switchMap, throwError } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, takeUntil, throwError } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
+import { ExpenseDataService } from './expense-data.service';
+import { GenericService } from './generic.service';
 
 @Injectable({
   providedIn: 'root'
@@ -17,7 +19,7 @@ export class FilesService {
   safePdfBase64String: SafeResourceUrl;
 
 
-  constructor(private http: HttpClient, private sanitizer: DomSanitizer) { }
+  constructor(private http: HttpClient,private genericService: GenericService) { }
 
 
   downloadFile(urlFile: string): string {
@@ -27,7 +29,7 @@ export class FilesService {
       .then((url) => {
         // `url` is the download URL for 'images/stars.jpg'
         console.log("'url: ", url);
-        
+
         // This can be downloaded directly:
         const xhr = new XMLHttpRequest();
         xhr.responseType = 'blob';
@@ -54,7 +56,7 @@ export class FilesService {
         alert("לא ניתן להוריד את הקובץ")
         return null
       });
-      return returnUrl;
+    return returnUrl;
   }
 
   public async previewFile(urlFile: string) {
@@ -89,7 +91,7 @@ export class FilesService {
     return this.convertFileToBase64(file).pipe(
       catchError((err) => {
         console.log("error in convert file to base 64: ", err);
-        throw err ;
+        throw err;
       }),
       switchMap((base64: string) => {
         //console.log('Base64 result:', base64);
@@ -102,7 +104,7 @@ export class FilesService {
     );
   }
 
- uploadBase64(base64String: string): Observable<any> {
+  uploadBase64(base64String: string): Observable<any> {
     const tempA = localStorage.getItem('user');
     const tempB = JSON.parse(tempA)
     const uid = tempB.uid;
@@ -118,24 +120,24 @@ export class FilesService {
         observer.error("File is empty");
         return;
       }
-  
+
       const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
       const extension = file.name.split('.').pop().toLowerCase();
-  
+
       if (!allowedExtensions.includes(extension)) {
         observer.error('Please upload only PDF, PNG, or JPEG files.');
         return;
       }
-  
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
-  
+
       reader.onload = () => {
         const base64 = reader.result as string;
         observer.next(base64); // Emit the base64 result
         observer.complete();   // Mark the observable as complete
       };
-  
+
       reader.onerror = (error) => {
         observer.error('Error reading file');
       };
@@ -168,7 +170,7 @@ export class FilesService {
   //   // return from(uploadString(fileRef, base64String, 'data_url'));
   // }
 
- 
+
 
   // convertPdfFileToBase64String(file: File) {
   //   return new Promise<string>((resolve, reject) => {
@@ -188,7 +190,7 @@ export class FilesService {
   //   });
   // }
 
- 
+
 
   // convertFileToBase64AndUpload(file: File): void {
   //   console.log(file);
@@ -275,12 +277,12 @@ export class FilesService {
         'eng', // Set the language
         { logger: info => console.log(info) }
       )
-      .then(({ data: { text } }) => {
-        resolve(text);
-      })
-      .catch(error => {
-        reject(error);
-      });
+        .then(({ data: { text } }) => {
+          resolve(text);
+        })
+        .catch(error => {
+          reject(error);
+        });
     });
   }
 
@@ -302,4 +304,128 @@ export class FilesService {
     const url = `${environment.apiUrl}expenses/update-supplier/${id}`;
     return this.http.patch(url, formData);
   }
+
+  // uploadExcelFile(): void {
+  //   const token = localStorage.getItem('token');
+  //   const url = `${environment.apiUrl}transactions/load-file`;
+  //   const headers = { 'token': token };
+  //   const formData = new FormData();
+
+  //   //if (this.selectedFile) {
+  //     this.expenseDataService.getLoader().subscribe()
+  //     const reader = new FileReader();
+
+  //     reader.onload = (e) => {
+  //       const arrayBuffer = reader.result;
+  //       console.log("array buffer: ", arrayBuffer);
+  //       const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  //       this.uploadFile(arrayBuffer as ArrayBuffer)
+  //         .pipe(
+  //           finalize(() => this.expenseDataService.dismissLoader()),
+  //           );
+  //         };
+  //           //takeUntil(this.destroy$))
+  //         //.subscribe(
+  //           //(response) => {
+  //             //this.messageToast = `הקובץ ${this.selectedFile.name} הועלה בהצלחה`;
+  //             //this.isToastOpen = true;
+  //             //console.log(response.message);
+  //             // Handle successful response
+  //           // },
+  //           // error => {
+  //           //   console.error('Error uploading file', error);
+  //           //   // Handle error response
+  //           //   alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר")
+  //           // }
+
+  //     reader.readAsArrayBuffer(this.selectedFile);
+  //   // } else {
+  //   //   console.error('No file selected.');
+  //   //   alert("אנא בחר קובץ")
+  //   // }
+  // }
+
+  // uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
+  //   console.log("file buffer in service: ", fileBuffer);
+  //   // const token = localStorage.getItem('token');
+  //   // const url = `${environment.apiUrl}transactions/load-file`;
+  //   // const formData = new FormData();
+  //   const blob = new Blob([fileBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  //   console.log("blob: ", blob);
+  //   formData.append('file', blob, 'file.xlsx');
+  //   console.log("form data: ", formData.get('file'));
+  //   // const headers = {
+  //   //   'token': token
+  //   // }
+  //   return this.http.post<any>(url, formData,{headers: headers});
+  // }
+/////////////////////////////////////////////////////////////////////////////
+   // if (!selectedFile) {
+    //   alert("אנא בחר קובץ");
+    //   console.error('No file selected.');
+    //   return of('No file selected.');
+    // }
+
+    // Display the loader
+    //this.expenseDataService.getLoader().subscribe();
+///////////////////////////////////////////////
+  //this.messageToast = `הקובץ ${selectedFile.name} הועלה בהצלחה`;
+  //this.isToastOpen = true;
+  // Handle successful response
+  // error => {
+  //   alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר");
+  //   // Handle error response
+  // }
+
+  // function in each place you need to upload a file
+
+  uploadExcelFile(file: File, relativeUrl: string): Observable<{status:boolean, message: string}> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}${relativeUrl}`;
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const headers = {
+      'token': token
+    }
+
+    return this.http.post(url, formData, { headers })
+      .pipe(
+        catchError(error => {
+          console.error('Upload failed', error);
+          return of({status: true, message: error as string}); // Return false if there's an error
+        }),
+        map(response => {
+          return {status: true, message: response as string}
+        })// Return true on success
+      );
+  }
+
+  // readExcelFile(reader: FileReader): FormData {
+  //   const arrayBuffer = reader.result as ArrayBuffer;
+  //   const formData = new FormData();
+  //   const blob = new Blob([arrayBuffer], {
+  //     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  //   });
+
+  //   formData.append('file', blob, 'file.xlsx');
+  //   return formData;
+  // }
+
+  // sendExcelFileToServer(relativeUrl: string, reader: FileReader): Observable<boolean> {
+  //   const url = `${environment.apiUrl}${relativeUrl}`;
+  //   const token = localStorage.getItem('token');
+  //   const headers = { token: token };
+  //   const formData = this.readExcelFile(reader);
+  //   // HTTP POST request to upload the file
+  //   return this.http.post<any>(url, formData, { headers })
+  //     .pipe(
+  //       finalize(() => this.genericService.dismissLoader()),
+  //       catchError((err) => {
+  //         console.error('Error uploading file', err);
+  //         throw of("faild upload excel file")
+  //       })
+  //     )
+  // }
+
 }

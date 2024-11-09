@@ -6,6 +6,7 @@ import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumns
 import { EMPTY, catchError, finalize, map, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ModalController } from '@ionic/angular';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-add-transaction',
@@ -40,7 +41,7 @@ export class AddTransactionComponent implements OnInit {
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
 
-  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService, private modalController: ModalController) {
+  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService, private modalController: ModalController, private generivService: GenericService) {
     this.existCategoryEquipmentForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         false, [Validators.required,]
@@ -240,7 +241,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   addClasssificationExistCategory(): void {
-    this.expenseDataServise.getLoader().subscribe();
+    this.generivService.getLoader().subscribe();
     let formData: IClassifyTrans;
     formData = this.existCategoryEquipmentForm.value;
     formData.id = this.data.id;
@@ -264,14 +265,14 @@ export class AddTransactionComponent implements OnInit {
       )
       .subscribe((res) => {
         this.modalController.dismiss(null, 'send');
-        this.expenseDataServise.dismissLoader()
+        this.generivService.dismissLoader()
         this.isOpenToast = true;
         console.log(res);
       })
   }
 
   addClasssificationNewCategory(): void {
-    this.expenseDataServise.getLoader().subscribe()
+    this.generivService.getLoader().subscribe()
     let formData: IClassifyTrans;
     if (this.isRecognize) {
       formData = this.newCategoryIsRecognizeForm.value;
@@ -304,7 +305,7 @@ export class AddTransactionComponent implements OnInit {
         })
       )
       .subscribe((res) => {
-        this.expenseDataServise.dismissLoader()
+        this.generivService.dismissLoader()
         this.modalController.dismiss(null, 'send');
         this.isOpenToast = true;
         console.log(res);
