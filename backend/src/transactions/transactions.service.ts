@@ -69,25 +69,19 @@ export class TransactionsService {
      // Filter out rows that are entirely empty
      const filteredRows = rows.filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ""));
 
-
-
     // Assuming the first row contains headers
     const headers = filteredRows.shift();    
 
     // Find index of each column based on header row
     //billDate = תאריך עסקה כלומר היום בו קניתי את המוצר. payDate = תאריך תשלום כלומר היום בו בפועל ירד לי כסף מהחשבון
-    //const nameIndex = headers.findIndex(header => header === 'שם העסק');
-    const nameIndex = headers.findIndex(header => header === 'הערות 1');
-    //const paymentIdentifierIndex = headers.findIndex(header => header === 'אמצעי זיהוי התשלום');
-    const paymentIdentifierIndex = headers.findIndex(header => header === 'קוד חשבון הנהח"ש');
-    //const billDateIndex = headers.findIndex(header => header === 'תאריך החיוב בחשבון');
+    const nameIndex = headers.findIndex(header => header === 'הערות 1'); // שם העסק
+    const paymentIdentifierIndex = headers.findIndex(header => header === 'קוד חשבון הנהח"ש'); // אמצעי זיהוי החשבון
     const billDateIndex = headers.findIndex(header => header === 'תאריך');
     //const payDateIndex = headers.findIndex(header => header === 'תאריך התשלום');
-    //const sumIndex = headers.findIndex(header => header === 'סכום');
-     // Find the index of the sum, חובה, and זכות columns
-     const sumIndex = headers.findIndex(header => header === 'סכום');
-     const debitIndex = headers.findIndex(header => header === 'חובה');
-     const creditIndex = headers.findIndex(header => header === 'זכות');
+    // Find the index of the sum, חובה, and זכות columns
+    const sumIndex = headers.findIndex(header => header === 'סכום');
+    const debitIndex = headers.findIndex(header => header === 'חובה');
+    const creditIndex = headers.findIndex(header => header === 'זכות');
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
     
@@ -101,6 +95,7 @@ export class TransactionsService {
       });
     });
 
+    const transactionsToSave: Transactions[] = [];
     let skippedTransactions = 0;    
 
     for (const row of filteredRows) {          
@@ -168,11 +163,14 @@ export class TransactionsService {
         transaction.reductionPercent = matchingClassifiedTransaction.reductionPercent;
       }
 
-      await this.transactionsRepo.save(transaction);
+      transactionsToSave.push(transaction);
+      //await this.transactionsRepo.save(transaction);
 
     }
 
-    console.log("Successfully saved = ", filteredRows.length - skippedTransactions);
+    await this.transactionsRepo.save(transactionsToSave);
+
+    console.log("Successfully saved = ", transactionsToSave.length - skippedTransactions);
     console.log("skippedTransactions = ", skippedTransactions);
     console.log("Loading transaction done");
 
@@ -224,17 +222,33 @@ export class TransactionsService {
       await this.categoryRepo.save(category);
     }
 
-    // Create the sub-category
-    const subCategory = new DefaultSubCategory();
-    subCategory.subCategoryName = subCategoryName;
-    subCategory.taxPercent = taxPercent;
-    subCategory.vatPercent = vatPercent;
-    subCategory.reductionPercent = reductionPercent;
-    subCategory.isEquipment = isEquipment;
-    subCategory.isRecognized = isRecognized;
-    subCategory.categoryName = categoryName;
+    // Check if the sub-category already exists
+    let subCategory = await this.defaultSubCategoryRepo.findOne({ where: { subCategoryName: subCategoryName}});
+    if (!subCategory) {
+      // Create a new sub-category if it doesn't exist
+      subCategory = this.defaultSubCategoryRepo.create({
+        subCategoryName: subCategoryName,
+        taxPercent: taxPercent,
+        vatPercent: vatPercent,
+        reductionPercent: reductionPercent,
+        isEquipment: isEquipment,
+        isRecognized: isRecognized,
+        categoryName: categoryName
+      });
+      await this.defaultSubCategoryRepo.save(subCategory);
+    }
 
-    await this.defaultSubCategoryRepo.save(subCategory);
+    // // Create the sub-category
+    // //const subCategory = new DefaultSubCategory();
+    // subCategory.subCategoryName = subCategoryName;
+    // subCategory.taxPercent = taxPercent;
+    // subCategory.vatPercent = vatPercent;
+    // subCategory.reductionPercent = reductionPercent;
+    // subCategory.isEquipment = isEquipment;
+    // subCategory.isRecognized = isRecognized;
+    // subCategory.categoryName = categoryName;
+
+    // await this.defaultSubCategoryRepo.save(subCategory);
 
   }
 
