@@ -318,7 +318,7 @@ export class FlowReportPage implements OnInit {
       .subscribe();
   }
 
-  setOpenToast(): void {
+  setCloseToast(): void {
     this.isToastOpen = false;
   }
 

@@ -7,9 +7,24 @@
       </ion-input>
     </label>
     <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL"
-      [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'"
+      [buttonClass]="buttonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'"
       (onButtonClicked)="onUpload()"></app-button>
     </div>
-    <p *ngIf="selectedFile">{{selectedFile.name}}</p>
+    <div class="wrap-text">
+      <ng-container *ngIf="selectedFile && !faildUpload">
+      <div >{{selectedFile.name}}</div>
+      <app-button (onButtonClicked)="deleteSelectedFile()" class="cancel-button" [buttonSize]="buttonSize.X_SMALL" [buttonClass]="buttonClass.CLEAR_ICON_ONLY" [iconName]="'close-outline'"></app-button>
+    </ng-container>
+      <ng-container *ngIf="faildUpload">
+      <div  class="error-string">שגיאה: הקובץ לא עלה</div>
+      <app-button (onButtonClicked)="cancelError()" class="cancel-button" [buttonSize]="buttonSize.X_SMALL" [buttonClass]="buttonClass.CLEAR_ICON_ONLY" [iconName]="'close-outline'"></app-button>
+    </ng-container>
+    </div>
+    
+    <ng-container *ngIf="isLoading">
+      <ion-spinner name="crescent"></ion-spinner>
+    </ng-container>
 </div>
+<ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="4000" (didDismiss)="setCloseToast()"></ion-toast>
+
 

@@ -38,3 +38,20 @@
 .string-label:hover {
     cursor: pointer;
 }
+
+.wrap-text {
+    display: flex;
+    align-items: center;
+    // height: 15px;
+}
+
+.error-string {
+    color: red;
+    height: 17px;
+    font-size: small;
+    margin-bottom: 1px;
+}
+
+.cancel-button {
+    margin-bottom: 7px;
+}
