@@ -1,8 +1,8 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject, Output, EventEmitter } from '@angular/core';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { finalize, Subject, takeUntil } from 'rxjs';
+import { catchError, EMPTY, finalize, Subject, takeUntil } from 'rxjs';
 import { GenericService } from 'src/app/services/generic.service';
 import { FilesService } from 'src/app/services/files.service';
 
@@ -21,20 +21,25 @@ export class LoadFileComponent implements OnInit, OnChanges {
   // @Input() fieldMapping: { [key: string]: any };  // Field mapping input
 
   @Input() relativeUrl: string;
+  @Output() onSend = new EventEmitter<{ status: boolean, message: string }>();
 
+  // readonly buttonClass = ButtonClass;
+  // readonly buttonSize = ButtonSize;
   selectedFile: File = null;
+  isLoading: boolean = false;
+  faildUpload: boolean = false;
   destroy$ = new Subject<void>();
   messageToast: string = "";
   isToastOpen: boolean = false;
   readonly buttonSize = ButtonSize;
-  readonly ButtonClass = ButtonClass;
+  readonly buttonClass = ButtonClass;
 
 
-  constructor(private filesService: FilesService, private genericService: GenericService, private expenseDataService: ExpenseDataService, private transactionsService: TransactionsService ) {}
+  constructor(private filesService: FilesService, private genericService: GenericService) { }
 
   ngOnInit() {
   }
-
+  null
 
   ngOnChanges(changes: SimpleChanges): void {
   }
@@ -43,74 +48,46 @@ export class LoadFileComponent implements OnInit, OnChanges {
   onFileSelected(event: any): void {
     console.log("in file");
     this.selectedFile = event.target.files[0];
+    event.target.value = "";
     console.log(this.selectedFile);
   }
-  
+
   onUpload(): void {
-    this.genericService.getLoader().subscribe();
-    this.filesService.uploadExcelFile(this.selectedFile,`transactions/${this.relativeUrl}`)
-    .pipe(
-      finalize(() => this.genericService.dismissLoader())
-    )
-    .subscribe((res) =>{
-      console.log("res in new upload:",res);
-      
-    })
+    this.isLoading = true;
+    //this.genericService.getLoader().subscribe();
+    this.filesService.uploadExcelFile(this.selectedFile, `transactions/${this.relativeUrl}`)
+      .pipe(
+        finalize(() => {
+          this.genericService.dismissLoader();
+          this.isLoading = false;
+        }),
+        catchError((err) => {
+          console.log("in error load file", err);
+          this.faildUpload = true;
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log(res);
+        this.selectedFile = null
+        this.isToastOpen = true;
+        this.messageToast = res.message;
+      })
+
   }
 
-  // onUpload(): void {
-  //   if (this.selectedFile) {
-  //     this.genericService.getLoader().subscribe()
-  //     const reader = new FileReader();
+  cancelError(): void {
+    this.faildUpload = false;
+  }
 
-  //     reader.onload = (e) => {
-  //       const arrayBuffer = reader.result;
-  //       console.log("array buffer: ", arrayBuffer);
+  deleteSelectedFile(): void {
+    console.log("in del");
+    
+    this.selectedFile = null
+  }
 
-  //       this.transactionsService.uploadFile(arrayBuffer as ArrayBuffer)
-  //         .pipe(
-  //           finalize(() => this.genericService.dismissLoader()),
-  //           takeUntil(this.destroy$))
-  //         .subscribe(
-  //           (response) => {
-  //             this.messageToast = `הקובץ ${this.selectedFile.name} הועלה בהצלחה`;
-  //             this.isToastOpen = true;
-  //             console.log(response.message);
-  //             // Handle successful response
-  //           },
-  //           error => {
-  //             console.error('Error uploading file', error);
-  //             // Handle error response
-  //             alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר")
-  //           }
-  //           );
-  //     };
-
-  //     reader.readAsArrayBuffer(this.selectedFile);
-  //   } else {
-  //     console.error('No file selected.');
-  //     alert("אנא בחר קובץ")
-  //   }
-  // }
-  
-
-
-
-
-
-
-
-
-
- 
-
-
-
-
-
-
-
-
-
+  setCloseToast(): void {
+    this.isToastOpen = false;
+  }
 
 }

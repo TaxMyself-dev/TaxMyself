@@ -6,20 +6,6 @@
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
         [isDisabled]="transactionsForm.invalid" (onSearchClick)="getTransactions()"></app-search-bar>
         <app-load-file [relativeUrl]="'load-file'"></app-load-file>
-      <!-- <div class="wrap-upload-and-name">
-      <div class="wrap-upload">
-        <label class="label-file-transaction">
-          <ion-icon name="attach-outline"></ion-icon>
-          <div class="string-label">בחר קובץ</div>
-          <ion-input (change)="onFileSelected($event)" label-placement="floating" type="file" accept=".xlsx">
-          </ion-input>
-        </label>
-        <app-button [iconPosition]="'icon-only'" [buttonSize]="buttonSize.SMALL"
-          [buttonClass]="ButtonClass.CLEAR_ICON_ONLY" [iconName]="'paper-plane-outline'"
-          (onButtonClicked)="onUpload()"></app-button>
-        </div>
-        <p *ngIf="selectedFile">{{selectedFile.name}}</p>
-    </div> -->
     </div>
     <div class="content-wrapper">
       <p *ngIf="!expensesData">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</p>

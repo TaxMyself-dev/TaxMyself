@@ -445,24 +445,6 @@ export class TransactionsPage implements OnInit {
       })
   }
 
-  // onFileSelected(event: any): void {
-  //   console.log("in file");
-  //   this.selectedFile = event.target.files[0];
-  //   console.log(this.selectedFile);
-  // }
-
-  // onUpload(): void {
-  //   this.genericService.getLoader().subscribe();
-  //   this.filesService.uploadExcelFile(this.selectedFile,'transactions/load-file')
-  //   .pipe(
-  //     finalize(() => this.genericService.dismissLoader())
-  //   )
-  //   .subscribe((res) =>{
-  //     console.log("res in new upload:",res);
-      
-  //   })
-  // }
-
   openEditRow(data: IRowDataTable): void {
     console.log("data in edit row before: ", data);
 

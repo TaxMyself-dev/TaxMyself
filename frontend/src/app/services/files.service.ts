@@ -305,82 +305,8 @@ export class FilesService {
     return this.http.patch(url, formData);
   }
 
-  // uploadExcelFile(): void {
-  //   const token = localStorage.getItem('token');
-  //   const url = `${environment.apiUrl}transactions/load-file`;
-  //   const headers = { 'token': token };
-  //   const formData = new FormData();
 
-  //   //if (this.selectedFile) {
-  //     this.expenseDataService.getLoader().subscribe()
-  //     const reader = new FileReader();
-
-  //     reader.onload = (e) => {
-  //       const arrayBuffer = reader.result;
-  //       console.log("array buffer: ", arrayBuffer);
-  //       const blob = new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
-  //       this.uploadFile(arrayBuffer as ArrayBuffer)
-  //         .pipe(
-  //           finalize(() => this.expenseDataService.dismissLoader()),
-  //           );
-  //         };
-  //           //takeUntil(this.destroy$))
-  //         //.subscribe(
-  //           //(response) => {
-  //             //this.messageToast = `הקובץ ${this.selectedFile.name} הועלה בהצלחה`;
-  //             //this.isToastOpen = true;
-  //             //console.log(response.message);
-  //             // Handle successful response
-  //           // },
-  //           // error => {
-  //           //   console.error('Error uploading file', error);
-  //           //   // Handle error response
-  //           //   alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר")
-  //           // }
-
-  //     reader.readAsArrayBuffer(this.selectedFile);
-  //   // } else {
-  //   //   console.error('No file selected.');
-  //   //   alert("אנא בחר קובץ")
-  //   // }
-  // }
-
-  // uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
-  //   console.log("file buffer in service: ", fileBuffer);
-  //   // const token = localStorage.getItem('token');
-  //   // const url = `${environment.apiUrl}transactions/load-file`;
-  //   // const formData = new FormData();
-  //   const blob = new Blob([fileBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  //   console.log("blob: ", blob);
-  //   formData.append('file', blob, 'file.xlsx');
-  //   console.log("form data: ", formData.get('file'));
-  //   // const headers = {
-  //   //   'token': token
-  //   // }
-  //   return this.http.post<any>(url, formData,{headers: headers});
-  // }
-/////////////////////////////////////////////////////////////////////////////
-   // if (!selectedFile) {
-    //   alert("אנא בחר קובץ");
-    //   console.error('No file selected.');
-    //   return of('No file selected.');
-    // }
-
-    // Display the loader
-    //this.expenseDataService.getLoader().subscribe();
-///////////////////////////////////////////////
-  //this.messageToast = `הקובץ ${selectedFile.name} הועלה בהצלחה`;
-  //this.isToastOpen = true;
-  // Handle successful response
-  // error => {
-  //   alert("העלאת קובץ נכשלה. אנא בחר קובץ תקין או נסה מאוחר יותר");
-  //   // Handle error response
-  // }
-
-  // function in each place you need to upload a file
-
-  uploadExcelFile(file: File, relativeUrl: string): Observable<{status:boolean, message: string}> {
+  uploadExcelFile(file: File, relativeUrl: string): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}${relativeUrl}`;
     const formData = new FormData();
@@ -389,43 +315,16 @@ export class FilesService {
       'token': token
     }
 
-    return this.http.post(url, formData, { headers })
-      .pipe(
-        catchError(error => {
-          console.error('Upload failed', error);
-          return of({status: true, message: error as string}); // Return false if there's an error
-        }),
-        map(response => {
-          return {status: true, message: response as string}
-        })// Return true on success
-      );
+    return this.http.post<any>(url, formData, { headers })
+      // .pipe(
+      //   catchError(error => {
+      //     console.error('Upload failed', error);
+      //     return of({status: false, message: error as string}); // Return false if there's an error
+      //   }),
+      //   map(response => {
+      //     return {status: true, message: response as string}
+      //   }),// Return true on success
+      // );
   }
-
-  // readExcelFile(reader: FileReader): FormData {
-  //   const arrayBuffer = reader.result as ArrayBuffer;
-  //   const formData = new FormData();
-  //   const blob = new Blob([arrayBuffer], {
-  //     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  //   });
-
-  //   formData.append('file', blob, 'file.xlsx');
-  //   return formData;
-  // }
-
-  // sendExcelFileToServer(relativeUrl: string, reader: FileReader): Observable<boolean> {
-  //   const url = `${environment.apiUrl}${relativeUrl}`;
-  //   const token = localStorage.getItem('token');
-  //   const headers = { token: token };
-  //   const formData = this.readExcelFile(reader);
-  //   // HTTP POST request to upload the file
-  //   return this.http.post<any>(url, formData, { headers })
-  //     .pipe(
-  //       finalize(() => this.genericService.dismissLoader()),
-  //       catchError((err) => {
-  //         console.error('Error uploading file', err);
-  //         throw of("faild upload excel file")
-  //       })
-  //     )
-  // }
 
 }
