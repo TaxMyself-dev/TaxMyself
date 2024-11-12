@@ -105,10 +105,10 @@ export class VatReportPage implements OnInit {
   constructor(private genericService: GenericService,  private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl(
-        '', Validators.required,
+        '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
       nonVatableTurnover: new FormControl(
-        '', Validators.required,
+        '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
       month: new FormControl(
         '', Validators.required,

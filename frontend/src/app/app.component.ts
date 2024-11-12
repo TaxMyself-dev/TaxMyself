@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { IColumnDataTable, IRowDataTable } from './shared/interface';
 import { Location } from '@angular/common';
 import { LoadingController, ModalController, PopoverController } from '@ionic/angular';
@@ -8,6 +8,8 @@ import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
 import { catchError, EMPTY, finalize, from, map, Observable, switchMap } from 'rxjs';
+import { filter, pairwise } from 'rxjs/operators';
+
 
 
 @Component({
@@ -16,6 +18,7 @@ import { catchError, EMPTY, finalize, from, map, Observable, switchMap } from 'r
   styleUrls: ['app.component.scss']
 })
 export class AppComponent implements OnInit {
+
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
     { title: 'פאנל ניהול', url: 'admin-panel', icon: 'settings' },
@@ -32,18 +35,57 @@ export class AppComponent implements OnInit {
     //{ title: 'דו"ח מע"מ', url: 'vat-report', icon: 'chatbubbles' },
 
   ];
+
+  fromLoginPage = false; // Flag to check if entry was from login page
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: any;
+  isUserAdmin: boolean = false; 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private loadingController: LoadingController) { };
 
   ngOnInit() {
+
+    this.getRoute();
     this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
     this.userData = this.authService.getUserDataFromLocalStorage();
-    console.log("this.userData.role: ", this.userData?.role);
-    console.log("this.userData: ", this.userData);
+    this.getRoleUser();
     
+    
+  }
+
+  getRoute(): void {
+    this.router.events
+    .pipe(
+      filter(event => event instanceof NavigationEnd),
+      pairwise() // Gives an array [previous, current] NavigationEnd events
+    )
+    .subscribe(([previous, current]: [NavigationEnd, NavigationEnd]) => {
+      // Check if previous route was the login page
+      if (previous.urlAfterRedirects === '/login') {
+        this.fromLoginPage = true;
+        this.onAppEntryFromLogin();
+      } else {
+        this.fromLoginPage = false;
+      }
+    });
+    
+  }
+
+  onAppEntryFromLogin() {
+    if (this.fromLoginPage) {
+      this.ngOnInit();
+    }
+  }
+
+  getRoleUser(): void {
+    if (this.userData.role === 'ADMIN') {
+      this.isUserAdmin = true;
+    }
+    else {
+      this.isUserAdmin = false
+    }
+    //return this.isUserAdmin;
   }
 
   openCloseLogOutPopup() {
@@ -75,31 +117,5 @@ export class AppComponent implements OnInit {
   toggleMenu() {
     this.showMenu = !this.showMenu;
   }
-
-  getLoader(): Observable<any> {
-    return from(this.loadingController.create({
-      message: 'Please wait...',
-      spinner: 'crescent'
-    }))
-    .pipe(
-        catchError((err) => {
-          console.log("err in create loader in save supplier", err);
-          return EMPTY;
-        }),
-        switchMap((loader) => {
-          if (loader) {
-            return from(loader.present())
-          }
-            console.log("loader in save supplier is null");
-            return EMPTY;
-        }),
-        catchError((err) => {
-          console.log("err in open loader in save supplier", err);
-          return EMPTY;
-        })
-      )
-  }
-
-
 
 }

@@ -1,37 +1,36 @@
 <ion-app>
   <!-- <ion-split-pane contentId="main-content"> -->
 
-    <ion-menu contentId="main-content" type="overlay">
-      <ion-menu-button></ion-menu-button>
-      <ion-content>
-        <ion-list id="inbox-list">
-         
-          <ion-menu-toggle side="end" auto-hide="false" *ngFor="let p of appPages; let i = index">
-            <!-- <ng-container *ngIf="p.url === 'admin-panel' && userData?.role === 'ADMIN'"> -->
-            <ng-container *ngIf="p.url === 'admin-panel'">
-              <ion-item class="icon" [routerLink]="'admin-panel'" side="end" routerDirection="root"
-                lines="none" detail="false" routerLinkActive="selected">
-                <ion-icon  aria-hidden="true" slot="start" [name]="'settings-outline'"></ion-icon>
+  <ion-menu contentId="main-content" type="overlay">
+    <ion-menu-button></ion-menu-button>
+    <ion-content>
+      <ion-list id="inbox-list">
+
+        <ion-menu-toggle side="end" auto-hide="false" *ngFor="let p of appPages; let i = index">
+          <ng-container *ngIf="p.url === 'admin-panel' && isUserAdmin">
+              <ion-item class="icon" [routerLink]="'admin-panel'" side="end" routerDirection="root" lines="none"
+                detail="false" routerLinkActive="selected">
+                <ion-icon aria-hidden="true" slot="start" [name]="'settings-outline'"></ion-icon>
                 <ion-label>פאנל ניהול</ion-label>
               </ion-item>
             </ng-container>
             <ng-container *ngIf="p.title === 'logOut'">
-              <ion-item class="icon" (click)="openCloseLogOutPopup()" side="end" routerDirection="root"
-                lines="none" detail="false" routerLinkActive="selected">
+              <ion-item class="icon" (click)="openCloseLogOutPopup()" side="end" routerDirection="root" lines="none"
+                detail="false" routerLinkActive="selected">
                 <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
                   [md]="p.icon + '-sharp'"></ion-icon>
                 <ion-label>התנתקות</ion-label>
               </ion-item>
             </ng-container>
             <ng-container *ngIf="p.url === 'add-expenses'">
-              <ion-item class="icon" (click)="openPopupAddExpense()" side="end" routerDirection="root"
-                lines="none" detail="false" routerLinkActive="selected">
-                <ion-icon  aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
+              <ion-item class="icon" (click)="openPopupAddExpense()" side="end" routerDirection="root" lines="none"
+                detail="false" routerLinkActive="selected">
+                <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
                   [md]="p.icon + '-sharp'"></ion-icon>
                 <ion-label>הוספת הוצאה</ion-label>
               </ion-item>
             </ng-container>
-           
+
             <ng-container *ngIf="p.title !== 'logOut' && p.url !== 'add-expenses' && p.url !== 'admin-panel' ">
               <ion-item side="end" routerDirection="root" [routerLink]="[p.url]" lines="none" detail="false"
                 routerLinkActive="selected">
@@ -40,21 +39,21 @@
                 <ion-label>{{ p.title }}</ion-label>
               </ion-item>
             </ng-container>
-          </ion-menu-toggle>
-        </ion-list>
-      </ion-content>
-    </ion-menu>
+        </ion-menu-toggle>
+      </ion-list>
+    </ion-content>
+  </ion-menu>
 
-    <ion-popover class="logout-pop" *ngIf="isPopoverOpen" backdrop-dismiss='false' [isOpen]="isPopoverOpen">
-      <ng-template>
-        <div> אתה בטוח שאתה רוצה לעזוב?</div>
-        <ion-button (click)="signOut()">כן</ion-button>
-        <ion-button (click)="openCloseLogOutPopup()">לא</ion-button>
-      </ng-template>
-    </ion-popover>
-    <ion-router-outlet id="main-content">
+  <ion-popover class="logout-pop" *ngIf="isPopoverOpen" backdrop-dismiss='false' [isOpen]="isPopoverOpen">
+    <ng-template>
+      <div> אתה בטוח שאתה רוצה לעזוב?</div>
+      <ion-button (click)="signOut()">כן</ion-button>
+      <ion-button (click)="openCloseLogOutPopup()">לא</ion-button>
+    </ng-template>
+  </ion-popover>
+  <ion-router-outlet id="main-content">
 
-    </ion-router-outlet>
+  </ion-router-outlet>
 
   <!-- </ion-split-pane> -->
 

@@ -65,7 +65,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
+    // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
   ];
@@ -91,10 +91,10 @@ export class TransactionsPage implements OnInit {
   ]);
 
   readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
-    [TransactionsOutcomesColumns.NAME, 1],
-    [TransactionsOutcomesColumns.CATEGORY, 1],
+    [TransactionsOutcomesColumns.NAME, 1.5],
+    [TransactionsOutcomesColumns.CATEGORY, 1.5],
     [TransactionsOutcomesColumns.SUBCATEGORY, 1.4],
-    [TransactionsOutcomesColumns.PAY_DATE, 1.6],
+    [TransactionsOutcomesColumns.BILL_DATE, 1.6],
     [TransactionsOutcomesColumns.BILL_NUMBER, 1],
     [TransactionsOutcomesColumns.BILL_NAME, 1],
     [TransactionsOutcomesColumns.MONTH_REPORT, 1],
@@ -102,7 +102,7 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.ACTIONS, 1],
   ]);
 
-  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id','payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
