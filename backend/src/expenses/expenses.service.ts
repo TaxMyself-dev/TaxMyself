@@ -1,7 +1,7 @@
 //General
 import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository} from 'typeorm';
+import { In, Repository} from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
@@ -105,6 +105,39 @@ export class ExpensesService {
         return await this.expense_repo.remove(expense);
 
     }
+
+    async saveFileToExpenses(expensesData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
+
+        const user = await this.userRepo.findOne({ where: { firebaseId: userId } });
+    
+        // Extract IDs from the expensesData array
+        const expensesIds = expensesData.map(ed => ed.id);
+    
+        // Fetch expenses with the given IDs
+        const expenses = await this.expense_repo.findBy({ id: In(expensesIds) });
+      
+        if (!expenses || expenses.length === 0) {
+          throw new Error('No transactions found with the provided IDs.');
+        }
+    
+    
+        for (const expense of expenses) {
+    
+          if (expense.userId !== userId) {
+            throw new Error(`Error: expense with ID ${expense.id} does not belong to the user.`);
+          }
+    
+          // Find the corresponding file from the input data
+          const expenseFile = expensesData.find(ed => ed.id === expense.id)?.file || '';
+          expense.file = expenseFile;
+          await this.expense_repo.save(expense);      
+          
+        }
+        const message = 'success add' 
+      
+        return { message };
+    
+      }
 
 
     ///////////////////////////////////////////////////////////////////////////////////////////////

@@ -42,11 +42,11 @@ export class VatReportService {
 
   addFileToExpenses(formData: {id:number, file: string | File}[]): Observable<any> {
     const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}expnses/add-file-to-expense`;
+    const url = `${environment.apiUrl}expenses/add-file-to-expense`;
     const headers = {
       'token': token
     }
-    return this.http.patch<any>(url, { formData, headers: headers})
+    return this.http.patch<any>(url, formData, {headers: headers})
 
   }
 

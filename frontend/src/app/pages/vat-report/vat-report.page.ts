@@ -344,50 +344,6 @@ export class VatReportPage implements OnInit {
 
     console.log("array file:", this.arrayFile);
 
-    // If no transactions have files, skip file uploads and proceed directly
-    // if (transactionsWithFiles === 0) {
-    //   this.expenseDataService.getLoader().subscribe()
-    //   console.log("No transactions with files, skipping file upload...");
-    //   this.expenseDataService.updateLoaderMessage('Uploading transactions without files...');
-
-    //   // Directly call addTransToExpense since there are no files to upload
-    //   this.flowReportService.addTransToExpense(this.chosenTrans)
-    //     .pipe(
-    //       finalize(() => {
-    //         this.expenseDataService.dismissLoader();
-    //       }),
-    //       catchError((err) => {
-    //         console.log("Error in addTransToExpense: ", err);
-    //         this.expenseDataService.dismissLoader();
-
-    //         this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
-    //         this.isToastOpen = true;
-    //         return EMPTY;
-    //       }),
-    //     )
-    //     .subscribe((res) => {
-    //       console.log("Response from addTransToExpense:", res);
-    //       this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
-    //       this.isToastOpen = true;
-    //       this.chosenTrans = [];
-    //       console.log("chosenTrans after upload: ", this.chosenTrans);
-    //       this.getTransaction();
-    //       this.expenseDataService.dismissLoader();
-    //       //this.router.navigate(['vat-report']);
-
-    //       // this.router.navigate(['vat-report'], {
-    //       //   queryParams: {
-    //       //     isToastOpen: true,
-    //       //     messageToast:  `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
-    //       //   }
-    //       // })
-
-    //     });
-    //     return; // Exit the function since file uploads are skipped
-    // }
-
-    // Update loader for transactions with files
-
     this.genericService.getLoader().subscribe();
     this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
 
@@ -421,6 +377,9 @@ export class VatReportPage implements OnInit {
     // Use forkJoin to wait for all file uploads to finish
     forkJoin(fileUploadObservables)
       .pipe(
+        finalize(() => {
+          this.genericService.dismissLoader();
+        }),
         catchError((err) => {
           console.log("Error in get vat report forkJoin: ", err);
           this.genericService.dismissLoader();
@@ -428,15 +387,15 @@ export class VatReportPage implements OnInit {
         }),
         switchMap(() => this.vatReportService.addFileToExpenses(this.arrayFile)),
         catchError((err) => {
-          console.log("err in send transaction to server: ", err);
+          console.log("err in send files to server: ", err);
           this.arrayFile.forEach((tran) => {
             if (tran.file) {
               this.filesService.deleteFile(tran.file as string);
               console.log("file: ", tran.file, "is delete");
             }
           })
-          this.genericService.dismissLoader();
-          this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+          //this.genericService.dismissLoader();
+          this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
           this.isToastOpen = true;
           return EMPTY
         }),
@@ -444,13 +403,18 @@ export class VatReportPage implements OnInit {
           console.log("All file uploads complete.");
           this.messageToast = `הועלו ${totalTransactions} קבצים `
           this.isToastOpen = true;
-          this.genericService.dismissLoader();
+          //this.genericService.dismissLoader();
         }),
-        finalize(() => {
-          this.genericService.dismissLoader();
-        }),
+       
       )
-      .subscribe();
+      .subscribe(() => {
+        this.arrayFile = null;
+        this.setRowsData();
+      });
+  }
+
+  setCloseToast(): void {
+    this.isToastOpen = false;
   }
 
 

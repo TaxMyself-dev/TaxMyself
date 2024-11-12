@@ -45,3 +45,5 @@
       [parentForm]="vatReportForm"></app-generic-input>
   </form>
 </ng-template>
+
+<ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="4000" (didDismiss)="setCloseToast()"></ion-toast>

@@ -1,108 +1,3 @@
-// :host {
-//   font-family: 'Open Sans Hebrew', serif;
-// }
-
-// .table-wrapper {
-//   display: flex;
-//   flex-wrap: wrap;
-//   direction: rtl;
-  
-
-//   tr:first-child {
-//     padding-top:50px;
-//   }
-
-//   td:first-child {
-//     border-radius: 0 20px 20px 0;
-//   }
-
-//   td:last-child {
-//     border-radius: 20px 0 0 20px;
-//   }
-
-// }
-// .table-title {
-//   font-weight: 700;
-//   font-size: 30px;
-//   margin: 0;
-// }
-
-// .table-container {
-//   text-align: center;
-//   border-collapse: separate;
-//   border-spacing: 0 30px;
-
-//   .table-header {
-//     border-spacing: 10px;
-//     padding: 0 20px 0 20px;    
-//     background-color: white;
-//     font-weight: 400;
-//     font-weight: bold;
-//     font-size: 20px;
-//     color: #3E3A3A;
-    
-//   }
-
-//   .table-row {
-//     border-spacing: 10px;
-//     padding: 10px;
-//     margin: 10px;
-//     font-size: 20px;
-//     color: #717070;
-//     background-color: #F3F3F3;
-//   }
-
-//   .table-row-wrapper {
-//     padding: 20px;
-//   }
-// }
-
-// .table-button {
-//   display: flex;
-//   margin-top: 20px;
-//   justify-content: flex-end;
-// }
-
-
-// .table-scroll {
-//   overflow-x: auto;
-//   white-space: nowrap;
-// }
-// .receipt-wrapper{
-//   border-radius: 20px;
-//   width: fit-content;
-//   border: 1px solid #6A6A6A;
-//   padding: 20px;
-//   margin: 20px;
-//   direction: rtl;
-
-//   tr:first-child {
-//     padding-top:50px;
-//   }
-
-//   td:first-child {
-//     border-radius: 0 20px 20px 0;
-//   }
-
-//   td:last-child {
-//     border-radius: 20px 0 0 20px;
-//   }
-
-//   .table-title {
-//     font-weight: 700;
-//     font-size: 30px;
-//     margin: 0;
-//   }
-// }
-//=============================================================================
-// ion-col {
-//   font-family: 'lato', sans-serif;
-//   color: black;
-//   text-align: center;
-//   display: flex;
-//   justify-content: center;
-// }
-
 .grid-container{
   width: 100%;
   overflow-x: auto;
@@ -137,6 +32,7 @@
 }
 
 .text-special-cell {
+  font-size: small;
   border: 1px solid;
   border-radius: 15px;
   border-color: red;
@@ -152,7 +48,7 @@
   align-items: center;
   justify-content: center;
   width: 4%;
-}
+}f
 
 .checkbox-header {
   --background:  rgb(79, 171, 79);
@@ -210,16 +106,21 @@
 
 .text-cell {
   display: flex;
-  justify-content: space-evenly;
+  justify-content: center;
+  overflow: hidden;             /* Hide overflowing text */
+}
+
+.inner-div-cell {
+  text-align: center;
   white-space: nowrap;          /* Prevent text wrapping */
   overflow: hidden;             /* Hide overflowing text */
   text-overflow: ellipsis;      /* Show ellipsis for overflow */
   cursor: pointer;              /* Indicate clickable element */
-  //width: 100%;                  /* Full width of the cell */
-  transition: all 0.3s ease-in-out;  /* Smooth transition for resizing */
+  width: 100%;                  /* Full width of the cell */
+  // transition: all 0.3s ease-in-out;  /* Smooth transition for resizing */
 }
 
-.text-cell.expanded {
+.inner-div-cell.expanded {
   white-space: normal;          /* Allow text to wrap */
   overflow: visible;            /* Show all text */
   height: auto; 
@@ -273,13 +174,3 @@
 //     overflow: visible;      /* Show ellipsis for overflow */
 //   }
 // }
-
-
-
-
-
-
-
-
-
-

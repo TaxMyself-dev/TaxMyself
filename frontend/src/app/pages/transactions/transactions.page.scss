@@ -7,14 +7,28 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
 }
 
-.transaction-wrapper {
-    border: 2px solid rgb(79, 171, 79);
-    border-radius: 15px;
-    margin: 10px;
-    padding: 10px;
+.header-transaction {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    width: 99.5%;
+}
+
+.bars-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 99.5%;
+}
+
+.content-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 99.5%;
 }
 
 .input-wrapper {
@@ -31,11 +45,7 @@
     }
 }
 
-.header-transaction {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-}
+
 
 .label-file-transaction {
     width: 55%;
@@ -59,12 +69,7 @@
     display: none;
 }
 
-.content-wrapper {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 94%;
-}
+
 
 .wrap-upload-and-name {
     display: flex;

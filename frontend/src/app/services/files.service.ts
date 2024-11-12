@@ -105,7 +105,7 @@ export class FilesService {
   }
 
   uploadBase64(base64String: string): Observable<any> {
-    const tempA = localStorage.getItem('user');
+    const tempA = localStorage.getItem('firebaseUserData');
     const tempB = JSON.parse(tempA)
     const uid = tempB.uid;
     this.uniqueIdFile = nanoid();

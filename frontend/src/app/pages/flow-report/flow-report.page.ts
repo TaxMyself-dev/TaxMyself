@@ -81,6 +81,7 @@ export class FlowReportPage implements OnInit {
       {
         name: 'upload',
         icon: 'attach-outline',
+        title: 'בחר קובץ',
         fieldName: this.UPLOAD_FILE_FIELD_NAME,
         action: (event: any, row: IRowDataTable) => {
           this.addFile(event, row);

@@ -1,20 +1,23 @@
 <app-custom-toolbar></app-custom-toolbar>
 <ion-content>
   <div class="transaction-screen">
-    <div class="header-transaction">
 
+    <div class="header-transaction">
+      <div class="bars-header">
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
         [isDisabled]="transactionsForm.invalid" (onSearchClick)="getTransactions()"></app-search-bar>
-        <app-load-file [relativeUrl]="'load-file'"></app-load-file>
+      <app-load-file [relativeUrl]="'load-file'"></app-load-file>
     </div>
+      <div *ngIf="!expensesData">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</div>
+    </div>
+
     <div class="content-wrapper">
-      <p *ngIf="!expensesData">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</p>
-      <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse"
-        (handleOpen)="onOpenClicked($event)" [title]="'הכנסות'"></app-collapse>
-      <ng-container *ngIf="isOpen">
-      </ng-container>
-      <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse"
-        (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
+      <!-- <div> -->
+        <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse"
+          (handleOpen)="onOpenClicked($event)" [title]="'הכנסות'"></app-collapse>
+        <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse"
+          (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
+      <!-- </div> -->
 
 
       <ng-template #expensesCollapse>
@@ -24,16 +27,17 @@
           [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)"
           [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData"
           [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"
-          [actions]="tableActions" [columnsOrderByFunc]="columnsOrderByFunc" [columnsWidth]="COLUMNS_WIDTH_EXPENSES"></app-table>
+          [actions]="tableActions" [columnsOrderByFunc]="columnsOrderByFunc"
+          [columnsWidth]="COLUMNS_WIDTH_EXPENSES"></app-table>
       </ng-template>
 
       <ng-template #incomeCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
           [isDisabled]="incomeForm.invalid" (onSearchClick)="filterIncomes()"></app-search-bar>
         <app-table (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering"
-         *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome"
-          [rows]="incomesData" [columnsOrderByFunc]="columnsOrderByFunc"
-          [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES" [columnsWidth]="COLUMNS_WIDTH_INCOME"></app-table>
+          *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
+          [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"
+          [columnsWidth]="COLUMNS_WIDTH_INCOME"></app-table>
       </ng-template>
 
       <ng-container *ngIf="addPayment">
@@ -41,8 +45,8 @@
       </ng-container>
 
     </div>
-    <app-button *ngIf="expensesData" [buttonText]="'הפקת דוח'"
-    (onButtonClicked)="openFlowReport()"></app-button>
+
+    <app-button *ngIf="expensesData" [buttonText]="'הפקת דוח'" (onButtonClicked)="openFlowReport()"></app-button>
   </div>
 </ion-content>
 

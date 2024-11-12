@@ -55,20 +55,25 @@
         </ng-container>
 
         <ng-template #defaultCell>
-          <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
-            *ngIf="!columnsToIgnore.includes(field.key)" [size]="columnsWidth?.get(field.key) ?? baseSize">
-            {{field.value}}
+          <ion-col class="text-cell" title="{{ field.value }}" *ngIf="!columnsToIgnore.includes(field.key)"
+            [size]="columnsWidth?.get(field.key) ?? baseSize">
+            <div (click)="toggleExpand()" [class.expanded]="isExpanded" class="inner-div-cell">
+              {{field.value}}
+            </div>
           </ion-col>
         </ng-template>
 
         <ng-template #defaultCellWithIcon>
-          <ion-col class="text-cell ion-col-with-icon" [class.expanded]="isExpanded" (click)="toggleExpand()"
-            title="{{ field.value }}" [size]="columnsWidth?.get(field.key) ?? baseSize">
-            {{field.value}}
-            <div class="wrap-button-category">
-              <app-button [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip"
-                (onButtonClicked)="openAddTransaction(row)" [iconSrc]="iconSrc"
-                [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+          <ion-col class="text-cell ion-col-with-icon" title="{{ field.value }}"
+            [size]="columnsWidth?.get(field.key) ?? baseSize">
+            <!-- another div for ellipsis -->
+            <div (click)="toggleExpand()" [class.expanded]="isExpanded" class="inner-div-cell"> 
+              {{field.value}}
+              <div class="wrap-button-category">
+                <app-button [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip"
+                  (onButtonClicked)="openAddTransaction(row)" [iconSrc]="iconSrc"
+                  [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+              </div>
             </div>
           </ion-col>
         </ng-template>
@@ -92,21 +97,13 @@
           </ion-col>
         </ng-template>
 
-        <!-- <ng-template #dateRenderCell>
-          <ion-col
-          class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{+field.value*1000 | date:'dd/MM/yyyy'}}"
-                *ngIf="!columnsToIgnore.includes(field.key)"
-                [class.even-row]="i % 2 === 0" [class.odd-row]="i % 2 !== 0"
-                [size]="columnsWidth?.get(field.key) ?? baseSize">
-                {{+field.value*1000 | date:'dd/MM/yyyy'}}
-          </ion-col>
-        </ng-template> -->
-
         <ng-template #dateRenderCell>
-          <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()"
+          <ion-col class="text-cell"
             title="{{field.value | dateFormat}}" *ngIf="!columnsToIgnore.includes(field.key)"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
-            {{field.value | dateFormat}}
+            <div (click)="toggleExpand()" [class.expanded]="isExpanded" class="inner-div-cell">
+              {{field.value | dateFormat}}
+            </div>
           </ion-col>
         </ng-template>
 
@@ -114,15 +111,15 @@
 
       <ion-col class="text-cell" *ngIf="actions?.length" [size]="columnsWidth?.get('actions') ?? 2">
         <ng-container *ngFor="let action of actions">
-          <ng-container *ngIf="action.name === 'upload'; else defaultIcon" >
-          <label class="label-file-table">
-            <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'"
-              [title]="action.title ?? ''"></ion-icon>
-            <ion-input (click)="beforeFile ?? beforeChooseFile($event, row)" (change)="action.action($event, row)"
-              label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
-            </ion-input>
-          </label>
-        </ng-container>
+          <ng-container *ngIf="action.name === 'upload'; else defaultIcon">
+            <label class="label-file-table">
+              <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'"
+                [title]="action.title ?? ''"></ion-icon>
+              <ion-input (click)="beforeFile ? beforeChooseFile($event, row) : null" (change)="action.action($event, row)"
+                label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
+              </ion-input>
+            </label>
+          </ng-container>
           <ng-template #defaultIcon>
             <ion-icon *ngIf="action.name !== 'upload' && !(row.file) ? !actionsToIgnore.includes(action.name): true"
               class="icon-table" (click)="action.action(row)" [name]="action.icon" [title]="action.title ?? ''">
