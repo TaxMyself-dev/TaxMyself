@@ -191,8 +191,8 @@ export class SharedService {
 
     parseDateStringToDate(dateString: string, inputFormat: string): Date {
 
-        console.log("Input dateString 1:", dateString);
-        console.log("Input format:", inputFormat);
+        // console.log("Input dateString 1:", dateString);
+        // console.log("Input format:", inputFormat);
 
         // Only proceed with the modification if inputFormat is 'dd/MM/yyyy'
         //if (inputFormat === 'dd/MM/yyyy' && /^\d{2}\/\d{2}\/\d{2}$/.test(dateString)) {
