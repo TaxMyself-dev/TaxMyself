@@ -25,6 +25,13 @@
     width: 99.5%;
 }
 
+.wrap-collapse {
+    display: flex;
+    flex-direction: column;
+    align-self: baseline;
+    width: 100%;
+}
+
 .content-wrapper {
     display: flex;
     flex-direction: column;

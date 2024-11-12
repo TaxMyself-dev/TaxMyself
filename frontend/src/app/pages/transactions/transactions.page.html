@@ -9,16 +9,14 @@
       <app-load-file [relativeUrl]="'load-file'"></app-load-file>
     </div>
       <div *ngIf="!expensesData">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</div>
+      <div class="wrap-collapse">
+      <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse"
+      (handleOpen)="onOpenClicked($event)" [title]="'הכנסות'"></app-collapse>
+      <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse"
+      (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
     </div>
-
+  </div>
     <div class="content-wrapper">
-      <!-- <div> -->
-        <app-collapse *ngIf="incomesData$ | async as incomesData" [customTemplate]="incomeCollapse"
-          (handleOpen)="onOpenClicked($event)" [title]="'הכנסות'"></app-collapse>
-        <app-collapse *ngIf="expensesData$ | async as expensesData" [customTemplate]="expensesCollapse"
-          (handleOpen)="onOpenClicked($event)" [title]="'הוצאות'"></app-collapse>
-      <!-- </div> -->
-
 
       <ng-template #expensesCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar"
