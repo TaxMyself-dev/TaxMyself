@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { IColumnDataTable, IGetSupplier, IRowDataTable } from '../shared/interface';
-import { BehaviorSubject, EMPTY, Observable, Subject, catchError, from, switchMap, tap } from 'rxjs';
+import { IColumnDataTable, IRowDataTable } from '../shared/interface';
+import { Observable, Subject } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from '../shared/enums';
 import { environment } from 'src/environments/environment';
@@ -12,12 +12,7 @@ import { LoadingController } from '@ionic/angular';
 })
 export class ExpenseDataService {
 
-  token: string;
- 
-
-
   constructor(private http: HttpClient, private loader: LoadingController) { 
-    this.token = localStorage.getItem('token');
   }
 
   private readonly columnsAddExpense: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
@@ -78,17 +73,15 @@ export class ExpenseDataService {
 
   getExpenseByUser(): Observable<IRowDataTable[]> {
     const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}expenses/get_by_userID`;
     const headers = {
       'token': token
     }
-    const url = `${environment.apiUrl}expenses/get_by_userID`;
-    // const options = {
-    //   params: new HttpParams().set("userID", userID),
-    // }
     return this.http.get<IRowDataTable[]>(url, { headers: headers });
   }
 
   getExpenseForVatReport(isSingleMonth: boolean, monthReport: number): Observable<IRowDataTable[]> {
+    const url = `${environment.apiUrl}expenses/get-expenses-for-vat-report`;
     const token = localStorage.getItem('token');
     const headers = {
       'token': token
@@ -96,7 +89,6 @@ export class ExpenseDataService {
     const params = new HttpParams()
       .set('isSingleMonth', isSingleMonth)
       .set('monthReport', monthReport);
-    const url = `${environment.apiUrl}expenses/get-expenses-for-vat-report`;
     return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
   }
 
@@ -121,8 +113,6 @@ export class ExpenseDataService {
   }
 
   getcategry(isDefault?: boolean): Observable<any[]> {
-    console.log("isDefault is ", isDefault);
-    
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-categories`;
     const headers = {
@@ -156,21 +146,22 @@ export class ExpenseDataService {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/update-supplier/` + id;
     const headers = {
-      'token':
-       token
+      'token':token
     }
     return this.http.patch(url, formData,{headers});
   }
 
   deleteSupplier(id: number): Observable<any> {
+    //TODO: change token to headers
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/delete-supplier/` + id;
     const param = new HttpParams()
-    .set('token', this.token);
+    .set('token', token);
     return this.http.delete(url, { params: param });
   }
   
   addExpenseData(data: any): Observable<any> {
+    //TODO: change token to headers
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-expense`;
     //console.log("formdata in send",data);
@@ -179,47 +170,10 @@ export class ExpenseDataService {
   }
   
   updateExpenseData(data: any, id: number): Observable<any> {
+    //TODO: change token to headers
     const url = `${environment.apiUrl}expenses/update-expense/${id}`;
-    //console.log("id of update: ", id);
     return this.http.patch(url, data);
   }
-
-  
-
-
-
-
-  // getLoader(): Observable<any> {
-  //   return from(this.loader.create({
-  //     message: this.loaderMessage$.getValue(),
-  //     spinner: 'crescent'
-  //   }))
-  //   .pipe(
-  //       catchError((err) => {
-  //         console.log("err in create loader in save supplier", err);
-  //         return EMPTY;
-  //       }),
-  //       switchMap((loader) => {
-  //         if (loader) {
-  //           return from(loader.present())
-  //         }
-  //           console.log("loader in save supplier is null");
-  //           return EMPTY;
-  //       }),
-  //       catchError((err) => {
-  //         console.log("err in open loader in save supplier", err);
-  //         return EMPTY;
-  //       })
-  //     )
-  // }
-
-  // closeLoader(): void {
-  //   this.loader.dismiss();
-  // }
-
-
-
-
 
 
 }

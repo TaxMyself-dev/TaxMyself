@@ -52,7 +52,6 @@ export class GenericService {
 
     // Method to update the loader's message dynamically
     updateLoaderMessage(message: string): void {
-      console.log("Updating loader message to:", message);
       this.loaderMessage$.next(message);  // Trigger message update
     }
   

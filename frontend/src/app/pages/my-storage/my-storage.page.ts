@@ -1,8 +1,8 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { getDownloadURL, getStorage, ref } from "@angular/fire/storage";
+// import { getDownloadURL, getStorage, ref } from "@angular/fire/storage";
 import { LoadingController, ModalController } from '@ionic/angular';
-import { EMPTY, Observable, catchError, filter, finalize, from, map, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, map, switchMap, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
@@ -35,15 +35,11 @@ export class MyStoragePage implements OnInit {
   readonly ACTIONS_TO_IGNORE = ['share', 'preview', 'download file'];
   readonly ButtonSize = ButtonSize;
 
-  // columns: IColumnDataTable = {};//Titles of table
   items$: Observable<IRowDataTable[]>;//Data of expenses
-  //item: IRowDataTable;
   rows: IRowDataTable[] = [];
   tableActions: ITableRowAction[] = [];
-  uid: string;
   fieldsNamesToAdd: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
-  isOnUpdate: boolean = false;
   isToastOpen: boolean = false;
   toastMessage: string = "";
   isOpen: boolean = false;
@@ -70,11 +66,7 @@ export class MyStoragePage implements OnInit {
 
   ngOnInit() {
     this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
-    console.log("this.fieldsNames", this.fieldsNamesToAdd);
-
     this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
-    console.log("this.fieldsNames", this.fieldsNamesToShow);
-
     this.setRowsData();
     this.setTableActions();
     this.expenseDataService.updateTable$.subscribe(
@@ -95,22 +87,14 @@ export class MyStoragePage implements OnInit {
             rows.push(row);
           })
           this.rows = rows;
-          console.log(rows);
-          
           return rows
         })
       )
-    console.log(this.items$);
-
   }
 
   openPopupAddExpense(data?: IRowDataTable): void {
-    console.log("this.fieldsNames in open", this.fieldsNamesToAdd);
-    console.log("data in open", data);
     from(this.modalController.create({
-
       component: ModalExpensesComponent,
-      //showBackdrop: false,
       componentProps: {
         columns: this.fieldsNamesToAdd,
         editMode: !!Object.keys(data).length,
@@ -129,7 +113,6 @@ export class MyStoragePage implements OnInit {
   }
 
   onUpdateClicked(expense: IRowDataTable): void {
-    console.log("in my storage", expense);
     const expenseData = this.rows.find((row) => row.id === expense.id);
     this.openPopupAddExpense(cloneDeep(expenseData));
   }
@@ -158,8 +141,6 @@ export class MyStoragePage implements OnInit {
 
   onDownloadFileClicked(expense: IRowDataTable): void {
     const selectedExpense = this.rows.find((row) => row.id === expense.id);
-    console.log(selectedExpense);
-
     const fileName = selectedExpense.file;
     if (!(fileName === undefined || fileName === "" || fileName === null)) {
       this.filesService.downloadFile(fileName as string)
@@ -217,13 +198,11 @@ export class MyStoragePage implements OnInit {
   }
 
   deleteExpense(): void {
-    console.log("event in table", this.id);
     this.onDeleteClicked(this.id);
     this.isOpen = false;
   }
 
   confirmDel(ev: IRowDataTable): void {
-    console.log("event in confirm ", ev);
     this.id = +ev.id;
     this.isOpen = true;
   }

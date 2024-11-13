@@ -1,13 +1,12 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@angular/fire/storage";
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { SafeResourceUrl } from '@angular/platform-browser';
 import { log } from 'console';
 import { nanoid } from 'nanoid';
-import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, takeUntil, throwError } from 'rxjs';
+import { Observable, catchError, from, switchMap } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
-import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
 
 @Injectable({
@@ -94,7 +93,6 @@ export class FilesService {
         throw err;
       }),
       switchMap((base64: string) => {
-        //console.log('Base64 result:', base64);
         return this.uploadBase64(base64);  // Return the observable from uploadBase64
       }),
       catchError((error) => {
@@ -144,132 +142,6 @@ export class FilesService {
     });
   }
 
-  // uploadFileViaFront(file: File): Observable<any> {
-  //   this.convertFileToBase64(file).subscribe({
-  //     next: (base64) => {
-  //       console.log('Base64 result:', base64);
-  //       return this.uploadBase64(base64)
-  //       // Handle the base64 data (e.g., upload or display it)
-  //     },
-  //     error: (err) => {
-  //       console.error('Error:', err);
-  //       // Handle the error (e.g., show a message to the user)
-  //     },
-  //     complete: () => {
-  //       console.log('File conversion complete');
-  //     }
-  //   });   
-  //   console.log("in upload file via front");
-  //   let filePath: string;
-  //   // const tempA = localStorage.getItem('user');
-  //   // const tempB = JSON.parse(tempA)
-  //   // const uid = tempB.uid;
-  //   // this.uniqueIdFile = nanoid();
-  //   // const storage = getStorage(); // bucket root
-  //   // const fileRef = ref(storage, `users/${uid}/${this.uniqueIdFile}`); // full path relative to bucket's root
-  //   // return from(uploadString(fileRef, base64String, 'data_url'));
-  // }
-
-
-
-  // convertPdfFileToBase64String(file: File) {
-  //   return new Promise<string>((resolve, reject) => {
-  //     const reader = new FileReader();
-  //     reader.addEventListener('load', () => {
-  //       const result = reader.result;
-
-  //       if (!result) {
-  //         reject('result is null');
-  //         return;
-  //       }
-
-  //       resolve(reader.result.toString());
-  //     });
-  //     reader.addEventListener('error', reject);
-  //     reader.readAsDataURL(file);
-  //   });
-  // }
-
-
-
-  // convertFileToBase64AndUpload(file: File): void {
-  //   console.log(file);
-  //   let base64: string
-  //   if (!file){
-  //     alert("file is empty");
-  //   }
-
-  //   const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-  //   const extension = file.name.split('.').pop().toLowerCase();
-
-  //   if (!allowedExtensions.includes(`.${extension}`)) {
-  //     alert('Please upload only PDF, PNG, or JPEG files.');
-  //   }
-
-  //   const reader = new FileReader();
-  //   reader.readAsDataURL(file);
-  //   reader.onload = () => {
-  //     base64 = reader.result as string;
-  //     console.log(base64);
-  //     //this.uploadFileViaFront(reader.result as string)
-  //   }
-  // }
-
-  // async fileSelected(event: any) {
-  //   //console.log("in filelelel");
-  //   //this.pdfLoaded = false;// on change pdf to image
-
-  //   let file = event.target.files[0];
-  //   console.log("fileeeeeeeeeeee", file);
-
-  //   if (!file) {
-  //     return;
-  //   }
-
-  //   const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-  //   const extension = file.name.split('.').pop().toLowerCase();
-
-  //   if (!allowedExtensions.includes(`.${extension}`)) {
-  //     alert('Please upload only PDF, PNG, or JPEG files.');
-  //     return;
-  //   }
-
-  //   // if (extension === "pdf"){
-  //   //   console.log("in pdf");
-  //   //   const target = event.target as HTMLInputElement;
-  //   //   const files = target.files as FileList;
-  //   //   const file = files.item(0);
-  //   //   console.log("pdf file:", file);
-
-  //   //   if (!file) {
-  //   //     return;
-  //   //   }
-
-  //   //   const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
-  //   //   this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
-  //   //   //this.pdfLoaded = true;
-  //   //   //this.uploadFileViaFront(this.safePdfBase64String)
-  //   // }
-
-  //   const reader = new FileReader();
-  //   reader.readAsDataURL(file);
-  //   reader.onload = () => {
-  //     this.uploadFileViaFront(reader.result as string)
-  //     // if (this.isEditMode) {
-  //     //   this.editModeFile = reader.result as string;
-  //     //   this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
-  //     // }
-  //     // else{
-  //     //   this.selectedFile = reader.result as string;
-  //     // }
-  //     // console.log(this.selectedFile);
-
-  //   }
-
-
-  // }
-
-
   async extractTextFromFile(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       Tesseract.recognize(
@@ -295,12 +167,13 @@ export class FilesService {
   }
 
   addSupplier(formData: any): Observable<any> {
+    //TODO: change token to headers
     const url = `${environment.apiUrl}expenses/add-supplier`;
     return this.http.post(url, formData);
   }
-
+  
   editSupplier(formData: any, id: number): Observable<any> {
-    console.log("id in edit to server", id);
+    //TODO: change token to headers
     const url = `${environment.apiUrl}expenses/update-supplier/${id}`;
     return this.http.patch(url, formData);
   }
@@ -316,15 +189,6 @@ export class FilesService {
     }
 
     return this.http.post<any>(url, formData, { headers })
-      // .pipe(
-      //   catchError(error => {
-      //     console.error('Upload failed', error);
-      //     return of({status: false, message: error as string}); // Return false if there's an error
-      //   }),
-      //   map(response => {
-      //     return {status: true, message: response as string}
-      //   }),// Return true on success
-      // );
   }
 
 }

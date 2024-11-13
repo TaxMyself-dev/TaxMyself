@@ -6,12 +6,10 @@ import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { startWith, Subject, takeUntil, tap } from 'rxjs';
-import { IonicSelectableComponent } from 'ionic-selectable';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
-import { FamilyStatus, FamilyStatusLabels, FormTypes } from 'src/app/shared/enums';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-register',
@@ -42,7 +40,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
   
-  constructor(private expensesDataService: ExpenseDataService, private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
+  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
 
     const personalForm = this.formBuilder.group({
@@ -120,7 +118,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', Validators.required,
       ),
       [RegisterFormControls.SPOUSEINDEPENDET]: new FormControl(
-        false, Validators.required,
+        '', Validators.required,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
         '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
@@ -157,9 +155,9 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.BUSINESSNAME]: new FormControl(
         '', Validators.required,
       ),
-      [RegisterFormControls.BUSINESSFIELD]: new FormControl(
-        '', Validators.required,
-      ),
+      // [RegisterFormControls.BUSINESSFIELD]: new FormControl(
+      //   '', Validators.required,
+      // ),
       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
         '', Validators.required,
       ),
@@ -256,6 +254,8 @@ ngOnDestroy(): void {
   }
 
   get isNextButtonDisabled(): boolean {
+    console.log("!this.isCurrentFormValid(): ",!this.isCurrentFormValid());
+    
     return !this.isCurrentFormValid();
   }
 
@@ -282,7 +282,7 @@ ngOnDestroy(): void {
   }
 
   addChild() {
-    console.log(this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN).value);
+    //console.log(this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN).value);
 
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
     items.push(
@@ -305,13 +305,10 @@ ngOnDestroy(): void {
 
   removeChild(index: number) {
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
-    // if (items.length >= 2) {
       items.removeAt(index);
-    // }
   }
 
   handleFormRegister() {
-    //this.expensesDataService.getLoader().subscribe();
     const formData = cloneDeep(this.myForm.value);
     formData.validation = {password: formData?.validation?.password};
     formData.personal.city = formData?.personal?.city?.name;
@@ -385,13 +382,8 @@ ngOnDestroy(): void {
       }
     }
 
-  // changePasswordValidinput(event: any) {
-  //   this.passwordValidInput = event.target.value;
-  // }
-
   checkPassword(event: string) {
     const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
-    //if (this.passwordValidInput === realPass) {
     if (event === realPass) {
       this.passwordValid = true;
     } else {
@@ -482,7 +474,6 @@ ngOnDestroy(): void {
     }
 
     private isMarried(): boolean {
-      //return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === 1;
       return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.MARRIED;
     }
 }

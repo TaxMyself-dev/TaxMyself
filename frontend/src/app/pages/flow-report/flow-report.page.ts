@@ -1,14 +1,13 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-//const { FilePicker } = Plugins;
 
 
 @Component({
@@ -26,8 +25,7 @@ export class FlowReportPage implements OnInit {
   params: {};
   columnsToIgnore = ['firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: { id: number, file?: File | string }[] = [];
-  previousFile: string;
-  isCheckboxClicked: boolean = false;
+  isSelectTransaction: boolean = false; // for able or disable send button
   isToastOpen: boolean = false;
   messageToast: string = "";
 
@@ -167,8 +165,8 @@ export class FlowReportPage implements OnInit {
       });
     }
 
-    // Update isCheckboxClicked flag based on whether there are any selected items
-    this.isCheckboxClicked = this.chosenTrans.length > 0;
+    // Update isSelectTransaction flag based on whether there are any selected transaction
+    this.isSelectTransaction = this.chosenTrans.length > 0;
 
     console.log(this.chosenTrans);
   }
@@ -324,11 +322,7 @@ export class FlowReportPage implements OnInit {
   }
 
   addFile(event: any, row: IRowDataTable): void {
-    //change file
-    if (row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null) {
-      this.previousFile = row.firebaseFile as string;
-    }
-
+ 
     row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0];
     row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
     this.chosenTrans.map((tran) => {

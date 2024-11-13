@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
-import { EMPTY, Subject, catchError, finalize } from 'rxjs';
+import { EMPTY, catchError, finalize } from 'rxjs';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { FormTypes } from 'src/app/shared/enums';
 
@@ -18,7 +18,7 @@ export class LoginPage implements OnInit {
   readonly ButtonSize = ButtonSize;
   readonly formTypes = FormTypes;
 
-  emailVerify: boolean = true;
+  // emailVerify: boolean = true;
   userEmailForReset: string = "";
   userCredential: UserCredential;
   loginForm: FormGroup;
@@ -29,7 +29,7 @@ export class LoginPage implements OnInit {
   messageToast: string = "";
   resetMode = false;
 
-  constructor(private router: Router, private activatedRoute: ActivatedRoute, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
+  constructor(private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
     this.loginForm = this.formBuilder.group({
       userName: new FormControl(
@@ -71,15 +71,12 @@ export class LoginPage implements OnInit {
         finalize(() => loading.dismiss()),
         )
         .subscribe((res) => {
-          console.log("res sign in", res);
-
           if (res) {
             this.userCredential = res;
           }
           if (res.user.emailVerified) {
             this.authService.signIn(res)
               .subscribe((res) => {
-                console.log("res from server",res);
                 localStorage.setItem('userData', JSON.stringify(res));
                 this.router.navigate(['my-account']);
               })
@@ -120,13 +117,11 @@ export class LoginPage implements OnInit {
         switch (err.code) {
           case "auth/invalid-email":
           case "auth/user-not-found":
-            // this.isErrLogIn$.next("user");
             this.authService.error$.next("user");
             break;
           case "auth/too-many-requests":
           case "auth/network-request-failed":
           case "auth/operation-not-allowed":
-            // this.isErrLogIn$.next("error")
             this.authService.error$.next("error");
         }
 
