@@ -3,7 +3,7 @@ import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -30,7 +30,9 @@ export class UsersService {
         const newChildren = children?.children;
 
         personal.dateOfBirth = this.sharedService.parseDateStringToDate(personal.dateOfBirth, 'yyyy-MM-dd');
-        spouse.spouseDateOfBirth = this.sharedService.parseDateStringToDate(spouse.spouseDateOfBirth, 'yyyy-MM-dd');
+        if (personal.FamilyStatus == FamilyStatus.MARRIED) {
+            spouse.spouseDateOfBirth = this.sharedService.parseDateStringToDate(spouse.spouseDateOfBirth, 'yyyy-MM-dd');
+        }
         business.businessDate = this.sharedService.parseDateStringToDate(business.businessDate, 'yyyy-MM-dd');
 
         let newUser = {...personal, ...spouse, ...business};
