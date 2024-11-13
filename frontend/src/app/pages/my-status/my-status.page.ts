@@ -106,7 +106,8 @@ export class MyStatusPage {
 
     const getUserData = data[0];
     console.log("timestamp spouse is", getUserData.spouseDateOfBirth);
-    console.log("date spouse is", this.dateService.convertTimestampToDateInput(getUserData.businessDate));
+    // console.log("date spouse is", this.dateService.convertTimestampToDateInput(getUserData.businessDate));
+    console.log("date spouse is", getUserData.businessDate);
     
 
     this.userData = [
@@ -116,7 +117,8 @@ export class MyStatusPage {
           { name: 'שם פרטי', value: getUserData.fName, type: 'input' },
           { name: 'שם משפחה', value: getUserData.lName, type: 'input' },
           { name: 'ת.ז', value: getUserData.id, type: 'input' },
-          { name: 'תאריך לידה', value: this.dateService.convertTimestampToDateInput(getUserData.dateOfBirth), type: 'input' },
+          // { name: 'תאריך לידה', value: this.dateService.convertTimestampToDateInput(getUserData.dateOfBirth), type: 'input' },
+          { name: 'תאריך לידה', value: getUserData.dateOfBirth, type: 'input' },
         ]
       },
       {
@@ -126,7 +128,8 @@ export class MyStatusPage {
           { name: 'שם פרטי', value: getUserData.spouseFName, type: 'input' },
           { name: 'שם משפחה', value: getUserData.spouseLName, type: 'input' },
           { name: 'ת.ז.', value: getUserData.spouseId, type: 'input' },
-          { name: 'תאריך לידה', value: this.dateService.convertTimestampToDateInput(getUserData.spouseDateOfBirth), type: 'input' },
+          // { name: 'תאריך לידה', value: this.dateService.convertTimestampToDateInput(getUserData.spouseDateOfBirth), type: 'input' },
+          { name: 'תאריך לידה', value: getUserData.spouseDateOfBirth, type: 'input' },
         ]
       },
       {
@@ -135,7 +138,8 @@ export class MyStatusPage {
           { name: 'שם העסק', value: getUserData.businessName, type: 'input' },
           { name: 'סוג העסק', value: getUserData.businessType, type: 'select', options: businessTypeOptionsList},
           { name: 'מספר עוסק', value: getUserData.businessId, type: 'input' },
-          { name: 'תאריך פתיחת העסק', value: this.dateService.convertTimestampToDateInput(getUserData.businessDate), type: 'input' },
+          // { name: 'תאריך פתיחת העסק', value: this.dateService.convertTimestampToDateInput(getUserData.businessDate), type: 'input' },
+          { name: 'תאריך פתיחת העסק', value: getUserData.businessDate, type: 'input' },
         ]
       }
     ];

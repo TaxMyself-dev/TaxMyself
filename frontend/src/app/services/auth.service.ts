@@ -1,5 +1,5 @@
 import { Injectable, NgZone } from '@angular/core';
-import { AngularFirestore, AngularFirestoreDocument } from '@angular/fire/compat/firestore';
+import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
 import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject, finalize } from 'rxjs';
@@ -8,8 +8,6 @@ import { UserCredential } from '@firebase/auth-types';
 import { sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
-import {jwtDecode} from 'jwt-decode';
-import { getAuth } from "firebase/auth";
 import { GenericService } from './generic.service';
 
 @Injectable({
@@ -18,12 +16,11 @@ import { GenericService } from './generic.service';
 export class AuthService {
 
   userData: any; // Save logged in user data
-  public token: string;
+  token: string;
   userDetails: any;
 
   constructor(
     private genericService: GenericService,
-    private expenseDataService: ExpenseDataService,
     public afs: AngularFirestore,
     public afAuth: AngularFireAuth, 
     public router: Router,
@@ -59,7 +56,6 @@ export class AuthService {
           this.afAuth.onIdTokenChanged((currentUser) => {
             if (currentUser) {
               currentUser.getIdToken(true).then((token) => {
-                console.log('Token refreshed:', token);
                 // Optionally store the refreshed token
                 localStorage.setItem('token', token);
               });
@@ -151,9 +147,7 @@ export class AuthService {
         tap(() => this.isVerfyEmail$.next(true)),
         switchMap(() => {
           const url = `${environment.apiUrl}auth/signup`
-          formData.personal.firebaseId = uid;
-          console.log("formData debug is ", formData);
-          
+          formData.personal.firebaseId = uid;          
           return this.http.post(url, formData);
 
         }),
@@ -167,10 +161,6 @@ export class AuthService {
           return EMPTY;
         })
       )
-      // .subscribe((res) => {
-      //   console.log("res in sub signup", res);
-      //   //this.router.navigate(['login']);
-      // })
   }
 
   SendVerificationMail(): Observable<any> {
@@ -193,15 +183,6 @@ export class AuthService {
     const user = JSON.parse(localStorage.getItem('firebaseUserData')!);
     return user !== null && user.emailVerified !== false ? true : false;
   }
-
-  // updateUser(updatedData: any): Observable<any> {
-  //   console.log("updatedData is ", updatedData);
-    
-  //   const token = localStorage.getItem('token');  // Assuming you have a token stored
-  //   const headers = { 'token': token };  // Add the token to the headers
-  //   const url = `${environment.apiUrl}auth/update-user`;  // Backend endpoint for updating user
-  //   return this.http.patch(url, updatedData, { headers });
-  // }
 
   updateUser(updatedData: any): Observable<any> {
     console.log("updatedData is ", updatedData);

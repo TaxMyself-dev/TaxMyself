@@ -1,20 +1,17 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, from, map, skip, switchMap, tap, zip, distinctUntilChanged, Subject, takeUntil } from 'rxjs';
-import { IButtons, IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil } from 'rxjs';
+import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData } from 'src/app/shared/interface';
+import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
-import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { Router } from '@angular/router';
 import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
 import { DateService } from 'src/app/services/date.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
-import { addIcons } from 'ionicons';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 
@@ -214,12 +211,10 @@ export class TransactionsPage implements OnInit {
   getTransactions() {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
-    // console.log("form data trans is ", formData);
 
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
-    // console.log("dateForUpdate ", this.dateForUpdate);
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(formData);
 
@@ -246,8 +241,6 @@ export class TransactionsPage implements OnInit {
 
   getExpensesData(): void {
     const formData = this.transactionsForm.value;
-    // console.log("form data trans is ", formData);
-
     this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
@@ -340,8 +333,6 @@ export class TransactionsPage implements OnInit {
 
   filterIncomes(): void {
     const formData = this.incomeForm.value;
-    console.log(formData);
-    console.log(formData.incomeType);
     const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
     if (!categoryName && !formData.incomeType) {
@@ -371,8 +362,6 @@ export class TransactionsPage implements OnInit {
 
   filterExpenses(): void {
     const formData = this.expensesForm.value;
-    console.log(formData);
-    console.log(formData.expensesType);
     const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
     if (!categoryName && !formData.expensesType) {
@@ -416,7 +405,6 @@ export class TransactionsPage implements OnInit {
       }
       )
     }
-    console.log("rows: ", rows);
     return rows;
   }
 
@@ -425,8 +413,6 @@ export class TransactionsPage implements OnInit {
       .pipe(
         takeUntil(this.destroy$),
         map((res) => {
-          console.log(res);
-
           return res.map((item: any) => ({
             name: item.categoryName,
             value: item.categoryName
@@ -441,13 +427,10 @@ export class TransactionsPage implements OnInit {
             field.listItems = res;
           }
         });
-        console.log("listCategory: ", this.listCategory);
       })
   }
 
   openEditRow(data: IRowDataTable): void {
-    console.log("data in edit row before: ", data);
-
     const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
     const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
     const disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
@@ -458,7 +441,7 @@ export class TransactionsPage implements OnInit {
       this.editRowForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent || ''),
-      this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(this.dateService.convertTimestampToDateInput(+data?.billDate) || Date),
+      this.editRowForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
       this.editRowForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
       this.editRowForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
       this.editRowForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
@@ -469,7 +452,6 @@ export class TransactionsPage implements OnInit {
       from(this.modalController.create({
         component: editRowComponent,
         componentProps: {
-          //date: this.dateForUpdate,
           data,
           fields: this.editFieldsNamesExpenses,
           parentForm: this.editRowForm,
@@ -491,8 +473,6 @@ export class TransactionsPage implements OnInit {
                 .pipe(
                   takeUntil(this.destroy$),
                   tap((data) => {
-                    console.log(data);
-
                     if (data.role != 'backdrop' && data.role != 'cancel') {
                       this.getTransactions()
                     }
@@ -519,7 +499,6 @@ export class TransactionsPage implements OnInit {
   updateRow(id: number): void {
     let formData: IClassifyTrans = this.editRowForm.getRawValue();
 
-    // formData.category = category.name as string;
     formData.id = id;
     formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
     formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
@@ -528,7 +507,6 @@ export class TransactionsPage implements OnInit {
     formData.vatPercent = +formData.vatPercent;
     formData.taxPercent = +formData.taxPercent;
     formData.reductionPercent = +formData.reductionPercent;
-    console.log(formData);
 
     this.transactionService.updateRow(formData).pipe(takeUntil(this.destroy$)).subscribe((res) => this.getExpensesData());
   }
@@ -553,7 +531,6 @@ export class TransactionsPage implements OnInit {
             switchMap(() => from(modal.onWillDismiss())
               .pipe(
                 tap((data) => {
-                  console.log(data);
                   if (data.role != 'backdrop' && data.role != 'cancel') {
                     this.getTransactions()
                   }
@@ -571,7 +548,6 @@ export class TransactionsPage implements OnInit {
   }
 
   onClickedCell(event: { str: string, data: IRowDataTable }): void {
-    console.log(event);
     if (event.str === "bill") {
       this.openAddBill(event.data);
     }

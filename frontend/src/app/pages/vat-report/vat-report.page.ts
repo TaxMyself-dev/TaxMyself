@@ -1,10 +1,9 @@
-import { Component, OnInit, Input } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { startOfMonth, endOfMonth } from 'date-fns';
-import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { FormTypes, ICellRenderer, months, singleMonths, TransactionsOutcomesColumns } from 'src/app/shared/enums';
+import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
+import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
@@ -55,7 +54,7 @@ export class VatReportPage implements OnInit {
   report?: ReportData;
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
-  token: string;
+  // token: string;
   reportClick: boolean = true;
   tableActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
@@ -150,15 +149,10 @@ export class VatReportPage implements OnInit {
   }
 
   beforeSelectFile(event): void {
-    console.log(event);
     if (!this.isSkip && event.data.file != "") {
       this.isSkip = true;
       event.event.preventDefault()
-
-      
-
         from(this.modalController.create({
-
           component: PopupMessageComponent,
           componentProps: {
             message: "להוצאה זו כבר שמור קובץ, אתה בטוח שברצונך להחליפו?",
@@ -190,21 +184,14 @@ export class VatReportPage implements OnInit {
           .subscribe((res) => {
             console.log("res in close popover: ", res);
             if (res.data) {
-              console.log("select true");
-              console.log("evnt:", event);
-              console.log("evnt:", event.event.target);
-
               event.event.target.click();
             }
             this.isSkip = false
           });
-      
     }
   }
 
   addFile(event: any, row: IRowDataTable): void {
-    console.log("file: ", row.file);
-
     if ((row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null)) { // if already exist file
       if (event.target.files[0]) { // choose another file
         row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0]; // chnage file in row
@@ -228,8 +215,6 @@ export class VatReportPage implements OnInit {
       row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
       this.arrayFile.push({ id: row.id as number, file: event.target.files[0] })
     }
-    console.log("row after update: ", row);
-    console.log(this.arrayFile);
   }
 
   onPreviewFileClicked(expense: IRowDataTable): void {
@@ -252,7 +237,6 @@ export class VatReportPage implements OnInit {
   }
 
   onSubmit() {
-    console.log("onSubmit - start");
     const formData = this.vatReportForm.value;
     this.reportClick = false;
     this.setRowsData();
@@ -273,7 +257,6 @@ export class VatReportPage implements OnInit {
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.vatReportForm.value;
-    console.log("setRowsData - start");
     this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month)
       .pipe(
         map((data) => {
@@ -285,9 +268,7 @@ export class VatReportPage implements OnInit {
               tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
             }
             rows.push(tableData);
-          })
-          
-          console.log("table data for vat report is ", rows);
+          })          
           this.rows = rows;
           return rows
         })
@@ -331,19 +312,9 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  // openVatReportLink(): void {
-
-  //   this.router.navigate(https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true, {
-  //   })
-  // }
-
   addFileToExpense(): void {
-
     const totalTransactions = this.arrayFile.length;
     let filesUploaded = 0;
-
-    console.log("array file:", this.arrayFile);
-
     this.genericService.getLoader().subscribe();
     this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
 
@@ -361,7 +332,6 @@ export class VatReportPage implements OnInit {
           }),
           tap((res) => {
             tran.file = res.metadata.fullPath;  // Update the file path after upload
-            console.log("Uploaded file path: ", tran.file);
             filesUploaded++;
             const progress = Math.round((filesUploaded / totalTransactions) * 100);
             this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
@@ -391,7 +361,6 @@ export class VatReportPage implements OnInit {
           this.arrayFile.forEach((tran) => {
             if (tran.file) {
               this.filesService.deleteFile(tran.file as string);
-              console.log("file: ", tran.file, "is delete");
             }
           })
           //this.genericService.dismissLoader();
