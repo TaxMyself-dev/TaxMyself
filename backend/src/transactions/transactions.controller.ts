@@ -10,6 +10,7 @@ import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
+import { SourceType } from 'src/enum';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -40,8 +41,6 @@ export class TransactionsController {
 
   @Get('get_by_userID')
   async getTransactionsByUserID(@Query('billId') userID: string): Promise<Transactions[]> {
-    console.log("this is user id thatttt i send: ", userID);
-
     return await this.transactionsService.getTransactionsByUserID(userID);
   }
 
@@ -59,11 +58,10 @@ export class TransactionsController {
     @Param('id') billId: number,
     @Headers('token') token: string,
     @Body() body: any,
-    
-    ): Promise<Source> {
-      console.log(billId, body.sourceName, token);
-      const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.transactionsService.addSourceToBill(billId, body.sourceName, userId);
+  ): Promise<Source> {
+      const userId = await this.usersService.getFirbsaeIdByToken(token);
+      const sourceType = SourceType.CREDIT_CARD;
+      return this.transactionsService.addSourceToBill(billId, body.sourceName, sourceType, userId);
   }
 
 
@@ -71,7 +69,6 @@ export class TransactionsController {
   async getBills(
     @Headers('token') token: string
   ) {
-    console.log("get-bills - start");
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     return this.transactionsService.getBillsByUserId(userId);
   }

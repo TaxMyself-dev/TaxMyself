@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express'; 
-import { VATReportingType} from 'src/enum';
+import { SourceType, VATReportingType} from 'src/enum';
 
 //Entities
 import { Transactions } from './transactions.entity';
@@ -451,14 +451,19 @@ export class TransactionsService {
   }
 
 
-  async addSourceToBill(billId: number, sourceName: string, userId: string): Promise<Source> {
+  async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
+
     const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
     if (!bill) {
       throw new Error('Bill not found');
     }
 
     // Create and save the new source
-    const newSource = this.sourceRepo.create({ sourceName, bill });
+    const newSource = this.sourceRepo.create({
+      sourceName,
+      sourceType,  // Assuming sourceType is a valid column in your Source entity
+      bill
+    });
     await this.sourceRepo.save(newSource);
 
     // Update the billName in all transactions of the user with the new source

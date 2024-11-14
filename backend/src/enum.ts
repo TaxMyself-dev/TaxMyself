@@ -47,7 +47,7 @@ export enum SingleMonthReport {
   SEPTEMBER = "9/2024",
   OCTOBER = "10/2024",
   NOVEMBER = "11/2024",
-  DECEMBER = "12/2024",
+  DECEMBER = "12/2024"
 }
 
 // Enum for dual month report
@@ -57,5 +57,11 @@ export enum DualMonthReport {
   MAY_JUN = "5-6/2024",
   JUL_AUG = "7-8/2024",
   SEP_OCT = "9-10/2024",
-  NOV_DEC = "11-12/2024",
+  NOV_DEC = "11-12/2024"
+}
+
+// Enum for dual month report
+export enum SourceType {
+  CREDIT_CARD = 'CREDIT_CARD',
+  BANK_ACCOUNT = 'BANK_ACCOUNT'
 }
