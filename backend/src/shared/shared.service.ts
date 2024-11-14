@@ -120,10 +120,6 @@ export class SharedService {
         return { startDate, endDate };
     }
     
-    
-    
-    
-
 
     getDayOfYearFromDate(date: Date): number {
         // Assuming the input format is "DD.MM.YYYY"

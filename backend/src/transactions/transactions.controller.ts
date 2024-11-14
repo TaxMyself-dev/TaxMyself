@@ -108,6 +108,10 @@ export class TransactionsController {
     @Headers('token') token: string
   ): Promise<Transactions[]> {
 
+    console.log("query.year is ", query.year);
+    console.log("query.month is ", query.month);
+    
+
     query.billId === 'null' ? null : parseInt(query.billId, 10);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
   

@@ -1,5 +1,4 @@
 import {
-    IsBoolean,
     IsBooleanString,
     IsNotEmpty,
     IsString,
@@ -16,17 +15,12 @@ export class GetTransactionsDto {
     @IsNotEmpty()
     month: string;
 
-    //@IsBoolean()
     @IsBooleanString()
     @IsNotEmpty()
-    isSingleMonth: boolean; // or boolean, depending on how you handle it
+    isSingleMonth: boolean;
 
     @IsString()
     @IsNotEmpty()
     billId: string;
-
-    // @IsString()
-    // @IsNotEmpty()
-    // kuku: string;
     
 }

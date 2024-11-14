@@ -59,8 +59,8 @@ const routes: Routes = [
     canActivate: [AuthGuard] 
   },
   {
-    path: 'income-statement',
-    loadChildren: () => import('./pages/income-statement/income-statement.module').then( m => m.IncomeStatementPageModule),
+    path: 'pnl-report',
+    loadChildren: () => import('./pages/pnl-report/pnl-report.module').then( m => m.PnLReportPageModule),
     canActivate: [AuthGuard] 
   },
   {

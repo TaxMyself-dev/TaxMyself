@@ -3,11 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { PnLReportDto } from './dtos/pnl-report.dto';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
 import { ReductionReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { VAT_RATE_2023 } from '../constants';
+import { SharedService } from 'src/shared/shared.service';
 
 
 @Injectable()
@@ -15,7 +17,8 @@ export class ReportsService {
     constructor(
         @InjectRepository(Expense)
         private expense_repo: Repository<Expense>,
-        private expensesService: ExpensesService
+        private expensesService: ExpensesService,
+        private sharedService: SharedService
     ) {}
 
 
@@ -63,7 +66,53 @@ export class ReportsService {
     
         return vatReport;
     }
-    
+
+
+    async createPnLReport(
+        userId: string,
+        isSingleMonth: boolean,
+        monthReport: number
+    ): Promise<PnLReportDto> {
+
+        //const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, isSingleMonth);
+
+         // Get total income
+         const totalIncome = 1000;
+        //  const totalIncome = await incomeRepo.createQueryBuilder("income")
+        //  .select("SUM(income.amount)", "total")
+        //  .where("income.userId = :userId", { userId })
+        //  .andWhere("income.date BETWEEN :startDate AND :endDate", { startDate, endDate })
+        //  .getRawOne();
+
+        // const expenses = await this.expensesService.getExpensesByDates(userId, startDate, endDate);
+        
+        // // Aggregate expenses by category
+        // const expensesByCategory = expenses.reduce((acc, expense) => {
+        //     const { category, amount } = expense;
+        //     if (!acc[category]) {
+        //         acc[category] = 0;
+        //     }
+        //     acc[category] += amount;
+        //     return acc;
+        // }, {} as Record<string, number>);
+
+        // const report: PnLReportDto = {
+        //     income: parseFloat(totalIncome.total),
+        //     expenses: expensesByCategory.map(exp => ({
+        //         category: exp.category,
+        //         total: parseFloat(exp.total)
+        //     }))
+        // };
+
+        const report: PnLReportDto = {
+            income: 0,
+            expenses: []
+        };
+
+        return report;
+        
+    }
+        
 
     async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {
 

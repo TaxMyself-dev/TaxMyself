@@ -6,7 +6,9 @@ import { SharedService } from '../shared/shared.service';
 import { UsersService } from '../users/users.service';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { PnLReportDto } from './dtos/pnl-report.dto';
 import { log } from 'console';
+import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
 
 @Controller('reports')
 export class ReportsController {
@@ -28,6 +30,23 @@ export class ReportsController {
         const vatReport = await this.reportsService.createVatReport(firebaseId, singleMonth, monthReport, query.vatableTurnover, query.nonVatableTurnover);
 
         return vatReport;
+    }
+
+
+    @Get('pnl-report')
+    async getPnLReport(
+        @Headers('token') token: string,
+        @Query() query: PnLReportRequestDto,
+    ): Promise<PnLReportDto> {
+      
+        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+        const singleMonth = query.isSingleMonth === 'true' ? true : false;
+        const monthReport = Number(query.monthReport);
+        //const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.monthReport, query.isSingleMonth);
+
+        const pnlReport = await this.reportsService.createPnLReport(firebaseId, singleMonth, monthReport);
+
+        return pnlReport;
     }
 
     

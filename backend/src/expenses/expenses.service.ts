@@ -1,7 +1,7 @@
 //General
 import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository} from 'typeorm';
+import { Between, In, Repository} from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
@@ -418,6 +418,16 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
         return results;
 
     }  
+
+
+    async getExpensesByDates(userId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
+        return this.expense_repo.find({
+            where: {
+                userId: userId,
+                date: Between(startDate, endDate)
+            }
+        });
+    }
 
 
     findOne(id: number) {

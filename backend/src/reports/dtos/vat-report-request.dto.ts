@@ -8,14 +8,6 @@ class IsNumberString {
 
 export class VatReportRequestDto {
 
-    // @IsNotEmpty()
-    // @IsDateString()
-    // startDate: string;
-
-    // @IsNotEmpty()
-    // @IsDateString()
-    // endDate: string;
-
     @IsString()
     @IsNotEmpty()
     year: string;
