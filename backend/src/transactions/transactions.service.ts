@@ -70,7 +70,11 @@ export class TransactionsService {
      const filteredRows = rows.filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ""));
 
     // Assuming the first row contains headers
-    const headers = filteredRows.shift();    
+    const headers = filteredRows.shift();  
+    
+    const skipConditions = [
+      (row: any[]) => row[headers.findIndex(h => h === 'הערות 1')] === 'חיוב כרטיס בעו"ש'      // Add more conditions here as needed
+    ];
 
     // Find index of each column based on header row
     //billDate = תאריך עסקה כלומר היום בו קניתי את המוצר. payDate = תאריך תשלום כלומר היום בו בפועל ירד לי כסף מהחשבון
@@ -98,7 +102,14 @@ export class TransactionsService {
     const transactionsToSave: Transactions[] = [];
     let skippedTransactions = 0;    
 
-    for (const row of filteredRows) {          
+    for (const row of filteredRows) {  
+      
+       // Check if any skip condition is met
+       if (skipConditions.some(condition => condition(row))) {
+        skippedTransactions++;
+        continue;
+      }
+
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
@@ -619,13 +630,18 @@ export class TransactionsService {
 
   async saveTransactionsToExpenses(transactionData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
 
+    console.log("saveTransactionsToExpenses - start");
+
     const user = await this.userRepo.findOne({ where: { firebaseId: userId } });
 
     // Extract IDs from the transactionData array
     const transactionIds = transactionData.map(td => td.id);
 
-    // Fetch transactions with the given IDs
-    const transactions = await this.transactionsRepo.findBy({ id: In(transactionIds) });
+    // Fetch transactions with the given IDs and matching userId
+    const transactions = await this.transactionsRepo.findBy({
+      id: In(transactionIds),
+      userId: userId  // Ensuring that only transactions belonging to the user are fetched
+    });
   
     if (!transactions || transactions.length === 0) {
       throw new Error('No transactions found with the provided IDs.');
@@ -652,9 +668,10 @@ export class TransactionsService {
           sum: Math.abs(transaction.sum)
         }
       });
+
+      console.log("existingExpense is ", existingExpense);
   
       if (existingExpense) {
-        // console.log(`Transaction with ID ${transaction.id} already exists as an expense.`);
         skippedTransactions++;
         continue;
       }      

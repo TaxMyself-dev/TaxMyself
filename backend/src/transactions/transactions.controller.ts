@@ -163,12 +163,11 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
-
-    console.log("getTransactionsToBuildReport - start");
     
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
     return this.transactionsService.getTransactionsToBuildReport(userId, startDate, endDate);
+
   }
 
 
@@ -176,15 +175,13 @@ export class TransactionsController {
   async saveTransToExpenses(
   @Body() transactionData: {id: number, file: string | null}[],
   @Headers('token') token: string,
-): Promise<{ message: string }> {
+  ): Promise<{ message: string }> {
 
-  console.log("in save trans: ", transactionData);
-  console.log(token);
-  
-  const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
 
-  return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
-}
+    return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
+
+  }
 
 
 }
