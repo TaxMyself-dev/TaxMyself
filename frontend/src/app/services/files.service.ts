@@ -180,15 +180,21 @@ export class FilesService {
 
 
   uploadExcelFile(file: File, relativeUrl: string): Observable<any> {
-    const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}${relativeUrl}`;
-    const formData = new FormData();
-    formData.append('file', file, file.name);
-    const headers = {
-      'token': token
+    if (!file) {
+      alert("אנא בחר קובץ")
+      return null;
     }
-
-    return this.http.post<any>(url, formData, { headers })
+    else {
+      const token = localStorage.getItem('token');
+      const url = `${environment.apiUrl}${relativeUrl}`;
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      const headers = {
+        'token': token
+      }
+      
+      return this.http.post<any>(url, formData, { headers })
+    }
   }
 
 }

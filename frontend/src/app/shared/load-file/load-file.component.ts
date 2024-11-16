@@ -53,6 +53,7 @@ export class LoadFileComponent implements OnInit, OnChanges {
   }
 
   onUpload(): void {
+    
     this.isLoading = true;
     //this.genericService.getLoader().subscribe();
     this.filesService.uploadExcelFile(this.selectedFile, `transactions/${this.relativeUrl}`)
