@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 // import { getDownloadURL, getStorage, ref } from "@angular/fire/storage";
 import { LoadingController, ModalController } from '@ionic/angular';
-import { EMPTY, Observable, catchError, finalize, from, map, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, switchMap, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
@@ -34,7 +34,8 @@ export class MyStoragePage implements OnInit {
   readonly COLUMNS_TO_IGNORE = ['reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId','id', 'file', 'isReported', 'vatReportingDate', 'transId'];
   readonly ACTIONS_TO_IGNORE = ['share', 'preview', 'download file'];
   readonly ButtonSize = ButtonSize;
-
+  
+  filterRows: IRowDataTable[]; // Holds the filter text
   items$: Observable<IRowDataTable[]>;//Data of expenses
   rows: IRowDataTable[] = [];
   tableActions: ITableRowAction[] = [];
@@ -45,7 +46,7 @@ export class MyStoragePage implements OnInit {
   isOpen: boolean = false;
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
-  storageForm: FormGroup
+  storageForm: FormGroup;
 
   constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder, private genericService: GenericService) {
     this.storageForm = this.formBuilder.group({
@@ -84,12 +85,18 @@ export class MyStoragePage implements OnInit {
         tap((data) => {
           const rows = [];
           data.forEach((row) => {
-            rows.push(row);
+              rows.push(row);
           })
+          this.filterRows = rows;
           this.rows = rows;
-          return rows
         })
       )
+  }
+
+  updateFilter(filter: string): void {
+    this.filterRows = this.rows.filter((row) => {
+        return String(row.supplier).includes(filter);
+      })
   }
 
   openPopupAddExpense(data?: IRowDataTable): void {
@@ -288,4 +295,5 @@ export class MyStoragePage implements OnInit {
       }
     ]
   }
+
 }

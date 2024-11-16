@@ -4,7 +4,7 @@ import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@an
 import { SafeResourceUrl } from '@angular/platform-browser';
 import { log } from 'console';
 import { nanoid } from 'nanoid';
-import { Observable, catchError, from, switchMap } from 'rxjs';
+import { Observable, catchError, from, of, switchMap } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
@@ -182,7 +182,7 @@ export class FilesService {
   uploadExcelFile(file: File, relativeUrl: string): Observable<any> {
     if (!file) {
       alert("אנא בחר קובץ")
-      return null;
+      return of(null);
     }
     else {
       const token = localStorage.getItem('token');

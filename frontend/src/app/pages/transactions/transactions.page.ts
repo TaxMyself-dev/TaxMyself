@@ -331,7 +331,11 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-  filterIncomes(): void {
+  filterIncomes(filter?: string): void {
+    if (filter) {
+      this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(filter) ));
+    }
+    else {
     const formData = this.incomeForm.value;
     const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
@@ -359,8 +363,14 @@ export class TransactionsPage implements OnInit {
 
     }
   }
+  }
 
-  filterExpenses(): void {
+  filterExpenses(filter?: string): void {
+    if (filter) {
+      this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(filter)));
+    }
+    else {
+    
     const formData = this.expensesForm.value;
     const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
@@ -388,10 +398,13 @@ export class TransactionsPage implements OnInit {
 
     }
   }
+  }
 
   private handleTableData(data: ITransactionData[]) {
     const rows = [];
     if (data.length) {
+      console.log("data in hnadle data in transaction: ", data);
+      
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
         data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);

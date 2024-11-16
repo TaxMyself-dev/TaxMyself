@@ -19,6 +19,7 @@
 
 <div class="grid-container">
   <ion-grid class="grid">
+    <app-filter-input (filterBy)="onSearch($event)" *ngIf="displayFilter" [inputLabelName]="inputSearchLable"></app-filter-input>
     <ion-row class="table-headers">
       <ion-col *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
         בחר
