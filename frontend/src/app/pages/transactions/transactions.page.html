@@ -21,7 +21,7 @@
       <ng-template #expensesCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar"
           [isDisabled]="expensesForm.invalid" (onSearchClick)="filterExpenses()"></app-search-bar>
-        <app-table (filterBy)="filterExpenses($event)" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'"
+        <app-table (filterBy)="filterByExpenses($event)" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'"
           [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)"
           [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData"
           [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"

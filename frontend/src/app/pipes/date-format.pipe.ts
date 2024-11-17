@@ -11,8 +11,6 @@ export class DateFormatPipe implements PipeTransform {
     if (!value) return "";
     
     const [year, month, day] = String(value).split('-');
-    console.log( `${day}/${month}/${year}`);
-    
     return `${day}/${month}/${year}`;
   }
 
