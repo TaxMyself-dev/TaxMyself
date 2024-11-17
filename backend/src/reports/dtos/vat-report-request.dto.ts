@@ -10,15 +10,11 @@ export class VatReportRequestDto {
 
     @IsString()
     @IsNotEmpty()
-    year: string;
+    startDate: string;
 
+    @IsString()
     @IsNotEmpty()
-    @Validate(IsNumberString)
-    monthReport: number;
-
-    @IsBooleanString()
-    @IsNotEmpty()
-    isSingleMonth: string;
+    endDate: string;
 
     @IsNotEmpty()
     @Validate(IsNumberString)

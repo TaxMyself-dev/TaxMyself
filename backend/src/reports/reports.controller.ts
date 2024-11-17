@@ -22,12 +22,13 @@ export class ReportsController {
         @Headers('token') token: string,
         @Query() query: VatReportRequestDto,
     ): Promise<VatReportDto> {
+
+        console.log("reports.controller - vat-report start");
       
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-        const singleMonth = query.isSingleMonth === 'true' ? true : false;
-        const monthReport = Number(query.monthReport);
-    
-        const vatReport = await this.reportsService.createVatReport(firebaseId, singleMonth, monthReport, query.vatableTurnover, query.nonVatableTurnover);
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const vatReport = await this.reportsService.createVatReport(firebaseId, startDate, endDate, query.vatableTurnover, query.nonVatableTurnover);
 
         return vatReport;
     }
@@ -36,15 +37,15 @@ export class ReportsController {
     @Get('pnl-report')
     async getPnLReport(
         @Headers('token') token: string,
-        @Query() query: PnLReportRequestDto,
+        @Query() query: any,
     ): Promise<PnLReportDto> {
       
-        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-        const singleMonth = query.isSingleMonth === 'true' ? true : false;
-        const monthReport = Number(query.monthReport);
-        //const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.monthReport, query.isSingleMonth);
+        console.log("reports.controller - pnl-report start");
 
-        const pnlReport = await this.reportsService.createPnLReport(firebaseId, singleMonth, monthReport);
+        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+        const pnlReport = await this.reportsService.createPnLReport(firebaseId, startDate, endDate);
 
         return pnlReport;
     }

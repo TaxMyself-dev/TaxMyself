@@ -187,45 +187,82 @@ export class SharedService {
 
     parseDateStringToDate(dateString: string, inputFormat: string): Date {
 
-        // console.log("Input dateString 1:", dateString);
-        // console.log("Input format:", inputFormat);
+        let day;
+        let month;
+        let year;
 
-        // Only proceed with the modification if inputFormat is 'dd/MM/yyyy'
-        //if (inputFormat === 'dd/MM/yyyy' && /^\d{2}\/\d{2}\/\d{2}$/.test(dateString)) {
-        if (inputFormat === 'dd/MM/yyyy' && /^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateString)) {
+        if (inputFormat === 'dd/MM/yyyy') {
+
+            const parts = dateString.split('/');
+            day = parts[0];
+            month = parts[1];
+            year = parts[2];
 
             // Modify the date string to convert the two-digit year to four digits
-            const parts = dateString.split('/');
-            const day = parts[0];
-            const month = parts[1];
-            let year = parts[2];
+            if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateString)) {
+                const parts = dateString.split('/');
+                // Prepend '20' to the year to make it four digits
+                year = '20' + year;
 
-            // Prepend '20' to the year to make it four digits
-            year = '20' + year;
+                // Update the date string with the modified year
+                dateString = `${day}/${month}/${year}`;
 
-            // Update the date string with the modified year
-            dateString = `${day}/${month}/${year}`;
+                console.log("Input dateString 2:", dateString);
+            }
 
-            console.log("Input dateString 2:", dateString);
         }
+
+
 
         console.log("Input dateString 3:", dateString);
 
 
         try {
             // Parse the date string based on the provided format
-            const parsedDate = parse(dateString, inputFormat, new Date());
+            //const parsedDate = parse(dateString, inputFormat, new Date());
+
+            let date = new Date(Date.UTC(year, month, day));
+
     
             // Check if the parsed date is valid
-            if (isNaN(parsedDate.getTime())) {
+            if (isNaN(date.getTime())) {
                 throw new Error('Invalid date');
             }
     
             // Return the Date object
-            return parsedDate;
+            return date;
         } catch (error) {
             throw new Error(`Failed to parse date: ${dateString} with format: ${inputFormat}`);
         }
+    }
+
+
+    convertStringToDateObject(dateString): Date {
+
+        const parts = dateString.split('/'); // Split the input string by '/'
+        if (parts.length !== 3) {
+            throw new Error("Invalid date format. Please use 'dd/MM/yyyy'.");
+        }
+        
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // JavaScript months are zero-indexed
+        const year = parseInt(parts[2], 10);
+    
+        // Validate that day, month (adjusted for zero-index), and year are numeric and in valid ranges
+        if (!Number.isInteger(day) || !Number.isInteger(month + 1) || !Number.isInteger(year)) {
+            throw new Error("Date components must be numeric and within correct ranges.");
+        }
+    
+        // Creating a date in UTC
+        const date = new Date(Date.UTC(year, month, day));
+        //console.log("check: ", date.toISOString());  // Outputs "2024-01-01T00:00:00.000Z"
+
+        // Check if the constructed date matches the input parts to catch invalid dates like February 30
+        if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+            throw new Error("Invalid date: The date does not exist on the calendar.");
+        }
+    
+        return date;
     }
 
 

@@ -18,7 +18,7 @@ import { ItemNavigateComponent } from './item-navigate/item-navigate.component';
 import { ButtonComponent } from './button/button.component';
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { GenericSelectComponent } from './generic-select/generic-select.component';
-import { SelectMonthFormatComponent } from './select-month-format/select-month-format.component';
+import { SelectMonthFormatComponent } from './select-report-period/select-report-period.component';
 import { GenericInputComponent } from './generic-input/generic-input.component';
 import { collapseComponent } from './collapse/collapse.component';
 import { AddBillComponent } from './add-bill/add-bill.component';

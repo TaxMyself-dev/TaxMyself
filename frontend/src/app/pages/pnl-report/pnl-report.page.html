@@ -4,14 +4,14 @@
 
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
-    <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"
-      [isDisabled]="vatReportForm.invalid"></app-search-bar>
+    <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="pnlReportTemplate"
+      [isDisabled]="pnlReportForm.invalid"></app-search-bar>
     <ng-container *ngIf="!report">
       <p class="text-before-report">
         אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח
       </p>
     </ng-container>
-    <ng-container *ngIf="report">
+    <!-- <ng-container *ngIf="report">
       <div class="wrap-output-report">
         <p class="report-title">נתוני דו"ח</p>
         <div class="output-vat-report" *ngFor="let key of reportOrder">
@@ -19,10 +19,32 @@
           <div class="value-field-report">{{ report[key] }}</div>
         </div>
       </div>
+    </ng-container> -->
+    <!-- PnL Report Component Template -->
+    <ng-container *ngIf="pnlReport">
+      <div class="wrap-output-report">
+        <p class="report-title">נתוני דו"ח רווח והפסד</p>
+        <!-- Display Income -->
+        <div class="output-pnl-report">
+          <div class="field-report">הכנסות:</div>
+          <div class="value-field-report">{{ pnlReport.income | number }}</div>
+        </div>
+        <!-- Dynamically Display Expenses -->
+        <ng-container *ngFor="let category of pnlReport.expenseCategories">
+          <div class="output-pnl-report">
+            <div class="field-report">{{ category.name }}:</div>
+            <div class="value-field-report">{{ category.value | number }}</div>
+          </div>
+        </ng-container>
+        <!-- Display Net Profit Before Tax -->
+        <div class="output-pnl-report">
+          <div class="field-report">רווח נקי לפני מס:</div>
+          <div class="value-field-report">{{ pnlReport.netProfitBeforeTax | number }}</div>
+        </div>
+      </div>
     </ng-container>
     <div class="wrap-buttons">
       <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()" [disabled]="reportClick"></app-button>
-      <app-button buttonText="לתשלום באתר מעמ" [href]="'https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true'" [disabled]="reportClick" target=""></app-button>
     </div>
     <ng-container *ngIf="items$ | async as items">
       <div *ngIf="displayExpenses"  class="table-wrapper">
@@ -34,15 +56,13 @@
 
 </ion-content>
 
-<ng-template #vatReportTemplate>
-  <form class="generic-search-bar-content" [formGroup]="vatReportForm">
-    <app-select-month-format [parentForm]="vatReportForm"></app-select-month-format>
-    <app-select-month [parentForm]="vatReportForm"></app-select-month>
-    <app-select-year [parentForm]="vatReportForm"></app-select-year>
-    <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'"
-      [parentForm]="vatReportForm"></app-generic-input>
-    <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'"
-      [parentForm]="vatReportForm"></app-generic-input>
+<ng-template #pnlReportTemplate>
+  <form class="generic-search-bar-content" [formGroup]="pnlReportForm">
+    <app-select-report-period [parentForm]="pnlReportForm"></app-select-report-period>
+    <app-select-month [parentForm]="pnlReportForm"></app-select-month>
+    <app-select-year [parentForm]="pnlReportForm"></app-select-year>
+    <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
+      [parentForm]="pnlReportForm"></app-generic-input>
   </form>
 </ng-template>
 

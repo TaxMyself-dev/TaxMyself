@@ -12,6 +12,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
 import { GenericService } from 'src/app/services/generic.service';
+import { DateService } from 'src/app/services/date.service';
 
 
 interface ReportData {
@@ -33,6 +34,9 @@ interface FieldTitles {
 })
 export class PnLReportPage implements OnInit {
 
+  pnlReportForm: FormGroup;
+
+
   readonly ButtonSize = ButtonSize;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
@@ -52,8 +56,8 @@ export class PnLReportPage implements OnInit {
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
+  pnlReport?: any;
   displayExpenses: boolean = false;
-  vatReportForm: FormGroup;
   // token: string;
   reportClick: boolean = true;
   tableActions: ITableRowAction[];
@@ -101,12 +105,9 @@ export class PnLReportPage implements OnInit {
   };
 
 
-  constructor(private genericService: GenericService,  private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
-    this.vatReportForm = this.formBuilder.group({
-      vatableTurnover: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
-      nonVatableTurnover: new FormControl(
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
+    this.pnlReportForm = this.formBuilder.group({
+      taxableTurnover: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
       month: new FormControl(
@@ -115,8 +116,14 @@ export class PnLReportPage implements OnInit {
       year: new FormControl(
         '', Validators.required,
       ),
-      isSingleMonth: new FormControl(
+      reportingPeriodType: new FormControl(
         '', Validators.required,
+      ),
+      startDate: new FormControl(
+        Date,
+      ),
+      endDate: new FormControl(
+        Date,
       )
     })
   }
@@ -236,27 +243,27 @@ export class PnLReportPage implements OnInit {
     }
   }
 
+
   onSubmit() {
-    const formData = this.vatReportForm.value;
+    const formData = this.pnlReportForm.value;
     this.reportClick = false;
     this.setRowsData();
-    this.getVarReportData(formData.month, formData.year, formData.isSingleMonth);
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+    this.getPnLReportData(startDate, endDate);
   }
 
-  async getVarReportData(month: number, year: number, isSingleMonth: boolean) {
 
-    const formData = this.vatReportForm.value;
-
-    this.pnlReportService.getVatReportData(formData)
+  async getPnLReportData(startDate: string, endDate: string) {
+    this.pnlReportService.getPnLReportData(startDate, endDate)
       .subscribe((res) => {
         this.report = res;
       });
-
   }
+
 
   // Get the data from server and update items
   setRowsData(): void {
-    const formData = this.vatReportForm.value;
+    const formData = this.pnlReportForm.value;
     this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month)
       .pipe(
         map((data) => {
@@ -275,9 +282,11 @@ export class PnLReportPage implements OnInit {
       )
   }
 
+
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
+
 
   columnsOrderByFunc(a, b): number {
     const columnsAddExpenseOrder = [

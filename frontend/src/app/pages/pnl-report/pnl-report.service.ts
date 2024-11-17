@@ -20,15 +20,14 @@ export class PnLReportService {
   }
 
 
-  getVatReportData(formData: any): Observable<any> {
+  getPnLReportData(startDate: string, endDate: string): Observable<any> {
     const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}reports/vat-report`;
+    const url = `${environment.apiUrl}reports/pnl-report`;
+    //const startDate = "01/01/2024";
+    //const endDate = "31/12/2024";
     const params = new HttpParams()
-    .set('year', formData.year)
-    .set('monthReport', formData.month)
-    .set('isSingleMonth', formData.isSingleMonth)
-    .set('vatableTurnover', formData.vatableTurnover.toString())
-    .set('nonVatableTurnover', formData.nonVatableTurnover.toString())
+    .set('startDate', startDate)
+    .set('endDate', endDate)
   
     const headers = {
       'token': token
@@ -36,6 +35,7 @@ export class PnLReportService {
    
     return this.http.get<any>(url, { params: params, headers: headers})
   }
+
 
   addFileToExpenses(formData: {id:number, file: string | File}[]): Observable<any> {
     const token = localStorage.getItem('token');

@@ -24,8 +24,10 @@ export class ReportsService {
 
     async createVatReport(
         userId: string,
-        isSingleMonth: boolean,
-        monthReport: number,
+        startDate: Date,
+        endDate: Date,
+        //isSingleMonth: boolean,
+        //monthReport: number,
         vatableTurnover: number,
         nonVatableTurnover: number
     ): Promise<VatReportDto> {
@@ -39,7 +41,7 @@ export class ReportsService {
         };
     
         // Step 1: Fetch expenses using the function we wrote based on monthReport
-        const expenses = await this.expensesService.getExpensesForVatReport(userId, isSingleMonth, monthReport);        
+        const expenses = await this.expensesService.getExpensesForVatReport(userId, startDate, endDate);        
     
         // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
         const regularExpenses = expenses.filter(expense => !expense.isEquipment);
@@ -70,31 +72,49 @@ export class ReportsService {
 
     async createPnLReport(
         userId: string,
-        isSingleMonth: boolean,
-        monthReport: number
+        startDate: Date,
+        endDate: Date
     ): Promise<PnLReportDto> {
 
-        //const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, isSingleMonth);
-
-         // Get total income
-         const totalIncome = 1000;
+        // Get total income
+        const totalIncome = 1000;
         //  const totalIncome = await incomeRepo.createQueryBuilder("income")
         //  .select("SUM(income.amount)", "total")
         //  .where("income.userId = :userId", { userId })
         //  .andWhere("income.date BETWEEN :startDate AND :endDate", { startDate, endDate })
         //  .getRawOne();
 
-        // const expenses = await this.expensesService.getExpensesByDates(userId, startDate, endDate);
-        
-        // // Aggregate expenses by category
-        // const expensesByCategory = expenses.reduce((acc, expense) => {
-        //     const { category, amount } = expense;
-        //     if (!acc[category]) {
-        //         acc[category] = 0;
+        const expenses = await this.expensesService.getExpensesByDates(userId, startDate, endDate);
+
+        console.log("expenses are ", expenses);
+
+        // Separate expenses into equipment and non-equipment categories
+        const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
+
+        // Initialize an object to hold the totalTaxPayable sums by category
+        const totalTaxPayableByCategory: { [category: string]: number } = {};
+
+        // Loop through each non-equipment expense
+        for (const expense of nonEquipmentExpenses) {
+            const category = String(expense.category); // Ensure category is treated as a string
+            if (!totalTaxPayableByCategory[category]) {
+                totalTaxPayableByCategory[category] = 0; // Initialize category sum if not already done
+            }
+            totalTaxPayableByCategory[category] += Number(expense.totalTaxPayable); // Sum up the totalTaxPayable
+        }
+
+        // // Aggregate totalTaxPayable for non-equipment expenses by category
+        // const totalTaxPayableByCategory = nonEquipmentExpenses.reduce((acc, expense) => {
+        //     // Initialize category in accumulator if it does not already exist
+        //     if (!acc[expense.category]) {
+        //         acc[expense.category] = 0;
         //     }
-        //     acc[category] += amount;
+        //     // Convert totalTaxPayable to a number and add it to its category total
+        //     acc[expense.category] += 7; //parseFloat(expense.totalTaxPayable);
         //     return acc;
-        // }, {} as Record<string, number>);
+        // }, {});
+
+        console.log("totalTaxPayableByCategory is ", totalTaxPayableByCategory);
 
         // const report: PnLReportDto = {
         //     income: parseFloat(totalIncome.total),
@@ -105,7 +125,7 @@ export class ReportsService {
         // };
 
         const report: PnLReportDto = {
-            income: 0,
+            income: totalIncome,
             expenses: []
         };
 

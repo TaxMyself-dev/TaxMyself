@@ -14,6 +14,7 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { ReportingPeriodType } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-transactions',
@@ -27,6 +28,8 @@ export class TransactionsPage implements OnInit {
   incomesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
   destroy$ = new Subject<void>();
+
+  reportingPeriodType = ReportingPeriodType
 
   fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
@@ -120,7 +123,7 @@ export class TransactionsPage implements OnInit {
   accountsList: any[] = [];
   sourcesList: string[] = [];
   selectedFile: File = null;
-  dateForUpdate = { 'isSingleMonth': true, 'month': "1", 'year': 2024 };
+  dateForUpdate = { 'reportingPeriodType': true, 'month': "1", 'year': 2024 };
   checkClassifyBill: boolean = true;
   listCategory: ISelectItem[];
   listFilterCategory: ISelectItem[] = [{ value: null, name: 'הכל' }];
@@ -132,7 +135,7 @@ export class TransactionsPage implements OnInit {
   constructor( private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private filesService: FilesService, private genericService: GenericService) {
 
     this.transactionsForm = this.formBuilder.group({
-      isSingleMonth: new FormControl(
+      reportingPeriodType: new FormControl(
         false, Validators.required,
       ),
       month: new FormControl(
@@ -140,6 +143,12 @@ export class TransactionsPage implements OnInit {
       ),
       year: new FormControl(
         '', Validators.required,
+      ),
+      startDate: new FormControl(
+        Date,
+      ),
+      endDate: new FormControl(
+        Date,
       ),
       accounts: new FormControl(
         '', Validators.required,
@@ -212,13 +221,15 @@ export class TransactionsPage implements OnInit {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
 
-    this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
+    this.dateForUpdate.reportingPeriodType = formData.reportingPeriodType;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(formData);
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
 
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(formData);
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, formData.accounts);
+
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -241,10 +252,11 @@ export class TransactionsPage implements OnInit {
 
   getExpensesData(): void {
     const formData = this.transactionsForm.value;
-    this.dateForUpdate.isSingleMonth = formData.isSingleMonth;
+    this.dateForUpdate.reportingPeriodType = formData.reportingPeriodType;
     this.dateForUpdate.month = formData.month;
     this.dateForUpdate.year = formData.year;
-    this.transactionService.getExpenseTransactionsData(formData).subscribe((res) => {
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
+    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }
@@ -565,15 +577,15 @@ export class TransactionsPage implements OnInit {
       queryParams: {
         month: this.dateForUpdate.month,
         year: this.dateForUpdate.year,
-        isSingleMonth: this.dateForUpdate.isSingleMonth,
+        reportingPeriodType: this.dateForUpdate.reportingPeriodType,
         accounts: 'null'
       }
     })
   }
 
-  getExpenseTransactionsData(event) {
-    this.transactionService.getExpenseTransactionsData(event)
-  }
+  // getExpenseTransactionsData(event) {
+  //   this.transactionService.getExpenseTransactionsData(event)
+  // }
 
   setOpenToast(): void {
     this.isToastOpen = false;

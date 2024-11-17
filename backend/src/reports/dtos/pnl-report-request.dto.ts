@@ -1,23 +1,13 @@
-import { IsNotEmpty, Validate, IsString, IsBooleanString } from 'class-validator';
-
-class IsNumberString {
-    validate(value: string) {
-        return !isNaN(Number(value));
-    }
-}
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class PnLReportRequestDto {
 
     @IsString()
     @IsNotEmpty()
-    year: string;
+    startDate: string;
 
+    @IsString()
     @IsNotEmpty()
-    @Validate(IsNumberString)
-    monthReport: number;
-
-    @IsBooleanString()
-    @IsNotEmpty()
-    isSingleMonth: string;
+    endDate: string;
 
 }

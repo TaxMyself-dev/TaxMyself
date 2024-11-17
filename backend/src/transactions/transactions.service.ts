@@ -513,7 +513,7 @@ export class TransactionsService {
   }
   
 
-  async getTransactionsByBillAndUserId(billId: string, userId: string, startDate: Date, endDate: Date): Promise<Transactions[]> {
+  async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Transactions[]> {
 
     let sources: string[] = [];
     let allIdentifiers: string[] = [];
@@ -582,9 +582,9 @@ export class TransactionsService {
   }
 
 
-  async getIncomesTransactions(query: any): Promise<Transactions[]> {
+  async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Transactions[]> {
 
-    const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
+    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
     //console.log("incomeTransactions:\n", incomeTransactions)
@@ -593,9 +593,9 @@ export class TransactionsService {
   }
 
 
-  async getExpensesTransactions(query: any): Promise<Transactions[]> {
+  async getExpensesTransactions(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Transactions[]> {
     
-    const transactions = await this.getTransactionsByBillAndUserId(query.billId, query.userId, query.startDate, query.endDate);
+    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId);
     //console.log("Transactions:\n", transactions)
     const expenseTransactions = transactions.filter(transaction => transaction.sum < 0);
     //console.log("expenseTransactions:\n", expenseTransactions)

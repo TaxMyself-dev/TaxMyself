@@ -3,7 +3,7 @@ import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
+import { FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
@@ -12,6 +12,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
 import { GenericService } from 'src/app/services/generic.service';
+import { DateService } from 'src/app/services/date.service';
 
 
 interface ReportData {
@@ -66,7 +67,8 @@ export class VatReportPage implements OnInit {
   messageToast: string;
   isToastOpen: boolean;
   isSkip: boolean = false
-
+  optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
+                      { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
 
   readonly fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
@@ -101,7 +103,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor(private genericService: GenericService,  private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
@@ -115,8 +117,14 @@ export class VatReportPage implements OnInit {
       year: new FormControl(
         '', Validators.required,
       ),
-      isSingleMonth: new FormControl(
+      reportingPeriodType: new FormControl(
         '', Validators.required,
+      ),
+      startDate: new FormControl(
+        Date,
+      ),
+      endDate: new FormControl(
+        Date,
       )
     })
   }
@@ -239,15 +247,15 @@ export class VatReportPage implements OnInit {
   onSubmit() {
     const formData = this.vatReportForm.value;
     this.reportClick = false;
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+    this.getVatReportData(startDate, endDate, formData.vatableTurnover, formData.nonVatableTurnover);
     this.setRowsData();
-    this.getVarReportData(formData.month, formData.year, formData.isSingleMonth);
+
   }
 
-  async getVarReportData(month: number, year: number, isSingleMonth: boolean) {
+  async getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number) {
 
-    const formData = this.vatReportForm.value;
-
-    this.vatReportService.getVatReportData(formData)
+    this.vatReportService.getVatReportData(startDate, endDate, vatableTurnover, nonVatableTurnover)
       .subscribe((res) => {
         this.report = res;
       });
@@ -257,7 +265,10 @@ export class VatReportPage implements OnInit {
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.vatReportForm.value;
-    this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month)
+
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+
+    this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate)
       .pipe(
         map((data) => {
           const rows = [];

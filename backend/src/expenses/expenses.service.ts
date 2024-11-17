@@ -390,32 +390,34 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
     }
 
 
-    async getExpensesForVatReport(userId: string, isSingleMonth: boolean, monthReport: number): Promise<Expense[]> {
+    async getExpensesForVatReport(userId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
 
-        // Valid months when isSingleMonth is false
-        const validMonths = [1, 3, 5, 7, 9, 11];        
+        let reportedExpenses = this.getExpensesByDates(userId, startDate, endDate);
+
+        // // Valid months when isSingleMonth is false
+        // const validMonths = [1, 3, 5, 7, 9, 11];        
       
-        // Check if monthReport is valid when isSingleMonth is false
-        if (!isSingleMonth && !validMonths.includes(monthReport)) {
-          throw new Error('Invalid monthReport. When isSingleMonth is false, monthReport must be one of [1, 3, 5, 7, 9, 11].');
-        }        
+        // // Check if monthReport is valid when isSingleMonth is false
+        // if (!isSingleMonth && !validMonths.includes(monthReport)) {
+        //   throw new Error('Invalid monthReport. When isSingleMonth is false, monthReport must be one of [1, 3, 5, 7, 9, 11].');
+        // }        
       
-        // Build the query to fetch expenses for the user
-        let query = this.expense_repo.createQueryBuilder('expense')
-          .where('expense.userId = :userId', { userId });
+        // // Build the query to fetch expenses for the user
+        // let query = this.expense_repo.createQueryBuilder('expense')
+        //   .where('expense.userId = :userId', { userId });
       
-        if (isSingleMonth) {            
-          // If isSingleMonth is true, return only expenses for the specified month
-          query = query.andWhere('expense.vatReportingDate = :monthReport', { monthReport });
-        } else {
-          // If isSingleMonth is false, return expenses for the current month and the next month
-          const nextMonth = monthReport + 1;
-          query = query.andWhere('expense.vatReportingDate IN (:...months)', { months: [monthReport, nextMonth] });
-        }
+        // if (isSingleMonth) {            
+        //   // If isSingleMonth is true, return only expenses for the specified month
+        //   query = query.andWhere('expense.vatReportingDate = :monthReport', { monthReport });
+        // } else {
+        //   // If isSingleMonth is false, return expenses for the current month and the next month
+        //   const nextMonth = monthReport + 1;
+        //   query = query.andWhere('expense.vatReportingDate IN (:...months)', { months: [monthReport, nextMonth] });
+        // }
       
         // Execute the query and return the results
-        const results = await query.getMany();
-        return results;
+        //const results = await query.getMany();
+        return reportedExpenses;
 
     }  
 

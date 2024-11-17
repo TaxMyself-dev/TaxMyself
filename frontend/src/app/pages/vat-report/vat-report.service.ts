@@ -14,24 +14,18 @@ export class VatReportService {
     this.setUserId();
    };
 
-  // ngOnInit() {
-  //   this.token = localStorage.getItem('token');
-  // }
-
   private setUserId(): void {
     this.token = localStorage.getItem('token');
   }
 
-  //getVatReportData(startDate: Date, endDate: Date, vatableTurnover: number, nonVatableTurnover: number, token: string): Observable<any> {
-  getVatReportData(formData: any): Observable<any> {
+  getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/vat-report`;
     const params = new HttpParams()
-    .set('year', formData.year)
-    .set('monthReport', formData.month)
-    .set('isSingleMonth', formData.isSingleMonth)
-    .set('vatableTurnover', formData.vatableTurnover.toString())
-    .set('nonVatableTurnover', formData.nonVatableTurnover.toString())
+    .set('startDate', startDate)
+    .set('endDate', endDate)
+    .set('vatableTurnover', vatableTurnover.toString())
+    .set('nonVatableTurnover', nonVatableTurnover.toString())
   
     const headers = {
       'token': token

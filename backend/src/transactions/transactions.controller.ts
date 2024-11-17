@@ -87,17 +87,12 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
-    
-    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
-    
-    // Construct a new query object with the additional fields
-    const modifiedQuery = {
-      ...query,
-      startDate: startDate,
-      endDate: endDate,
-      userId: await this.usersService.getFirbsaeIdByToken(token)
-    };
-    return this.transactionsService.getIncomesTransactions(modifiedQuery);
+        
+    const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+    const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, query.billId);
+
   }
 
 
@@ -107,22 +102,14 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
-
-    console.log("query.year is ", query.year);
-    console.log("query.month is ", query.month);
     
-
     query.billId === 'null' ? null : parseInt(query.billId, 10);
-    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
   
-    // Construct a new query object with the additional fields
-    const modifiedQuery = {
-      ...query,
-      startDate: startDate,
-      endDate: endDate,
-      userId: await this.usersService.getFirbsaeIdByToken(token)
-    };
-    return this.transactionsService.getExpensesTransactions(modifiedQuery);
+    const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+    const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, query.billId);
+
   }
   
 
@@ -166,7 +153,9 @@ export class TransactionsController {
   ): Promise<Transactions[]> {
     
     const userId = await this.usersService.getFirbsaeIdByToken(token);
-    const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
+    const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+    const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+    //const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
     return this.transactionsService.getTransactionsToBuildReport(userId, startDate, endDate);
 
   }

@@ -9,15 +9,23 @@ export class GetTransactionsDto {
 
     @IsString()
     @IsNotEmpty()
-    year: string;
+    startDate: string;
 
     @IsString()
     @IsNotEmpty()
-    month: string;
+    endDate: string;
 
-    @IsBooleanString()
-    @IsNotEmpty()
-    isSingleMonth: boolean;
+    // @IsString()
+    // @IsNotEmpty()
+    // year: string;
+
+    // @IsString()
+    // @IsNotEmpty()
+    // month: string;
+
+    // @IsBooleanString()
+    // @IsNotEmpty()
+    // isSingleMonth: boolean;
 
     @IsString()
     @IsNotEmpty()

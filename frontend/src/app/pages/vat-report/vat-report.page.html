@@ -36,7 +36,7 @@
 
 <ng-template #vatReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="vatReportForm">
-    <app-select-month-format [parentForm]="vatReportForm"></app-select-month-format>
+    <app-select-report-period [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm"></app-select-report-period>
     <app-select-month [parentForm]="vatReportForm"></app-select-month>
     <app-select-year [parentForm]="vatReportForm"></app-select-year>
     <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'"

@@ -59,17 +59,17 @@ export class ExpensesController {
   @Get('get-expenses-for-vat-report')
   async getExpensesByMonthReport(
     @Headers('token') token: string,
-    @Query('isSingleMonth') isSingleMonth: string,
-    @Query('monthReport') monthReport: number
+    @Query() query: any,
   ) {
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-    const singleMonth = isSingleMonth === 'true' ? true : false;
 
-    // Validate that monthReport is a valid number
-    if (!monthReport || monthReport < 1 || monthReport > 12) {
-      throw new BadRequestException('Invalid monthReport. It must be a number between 1 and 12.');
-    }
-    return await this.expensesService.getExpensesForVatReport(firebaseId, singleMonth, monthReport);
+    console.log("start is ", query.startDate);
+    console.log("end is ", query.endDate);
+    
+    const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+    const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+   
+    return await this.expensesService.getExpensesForVatReport(firebaseId, startDate, endDate);
   }
 
   @Patch('add-file-to-expense')

@@ -25,9 +25,6 @@ export class Expense {
   @Column()
   subCategory: string;
 
-  // @Column('decimal')
-  // sum: number;
-
   @Column('decimal', { precision: 10, scale: 2 })
   sum: number;
 

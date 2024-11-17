@@ -199,3 +199,24 @@ export enum TransactionsOutcomesHebrewColumns {
     { value: EmploymentType.BOTH, name: EmploymentTypeLabels[EmploymentType.BOTH] },
     { value: EmploymentType.EMPLOYEE, name: EmploymentTypeLabels[EmploymentType.EMPLOYEE] }
   ];
+
+  export enum ReportingPeriodType {
+    MONTHLY = 'MONTHLY',
+    BIMONTHLY = 'BIMONTHLY',
+    ANNUAL = 'ANNUAL',
+    DATE_RANGE = 'DATE_RANGE'
+  }
+  
+  export const ReportingPeriodTypeLabels = {
+    [ReportingPeriodType.MONTHLY]: 'חודשי',
+    [ReportingPeriodType.BIMONTHLY]: 'דו-חודשי',
+    [ReportingPeriodType.ANNUAL]: 'שנתי',
+    [ReportingPeriodType.DATE_RANGE]: 'טווח תאריכים'
+  };
+
+  export const reportingPeriodTypeOptionsList = [
+    { value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
+    { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] },
+    { value: ReportingPeriodType.ANNUAL, name: ReportingPeriodTypeLabels[ReportingPeriodType.ANNUAL] },
+    { value: ReportingPeriodType.DATE_RANGE, name: ReportingPeriodTypeLabels[ReportingPeriodType.DATE_RANGE] }
+  ];

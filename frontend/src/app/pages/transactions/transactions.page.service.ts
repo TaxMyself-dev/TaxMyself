@@ -32,32 +32,58 @@ ngOnInit(): void {
     this.token = localStorage.getItem('token');
   }
 
-  getIncomeTransactionsData(formData: any): Observable<ITransactionData[]> {
-    // console.log(formData.accounts);
+  // getIncomeTransactionsData(formData: any): Observable<ITransactionData[]> {
+  //   const token = localStorage.getItem('token');
+  //   const url = `${environment.apiUrl}transactions/get-incomes`;
+  //   const param = new HttpParams()
+  //   .set('billId', formData.accounts)
+  //   .set('month', formData.month)
+  //   .set('year', formData.year)
+  //   .set('isSingleMonth', formData.isSingleMonth)
+  //   const headers = {
+  //     'token': token
+  //   }
+  //   return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
+  // }
+
+
+  getIncomeTransactionsData(startDate: string, endDate: string, billId: any): Observable<ITransactionData[]> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
-    .set('billId', formData.accounts)
-    .set('month', formData.month)
-    .set('year', formData.year)
-    .set('isSingleMonth', formData.isSingleMonth)
+    .set('billId', billId)
+    .set('startDate', startDate)
+    .set('endDate', endDate)
     const headers = {
       'token': token
     }
-    // console.log("param: ",param);
-    
     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
   }
   
-  getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
-    console.log(formData.accounts);
+
+  // getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
+  //   console.log(formData.accounts);
+  //   const token = localStorage.getItem('token');
+  //   const url = `${environment.apiUrl}transactions/get-expenses`;
+  //   const param = new HttpParams()
+  //   .set('billId', formData.accounts)
+  //   .set('month', formData.month)
+  //   .set('year', formData.year)
+  //   .set('isSingleMonth', formData.isSingleMonth)
+  //   const headers = {
+  //     'token': token
+  //   }
+  //   return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
+  // }
+
+
+  getExpenseTransactionsData(startDate: string, endDate: string, billId: any): Observable<ITransactionData[]> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
-    .set('billId', formData.accounts)
-    .set('month', formData.month)
-    .set('year', formData.year)
-    .set('isSingleMonth', formData.isSingleMonth)
+    .set('billId', billId)
+    .set('startDate', startDate)
+    .set('endDate', endDate)
     const headers = {
       'token': token
     }
