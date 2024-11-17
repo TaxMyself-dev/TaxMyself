@@ -2,9 +2,7 @@ import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
 import { map } from 'rxjs';
-import { TransactionsPage } from 'src/app/pages/transactions/transactions.page';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { log } from 'util';
 
 @Component({
   selector: 'app-add-bill',
@@ -14,7 +12,6 @@ import { log } from 'util';
 export class AddBillComponent  implements OnInit {
 
   @Input() paymentMethod: string;
-  // @Input() accountsList: ({value: string | number; name: string | number;})[];
 
   accountsList: any[] = [];
   existBill: boolean = true;
@@ -40,7 +37,6 @@ export class AddBillComponent  implements OnInit {
     .subscribe(
       (accountsList) => {
         this.accountsList = accountsList;
-        console.log(this.accountsList);
       }
     );
   }
@@ -56,7 +52,6 @@ cancel(): void {
 
   radioGroupChange(event: any): void {
     this.onChangeRadio = false;
-    console.log(event.detail.value);
     this.billSelected = event.detail.value;
     
   }
@@ -71,7 +66,6 @@ cancel(): void {
 
   addBill(): void {
     const formData = this.addBillForm.value;
-    console.log(formData);
     this.transactionsService.addBill(formData.billName)
     .pipe()
     .subscribe(() =>{

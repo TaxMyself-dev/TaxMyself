@@ -53,6 +53,7 @@ export class LoadFileComponent implements OnInit, OnChanges {
   }
 
   onUpload(): void {
+    
     this.isLoading = true;
     //this.genericService.getLoader().subscribe();
     this.filesService.uploadExcelFile(this.selectedFile, `transactions/${this.relativeUrl}`)
@@ -70,8 +71,10 @@ export class LoadFileComponent implements OnInit, OnChanges {
       .subscribe((res) => {
         console.log(res);
         this.selectedFile = null
-        this.isToastOpen = true;
-        this.messageToast = res.message;
+        if (res) {
+          this.isToastOpen = true;
+          this.messageToast = res.message;
+        }
       })
 
   }

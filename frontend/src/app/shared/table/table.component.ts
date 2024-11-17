@@ -24,6 +24,9 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   @Input() beforeFile: boolean = false;
   @Input() checkedId: number;
   @Input() iconName: string;
+  @Input() inputSearchLable: string;
+  // @Input() arrayFilter: IRowDataTable[];
+  @Input() displayFilter: boolean = true;
   @Input() iconToolTip: string;
   @Input() set rows(val: IRowDataTable[]) {
     this.tableRows = val;
@@ -33,6 +36,8 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   @Output() onCheckedClicked = new EventEmitter<{row: IRowDataTable, checked: boolean}>();
   @Output() onCheckedAll = new EventEmitter<{id: number[], checked: boolean}>();
   @Output() onBeforeSelectFile = new EventEmitter<{event: any, data: IRowDataTable}>();
+  @Output() filterBy: EventEmitter<string> = new EventEmitter<string>();  
+
 
   get rows(): IRowDataTable[] {
     return this.tableRows;
@@ -91,6 +96,13 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
       return false;
     }
   }
+
+
+  onSearch(event): void {
+    console.log("in table",event);
+    
+    this.filterBy.emit(event);
+  } 
 
 
   

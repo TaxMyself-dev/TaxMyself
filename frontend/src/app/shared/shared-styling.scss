@@ -76,3 +76,23 @@
     margin-right: 16px;
     font-size: 12px;
 }
+
+@media only screen and (max-width:1120px) {
+    .generic-input-style {
+    
+        &.wide {
+            // width: 250px;
+            width: 100%;
+        }
+        
+        &.narrow {
+            width: 100%;
+            // width: 250px;
+        }
+        
+        &.note {
+            width: 100%;
+            // width: 250px;
+        }
+    }
+}

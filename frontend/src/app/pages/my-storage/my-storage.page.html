@@ -6,7 +6,7 @@
   <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent" [isDisabled]="storageForm.invalid"></app-search-bar>
 
     <div *ngIf="items$ | async as items">
-      <app-table [actionsToIgnore]="ACTIONS_TO_IGNORE" [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="items"
+      <app-table (filterBy)="updateFilter($event)" [inputSearchLable]="'חיפוש לפי ספק'" [actionsToIgnore]="ACTIONS_TO_IGNORE" [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="filterRows"
         [actions]="tableActions" [fieldsNames]="fieldsNamesToShow"
         [columnsOrderByFunc]="columnsOrderByFunc" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
     </div>
