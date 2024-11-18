@@ -1,10 +1,10 @@
 .main-container-add-bill {
     display: flex;
-    height: 64%;
+    height: 100%;
     justify-content: center;
     align-items: center;
     margin: auto;
-    width: 80%;
+    width: 90%;
 }
 
 .sub-container-add-bill {
@@ -20,9 +20,10 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    width: 70%;
+    width: 45%;
     margin: auto;
     height: 100%;
+    border-left: 1px gray dashed ;
 }
 
 .container-new-bill {
@@ -34,7 +35,7 @@
 
 .title-exist {
     border-bottom: 1px solid gray;
-    width: 200px;
+    width: 220px;
 }
 
 .checkbox-wrapp {

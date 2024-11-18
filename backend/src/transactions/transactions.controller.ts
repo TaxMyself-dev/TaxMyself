@@ -60,8 +60,7 @@ export class TransactionsController {
     @Body() body: any,
   ): Promise<Source> {
       const userId = await this.usersService.getFirbsaeIdByToken(token);
-      const sourceType = SourceType.CREDIT_CARD;
-      return this.transactionsService.addSourceToBill(billId, body.sourceName, sourceType, userId);
+      return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId);
   }
 
 

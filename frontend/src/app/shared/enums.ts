@@ -1,3 +1,7 @@
+export enum paymentIdentifierType {
+  CREDIT_CARD = 'CREDIT_CARD',
+  BANK_ACCOUNT = 'BANK_ACCOUNT'
+}
 export enum FormTypes {
     CHECKBOX = 'checkbox',
     TEXT = 'text',

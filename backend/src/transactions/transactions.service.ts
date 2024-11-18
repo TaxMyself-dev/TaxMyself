@@ -452,7 +452,6 @@ export class TransactionsService {
 
 
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
-
     const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
     if (!bill) {
       throw new Error('Bill not found');

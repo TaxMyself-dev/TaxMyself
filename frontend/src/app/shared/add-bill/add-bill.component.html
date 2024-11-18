@@ -12,14 +12,21 @@
   <div class="main-container-add-bill">
     <div class="sub-container-add-bill">
       <div class="container-bill-exist">
-        <div>
+        <div class="wrap-select-bill-name">
           <p class="title-exist">בחר חשבון קיים</p>
-          <ion-radio-group class="radio-group" (ionChange)="radioGroupChange($event)">
+          <ion-radio-group class="radio-group" (ionChange)="radioGroupBillName($event)">
             <ion-radio label-placement="end" *ngFor="let account of accountsList"
             [value]="account.value">{{account.name}}</ion-radio>
           </ion-radio-group>
         </div>
-        <app-button (onButtonClicked)="addSource()" [disabled]="onChangeRadio"
+        <div *ngIf="billSelected" class="wrap-select-type">
+          <p class="title-exist">כעת בחר את סוג אמצעי התשלום</p>
+          <ion-radio-group class="radio-group" (ionChange)="radioGroupPaymentIdentifierType($event)">
+            <ion-radio label-placement="end" *ngFor="let source of sourceTypes"
+            [value]="source.value">{{source.name}}</ion-radio>
+          </ion-radio-group>
+        </div>
+        <app-button (onButtonClicked)="addSource()" [disabled]="!billSelected || !typeSelected"
           [buttonText]="'שייך לחשבון'"></app-button>
       </div>
       <div class="container-new-bill">

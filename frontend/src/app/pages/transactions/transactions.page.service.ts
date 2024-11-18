@@ -156,13 +156,13 @@ ngOnInit(): void {
     };
   }
   
-  addSource(billId: string, source: string): Observable<any> {
+  addSource(billId: string, source: string, type: string): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
     const headers = {
       'token': token
     }
-    return this.http.post<any[]>(url,{sourceName: source},{headers:headers});
+    return this.http.post<any[]>(url,{sourceName: source, sourceType: type},{headers:headers});
   }
 
   addBill(billName: string): Observable<any> {
