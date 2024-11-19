@@ -16,7 +16,7 @@ import { environment } from "src/environments/environment";
 
     constructor(private http: HttpClient) {};
 
-    getFlowReportData(formData: any): Observable<any> {
+    getFlowReportData(startDate: string, endDate: string): Observable<any> {
       const token = localStorage.getItem('token');
       const url = `${environment.apiUrl}transactions/get-transactions-to-build-report`;
       const headers = {
@@ -24,9 +24,8 @@ import { environment } from "src/environments/environment";
       }
       const params = new HttpParams()
       .set('billId', 'ALL_BILLS')
-      .set('year', formData.year)
-      .set('month', formData.month)
-      .set('isSingleMonth', formData.isSingleMonth);
+      .set('startDate', startDate)
+      .set('endDate', endDate)
       return this.http.get<any>(url, {params:params, headers: headers});
     }
     

@@ -19,10 +19,9 @@ export class FlowReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   expensesData: any[];
-  month: string;
-  year: string;
-  isSingleMonth: string;
   params: {};
+  startDate: string;
+  endDate: string;
   columnsToIgnore = ['firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: { id: number, file?: File | string }[] = [];
   isSelectTransaction: boolean = false; // for able or disable send button
@@ -63,12 +62,10 @@ export class FlowReportPage implements OnInit {
   constructor(private genericService: GenericService,  private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
 
   ngOnInit() {
-    this.route.queryParams.subscribe(params => {
+    this.route.queryParams.subscribe((params) => {
       this.params = params;
-      console.log(params);
-      this.month = params['month'];
-      this.year = params['year'];
-      this.isSingleMonth = params['isSingleMonth'];
+      this.startDate = this.params['startDate'];
+      this.endDate = this.params['endDate'];
       this.getTransaction();
     });
     this.setTableActions();
@@ -89,8 +86,7 @@ export class FlowReportPage implements OnInit {
   }
 
   getTransaction(): void {
-    //this.flowReportService.getExpenseTransactionsData(this.params)
-    this.flowReportService.getFlowReportData(this.params)
+    this.flowReportService.getFlowReportData(this.startDate, this.endDate)
       .pipe(
         catchError((err) => {
           console.log("error in get expenses flow-report: ", err);
@@ -100,8 +96,6 @@ export class FlowReportPage implements OnInit {
           console.log(data);
 
           data.forEach((row) => {
-            //row.billDate = +row.billDate;
-            //row.payDate = +row.payDate;
             row.sum = Math.abs(row.sum)
           })
           return data;

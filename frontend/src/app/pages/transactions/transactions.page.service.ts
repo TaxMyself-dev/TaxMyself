@@ -171,9 +171,8 @@ ngOnInit(): void {
        token
     }
     const params = new HttpParams()
-    .set('year', date.year)
-    .set('month', date.month)
-    .set('isSingleMonth', date.isSingleMonth);
+    .set('startDate', date.startDate)
+    .set('endDate', date.endDate)
     return this.http.post<any>(url,formData,{params:params,headers: headers});
   }
 
