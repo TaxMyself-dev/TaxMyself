@@ -31,4 +31,8 @@ export class CreateUserCategoryDto {
   @IsOptional()
   isRecognized?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isExpense?: boolean;
+
 }

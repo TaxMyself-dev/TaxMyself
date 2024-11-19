@@ -160,7 +160,8 @@ export class ExpensesService {
         let category = await this.userCategoryRepo.findOne({
             where: {
                 categoryName: createUserCategoryDto.categoryName,
-                firebaseId: createUserCategoryDto.firebaseId
+                firebaseId: createUserCategoryDto.firebaseId,
+                isExpense: createUserCategoryDto.isExpense
             }
         });
         if (!category) {
@@ -176,7 +177,8 @@ export class ExpensesService {
         const existingSubCategory = await this.userSubCategoryRepo.findOne({
             where: {
                 subCategoryName: createUserCategoryDto.subCategoryName,
-                firebaseId: createUserCategoryDto.firebaseId
+                firebaseId: createUserCategoryDto.firebaseId,
+                isExpense: createUserCategoryDto.isExpense
             },
         });
         if (existingSubCategory) {
@@ -194,6 +196,7 @@ export class ExpensesService {
         userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
         userSubCategory.firebaseId = createUserCategoryDto.firebaseId;
         userSubCategory.categoryName = createUserCategoryDto.categoryName;
+        userSubCategory.isExpense = createUserCategoryDto.isExpense;
     
         return await this.userSubCategoryRepo.save(userSubCategory);
     }
