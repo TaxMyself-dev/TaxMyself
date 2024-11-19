@@ -212,6 +212,7 @@ export class TransactionsService {
     const reductionPercentIndex = headers.findIndex(header => header === 'reductionPercent');
     const isEquipmentIndex = headers.findIndex(header => header === 'isEquipment');
     const isRecognizedIndex = headers.findIndex(header => header === 'isRecognized');
+    const isExpenseIndex = headers.findIndex(header => header === 'isExpense');
 
 
   for (const row of rows) {
@@ -222,6 +223,7 @@ export class TransactionsService {
     const reductionPercent = parseFloat(row[reductionPercentIndex]);
     const isEquipment = row[isEquipmentIndex] == '1' || row[isEquipmentIndex] == 'true';  // Boolean conversion
     const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
+    const isExpense = row[isExpenseIndex] == '1' || row[isExpenseIndex] == 'true'; // Boolean conversion
 
     // Check if the category already exists
     let category = await this.categoryRepo.findOne({ where: { categoryName: categoryName} });
@@ -229,6 +231,7 @@ export class TransactionsService {
       // Create a new category if it doesn't exist
       category = this.categoryRepo.create({
         categoryName: categoryName,
+        isExpense: isExpense
       });
       await this.categoryRepo.save(category);
     }
@@ -244,22 +247,11 @@ export class TransactionsService {
         reductionPercent: reductionPercent,
         isEquipment: isEquipment,
         isRecognized: isRecognized,
+        isExpense: isExpense,
         categoryName: categoryName
       });
       await this.defaultSubCategoryRepo.save(subCategory);
     }
-
-    // // Create the sub-category
-    // //const subCategory = new DefaultSubCategory();
-    // subCategory.subCategoryName = subCategoryName;
-    // subCategory.taxPercent = taxPercent;
-    // subCategory.vatPercent = vatPercent;
-    // subCategory.reductionPercent = reductionPercent;
-    // subCategory.isEquipment = isEquipment;
-    // subCategory.isRecognized = isRecognized;
-    // subCategory.categoryName = categoryName;
-
-    // await this.defaultSubCategoryRepo.save(subCategory);
 
   }
 
@@ -557,10 +549,6 @@ export class TransactionsService {
       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
     });
 
-    console.log("startDate is ", startDate);
-    console.log("endDate is ", endDate);
-    
-
     const transactions = await this.transactionsRepo.find({
     where: [
       {
@@ -586,7 +574,7 @@ export class TransactionsService {
     const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
-    //console.log("incomeTransactions:\n", incomeTransactions)
+    console.log("incomeTransactions:\n", incomeTransactions)
     return incomeTransactions;
 
   }

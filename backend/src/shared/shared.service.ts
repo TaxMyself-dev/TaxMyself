@@ -51,53 +51,10 @@ export class SharedService {
     }
 
 
-    // getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
-    //     // console.log("yearStr: ", yearStr, "monthStr: ", monthStr);
-
-    //     if (yearStr === undefined || monthStr === undefined) {
-    //         return {startDate: null, endDate: null};
-    //     }
-    //     else {
-    //         //console.log("isSingleMonth = ", isSingleMonth);
-
-    //         // Ensure `isSingleMonth` is a boolean
-    //         isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
-    //         //console.log("isSingleMonth = ", isSingleMonth, " (type:", typeof isSingleMonth, ")");
-
-    //         const year = parseInt(yearStr, 10);
-    //         const month = parseInt(monthStr, 10) - 1; // `date-fns` uses 0-based months
-
-    //         // Start date is always the first day of the specified month in UTC
-    //         let startDate = new Date(Date.UTC(year, month, 1));
-    //         // Calculate the end date in UTC
-    //         let endDate: Date;
-    //         if (isSingleMonth) {
-    //             // Last day of the specified month
-    //             // console.log("single true");
-
-    //             endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
-    //         } else {
-    //             // Last day of the next month
-    //             // console.log("single false");
-    //             endDate = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59, 999));
-    //         }
-    //         //console.log("getStartAndEndDate - debug:\n startDate is ", startDate, "\nendDate is ", endDate);
-
-    //         return { startDate, endDate };
-    //     }
-
-    // }
-
-
-
     getStartAndEndDate(yearStr: string, monthStr: string, isSingleMonth: boolean) {
         if (yearStr === undefined || monthStr === undefined) {
             return { startDate: null, endDate: null };
         }
-    
-        // console.log("yearStr is ", yearStr);
-        // console.log("monthStr is ", monthStr);
-        // console.log("isSingleMonth is ", isSingleMonth);
     
         isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
     
@@ -111,11 +68,6 @@ export class SharedService {
         const endDate = isSingleMonth
             ? new Date(Date.UTC(year, month + 1, 0, 23, 59, 59)) // Last day of the specified month
             : new Date(Date.UTC(year, month + 2, 0, 23, 59, 59)); // Last day of the next month
-    
-        // console.log("startDate is ", startDate);
-        // console.log("type of startDate is ", typeof startDate);
-        // console.log("endDate is ", endDate);
-        // console.log("type of endDate is ", typeof endDate);
     
         return { startDate, endDate };
     }

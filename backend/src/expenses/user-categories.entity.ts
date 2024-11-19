@@ -12,4 +12,7 @@ export class UserCategory {
   @Column({ nullable: true })
   firebaseId: string;
   
+  @Column('boolean')
+  isExpense: boolean;
+  
 }

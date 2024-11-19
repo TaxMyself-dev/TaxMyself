@@ -8,5 +8,8 @@ export class DefaultCategory {
 
   @Column()
   categoryName: string;
+
+  @Column('boolean')
+  isExpense: boolean;
   
 }

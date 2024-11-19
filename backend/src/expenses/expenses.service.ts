@@ -199,7 +199,7 @@ export class ExpensesService {
     }
 
 
-    async getCategories(isDefault: boolean | null, firebaseId: string | null): Promise<(UserCategory | DefaultCategory)[]> {
+    async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null): Promise<(UserCategory | DefaultCategory)[]> {
 
         if (isDefault === null) {
 
@@ -209,26 +209,29 @@ export class ExpensesService {
     
             const defaultCategories = await this.defaultCategoryRepo.find();
             const userCategories = await this.userCategoryRepo.find({ where: { firebaseId } });
-    
             const categoryMap = new Map<string, UserCategory | DefaultCategory>();
     
             // First, add all default categories
             defaultCategories.forEach(category => {
                 categoryMap.set(category.categoryName, category);
             });
-    
             // Then, add/override with user-specific categories (preference for user categories)
             userCategories.forEach(category => {
                 categoryMap.set(category.categoryName, category);
             });
-    
             // Convert the map back to an array
-            return Array.from(categoryMap.values());
+            let categories = Array.from(categoryMap.values());
+            // Filter by isExpense if the flag is provided
+            categories = categories.filter(category => category.isExpense === isExpense);
+            return categories;
         } 
         
         else if (isDefault === true) {
             // Return only the default categories
-            return await this.defaultCategoryRepo.find();
+            let defaultCategories = await this.defaultCategoryRepo.find();
+            // Filter by isExpense if the flag is provided
+            defaultCategories = defaultCategories.filter(category => category.isExpense === isExpense);
+            return defaultCategories;
         } 
         
         else if (isDefault === false) {
@@ -236,14 +239,19 @@ export class ExpensesService {
             if (!firebaseId) {
                 throw new Error('firebaseId must be provided to fetch user-specific categories.');
             }
-            return await this.userCategoryRepo.find({ where: { firebaseId } });
+            let userCategories = await this.userCategoryRepo.find({ where: { firebaseId } });
+            // Filter by isExpense if the flag is provided
+            userCategories = userCategories.filter(category => category.isExpense === isExpense);
+            return userCategories;
         }
+
     }
     
 
     async getSubCategories(
         firebaseId: string | null,
         isEquipment: boolean | null,
+        isExpense: boolean,
         categoryName: string
     ): Promise<(UserSubCategory | DefaultSubCategory)[]> {
     
@@ -291,8 +299,11 @@ export class ExpensesService {
             }
         });
     
-        // Return the combined subcategories as an array
-        return Array.from(combinedSubCategoriesMap.values());
+        // Get the combined subcategories as an array
+        let subCategories = Array.from(combinedSubCategoriesMap.values());
+         // Filter by isExpense if the flag is provided
+         subCategories = subCategories.filter(subCategory => subCategory.isExpense === isExpense);
+         return subCategories;
     }
 
 

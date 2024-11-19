@@ -89,8 +89,9 @@ export class TransactionsController {
         
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+
     const userId = await this.usersService.getFirbsaeIdByToken(token);
-    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, query.billId);
+    return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, query.billId);
 
   }
 

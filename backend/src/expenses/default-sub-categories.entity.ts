@@ -27,4 +27,7 @@ export class DefaultSubCategory {
   @Column('boolean')
   isRecognized: boolean;
 
+  @Column('boolean')
+  isExpense: boolean;
+
 }

@@ -29,5 +29,8 @@ export class UserSubCategory {
 
   @Column('boolean')
   isRecognized: boolean;
+
+  @Column('boolean')
+  isExpense: boolean;
   
 }

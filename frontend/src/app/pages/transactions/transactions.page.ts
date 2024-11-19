@@ -229,7 +229,7 @@ export class TransactionsPage implements OnInit {
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, formData.accounts);
-
+    
     const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
 
     zip(incomeData$, expensesData$)

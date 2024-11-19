@@ -61,21 +61,17 @@ export class ExpensesController {
     @Headers('token') token: string,
     @Query() query: any,
   ) {
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-
-    console.log("start is ", query.startDate);
-    console.log("end is ", query.endDate);
-    
+    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);    
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
    
     return await this.expensesService.getExpensesForVatReport(firebaseId, startDate, endDate);
   }
 
+
   @Patch('add-file-to-expense')
   async addFileToExpense(@Headers('token') token: string,
     @Body() expensesData: {id: number, file: string | null}[]) {
-      console.log('expensesData in add file: ', expensesData);
       const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
      return await this.expensesService.saveFileToExpenses(expensesData, firebaseId);
 
@@ -105,7 +101,9 @@ export class ExpensesController {
     console.log("get-categories");
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
     const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
-    return this.expensesService.getCategories(isDefaultValue, firebaseId);
+    const isExpense = false;
+
+    return this.expensesService.getCategories(isDefaultValue, isExpense, firebaseId);
   }
 
 
@@ -120,9 +118,10 @@ export class ExpensesController {
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
+    const isExpense = true;
 
     // Call the service method to get the sub-categories
-    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, categoryName);
+    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpense, categoryName);
   }
 
 

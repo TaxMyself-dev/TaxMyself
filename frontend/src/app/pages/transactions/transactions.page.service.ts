@@ -14,7 +14,6 @@ export class TransactionsService implements OnInit{
 token:string;
 accountsList$ = new BehaviorSubject<any[]>([{ value: 'ALL_BILLS', name: 'כל החשבונות' }]);
 
-// accountsList = [{ value: 'null', name: 'כל החשבונות' }];
 constructor(private http: HttpClient) { 
   console.log("in transaction service");
   
@@ -32,20 +31,6 @@ ngOnInit(): void {
     this.token = localStorage.getItem('token');
   }
 
-  // getIncomeTransactionsData(formData: any): Observable<ITransactionData[]> {
-  //   const token = localStorage.getItem('token');
-  //   const url = `${environment.apiUrl}transactions/get-incomes`;
-  //   const param = new HttpParams()
-  //   .set('billId', formData.accounts)
-  //   .set('month', formData.month)
-  //   .set('year', formData.year)
-  //   .set('isSingleMonth', formData.isSingleMonth)
-  //   const headers = {
-  //     'token': token
-  //   }
-  //   return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
-  // }
-
 
   getIncomeTransactionsData(startDate: string, endDate: string, billId: any): Observable<ITransactionData[]> {
     const token = localStorage.getItem('token');
@@ -61,22 +46,6 @@ ngOnInit(): void {
   }
   
 
-  // getExpenseTransactionsData(formData: any): Observable<ITransactionData[]> {
-  //   console.log(formData.accounts);
-  //   const token = localStorage.getItem('token');
-  //   const url = `${environment.apiUrl}transactions/get-expenses`;
-  //   const param = new HttpParams()
-  //   .set('billId', formData.accounts)
-  //   .set('month', formData.month)
-  //   .set('year', formData.year)
-  //   .set('isSingleMonth', formData.isSingleMonth)
-  //   const headers = {
-  //     'token': token
-  //   }
-  //   return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
-  // }
-
-
   getExpenseTransactionsData(startDate: string, endDate: string, billId: any): Observable<ITransactionData[]> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/get-expenses`;
@@ -90,6 +59,7 @@ ngOnInit(): void {
     return this.http.get<ITransactionData[]>(url, {params: param, headers: headers})
   }
   
+
   getAllBills(): void {
     const token = localStorage.getItem('token');
     console.log("get bills");
