@@ -23,8 +23,6 @@ export class PnLReportService {
   getPnLReportData(startDate: string, endDate: string): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/pnl-report`;
-    //const startDate = "01/01/2024";
-    //const endDate = "31/12/2024";
     const params = new HttpParams()
     .set('startDate', startDate)
     .set('endDate', endDate)

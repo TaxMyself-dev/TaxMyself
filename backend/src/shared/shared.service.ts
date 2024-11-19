@@ -189,7 +189,7 @@ export class SharedService {
     }
 
 
-    convertStringToDateObject(dateString): Date {
+    convertStringToDateObject(dateString): Date {        
 
         const parts = dateString.split('/'); // Split the input string by '/'
         if (parts.length !== 3) {

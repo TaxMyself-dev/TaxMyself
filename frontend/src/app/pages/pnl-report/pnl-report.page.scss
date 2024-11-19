@@ -23,7 +23,7 @@
   margin: 10px;
 }
 
-.output-vat-report {
+.output-pnl-report {
   display: flex;
   justify-content: space-between;
   border-bottom: 1px solid;
@@ -83,7 +83,7 @@
     margin-top: 10px;
   }
 
-  .input-vat-report {
+  .input-pnl-report {
     flex: 1;
     --border-radius: 15px;
     margin-top: 10px;
@@ -107,7 +107,7 @@
     margin: 10px;
   }
 
-  .output-vat-report {
+  .output-pnl-report {
     display: flex;
     justify-content: space-between;
     border-bottom: 1px solid;

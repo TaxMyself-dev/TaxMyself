@@ -3,20 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
-import { PnLReportDto } from './dtos/pnl-report.dto';
+import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
 import { ReductionReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { VAT_RATE_2023 } from '../constants';
 import { SharedService } from 'src/shared/shared.service';
+import { User } from '../users/user.entity';
+import { BusinessType } from 'src/enum';
+
 
 
 @Injectable()
 export class ReportsService {
     constructor(
         @InjectRepository(Expense)
-        private expense_repo: Repository<Expense>,
+        private expenseRepo: Repository<Expense>,
+        @InjectRepository(User) private userRepo: Repository<User>,
         private expensesService: ExpensesService,
         private sharedService: SharedService
     ) {}
@@ -26,8 +30,6 @@ export class ReportsService {
         userId: string,
         startDate: Date,
         endDate: Date,
-        //isSingleMonth: boolean,
-        //monthReport: number,
         vatableTurnover: number,
         nonVatableTurnover: number
     ): Promise<VatReportDto> {
@@ -71,22 +73,29 @@ export class ReportsService {
 
 
     async createPnLReport(
-        userId: string,
+        firebaseId: string,
         startDate: Date,
         endDate: Date
     ): Promise<PnLReportDto> {
 
+        const user = await this.userRepo.findOne({ where: { firebaseId } });
+
+
+        console.log("reports.service - pnl-report start");
+
         // Get total income
-        const totalIncome = 1000;
+        let totalIncome = 1170;
         //  const totalIncome = await incomeRepo.createQueryBuilder("income")
         //  .select("SUM(income.amount)", "total")
         //  .where("income.userId = :userId", { userId })
         //  .andWhere("income.date BETWEEN :startDate AND :endDate", { startDate, endDate })
         //  .getRawOne();
 
-        const expenses = await this.expensesService.getExpensesByDates(userId, startDate, endDate);
+        if (user.businessType === BusinessType.LICENSED || user.businessType === BusinessType.COMPANY) {
+            totalIncome = totalIncome / 1.17;
+        }
 
-        console.log("expenses are ", expenses);
+        const expenses = await this.expensesService.getExpensesByDates(firebaseId, startDate, endDate);
 
         // Separate expenses into equipment and non-equipment categories
         const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
@@ -103,32 +112,30 @@ export class ReportsService {
             totalTaxPayableByCategory[category] += Number(expense.totalTaxPayable); // Sum up the totalTaxPayable
         }
 
-        // // Aggregate totalTaxPayable for non-equipment expenses by category
-        // const totalTaxPayableByCategory = nonEquipmentExpenses.reduce((acc, expense) => {
-        //     // Initialize category in accumulator if it does not already exist
-        //     if (!acc[expense.category]) {
-        //         acc[expense.category] = 0;
-        //     }
-        //     // Convert totalTaxPayable to a number and add it to its category total
-        //     acc[expense.category] += 7; //parseFloat(expense.totalTaxPayable);
-        //     return acc;
-        // }, {});
+         // Map the totals by category into an array of ExpenseDto
+        const expenseDtos: ExpensePnlDto[] = Object.entries(totalTaxPayableByCategory).map(
+            ([category, total]) => ({
+                category,
+                total,
+            })
+        );
 
-        console.log("totalTaxPayableByCategory is ", totalTaxPayableByCategory);
+        // Calculate the total expenses using a for loop
+        let totalExpenses = 0;
+        for (const expense of expenseDtos) {
+            totalExpenses += expense.total;
+        }
 
-        // const report: PnLReportDto = {
-        //     income: parseFloat(totalIncome.total),
-        //     expenses: expensesByCategory.map(exp => ({
-        //         category: exp.category,
-        //         total: parseFloat(exp.total)
-        //     }))
-        // };
+        // Calculate net profit before tax
+        const netProfitBeforeTax = totalIncome - totalExpenses;
 
+        // Construct the final report
         const report: PnLReportDto = {
             income: totalIncome,
-            expenses: []
+            expenses: expenseDtos,
+            netProfitBeforeTax,
         };
-
+        
         return report;
         
     }
@@ -139,7 +146,7 @@ export class ReportsService {
         const startDate = new Date(year, 0, 1); // 1st January of the year
         const endDate = new Date(year, 11, 31); // 31st December of the year
     
-        const expenses = await this.expense_repo
+        const expenses = await this.expenseRepo
           .createQueryBuilder("expense")
           .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
           .where("expense.userId = :userId", { userId })

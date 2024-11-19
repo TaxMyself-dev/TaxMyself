@@ -101,7 +101,7 @@ export class ExpensesController {
     console.log("get-categories");
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
     const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
-    const isExpense = false;
+    const isExpense = true;
 
     return this.expensesService.getCategories(isDefaultValue, isExpense, firebaseId);
   }

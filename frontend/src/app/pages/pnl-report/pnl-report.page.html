@@ -5,35 +5,28 @@
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
     <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="pnlReportTemplate"
-      [isDisabled]="pnlReportForm.invalid"></app-search-bar>
-    <ng-container *ngIf="!report">
+      [isDisabled]="pnlReportForm.invalid">
+    </app-search-bar>
+
+    <ng-container *ngIf="!pnlReport">
       <p class="text-before-report">
         אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח
       </p>
     </ng-container>
-    <!-- <ng-container *ngIf="report">
-      <div class="wrap-output-report">
-        <p class="report-title">נתוני דו"ח</p>
-        <div class="output-vat-report" *ngFor="let key of reportOrder">
-          <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
-          <div class="value-field-report">{{ report[key] }}</div>
-        </div>
-      </div>
-    </ng-container> -->
-    <!-- PnL Report Component Template -->
+
     <ng-container *ngIf="pnlReport">
       <div class="wrap-output-report">
         <p class="report-title">נתוני דו"ח רווח והפסד</p>
         <!-- Display Income -->
         <div class="output-pnl-report">
-          <div class="field-report">הכנסות:</div>
+          <div class="field-report">סך הכל הכנסות לפני מע"מ:</div>
           <div class="value-field-report">{{ pnlReport.income | number }}</div>
         </div>
         <!-- Dynamically Display Expenses -->
-        <ng-container *ngFor="let category of pnlReport.expenseCategories">
+        <ng-container *ngFor="let category of pnlReport.expenses">
           <div class="output-pnl-report">
-            <div class="field-report">{{ category.name }}:</div>
-            <div class="value-field-report">{{ category.value | number }}</div>
+            <div class="field-report">{{ category.category }}:</div>
+            <div class="value-field-report">{{ category.total | number }}</div>
           </div>
         </ng-container>
         <!-- Display Net Profit Before Tax -->
@@ -42,15 +35,6 @@
           <div class="value-field-report">{{ pnlReport.netProfitBeforeTax | number }}</div>
         </div>
       </div>
-    </ng-container>
-    <div class="wrap-buttons">
-      <app-button buttonText="פירוט הוצאות" (onButtonClicked)="showExpenses()" [disabled]="reportClick"></app-button>
-    </div>
-    <ng-container *ngIf="items$ | async as items">
-      <div *ngIf="displayExpenses"  class="table-wrapper">
-        <app-table [actionsToIgnore]="ACTIONS_TO_IGNORE" (onBeforeSelectFile)="beforeSelectFile($event)" [beforeFile]="true" [actions]="tableActions" [columnsToIgnore]="COLUMNS_TO_IGNORE" [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
-      </div>
-      <app-button (onButtonClicked)="addFileToExpense()" [buttonSize]="ButtonSize.SMALL" [buttonText]="'העלה קבצים'" [disabled]="!(arrayFile?.length > 0)"></app-button>
     </ng-container>
   </div>
 

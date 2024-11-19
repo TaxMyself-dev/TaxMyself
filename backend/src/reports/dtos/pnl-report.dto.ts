@@ -1,7 +1,7 @@
 import { IsString, IsArray, IsNumber, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class ExpenseDto {
+export class ExpensePnlDto {
     @IsString()
     category: string;
 
@@ -10,11 +10,16 @@ class ExpenseDto {
 }
 
 export class PnLReportDto {
+
     @IsNumber()
     income: number;
 
     @IsArray()
     @ValidateNested({ each: true })
-    @Type(() => ExpenseDto)
-    expenses: ExpenseDto[];
+    @Type(() => ExpensePnlDto)
+    expenses: ExpensePnlDto[];
+
+    @IsNumber()
+    netProfitBeforeTax: number;
+
 }
