@@ -123,7 +123,7 @@ export class TransactionsPage implements OnInit {
   accountsList: any[] = [];
   sourcesList: string[] = [];
   selectedFile: File = null;
-  dateForUpdate = { 'reportingPeriodType': true, 'month': "1", 'year': 2024 };
+  dateForUpdate = { 'startDate': "", 'endDate': "" };
   checkClassifyBill: boolean = true;
   listCategory: ISelectItem[];
   listFilterCategory: ISelectItem[] = [{ value: null, name: 'הכל' }];
@@ -223,11 +223,9 @@ export class TransactionsPage implements OnInit {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
 
-    this.dateForUpdate.reportingPeriodType = formData.reportingPeriodType;
-    this.dateForUpdate.month = formData.month;
-    this.dateForUpdate.year = formData.year;
-
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
+    this.dateForUpdate.startDate = startDate;
+    this.dateForUpdate.endDate = endDate;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, formData.accounts);
     
@@ -257,10 +255,10 @@ export class TransactionsPage implements OnInit {
 
   getExpensesData(): void {
     const formData = this.transactionsForm.value;
-    this.dateForUpdate.reportingPeriodType = formData.reportingPeriodType;
-    this.dateForUpdate.month = formData.month;
-    this.dateForUpdate.year = formData.year;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
+    this.dateForUpdate.startDate = startDate;
+    this.dateForUpdate.endDate = endDate;
+
     this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
@@ -554,13 +552,13 @@ export class TransactionsPage implements OnInit {
     this.transactionService.updateRow(formData).pipe(takeUntil(this.destroy$)).subscribe((res) => this.getExpensesData());
   }
 
-  openAddTransaction(event): void {
+  openAddTransaction(event, isExpense: boolean): void {
     from(this.modalController.create({
 
       component: AddTransactionComponent,
       componentProps: {
         date: this.dateForUpdate,
-        data: event,
+        data: {event,isExpense}
       },
       cssClass: 'expense-modal'
     }))
@@ -590,25 +588,20 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-  onClickedCell(event: { str: string, data: IRowDataTable }): void {
+  onClickedCell(event: { str: string, data: IRowDataTable }, isExpense: boolean = true): void {
     if (event.str === "bill") {
       this.openAddBill(event.data);
     }
     else {
-      event.data.billName === "זמני" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data);
+      event.data.billName === "זמני" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
     }
   }
 
   openFlowReport(): void {
-    const details = {
-      date: this.dateForUpdate,
-
-    }
     this.router.navigate(['flow-report'], {
       queryParams: {
-        month: this.dateForUpdate.month,
-        year: this.dateForUpdate.year,
-        reportingPeriodType: this.dateForUpdate.reportingPeriodType,
+        startDate: this.dateForUpdate.startDate,
+        endDate: this.dateForUpdate.endDate,
         accounts: 'null'
       }
     })

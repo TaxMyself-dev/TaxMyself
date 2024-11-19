@@ -15,8 +15,8 @@ import { GenericService } from 'src/app/services/generic.service';
 })
 export class AddTransactionComponent implements OnInit {
 
-  @Input() date;
-  @Input() data;
+  @Input() date: any;
+  @Input() data: any;
 
   existCategory: boolean = true;
   existCategoryEquipmentForm: FormGroup;
@@ -103,6 +103,9 @@ export class AddTransactionComponent implements OnInit {
 
   ngOnInit() {
     this.getCategory();
+    console.log(this.data);
+    console.log(this.date);
+    
   }
 
   segmentClicked(event): void {
@@ -244,9 +247,9 @@ export class AddTransactionComponent implements OnInit {
     this.generivService.getLoader().subscribe();
     let formData: IClassifyTrans;
     formData = this.existCategoryEquipmentForm.value;
-    formData.id = this.data.id;
-    formData.billName = this.data.billName;
-    formData.name = this.data.name;
+    formData.id = this.data.event.id;
+    formData.billName = this.data.event.billName;
+    formData.name = this.data.event.name;
     formData.category = this.categoryDetails.categoryName as string ;
     formData.subCategory = this.categoryDetails.subCategoryName;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
@@ -294,9 +297,9 @@ export class AddTransactionComponent implements OnInit {
 
     }
     formData.isNewCategory = true;
-    formData.id = this.data.id;
-    formData.billName = this.data.billName;
-    formData.name = this.data.name;
+    formData.id = this.data.event.id;
+    formData.billName = this.data.event.billName;
+    formData.name = this.data.event.name;
     console.log(formData);
     this.transactionsService.addClassifiction(formData, this.date)
       .pipe(
