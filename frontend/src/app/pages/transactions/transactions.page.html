@@ -32,7 +32,7 @@
       <ng-template #incomeCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
           [isDisabled]="incomeForm.invalid" (onSearchClick)="filterIncomes()"></app-search-bar>
-        <app-table (filterBy)="filterIncomes($event)" [inputSearchLable]="'חיפוש לפי שם העסק'" (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering"
+        <app-table (filterBy)="filterByIncomes($event)" [inputSearchLable]="'חיפוש לפי שם העסק'" (onClickedCell)="onClickedCell($event)" [specialColumnsCellRendering]="specialColumnsCellRendering"
           *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
           [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"
           [columnsWidth]="COLUMNS_WIDTH_INCOME"></app-table>

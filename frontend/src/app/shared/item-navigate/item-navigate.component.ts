@@ -28,6 +28,8 @@ export class ItemNavigateComponent  implements OnInit{
 
 
   ngOnInit() {
+    console.log(this.navigationItems);
+    
     this.columns = this.expenseDataServise.getAddExpenseColumns()
     this.page = this.router.url;
     console.log(this.page);

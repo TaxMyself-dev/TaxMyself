@@ -132,7 +132,8 @@ export class TransactionsPage implements OnInit {
   myIcon: string;
   isToastOpen: boolean = false;
   messageToast: string = "";
-  filter: string = "";
+  filterByExpense: string = "";
+  filterByIncome: string = "";
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private filesService: FilesService, private genericService: GenericService) {
 
     this.transactionsForm = this.formBuilder.group({
@@ -243,7 +244,10 @@ export class TransactionsPage implements OnInit {
       )
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
         this.incomesData = data.incomes;
+        console.log("income: ", this.incomesData);
+        
         this.expensesData = data.expenses;
+        console.log("expense: ", this.expensesData);
         this.incomesData$.next(this.incomesData);
         this.filterIncomes(); // for after update table the table will stay filtered according to the search-bar
         this.expensesData$.next(data.expenses);
@@ -344,104 +348,89 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-  filterIncomes(filter?: string): void {
-    // if (filter) {
-    //   this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(filter)));
-    // }
-    // else {
+  filterIncomes(): void {
     const formData = this.incomeForm.value;
     console.log(formData);
 
     const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
     if (!categoryName && !formData.incomeType) {
-      this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(filter)));
+      this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(this.filterByIncome)));
     }
     else if (!categoryName) {
       if (formData.incomeType === "notClassification") {
         this.incomesData$.next(this.incomesData.filter((income) => {
-          return (income.category === "טרם סווג") && String(income.name).includes(filter);
+          return (income.category === "טרם סווג") && String(income.name).includes(this.filterByIncome);
         }
         ));
       }
       else {
         this.incomesData$.next(this.incomesData.filter((income) => {
-          return (income.category !== "טרם סווג") && String(income.name).includes(filter);
+          return (income.category !== "טרם סווג") && String(income.name).includes(this.filterByIncome);
         }));
       }
     }
     else if (!formData.incomeType) {
       this.incomesData$.next(this.incomesData.filter((income) => {
-        (income.category === categoryName.name) && (String(income.name).includes(filter));
+        return (income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
       }));
     }
     else {
       if (formData.incomeType === "notClassification") {
         this.incomesData$.next(this.incomesData.filter((income) => {
-          (income.category === "טרם סווג" || income.category === categoryName.name) && (String(income.name).includes(filter));
+          return (income.category === "טרם סווג" || income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
         }));
       }
       else {
         this.incomesData$.next(this.incomesData.filter((income) => {
-          (income.category !== "טרם סווג" && income.category === categoryName.name) && (String(income.name).includes(filter));
+          return (income.category !== "טרם סווג" && income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
         }));
       }
 
     }
-    // }
   }
 
   filterExpenses(): void {
-    //if (filter) {
-    // this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(filter)));
-    //}
-    //else {
-
     const formData = this.expensesForm.value;
-    console.log("formData expense: ", formData);
-    console.log("filter expense: ", this.filter);
 
     const categoryName = this.listCategory?.find((category) => category.value === formData.category);
-    console.log("category expense: ", categoryName);
 
     if (!categoryName && !formData.expensesType) {
-      this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(this.filter)));
+      this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(this.filterByExpense)));
     }
     else if (!categoryName) {
       if (formData.expensesType === "notClassification") {
         this.expensesData$.next(this.expensesData.filter((expense) => {
-          return ((expense.category === "טרם סווג") && String(expense.name).includes(this.filter));
+          return ((expense.category === "טרם סווג") && String(expense.name).includes(this.filterByExpense));
         }));
       }
       else {
-        console.log("in classify");
-        
         this.expensesData$.next(this.expensesData.filter((expense) => {
-          return (expense.category !== "טרם סווג") && String(expense.name).includes(this.filter);
+          return (expense.category !== "טרם סווג") && String(expense.name).includes(this.filterByExpense);
         }));
       }
     }
     else if (!formData.expensesType) {
       this.expensesData$.next(this.expensesData.filter((expense) => {
-        return (expense.category === categoryName.name) && (String(expense.name).includes(this.filter));
+        return (expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
       }));
     }
     else {
       if (formData.expensesType === "notClassification") {
         this.expensesData$.next(this.expensesData.filter((expense) => {
-          return (expense.category === "טרם סווג" || expense.category === categoryName.name) && (String(expense.name).includes(this.filter));
+          return (expense.category === "טרם סווג" || expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
         }))
       }
       else {
         this.expensesData$.next(this.expensesData.filter((expense) => { 
-          return (expense.category !== "טרם סווג" && expense.category === categoryName.name) && (String(expense.name).includes(this.filter)) }));
+          return (expense.category !== "טרם סווג" && expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense)) }));
       }
 
     }
     //}
   }
 
-  private handleTableData(data: ITransactionData[]) {
+  handleTableData(data: ITransactionData[]) {
     const rows = [];
     if (data.length) {
       console.log("data in hnadle data in transaction: ", data);
@@ -625,18 +614,17 @@ export class TransactionsPage implements OnInit {
     })
   }
 
-  // getExpenseTransactionsData(event) {
-  //   this.transactionService.getExpenseTransactionsData(event)
-  // }
-
   setOpenToast(): void {
     this.isToastOpen = false;
   }
 
   filterByExpenses(event: string): void {
-    this.filter = event;
+    this.filterByExpense = event;
     this.filterExpenses()
   }
-
+  filterByIncomes(event: string): void {
+    this.filterByIncome = event;
+    this.filterIncomes()
+  }
 
 }

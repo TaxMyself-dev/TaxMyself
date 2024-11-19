@@ -28,10 +28,10 @@ export class selectSupplierComponent implements OnInit {
   ];
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-    [ExpenseFormColumns.SUPPLIER, 3.9],
-    [ExpenseFormColumns.SUPPLIER_ID, 3.8],
+    [ExpenseFormColumns.SUPPLIER, 3.7],
+    [ExpenseFormColumns.SUPPLIER_ID, 3.5],
     [ExpenseFormColumns.ACTIONS, 3.8],
-    [ExpenseFormColumns.CHECKBOX, 0.5]
+    [ExpenseFormColumns.CHECKBOX, 1]
   ]);
 
   tableActions: ITableRowAction[] = [];
@@ -78,6 +78,9 @@ export class selectSupplierComponent implements OnInit {
         return EMPTY;
       }),
       tap((data) => {
+        if (data?.length <= 0) {
+          this.suppliersList$ = null
+        }
         console.log(data);
         
       })

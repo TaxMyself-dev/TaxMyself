@@ -14,10 +14,8 @@
       <div class="wrap-message">
         <div>{{message}}</div>
         <div class="wrap-buttons-message">
-          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן"
-            (onButtonClicked)="deleteSupplier()"></app-button>
-          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL"
-            (onButtonClicked)="cancelDel()"></app-button>
+          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן" (onButtonClicked)="deleteSupplier()"></app-button>
+          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="cancelDel()"></app-button>
         </div>
       </div>
     </ion-content>
@@ -27,7 +25,7 @@
 <ion-content>
   <div *ngIf="error" class="wrap-error">
     <h2 class="error-supplier">
-      <p >
+      <p>
         שגיאה
         <br>
         לא ניתן להציג ספקים
@@ -36,14 +34,16 @@
       </p>
     </h2>
   </div>
+  <div class="wrap-table-and-button">
+    <p *ngIf="!suppliersList$" class="not-suppliers-text">אין ספקים שמורים</p>
+    <ng-container *ngIf="suppliersList$ | async as supplierList ">
+      <app-table [checkedId]="checkedSupplier?.row?.id" [displayCheckbox]="true" (onCheckedClicked)="onChecked($event)"
+        [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName"
+        [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="supplierList"></app-table>
+    </ng-container>
 
-  <ng-container *ngIf="suppliersList$ | async as supplierList ">
-    <app-table [checkedId]="checkedSupplier?.row?.id" [displayCheckbox]="true" (onCheckedClicked)="onChecked($event)" [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="supplierList"></app-table>
-  </ng-container>
-
-  <app-button (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
-
-  
+    <app-button *ngIf="suppliersList$" (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
+  </div>
   <ng-template #loader>
     <ion-spinner></ion-spinner>
   </ng-template>

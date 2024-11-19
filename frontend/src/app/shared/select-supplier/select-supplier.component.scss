@@ -1,44 +1,44 @@
-.supplier-header{
+.supplier-header {
     display: flex;
     justify-content: space-around;
 }
 
-.supplier-icon-header{
+.supplier-icon-header {
     cursor: pointer;
 }
 
-.list-supplier-table{
+.list-supplier-table {
     display: flex;
     justify-content: center;
     height: 100%;
     overflow-y: auto;
 }
 
-.supplier-table{
+.supplier-table {
     border: 1px solid;
     width: 95%;
 }
 
-.tr-header{
+.tr-header {
     width: 100%;
     display: flex;
     justify-content: space-between;
 }
 
-.tr-content{
+.tr-content {
     border-bottom: 1px solid lightgray;
 }
 
-.wrap-error{
+.wrap-error {
     width: 100%;
     height: 100%;
     border: 1px solid;
     display: flex;
     justify-content: center;
-    align-items: center; 
+    align-items: center;
 }
 
-.error-supplier{
+.error-supplier {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -47,19 +47,39 @@
     border: 3px solid black;
     border-radius: 15px;
     text-align: center;
-    color: red; 
+    color: red;
 }
 
-.wrap-message{
+.wrap-message {
     display: flex;
     flex-direction: column;
     align-items: center;
     border-radius: 15px;
     text-align: center;
-  }
-  
-  .wrap-buttons-message{
+}
+
+.wrap-buttons-message {
     width: 70%;
     display: flex;
     justify-content: space-between;
-  }
+}
+
+.wrap-table-and-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    height: 50%;
+    width: 100%;
+}
+
+.not-suppliers-text {
+    border: red 1px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40%;
+    width: 80%;
+    margin: auto;
+    border-radius: 15px;
+}
