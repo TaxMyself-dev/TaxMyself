@@ -7,5 +7,8 @@ export class CreateBillDto {
 
     @IsString()
     billName: string;
+
+    @IsString()
+    businessNumber: string;
     
 }

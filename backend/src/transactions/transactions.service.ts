@@ -24,6 +24,7 @@ import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { CreateUserCategoryDto } from '../expenses/dtos/create-user-category.dto';
 import { User } from 'src/users/user.entity';
 import { UserCategory } from 'src/expenses/user-categories.entity';
+import { CreateBillDto } from './dtos/create-bill.dto';
 
 
 @Injectable()
@@ -61,7 +62,6 @@ export class TransactionsService {
 
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    //const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false}); // Get rows as arrays of values, raw: false to get formatted strings
 
     const rows: any[][] = XLSX.utils
     .sheet_to_json(worksheet, { header: 1, raw: false }) as any[][];
@@ -159,6 +159,7 @@ export class TransactionsService {
       const billName = paymentIdentifierToBillName.get(transaction.paymentIdentifier);
       if (billName) {
         transaction.billName = billName;
+        transaction.businessNumber = await this.getBusinessNumberByBillName(transaction.userId, billName);
       }
   
       // Check if there's a matching classified transaction
@@ -188,6 +189,18 @@ export class TransactionsService {
     return { message: `Successfully saved ${filteredRows.length - skippedTransactions} transactions to the database. Skipped ${skippedTransactions} duplicate transactions.` };
 
   }
+
+
+  async getBusinessNumberByBillName(userId: string, billName: string): Promise<string | null> {
+    const bill = await this.billRepo.findOne({
+        where: {
+            userId,
+            billName,
+        },
+        select: ['businessNumber'], // Only fetch the businessNumber for optimization
+    });
+    return bill ? bill.businessNumber : null; // Return the businessNumber if found, otherwise null
+  } 
 
 
   async loadDefaultCategories(file: Express.Multer.File): Promise<{ message: string }> {
@@ -412,15 +425,19 @@ export class TransactionsService {
   /////////////////////////////               Bills                 /////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////////////////////
 
-  async addBill(userId: string, billName: string){
-    const isAlreadyExist = await this.billRepo.findOne({ where: {userId: userId, billName: billName} });
+  async addBill(userId: string, createBillDto: CreateBillDto){
+    const isAlreadyExist = await this.billRepo.findOne({ where: {userId: userId, billName: createBillDto.billName} });
     if (isAlreadyExist) {
         throw new HttpException({
             status: HttpStatus.CONFLICT,
-            error: `Bill with this name: "${name}" already exists`
+            error: `Bill with this name: "${createBillDto.billName}" already exists`
         }, HttpStatus.CONFLICT);
     }
-    const bill = this.billRepo.create({userId, billName });
+
+    const bill = this.billRepo.create({
+      userId: userId, 
+      billName: createBillDto.billName,
+      businessNumber: createBillDto.businessNumber });
     return this.billRepo.save(bill);
   }
 
@@ -707,7 +724,7 @@ export class TransactionsService {
       expense.transId = transaction.id;
       expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
-      //expense.businessNumber = 
+      expense.businessNumber = transaction.businessNumber;
 
       // Save the updated transaction
       transaction.vatReportingDate = expense.vatReportingDate;

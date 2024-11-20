@@ -49,7 +49,7 @@ export class TransactionsController {
   async addBill(@Headers('token') token: string,
   @Body() body: CreateBillDto) {
     const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return await this.transactionsService.addBill(userId, body.billName); 
+    return await this.transactionsService.addBill(userId, body); 
   }
 
 
