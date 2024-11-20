@@ -37,6 +37,9 @@ export class Expense {
   @Column('date')
   date: Date;
 
+  @Column()
+  businessNumber: string;
+
   @Column({ nullable: true })
   note: string;
 
@@ -83,8 +86,8 @@ export class Expense {
   @BeforeInsert()
   @BeforeUpdate()
   calculateSums() {
-    this.totalTaxPayable = this.sum * (this.taxPercent/100);
     this.totalVatPayable = (this.sum/1.17) * 0.17 * (this.vatPercent/100);
+    this.totalTaxPayable = (this.sum - this.totalVatPayable) * (this.taxPercent/100);
 
   }
 

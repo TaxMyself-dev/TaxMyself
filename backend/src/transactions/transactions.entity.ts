@@ -2,7 +2,6 @@ import {
     Entity, 
     Column, 
     PrimaryGeneratedColumn,
-    ManyToOne
 } from 'typeorm'
 import { DualMonthReport, SingleMonthReport } from 'src/enum';
 
@@ -20,6 +19,9 @@ export class Transactions {
 
   @Column()
   billName: string;
+
+  @Column()
+  businessNumber: string;
 
   @Column()
   name: string;

@@ -3,7 +3,7 @@ import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -26,14 +26,20 @@ export class UsersService {
     }
                               
 
-    async signup({personal,spouse,children,business,validation}:any) {
+    async signup({personal,spouse,children,business} : any) {
+
+        console.log("debug personal is ", personal);
+        console.log("debug spouse is ", spouse);
+        console.log("debug children is ", children);
+        console.log("debug business is ", business);
+        
         const newChildren = children?.children;
 
-        personal.dateOfBirth = this.sharedService.parseDateStringToDate(personal.dateOfBirth, 'yyyy-MM-dd');
-        if (personal.FamilyStatus == FamilyStatus.MARRIED) {
-            spouse.spouseDateOfBirth = this.sharedService.parseDateStringToDate(spouse.spouseDateOfBirth, 'yyyy-MM-dd');
-        }
-        business.businessDate = this.sharedService.parseDateStringToDate(business.businessDate, 'yyyy-MM-dd');
+        // personal.dateOfBirth = this.sharedService.parseDateStringToDate(personal.dateOfBirth, 'yyyy-MM-dd');
+        // if (personal.FamilyStatus == FamilyStatus.MARRIED) {
+        //     spouse.spouseDateOfBirth = this.sharedService.parseDateStringToDate(spouse.spouseDateOfBirth, 'yyyy-MM-dd');
+        // }
+        // business.businessDate = this.sharedService.parseDateStringToDate(business.businessDate, 'yyyy-MM-dd');
 
         let newUser = {...personal, ...spouse, ...business};
 
@@ -46,24 +52,55 @@ export class UsersService {
             }
         }
 
-        if (newUser.businessType == BusinessType.EXEMPT) {
-            console.log("newUser.businessType is EXEMPT"); 
+        // Set the new user others fields
+        if ((newUser.employmentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.employmentStatus == EmploymentType.BOTH)) {
+            if (newUser.businessType == BusinessType.EXEMPT) {
+                newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
+                newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            }
+            else if (newUser.businessType == BusinessType.LICENSED) {
+                newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+                newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            }
+            else if (newUser.businessType == BusinessType.COMPANY) {
+                newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+                newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            }
+            else {
+                console.log("newUser.businessType is none of the option, is ", newUser.businessType);
+                //throw new Error('User business type is not valid');
+            }
+        } else if (newUser.employmentStatus == EmploymentType.EMPLOYEE) {
             newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
-            newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            newUser.taxReportingType = TaxReportingType.NOT_REQUIRED;
         }
-        else if (newUser.businessType == BusinessType.LICENSED) {
-            console.log("newUser.businessType is LICENSED");
-            newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-            newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+
+        // Set the new user spouse others fields
+        if ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH)) {
+            if (newUser.spouseBusinessType == BusinessType.EXEMPT) {
+                newUser.spouseVatReportingType = VATReportingType.NOT_REQUIRED;
+                newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            }
+            else if (newUser.spouseBusinessType == BusinessType.LICENSED) {
+                newUser.spouseVatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+                newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            }
+            else if (newUser.spouseBusinessType == BusinessType.COMPANY) {
+                newUser.spouseVatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+                newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+            }
+            else {
+                console.log("newUser.spouseBusinessType is none of the option, is ", newUser.spouseBusinessType);
+                //throw new Error('User business type is not valid');
+            }
+        } else if (newUser.spouseEmploymentStatus == EmploymentType.EMPLOYEE) {
+            newUser.spouseVatReportingType = VATReportingType.NOT_REQUIRED;
+            newUser.spouseTaxReportingType = TaxReportingType.NOT_REQUIRED;
         }
-        else if (newUser.businessType == BusinessType.COMPANY) {
-            console.log("newUser.businessType is COMPANY");
-            newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-            newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-        }
-        else {
-            console.log("newUser.businessType is none of the option, is ", newUser.businessType);
-            //throw new Error('User business type is not valid');
+
+        if (((newUser.employmentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.employmentStatus == EmploymentType.BOTH)) && 
+            ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH))) {
+            newUser.isTwoBusinessOwner = true;
         }
 
         const user = this.user_repo.create(newUser);
@@ -74,7 +111,6 @@ export class UsersService {
     async signin(token: string) {
         const firebaseId = await this.getFirbsaeIdByToken(token);
         const user = await this.findFireUser(firebaseId);
-        //console.log("debug token:\n", token);
         return user;
     }
 

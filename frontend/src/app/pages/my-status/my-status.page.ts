@@ -40,22 +40,10 @@ export class MyStatusPage {
     'פרטי העסק': {
       'שם העסק': 'businessName',
       'סוג העסק': 'businessType',
-      'מספר עוסק': 'businessId',
+      'מספר עוסק': 'businessNumber',
       'תאריך פתיחת העסק': 'businessDate'
     }
   };
-
-  // fieldMapping = {
-  //   'שם פרטי': 'fName',
-  //   'שם משפחה': 'lName',
-  //   'ת.ז': 'id',
-  //   'תאריך לידה': 'dateOfBirth',
-  //   'שם העסק': 'businessName',
-  //   'סוג העסק': 'businessType',
-  //   'מספר עוסק': 'businessId',
-  //   'תאריך פתיחת העסק': 'businessDate',
-  //   // Add more mappings as needed
-  // };
   
 
   onTabChange(newTabValue: string) {
@@ -137,7 +125,7 @@ export class MyStatusPage {
         fields: [
           { name: 'שם העסק', value: getUserData.businessName, type: 'input' },
           { name: 'סוג העסק', value: getUserData.businessType, type: 'select', options: businessTypeOptionsList},
-          { name: 'מספר עוסק', value: getUserData.businessId, type: 'input' },
+          { name: 'מספר עוסק', value: getUserData.businessNumber, type: 'input' },
           // { name: 'תאריך פתיחת העסק', value: this.dateService.convertTimestampToDateInput(getUserData.businessDate), type: 'input' },
           { name: 'תאריך פתיחת העסק', value: getUserData.businessDate, type: 'input' },
         ]
@@ -179,7 +167,7 @@ export class MyStatusPage {
     //     fields: [
     //       { name: 'שם העסק', value: getUserData.businessName },
     //       { name: 'סוג העסק', value: getUserData.businessType },
-    //       { name: 'מספר עוסק', value: getUserData.businessId },
+    //       { name: 'מספר עוסק', value: getUserData.businessNumber },
     //       { name: 'תאריך פתיחת העסק', value: getUserData.businessDate },
     //       { name: 'סוג דיווח למע"מ', value: getUserData.vatReportingType },
     //       { name: 'סוג דיווח מקדמות מס הכנסה', value: getUserData.taxReportingType },

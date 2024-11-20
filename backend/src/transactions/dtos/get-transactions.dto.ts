@@ -15,18 +15,6 @@ export class GetTransactionsDto {
     @IsNotEmpty()
     endDate: string;
 
-    // @IsString()
-    // @IsNotEmpty()
-    // year: string;
-
-    // @IsString()
-    // @IsNotEmpty()
-    // month: string;
-
-    // @IsBooleanString()
-    // @IsNotEmpty()
-    // isSingleMonth: boolean;
-
     @IsString()
     @IsNotEmpty()
     billId: string;

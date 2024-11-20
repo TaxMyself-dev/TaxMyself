@@ -16,7 +16,7 @@ export class UpdateUserDto {
   @IsOptional() @IsString() businessName?: string;
   @IsOptional() @IsString() businessField?: string;
   @IsOptional() @IsString() businessType?: string;
-  @IsOptional() @IsString() businessId?: string;
+  @IsOptional() @IsString() businessNumber?: string;
   @IsOptional() @IsBoolean() businessInventory?: boolean;
   @IsOptional() @IsDateString() businessDate?: string;
   @IsOptional() @IsBoolean() employee?: boolean;

@@ -71,7 +71,7 @@
             ></ionic-selectable>
           </ion-item>
           <!--------------- employee ------------->
-          <app-generic-select [controlName]="registerFormControls.EMPLOYEE" title="סטטוס תעסוקתי" [items]="employmentTypeOptionsList" [parentForm]="personalForm"></app-generic-select>
+          <app-generic-select [controlName]="registerFormControls.EMPLOYEMENTSTATUS" title="סטטוס תעסוקתי" [items]="employmentTypeOptionsList" [parentForm]="personalForm"></app-generic-select>
           <!--------- family status----->
           <app-generic-select [controlName]="registerFormControls.FAMILYSTATUS" title="מצב משפחתי" [items]="familyStatusOptionsList" [parentForm]="personalForm"></app-generic-select>
         </form>
@@ -91,7 +91,7 @@
           <!-----date of birth----->
           <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
           <!--------------- employee ------------->
-          <app-generic-select [controlName]="registerFormControls.SPOUSEINDEPENDET" title="סטטוס תעסוקתי" [items]="employmentTypeOptionsList" [parentForm]="spouseForm"></app-generic-select>
+          <app-generic-select [controlName]="registerFormControls.SPOUSEEMPLOYEMENTSTATUS" title="סטטוס תעסוקתי" [items]="employmentTypeOptionsList" [parentForm]="spouseForm"></app-generic-select>
         </form>
       </ng-container>
 
@@ -125,19 +125,29 @@
 
         <!-------------- BUSINESS MODULE ------------->
         <ng-container *ngSwitchCase="registerFormModules.BUSINESS">
-          <form *ngIf="businessForm" class="form-register" [formGroup]="businessForm">
-            <!-------Business name------>
+          <!-------Business name 1 ------>
+          <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
             <app-generic-input inputLabel="שם עסק" [controlName]="registerFormControls.BUSINESSNAME" [parentForm]="businessForm"></app-generic-input>
-            <!--------------- Business fields ------------->
-            <!-- <app-generic-select [controlName]="registerFormControls.BUSINESSFIELD" title="תחום העסק" [items]="listBusinessField" [parentForm]="businessForm"></app-generic-select> -->
             <!--------------- Business type ------------->
             <app-generic-select [controlName]="registerFormControls.BUSINESSTYPE" title="סוג העסק" [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select>
             <!-------Business id------>
-            <app-generic-input inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSID" [parentForm]="businessForm"></app-generic-input>
+            <app-generic-input inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSNUMBER" [parentForm]="businessForm"></app-generic-input>
             <!------- business date ----->
             <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input>
             <!------- business inventory ----->
             <app-generic-select [controlName]="registerFormControls.BUSINESSINVENTORY" title="האם העסק מנהל מלאי?" [items]="employeeList" [parentForm]="businessForm"></app-generic-select>
+          </form>
+          <!-------Business name 2 ------>
+          <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
+            <app-generic-input inputLabel="שם עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNAME" [parentForm]="businessForm"></app-generic-input>
+            <!--------------- Business type ------------->
+            <app-generic-select [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" title="סוג העסק" [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select>
+            <!-------Business id------>
+            <app-generic-input inputLabel="מספר עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER" [parentForm]="businessForm"></app-generic-input>
+            <!------- business date ----->
+            <app-generic-input [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.SPOUSEBUSINESSDATE" [parentForm]="businessForm"></app-generic-input>
+            <!------- business inventory ----->
+            <app-generic-select [controlName]="registerFormControls.SPOUSEBUSINESSINVENTORY" title="האם העסק מנהל מלאי?" [items]="employeeList" [parentForm]="businessForm"></app-generic-select>
           </form>
         </ng-container>
 

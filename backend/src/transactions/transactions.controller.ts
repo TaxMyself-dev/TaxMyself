@@ -118,15 +118,11 @@ export class TransactionsController {
     @Body() classifyDto: ClassifyTransactionDto,
     @Headers('token') token: string,
     @Query('startDate') startDate: string | Date,
-    // @Query('year') year: string,
     @Query('endDate') endDate: string | Date,
-    // @Query('month') month: string,
-    // @Query('isSingleMonth') isSingleMonth: boolean
   ): Promise<void> {
     startDate = this.sharedService.convertStringToDateObject(startDate);
     endDate = this.sharedService.convertStringToDateObject(endDate);
     const userId = await this.usersService.getFirbsaeIdByToken(token)
-    //const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
     return this.transactionsService.classifyTransaction(classifyDto, userId, startDate, endDate);
   }
 
@@ -158,7 +154,6 @@ export class TransactionsController {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    //const { startDate, endDate } = this.sharedService.getStartAndEndDate(query.year, query.month, query.isSingleMonth);
     return this.transactionsService.getTransactionsToBuildReport(userId, startDate, endDate);
 
   }

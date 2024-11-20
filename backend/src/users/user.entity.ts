@@ -5,15 +5,18 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType } from '../enum';
-import { UserCategory } from 'src/expenses/user-categories.entity';
 
 
 @Entity()
 export class User {
+
     @PrimaryGeneratedColumn()
     index: number;
+
+    ////////////////////////////////////
+    ///////// Personal details /////////
+    ////////////////////////////////////
 
     @Column()
     fName: string;
@@ -36,47 +39,6 @@ export class User {
     @Column()
     city: string;
 
-    @Column()
-    spouseFName: string;
-
-    @Column()
-    spouseLName: string;
-
-    @Column()
-    spouseId: string;
-
-    @Column('date')
-    spouseDateOfBirth: Date;
-
-    @Column()
-    spouseIndependet: boolean;
-
-    @Column()
-    firebaseId: string;
-
-    @Column()
-    businessName: string;
-
-    @Column()
-    businessField: string;
-
-    @Column({
-      type: 'enum',
-      enum: BusinessType,
-      enumName: 'BusinessType',
-      default: BusinessType.EXEMPT
-    })
-    businessType: BusinessType;
-
-    @Column()
-    businessId: string;
-
-    @Column()
-    businessInventory: boolean;
-
-    @Column('date')
-    businessDate: Date;
-
     @Column({
       type: 'enum',
       enum: EmploymentType,
@@ -93,6 +55,12 @@ export class User {
     })
     familyStatus: FamilyStatus;
 
+    @OneToMany(() => Bill, (bill) => bill.user)
+    bills: Bill[];
+
+    @Column()
+    isTwoBusinessOwner: boolean;
+
     @Column({
       type: 'enum',
       enum: UserRole,
@@ -100,6 +68,63 @@ export class User {
       default: UserRole.FREE_USER
     })
     role: UserRole;
+
+    @Column()
+    firebaseId: string;
+
+    ////////////////////////////////////
+    /////////   Spouse details  ////////
+    ////////////////////////////////////
+
+    @Column()
+    spouseFName: string;
+
+    @Column()
+    spouseLName: string;
+
+    @Column()
+    spouseId: string;
+
+    @Column('date')
+    spouseDateOfBirth: Date;
+
+    @Column()
+    spousePhone: string;
+
+    @Column({
+      type: 'enum',
+      enum: EmploymentType,
+      enumName: 'EmploymentType',
+      default: EmploymentType.SELF_EMPLOYED
+    })
+    spouseEmploymentStatus: EmploymentType;
+
+    ////////////////////////////////////
+    ////////  Buisness 1 details  //////
+    ////////////////////////////////////
+
+    @Column()
+    businessName: string;
+
+    @Column()
+    businessField: string;
+
+    @Column()
+    businessNumber: string;
+
+    @Column({
+      type: 'enum',
+      enum: BusinessType,
+      enumName: 'BusinessType',
+      default: BusinessType.EXEMPT
+    })
+    businessType: BusinessType;
+
+    @Column()
+    businessInventory: boolean;
+
+    @Column('date')
+    businessDate: Date;
 
     @Column({
       type: 'enum',
@@ -117,7 +142,47 @@ export class User {
     })
     taxReportingType: TaxReportingType;
 
-    @OneToMany(() => Bill, (bill) => bill.user)
-    bills: Bill[];
+    ////////////////////////////////////
+    ////////  Buisness 2 details  //////
+    ////////////////////////////////////
+
+    @Column()
+    spouseBusinessName: string;
+
+    @Column()
+    spouseBusinessField: string;
+
+    @Column()
+    spouseBusinessNumber: string;
+
+    @Column({
+      type: 'enum',
+      enum: BusinessType,
+      enumName: 'BusinessType',
+      default: BusinessType.EXEMPT
+    })
+    spouseBusinessType: BusinessType;
+
+    @Column()
+    spouseBusinessInventory: boolean;
+
+    @Column('date')
+    spouseBusinessDate: Date;
+
+    @Column({
+      type: 'enum',
+      enum: VATReportingType,
+      enumName: 'VATReportingType',
+      default: VATReportingType.NOT_REQUIRED
+    })
+    spouseVatReportingType: VATReportingType;
+
+    @Column({
+      type: 'enum',
+      enum: TaxReportingType,
+      enumName: 'TaxReportingType',
+      default: TaxReportingType.NOT_REQUIRED
+    })
+    spouseTaxReportingType: TaxReportingType;
 
 }

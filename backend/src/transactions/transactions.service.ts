@@ -574,7 +574,7 @@ export class TransactionsService {
     const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
-    console.log("incomeTransactions:\n", incomeTransactions)
+    //console.log("incomeTransactions:\n", incomeTransactions)
     return incomeTransactions;
 
   }
@@ -587,6 +587,26 @@ export class TransactionsService {
     const expenseTransactions = transactions.filter(transaction => transaction.sum < 0);
     //console.log("expenseTransactions:\n", expenseTransactions)
     return expenseTransactions;
+
+  }
+
+
+  async getTaxableIncomefromTransactions(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Number> {
+
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, billId);
+
+    // Filter transactions classified as "הכנסה מעסק"
+    const taxableIncomeTransactions = incomeTransactions.filter(transaction => 
+      transaction.category === "הכנסה מעסק"
+    );
+
+    // Calculate the total income
+    let totalBusinessIncome = 0;
+    for (const transaction of taxableIncomeTransactions) {
+      totalBusinessIncome += transaction.sum;
+    }
+    
+    return totalBusinessIncome;
 
   }
 
@@ -687,6 +707,7 @@ export class TransactionsService {
       expense.transId = transaction.id;
       expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
+      //expense.businessNumber = 
 
       // Save the updated transaction
       transaction.vatReportingDate = expense.vatReportingDate;
