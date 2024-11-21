@@ -16,6 +16,10 @@ export class VatReportRequestDto {
     @IsNotEmpty()
     endDate: string;
 
+    @IsString()
+    @IsNotEmpty()
+    businessNumber: string;
+
     @IsNotEmpty()
     @Validate(IsNumberString)
     vatableTurnover: number;

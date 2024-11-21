@@ -144,9 +144,9 @@ export class TransactionsController {
   }
 
 
-  @Get('get-transactions-to-build-report')
+  @Get('get-expenses-to-build-report')
   @UsePipes(new ValidationPipe({ transform: true }))
-  async getTransactionsToBuildReport(
+  async getExpensesToBuildReport(
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
@@ -154,7 +154,21 @@ export class TransactionsController {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    return this.transactionsService.getTransactionsToBuildReport(userId, startDate, endDate);
+    return this.transactionsService.getExpensesToBuildReport(userId, startDate, endDate);
+
+  }
+
+  @Get('get-incomes-to-build-report')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getIncomesToBuildReport(
+    @Query() query: GetTransactionsDto,
+    @Headers('token') token: string
+  ): Promise<Transactions[]> {
+    
+    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+    const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+    return this.transactionsService.getIncomesToBuildReport(userId, startDate, endDate);
 
   }
 

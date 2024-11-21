@@ -18,7 +18,7 @@ import { environment } from "src/environments/environment";
 
     getFlowReportData(startDate: string, endDate: string): Observable<any> {
       const token = localStorage.getItem('token');
-      const url = `${environment.apiUrl}transactions/get-transactions-to-build-report`;
+      const url = `${environment.apiUrl}transactions/get-expenses-to-build-report`;
       const headers = {
         'token': token
       }

@@ -28,6 +28,7 @@ export class ReportsService {
 
     async createVatReport(
         userId: string,
+        businessNumber: string,
         startDate: Date,
         endDate: Date,
         vatableTurnover: number,
@@ -43,7 +44,7 @@ export class ReportsService {
         };
     
         // Step 1: Fetch expenses using the function we wrote based on monthReport
-        const expenses = await this.expensesService.getExpensesForVatReport(userId, startDate, endDate);        
+        const expenses = await this.expensesService.getExpensesForVatReport(userId, businessNumber, startDate, endDate);        
     
         // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
         const regularExpenses = expenses.filter(expense => !expense.isEquipment);
@@ -74,6 +75,7 @@ export class ReportsService {
 
     async createPnLReport(
         firebaseId: string,
+        businessNumber: string,
         startDate: Date,
         endDate: Date
     ): Promise<PnLReportDto> {
@@ -95,7 +97,7 @@ export class ReportsService {
             totalIncome = totalIncome / 1.17;
         }
 
-        const expenses = await this.expensesService.getExpensesByDates(firebaseId, startDate, endDate);
+        const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDate);
 
         // Separate expenses into equipment and non-equipment categories
         const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);

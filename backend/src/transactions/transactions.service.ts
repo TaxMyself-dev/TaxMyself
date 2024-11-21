@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Between, Not, Brackets } from 'typeorm';
+import { Repository, In, Between, Not, Brackets, LessThan, MoreThan } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express'; 
 import { SourceType, VATReportingType} from 'src/enum';
@@ -461,6 +461,7 @@ export class TransactionsService {
 
 
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
+    
     const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
     if (!bill) {
       throw new Error('Bill not found');
@@ -628,32 +629,48 @@ export class TransactionsService {
   }
 
 
-  async getTransactionsToBuildReport(
+  async getExpensesToBuildReport(
     userId: string,
     startDate: Date,
     endDate: Date,
   ): Promise<Transactions[]> {
-  
-    const sixMonthsInMilliseconds = 6 * 30 * 24 * 60 * 60 * 1000;
-  
-    return await this.transactionsRepo
-      .createQueryBuilder('transactions')
-        .where('transactions.userId = :userId', { userId })
-        // Group the two conditions so they both apply to the same userId
-        .andWhere(
-          new Brackets(qb => {
-            qb.where(
-              '(transactions.billDate BETWEEN :startDate AND :endDate AND transactions.isRecognized = true)', 
-              { startDate, endDate }
-            )
-            //TODO: Need to Add here the condition of half year back && isRecognized && not reported!!!
-            // .orWhere(
-            //   '(transactions.billDate < :startDate AND transactions.billDate >= :halfYearBeforeStartDate AND transactions.vatReportingDate IS NULL)', 
-            //   { startDate, halfYearBeforeStartDate: startDate - sixMonthsInMilliseconds }
-            // );
-          })
-        )
-      .getMany();
+
+    const expenses = await this.transactionsRepo.find({
+      where: [
+        {
+          userId,
+          billDate: Between(startDate, endDate),
+          isRecognized: true,
+          sum: LessThan(0)
+        },
+      ]
+    });
+
+    return expenses;
+
+    //TODO: need to add here the expenses that were not reported yet but they in the range of the last half year.
+  }
+
+
+  async getIncomesToBuildReport(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Transactions[]> {
+
+    const incomes = await this.transactionsRepo.find({
+      where: [
+        {
+          userId,
+          billDate: Between(startDate, endDate),
+          isRecognized: true,
+          sum: MoreThan(0)
+        },
+      ]
+    });
+
+    return incomes;
+
   }
 
 

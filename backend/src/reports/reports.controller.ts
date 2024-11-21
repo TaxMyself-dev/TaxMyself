@@ -28,7 +28,7 @@ export class ReportsController {
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const vatReport = await this.reportsService.createVatReport(firebaseId, startDate, endDate, query.vatableTurnover, query.nonVatableTurnover);
+        const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate, query.vatableTurnover, query.nonVatableTurnover);
 
         return vatReport;
     }
@@ -45,7 +45,8 @@ export class ReportsController {
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const pnlReport = await this.reportsService.createPnLReport(firebaseId, startDate, endDate);
+        const businessNumber = "asjdlfj";
+        const pnlReport = await this.reportsService.createPnLReport(firebaseId, businessNumber, startDate, endDate);
 
         return pnlReport;
     }

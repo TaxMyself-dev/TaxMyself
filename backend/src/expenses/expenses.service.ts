@@ -404,9 +404,9 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
     }
 
 
-    async getExpensesForVatReport(userId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
+    async getExpensesForVatReport(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<Expense[]> {
 
-        let reportedExpenses = this.getExpensesByDates(userId, startDate, endDate);
+        let reportedExpenses = this.getExpensesByDates(userId, businessNumber, startDate, endDate);
 
         // // Valid months when isSingleMonth is false
         // const validMonths = [1, 3, 5, 7, 9, 11];        
@@ -436,10 +436,11 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
     }  
 
 
-    async getExpensesByDates(userId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
+    async getExpensesByDates(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<Expense[]> {
         return this.expense_repo.find({
             where: {
                 userId: userId,
+                businessNumber: businessNumber,
                 date: Between(startDate, endDate)
             }
         });
