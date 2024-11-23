@@ -40,4 +40,7 @@ export class ClassifyTransactionDto {
   @IsNumber()
   reductionPercent: number;
 
+  @IsBoolean()
+  isExpense?: boolean;
+
 }

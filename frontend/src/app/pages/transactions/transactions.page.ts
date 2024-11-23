@@ -558,7 +558,8 @@ export class TransactionsPage implements OnInit {
       component: AddTransactionComponent,
       componentProps: {
         date: this.dateForUpdate,
-        data: {event,isExpense}
+        data: event,
+        incomeMode: !isExpense
       },
       cssClass: 'expense-modal'
     }))

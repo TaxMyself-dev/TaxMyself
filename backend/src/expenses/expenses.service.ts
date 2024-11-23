@@ -168,6 +168,7 @@ export class ExpensesService {
           category = new UserCategory();
           category.categoryName = createUserCategoryDto.categoryName;
           category.firebaseId = firebaseId;
+          category.isExpense = createUserCategoryDto.isExpense;
           category = await this.userCategoryRepo.save(category);
         }
 

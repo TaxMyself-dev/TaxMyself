@@ -96,14 +96,16 @@ export class ExpensesController {
   @Get('get-categories')
   async getCategories(
     @Headers('token') token: string,
-    @Query('isDefault') isDefault: string
+    @Query('isDefault') isDefault: string,
+    @Query('isExpense') isExpense: string,
   ): Promise<any[]> {
     console.log("get-categories");
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
     const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
-    const isExpense = true;
+    const isExpenseValue = isExpense === 'true' ? true : isExpense === 'false' ? false : null;
+    //const isExpense = true;
 
-    return this.expensesService.getCategories(isDefaultValue, isExpense, firebaseId);
+    return this.expensesService.getCategories(isDefaultValue, isExpenseValue, firebaseId);
   }
 
 
@@ -111,6 +113,7 @@ export class ExpensesController {
   async getSubCategories(
     @Headers('token') token: string,
     @Query('isEquipment') isEquipment: string,
+    @Query('isExpense') isExpense: string,
     @Query('categoryName') categoryName: string
   ): Promise<any[]> {
 
@@ -118,10 +121,13 @@ export class ExpensesController {
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
-    const isExpense = true;
+    const isExpenseValue = isExpense === 'true' ? true : isExpense === 'false' ? false : null;
+    //const isExpense = true;
+    console.log("isExpense: ", isExpenseValue);
+    
 
     // Call the service method to get the sub-categories
-    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpense, categoryName);
+    return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpenseValue, categoryName);
   }
 
 

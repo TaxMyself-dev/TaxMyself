@@ -17,7 +17,34 @@ export class AddTransactionComponent implements OnInit {
 
   @Input() date: any;
   @Input() data: any;
+  @Input() set incomeMode(val: boolean) {
+    if (val) {
+      this.notBussinesCategoryTitle = "ההכנסה אינה הכנסה מעסק";
+      this.isBussinesCategoryTitle = "ההכנסה הינה הכנסה מעסק";
+      this.newCategoryIsRecognizeForm.get('category')?.setValue("הכנסה מעסק")
+    }
+    else {
+      this.notBussinesCategoryTitle = "ההוצאה אינה הוצאה מוכרת";
+      this.isBussinesCategoryTitle = "ההוצאה הינה הוצאה מוכרת";
+      this.newCategoryIsRecognizeForm.get('isEquipment')?.setValidators([Validators.required]);
+      this.newCategoryIsRecognizeForm.get('taxPercent')?.setValidators([Validators.required]);
+      this.newCategoryIsRecognizeForm.get('vatPercent')?.setValidators([Validators.required]);
+      this.newCategoryIsRecognizeForm.get('reductionPercent')?.setValidators([Validators.required]);
+      // this.newCategoryIsRecognizeForm.addControl('isEquipment', new FormControl('', [Validators.required]));
+      // this.newCategoryIsRecognizeForm.addControl('taxPercent', new FormControl('', [Validators.required]));
+      // this.newCategoryIsRecognizeForm.addControl('vatPercent', new FormControl('', [Validators.required]));
+      // this.newCategoryIsRecognizeForm.addControl('reductionPercent', new FormControl('', [Validators.required]));
+    }
+    this.isIncomeMode = val;
+  }
 
+  get incomeMode(): boolean {
+    return this.isIncomeMode;
+  }
+
+  isIncomeMode: boolean = false;
+  isBussinesCategoryTitle: string;
+  notBussinesCategoryTitle: string;
   existCategory: boolean = true;
   existCategoryEquipmentForm: FormGroup;
   existCategoryNotEquipmentForm: FormGroup;
@@ -29,7 +56,7 @@ export class AddTransactionComponent implements OnInit {
   listSubCategory: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[] = [];
   subCategorySelected: boolean = false;
-  categoryDetails: IGetSubCategory = {id: 0, categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: ""};;
+  categoryDetails: IGetSubCategory = { id: 0, categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: "" };;
   equipmentType = 0;
   isRecognize: boolean = false;
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
@@ -52,16 +79,13 @@ export class AddTransactionComponent implements OnInit {
       subCategory: new FormControl(
         '', [Validators.required,]
       ),
-      // isEquipment: new FormControl(
-      //   false, [Validators.required,]
-      // )
     })
 
     this.newCategoryIsRecognizeForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         '', [Validators.required,]
       ),
-      isRecognize: new FormControl(
+      isRecognized: new FormControl(
         true
       ),
       category: new FormControl(
@@ -88,7 +112,7 @@ export class AddTransactionComponent implements OnInit {
       isSingleUpdate: new FormControl(
         '', [Validators.required,]
       ),
-      isRecognize: new FormControl(
+      isRecognized: new FormControl(
         false
       ),
       category: new FormControl(
@@ -104,8 +128,8 @@ export class AddTransactionComponent implements OnInit {
   ngOnInit() {
     this.getCategory();
     console.log(this.data);
-    console.log(this.date);
-    
+    console.log(this.incomeMode);
+
   }
 
   segmentClicked(event): void {
@@ -114,7 +138,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   getCategory(): void {
-    this.expenseDataServise.getcategry(null)
+    this.expenseDataServise.getcategry(null, !this.incomeMode)
       .pipe(
         map((res) => {
           return res.map((item: any) => ({
@@ -134,8 +158,8 @@ export class AddTransactionComponent implements OnInit {
     this.combinedListSubCategory = [];
     console.log(event.value);
 
-    const isEquipmentSubCategory = this.expenseDataServise.getSubCategory(event.value, true);
-    const notEquipmentSubCategory = this.expenseDataServise.getSubCategory(event.value, false);
+    const isEquipmentSubCategory = this.expenseDataServise.getSubCategory(event.value, true, !this.incomeMode);
+    const notEquipmentSubCategory = this.expenseDataServise.getSubCategory(event.value, false, !this.incomeMode);
 
     zip(isEquipmentSubCategory, notEquipmentSubCategory)
       .pipe(
@@ -174,9 +198,9 @@ export class AddTransactionComponent implements OnInit {
             isEquipmentSubCategoryList ? this.combinedListSubCategory.push(...isEquipmentSubCategoryList) : this.combinedListSubCategory.push(...notEquipmentSubCategoryList);
           }
           console.log(this.combinedListSubCategory);
-          
+
           // return this.combinedListSubCategory.map((item: I) => {
-            
+
           // })
           return this.combinedListSubCategory;
         })
@@ -195,17 +219,17 @@ export class AddTransactionComponent implements OnInit {
       this.subCategorySelected = true;
       const categoryDetailsFromServer: IGetSubCategory = this.originalSubCategoryList?.find((item) => item.subCategoryName === event.value);
       console.log("categoryDetailsFromServer :", categoryDetailsFromServer);
-      
-     this.categoryDetails.id = categoryDetailsFromServer?.id; 
-     this.categoryDetails.categoryName = categoryDetailsFromServer?.categoryName;
-     this.categoryDetails.reductionPercent = categoryDetailsFromServer?.reductionPercent;
-     this.categoryDetails.subCategoryName = categoryDetailsFromServer?.subCategoryName;
-     this.categoryDetails.taxPercent = categoryDetailsFromServer?.taxPercent;
-     this.categoryDetails.vatPercent = categoryDetailsFromServer?.vatPercent;
-    categoryDetailsFromServer?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
-    categoryDetailsFromServer?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
-    console.log("category details: ", this.categoryDetails);
-    
+
+      this.categoryDetails.id = categoryDetailsFromServer?.id;
+      this.categoryDetails.categoryName = categoryDetailsFromServer?.categoryName;
+      this.categoryDetails.reductionPercent = categoryDetailsFromServer?.reductionPercent;
+      this.categoryDetails.subCategoryName = categoryDetailsFromServer?.subCategoryName;
+      this.categoryDetails.taxPercent = categoryDetailsFromServer?.taxPercent;
+      this.categoryDetails.vatPercent = categoryDetailsFromServer?.vatPercent;
+      categoryDetailsFromServer?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
+      categoryDetailsFromServer?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
+      console.log("category details: ", this.categoryDetails);
+
     }
     else {
       this.categoryDetails = this.originalSubCategoryList.find((item) => item.subCategoryName === event.value);
@@ -246,11 +270,15 @@ export class AddTransactionComponent implements OnInit {
   addClasssificationExistCategory(): void {
     this.generivService.getLoader().subscribe();
     let formData: IClassifyTrans;
+    // if (this.incomeMode) {
+    //   formData = this.existCategoryEquipmentForm.value;
+    
+    // }
     formData = this.existCategoryEquipmentForm.value;
-    formData.id = this.data.event.id;
-    formData.billName = this.data.event.billName;
-    formData.name = this.data.event.name;
-    formData.category = this.categoryDetails.categoryName as string ;
+    formData.id = this.data.id;
+    formData.billName = this.data.billName;
+    formData.name = this.data.name;
+    formData.category = this.categoryDetails.categoryName as string;
     formData.subCategory = this.categoryDetails.subCategoryName;
     formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
     formData.vatPercent = +this.categoryDetails.vatPercent;
@@ -258,6 +286,7 @@ export class AddTransactionComponent implements OnInit {
     formData.isEquipment = this.categoryDetails.isEquipment == "כן" ? true : false;;
     formData.reductionPercent = +this.categoryDetails.reductionPercent;
     formData.isNewCategory = false;
+    formData.isExpense = !this.incomeMode;
 
     console.log(formData);
     this.transactionsService.addClassifiction(formData, this.date)
@@ -277,29 +306,46 @@ export class AddTransactionComponent implements OnInit {
   addClasssificationNewCategory(): void {
     this.generivService.getLoader().subscribe()
     let formData: IClassifyTrans;
-    if (this.isRecognize) {
-      formData = this.newCategoryIsRecognizeForm.value;
-      formData.isEquipment === 1 ? formData.isEquipment = true : formData.isEquipment = false; 
-      formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false; 
-      formData.taxPercent = +formData.taxPercent;
-      formData.vatPercent = +formData.vatPercent;
-      formData.reductionPercent = +formData.reductionPercent;
-    }
-    else {
-      formData = this.newCategoryNotRecognizedForm.value;
-      formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false; 
+    if (this.incomeMode) {
+      // if (this.isRecognize) {
+      formData = this.newCategoryIsRecognizeForm.getRawValue();
+      formData.isExpense = false;
+      formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false;
       formData.vatPercent = 0;
       formData.taxPercent = 0;
       formData.reductionPercent = 0;
       formData.isEquipment = false;
-      formData.isRecognized = false;
-
-
+      console.log("form data income mode: ", formData);
+      // }
     }
+    else {
+      formData = this.newCategoryIsRecognizeForm.value;
+      if (this.isRecognize) {
+        formData.isExpense = true;
+        formData.isEquipment === 1 ? formData.isEquipment = true : formData.isEquipment = false;
+        formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false;
+        formData.taxPercent = +formData.taxPercent;
+        formData.vatPercent = +formData.vatPercent;
+        formData.reductionPercent = +formData.reductionPercent;
+      }
+      else {
+        formData = this.newCategoryNotRecognizedForm.value;
+        formData.isExpense = true;
+        formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false;
+        formData.vatPercent = 0;
+        formData.taxPercent = 0;
+        formData.reductionPercent = 0;
+        formData.isEquipment = false;
+        //formData.isRecognized = false;
+
+
+      }
+    }
+    // same values for all forms
     formData.isNewCategory = true;
-    formData.id = this.data.event.id;
-    formData.billName = this.data.event.billName;
-    formData.name = this.data.event.name;
+    formData.id = this.data.id;
+    formData.billName = this.data.billName;
+    formData.name = this.data.name;
     console.log(formData);
     this.transactionsService.addClassifiction(formData, this.date)
       .pipe(

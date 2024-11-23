@@ -180,6 +180,7 @@ export interface IClassifyTrans {
   taxPercent: number;
   isEquipment: boolean | number;
   reductionPercent: number;
+  isExpense: boolean
 }
 
 export interface ISelectItem {

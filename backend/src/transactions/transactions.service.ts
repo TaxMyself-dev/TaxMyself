@@ -280,9 +280,8 @@ export class TransactionsService {
 
   async classifyTransaction(classifyDto: ClassifyTransactionDto, userId: string, startDate: Date, endDate: Date): Promise<void> {
 
-    const {id, isSingleUpdate, isNewCategory, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
-    let transactions: Transactions[];
-
+    const {isExpense, id, isSingleUpdate, isNewCategory, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
+    let transactions: Transactions[];    
     // Add new user category if isNewCategory is true
     if (isNewCategory) {
       try {
@@ -295,7 +294,8 @@ export class TransactionsService {
           vatPercent,
           reductionPercent,
           isEquipment,
-          isRecognized
+          isRecognized,
+          isExpense
         };
         await this.expenseService.addUserCategory(userId, categoryData);
       } catch (error) {
