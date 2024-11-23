@@ -45,16 +45,16 @@ export class ReportsController {
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const businessNumber = "asjdlfj";
+        const businessNumber = "304902133";
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, businessNumber, startDate, endDate);
 
         return pnlReport;
     }
 
     
-    @Get('tax-report')
-    async getTaxReport(){
-        const reductionReport = await this.reportsService.createReductionReport("L5gJkrdQZ5gGmte5XxRgagkqpOL2", 2023);
-    }
+    // @Get('tax-report')
+    // async getTaxReport(){
+    //     const reductionReport = await this.reportsService.createReductionReport("L5gJkrdQZ5gGmte5XxRgagkqpOL2", 2023);
+    // }
 
 }

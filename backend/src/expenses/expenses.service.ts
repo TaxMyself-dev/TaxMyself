@@ -447,6 +447,18 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
     }
 
 
+    async getEquipmentExpensesByDates(userId: string, businessNumber: string, startDate: Date, endDate: Date, isEquipment: boolean): Promise<Expense[]> {
+        return this.expense_repo.find({
+            where: {
+                userId: userId,
+                businessNumber: businessNumber,
+                isEquipment: isEquipment,
+                date: Between(startDate, endDate)
+            }
+        });
+    }
+
+
     findOne(id: number) {
         if (!id) {
             return null;

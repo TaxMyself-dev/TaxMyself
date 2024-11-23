@@ -55,7 +55,6 @@ export class PnLReportPage implements OnInit {
   ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
-  //report?: any;
   pnlReport?: any;
   displayExpenses: boolean = false;
   reportClick: boolean = true;
@@ -68,7 +67,9 @@ export class PnLReportPage implements OnInit {
   rows: IRowDataTable[] = [];
   messageToast: string;
   isToastOpen: boolean;
-  isSkip: boolean = false
+  isSkip: boolean = false;
+  startDate: string;
+  endDate: string;
 
 
   reportOrder: string[] = [
@@ -122,6 +123,8 @@ export class PnLReportPage implements OnInit {
     this.reportClick = false;
     this.setRowsData();
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+    this.startDate = startDate;
+    this.endDate = endDate;
     this.getPnLReportData(startDate, endDate);
   }
 

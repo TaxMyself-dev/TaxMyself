@@ -143,7 +143,7 @@ export class ReportsService {
     }
         
 
-    async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {
+    async createReductionReportt(userId: string, year: number): Promise<ReductionReportDto[]> {
 
         const startDate = new Date(year, 0, 1); // 1st January of the year
         const endDate = new Date(year, 11, 31); // 31st December of the year
@@ -172,6 +172,36 @@ export class ReportsService {
         return reductionList;
 
     }
+
+    // async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {
+
+    //     const startDate = new Date(year, 0, 1); // 1st January of the year
+    //     const endDate = new Date(year, 11, 31); // 31st December of the year
+    
+    //     const expenses = await this.expenseRepo
+    //       .createQueryBuilder("expense")
+    //       .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
+    //       .where("expense.userId = :userId", { userId })
+    //       .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
+    //       .andWhere("expense.dateTimestamp BETWEEN :startDate AND :endDate", { startDate, endDate })
+    //       .getMany();
+
+    //     console.log(expenses);
+    //     const reductionList =  expenses.map(expense => {
+    //         const calculatedValue = expense.sum * (expense.reductionPercent / 100);
+    //         return {
+    //             category: expense.category,
+    //             billDate: expense.date,
+    //             activeDate: expense.date,
+    //             redunctionPercnet: expense.reductionPercent,
+    //             redunctionForPeriod: calculatedValue
+    //         } as unknown as ReductionReportDto;
+    //       });
+
+    //     console.log("reductionList:", reductionList);
+    //     return reductionList;
+
+    // }
 
     
 }

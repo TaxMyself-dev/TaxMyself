@@ -1,5 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { FormGroup } from '@angular/forms';
+import { ReportingPeriodType } from '../enums';
 
 @Component({
   selector: 'app-select-month',
@@ -41,7 +42,11 @@ export class SelectMonthComponent {
   constructor() { }
 
   get month(): ({value: string | number; name: string | number;})[] {
-    return this.parentForm?.get('isSingleMonth')?.value === true ? this.singleMonths : this.doubleMonths;
-  } 
+    if (this.parentForm?.get('reportingPeriodType')?.value === ReportingPeriodType.MONTHLY) {
+      return this.singleMonths;
+    }
+    else return this.doubleMonths;
+  }
+
 }
 

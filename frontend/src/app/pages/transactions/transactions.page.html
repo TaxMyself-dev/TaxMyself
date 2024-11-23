@@ -51,7 +51,10 @@
 <ng-template #searchBarContent>
   <form class="generic-search-bar-content" [formGroup]="transactionsForm">
     <app-select-report-period [parentForm]="transactionsForm"></app-select-report-period>
-    <app-select-month *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="transactionsForm"></app-select-month>
+    <app-select-month 
+    *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
+           this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="transactionsForm">
+    </app-select-month>
     <app-select-year *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="transactionsForm"></app-select-year>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="transactionsForm"></app-sort-date>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="transactionsForm"></app-sort-date>
