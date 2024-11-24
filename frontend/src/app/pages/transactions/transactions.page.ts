@@ -102,7 +102,7 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.ACTIONS, 1],
   ]);
 
-  readonly COLUMNS_TO_IGNORE_EXPENSES = ['id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  readonly COLUMNS_TO_IGNORE_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly COLUMNS_TO_IGNORE_INCOMES = ['id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;

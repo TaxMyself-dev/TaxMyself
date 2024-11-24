@@ -1,6 +1,6 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
-import { IColumnDataTable, IRowDataTable } from './shared/interface';
+import { IColumnDataTable, IRowDataTable, IUserDate } from './shared/interface';
 import { Location } from '@angular/common';
 import { LoadingController, ModalController, PopoverController } from '@ionic/angular';
 import { AuthService } from './services/auth.service';
@@ -40,7 +40,7 @@ export class AppComponent implements OnInit {
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
-  userData: any;
+  userData: IUserDate;
   isUserAdmin: boolean = false; 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private loadingController: LoadingController) { };
 

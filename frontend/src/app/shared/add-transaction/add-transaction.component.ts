@@ -270,10 +270,6 @@ export class AddTransactionComponent implements OnInit {
   addClasssificationExistCategory(): void {
     this.generivService.getLoader().subscribe();
     let formData: IClassifyTrans;
-    // if (this.incomeMode) {
-    //   formData = this.existCategoryEquipmentForm.value;
-
-    // }
     formData = this.existCategoryEquipmentForm.value;
     formData.id = this.data.id;
     formData.billName = this.data.billName;

@@ -9,6 +9,7 @@ import { sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
+import { IUserDate } from '../shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -65,7 +66,7 @@ export class AuthService {
     );
   }
 
-  getUserDataFromLocalStorage(): any {
+  getUserDataFromLocalStorage(): IUserDate {
     const tempA = localStorage.getItem('userData');
     return JSON.parse(tempA)
   }

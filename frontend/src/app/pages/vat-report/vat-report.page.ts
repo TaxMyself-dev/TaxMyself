@@ -6,13 +6,14 @@ import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switc
 import { FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserDate } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
 import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
+import { AuthService } from 'src/app/services/auth.service';
 
 
 interface ReportData {
@@ -37,7 +38,7 @@ export class VatReportPage implements OnInit {
   readonly ButtonSize = ButtonSize;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
-  readonly COLUMNS_TO_IGNORE = ['id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
+  readonly COLUMNS_TO_IGNORE = ['businessNumber','id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
   
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
@@ -55,7 +56,6 @@ export class VatReportPage implements OnInit {
   report?: ReportData;
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
-  // token: string;
   reportClick: boolean = true;
   tableActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
@@ -66,7 +66,9 @@ export class VatReportPage implements OnInit {
   rows: IRowDataTable[] = [];
   messageToast: string;
   isToastOpen: boolean;
-  isSkip: boolean = false
+  isSkip: boolean = false;
+  userData: IUserDate;
+  businessNames: ISelectItem[] = [];
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
                       { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
 
@@ -103,7 +105,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, private authService: AuthService) {
     this.vatReportForm = this.formBuilder.group({
       vatableTurnover: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
@@ -125,13 +127,35 @@ export class VatReportPage implements OnInit {
       ),
       endDate: new FormControl(
         Date,
-      )
+      ),
+      businessNumber: new FormControl(
+        '',
+      ),
     })
   }
 
 
   ngOnInit() {
     this.setTableActions()
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    if (this.userData.isTwoBusinessOwner) {
+      this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+      this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
+      //this.vatReportForm.get('businessNumber')?.patchValue("");
+    }
+    else {
+      console.log("user data: ", this.userData, "business number: ", this.userData.businessNumber);
+      
+      this.vatReportForm.get('businessNumber')?.patchValue(this.userData.businessNumber);
+      console.log(this.vatReportForm.get('businessNumber')?.value);
+      
+    }
+  }
+
+  selectBusiness(): void {
+    console.log("form: ", this.vatReportForm.value);
+    
   }
 
   private setTableActions(): void {
@@ -246,16 +270,18 @@ export class VatReportPage implements OnInit {
 
   onSubmit() {
     const formData = this.vatReportForm.value;
+    console.log("form data in vat report to send: ", formData);
+    
     this.reportClick = false;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    this.getVatReportData(startDate, endDate, formData.vatableTurnover, formData.nonVatableTurnover);
+    this.getVatReportData(startDate, endDate, formData.vatableTurnover, formData.nonVatableTurnover, formData.businessNumber);
     this.setRowsData();
 
   }
 
-  async getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number) {
+  async getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number , businessNumber: string) {
 
-    this.vatReportService.getVatReportData(startDate, endDate, vatableTurnover, nonVatableTurnover)
+    this.vatReportService.getVatReportData(startDate, endDate, vatableTurnover, nonVatableTurnover, businessNumber)
       .subscribe((res) => {
         this.report = res;
       });
@@ -268,11 +294,12 @@ export class VatReportPage implements OnInit {
 
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
 
-    this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate)
+    this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate, formData.businessNumber)
       .pipe(
         map((data) => {
           const rows = [];
-
+          console.log("data of table in vat report: ", data);
+          
           data.forEach(row => {
             const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
             if (row.file != undefined && row.file != null && row.file != "" ) {

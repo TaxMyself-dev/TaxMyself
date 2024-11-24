@@ -28,7 +28,7 @@
       <div *ngIf="displayExpenses"  class="table-wrapper">
         <app-table [actionsToIgnore]="ACTIONS_TO_IGNORE" (onBeforeSelectFile)="beforeSelectFile($event)" [beforeFile]="true" [actions]="tableActions" [columnsToIgnore]="COLUMNS_TO_IGNORE" [fieldsNames]="fieldsNamesToShow" [rows]="items" [columnsWidth]="COLUMNS_WIDTH" [columnsOrderByFunc]="columnsOrderByFunc" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
       </div>
-      <app-button (onButtonClicked)="addFileToExpense()" [buttonSize]="ButtonSize.SMALL" [buttonText]="'העלה קבצים'" [disabled]="!(arrayFile?.length > 0)"></app-button>
+      <app-button *ngIf="displayExpenses" (onButtonClicked)="addFileToExpense()" [buttonSize]="ButtonSize.SMALL" [buttonText]="'העלה קבצים'" [disabled]="!(arrayFile?.length > 0)"></app-button>
     </ng-container>
   </div>
 
@@ -36,13 +36,14 @@
 
 <ng-template #vatReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="vatReportForm">
-    <app-select-report-period [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm"></app-select-report-period>
+    <app-select-report-period [className]="'narrow'" [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm"></app-select-report-period>
     <app-select-month [parentForm]="vatReportForm"></app-select-month>
     <app-select-year [parentForm]="vatReportForm"></app-select-year>
     <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'"
       [parentForm]="vatReportForm"></app-generic-input>
     <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'"
       [parentForm]="vatReportForm"></app-generic-input>
+      <app-generic-select *ngIf="userData.isTwoBusinessOwner" (selectionChanged)="selectBusiness()" [items]="businessNames" [parentForm]="vatReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select>
   </form>
 </ng-template>
 

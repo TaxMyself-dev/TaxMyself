@@ -146,7 +146,7 @@ export class PnLReportPage implements OnInit {
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.pnlReportForm.value;
-    this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month)
+    this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month, '123123133')
       .pipe(
         map((data) => {
           const rows = [];

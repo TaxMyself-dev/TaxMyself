@@ -1,5 +1,43 @@
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
 
+export interface IUserDate {
+    businessDate: string;
+    businessField: string;
+    businessInventory: boolean;
+    businessName: string;
+    businessNumber: string;
+    businessType: string;
+    city: string;
+    dateOfBirth: string;
+    email: string;
+    employmentStatus: string;
+    fName: string;
+    familyStatus : string;
+    firebaseId: string;
+    id: string;
+    index: number;
+    isTwoBusinessOwner: boolean;
+    lName: string;
+    phone: string;
+    role: string;
+    spouseBusinessDate: string;
+    spouseBusinessField: string;
+    spouseBusinessInventory: boolean;
+    spouseBusinessName: string;
+    spouseBusinessNumber: string;
+    spouseBusinessType: string;
+    spouseDateOfBirth: string;
+    spouseEmploymentStatus: string;
+    spouseFName: string;
+    spouseId: string;
+    spouseLName: string;
+    spousePhone: string;
+    spouseTaxReportingType: string;
+    spouseVatReportingType: string;
+    taxReportingType: string;
+    vatReportingType: string;
+}
+
 export interface IRowDataTable {
     [key: string]: string | number | Date | boolean | ISelectItem;
 }
@@ -23,14 +61,14 @@ export interface ISuppliers {
     vatPercent: string
 }
 
-export interface IChildren{
+export interface IChildren {
     fName: string,
     lName: string,
     id: string,
     dateOfBirth: string
 };
 
-export interface IItemNavigate{
+export interface IItemNavigate {
     name: string,
     icon: string,
     index: string,
@@ -52,7 +90,7 @@ export interface IVatReportTableData {
     [key: string]: string | number;
 };
 
-export interface ISortDate{
+export interface ISortDate {
     month?: number[];
     year?: number;
 }
@@ -102,8 +140,8 @@ export interface User {
     displayName: string;
     photoURL: string;
     emailVerified: boolean;
- }
- export interface ICreateSupplier{
+}
+export interface ICreateSupplier {
     category: string,
     subCategory: string,
     supplier: string,
@@ -117,7 +155,7 @@ export interface User {
 
 export interface ICheckboxCellData {
     columnName: string,
-     
+
 }
 
 export interface ICityData {
@@ -168,23 +206,23 @@ export interface IButtons {
 }
 
 export interface IClassifyTrans {
-  id: number;
-  isSingleUpdate: boolean | number;
-  isNewCategory: boolean;
-  name: string;
-  billName: string;
-  category: string;
-  subCategory: string;
-  isRecognized: boolean | number;
-  vatPercent: number;
-  taxPercent: number;
-  isEquipment: boolean | number;
-  reductionPercent: number;
-  isExpense: boolean
+    id: number;
+    isSingleUpdate: boolean | number;
+    isNewCategory: boolean;
+    name: string;
+    billName: string;
+    category: string;
+    subCategory: string;
+    isRecognized: boolean | number;
+    vatPercent: number;
+    taxPercent: number;
+    isEquipment: boolean | number;
+    reductionPercent: number;
+    isExpense: boolean
 }
 
 export interface ISelectItem {
-    value: string | number | boolean; 
-    name: string | number; 
+    value: string | number | boolean;
+    name: string | number;
     disable?: boolean
 }

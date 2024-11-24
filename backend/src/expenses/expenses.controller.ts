@@ -64,8 +64,7 @@ export class ExpensesController {
     const firebaseId = await this.usersService.getFirbsaeIdByToken(token);    
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    const businessNumber = "304902133";
-    return await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);
+    return await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
   }
 
 

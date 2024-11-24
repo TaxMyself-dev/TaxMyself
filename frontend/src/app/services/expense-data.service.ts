@@ -80,7 +80,7 @@ export class ExpenseDataService {
     return this.http.get<IRowDataTable[]>(url, { headers: headers });
   }
 
-  getExpenseForVatReport(startDate: string, endDate: string): Observable<IRowDataTable[]> {
+  getExpenseForVatReport(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}expenses/get-expenses-for-vat-report`;
     const token = localStorage.getItem('token');
     const headers = {
@@ -88,7 +88,8 @@ export class ExpenseDataService {
     }
     const params = new HttpParams()
       .set('startDate', startDate)
-      .set('endDate', endDate);
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber)
     return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
   }
 
