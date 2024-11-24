@@ -97,11 +97,16 @@ export class Expense {
     const purchaseYear = validDate.getFullYear();
     const purchaseMonth = validDate.getMonth() + 1; // Month is zero-based, so add 1
     // Determine total years required to fully apply reduction
-    const fullReductionYears = Math.ceil(100 / this.reductionPercent);
-    // Check if the purchase date is not at the start of the year
-    const isPartialYear = purchaseMonth > 1 || this.date.getDate() > 1;
-    // Calculate the last reduction year
-    this.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
+    if (this.reductionPercent) {
+      const fullReductionYears = Math.ceil(100 / this.reductionPercent);
+      // Check if the purchase date is not at the start of the year
+      const isPartialYear = purchaseMonth > 1 || this.date.getDate() > 1;
+      // Calculate the last reduction year
+      this.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
+    }
+    else {
+      this.reductionDone = 0;
+    }
 
   }
 
