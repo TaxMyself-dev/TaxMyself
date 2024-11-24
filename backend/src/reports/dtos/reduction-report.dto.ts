@@ -3,18 +3,18 @@ import { IsDateString, IsNotEmpty} from 'class-validator';
 export class ReductionReportDto {
 
     @IsNotEmpty()
-    category: string;
+    name: string;
 
     @IsNotEmpty()
-    billDate: string;
+    date: Date;
 
     @IsNotEmpty()
-    activeDate: string;
+    redunctionPercent: string;
 
     @IsNotEmpty()
-    redunctionPercnet: string;
+    currentRedunction: number;
 
     @IsNotEmpty()
-    redunctionForPeriod: string;
+    pastRedunction: number;
 
 }

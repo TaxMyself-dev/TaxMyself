@@ -483,9 +483,10 @@ export class TransactionsService {
 
 
   private async updateBillNameInTransactions(sourceName: string, billName: string, userId: string): Promise<void> {
+    const businessNumber = await this.getBusinessNumberByBillName(userId, billName);
     await this.transactionsRepo.update(
       { userId, paymentIdentifier: sourceName },
-      { billName }
+      { billName, businessNumber }
     );
   }
 
@@ -563,6 +564,7 @@ export class TransactionsService {
 
     // Get all paymentIdentifiers for all bills
     const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+    console.log("allBills are ", allBills);
     allBills.forEach(bill => {
       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
     });

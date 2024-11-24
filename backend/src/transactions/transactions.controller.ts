@@ -102,7 +102,7 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
-    
+
     query.billId === 'null' ? null : parseInt(query.billId, 10);
   
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);

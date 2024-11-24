@@ -11,7 +11,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VAT_RATE_2023 } from '../constants';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType } from 'src/enum';
+import { BusinessType} from 'src/enum';
 
 
 
@@ -81,7 +81,7 @@ export class ReportsService {
     ): Promise<PnLReportDto> {
 
         const user = await this.userRepo.findOne({ where: { firebaseId } });
-
+        const year = startDate.getFullYear();
 
         console.log("reports.service - pnl-report start");
 
@@ -128,6 +128,8 @@ export class ReportsService {
             totalExpenses += expense.total;
         }
 
+        const reducionExpenses = this.createReductionReport(firebaseId, businessNumber, year);
+
         // Calculate net profit before tax
         const netProfitBeforeTax = totalIncome - totalExpenses;
 
@@ -143,70 +145,114 @@ export class ReportsService {
     }
         
 
-    async createReductionReportt(firebaseId: string, businessNumber: string, year: number): Promise<ReductionReportDto[]> {
-
-        const startDate = new Date(year, 0, 1); // 1st January of the year
-        const endDate = new Date(year, 11, 31); // 31st December of the year
+    async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<ReductionReportDto[]> {
 
         const expenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
 
-
-        //const expenses = await getExpensesForReductionReport
-    
-        // const expenses = await this.expenseRepo
-        //   .createQueryBuilder("expense")
-        //   .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
-        //   .where("expense.userId = :userId", { userId })
-        //   .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
-        //   .andWhere("expense.dateTimestamp BETWEEN :startDate AND :endDate", { startDate, endDate })
-        //   .getMany();
-
-        console.log(expenses);
-        const reductionList =  expenses.map(expense => {
-            const calculatedValue = expense.sum * (expense.reductionPercent / 100);
-            return {
-                category: expense.category,
-                billDate: expense.date,
-                activeDate: expense.date,
-                redunctionPercnet: expense.reductionPercent,
-                redunctionForPeriod: calculatedValue
-            } as unknown as ReductionReportDto;
-          });
-
-        console.log("reductionList:", reductionList);
-        return reductionList;
+        return this.calculateReductionsForExpenses(expenses, year)
 
     }
 
-    // async createReductionReport(userId: string, year: number): Promise<ReductionReportDto[]> {
+      
+    calculateReductionsForExpenses(
+        expenses: Expense[],
+        requiredYear: number
+      ): ReductionReportDto[] {
+        // Use map to transform each expense into a ReductionReportDto
+        return expenses.map((expense) => {
+          const { supplier: name, date, sum, reductionPercent } = expense;
+          let pastReduction = 0;
+          let currentReduction = 0;
+      
+          // Calculate total reduction years for the expense
+          const totalReductionYears = this.calculateReductionYears(reductionPercent, date);
+      
+          // Iterate through the years from the purchase year to the required year
+          for (let year = date.getFullYear(); year <= requiredYear; year++) {
+            const yearFraction =
+              this.calculateYearlyReductionFraction(year, date, reductionPercent, totalReductionYears);
+            const yearReduction = (yearFraction / 100) * sum;
+      
+            if (year < requiredYear) {
+              // Accumulate reduction for past years
+              pastReduction += yearReduction;
+            } else if (year === requiredYear) {
+              // Add reduction for the required year
+              currentReduction = yearReduction;
+            }
+          }
+      
+          // Create and return a DTO matching ReductionReportDto
+          return {
+            name,
+            date,
+            redunctionPercent: reductionPercent.toFixed(2), // Convert reduction percent to string
+            currentRedunction: Math.min(currentReduction, sum - pastReduction), // Prevent over-reduction
+            pastRedunction: Math.min(pastReduction, sum), // Ensure reduction doesn't exceed the total sum
 
-    //     const startDate = new Date(year, 0, 1); // 1st January of the year
-    //     const endDate = new Date(year, 11, 31); // 31st December of the year
-    
-    //     const expenses = await this.expenseRepo
-    //       .createQueryBuilder("expense")
-    //       .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
-    //       .where("expense.userId = :userId", { userId })
-    //       .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
-    //       .andWhere("expense.dateTimestamp BETWEEN :startDate AND :endDate", { startDate, endDate })
-    //       .getMany();
+          } as ReductionReportDto; // Explicitly cast to ReductionReportDto
+        });
+      }
+      
+      
 
-    //     console.log(expenses);
-    //     const reductionList =  expenses.map(expense => {
-    //         const calculatedValue = expense.sum * (expense.reductionPercent / 100);
-    //         return {
-    //             category: expense.category,
-    //             billDate: expense.date,
-    //             activeDate: expense.date,
-    //             redunctionPercnet: expense.reductionPercent,
-    //             redunctionForPeriod: calculatedValue
-    //         } as unknown as ReductionReportDto;
-    //       });
+    calculateReductionYears(reductionPercent: number, date: Date): number {
+      
+        const purchaseMonth = date.getMonth() + 1; // חודשים מתחילים מ-0
+        const isPartialYear = purchaseMonth > 1 || date.getDate() > 1;
+      
+        // חישוב מספר השנים כולל שנה נוספת אם השנה הראשונה חלקית
+        const fullYears = Math.ceil(100 / reductionPercent);
+        const totalYears = fullYears + (isPartialYear ? 1 : 0);
+      
+        return totalYears;
+    }
 
-    //     console.log("reductionList:", reductionList);
-    //     return reductionList;
 
-    // }
+    calculateYearlyReductionFraction(
+        year: number,
+        date: Date,
+        reductionPercent: number,
+        totalReductionYears: number
+      ): number {
+
+        const purchaseYear = date.getFullYear();
+      
+        // If the given year is before the purchase year or after the total reduction period
+        if (year < purchaseYear || year > purchaseYear + totalReductionYears - 1) {
+          return 0;
+        }
+      
+        const isLeap = this.isLeapYear(year);
+        const daysInYear = isLeap ? 366 : 365;
+      
+        // First year: calculate partial reduction based on days remaining in the year
+        if (year === purchaseYear) {
+            const daysRemaining =
+            Math.ceil(
+              (new Date(purchaseYear, 11, 31).getTime() - date.getTime()) /
+                (1000 * 60 * 60 * 24)
+            ) + 1; // Days from the purchase date to the end of the year, including the purchase day
+            return (reductionPercent * daysRemaining) / daysInYear;
+        // Last year: calculate partial reduction based on days used in that year
+        } else if (year === purchaseYear + totalReductionYears - 1) {
+            const firstDayOfYear = new Date(year, 0, 1); // January 1st of the last reduction year
+            const daysUsed =
+            Math.ceil(
+              (new Date(year, 11, 31).getTime() - firstDayOfYear.getTime()) /
+                (1000 * 60 * 60 * 24)
+            ) + 1; // Total days of the year that apply for reduction
+            return (reductionPercent * daysUsed) / daysInYear;
+        // Full years: apply the full reduction percentage
+        } else {
+          return reductionPercent;
+        }
+      }
+      
+      // Helper function to determine if a year is a leap year
+      isLeapYear(year: number): boolean {
+        return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+      }
 
     
 }
