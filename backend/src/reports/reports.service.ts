@@ -143,18 +143,23 @@ export class ReportsService {
     }
         
 
-    async createReductionReportt(userId: string, year: number): Promise<ReductionReportDto[]> {
+    async createReductionReportt(firebaseId: string, businessNumber: string, year: number): Promise<ReductionReportDto[]> {
 
         const startDate = new Date(year, 0, 1); // 1st January of the year
         const endDate = new Date(year, 11, 31); // 31st December of the year
+
+        const expenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
+
+
+        //const expenses = await getExpensesForReductionReport
     
-        const expenses = await this.expenseRepo
-          .createQueryBuilder("expense")
-          .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
-          .where("expense.userId = :userId", { userId })
-          .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
-          .andWhere("expense.dateTimestamp BETWEEN :startDate AND :endDate", { startDate, endDate })
-          .getMany();
+        // const expenses = await this.expenseRepo
+        //   .createQueryBuilder("expense")
+        //   .select(["expense.dateTimestamp", "expense.sum", "expense.category", "expense.reductionPercent"])
+        //   .where("expense.userId = :userId", { userId })
+        //   .andWhere("expense.isEquipment = :isEquipment", { isEquipment: true })
+        //   .andWhere("expense.dateTimestamp BETWEEN :startDate AND :endDate", { startDate, endDate })
+        //   .getMany();
 
         console.log(expenses);
         const reductionList =  expenses.map(expense => {

@@ -13,6 +13,7 @@ import { ModalController } from '@ionic/angular';
 import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
+import { AuthService } from 'src/app/services/auth.service';
 
 
 // interface ReportData {
@@ -56,6 +57,7 @@ export class PnLReportPage implements OnInit {
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   pnlReport?: any;
+  userData: any = {};
   displayExpenses: boolean = false;
   reportClick: boolean = true;
   tableActions: ITableRowAction[];
@@ -89,7 +91,8 @@ export class PnLReportPage implements OnInit {
   };
 
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
+  //constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, private authService: AuthService, private expenseDataService: ExpenseDataService) {
     this.pnlReportForm = this.formBuilder.group({
       taxableTurnover: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
@@ -114,7 +117,9 @@ export class PnLReportPage implements OnInit {
 
 
   ngOnInit() {
-    //this.setTableActions()
+    this.userData = this.authService.getUserDataFromLocalStorage(); 
+    console.log("userData is ", this.userData);
+    
   }
 
 

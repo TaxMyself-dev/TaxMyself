@@ -1,7 +1,7 @@
 //General
 import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, Repository} from 'typeorm';
+import { Between, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository} from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
@@ -42,12 +42,9 @@ export class ExpensesService {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
         newExpense.userId = userId;
-        //newExpense.dateTimestamp = this.sharedService.convertDateStrToTimestamp(expense.date);
         newExpense.date = expense.date;
         const currentDate = (new Date()).toISOString();
-        //newExpense.loadingDate = this.sharedService.convertDateStrToTimestamp(currentDate);
         newExpense.loadingDate = new Date();
-        newExpense.reductionDone = false;
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0){
             throw new Error ("expense not saved");
@@ -447,13 +444,14 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
     }
 
 
-    async getEquipmentExpensesByDates(userId: string, businessNumber: string, startDate: Date, endDate: Date, isEquipment: boolean): Promise<Expense[]> {
+    async getExpensesForReductionReport(userId: string, businessNumber: string, year: number): Promise<Expense[]> {
         return this.expense_repo.find({
             where: {
                 userId: userId,
                 businessNumber: businessNumber,
-                isEquipment: isEquipment,
-                date: Between(startDate, endDate)
+                isEquipment: true,
+                reductionDone: MoreThanOrEqual(year),
+                date: LessThanOrEqual(new Date(`${year}-01-01`))
             }
         });
     }

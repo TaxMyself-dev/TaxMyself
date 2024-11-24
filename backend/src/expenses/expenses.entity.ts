@@ -59,7 +59,7 @@ export class Expense {
   expenseNumber: string;
 
   @Column()
-  reductionDone: boolean
+  reductionDone: number;
 
   @Column()
   reductionPercent: number;
@@ -86,8 +86,21 @@ export class Expense {
   @BeforeInsert()
   @BeforeUpdate()
   calculateSums() {
+
+    // Calculate the Vat and Tax Payable
     this.totalVatPayable = (this.sum/1.17) * 0.17 * (this.vatPercent/100);
     this.totalTaxPayable = (this.sum - this.totalVatPayable) * (this.taxPercent/100);
+
+
+    // Calculate the last year for reduction
+    const purchaseYear = this.date.getFullYear();
+    const purchaseMonth = this.date.getMonth() + 1; // Month is zero-based, so add 1
+    // Determine total years required to fully apply reduction
+    const fullReductionYears = Math.ceil(100 / this.reductionPercent);
+    // Check if the purchase date is not at the start of the year
+    const isPartialYear = purchaseMonth > 1 || this.date.getDate() > 1;
+    // Calculate the last reduction year
+    this.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
 
   }
 

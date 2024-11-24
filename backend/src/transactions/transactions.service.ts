@@ -739,7 +739,6 @@ export class TransactionsService {
       expense.loadingDate = new Date();
       expense.expenseNumber = '';
       expense.transId = transaction.id;
-      expense.reductionDone = false;
       expense.reductionPercent = transaction.reductionPercent;
       expense.businessNumber = transaction.businessNumber;
 
