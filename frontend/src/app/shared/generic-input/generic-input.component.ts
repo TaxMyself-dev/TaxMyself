@@ -14,6 +14,7 @@ export class GenericInputComponent implements OnChanges {
   @Input() parentForm: FormGroup;
   @Input() controlName: string;
   @Input() errorText: string;
+  @Input() title: string;
   @Input() className: string;
   @Input() inputCustomStyle: Partial<CSSStyleDeclaration> = {};
   @Input() inputType: FormTypes = FormTypes.TEXT;
