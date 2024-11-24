@@ -93,8 +93,9 @@ export class Expense {
 
 
     // Calculate the last year for reduction
-    const purchaseYear = this.date.getFullYear();
-    const purchaseMonth = this.date.getMonth() + 1; // Month is zero-based, so add 1
+    let validDate = new Date(this.date);
+    const purchaseYear = validDate.getFullYear();
+    const purchaseMonth = validDate.getMonth() + 1; // Month is zero-based, so add 1
     // Determine total years required to fully apply reduction
     const fullReductionYears = Math.ceil(100 / this.reductionPercent);
     // Check if the purchase date is not at the start of the year

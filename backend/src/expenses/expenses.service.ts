@@ -446,6 +446,10 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
 
 
     async getExpensesForReductionReport(userId: string, businessNumber: string, year: number): Promise<Expense[]> {
+        console.log("businessNumber is ", businessNumber);
+        console.log("year is ", year);
+        console.log("userId is ", userId);
+        
         return this.expense_repo.find({
             where: {
                 userId: userId,

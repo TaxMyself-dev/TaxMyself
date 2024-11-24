@@ -128,7 +128,9 @@ export class ReportsService {
             totalExpenses += expense.total;
         }
 
-        const reducionExpenses = this.createReductionReport(firebaseId, businessNumber, year);
+        const reducionExpenses = await this.createReductionReport(firebaseId, businessNumber, year);
+        console.log("reducionExpenses are ", reducionExpenses);
+        
 
         // Calculate net profit before tax
         const netProfitBeforeTax = totalIncome - totalExpenses;
@@ -147,9 +149,9 @@ export class ReportsService {
 
     async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<ReductionReportDto[]> {
 
-        const expenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
-
-        return this.calculateReductionsForExpenses(expenses, year)
+        const equipenentExpenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
+        console.log("equipenentExpenses are ", equipenentExpenses);
+        return this.calculateReductionsForExpenses(equipenentExpenses, year)
 
     }
 
@@ -163,14 +165,15 @@ export class ReportsService {
           const { supplier: name, date, sum, reductionPercent } = expense;
           let pastReduction = 0;
           let currentReduction = 0;
+          const validDate = typeof date === 'string' ? new Date(date) : date;
       
           // Calculate total reduction years for the expense
-          const totalReductionYears = this.calculateReductionYears(reductionPercent, date);
+          const totalReductionYears = this.calculateReductionYears(reductionPercent, validDate);
       
           // Iterate through the years from the purchase year to the required year
-          for (let year = date.getFullYear(); year <= requiredYear; year++) {
+          for (let year = validDate.getFullYear(); year <= requiredYear; year++) {
             const yearFraction =
-              this.calculateYearlyReductionFraction(year, date, reductionPercent, totalReductionYears);
+              this.calculateYearlyReductionFraction(year, validDate, reductionPercent, totalReductionYears);
             const yearReduction = (yearFraction / 100) * sum;
       
             if (year < requiredYear) {
@@ -185,7 +188,7 @@ export class ReportsService {
           // Create and return a DTO matching ReductionReportDto
           return {
             name,
-            date,
+            date: validDate,
             redunctionPercent: reductionPercent.toFixed(2), // Convert reduction percent to string
             currentRedunction: Math.min(currentReduction, sum - pastReduction), // Prevent over-reduction
             pastRedunction: Math.min(pastReduction, sum), // Ensure reduction doesn't exceed the total sum
@@ -204,6 +207,8 @@ export class ReportsService {
         // חישוב מספר השנים כולל שנה נוספת אם השנה הראשונה חלקית
         const fullYears = Math.ceil(100 / reductionPercent);
         const totalYears = fullYears + (isPartialYear ? 1 : 0);
+
+        console.log("totalYears is ", totalYears);
       
         return totalYears;
     }
@@ -216,11 +221,12 @@ export class ReportsService {
         totalReductionYears: number
       ): number {
 
+        let result: number = 0;
         const purchaseYear = date.getFullYear();
       
         // If the given year is before the purchase year or after the total reduction period
         if (year < purchaseYear || year > purchaseYear + totalReductionYears - 1) {
-          return 0;
+          result = 0;
         }
       
         const isLeap = this.isLeapYear(year);
@@ -233,7 +239,7 @@ export class ReportsService {
               (new Date(purchaseYear, 11, 31).getTime() - date.getTime()) /
                 (1000 * 60 * 60 * 24)
             ) + 1; // Days from the purchase date to the end of the year, including the purchase day
-            return (reductionPercent * daysRemaining) / daysInYear;
+            result = (reductionPercent * daysRemaining) / daysInYear;
         // Last year: calculate partial reduction based on days used in that year
         } else if (year === purchaseYear + totalReductionYears - 1) {
             const firstDayOfYear = new Date(year, 0, 1); // January 1st of the last reduction year
@@ -245,8 +251,12 @@ export class ReportsService {
             return (reductionPercent * daysUsed) / daysInYear;
         // Full years: apply the full reduction percentage
         } else {
-          return reductionPercent;
+          result = reductionPercent;
         }
+
+        console.log("result[",year,"] is ", result);
+        
+        return result;
       }
       
       // Helper function to determine if a year is a leap year
