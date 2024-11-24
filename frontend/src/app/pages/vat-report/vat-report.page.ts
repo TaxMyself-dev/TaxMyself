@@ -38,7 +38,7 @@ export class VatReportPage implements OnInit {
   readonly ButtonSize = ButtonSize;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
-  readonly COLUMNS_TO_IGNORE = ['businessNumber','id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
+  readonly COLUMNS_TO_IGNORE = ['id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
   
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
@@ -139,15 +139,15 @@ export class VatReportPage implements OnInit {
     this.setTableActions()
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
-      this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
-      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+      this.businessNames.push({name: this.userData.businessName, value: this.userData.id});
+      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseId});
       this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
       //this.vatReportForm.get('businessNumber')?.patchValue("");
     }
     else {
-      console.log("user data: ", this.userData, "business number: ", this.userData.businessNumber);
+      console.log("user data: ", this.userData, "business number: ", this.userData.id);
       
-      this.vatReportForm.get('businessNumber')?.patchValue(this.userData.businessNumber);
+      this.vatReportForm.get('businessNumber')?.patchValue(this.userData.id);
       console.log(this.vatReportForm.get('businessNumber')?.value);
       
     }

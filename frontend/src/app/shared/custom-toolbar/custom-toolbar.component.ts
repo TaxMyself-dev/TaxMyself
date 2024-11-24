@@ -2,6 +2,7 @@ import { Component, inject, Input, OnInit } from '@angular/core';
 import { ActivatedRoute, Route } from '@angular/router';
 import { Location } from '@angular/common';
 import { AuthService } from 'src/app/services/auth.service';
+import { IUserDate } from '../interface';
 
 
 @Component({
@@ -12,11 +13,13 @@ import { AuthService } from 'src/app/services/auth.service';
 export class CustomToolbarComponent implements OnInit {
 
   @Input() title: string = "";
+  userData: IUserDate;
   constructor(private location: Location, public authService: AuthService) { };
 
   public folder!: string;
   public name: string = "";
   ngOnInit() {
+    this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.title != "") {
       this.folder = this.title;
     }

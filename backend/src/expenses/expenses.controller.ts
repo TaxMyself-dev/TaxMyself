@@ -50,9 +50,9 @@ export class ExpensesController {
   }
 
   @Get('get_by_userID')
-  async getExpensesByUserID(@Query('userID') userID: string): Promise<Expense[]> {
-    console.log("this is user id that i send: ", userID);
-    return await this.expensesService.getExpensesByUserID(userID);
+  async getExpensesByUserID(@Headers('token') token: string): Promise<Expense[]> {
+    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);    
+    return await this.expensesService.getExpensesByUserID(firebaseId);
   }
 
 

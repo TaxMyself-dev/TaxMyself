@@ -135,13 +135,13 @@ ngOnInit(): void {
     return this.http.post<any[]>(url,{sourceName: source, sourceType: type},{headers:headers});
   }
 
-  addBill(billName: string): Observable<any> {
+  addBill(billName: string, businessNumber: string): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/add-bill`;
     const headers = {
       'token': token
     }
-    return this.http.post<any[]>(url,{billName: billName},{headers:headers});
+    return this.http.post<any[]>(url,{billName, businessNumber},{headers:headers});
   }
   
   uploadFile(fileBuffer: ArrayBuffer): Observable<any> {

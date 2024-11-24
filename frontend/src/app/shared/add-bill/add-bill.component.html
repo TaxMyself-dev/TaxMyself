@@ -33,7 +33,8 @@
         <div>
           <p class="title-exist">הוסף חשבון חדש</p>
           <form [formGroup]="addBillForm">
-            <app-generic-input [parentForm]="addBillForm" inputLabel="שם החשבון" controlName="billName" [showError]="false" [showAsterisk]="false" (keyup.enter)="onEnterKeyPressed()"></app-generic-input>
+            <app-generic-input [parentForm]="addBillForm" inputLabel="שם החשבון" [controlName]="'billName'" [showError]="false" [showAsterisk]="false" ></app-generic-input>
+            <app-generic-select (keyup.enter)="onEnterKeyPressed()" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [title]="'שייך לעסק'" [parentForm]="addBillForm" [controlName]="'businessNumber'"></app-generic-select>
           </form>
         </div>
           <app-button [disabled]="addBillForm.invalid" [buttonText]="'הוסף'" (onButtonClicked)="addBill()"></app-button>

@@ -3,8 +3,9 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { ModalController } from '@ionic/angular';
 import { map } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { ISelectItem } from '../interface';
+import { ISelectItem, IUserDate } from '../interface';
 import { paymentIdentifierType } from '../enums';
+import { AuthService } from 'src/app/services/auth.service';
 
 @Component({
   selector: 'app-add-bill',
@@ -22,15 +23,34 @@ export class AddBillComponent implements OnInit {
   billSelected: string;
   typeSelected: string;
   addBillForm: FormGroup;
-  constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController) {
+  businessNames: ISelectItem[] = [];
+  userData: IUserDate;
+
+  constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, private authService: AuthService) {
     this.addBillForm = this.formBuilider.group({
       billName: new FormControl(
         '', [Validators.required,]
+      ),
+      businessNumber: new FormControl(
+        '', []
       ),
     })
   }
 
   ngOnInit() {
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    if (this.userData.isTwoBusinessOwner) {
+      this.businessNames.push({name: this.userData.businessName, value: this.userData.id});
+      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseId});
+      this.addBillForm.get('businessNumber')?.setValidators([Validators.required]);
+    }
+    else {
+      console.log("user data: ", this.userData, "business number: ", this.userData.id);
+      
+      this.addBillForm.get('businessNumber')?.patchValue(this.userData.id);
+      console.log(this.addBillForm.get('businessNumber')?.value);
+      
+    }
     this.transactionsService.accountsList$
       .pipe(
         map((data) => {
@@ -76,7 +96,7 @@ export class AddBillComponent implements OnInit {
 
   addBill(): void {
     const formData = this.addBillForm.value;
-    this.transactionsService.addBill(formData.billName)
+    this.transactionsService.addBill(formData.billName, formData.businessNumber)
       .pipe()
       .subscribe(() => {
         this.transactionsService.getAllBills();
