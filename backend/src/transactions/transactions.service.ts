@@ -117,9 +117,8 @@ export class TransactionsService {
       try {
                 
         console.log("save transaction: date is ", row[billDateIndex], ", type is ", typeof(row[billDateIndex]));
-        transaction.billDate = this.sharedService.parseDateStringToDate(row[billDateIndex], "dd/MM/yyyy");
+        transaction.billDate = this.sharedService.convertStringToDateObject(row[billDateIndex]);
         
-        //transaction.payDate = this.sharedService.parseDateStringToDate(row[payDateIndex], "dd/MM/yyyy");
       } catch (error) {
         console.error(`Failed to parse date for row: ${row}, error: ${error.message}`);
         throw new BadRequestException(`Invalid date format in the file: ${error.message}`);

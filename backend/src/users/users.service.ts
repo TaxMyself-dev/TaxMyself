@@ -27,20 +27,8 @@ export class UsersService {
                               
 
     async signup({personal,spouse,children,business} : any) {
-
-        console.log("debug personal is ", personal);
-        console.log("debug spouse is ", spouse);
-        console.log("debug children is ", children);
-        console.log("debug business is ", business);
         
         const newChildren = children?.children;
-
-        // personal.dateOfBirth = this.sharedService.parseDateStringToDate(personal.dateOfBirth, 'yyyy-MM-dd');
-        // if (personal.FamilyStatus == FamilyStatus.MARRIED) {
-        //     spouse.spouseDateOfBirth = this.sharedService.parseDateStringToDate(spouse.spouseDateOfBirth, 'yyyy-MM-dd');
-        // }
-        // business.businessDate = this.sharedService.parseDateStringToDate(business.businessDate, 'yyyy-MM-dd');
-
         let newUser = {...personal, ...spouse, ...business};
 
         if (newChildren.length > 0) {
@@ -140,7 +128,7 @@ export class UsersService {
         for (const key in processedData) {
           if (processedData.hasOwnProperty(key) && dateFields.includes(key)) {
             console.log("convert to date: ", key );
-            processedData[key] = this.sharedService.parseDateStringToDate(processedData[key], "dd/MM/yyyy");
+            processedData[key] = this.sharedService.convertStringToDateObject(processedData[key]);
             console.log("after convert: ", processedData[key]);
           }
         }

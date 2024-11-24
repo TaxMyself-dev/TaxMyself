@@ -137,58 +137,6 @@ export class SharedService {
     }
 
 
-    parseDateStringToDate(dateString: string, inputFormat: string): Date {
-
-        let day;
-        let month;
-        let year;
-
-        if (inputFormat === 'dd/MM/yyyy') {
-
-            const parts = dateString.split('/');
-            day = parts[0];
-            month = parts[1];
-            year = parts[2];
-
-            // Modify the date string to convert the two-digit year to four digits
-            if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateString)) {
-                const parts = dateString.split('/');
-                // Prepend '20' to the year to make it four digits
-                year = '20' + year;
-
-                // Update the date string with the modified year
-                dateString = `${day}/${month}/${year}`;
-
-                console.log("Input dateString 2:", dateString);
-            }
-
-        }
-
-
-
-        console.log("Input dateString 3:", dateString);
-
-
-        try {
-            // Parse the date string based on the provided format
-            //const parsedDate = parse(dateString, inputFormat, new Date());
-
-            let date = new Date(Date.UTC(year, month, day));
-
-    
-            // Check if the parsed date is valid
-            if (isNaN(date.getTime())) {
-                throw new Error('Invalid date');
-            }
-    
-            // Return the Date object
-            return date;
-        } catch (error) {
-            throw new Error(`Failed to parse date: ${dateString} with format: ${inputFormat}`);
-        }
-    }
-
-
     convertStringToDateObject(dateString): Date {        
 
         const parts = dateString.split('/'); // Split the input string by '/'
