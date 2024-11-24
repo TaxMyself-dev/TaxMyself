@@ -272,7 +272,7 @@ export class AddTransactionComponent implements OnInit {
     let formData: IClassifyTrans;
     // if (this.incomeMode) {
     //   formData = this.existCategoryEquipmentForm.value;
-    
+
     // }
     formData = this.existCategoryEquipmentForm.value;
     formData.id = this.data.id;
@@ -307,8 +307,12 @@ export class AddTransactionComponent implements OnInit {
     this.generivService.getLoader().subscribe()
     let formData: IClassifyTrans;
     if (this.incomeMode) {
-      // if (this.isRecognize) {
-      formData = this.newCategoryIsRecognizeForm.getRawValue();
+      if (this.isRecognize) {
+        formData = this.newCategoryIsRecognizeForm.getRawValue();
+      }
+      else {
+        formData = this.newCategoryNotRecognizedForm.value;
+      }
       formData.isExpense = false;
       formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false;
       formData.vatPercent = 0;
@@ -316,7 +320,6 @@ export class AddTransactionComponent implements OnInit {
       formData.reductionPercent = 0;
       formData.isEquipment = false;
       console.log("form data income mode: ", formData);
-      // }
     }
     else {
       formData = this.newCategoryIsRecognizeForm.value;
