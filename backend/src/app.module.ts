@@ -28,23 +28,18 @@ import admin from 'firebase-admin';
 
 let serviceAccount: any;
 
-const FIREBASE_AUTH_URI = "https://accounts.google.com/o/oauth2/auth";
-const FIREBASE_TOKEN_URI= "https://oauth2.googleapis.com/token";
-const FIREBASE_AUTH_PROVIDER_X509_CERT_URL = "https://www.googleapis.com/oauth2/v1/certs";
-const FIREBASE_UNIVERSE_DOMAIN = "googleapis.com";
-
 serviceAccount = {
   "type": process.env.FIREBASE_TYPE,
   "project_id": process.env.FIREBASE_PROJECT_ID,
   "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID,
-  "private_key": process.env.FIREBASE_PRIVATE_KEY,
+  "private_key": process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Replace \n with actual newlines
   "client_email": process.env.FIREBASE_CLIENT_EMAIL,
   "client_id": process.env.FIREBASE_CLIENT_ID,
-  "auth_uri": FIREBASE_AUTH_URI,
-  "token_uri": FIREBASE_TOKEN_URI,
-  "auth_provider_x509_cert_url": FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
   "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL,
-  "universe_domain": FIREBASE_UNIVERSE_DOMAIN
+  "universe_domain": "googleapis.com"
 }
 
 
@@ -66,6 +61,8 @@ serviceAccount = {
 export class AppModule {
 
   constructor() {
+    console.log("private key debug is ", process.env.FIREBASE_PRIVATE_KEY);
+    
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       //databaseURL: "",
