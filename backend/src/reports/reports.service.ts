@@ -6,12 +6,14 @@ import { VatReportDto } from './dtos/vat-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
-import { ReductionReportDto } from './dtos/reduction-report.dto';
+import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { VAT_RATE_2023 } from '../constants';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
 import { BusinessType} from 'src/enum';
+import { TransactionsService } from 'src/transactions/transactions.service';
+import { Transactions } from 'src/transactions/transactions.entity';
 
 
 
@@ -20,31 +22,43 @@ export class ReportsService {
     constructor(
         @InjectRepository(Expense)
         private expenseRepo: Repository<Expense>,
+        @InjectRepository(Expense)
+        private transactionsRepo: Repository<Transactions>,
         @InjectRepository(User) private userRepo: Repository<User>,
         private expensesService: ExpensesService,
+        private transactionsService: TransactionsService,
         private sharedService: SharedService
     ) {}
 
 
     async createVatReport(
-        userId: string,
+      firebaseId: string,
         businessNumber: string,
         startDate: Date,
-        endDate: Date,
-        vatableTurnover: number,
-        nonVatableTurnover: number
+        endDate: Date
     ): Promise<VatReportDto> {
         
         const vatReport: VatReportDto = {
-            vatableTurnover: vatableTurnover,
-            nonVatableTurnover: nonVatableTurnover,
+            vatableTurnover: 0,
+            nonVatableTurnover: 0,
             vatRefundOnAssets: 0,
             vatRefundOnExpenses: 0,
             vatPayment: 0
         };
+
+        const year = startDate.getFullYear();
+
+        // Get income for vat report
+        ({ vatableIncome: vatReport.vatableTurnover, noneVatableIncome: vatReport.nonVatableTurnover } =
+          await this.transactionsService.getTaxableIncomefromTransactionsForVatReport(
+            firebaseId,
+            businessNumber,
+            startDate,
+            endDate
+        ));
     
         // Step 1: Fetch expenses using the function we wrote based on monthReport
-        const expenses = await this.expensesService.getExpensesForVatReport(userId, businessNumber, startDate, endDate);        
+        const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);        
     
         // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
         const regularExpenses = expenses.filter(expense => !expense.isEquipment);
@@ -67,7 +81,7 @@ export class ReportsService {
         vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum * (1 - (1 / (1 + VAT_RATE_2023))));
     
         // Step 5: Calculate VAT payment
-        vatReport.vatPayment = Math.round(vatableTurnover * VAT_RATE_2023) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+        vatReport.vatPayment = Math.round(vatReport.vatableTurnover * this.sharedService.getVatPercent(year)) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
     
         return vatReport;
     }
@@ -82,21 +96,19 @@ export class ReportsService {
 
         const user = await this.userRepo.findOne({ where: { firebaseId } });
         const year = startDate.getFullYear();
+        const vatPercent = this.sharedService.getVatPercent(year);
 
         console.log("reports.service - pnl-report start");
 
         // Get total income
-        let totalIncome = 1170;
-        //  const totalIncome = await incomeRepo.createQueryBuilder("income")
-        //  .select("SUM(income.amount)", "total")
-        //  .where("income.userId = :userId", { userId })
-        //  .andWhere("income.date BETWEEN :startDate AND :endDate", { startDate, endDate })
-        //  .getRawOne();
+        let totalIncome : number = 0;
+        totalIncome = await this.transactionsService.getTaxableIncomefromTransactions(firebaseId, businessNumber, startDate, endDate);
 
         if (user.businessType === BusinessType.LICENSED || user.businessType === BusinessType.COMPANY) {
-            totalIncome = totalIncome / 1.17;
+          totalIncome = totalIncome / (1 + vatPercent);
         }
-
+        
+        //Get expenses
         const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDate);
 
         // Separate expenses into equipment and non-equipment categories
@@ -122,15 +134,33 @@ export class ReportsService {
             })
         );
 
+      
+        const depreciationExpenses = await this.createReductionReport(firebaseId, businessNumber, year);
+        console.log("reducionExpenses are ", depreciationExpenses);
+
+        if (depreciationExpenses?.length > 0) {
+          // Calculate the total of currentReduction from reductionExpenses using a for loop
+          let totalDepreciationExpenses = 0;
+          for (const expense of depreciationExpenses) {
+            if (expense.currentDepreciation) {
+              totalDepreciationExpenses += Number(expense.currentDepreciation); // Ensure conversion to a number
+            }
+          }
+        
+          // Add reduction expenses as "הוצאות פחת"
+          if (totalDepreciationExpenses > 0) {
+            expenseDtos.push({
+              category: "הוצאות פחת",
+              total: totalDepreciationExpenses,
+            });
+          }
+        }
+        
         // Calculate the total expenses using a for loop
         let totalExpenses = 0;
         for (const expense of expenseDtos) {
-            totalExpenses += expense.total;
+          totalExpenses += expense.total;
         }
-
-        const reducionExpenses = await this.createReductionReport(firebaseId, businessNumber, year);
-        console.log("reducionExpenses are ", reducionExpenses);
-        
 
         // Calculate net profit before tax
         const netProfitBeforeTax = totalIncome - totalExpenses;
@@ -147,11 +177,11 @@ export class ReportsService {
     }
         
 
-    async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<ReductionReportDto[]> {
+    async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<DepreciationReportDto[]> {
 
-        const equipenentExpenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
-        console.log("equipenentExpenses are ", equipenentExpenses);
-        return this.calculateReductionsForExpenses(equipenentExpenses, year)
+        const equipmentExpenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
+        console.log("equipmentExpenses are ", equipmentExpenses);
+        return this.calculateReductionsForExpenses(equipmentExpenses, year)
 
     }
 
@@ -159,29 +189,45 @@ export class ReportsService {
     calculateReductionsForExpenses(
         expenses: Expense[],
         requiredYear: number
-      ): ReductionReportDto[] {
+      ): DepreciationReportDto[] {
+
         // Use map to transform each expense into a ReductionReportDto
         return expenses.map((expense) => {
           const { supplier: name, date, sum, reductionPercent } = expense;
-          let pastReduction = 0;
-          let currentReduction = 0;
+          let pastDepreciation = 0;
+          let currentDepreciation = 0;
+          let fixedReductionPercent;
           const validDate = typeof date === 'string' ? new Date(date) : date;
+
+          // In case the reductionPercent from the user is not arrived accuratelly (for example 33 instead of 33.33), fix it to get accurate results. 
+          if (reductionPercent === 33) {
+            fixedReductionPercent = (100/3);
+          } else {
+            fixedReductionPercent = reductionPercent;
+          }
       
           // Calculate total reduction years for the expense
-          const totalReductionYears = this.calculateReductionYears(reductionPercent, validDate);
+          const totalReductionYears = this.calculateReductionYears(fixedReductionPercent, validDate);
+          const firstYear = validDate.getFullYear();
+          const lastYear = firstYear + totalReductionYears - 1;
       
           // Iterate through the years from the purchase year to the required year
-          for (let year = validDate.getFullYear(); year <= requiredYear; year++) {
-            const yearFraction =
-              this.calculateYearlyReductionFraction(year, validDate, reductionPercent, totalReductionYears);
-            const yearReduction = (yearFraction / 100) * sum;
+          for (let year = firstYear; year <= requiredYear; year++) {
+            const yearFraction = this.calculateYearlyReductionFraction(year, validDate, fixedReductionPercent, totalReductionYears);            
+            const yearReduction = Math.round((yearFraction / 100) * sum);
       
+            console.log("yearReduction[",year,"] is ", yearReduction);
+
             if (year < requiredYear) {
               // Accumulate reduction for past years
-              pastReduction += yearReduction;
+              pastDepreciation += yearReduction;
             } else if (year === requiredYear) {
-              // Add reduction for the required year
-              currentReduction = yearReduction;
+              if (year === lastYear) {
+                currentDepreciation = sum - pastDepreciation;
+              } else {
+                // Add reduction for the required year
+                currentDepreciation = yearReduction;
+              }
             }
           }
       
@@ -189,23 +235,21 @@ export class ReportsService {
           return {
             name,
             date: validDate,
-            redunctionPercent: reductionPercent.toFixed(2), // Convert reduction percent to string
-            currentRedunction: Math.min(currentReduction, sum - pastReduction), // Prevent over-reduction
-            pastRedunction: Math.min(pastReduction, sum), // Ensure reduction doesn't exceed the total sum
+            depreciationPercent: reductionPercent.toFixed(2), // Convert reduction percent to string
+            currentDepreciation: Math.min(currentDepreciation, sum - pastDepreciation), // Prevent over-reduction
+            pastDepreciation: Math.min(pastDepreciation, sum), // Ensure reduction doesn't exceed the total sum
 
-          } as ReductionReportDto; // Explicitly cast to ReductionReportDto
+          } as DepreciationReportDto; // Explicitly cast to ReductionReportDto
         });
-      }
+    }
       
       
-
     calculateReductionYears(reductionPercent: number, date: Date): number {
       
-        const purchaseMonth = date.getMonth() + 1; // חודשים מתחילים מ-0
+        const purchaseMonth = date.getMonth() + 1; 
         const isPartialYear = purchaseMonth > 1 || date.getDate() > 1;
       
-        // חישוב מספר השנים כולל שנה נוספת אם השנה הראשונה חלקית
-        const fullYears = Math.ceil(100 / reductionPercent);
+        const fullYears = Math.round(100 / reductionPercent);
         const totalYears = fullYears + (isPartialYear ? 1 : 0);
 
         console.log("totalYears is ", totalYears);

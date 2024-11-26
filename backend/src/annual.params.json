@@ -1,0 +1,18 @@
+{
+    "2025": {
+        "vatPercent": 18,
+        "averageSalary": 120000
+    },
+    "2024": {
+      "vatPercent": 17,
+      "averageSalary": 120000
+    },
+    "2023": {
+      "vatPercent": 17,
+      "averageSalary": 115000
+    },
+    "2022": {
+      "vatPercent": 17,
+      "averageSalary": 110000
+    }
+}

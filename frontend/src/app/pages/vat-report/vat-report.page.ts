@@ -54,6 +54,7 @@ export class VatReportPage implements OnInit {
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   report?: ReportData;
+  vatReport: any;
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
   reportClick: boolean = true;
@@ -107,12 +108,12 @@ export class VatReportPage implements OnInit {
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, private authService: AuthService) {
     this.vatReportForm = this.formBuilder.group({
-      vatableTurnover: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
-      nonVatableTurnover: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
+      // vatableTurnover: new FormControl(
+      //   '', [Validators.required, Validators.pattern(/^\d+$/)]
+      // ),
+      // nonVatableTurnover: new FormControl(
+      //   '', [Validators.required, Validators.pattern(/^\d+$/)]
+      // ),
       month: new FormControl(
         '', Validators.required,
       ),
@@ -274,18 +275,24 @@ export class VatReportPage implements OnInit {
     
     this.reportClick = false;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    this.getVatReportData(startDate, endDate, formData.vatableTurnover, formData.nonVatableTurnover, formData.businessNumber);
+    this.getVatReportData(startDate, endDate, formData.businessNumber);
     this.setRowsData();
 
   }
 
-  async getVatReportData(startDate: string, endDate: string, vatableTurnover: number, nonVatableTurnover: number , businessNumber: string) {
+  async getVatReportData(startDate: string, endDate: string, businessNumber: string) {
 
-    this.vatReportService.getVatReportData(startDate, endDate, vatableTurnover, nonVatableTurnover, businessNumber)
+    this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
       .subscribe((res) => {
-        this.report = res;
+        this.vatReport = res;
+        console.log("vatReport is ", this.vatReport);
+        
       });
 
+  }
+
+  async updateIncome(event: any) {    
+    this.vatReport.vatPayment = event.detail.value - this.vatReport.vatRefundOnAssets - this.vatReport.vatRefundOnExpenses;
   }
 
   // Get the data from server and update items

@@ -28,7 +28,10 @@ export class ReportsController {
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate, query.vatableTurnover, query.nonVatableTurnover);
+        const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
+
+        console.log("vatReport is ", vatReport);
+        
 
         return vatReport;
     }

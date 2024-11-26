@@ -72,31 +72,15 @@ export class PnLReportPage implements OnInit {
   isSkip: boolean = false;
   startDate: string;
   endDate: string;
-
-
-  reportOrder: string[] = [
-    'vatableTurnover',
-    'nonVatableTurnover',
-    'vatRefundOnAssets',
-    'vatRefundOnExpenses',
-    'vatPayment'
-  ];
-
-  vatReportFieldTitles = {
-    vatableTurnover: 'עסקאות חייבות',
-    nonVatableTurnover: 'עסקאות פטורות או בשיעור אפס',
-    vatRefundOnAssets: 'תשומות ציוד',
-    vatRefundOnExpenses: 'תשומות אחרות',
-    vatPayment: 'סה"כ לתשלום'
-  };
+  totalExpense: number;
 
 
   //constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
   constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, private authService: AuthService, private expenseDataService: ExpenseDataService) {
     this.pnlReportForm = this.formBuilder.group({
-      taxableTurnover: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
+      // taxableTurnover: new FormControl(
+      //   '', [Validators.required, Validators.pattern(/^\d+$/)]
+      // ),
       month: new FormControl(
         '', Validators.required,
       ),
@@ -135,14 +119,28 @@ export class PnLReportPage implements OnInit {
 
 
   async getPnLReportData(startDate: string, endDate: string) {
+
     this.pnlReportService.getPnLReportData(startDate, endDate)
       .subscribe((res) => {
         console.log("getPnLReportData is ", res);
         this.pnlReport = res;
+        this.totalExpense = 0;
+        for (const expense of this.pnlReport.expenses) {
+          console.log("category is ", expense.category);
+          console.log("total is ", expense.total);
+          this.totalExpense += expense.total;
+          console.log("totalExpense is ", this.totalExpense);
+        }
       });
+
   }
 
 
+  async updateIncome(event: any) {    
+    this.pnlReport.netProfitBeforeTax = event.detail.value - this.totalExpense;
+  }
+
+  
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.pnlReportForm.value;

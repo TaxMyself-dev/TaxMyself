@@ -1,6 +1,6 @@
 import { IsDateString, IsNotEmpty} from 'class-validator';
 
-export class ReductionReportDto {
+export class DepreciationReportDto {
 
     @IsNotEmpty()
     name: string;
@@ -9,12 +9,12 @@ export class ReductionReportDto {
     date: Date;
 
     @IsNotEmpty()
-    redunctionPercent: string;
+    depreciationPercent: string;
 
     @IsNotEmpty()
-    currentRedunction: number;
+    currentDepreciation: number;
 
     @IsNotEmpty()
-    pastRedunction: number;
+    pastDepreciation: number;
 
 }

@@ -16,10 +16,7 @@ import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
-//import { CreateCategoryDto } from './dtos/create-category.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
-
-//import { areNumbersEqual } 
 
 
 @Injectable()
@@ -446,6 +443,7 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
 
 
     async getExpensesForReductionReport(userId: string, businessNumber: string, year: number): Promise<Expense[]> {
+
         console.log("businessNumber is ", businessNumber);
         console.log("year is ", year);
         console.log("userId is ", userId);
@@ -456,7 +454,7 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
                 businessNumber: businessNumber,
                 isEquipment: true,
                 reductionDone: MoreThanOrEqual(year),
-                date: LessThanOrEqual(new Date(`${year}-01-01`))
+                //date: MoreThanOrEqual(new Date(`${year}-01-01`))
             }
         });
     }

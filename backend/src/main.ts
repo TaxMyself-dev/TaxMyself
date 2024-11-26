@@ -21,9 +21,7 @@ async function bootstrap() {
   );
   app.use(require('cors')('*'));
 
-  app.use(bodyParser.json({ limit: '50mb' }));
-  console.log("debug_port is", process.env.PORT);
-  
+  app.use(bodyParser.json({ limit: '50mb' }));  
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(parseInt(process.env.PORT) || 8080);
 

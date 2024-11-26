@@ -60,9 +60,7 @@ serviceAccount = {
 })
 export class AppModule {
 
-  constructor() {
-    console.log("private key debug is ", process.env.FIREBASE_PRIVATE_KEY);
-    
+  constructor() {    
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
       //databaseURL: "",

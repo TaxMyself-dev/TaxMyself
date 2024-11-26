@@ -23,7 +23,8 @@
         <!-- Display Income -->
         <div class="output-pnl-report">
           <div class="field-report">סך הכל הכנסות לפני מע"מ:</div>
-          <div class="value-field-report">{{ pnlReport.income | number }}</div>
+          <!-- <div class="value-field-report">{{ pnlReport.income | number }}</div> -->
+          <ion-input [value]="pnlReport.income | number" (ionInput)="updateIncome($event)"></ion-input>
         </div>
         <!-- Dynamically Display Expenses -->
         <ng-container *ngFor="let category of pnlReport.expenses">
@@ -48,8 +49,8 @@
     <app-select-report-period [parentForm]="pnlReportForm"></app-select-report-period>
     <app-select-month [parentForm]="pnlReportForm"></app-select-month>
     <app-select-year [parentForm]="pnlReportForm"></app-select-year>
-    <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
-      [parentForm]="pnlReportForm"></app-generic-input>
+    <!-- <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
+      [parentForm]="pnlReportForm"></app-generic-input> -->
   </form>
 </ng-template>
 

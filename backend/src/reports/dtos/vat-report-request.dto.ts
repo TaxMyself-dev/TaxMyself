@@ -20,12 +20,12 @@ export class VatReportRequestDto {
     @IsNotEmpty()
     businessNumber: string;
 
-    @IsNotEmpty()
-    @Validate(IsNumberString)
-    vatableTurnover: number;
+    // @IsNotEmpty()
+    // @Validate(IsNumberString)
+    // vatableTurnover: number;
 
-    @IsNotEmpty()
-    @Validate(IsNumberString)
-    nonVatableTurnover: number;
+    // @IsNotEmpty()
+    // @Validate(IsNumberString)
+    // nonVatableTurnover: number;
 
 }

@@ -563,7 +563,6 @@ export class TransactionsService {
 
     // Get all paymentIdentifiers for all bills
     const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-    console.log("allBills are ", allBills);
     allBills.forEach(bill => {
       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
     });
@@ -610,24 +609,69 @@ export class TransactionsService {
   }
 
 
-  async getTaxableIncomefromTransactions(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Number> {
+  async getTaxableIncomefromTransactions(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<number> {
+  
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, "ALL_BILLS");
 
-    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, billId);
+    // Filter incomeTransactions by isRecognized = true and businessNumber = businessNumber
+    const businessIncomeTransactions = incomeTransactions.filter(transaction =>
+      transaction.isRecognized === true && transaction.businessNumber === businessNumber
+    );
+  
+    // Calculate the total income
+    let totalIncome = 0;
+    for (const transaction of businessIncomeTransactions) {
+      totalIncome += Number(transaction.sum); // Convert sum to a number
+    }
+  
+    return totalIncome;
+  }
+
+
+  async getTaxableIncomefromTransactionsForVatReport(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<{ vatableIncome: number; noneVatableIncome: number }> {
+  
+    // Get all incomes from all bills
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, "ALL_BILLS");
+    
+    // Get the VAT rate per year
+    const year = startDate.getFullYear();
+    const vatRate = this.sharedService.getVatPercent(year);
 
     // Filter transactions classified as "הכנסה מעסק"
-    const taxableIncomeTransactions = incomeTransactions.filter(transaction => 
-      transaction.category === "הכנסה מעסק"
+    const businessIncomeTransactions = incomeTransactions.filter(transaction => 
+      transaction.businessNumber === businessNumber
     );
-
-    // Calculate the total income
-    let totalBusinessIncome = 0;
-    for (const transaction of taxableIncomeTransactions) {
-      totalBusinessIncome += transaction.sum;
+  
+    // Filter transactions classified as "הכנסה מעסק"
+    const vatableIncomeTransactions = businessIncomeTransactions.filter(transaction => 
+      transaction.category === "הכנסה מעסק" && transaction.subCategory === 'הכנסה חייבת במע"מ'
+    );
+  
+    const noneVatableIncomeTransactions = businessIncomeTransactions.filter(transaction => 
+      transaction.category === "הכנסה מעסק" && transaction.subCategory === 'הכנסה פטורה ממע"מ'
+    );
+  
+    // Calculate the total vatable income
+    let vatableIncome = 0;
+    for (const transaction of vatableIncomeTransactions) {
+      vatableIncome += Number(transaction.sum);
     }
-    
-    return totalBusinessIncome;
+    // Calculate net income (excluding VAT)
+    vatableIncome = Math.round(vatableIncome / (1 + vatRate));
+  
+    // Calculate the total non-vatable income
+    let noneVatableIncome = 0;
+    for (const transaction of noneVatableIncomeTransactions) {
+      noneVatableIncome += Number(transaction.sum);
+    }
 
+    console.log("vatableIncome is ", vatableIncome);
+    console.log("noneVatableIncome is ", noneVatableIncome);
+    
+  
+    return { vatableIncome, noneVatableIncome };
   }
+  
 
 
   async getExpensesToBuildReport(

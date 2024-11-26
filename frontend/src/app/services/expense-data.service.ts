@@ -93,6 +93,19 @@ export class ExpenseDataService {
     return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
   }
 
+  getTaxableIncome(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
+    const url = `${environment.apiUrl}transactions/get-taxable-income`;
+    const token = localStorage.getItem('token');
+    const headers = {
+      'token': token
+    }
+    const params = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber)
+    return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
+  }
+
   getShowExpenseColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsDisplayExpense;
   }

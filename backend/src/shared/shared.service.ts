@@ -7,6 +7,8 @@ import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 import { Transactions } from '../transactions/transactions.entity';
 import { VATReportingType, SingleMonthReport, DualMonthReport } from 'src/enum';
+import * as annualParams from 'src/annual.params.json';
+
 
 @Injectable()
 export class SharedService {
@@ -163,6 +165,21 @@ export class SharedService {
         }
     
         return date;
+    }
+
+
+    getParameters(year: number) {
+        const parameters = annualParams[year];
+        if (!parameters) {
+          throw new Error(`Parameters for year ${year} are not defined.`);
+        }
+        return parameters;
+    }
+
+
+    getVatPercent(year: number): number {
+        const parameters = this.getParameters(year);
+        return parameters.vatPercent / 100; // Convert percent to decimal
     }
 
 
