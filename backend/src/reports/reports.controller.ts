@@ -48,7 +48,7 @@ export class ReportsController {
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const businessNumber = "304902133";
+        const businessNumber = "123456789";
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, businessNumber, startDate, endDate);
 
         return pnlReport;

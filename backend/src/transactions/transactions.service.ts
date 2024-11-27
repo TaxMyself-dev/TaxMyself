@@ -529,25 +529,13 @@ export class TransactionsService {
 
     if (billId === "ALL_BILLS") {  
       const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      if (!bills || bills.length === 0) {
-      }
       // Collect all sources from the user's bills
       if (bills.length > 0)  {
         bills.forEach(bill => {
-          if (!bill.sources) {
-          } else {
+          if (bill.sources) {
             bill.sources.forEach(source => {
               sources.push(source.sourceName);
             });
-          }
-        });
-      }
-      // If there are no sources, return all transactions within the date range
-      if (sources.length === 0) {
-        return await this.transactionsRepo.find({
-          where: {
-            userId,
-            billDate: Between(startDate, endDate)
           }
         });
       }
@@ -567,22 +555,21 @@ export class TransactionsService {
       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
     });
 
-    const transactions = await this.transactionsRepo.find({
-    where: [
-      {
-        userId,
-        paymentIdentifier: In(sources),
-        billDate: Between(startDate, endDate)
-      },
-      {
-        userId,
-        paymentIdentifier: Not(In(allIdentifiers)),
-        billDate: Between(startDate, endDate)
-      }
-    ]
-  });
+    const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
+    queryBuilder.where('transaction.userId = :userId', { userId });
+    if (sources.length > 0 || allIdentifiers.length > 0) {
+      queryBuilder.andWhere(
+        `(transaction.paymentIdentifier IN (:...sources) OR transaction.paymentIdentifier NOT IN (:...allIdentifiers))`,
+        { sources: sources.length > 0 ? sources : [], allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : [] }
+      );
+    }
+    queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
+      startDate: startDate,
+      endDate: endDate,
+    });
+    const transactions = await queryBuilder.getMany();
   
-  return transactions;
+    return transactions;
 
   }
 
