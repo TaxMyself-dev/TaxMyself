@@ -9,6 +9,7 @@ import { ExpensesModule } from './expenses/expense.module';
 import { ExcelModule } from './transactions/transactions.module';
 import { CloudModule } from './cloud/cloud.module';
 import { SharedModule } from './shared/shared.module';
+import { FinsiteModule } from './finsite/finsite.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -56,7 +57,7 @@ serviceAccount = {
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule],
     controllers: [AppController],
   providers: [AppService],
 })
