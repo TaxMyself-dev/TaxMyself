@@ -44,6 +44,23 @@
   text-align: center;
 }
 
+.input-container {
+  border: 1px solid;
+  width: 20%;
+  border-radius: 5px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+  text-align: center;
+}
+
+.input-container ion-input {
+  height: 100%;
+  width: 100%;
+}
+
 .field-report{
   color: gray;
 }
