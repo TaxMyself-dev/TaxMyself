@@ -76,7 +76,7 @@ export class PnLReportPage implements OnInit {
 
 
   //constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
-  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, private authService: AuthService, private expenseDataService: ExpenseDataService) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private expenseDataService: ExpenseDataService) {
     this.pnlReportForm = this.formBuilder.group({
       // taxableTurnover: new FormControl(
       //   '', [Validators.required, Validators.pattern(/^\d+$/)]
@@ -100,11 +100,7 @@ export class PnLReportPage implements OnInit {
   }
 
 
-  ngOnInit() {
-    this.userData = this.authService.getUserDataFromLocalStorage(); 
-    console.log("userData is ", this.userData);
-    
-  }
+  ngOnInit() {}
 
 
   onSubmit() {

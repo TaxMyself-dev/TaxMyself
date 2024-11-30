@@ -16,9 +16,11 @@ import { IUserDate } from '../shared/interface';
 })
 export class AuthService {
 
-  userData: any; // Save logged in user data
+  //userData: any; // Save logged in user data
   token: string;
-  userDetails: any;
+  private userDetails: IUserDate = null;
+  // userDetailsObs$: Observable<IUserDate> = this.userDetails$.asObservable();
+
 
   constructor(
     private genericService: GenericService,
@@ -27,7 +29,9 @@ export class AuthService {
     public router: Router,
     private http: HttpClient,
     public ngZone: NgZone, 
-  ) { 
+  ) 
+  { 
+    //this.userDetails = this.getUserDataFromLocalStorage();
   }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
@@ -71,6 +75,78 @@ export class AuthService {
     return JSON.parse(tempA)
   }
 
+  // set setUserDetails(user: IUserDate) {
+  //   this.userDetails = user;
+  // }
+
+  // get userData(): IUserDate {
+  //   if (!this.userDetails) {
+  //     this.userDetails = this.getUserDataFromLocalStorage();
+  //   }
+  //   //console.log(this.userDetails);
+    
+  //   return this.userDetails
+  // }
+
+  // get userRole(): string {
+  //   return this.userData?.role;
+  // }
+
+  // get userFName(): string {
+  //   return this.userData?.fName;
+  // }
+
+  // get userLName(): string {
+  //   return this.userData?.lName;
+  // }
+
+  // get userBusinessName(): string {
+  //   return this.userData?.businessName;
+  // }
+
+  // get userBusinessNumber(): string {
+  //   //console.log(this.userData.businessNumber);
+    
+  //   return this.userData?.businessNumber;
+  // }
+
+  // get userBusinessType(): string {
+  //   return this.userData?.businessType;
+  // }
+
+  // get isTwoBusinessOwner(): boolean {
+  //   return this.userData?.isTwoBusinessOwner;
+  // }
+
+  // get spouseFName(): string {
+  //   return this.userData?.spouseFName;
+  // }
+
+  // get spouseLName(): string {
+  //   return this.userData?.spouseLName;
+  // }
+
+  // get spouseBusinessType(): string {
+  //   return this.userData?.spouseBusinessType;
+  // }
+
+
+  // get spouseBusinessName(): string {
+  //   return this.userData?.spouseBusinessName;
+  // }
+
+  // get spouseBusinessNumber(): string {
+  //   return this.userData?.spouseBusinessNumber;
+  // }
+
+  // get spouseId(): string {
+  //   return this.userData?.spouseId;
+  // }
+
+  // get userId(): string {
+  //   return this.userData?.id;
+  // }
+
   handleErrorLogin(err: string): void {
     if (err === "auth/wrong-password") {
       this.error$.next("password");
@@ -102,9 +178,6 @@ export class AuthService {
       )
 
   }
-
-  
-  
 
   handleErrorSignup(err: string): void {
     switch (err) {

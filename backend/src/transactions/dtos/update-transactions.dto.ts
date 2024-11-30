@@ -26,6 +26,11 @@ export class UpdateTransactionsDto {
   @IsOptional()
   subCategory?: string;
 
+
+  @IsString()
+  @IsOptional()
+  businessNumber?: string;
+
   @IsBoolean()
   @IsOptional()
   isRecognized?: boolean;

@@ -42,13 +42,12 @@ export class AppComponent implements OnInit {
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserDate;
   isUserAdmin: boolean = false; 
-  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private loadingController: LoadingController) { };
+  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService) { };
 
   ngOnInit() {
-
+    this.userData = this.authService.getUserDataFromLocalStorage();
     this.getRoute();
     this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
-    this.userData = this.authService.getUserDataFromLocalStorage();
     this.getRoleUser();
     
     
@@ -79,13 +78,14 @@ export class AppComponent implements OnInit {
   }
 
   getRoleUser(): void {
+    //console.log(this.authService.userDetails);
+    
     if (this.userData.role === 'ADMIN') {
       this.isUserAdmin = true;
     }
     else {
       this.isUserAdmin = false
     }
-    //return this.isUserAdmin;
   }
 
   openCloseLogOutPopup() {

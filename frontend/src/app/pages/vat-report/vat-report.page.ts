@@ -106,7 +106,7 @@ export class VatReportPage implements OnInit {
   };
 
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, private authService: AuthService) {
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
     this.vatReportForm = this.formBuilder.group({
       // vatableTurnover: new FormControl(
       //   '', [Validators.required, Validators.pattern(/^\d+$/)]
@@ -137,17 +137,15 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
-    this.setTableActions()
     this.userData = this.authService.getUserDataFromLocalStorage();
+    this.setTableActions()
     if (this.userData.isTwoBusinessOwner) {
       this.businessNames.push({name: this.userData.businessName, value: this.userData.id});
       this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseId});
       this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
       //this.vatReportForm.get('businessNumber')?.patchValue("");
     }
-    else {
-      console.log("user data: ", this.userData, "business number: ", this.userData.id);
-      
+    else {      
       this.vatReportForm.get('businessNumber')?.patchValue(this.userData.id);
       console.log(this.vatReportForm.get('businessNumber')?.value);
       

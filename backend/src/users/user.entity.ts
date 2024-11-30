@@ -109,8 +109,8 @@ export class User {
     @Column()
     businessField: string;
 
-    // @Column()
-    // businessNumber: string;
+    @Column()
+    businessNumber: string;
 
     @Column({
       type: 'enum',
@@ -144,7 +144,7 @@ export class User {
 
     ////////////////////////////////////
     ////////  Buisness 2 details  //////
-    ////////////////////////////////////
+    ///////////////////////////////////
 
     @Column()
     spouseBusinessName: string;
@@ -152,8 +152,8 @@ export class User {
     @Column()
     spouseBusinessField: string;
 
-    // @Column()
-    // spouseBusinessNumber: string;
+    @Column()
+    spouseBusinessNumber: string;
 
     @Column({
       type: 'enum',

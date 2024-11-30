@@ -378,7 +378,8 @@ export class TransactionsService {
       vatPercent,
       taxPercent,
       isEquipment,
-      reductionPercent
+      reductionPercent,
+      businessNumber
     } = updateDto;
   
     let transactions: Transactions[];
@@ -413,6 +414,7 @@ export class TransactionsService {
       transaction.taxPercent = taxPercent;
       transaction.isEquipment = isEquipment;
       transaction.reductionPercent = reductionPercent;
+      transaction.businessNumber = businessNumber;
     });
   
     // Save the updated transactions

@@ -26,7 +26,7 @@ export class AddBillComponent implements OnInit {
   businessNames: ISelectItem[] = [];
   userData: IUserDate;
 
-  constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, private authService: AuthService) {
+  constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, public authService: AuthService) {
     this.addBillForm = this.formBuilider.group({
       billName: new FormControl(
         '', [Validators.required,]
@@ -45,11 +45,8 @@ export class AddBillComponent implements OnInit {
       this.addBillForm.get('businessNumber')?.setValidators([Validators.required]);
     }
     else {
-      console.log("user data: ", this.userData, "business number: ", this.userData.id);
-      
       this.addBillForm.get('businessNumber')?.patchValue(this.userData.id);
       console.log(this.addBillForm.get('businessNumber')?.value);
-      
     }
     this.transactionsService.accountsList$
       .pipe(

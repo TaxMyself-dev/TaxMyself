@@ -72,6 +72,8 @@ export enum ExpenseFormColumns {
   }
   
   export enum TransactionsOutcomesColumns {
+    BUSINESS_NAME = 'businessName',
+    BUSINESS_NUMBER = 'businessNumber',
     TAX_PERCENT = 'taxPercent',
     VAT_PERCENT = 'vatPercent',
     TOTAL_TAX = 'totalTaxPayable',
@@ -96,6 +98,7 @@ export enum ExpenseFormColumns {
 
 export enum TransactionsOutcomesHebrewColumns {
   id = 'מספר עסקה',
+  businessNumber = 'שייך לעסק',
   paymentIdentifier = 'אמצעי תשלום',
   payDate = 'תאריך החיוב',
   billDate = 'תאריך עסקה',
@@ -111,7 +114,8 @@ export enum TransactionsOutcomesHebrewColumns {
   totalTax = 'מוכר למס',
   totalVat = 'מוכר למע"מ',
   checkbox = 'בחר',
-  actions = 'פעולות'
+  actions = 'פעולות',
+  businessName = 'שייך לעסק'
 }
 
   export const months = [

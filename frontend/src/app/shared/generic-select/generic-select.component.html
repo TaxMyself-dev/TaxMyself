@@ -1,6 +1,6 @@
 <div *ngIf="parentForm; else notForm" class="generic-input-wrapper" [formGroup]="parentForm">
   <ion-select interface="popover" [formControlName]="controlName" class="generic-input-style {{className}}" fill="outline" [label]="inputLabelName" label-placement="floating" (ionChange)="onSelectChange($event)">
-    <ion-select-option  [disabled]="item.disable" *ngFor="let item of items" [value]="item.value">{{item.name}}</ion-select-option>
+    <ion-select-option *ngFor="let item of items" [disabled]="item.disable"  [value]="item.value">{{item.name}}</ion-select-option>
   </ion-select>
   <ion-note *ngIf="showErrorMessage" class="errorText">{{errorMessage}}</ion-note>
 </div>

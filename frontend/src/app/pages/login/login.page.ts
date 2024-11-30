@@ -78,7 +78,7 @@ export class LoginPage implements OnInit {
             this.authService.signIn(res)
               .subscribe((res) => {
                 localStorage.setItem('userData', JSON.stringify(res));
-                this.router.navigate(['my-account']);
+                  this.router.navigate(['my-account']);
               })
           }
           else {

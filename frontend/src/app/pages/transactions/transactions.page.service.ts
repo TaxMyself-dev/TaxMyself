@@ -13,6 +13,7 @@ export class TransactionsService implements OnInit{
 
 token:string;
 accountsList$ = new BehaviorSubject<any[]>([{ value: 'ALL_BILLS', name: 'כל החשבונות' }]);
+businessList: [{businessName: string, businessNumber: string}]
 
 constructor(private http: HttpClient) { 
   console.log("in transaction service");
