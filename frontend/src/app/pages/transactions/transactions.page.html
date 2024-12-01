@@ -21,21 +21,21 @@
       <ng-template #expensesCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="expensesSearchBar"
           [isDisabled]="expensesForm.invalid" (onSearchClick)="filterExpenses()"></app-search-bar>
-        <app-table (filterBy)="filterByExpenses($event)" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'"
+        <app-table *ngIf="expensesData$ | async as expensesData" (filterBy)="filterByExpenses($event)" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'"
           [iconToolTip]="'ערוך קטגוריה'" (onClickedCell)="onClickedCell($event)"
-          [specialColumnsCellRendering]="specialColumnsCellRendering" *ngIf="expensesData$ | async as expensesData"
+          [specialColumnsCellRendering]="specialColumnsCellRendering" 
           [fieldsNames]="fieldsNamesExpenses" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE_EXPENSES"
-          [actions]="tableActions" [columnsOrderByFunc]="columnsOrderByFunc"
+          [actions]="tableActionsExpense" [columnsOrderByFunc]="columnsOrderByFunc"
           [columnsWidth]="COLUMNS_WIDTH_EXPENSES"></app-table>
       </ng-template>
 
       <ng-template #incomeCollapse>
         <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="incomeSearchBar"
           [isDisabled]="incomeForm.invalid" (onSearchClick)="filterIncomes()"></app-search-bar>
-        <app-table (filterBy)="filterByIncomes($event)" [iconToolTip]="'ערוך קטגוריה'" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'" (onClickedCell)="onClickedCell($event,false)" [specialColumnsCellRendering]="specialColumnsCellRendering"
-          *ngIf="incomesData$ | async as incomesData" [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
+        <app-table *ngIf="incomesData$ | async as incomesData" (filterBy)="filterByIncomes($event)" [iconToolTip]="'ערוך קטגוריה'" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'" (onClickedCell)="onClickedCell($event,false)" [specialColumnsCellRendering]="specialColumnsCellRendering"
+         [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
           [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"
-          [columnsWidth]="COLUMNS_WIDTH_INCOME" [actions]="tableActions"></app-table>
+          [columnsWidth]="COLUMNS_WIDTH_INCOME" [actions]="tableActionsIncomes"></app-table>
       </ng-template>
 
       <ng-container *ngIf="addPayment">

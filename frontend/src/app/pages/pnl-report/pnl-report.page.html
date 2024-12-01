@@ -26,7 +26,7 @@
           <div class="field-report">סך הכל הכנסות לפני מע"מ:</div>
           <!-- <div class="value-field-report">{{ pnlReport.income | number }}</div> -->
           <div class="input-container">
-            <ion-input color="white"  class="input-value" [value]="pnlReport.income | number" (ionInput)="updateIncome($event)"></ion-input>
+            <ion-input color="light"  class="input-value" [(ngModel)]="pnlReport.income" (ionInput)="updateIncome($event)"></ion-input>
           </div>
           <!-- <ion-input [value]="pnlReport.income | number" (ionInput)="updateIncome($event)"></ion-input> -->
         </div>

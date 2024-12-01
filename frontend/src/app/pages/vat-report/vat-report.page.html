@@ -22,7 +22,7 @@
           <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
           <ng-container *ngIf="vatReportFieldTitles[key] === 'עסקאות חייבות'; else rest">
             <div class="input-container">
-              <ion-input color="white"  class="input-value" [value]="vatReport.vatableTurnover | number" (ionInput)="updateIncome($event)"></ion-input>
+              <ion-input color="white"  class="input-value"  [(ngModel)]="vatReport.vatableTurnover" (ionInput)="updateIncome($event)"></ion-input>
             </div>
           </ng-container>
           <ng-template #rest>

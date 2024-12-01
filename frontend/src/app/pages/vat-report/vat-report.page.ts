@@ -282,14 +282,14 @@ export class VatReportPage implements OnInit {
 
     this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
       .subscribe((res) => {
-        this.vatReport = res;
+        this.vatReport = {...res};
         console.log("vatReport is ", this.vatReport);
         
       });
 
   }
 
-  async updateIncome(event: any) {    
+  updateIncome(event: any) {    
     this.vatReport.vatPayment = event.detail.value - this.vatReport.vatRefundOnAssets - this.vatReport.vatRefundOnExpenses;
   }
 
