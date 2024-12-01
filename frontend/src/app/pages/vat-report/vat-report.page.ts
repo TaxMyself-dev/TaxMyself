@@ -137,11 +137,11 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
-    this.userData = this.authService.getUserDataFromLocalStorage();
     this.setTableActions()
+    this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
-      this.businessNames.push({name: this.userData.businessName, value: this.userData.id});
-      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseId});
+      this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
       this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
       //this.vatReportForm.get('businessNumber')?.patchValue("");
     }
@@ -152,10 +152,10 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  selectBusiness(): void {
-    console.log("form: ", this.vatReportForm.value);
+  // selectBusiness(): void {
+  //   console.log("form: ", this.vatReportForm.value);
     
-  }
+  // }
 
   private setTableActions(): void {
     this.tableActions = [
