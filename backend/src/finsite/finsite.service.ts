@@ -83,17 +83,12 @@ export class FinsiteService {
 
   //async getTransactionByUserId(sessionId: string, bookingAccountID: string, startDate: string, endDate: string): Promise<any> {
   async getTransactionByUserId(sessionId: string): Promise<any> {
-    // console.log("bookingAccountID is ", bookingAccountID);
-    // console.log("startDate is ", startDate);
-    // console.log("endDate is ", endDate);
-
-    let sstartDate = "2024-07-01";
-    const eendDate = "2024-07-30";
-    const bbookingAccountID = "8711";
-
+    
+    //const sessionID = await this.getFinsiteToken("BH", "IK575379");
+    //console.log("sessionID for trans is ", sessionID);
     
     try {
-      const response = await this.apiClient.post('/GetTransactions', {
+      const response = await this.apiClient.get('/GetTransactions', {
         headers: {
           'M4u-Session': sessionId,
         },
@@ -104,7 +99,7 @@ export class FinsiteService {
         },
       });
       //console.log("SessionID is ", response.data.Entity.SessionID);
-      return response.data.Entity.SessionID;
+      return response.data;
     } catch (error) {
       throw new HttpException(`Authentication failed: ${error.message}`, HttpStatus.UNAUTHORIZED);
     }
