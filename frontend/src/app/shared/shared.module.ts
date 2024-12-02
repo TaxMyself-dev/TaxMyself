@@ -31,9 +31,10 @@ import { DateFormatPipe } from '../pipes/date-format.pipe';
 import { LoadFileComponent } from './load-file/load-file.component';
 import { CategoryManagementComponent } from './category-management/category-management.component';
 import { FilterInputComponent } from './filter-input/filter-input.component';
+import { PopupSelectComponent } from './popup-select/popup-select.component';
 
 @NgModule({
-  declarations: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent],
+  declarations: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent],
   imports: [
     CommonModule,
     IonicModule,
@@ -41,6 +42,6 @@ import { FilterInputComponent } from './filter-input/filter-input.component';
     ReactiveFormsModule,
     NgArrayPipesModule,
     ],
-  exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent]
+  exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupMessageComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent]
 })
 export class SharedModule { }

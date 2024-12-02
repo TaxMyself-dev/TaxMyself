@@ -16,6 +16,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
+import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
 
 @Component({
   selector: 'app-transactions',
@@ -145,6 +146,7 @@ export class TransactionsPage implements OnInit {
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserDate;
+  businessSelect: string = ""; 
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService) {
 
@@ -710,11 +712,57 @@ export class TransactionsPage implements OnInit {
     }
   }
 
+  openPopupSelect(): void {
+    from(this.modalController.create({
+      component: PopupSelectComponent,
+      componentProps: {
+        message: "עבור איזה עסק אתה רוצה להפיק דוח?",
+        options: this.bussinesesList,
+      },
+      cssClass: 'popup-select'
+    }))
+      .pipe(
+        catchError((err) => {
+          alert("create popup select error");
+          return EMPTY;
+        }),
+        switchMap((modal) => from(modal.present())
+          .pipe(
+            catchError((err) => {
+              alert("present popup select error");
+              console.log(err);
+              return EMPTY;
+            }),
+            switchMap(() => from(modal.onWillDismiss())
+              .pipe(
+                catchError((err) => {
+                  console.log("err in close popup select: ", err);
+                  return EMPTY;
+                })
+              ))
+          )))
+      .subscribe((res) => {
+        this.businessSelect = res.data;
+        console.log("businessSelect: ",this.businessSelect);
+        
+        console.log("res of popup select: ", res);
+        if (res.role === 'success') {
+          this.openFlowReport();
+        }
+      });
+}
+
+  
+
   openFlowReport(): void {
+  if (!this.userData.isTwoBusinessOwner){
+    this.businessSelect = this.userData.businessNumber;    
+  }
     this.router.navigate(['flow-report'], {
       queryParams: {
         startDate: this.dateForUpdate.startDate,
         endDate: this.dateForUpdate.endDate,
+           businessNumber: this.businessSelect,
         accounts: 'null'
       }
     })

@@ -165,6 +165,7 @@ export class TransactionsController {
     @Query() query: GetTransactionsDto,
     @Headers('token') token: string
   ): Promise<Transactions[]> {
+    console.log("query is: ", query);
     
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);

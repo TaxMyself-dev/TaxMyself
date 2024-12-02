@@ -100,3 +100,12 @@ $app-theme: mat.define-light-theme((
   --height: 100px;
   --width: 275px;
 }
+
+.popup-select {
+  --border-color: rgb(79, 171, 79);
+  --border-width: 2px;
+  --border-style: solid;
+  --border-radius: 15px;
+  --height: 150px;
+  --width: 275px;
+}
