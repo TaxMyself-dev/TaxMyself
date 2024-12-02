@@ -1,6 +1,7 @@
 import {
     IsBooleanString,
     IsNotEmpty,
+    IsOptional,
     IsString,
 } from 'class-validator'
 
@@ -19,4 +20,7 @@ export class GetTransactionsDto {
     @IsNotEmpty()
     billId: string;
     
+    @IsString()
+    @IsOptional()
+    businessNumber: string;
 }

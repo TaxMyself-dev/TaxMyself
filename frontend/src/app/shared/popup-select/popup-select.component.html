@@ -1,0 +1,15 @@
+<ion-content>
+  <div class="wrap-popoup-select">
+    <p class="message-popup-select">
+      {{message}}
+    </p>
+    <div class="wrap-radio-group-popup-select">
+      <ion-list class="list-radio-popup-select">
+        <ion-radio-group class="radio-group-popup-select" (ionChange)="selected($event)">
+          <ion-radio labelPlacement="end" justify="end" *ngFor="let option of options" [value]="option.value">{{option.name}}</ion-radio>
+        </ion-radio-group>
+      </ion-list>
+    </div>
+    <app-button (onButtonClicked)="confirm()" [buttonText]="'בחר'" [buttonSize]="buttonSize.X_SMALL"></app-button>
+  </div>
+</ion-content>

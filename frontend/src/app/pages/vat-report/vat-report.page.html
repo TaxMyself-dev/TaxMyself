@@ -54,7 +54,7 @@
       <!-- [parentForm]="vatReportForm"></app-generic-input> -->
     <!-- <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'" -->
       <!-- [parentForm]="vatReportForm"></app-generic-input> -->
-      <app-generic-select *ngIf="userData.isTwoBusinessOwner" (selectionChanged)="selectBusiness()" [items]="businessNames" [parentForm]="vatReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+      <app-generic-select *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="vatReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
   </form>
 </ng-template> 
 

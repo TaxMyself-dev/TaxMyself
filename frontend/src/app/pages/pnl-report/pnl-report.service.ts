@@ -20,12 +20,13 @@ export class PnLReportService {
   }
 
 
-  getPnLReportData(startDate: string, endDate: string): Observable<any> {
+  getPnLReportData(startDate: string, endDate: string, businessNumber: string): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/pnl-report`;
     const params = new HttpParams()
     .set('startDate', startDate)
     .set('endDate', endDate)
+    .set('businessNumber', businessNumber)
   
     const headers = {
       'token': token

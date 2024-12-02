@@ -55,6 +55,8 @@
     <app-select-year [parentForm]="pnlReportForm"></app-select-year>
     <!-- <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
       [parentForm]="pnlReportForm"></app-generic-input> -->
+      <app-generic-select *ngIf="userData.isTwoBusinessOwner" (selectionChanged)="print()" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+
   </form>
 </ng-template>
 

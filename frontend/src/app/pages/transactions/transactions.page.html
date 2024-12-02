@@ -44,7 +44,7 @@
 
     </div>
 
-    <app-button *ngIf="expensesData" [buttonText]="'הפקת דוח'" (onButtonClicked)="openFlowReport()"></app-button>
+    <app-button *ngIf="expensesData" [buttonText]="'הפקת דוח'" (onButtonClicked)="userData.isTwoBusinessOwner ? openPopupSelect() : openFlowReport()"></app-button>
   </div>
 </ion-content>
 

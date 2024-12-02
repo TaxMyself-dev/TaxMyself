@@ -1,13 +1,14 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserDate } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
 import { EMPTY, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { AuthService } from 'src/app/services/auth.service';
 
 
 @Component({
@@ -22,11 +23,13 @@ export class FlowReportPage implements OnInit {
   params: {};
   startDate: string;
   endDate: string;
+  businessNumber: string;
   columnsToIgnore = ['businessNumber','firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: { id: number, file?: File | string }[] = [];
   isSelectTransaction: boolean = false; // for able or disable send button
   isToastOpen: boolean = false;
   messageToast: string = "";
+  userData: IUserDate;
 
 
   readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
@@ -59,13 +62,15 @@ export class FlowReportPage implements OnInit {
   ]);
   tableActions: ITableRowAction[];
 
-  constructor(private genericService: GenericService,  private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
+  constructor(private authService: AuthService, private genericService: GenericService,  private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
 
   ngOnInit() {
     this.route.queryParams.subscribe((params) => {
       this.params = params;
       this.startDate = this.params['startDate'];
       this.endDate = this.params['endDate'];
+      this.businessNumber = this.params['businessNumber'];
+      
       this.getTransaction();
     });
     this.setTableActions();
@@ -86,7 +91,7 @@ export class FlowReportPage implements OnInit {
   }
 
   getTransaction(): void {
-    this.flowReportService.getFlowReportData(this.startDate, this.endDate)
+    this.flowReportService.getFlowReportData(this.startDate, this.endDate, this.businessNumber)
       .pipe(
         catchError((err) => {
           console.log("error in get expenses flow-report: ", err);

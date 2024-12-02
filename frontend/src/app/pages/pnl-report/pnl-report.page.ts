@@ -6,7 +6,7 @@ import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switc
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
 import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
@@ -73,6 +73,8 @@ export class PnLReportPage implements OnInit {
   startDate: string;
   endDate: string;
   totalExpense: number;
+  businessNames: ISelectItem[] = [];
+
 
 
   //constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
@@ -95,28 +97,51 @@ export class PnLReportPage implements OnInit {
       ),
       endDate: new FormControl(
         Date,
-      )
+      ),
+      businessNumber: new FormControl(
+        '',
+      ),
     })
   }
 
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    console.log(this.userData);
+    
+    if (this.userData.isTwoBusinessOwner) {
+      this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+      this.pnlReportForm.get('businessNumber')?.setValidators([Validators.required]);
+    }
+    else {      
+      this.pnlReportForm.get('businessNumber')?.patchValue(this.userData.id);
+      console.log(this.pnlReportForm.get('businessNumber')?.value);
+    }
+  }
+
+  print() {
+console.log(this.businessNames);
+
+  }
 
 
   onSubmit() {
     const formData = this.pnlReportForm.value;
+    console.log(formData);
+    
     this.reportClick = false;
     this.setRowsData();
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
     this.startDate = startDate;
     this.endDate = endDate;
-    this.getPnLReportData(startDate, endDate);
+    this.getPnLReportData(startDate, endDate,formData.businessNumber);
   }
 
 
-  async getPnLReportData(startDate: string, endDate: string) {
+  async getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
 
-    this.pnlReportService.getPnLReportData(startDate, endDate)
+    this.pnlReportService.getPnLReportData(startDate, endDate, businessNumber)
       .subscribe((res) => {
         console.log("getPnLReportData is ", res);
         this.pnlReport = res;
