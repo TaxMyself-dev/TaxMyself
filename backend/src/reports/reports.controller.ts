@@ -44,21 +44,14 @@ export class ReportsController {
     ): Promise<PnLReportDto> {
       
         console.log("reports.controller - pnl-report start");
-        console.log("query: ", query);
         
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        //const businessNumber = "123456789";
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
 
         return pnlReport;
     }
 
-    
-    // @Get('tax-report')
-    // async getTaxReport(){
-    //     const reductionReport = await this.reportsService.createReductionReport("L5gJkrdQZ5gGmte5XxRgagkqpOL2", 2023);
-    // }
 
 }

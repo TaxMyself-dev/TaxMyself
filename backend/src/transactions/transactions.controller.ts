@@ -111,21 +111,6 @@ export class TransactionsController {
     return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, query.billId);
 
   }
-
-
-  // @Get('get-taxable-income')
-  // @UsePipes(new ValidationPipe({ transform: true }))
-  // async getTaxableIncome(
-  //   @Query() query: any,
-  //   @Headers('token') token: string
-  // ): Promise<{ vatableIncome: number; noneVatableIncome: number }> {
-        
-  //   const startDate = this.sharedService.convertStringToDateObject(query.startDate);
-  //   const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-  //   const userId = await this.usersService.getFirbsaeIdByToken(token);
-  //   return this.transactionsService.getTaxableIncomefromTransactions(userId, startDate, endDate, query.billId);
-
-  // }
   
 
   @Post('classify-trans')
@@ -170,7 +155,7 @@ export class TransactionsController {
     const userId = await this.usersService.getFirbsaeIdByToken(token);
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    return this.transactionsService.getExpensesToBuildReport(userId, startDate, endDate);
+    return this.transactionsService.getExpensesToBuildReport(userId, query.businessNumber, startDate, endDate);
 
   }
 

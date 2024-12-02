@@ -665,8 +665,9 @@ export class TransactionsService {
 
   async getExpensesToBuildReport(
     userId: string,
+    businessNumber: string,
     startDate: Date,
-    endDate: Date,
+    endDate: Date
   ): Promise<Transactions[]> {
 
     const expenses = await this.transactionsRepo.find({
@@ -675,7 +676,8 @@ export class TransactionsService {
           userId,
           billDate: Between(startDate, endDate),
           isRecognized: true,
-          sum: LessThan(0)
+          sum: LessThan(0),
+          businessNumber: businessNumber
         },
       ]
     });
