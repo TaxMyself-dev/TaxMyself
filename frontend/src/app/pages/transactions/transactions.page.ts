@@ -146,7 +146,7 @@ export class TransactionsPage implements OnInit {
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserDate;
-  businessSelect: string = ""; 
+  businessSelect: string = "";
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService) {
 
@@ -514,10 +514,6 @@ export class TransactionsPage implements OnInit {
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
         data.sum = Math.abs(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
-        // console.log("data.business number: ", data.businessNumber);
-        // console.log("userData.spouseBusinessNumber: ", this.userData.spouseBusinessNumber);
-        // console.log("userData.businessNumber: ", this.userData.businessNumber);
-        // data.businessNumber === this.userData.spouseBusinessNumber ? data.businessNumber = this.userData.spouseBusinessName : data.businessNumber = this.userData.businessName
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
 
         rows.push(data);
@@ -556,9 +552,9 @@ export class TransactionsPage implements OnInit {
 
   openEditRow(data: IRowDataTable, isExpense: boolean = true): void {
     let disabledFields: TransactionsOutcomesColumns[];
-    const businessNumber = data.businessNumber ===  this.userData.businessNumber ? {name: this.userData.businessName, value: this.userData.businessNumber } : {name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
+    const businessNumber = data.businessNumber === this.userData.businessNumber ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
     console.log("data in open edit row: ", data);
-    
+
     if (isExpense) {
       const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
       const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
@@ -566,23 +562,23 @@ export class TransactionsPage implements OnInit {
       this.editRowExpenseForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
       this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
       this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent === 0 ? 0 : ""),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent === 0 ? 0 : ""),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
-  
+
     }
     else {
       const businessNameColumn = this.fieldsNamesIncome.find(
         (column) => column.name === TransactionsOutcomesColumns.BUSINESS_NAME
       );
-      
+
       if (businessNameColumn) {
         businessNameColumn.type = FormTypes.DDL; // Set the new type
       }
@@ -590,10 +586,10 @@ export class TransactionsPage implements OnInit {
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.MONTH_REPORT).patchValue(data.vatReportingDate || '');
 
@@ -601,7 +597,7 @@ export class TransactionsPage implements OnInit {
 
 
 
-   
+
     if (data.category !== "טרם סווג" && data.category !== undefined) {
       from(this.modalController.create({
         component: editRowComponent,
@@ -743,26 +739,24 @@ export class TransactionsPage implements OnInit {
           )))
       .subscribe((res) => {
         this.businessSelect = res.data;
-        console.log("businessSelect: ",this.businessSelect);
-        
+        console.log("businessSelect: ", this.businessSelect);
+
         console.log("res of popup select: ", res);
         if (res.role === 'success') {
           this.openFlowReport();
         }
       });
-}
-
-  
+  }
 
   openFlowReport(): void {
-  if (!this.userData.isTwoBusinessOwner){
-    this.businessSelect = this.userData.businessNumber;    
-  }
+    if (!this.userData.isTwoBusinessOwner) {
+      this.businessSelect = this.userData.businessNumber;
+    }
     this.router.navigate(['flow-report'], {
       queryParams: {
         startDate: this.dateForUpdate.startDate,
         endDate: this.dateForUpdate.endDate,
-           businessNumber: this.businessSelect,
+        businessNumber: this.businessSelect,
         accounts: 'null'
       }
     })
