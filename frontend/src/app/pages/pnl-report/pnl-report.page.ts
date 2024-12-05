@@ -72,13 +72,13 @@ export class PnLReportPage implements OnInit {
   isSkip: boolean = false;
   startDate: string;
   endDate: string;
-  totalExpense: number;
+  totalExpense: string | number;
   businessNames: ISelectItem[] = [];
 
 
 
   //constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController) {
-  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private expenseDataService: ExpenseDataService) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService) {
     this.pnlReportForm = this.formBuilder.group({
       // taxableTurnover: new FormControl(
       //   '', [Validators.required, Validators.pattern(/^\d+$/)]
@@ -120,18 +120,10 @@ export class PnLReportPage implements OnInit {
     }
   }
 
-  print() {
-console.log(this.businessNames);
-
-  }
-
-
   onSubmit() {
     const formData = this.pnlReportForm.value;
-    console.log(formData);
-    
     this.reportClick = false;
-    this.setRowsData();
+    // this.setRowsData();
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
     this.startDate = startDate;
     this.endDate = endDate;
@@ -139,55 +131,51 @@ console.log(this.businessNames);
   }
 
 
-  async getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
+  getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
 
     this.pnlReportService.getPnLReportData(startDate, endDate, businessNumber)
       .subscribe((res) => {
         console.log("getPnLReportData is ", res);
         this.pnlReport = res;
+        this.pnlReport.income = this.genericService.addComma(this.pnlReport.income);
+        this.pnlReport.netProfitBeforeTax = this.genericService.addComma(this.pnlReport.netProfitBeforeTax);
         this.totalExpense = 0;
         for (const expense of this.pnlReport.expenses) {
-          console.log("category is ", expense.category);
-          console.log("total is ", expense.total);
           this.totalExpense += expense.total;
-          console.log("totalExpense is ", this.totalExpense);
         }
+        this.totalExpense = this.genericService.addComma(this.totalExpense);
       });
 
   }
 
-
-  async updateIncome(event: any) {    
-    this.pnlReport.netProfitBeforeTax = event.detail.value - this.totalExpense;
+  updateIncome(event: any) {    
+    this.pnlReport.netProfitBeforeTax = event.detail.value - Number(this.totalExpense);
   }
 
-  
   // Get the data from server and update items
-  setRowsData(): void {
-    const formData = this.pnlReportForm.value;
-    this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month, '123123133')
-      .pipe(
-        map((data) => {
-          const rows = [];
+  // setRowsData(): void {
+  //   const formData = this.pnlReportForm.value;
+  //   this.items$ = this.expenseDataService.getExpenseForVatReport(formData.isSingleMonth, formData.month, '123123133')
+  //     .pipe(
+  //       map((data) => {
+  //         const rows = [];
 
-          data.forEach(row => {
-            const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-            if (row.file != undefined && row.file != null && row.file != "" ) {
-              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
-            }
-            rows.push(tableData);
-          })          
-          this.rows = rows;
-          return rows
-        })
-      )
-  }
-
+  //         data.forEach(row => {
+  //           const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
+  //           if (row.file != undefined && row.file != null && row.file != "" ) {
+  //             tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
+  //           }
+  //           rows.push(tableData);
+  //         })          
+  //         this.rows = rows;
+  //         return rows
+  //       })
+  //     )
+  // }
 
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
-
 
   setCloseToast(): void {
     this.isToastOpen = false;

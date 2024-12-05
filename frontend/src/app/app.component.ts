@@ -49,8 +49,11 @@ export class AppComponent implements OnInit {
     this.getRoute();
     this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
     this.getRoleUser();
-    
-    
+    this.authService.startTokenRefresh(); // Start refreshing the token
+  }
+
+  ngOnDestroy(): void {
+    this.authService.stopTokenRefresh(); // Clean up on app component destruction
   }
 
   getRoute(): void {

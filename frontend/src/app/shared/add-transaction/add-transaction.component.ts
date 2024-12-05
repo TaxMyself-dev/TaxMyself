@@ -64,6 +64,7 @@ export class AddTransactionComponent implements OnInit {
   isSingleUpdate: boolean;
   isOpenToast: boolean = false;
   combinedListSubCategory: ISelectItem[] = [];
+  isOnlySubCategory: boolean = true;
 
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
@@ -300,6 +301,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   addClasssificationNewCategory(): void {
+    
     this.generivService.getLoader().subscribe()
     let formData: IClassifyTrans;
     if (this.incomeMode) {

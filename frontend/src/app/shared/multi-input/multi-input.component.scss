@@ -1,0 +1,47 @@
+.multi-input-form {
+  height: 80px;
+}
+
+ion-icon{
+  cursor: pointer;
+}
+
+.wrap-multi-input {
+  border: 1px solid #bbb8b8;
+  border-radius: 15px;
+  width: 172px;
+  --border-style: none;
+  &.wide {
+    width: 250px;
+  }
+}
+
+.wrap-multi-input:hover {
+  border: 1px solid black;
+}
+
+.popover-container {
+  position: relative;
+  z-index: 1000;
+  background-color: var(--ion-background-color, white);
+  border-radius: var(--ion-border-radius, 8px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.popover-container ion-list {
+  margin: 0;
+  padding: 0;
+}
+
+.popover-container ion-item {
+  --min-height: 40px;
+  cursor: pointer;
+}
+
+.no-scroll {
+  overflow: hidden;
+  height: 100vh; /* Prevent vertical scrolling */
+}

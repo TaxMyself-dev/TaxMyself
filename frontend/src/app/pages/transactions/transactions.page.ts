@@ -12,7 +12,6 @@ import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
 import { DateService } from 'src/app/services/date.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
-import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
@@ -148,7 +147,7 @@ export class TransactionsPage implements OnInit {
   userData: IUserDate;
   businessSelect: string = "";
 
-  constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService) {
+  constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
 
     this.transactionsForm = this.formBuilder.group({
       reportingPeriodType: new FormControl(
@@ -512,7 +511,8 @@ export class TransactionsPage implements OnInit {
         data.subCategory ? null : data.subCategory = "טרם סווג";
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
-        data.sum = Math.abs(data.sum);
+        data.sum = String(Math.abs(Number(data.sum)));
+        data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
 

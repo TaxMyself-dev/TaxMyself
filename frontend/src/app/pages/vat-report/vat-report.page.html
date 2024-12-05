@@ -15,9 +15,9 @@
       <div class="wrap-output-report">
         <p class="report-title">נתוני דו"ח</p>
          <!-- Display Income -->
-         <div class="output-pnl-report">
+         <!-- <div class="output-pnl-report">
           <div class="field-report">עסקאות חייבות</div>
-        </div>
+        </div> -->
         <div class="output-vat-report" *ngFor="let key of reportOrder">
           <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
           <ng-container *ngIf="vatReportFieldTitles[key] === 'עסקאות חייבות'; else rest">
@@ -58,4 +58,4 @@
   </form>
 </ng-template> 
 
-<ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="4000" (didDismiss)="setCloseToast()"></ion-toast>
+<ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="3000" (didDismiss)="setCloseToast()"></ion-toast>

@@ -19,6 +19,7 @@ export class AuthService {
   //userData: any; // Save logged in user data
   token: string;
   private userDetails: IUserDate = null;
+  private refreshInterval: any;
   // userDetailsObs$: Observable<IUserDate> = this.userDetails$.asObservable();
 
 
@@ -30,17 +31,49 @@ export class AuthService {
     private http: HttpClient,
     public ngZone: NgZone, 
   ) 
-  { 
-    //this.userDetails = this.getUserDataFromLocalStorage();
-  }
+  {}
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   public error$ = new BehaviorSubject<string>("");
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
+  public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
 
+  startTokenRefresh(): void {
+    this.stopTokenRefresh(); // Clear any existing intervals to avoid duplication
+    // Refresh token every 50 minutes (tokens expire after 60 minutes)
+    this.refreshInterval = setInterval(() => {
+      this.afAuth.currentUser.then((currentUser) => {
+        console.log("befor user");
+        
+        if (currentUser) {
+          console.log("after user");
+          currentUser.getIdToken(true).then((token) => {
+            localStorage.setItem('token', token); // Store the token locally
+            console.log(localStorage.getItem('token'));
+            
+            this.tokenRefreshed$.next(token); // Notify subscribers of the updated token
+            console.log('Token refreshed:', token);
+          });
+        }
+      });
+  }, 50 * 60 * 1000); // 50 minutes in milliseconds
+  }
 
+  stopTokenRefresh(): void {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+  }
+
+  logout(): void {
+    this.afAuth.signOut().then(() => {
+      localStorage.clear();
+      this.stopTokenRefresh(); // Stop refreshing tokens
+      console.log('User logged out and token refresh stopped');
+    });
+  }
 
   userVerify(email: string, password: string): Observable<UserCredential> {
     // Set token persistence to 'local' (persist the session across browser reloads and sessions)
@@ -56,16 +89,6 @@ export class AuthService {
         tap((user) => {
           // Store the user information locally after successful login
           localStorage.setItem('firebaseUserData', JSON.stringify(user.user));
-
-          // Listen for automatic token changes and refresh using onIdTokenChanged
-          this.afAuth.onIdTokenChanged((currentUser) => {
-            if (currentUser) {
-              currentUser.getIdToken(true).then((token) => {
-                // Optionally store the refreshed token
-                localStorage.setItem('token', token);
-              });
-            }
-          });
         })
     );
   }

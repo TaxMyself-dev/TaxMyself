@@ -125,6 +125,7 @@ export class FlowReportPage implements OnInit {
 
           data.forEach((row) => {
             row.sum = Math.abs(row.sum);
+            row.sum = this.genericService.addComma(row.sum)
             row?.businessNumber === this.userData.businessNumber ? row.businessNumber = this.userData.businessName : row.businessNumber = this.userData.spouseBusinessName;
 
           })
