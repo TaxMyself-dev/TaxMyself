@@ -16,7 +16,10 @@
 
     <ng-container *ngIf="pnlReport">
       <div class="field-report">
-        <ion-title>דו"ח רווח והפסד {{userData.businessName}}  {{endDate}} - {{startDate}}</ion-title>
+        <p>דו"ח רווח והפסד</p>
+        <p>עבור עסק: {{userData.businessName}}</p>
+        <p>לתאריך: {{endDate}} - {{startDate}}</p>
+        <!-- <ion-title>דו"ח רווח והפסד {{userData.businessName}}  {{endDate}} - {{startDate}}</ion-title> -->
         <!-- <ion-title>{{endDate}} - {{startDate}}</ion-title> -->
       </div>
       <div class="wrap-output-report">
@@ -55,7 +58,7 @@
     <app-select-year [parentForm]="pnlReportForm"></app-select-year>
     <!-- <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
       [parentForm]="pnlReportForm"></app-generic-input> -->
-      <app-generic-select *ngIf="userData.isTwoBusinessOwner" (selectionChanged)="print()" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+      <app-generic-select *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
 
   </form>
 </ng-template>

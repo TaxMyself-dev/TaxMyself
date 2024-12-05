@@ -38,7 +38,7 @@ export class VatReportPage implements OnInit {
   readonly ButtonSize = ButtonSize;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
-  readonly COLUMNS_TO_IGNORE = ['id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
+  readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
   
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
@@ -180,7 +180,12 @@ export class VatReportPage implements OnInit {
   }
 
   beforeSelectFile(event): void {
+    console.log("in beforeSelectFile");
+    console.log("skip: ", this.isSkip);
+    
+    
     if (!this.isSkip && event.data.file != "") {
+      console.log("in if beforeSelectFile");
       this.isSkip = true;
       event.event.preventDefault()
         from(this.modalController.create({
@@ -223,10 +228,16 @@ export class VatReportPage implements OnInit {
   }
 
   addFile(event: any, row: IRowDataTable): void {
+    console.log("in add file");
+    
     if ((row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null)) { // if already exist file
       if (event.target.files[0]) { // choose another file
+        console.log("in if add file");
+        
         row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0]; // chnage file in row
         row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
+        console.log("array file: ",  this.arrayFile);
+        
         this.arrayFile.map((expense) => { // change file in array
           if (expense.id === row.id) {
             expense.file = event.target.files[0];
@@ -310,6 +321,9 @@ export class VatReportPage implements OnInit {
             if (row.file != undefined && row.file != null && row.file != "" ) {
               tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
             }
+            tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
+            tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
+            tableData.sum = this.genericService.addComma(tableData.sum as string);
             rows.push(tableData);
           })          
           this.rows = rows;
@@ -406,7 +420,6 @@ export class VatReportPage implements OnInit {
               this.filesService.deleteFile(tran.file as string);
             }
           })
-          //this.genericService.dismissLoader();
           this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
           this.isToastOpen = true;
           return EMPTY
@@ -415,12 +428,11 @@ export class VatReportPage implements OnInit {
           console.log("All file uploads complete.");
           this.messageToast = `הועלו ${totalTransactions} קבצים `
           this.isToastOpen = true;
-          //this.genericService.dismissLoader();
         }),
        
       )
       .subscribe(() => {
-        this.arrayFile = null;
+        this.arrayFile = [];
         this.setRowsData();
       });
   }

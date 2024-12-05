@@ -1,0 +1,32 @@
+<!-- <app-generic-input [inputLabel]="inputLabelName" [errorText]="errorText" [controlName]="controlName" [className]="className"></app-generic-input>
+<app-generic-select [addOther]="true" [items]="items" [errorText]="errorText" [title]="title" [controlName]="controlName" [className]="className"></app-generic-select> -->
+
+<form [formGroup]="parentForm" class="multi-input-form">
+<ion-item class="wrap-multi-input {{className}}">
+  <ion-input class="mupti-input"
+  [formControlName]="controlName"
+    placeholder="בחר או הכנס קטגוריה חדשה"
+    [(ngModel)]="categoryInput"
+    (ionFocus)="showDropdown = true"
+    (ionInput)="filterCategories()"
+  ></ion-input>
+  <ion-icon
+    slot="end"
+    name="caret-down-outline"
+    (click)="toggleDropdown()"
+  ></ion-icon>
+</ion-item>
+
+<div class="popover-container"
+*ngIf="showDropdown"
+[ngStyle]="popoverStyles">
+<ion-list *ngIf="showDropdown" class="dropdown-list">
+  <ion-item
+    *ngFor="let category of filteredCategories"
+    (click)="selectCategory(category.value.toString())"
+  >
+    {{ category.name }}
+  </ion-item>
+</ion-list>
+</div>
+</form>

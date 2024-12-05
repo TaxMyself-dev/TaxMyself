@@ -24,10 +24,10 @@
           <ion-checkbox formControlName="isSingleUpdate" labelPlacement="end"
             (ionChange)="onCheckboxClassify($event)">סווג תנועה באופן חד פעמי</ion-checkbox>
           <app-generic-select (selectionChanged)="getSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
-            [controlName]="'category'" [items]="categoryList" [title]="'קטגוריה'"></app-generic-select>
-          <app-generic-select (selectionChanged)="selectedSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
+            [controlName]="'category'" [items]="categoryList" [title]="'קטגוריה'" [className]="'wide'"></app-generic-select>         
+            <app-generic-select (selectionChanged)="selectedSubCategory($event)" [parentForm]="existCategoryEquipmentForm"
             [controlName]="'subCategory'" [items]="combinedListSubCategory"
-            [title]="'תת-קטגוריה'"></app-generic-select>
+            [title]="'תת-קטגוריה'" [className]="'wide'"></app-generic-select>
         </div>
       </form>
       <div class="wrapp-ion-card">
@@ -66,6 +66,7 @@
 <ng-template #newCategory>
   <div class="new-category-screen">
     <div class="forms-wrapper">
+      <!-- is recognized new category -->
       <div class="right-form-box" id="scorllbar-style">
         <ion-checkbox class="recognized-checkbox-title" [class.disabled-form]="!isRecognize" labelPlacement="end"
           [checked]="isRecognize"
@@ -96,6 +97,7 @@
         </form>
       </div>
       <div class="break-border"></div>
+            <!-- not recognized new category -->
       <div>
         <ion-checkbox class="recognized-checkbox-title" [class.disabled-form]="isRecognize" labelPlacement="end"
           [checked]="!isRecognize"
@@ -104,8 +106,9 @@
           <app-generic-select className="wide" [items]="equipmentList" [controlName]="'isSingleUpdate'"
             [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="isRecognize"
             [parentForm]="newCategoryNotRecognizedForm"></app-generic-select>
-          <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'הכנס קטגוריה'"
-            [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
+          <app-multi-input [className]="'wide'" [controlName]="'category'" [items]="categoryList" [parentForm]="newCategoryNotRecognizedForm"></app-multi-input>
+            <!-- <app-generic-input *ngIf="!isOnlySubCategory" className="wide" [controlName]="'category'" [inputLabel]="'הכנס קטגוריה'" -->
+            <!-- [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input> -->
           <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'"
             [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
         </form>

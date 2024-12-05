@@ -78,6 +78,7 @@ export class LoginPage implements OnInit {
             this.authService.signIn(res)
               .subscribe((res) => {
                 localStorage.setItem('userData', JSON.stringify(res));
+                this.authService.startTokenRefresh(); // Start refreshing tokens after login
                   this.router.navigate(['my-account']);
               })
           }

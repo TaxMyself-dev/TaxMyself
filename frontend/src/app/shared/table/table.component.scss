@@ -67,6 +67,7 @@
   height: 50px;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
 
 .label-file-table ion-icon:hover   {
@@ -107,6 +108,7 @@
 .text-cell {
   display: flex;
   justify-content: center;
+  align-items: center;
   overflow: hidden;             /* Hide overflowing text */
 }
 

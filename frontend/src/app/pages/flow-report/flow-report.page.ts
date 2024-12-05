@@ -3,10 +3,8 @@ import { ActivatedRoute } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserDate } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
-import { EMPTY, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
-import { TransactionsService } from '../transactions/transactions.page.service';
+import { BehaviorSubject, EMPTY, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
 
@@ -19,18 +17,27 @@ import { AuthService } from 'src/app/services/auth.service';
 export class FlowReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
-  expensesData: any[];
-  params: {};
+  expensesData: IRowDataTable[];
+  expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
+
+  private _params: {};
+  public get params(): {} {
+    return this._params;
+  }
+  public set params(value: {}) {
+    this._params = value;
+  }
   startDate: string;
   endDate: string;
   businessNumber: string;
-  columnsToIgnore = ['businessNumber','firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
   chosenTrans: { id: number, file?: File | string }[] = [];
   isSelectTransaction: boolean = false; // for able or disable send button
   isToastOpen: boolean = false;
   messageToast: string = "";
   userData: IUserDate;
-
+  strFilter: string;
+  
+  public COLUMNS_TO_IGNORE = ['businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
 
   readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.CHECKBOX, 0.5],
@@ -62,9 +69,25 @@ export class FlowReportPage implements OnInit {
   ]);
   tableActions: ITableRowAction[];
 
-  constructor(private authService: AuthService, private genericService: GenericService,  private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private transactionService: TransactionsService, private expenseDataService: ExpenseDataService) { }
+  constructor(private authService: AuthService, private genericService: GenericService,  private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService) { }
 
   ngOnInit() {
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    if (this.userData.isTwoBusinessOwner) {
+      this.fieldsNames.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
+      this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.NAME, 1.2);
+      this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.CATEGORY, 1.2);
+      this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.SUBCATEGORY, 1.2);
+      this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.TAX_PERCENT, 1.1);
+      this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.VAT_PERCENT, 1.1);
+      this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.BILL_DATE, 1.4);
+
+      const expenseIndex = this.COLUMNS_TO_IGNORE.indexOf('businessNumber');
+      if (expenseIndex > -1) {
+        this.COLUMNS_TO_IGNORE.splice(expenseIndex, 1);
+      }
+    }
+    
     this.route.queryParams.subscribe((params) => {
       this.params = params;
       this.startDate = this.params['startDate'];
@@ -101,7 +124,10 @@ export class FlowReportPage implements OnInit {
           console.log(data);
 
           data.forEach((row) => {
-            row.sum = Math.abs(row.sum)
+            row.sum = Math.abs(row.sum);
+            row.sum = this.genericService.addComma(row.sum)
+            row?.businessNumber === this.userData.businessNumber ? row.businessNumber = this.userData.businessName : row.businessNumber = this.userData.spouseBusinessName;
+
           })
           return data;
         }),
@@ -114,6 +140,7 @@ export class FlowReportPage implements OnInit {
       )
       .subscribe((res) => {
         console.log("res expenses in flow-report :", res);
+        this.expensesData$.next(res);
         this.expensesData = res;
       })
   }
@@ -335,6 +362,20 @@ export class FlowReportPage implements OnInit {
 
     })
     console.log(this.chosenTrans);
+  }
+
+  filterBy(event: string): void {
+    console.log(event);
+    
+    this.strFilter = event;
+    console.log(this.strFilter);
+    this.expensesData$.next(this.expensesData?.filter((e) => {
+      console.log(e);
+      
+      return String(e.name).includes(event)
+    }
+  ));
+    
   }
 
 

@@ -167,9 +167,9 @@ export class ReportsService {
 
         // Construct the final report
         const report: PnLReportDto = {
-            income: totalIncome,
+            income: Number(totalIncome.toFixed(2)),
             expenses: expenseDtos,
-            netProfitBeforeTax,
+            netProfitBeforeTax:Number(netProfitBeforeTax.toFixed(2)),
         };
         
         return report;

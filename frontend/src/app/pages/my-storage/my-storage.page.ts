@@ -31,10 +31,10 @@ export class MyStoragePage implements OnInit {
   readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
     [ExpenseFormColumns.DATE, ICellRenderer.DATE],
   ]);
-  readonly COLUMNS_TO_IGNORE = ['reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId','id', 'file', 'isReported', 'vatReportingDate', 'transId'];
+  readonly COLUMNS_TO_IGNORE = ['businessNumber', 'reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId', 'id', 'file', 'isReported', 'vatReportingDate', 'transId'];
   readonly ACTIONS_TO_IGNORE = ['share', 'preview', 'download file'];
   readonly ButtonSize = ButtonSize;
-  
+
   filterRows: IRowDataTable[]; // Holds the filter text
   items$: Observable<IRowDataTable[]>;//Data of expenses
   rows: IRowDataTable[] = [];
@@ -83,9 +83,14 @@ export class MyStoragePage implements OnInit {
     this.items$ = this.expenseDataService.getExpenseByUser()
       .pipe(
         tap((data) => {
+          console.log(data);
+
           const rows = [];
           data.forEach((row) => {
-              rows.push(row);
+            row.sum = this.genericService.addComma(row.sum as string);
+            row.totalTaxPayable = this.genericService.addComma(row.totalTaxPayable as string);
+            row.totalVatPayable = this.genericService.addComma(row.totalVatPayable as string);
+            rows.push(row);
           })
           this.filterRows = rows;
           this.rows = rows;
@@ -95,8 +100,8 @@ export class MyStoragePage implements OnInit {
 
   updateFilter(filter: string): void {
     this.filterRows = this.rows.filter((row) => {
-        return String(row.supplier).includes(filter);
-      })
+      return String(row.supplier).includes(filter);
+    })
   }
 
   openPopupAddExpense(data?: IRowDataTable): void {
@@ -161,15 +166,15 @@ export class MyStoragePage implements OnInit {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
       this.genericService.getLoader().subscribe();
       from(this.filesService.previewFile(expense.file as string))
-      .pipe(
-        finalize(()=> this.genericService.dismissLoader()),
-        catchError((err) => {
-        console.log("err in try to open file: ", err);
-        alert("לא ניתן לפתוח את הקובץ");
-        return EMPTY;
-      })).subscribe((fileUrl) => {
-        window.open(fileUrl.file, '_blank');
-      });
+        .pipe(
+          finalize(() => this.genericService.dismissLoader()),
+          catchError((err) => {
+            console.log("err in try to open file: ", err);
+            alert("לא ניתן לפתוח את הקובץ");
+            return EMPTY;
+          })).subscribe((fileUrl) => {
+            window.open(fileUrl.file, '_blank');
+          });
     }
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")

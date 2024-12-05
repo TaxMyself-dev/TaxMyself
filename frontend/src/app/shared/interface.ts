@@ -182,7 +182,7 @@ export interface ITransactionData {
     name: string;
     billDate: number | string;
     payDate: number | string;
-    sum: number;
+    sum: string;
     category: string;
     userId: string;
     billName: string;
