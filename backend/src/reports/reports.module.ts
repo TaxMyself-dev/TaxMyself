@@ -22,12 +22,13 @@ import { UsersService } from '../users/users.service';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { TransactionsService } from 'src/transactions/transactions.service';
+import { FinsiteService } from 'src/finsite/finsite.service';
 
 
 @Module({
   imports: [TypeOrmModule.forFeature([Transactions, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, ClassifiedTransactions, Bill, Source, Supplier, User, Child]),
             SharedModule],
   controllers: [ReportsController],
-  providers: [ReportsService, ExpensesService, UsersService, TransactionsService]
+  providers: [ReportsService, ExpensesService, UsersService, TransactionsService, FinsiteService]
 })
 export class ReportsModule {}

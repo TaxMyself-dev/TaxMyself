@@ -18,6 +18,7 @@ import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
 import { Supplier } from '../expenses/suppliers.entity';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
+import { FinsiteService } from 'src/finsite/finsite.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, ClassifiedTransactions, Bill, Source, Child])],
@@ -28,6 +29,7 @@ import { UserCategory } from '../expenses/user-categories.entity';
     ExpensesService,
     UsersService,
     AuthService,
+    FinsiteService
   ],
 })
 export class ExcelModule {}

@@ -12,12 +12,19 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
 import { SourceType } from 'src/enum';
 
+
 @Controller('transactions')
 export class TransactionsController {
   constructor(
     private readonly transactionsService: TransactionsService,
     private readonly sharedService: SharedService,
     private usersService: UsersService,) {}
+
+  @Post('get-trans')
+  async getTrans() {
+    const jsonFilePath = './src/finsite/finsiteData.json';
+    return this.transactionsService.getTransactionsFromFinsite(jsonFilePath, "2024-10-01", "2024-10-05", "8706");
+  }
 
 
   @Post('load-file')

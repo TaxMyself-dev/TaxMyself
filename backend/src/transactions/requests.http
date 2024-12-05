@@ -1,4 +1,8 @@
 ###
+POST  http://localhost:3000/transactions/get-trans
+content-type: application/json
+
+###
 POST http://localhost:3000/transactions/load-default-categories
 Content-Type: multipart/form-data; boundary=your-boundary
 

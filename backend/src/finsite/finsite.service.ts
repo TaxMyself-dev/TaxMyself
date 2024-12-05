@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
+import * as fs from 'fs';
 
 
 @Injectable()
@@ -18,32 +19,48 @@ export class FinsiteService {
   }
 
 
-  async getTransactions(Username: string, Password: string, startDate: string, endDate: string): Promise<any> {
+  async createFinsiteJsonFile(Username: string, Password: string): Promise<any> {
 
     this.sessionID = await this.getFinsiteToken(Username, Password);
 
+    const companies = await this.getCompanies(this.sessionID);
+    const accounts = await this.getAccounts(this.sessionID);
     const bookingAccounts = await this.getBookingAccounts(this.sessionID);
-    //console.log("bookingAccounts is ", bookingAccounts.data);
 
-    const entryIds = bookingAccounts.Entities.map((entity: any) => entity.EntryID);
-    console.log('Extracted EntryIDs:', entryIds);
-    console.log('EntryID:', entryIds[0]);
+    const companiesData = companies.Entities.map((company: any) => ({
+      id: company.EntryID,
+      name: company.Name,
+      accounts: [],
+    }));
 
-    //const BookingAccountID = bookingAccounts.data.Entities.EntityId;
+    companiesData.forEach(company => {
+      company.accounts = accounts.Entities.filter((account: any) => account.CompanyID === company.id);
+    });
 
-    //console.log("BookingAccountID is ", BookingAccountID);
+    const paymentMethods = bookingAccounts.Entities.map((method: any) => ({
+      id: method.EntryID,
+      accountId: method.AccountID,
+      subtype: method.Subtype,
+      bookingAccountCode: method.BookingAccountCode,
+      currency: method.Currency,
+      cc4Digits: method.CC4Digits,
+      isActiveDownload: method.IsActiveDownload,
+      isActiveUpload: method.IsActiveUpload,
+    }));
 
-    const companiess = await this.getCompanies(this.sessionID);
-    console.log("companiess are ", companiess);
-    
+    companiesData.forEach(company => {
+      company.accounts.forEach(account => {
+        account.paymentMethods = paymentMethods.filter(
+          method => method.accountId === account.EntryID
+        );
+      });
+    });
 
+    console.log("Companies Data:", JSON.stringify(companiesData, null, 2));
 
-
-    //const trans =  await this.getTransactionByUserId(this.sessionID, entryIds[0], startDate, endDate);
-    const trans =  await this.getTransactionByUserId(this.sessionID);
-    console.log("trans are ", trans);
-    
-
+    // Save the JSON data to a file
+    const filePath = './src/finsite/finsiteData.json';
+    fs.writeFileSync(filePath, JSON.stringify(companiesData, null, 2), 'utf-8');
 
   }
 
@@ -81,11 +98,7 @@ export class FinsiteService {
   }
 
 
-  //async getTransactionByUserId(sessionId: string, bookingAccountID: string, startDate: string, endDate: string): Promise<any> {
-  async getTransactionByUserId(sessionId: string): Promise<any> {
-    
-    //const sessionID = await this.getFinsiteToken("BH", "IK575379");
-    //console.log("sessionID for trans is ", sessionID);
+  async getTransactionsById(sessionId: string, id: string, startDate: string, endDate: string): Promise<any> {
     
     try {
       const response = await this.apiClient.get('/GetTransactions', {
@@ -93,15 +106,35 @@ export class FinsiteService {
           'M4u-Session': sessionId,
         },
         params: {
-          StartDate: "2024-07-01", // Query parameter: Start date
-          EndDate: "2024-07-30",    // Query parameter: End date
-          BookingAccountID: "422698", // Query parameter: BookingAccountID
+          StartDate: startDate,
+          EndDate: endDate,
+          BookingAccountID: id,
         },
       });
-      //console.log("SessionID is ", response.data.Entity.SessionID);
-      return response.data;
+      return response.data.Entities;
     } catch (error) {
       throw new HttpException(`Authentication failed: ${error.message}`, HttpStatus.UNAUTHORIZED);
+    }
+  }
+
+
+  async getAccounts(sessionId: string): Promise<any> {
+    try {
+      // Set the M4u-Session header for this request
+      const response = await this.apiClient.get('/GetAccounts', {
+        headers: {
+          'M4u-Session': sessionId,
+        },
+      });
+  
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching accounts:', error.response?.data || error.message);
+  
+      throw new HttpException(
+        `Failed to fetch companies: ${error.response?.data?.message || error.message}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 

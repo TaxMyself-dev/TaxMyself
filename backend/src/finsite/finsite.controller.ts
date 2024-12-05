@@ -12,13 +12,11 @@ export class FinsiteController {
     @Post('finsite-connect')
     async connectToFinsite() {
 
-      const userId =  "BH";
-      const password =  "IK575379";
+      const userId =  process.env.FINSITE_ID;
+      const password =  process.env.FINSITE_KEY;
       const startDate = "2024-07-01";
-      const endDate = "2024-07-30";
-      const data = await this.transactionsService.getTransactions(userId, password, startDate, endDate);
-      //console.log("sessionId is ", sessionId);
-      //return sessionId;
+      const endDate = "2024-07-10";
+      const data = await this.transactionsService.createFinsiteJsonFile(userId, password);
       
     }
 

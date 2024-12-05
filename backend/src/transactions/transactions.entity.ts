@@ -12,19 +12,25 @@ export class Transactions {
   id: number;
 
   @Column()
+  finsiteId: string;
+
+  @Column()
   userId: string;
 
   @Column()
   paymentIdentifier: string;
 
-  @Column()
-  billName: string;
+  @Column({ nullable: true })
+  billName: string | null;
 
-  @Column()
-  businessNumber: string;
+  @Column({ nullable: true })
+  businessNumber: string | null;
 
   @Column()
   name: string;
+
+  @Column({ nullable: true })
+  note2: string | null;
 
   @Column('date')
   billDate: Date;

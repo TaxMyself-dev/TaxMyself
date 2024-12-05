@@ -72,6 +72,9 @@ export class User {
     @Column()
     firebaseId: string;
 
+    @Column()
+    finsiteId: string;
+
     ////////////////////////////////////
     /////////   Spouse details  ////////
     ////////////////////////////////////
