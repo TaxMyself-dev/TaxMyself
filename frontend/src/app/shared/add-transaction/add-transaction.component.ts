@@ -212,6 +212,39 @@ export class AddTransactionComponent implements OnInit {
       })
   }
 
+  categoryDetailsOrderByFunc(a, b): number {
+
+    const columnsOrder = [
+      'categoryName',
+      'subCategoryName',
+      'isRecognized',
+      'isEquipment',
+      'taxPercent',
+      'vatPercent',
+      'reductionPercent'
+
+    ];
+
+    const indexA = columnsOrder.indexOf(a.key);
+    const indexB = columnsOrder.indexOf(b.key);
+
+    if (indexA === -1 && indexB !== -1) {
+      return 1; // objA is not in the order list, move it to the end
+    } else if (indexA !== -1 && indexB === -1) {
+      return -1; // objB is not in the order list, move it to the end
+    } else if (indexA === -1 && indexB === -1) {
+      return 0; // both keys are not in the order list, leave them as is
+    }
+
+    if (indexA < indexB) {
+      return -1;
+    } else if (indexA > indexB) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
   selectedSubCategory(event): void {
     console.log(event);
     console.log("originalSubCategoryList: ", this.originalSubCategoryList);

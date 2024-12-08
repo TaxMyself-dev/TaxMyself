@@ -45,21 +45,22 @@
     </div>
 
     <app-button *ngIf="expensesData" [buttonText]="'הפקת דוח'" (onButtonClicked)="userData.isTwoBusinessOwner ? openPopupSelect() : openFlowReport()"></app-button>
+    <!-- <app-button [buttonText]="'classify'" (onButtonClicked)="openAddTransaction('asd', true)"></app-button> -->
   </div>
 </ion-content>
 
 <ng-template #searchBarContent>
   <form class="generic-search-bar-content" [formGroup]="transactionsForm">
-    <app-select-report-period [parentForm]="transactionsForm"></app-select-report-period>
+    <app-select-report-period class="input-search-bar" [parentForm]="transactionsForm"></app-select-report-period>
     <app-select-month 
     *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
-           this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="transactionsForm">
+           this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="transactionsForm" class="input-search-bar">
     </app-select-month>
-    <app-select-year *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="transactionsForm"></app-select-year>
-    <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="transactionsForm"></app-sort-date>
-    <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="transactionsForm"></app-sort-date>
+    <app-select-year *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="transactionsForm" class="input-search-bar"></app-select-year>
+    <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="transactionsForm" class="input-search-bar"></app-sort-date>
+    <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="transactionsForm" class="input-search-bar"></app-sort-date>
     <app-generic-select (selectionChanged)="printbill()" [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'"
-      [parentForm]="transactionsForm"></app-generic-select>
+      [parentForm]="transactionsForm" class="input-search-bar"></app-generic-select>
   </form>
 </ng-template>
 

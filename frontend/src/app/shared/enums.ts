@@ -46,11 +46,13 @@ export enum ExpenseFormHebrewColumns {
     loadingDate = 'תאריך העלאת קובץ',
     reductionPercent = 'פחת',
     checkbox = 'בחר',
-    actions = 'פעולות'
+    actions = 'פעולות',
+    businessNumber = 'שייך לעסק'
     
 }
 
 export enum ExpenseFormColumns {
+  BUSINESS_NUMBER = 'businessNumber',
     SUPPLIER = 'supplier',
     DATE = 'date',
     SUM = 'sum',

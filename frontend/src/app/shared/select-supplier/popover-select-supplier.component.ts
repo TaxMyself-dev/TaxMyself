@@ -1,10 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { ModalController, PopoverController } from '@ionic/angular';
-import { EMPTY, Observable, catchError, delay, finalize, from, map, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, delay, finalize, from, map, switchMap, tap } from 'rxjs';
 import { addSupplierComponent } from '../add-supplier/add-supplier.component';
 import { cloneDeep } from 'lodash';
 import { FilesService } from 'src/app/services/files.service';
-import { IColumnDataTable, IGetSupplier, IRowDataTable, ISuppliers, ITableRowAction } from '../interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISuppliers, ITableRowAction } from '../interface';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonSize } from '../button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, TransactionsOutcomesColumns } from '../enums';
@@ -35,14 +35,17 @@ export class selectSupplierComponent implements OnInit {
   ]);
 
   tableActions: ITableRowAction[] = [];
-  suppliersList$: Observable<IRowDataTable[]>;
+  // suppliersList$: Observable<IRowDataTable[]>;
+  suppliersList$ = new BehaviorSubject<IRowDataTable[]>(null);
+
+  supplierList: IRowDataTable[];
   error: boolean = false;
   isOpen: boolean = false;
   message: string = "האם אתה בטוח שברצונך למחוק ספק זה?";
   id: number;
   checkedSupplier: any;
 
-  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController, private popoverController: PopoverController) { }
+  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController) { }
 
   ngOnInit() {
     this.getSuppliers();
@@ -70,93 +73,100 @@ export class selectSupplierComponent implements OnInit {
   }
 
   getSuppliers(): void {
-    this.suppliersList$ = this.expenseDataService.getAllSuppliers()
-    .pipe(
-      catchError((err) => {
-        console.log("err in get suppliers:", err);
-        this.error = true;
-        return EMPTY;
-      }),
-      tap((data) => {
-        if (data?.length <= 0) {
-          this.suppliersList$ = null
-        }
-        console.log(data);
-        
-      })
-    )
-    // .subscribe((res) => {
-    //   console.log(res);
-    //   this.error = false;
-    //   //this.suppliersList = res
-    // })
+    this.expenseDataService.getAllSuppliers()
+      .pipe(
+        catchError((err) => {
+          console.log("err in get suppliers:", err);
+          this.error = true;
+          return EMPTY;
+        }),
+        map((data) => {
+          return data.length ? data.map((supplier: IGetSupplier) => ({
+            id: supplier.id,
+            subCategory: supplier.subCategory,
+            category: supplier.category,
+            taxPercent: supplier.taxPercent,
+            vatPercent: supplier.vatPercent,
+            supplier: supplier.supplier,
+            supplierID: supplier.supplierID,
+            isEquipment: supplier.isEquipment,
+            reductionPercent: supplier.reductionPercent
+          } as IRowDataTable
+          )) : null;
+        }),
+      tap((data: IRowDataTable[]) => {
+        this.supplierList = data;
+        this.suppliersList$.next(data);
+      }))
+      .subscribe();
+
   }
 
   selectedSupplier(): void {
     this.cancel(this.checkedSupplier.row);
   }
-  
+
   cancel(data?: IRowDataTable) {
     if (data) {
-      this.modalCtrl.dismiss(data,'success');
+      this.modalCtrl.dismiss(data, 'success');
     }
     else {
-      this.modalCtrl.dismiss(null,'cancel');
+      this.modalCtrl.dismiss(null, 'cancel');
     }
   }
 
-  editSupplier(supplier: IRowDataTable): void{
-        from(this.modalCtrl.create({
-          component: addSupplierComponent,
-          componentProps: {
-            supplier: supplier,
-            editMode: true
-          },
-          cssClass: 'edit-supplier'
-        })).pipe(
-          catchError((err) => {
-            console.log("openEditSupplier failed in create", err);
-            return EMPTY;
-          }),
-          switchMap((modal) => {
-            if (modal) {
-              return from(modal.present()).pipe(
-                switchMap(() => from(modal.onDidDismiss())),
-                catchError((err) => {
-                  console.log("openEditSupplier failed in present", err);
-                  return EMPTY;
-                })
-                );
-              }
-              else {
-                console.log('Popover modal is null');
-                return EMPTY;
-              }
+  editSupplier(supplier: IRowDataTable): void {
+    from(this.modalCtrl.create({
+      component: addSupplierComponent,
+      componentProps: {
+        supplier: supplier,
+        editMode: true
+      },
+      cssClass: 'edit-supplier'
+    })).pipe(
+      catchError((err) => {
+        console.log("openEditSupplier failed in create", err);
+        return EMPTY;
+      }),
+      switchMap((modal) => {
+        if (modal) {
+          return from(modal.present()).pipe(
+            switchMap(() => from(modal.onDidDismiss())),
+            catchError((err) => {
+              console.log("openEditSupplier failed in present", err);
+              return EMPTY;
             })
-            ).subscribe((res) => {
-              console.log(res.data?.value);
-              this.getSuppliers();
-              // if (res.role === "send")
-              // this.modalCtrl.dismiss(res.data?.value);//close the popover of suppliers list
-        })
-        
+          );
+        }
+        else {
+          console.log('Popover modal is null');
+          return EMPTY;
+        }
+      })
+    ).subscribe((res) => {
+      console.log(res.data?.value);
+      this.getSuppliers();
+      // if (res.role === "send")
+      // this.modalCtrl.dismiss(res.data?.value);//close the popover of suppliers list
+    })
+
   }
 
   deleteSupplier(): void {
-    console.log("id of del sup",this.id);
-    
+    console.log("id of del sup", this.id);
+
     this.expenseDataService.deleteSupplier(this.id)
-    .pipe(
-      finalize(()=> {this.isOpen = false}),
-      catchError((err) => {
-        console.log("err in delete supplier: ", err);
-        return EMPTY;
-      })  
-    )
-    .subscribe((res) => {
-      console.log(res);
-      this.getSuppliers();  
-    })
+      .pipe(
+        finalize(() => { this.isOpen = false }),
+        catchError((err) => {
+          console.log("err in delete supplier: ", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log(res);
+        this.getSuppliers();
+      })
   }
 
   cancelDel(): void {
@@ -177,8 +187,14 @@ export class selectSupplierComponent implements OnInit {
     else {
       this.checkedSupplier = null
     }
-    console.log("checkedSupplier: ",this.checkedSupplier);
-    
+    console.log("checkedSupplier: ", this.checkedSupplier);
+
+  }
+
+  filterSuppliers(filtrrBy: string): void {
+    console.log(filtrrBy);
+    this.suppliersList$.next(this.supplierList.filter((supplier) => supplier.supplier.toString().includes(filtrrBy)));
+
   }
 }
 

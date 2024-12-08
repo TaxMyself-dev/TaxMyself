@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { IColumnDataTable, IRowDataTable } from '../shared/interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable } from '../shared/interface';
 import { Observable, Subject } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from '../shared/enums';
@@ -139,13 +139,13 @@ export class ExpenseDataService {
     return this.http.get<any>(url, { params: param, headers: headers })
   }
 
-  getAllSuppliers(): Observable<IRowDataTable[]> {
+  getAllSuppliers(): Observable<IGetSupplier[]> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;
     const headers = {
       'token': token
     }
-    return this.http.get<IRowDataTable[]>(url, { headers })
+    return this.http.get<IGetSupplier[]>(url, { headers })
   }
 
   addSupplier(formData: any): Observable<any> {
@@ -180,7 +180,7 @@ export class ExpenseDataService {
     //TODO: change token to headers
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-expense`;
-    //console.log("formdata in send",data);
+    console.log("form data in send",data);
     return this.http.post(url, data);
     // return this.http.post(`${environment.apiUrl}expenses/add-expense`, data);
   }

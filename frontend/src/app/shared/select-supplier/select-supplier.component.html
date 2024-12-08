@@ -34,16 +34,19 @@
       </p>
     </h2>
   </div>
-  <div class="wrap-table-and-button">
-    <p *ngIf="!suppliersList$" class="not-suppliers-text">אין ספקים שמורים</p>
-    <ng-container *ngIf="suppliersList$ | async as supplierList ">
+  <div *ngIf="suppliersList$ | async as suppliersList; else notSuppliers " class="wrap-table-and-button">
+    <ng-container *ngIf="suppliersList ">
       <app-table [checkedId]="checkedSupplier?.row?.id" [displayCheckbox]="true" (onCheckedClicked)="onChecked($event)"
-        [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName"
-        [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="supplierList"></app-table>
+      [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName"
+      [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="suppliersList" [inputSearchLable]="'חיפוש לפי ספק'" (filterBy)="filterSuppliers($event)"></app-table>
     </ng-container>
-
-    <app-button *ngIf="suppliersList$" (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
+    
+    <app-button *ngIf="suppliersList" (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
   </div>
+
+  <ng-template #notSuppliers>
+    <p class="not-suppliers-text">אין ספקים שמורים</p>
+  </ng-template>
   <ng-template #loader>
     <ion-spinner></ion-spinner>
   </ng-template>

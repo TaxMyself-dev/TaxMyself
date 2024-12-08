@@ -14,7 +14,7 @@ export class GenericSelectComponent implements OnChanges{
   @Input() errorText: string;
   @Input() className: string;
   @Input() controlName: string;
-  @Input() addOther: boolean = false;
+  //@Input() addOther: boolean = false;
   @Input() set title (val: string) {
     this.inputLabelName = val;
   }

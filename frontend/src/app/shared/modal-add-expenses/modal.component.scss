@@ -104,6 +104,11 @@
          width: 47%;
     }
 
+    &.businessNumber {
+        width: 30%;
+        height: 80px;
+   }
+
 }
 
 .supplier-span {
@@ -217,17 +222,18 @@
 }
 
 
-.modal-input-date{
+.modal-input-30 {
     width: 30%;
 }
 
-.modal-input-text {
-    width: 30%;
-}
-
-.modal-input-note {
+.modal-input-100 {
     width: 100%;
 }
+
+.modal-input-50 {
+    width: 47%;
+}
+
 
 
 

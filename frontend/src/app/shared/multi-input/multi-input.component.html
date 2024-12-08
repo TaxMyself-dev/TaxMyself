@@ -5,7 +5,7 @@
 <ion-item class="wrap-multi-input {{className}}">
   <ion-input class="mupti-input"
   [formControlName]="controlName"
-    placeholder="בחר או הכנס קטגוריה חדשה"
+    [placeholder]="inputLabelName"
     [(ngModel)]="categoryInput"
     (ionFocus)="showDropdown = true"
     (ionInput)="filterCategories()"

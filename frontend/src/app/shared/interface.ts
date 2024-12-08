@@ -124,7 +124,7 @@ export interface IGetSupplier {
     category: string;
     taxPercent: string;
     vatPercent: string;
-    name: string;
+    supplier: string;
     supplierID: string;
     isEquipment: boolean;
     reductionPercent: number;

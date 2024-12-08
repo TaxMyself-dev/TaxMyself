@@ -26,6 +26,9 @@ export class CreateExpenseDto {
     category: string;
 
     @IsString()
+    businessNumber: string;
+
+    @IsString()
     subCategory: string;
 
     @IsNumber()
