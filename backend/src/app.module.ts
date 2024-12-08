@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 //Modules
@@ -26,6 +27,9 @@ import { Source } from './transactions/source.entity';
 import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
 import 'dotenv/config'
 import admin from 'firebase-admin';
+import { TransactionsService } from './transactions/transactions.service';
+import { FinsiteService } from './finsite/finsite.service';
+import { ExpensesService } from './expenses/expenses.service';
 
 let serviceAccount: any;
 
@@ -57,9 +61,23 @@ serviceAccount = {
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
+    TypeOrmModule.forFeature([
+      User,
+      Supplier,
+      Transactions,
+      ClassifiedTransactions,
+      Bill,
+      Source,
+      Expense,
+      DefaultCategory,
+      UserCategory,
+      DefaultSubCategory,
+      UserSubCategory,
+    ]),
+    ScheduleModule.forRoot(),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule],
     controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, TransactionsService, FinsiteService, ExpensesService],
 })
 export class AppModule {
 

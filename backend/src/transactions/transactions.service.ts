@@ -465,7 +465,7 @@ export class TransactionsService {
           userId,
           name,
           billName,
-          billDate: Between(startDate, endDate)
+          //billDate: Between(startDate, endDate)
         },
       });
     } else {
@@ -553,7 +553,7 @@ export class TransactionsService {
           userId,
           name: updateDto.name,
           billName: updateDto.billName,
-          billDate: Between(startDate, endDate)
+          //billDate: Between(startDate, endDate)
         },
       });
     }

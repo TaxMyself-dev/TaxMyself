@@ -20,6 +20,8 @@ export class AuthService {
   token: string;
   private userDetails: IUserDate = null;
   private refreshInterval: any;
+  private tokenListenerInitialized = false; // Ensure the listener is initialized only once
+
   // userDetailsObs$: Observable<IUserDate> = this.userDetails$.asObservable();
 
 
@@ -40,32 +42,39 @@ export class AuthService {
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
 
-  startTokenRefresh(): void {
-    this.stopTokenRefresh(); // Clear any existing intervals to avoid duplication
-    // Refresh token every 50 minutes (tokens expire after 60 minutes)
-    this.refreshInterval = setInterval(() => {
-      this.afAuth.currentUser.then((currentUser) => {
-        console.log("befor user");
+  startTokenRefresh() {
+
+    if (this.tokenListenerInitialized) return; // Avoid multiple listeners
+    this.tokenListenerInitialized = true;
+
+    // Firebase listener for ID token changes
+    this.afAuth.onIdTokenChanged(async (user) => {
+      if (user) {
+        // Fetch the latest token
+        const idToken = await user.getIdToken();
+        const currentTime = new Date().toLocaleString(); // Human-readable time
+        console.log(`Token refreshed at ${currentTime}:`, idToken);
+        console.log("user is ", user);
         
-        if (currentUser) {
-          console.log("after user");
-          currentUser.getIdToken(true).then((token) => {
-            localStorage.setItem('token', token); // Store the token locally
-            console.log(localStorage.getItem('token'));
-            
-            this.tokenRefreshed$.next(token); // Notify subscribers of the updated token
-            console.log('Token refreshed:', token);
-          });
-        }
-      });
-  }, 50 * 60 * 1000); // 50 minutes in milliseconds
+        // Store the token in local storage for easy access
+        localStorage.setItem('token', idToken);
+
+        // Optionally, send the token to the backend for verification
+      } else {
+        // User is logged out or the token is invalid
+        console.log('User is signed out or token has expired');
+        localStorage.removeItem('token');
+      }
+    });
   }
+
 
   stopTokenRefresh(): void {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
   }
+
 
   logout(): void {
     this.afAuth.signOut().then(() => {
@@ -74,6 +83,7 @@ export class AuthService {
       console.log('User logged out and token refresh stopped');
     });
   }
+
 
   userVerify(email: string, password: string): Observable<UserCredential> {
     // Set token persistence to 'local' (persist the session across browser reloads and sessions)
@@ -93,6 +103,7 @@ export class AuthService {
     );
   }
 
+  
   getUserDataFromLocalStorage(): IUserDate {
     const tempA = localStorage.getItem('userData');
     return JSON.parse(tempA)

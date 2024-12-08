@@ -76,10 +76,10 @@ export class LoginPage implements OnInit {
           }
           if (res.user.emailVerified) {
             this.authService.signIn(res)
-              .subscribe((res) => {
+              .subscribe(async (res) => {
                 localStorage.setItem('userData', JSON.stringify(res));
-                this.authService.startTokenRefresh(); // Start refreshing tokens after login
-                  this.router.navigate(['my-account']);
+                console.log('Sign-in response:', res);
+                this.router.navigate(['my-account']);
               })
           }
           else {
