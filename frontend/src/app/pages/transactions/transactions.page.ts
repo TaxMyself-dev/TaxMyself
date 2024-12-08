@@ -111,6 +111,7 @@ export class TransactionsPage implements OnInit {
   ]);
 
   public COLUMNS_TO_IGNORE_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  // public COLUMNS_TO_SHOW_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   public COLUMNS_TO_IGNORE_INCOMES = ['businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;

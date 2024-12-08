@@ -1,35 +1,57 @@
 .child-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
 
-    &:not(:last-of-type) {
-      border-bottom: 1px solid lightgray;
-    }
+  &:not(:last-of-type) {
+    border-bottom: 1px solid lightgray;
   }
-  
+}
+
 //----------------
-ion-content .register-content {
+.register-content {
   display: flex;
   flex-direction: column;
-  justify-content: space-around; 
-  align-items: center ;
-  height: 100%; 
+  justify-content: space-around;
+  align-items: center;
+  height: 100%;
 
   @media only screen and (max-width:495px) {
     justify-content: normal;
   }
 }
 
+.wrap-register-modulse {
+  margin: auto;
+  width: 90%;
+  display: flex;
+  justify-content: center;
+}
+
 .form-register {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-around;
-  border:3px solid rgb(79, 171, 79);
+  border: 3px solid rgb(79, 171, 79);
   border-radius: 15px;
-  width: 90%;
+  width: 100%;
   padding-top: 26px;
+}
+
+.wrap-two-detial-business {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin: 10px
+}
+
+.wrap-one-detial-business {
+  margin-bottom: 15px;
+}
+
+.business-title {
+  margin-bottom: 5px;
 }
 
 .validation-form-register {
@@ -42,17 +64,17 @@ ion-content .register-content {
   align-items: center;
 }
 
-.form-register-validate{
+.form-register-validate {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-around;
-  border:3px solid rgb(79, 171, 79);
+  border: 3px solid rgb(79, 171, 79);
   border-radius: 15px;
   width: 90%;
 }
 
-.input-register{
+.input-register {
   min-width: 200px;
   display: flex;
   width: 220px;
@@ -72,14 +94,14 @@ ion-content .register-content {
   margin-bottom: 30px;
 }
 
-.navigate-item-container{
+.navigate-item-container {
   display: flex;
   justify-content: space-around;
   background-color: transparent;
   width: 100%;
 }
 
-.text-error{
+.text-error {
   border: 2px solid red;
   border-radius: 15px;
   width: 60%;
@@ -95,17 +117,14 @@ ion-content .register-content {
 .blue-link {
   color: blue;
   text-decoration: underline;
-  cursor: pointer; 
+  cursor: pointer;
 }
 
 @media only screen and (max-width:600px) {
-  .input-register-child{
+  .input-register-child {
     min-width: 200px;
     display: flex;
     --border-radius: 15px;
     margin: 10px;
   }
 }
-
-
-

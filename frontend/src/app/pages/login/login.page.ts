@@ -55,6 +55,7 @@ export class LoginPage implements OnInit {
   }
 
   async signin(): Promise<any> {
+    this.authService.error$.next(null);
     if (this.loginForm.valid) {
       const loading = await this.loadingController.create({
         message: 'Please wait...',
