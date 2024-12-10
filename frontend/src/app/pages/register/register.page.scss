@@ -1,8 +1,13 @@
+.child-row-wrap {
+  width: 74%;
+}
+
 .child-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   margin-bottom: 10px;
+  justify-content: space-around;
 
   &:not(:last-of-type) {
     border-bottom: 1px solid lightgray;
@@ -83,12 +88,12 @@
   margin: 10px;
 }
 
-.input-register-child {
-  display: flex;
-  --border-radius: 15px;
-  flex-basis: calc(25% - 35px);
-  margin: 10px;
-}
+// .input-register-child {
+//   display: flex;
+//   --border-radius: 15px;
+//   flex-basis: calc(25% - 35px);
+//   margin: 10px;
+// }
 
 .child-button {
   margin-bottom: 30px;
@@ -118,6 +123,14 @@
   color: blue;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.default-input-register {
+  width: 172px;
+}
+
+.wide-input-register {
+  width: 250px;
 }
 
 @media only screen and (max-width:600px) {

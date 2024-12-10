@@ -2,19 +2,23 @@
 <app-generic-select [addOther]="true" [items]="items" [errorText]="errorText" [title]="title" [controlName]="controlName" [className]="className"></app-generic-select> -->
 
 <form [formGroup]="parentForm" class="multi-input-form">
-<ion-item class="wrap-multi-input {{className}}">
+<ion-item (blur)="toggleDropdown()" class="wrap-multi-input {{className}}">
   <ion-input class="mupti-input"
   [formControlName]="controlName"
     [placeholder]="inputLabelName"
     [(ngModel)]="categoryInput"
     (ionFocus)="showDropdown = true"
     (ionInput)="filterCategories()"
+    (ionBlur)="toggleDropdown()"
   ></ion-input>
+  <!-- <ion-button fill="clear"> -->
   <ion-icon
     slot="end"
     name="caret-down-outline"
     (click)="toggleDropdown()"
+    (ionBlur)="toggleDropdown()"
   ></ion-icon>
+<!-- </ion-button> -->
 </ion-item>
 
 <div class="popover-container"
