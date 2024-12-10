@@ -83,7 +83,7 @@ export class AppComponent implements OnInit {
   getRoleUser(): void {
     //console.log(this.authService.userDetails);
     
-    if (this.userData.role === 'ADMIN') {
+    if (this.userData?.role === 'ADMIN') {
       this.isUserAdmin = true;
     }
     else {
