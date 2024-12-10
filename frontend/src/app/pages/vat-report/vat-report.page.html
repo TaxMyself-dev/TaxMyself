@@ -47,14 +47,14 @@
 
 <ng-template #vatReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="vatReportForm">
-    <app-select-report-period [className]="'narrow'" [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm"></app-select-report-period>
-    <app-select-month [parentForm]="vatReportForm"></app-select-month>
-    <app-select-year [parentForm]="vatReportForm"></app-select-year>
+    <app-select-report-period class="vat-report-search-bar-input" [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm"></app-select-report-period>
+    <app-select-month class="vat-report-search-bar-input" [parentForm]="vatReportForm"></app-select-month>
+    <app-select-year class="vat-report-search-bar-input" [parentForm]="vatReportForm"></app-select-year>
     <!-- <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'" -->
       <!-- [parentForm]="vatReportForm"></app-generic-input> -->
     <!-- <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'" -->
       <!-- [parentForm]="vatReportForm"></app-generic-input> -->
-      <app-generic-select *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="vatReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+      <app-generic-select class="vat-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="vatReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
   </form>
 </ng-template> 
 

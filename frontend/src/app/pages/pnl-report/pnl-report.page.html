@@ -53,12 +53,12 @@
 
 <ng-template #pnlReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="pnlReportForm">
-    <app-select-report-period [parentForm]="pnlReportForm"></app-select-report-period>
-    <app-select-month [parentForm]="pnlReportForm"></app-select-month>
-    <app-select-year [parentForm]="pnlReportForm"></app-select-year>
+    <app-select-report-period class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-report-period>
+    <app-select-month class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-month>
+    <app-select-year class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-year>
     <!-- <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
       [parentForm]="pnlReportForm"></app-generic-input> -->
-      <app-generic-select *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+      <app-generic-select class="pnl-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
 
   </form>
 </ng-template>
