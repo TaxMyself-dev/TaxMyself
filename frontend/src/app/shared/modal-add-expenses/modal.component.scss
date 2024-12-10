@@ -271,22 +271,34 @@
         margin-left: 10px;
     }
 
-    .modal-input-date{
+    .modal-input-30 {
         width: 100%;
     }
     
-    .modal-input-text {
+    .modal-input-100 {
+        width: 100%;
+    }
+    
+    .modal-input-50 {
         width: 100%;
     }
 
-    .input-expense {
+//     .modal-input-date{
+//         width: 100%;
+//     }
+    
+//     .modal-input-text {
+//         width: 100%;
+//     }
+
+//     .input-expense {
         
-    &.category {
-        width: 100%;
-   }
+//     &.category {
+//         width: 100%;
+//    }
 
-   &.subCategory {
-        width: 100%;
-   }   
-    }
+//    &.subCategory {
+//         width: 100%;
+//    }   
+//     }
 }

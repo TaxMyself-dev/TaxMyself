@@ -1,11 +1,11 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl } from '@angular/forms';
 import { RegisterService } from './register.service';
-import { ICityData, IItemNavigate } from 'src/app/shared/interface';
+import { ICityData, IItemNavigate, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
-import { startWith, Subject, takeUntil, tap } from 'rxjs';
+import { map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
@@ -22,11 +22,12 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly ButtonClass = ButtonClass;
   readonly ButtonSize = ButtonSize;
   readonly formTypes = FormTypes;
-  
+
   private ngUnsubscribe = new Subject();
-  
+
   myForm: FormGroup;
-  cities: ICityData[];
+  // cities: ICityData[];
+  cities: ISelectItem[];
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
   registerMode: boolean = true;
@@ -36,11 +37,11 @@ export class RegisterPage implements OnInit, OnDestroy {
   employmentTypeOptionsList = employmentTypeOptionsList;
   listBusinessField = [{ value: "build", name: "בניין" }, { value: "electric", name: "חשמל" }, { value: "photo", name: "צילום" }, { value: "architecture", name: "אדריכלות" }]
   businessTypeOptionsList = businessTypeOptionsList;
-  itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one'}, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
+  itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
   requierdField: boolean = false;
-  
+
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
 
@@ -150,9 +151,9 @@ export class RegisterPage implements OnInit, OnDestroy {
     });
   }
 
-ngOnDestroy(): void {    
-  this.ngUnsubscribe.complete();
-}
+  ngOnDestroy(): void {
+    this.ngUnsubscribe.complete();
+  }
 
   ngOnInit() {
     this.authService.isVerfyEmail$.pipe(takeUntil(this.ngUnsubscribe)).subscribe((value) => { //TODO: unsubscribe
@@ -199,21 +200,29 @@ ngOnDestroy(): void {
   gelAllCities(): void {
     this.registerService.getCities().pipe(
       takeUntil(this.ngUnsubscribe),
-      startWith([]), 
+      startWith([]),
+      map((cities) => {
+        return cities.map((city) => ({
+          name: city.name,
+          value: city.name
+        }))
+      }),
       tap((res) => {
+        console.log(res);
+
         if (res.length) {
           this.cities = res.slice(1);
         }
         else {
           this.cities = [];
         }
-
- 
       }
-    )).subscribe();
+      ),
+    )
+      .subscribe();
   }
 
-  
+
   getChildFormByIndex(index: number): FormGroup {
     return this.childrenArray.at(index) as FormGroup;
   }
@@ -242,12 +251,12 @@ ngOnDestroy(): void {
 
   removeChild(index: number) {
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
-      items.removeAt(index);
+    items.removeAt(index);
   }
 
   handleFormRegister() {
     const formData = cloneDeep(this.myForm.value);
-    formData.validation = {password: formData?.validation?.password};
+    formData.validation = { password: formData?.validation?.password };
     formData.personal.city = formData?.personal?.city?.name;
     const data = { fromReg: false, email: formData.email };
     this.authService.SignUp(formData).subscribe(() => {
@@ -256,7 +265,7 @@ ngOnDestroy(): void {
   }
 
   onBackBtnClicked(): void {
-    switch(this.selectedFormModule) {
+    switch (this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
         this.selectedFormModule = RegisterFormModules.BUSINESS;
         this.setSelectedNavItem(RegisterFormModules.BUSINESS);
@@ -283,13 +292,13 @@ ngOnDestroy(): void {
         this.selectedFormModule = RegisterFormModules.PERSONAL;
         this.setSelectedNavItem(RegisterFormModules.PERSONAL);
         break;
-  }
     }
+  }
 
   onNextBtnClicked(): void {
     console.log("onNextBtnClicked - start");
-    
-    switch(this.selectedFormModule) {
+
+    switch (this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
         this.handleFormRegister();
         break;
@@ -300,7 +309,7 @@ ngOnDestroy(): void {
         } else if (this.isSingle() && this.isIndependent()) {
           this.selectedFormModule = RegisterFormModules.BUSINESS;
           this.setSelectedNavItem(RegisterFormModules.BUSINESS);
-        } else if (this.isSingle() && !this.isIndependent())  {
+        } else if (this.isSingle() && !this.isIndependent()) {
           this.selectedFormModule = RegisterFormModules.VALIDATION;
           this.setSelectedNavItem(RegisterFormModules.VALIDATION)
         } else {
@@ -325,8 +334,8 @@ ngOnDestroy(): void {
         this.selectedFormModule = RegisterFormModules.VALIDATION;
         this.setSelectedNavItem(RegisterFormModules.VALIDATION)
         break;
-      }
     }
+  }
 
   checkPassword(event: string) {
     const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
@@ -338,34 +347,34 @@ ngOnDestroy(): void {
   }
 
   navigateclicked(event: IItemNavigate): void {
-    switch(event.name) {
-        case "פרטים אישיים":
-    this.selectedFormModule = this.registerFormModules.PERSONAL
-    break;
+    switch (event.name) {
+      case "פרטים אישיים":
+        this.selectedFormModule = this.registerFormModules.PERSONAL
+        break;
 
-        case "פרטי בן/בת זוג":
-    this.selectedFormModule = this.registerFormModules.SPOUSE
-    break;
+      case "פרטי בן/בת זוג":
+        this.selectedFormModule = this.registerFormModules.SPOUSE
+        break;
 
-        case "פרטי ילדים":
-    this.selectedFormModule = this.registerFormModules.CHILDREN
-    break;
+      case "פרטי ילדים":
+        this.selectedFormModule = this.registerFormModules.CHILDREN
+        break;
 
-        case "פרטי עסק":
-    this.selectedFormModule = this.registerFormModules.BUSINESS
-    break;
+      case "פרטי עסק":
+        this.selectedFormModule = this.registerFormModules.BUSINESS
+        break;
 
-        case "סיסמא ואימות":
-    this.selectedFormModule = this.registerFormModules.VALIDATION
-    break;
+      case "סיסמא ואימות":
+        this.selectedFormModule = this.registerFormModules.VALIDATION
+        break;
 
-        default:
-    this.selectedFormModule = this.registerFormModules.PERSONAL
-    break;
-  }
+      default:
+        this.selectedFormModule = this.registerFormModules.PERSONAL
+        break;
     }
+  }
 
-    private setSelectedNavItem(selectedModule: RegisterFormModules) {
+  private setSelectedNavItem(selectedModule: RegisterFormModules) {
     this.itemsNavigate.forEach((item: IItemNavigate) =>
       item.selected = item.id === selectedModule
     )
@@ -376,7 +385,7 @@ ngOnDestroy(): void {
   }
 
   private isCurrentFormValid(): boolean {
-    switch(this.selectedFormModule) {
+    switch (this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
         const baseFormValidation = this.personalForm.valid && this.businessForm.valid && this.validationForm.valid;
         if (this.isSingle()) {
@@ -394,43 +403,43 @@ ngOnDestroy(): void {
         return this.spouseForm.valid;
       case RegisterFormModules.BUSINESS:
         return this.businessForm.valid;
-      }
+    }
+  }
+
+  private confirmPasswordValidator(control: AbstractControl) {
+    const confirmPassword = control?.value;
+
+    if (!confirmPassword) {
+      return null;
     }
 
-    private confirmPasswordValidator(control: AbstractControl) {
-      const confirmPassword = control?.value;
-
-      if (!confirmPassword) {
-        return null;
-      }
-    
-      if (confirmPassword === control?.parent?.get('password')?.value) {
-        // input is valid
-        return null;
-      }
-      
-      // input is not valid
-      return {
-        match: false
-      }
+    if (confirmPassword === control?.parent?.get('password')?.value) {
+      // input is valid
+      return null;
     }
 
-    private isSingle(): boolean {
-      return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.SINGLE;
+    // input is not valid
+    return {
+      match: false
     }
+  }
 
-    private isMarried(): boolean {
-      return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.MARRIED;
-    }
+  private isSingle(): boolean {
+    return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.SINGLE;
+  }
 
-    isIndependent(): boolean {
-      return (this.personalForm?.get(RegisterFormControls.EMPLOYEMENTSTATUS)?.value === EmploymentType.SELF_EMPLOYED || 
-              this.personalForm?.get(RegisterFormControls.EMPLOYEMENTSTATUS)?.value === EmploymentType.BOTH);
-    }
+  private isMarried(): boolean {
+    return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.MARRIED;
+  }
 
-    isSpouseIndependent(): boolean {
-      return (this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.SELF_EMPLOYED ||
-              this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.BOTH);
-    }
+  isIndependent(): boolean {
+    return (this.personalForm?.get(RegisterFormControls.EMPLOYEMENTSTATUS)?.value === EmploymentType.SELF_EMPLOYED ||
+      this.personalForm?.get(RegisterFormControls.EMPLOYEMENTSTATUS)?.value === EmploymentType.BOTH);
+  }
+
+  isSpouseIndependent(): boolean {
+    return (this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.SELF_EMPLOYED ||
+      this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.BOTH);
+  }
 
 }
