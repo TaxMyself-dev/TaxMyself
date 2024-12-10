@@ -13,9 +13,11 @@ export class AppService {
     private readonly transactionsService: TransactionsService,
     private readonly finsiteService: FinsiteService,
   ) {}
-
-  @Cron('0 0 * * *') // Runs daily at midnight
+  //     min  hr  day  mon  dayOfWeek
+  @Cron('0   0   *    *   *') // Runs daily at midnight
   async handleDailyTask() {
+
+    console.log('Running daily task');
 
     const jsonFilePath = './src/finsite/finsiteData.json';
 
@@ -34,7 +36,6 @@ export class AppService {
     const endDate = today.toISOString().split('T')[0];
     const startDate = threeDaysAgo.toISOString().split('T')[0];
  
-    console.log('Running daily task');
     await this.transactionsService.getTransactionsFromFinsite(jsonFilePath, startDate, endDate);
   }
 
