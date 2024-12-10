@@ -25,33 +25,31 @@
         <ion-list class="list-expense">
           <ng-container *ngFor="let col of columns">
             <ng-container [ngSwitch]="col.type">
+              <!-- text input -->
               <ng-container *ngSwitchCase="formTypes.TEXT">
-                <!-- <ion-input [class.sum]="col.name === 'sum'" [class.expenseNumber]="col.name === 'expenseNumber'"
-                [class.supplier]="col.name === 'supplier'" [class.note]="col.name === 'note'"
-                [class.reductionPercent]="col.name === 'reductionPercent'"
-                [class.vatPercent]="col.name === 'vatPercent'" [class.taxPercent]="col.name === 'taxPercent'"
-                [class.supplierID]="col.name === 'supplierID'" class="input-expense text" label-placement="floating"
-                [formControlName]="col.name" type="text" fill="outline" label="{{col.value}}"></ion-input> -->
-                <!-- <div *ngIf="col.name === 'supplier'"  class="wrap-add-expense-supplier"> -->
-                <app-generic-input [class]="col.name !== 'note' ? 'modal-input-text' : 'modal-input-note' " [className]="col.name === 'note' ? 'note' : 'narrow'"  [inputLabel]="col.value" 
+                <app-generic-input [class]="col.name !== 'note' ? 'modal-input-30' : 'modal-input-100' " [className]="col.name === 'note' ? 'note' : ''"  [inputLabel]="col.value" 
                   [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
-                <!-- <span  class="supplier-span" (click)="openSelectSupplier($event)"
-                *ngIf="col.name === 'supplier'">לרשימת הספקים<ion-icon name="arrow-forward-outline"></ion-icon></span> -->
-
-                <!-- </div> -->
               </ng-container>
+              <!-- date input -->
               <ng-container *ngSwitchCase="formTypes.DATE">
-                <app-generic-input class="modal-input-date" className="narrow" [inputType]="formTypes.DATE" [inputLabel]="col.value"
+                <app-generic-input class="modal-input-30" [inputType]="formTypes.DATE" [inputLabel]="col.value"
                   [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
               </ng-container>
+              <!-- select input -->
               <ng-container *ngSwitchCase="formTypes.DDL">
-                <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'"
+                <app-multi-input *ngIf="col.name === expenseFormColumns.SUPPLIER && displaySuppliersList" class="modal-input-30" [controlName]="expenseFormColumns.SUPPLIER" [items]="displaySuppliersList"
+                [parentForm]="addExpenseForm" [title]="'ספק'"></app-multi-input>
+                <app-generic-select *ngIf="userData.isTwoBusinessOwner && col.name === expenseFormColumns.BUSINESS_NUMBER" class="modal-input-30" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.BUSINESS_NUMBER"  [title]="expenseFormHebrewColumns.businessNumber" [items]="businessList"></app-generic-select>
+                <app-generic-select *ngIf="col.name === expenseFormColumns.IS_EQUIPMENT" class="modal-input-100" [className]="'note'"  [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.IS_EQUIPMENT" [title]="expenseFormHebrewColumns.isEquipment" [items]="equipmentList" (selectionChanged)="setValueEquipment($event)"></app-generic-select>
+                <app-generic-select *ngIf="col.name === expenseFormColumns.CATEGORY" class="modal-input-50" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.CATEGORY" [title]="expenseFormHebrewColumns.category" [items]="getListCategory()" (selectionChanged)="getSubCategory($event)"></app-generic-select>
+                <app-generic-select *ngIf="col.name === expenseFormColumns.SUB_CATEGORY" class="modal-input-50" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.SUB_CATEGORY" [title]="expenseFormHebrewColumns.subCategory" [items]="getListSubCategory()" (selectionChanged)="selectedSubcategory($event)"></app-generic-select>
+                <!-- <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'" [class.businessNumber]="col.name === 'businessNumber'"
                   [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
                   class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
                   (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
                   <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                     [value]="option.value">{{option.name}}</ion-select-option>
-                </ion-select>
+                </ion-select> -->
               </ng-container>
             </ng-container>
           </ng-container>

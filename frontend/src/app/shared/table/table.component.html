@@ -58,7 +58,7 @@
         <ng-template #defaultCell>
           <ion-col class="text-cell" title="{{ field.value }}" *ngIf="!columnsToIgnore.includes(field.key)"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
-            <div (click)="toggleExpand()" [class.expanded]="isExpanded" class="inner-div-cell">
+            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded" class="inner-div-cell">
               {{field.value}}
             </div>
           </ion-col>
@@ -68,7 +68,7 @@
           <ion-col class="text-cell ion-col-with-icon" title="{{ field.value }}"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
             <!-- another div for ellipsis -->
-            <div (click)="toggleExpand()" [class.expanded]="isExpanded" class="inner-div-cell"> 
+            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded" class="inner-div-cell"> 
               {{field.value}}
               <div class="wrap-button-category">
                 <app-button [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip"
@@ -81,7 +81,7 @@
 
         <ng-template #billRenderCell>
           <ng-container *ngIf="field.value === 'זמני'; else defaultCell">
-            <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
+            <ion-col class="text-cell" [class.expanded]="expandedRowId === row.id && isExpanded" (click)="toggleExpand(row)" title="{{ field.value }}"
               *ngIf="field.value === 'זמני'; else defaultCell" class="special-cell"
               [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize"
               (click)="openAddBill(row)">
@@ -91,7 +91,7 @@
         </ng-template>
 
         <ng-template #categoryRenderCell>
-          <ion-col class="text-cell" [class.expanded]="isExpanded" (click)="toggleExpand()" title="{{ field.value }}"
+          <ion-col class="text-cell" [class.expanded]="expandedRowId === row.id && isExpanded" (click)="toggleExpand(row)" title="{{ field.value }}"
             *ngIf="field.value === 'טרם סווג'; else defaultCellWithIcon" class="special-cell"
             [size]="columnsWidth?.get(field.key) ?? baseSize" (click)="openAddTransaction(row)">
             <span class="text-special-cell">טרם סווג</span>
@@ -102,7 +102,7 @@
           <ion-col class="text-cell"
             title="{{field.value | dateFormat}}" *ngIf="!columnsToIgnore.includes(field.key)"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
-            <div (click)="toggleExpand()" [class.expanded]="isExpanded" class="inner-div-cell">
+            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded" class="inner-div-cell">
               {{field.value | dateFormat}}
             </div>
           </ion-col>

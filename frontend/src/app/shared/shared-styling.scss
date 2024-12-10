@@ -1,5 +1,6 @@
 .generic-input-wrapper {
     height: 80px;
+    width: 100%;
 
     &.file {
         border-style: none;
@@ -20,7 +21,8 @@
 
 .generic-input-style {
     --border-radius: 15px;
-    width: 172px;
+    // width: 172px;
+    width: 100%;
 
     &.wide {
         width: 250px;

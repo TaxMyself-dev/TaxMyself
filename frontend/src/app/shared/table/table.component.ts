@@ -52,6 +52,8 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   allID: number[] =[];
   isSelected: boolean = false;
   isExpanded = false;
+  expandedRowId: string;
+
 
 
   constructor() {}
@@ -81,18 +83,21 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
     //this.showChecked();
   }
 
-  toggleExpand() {
-    this.isExpanded = !this.isExpanded;  // Toggle between expanded and collapsed state
+  toggleExpand(row: IRowDataTable) {
+    if (row.id === this.expandedRowId && this.isExpanded === true) {
+      this.isExpanded = false;
+    }
+    else {
+      this.isExpanded = true;
+    }
+    this.expandedRowId = row.id as string;
   }
 
   showChecked(data: IRowDataTable): boolean {
     if (data.id === this.checkedId) {
-      //console.log("in true chcked");
-      
       return true;
     }
     else {
-      //console.log("in false chcked");
       return false;
     }
   }

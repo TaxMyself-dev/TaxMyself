@@ -52,7 +52,7 @@ export class MultiInputComponent  implements OnInit {
   ngOnInit() {}
 
   get items(): ISelectItem[] {
-    return this.items
+    return this.filteredCategories
   }
   // currentFormControl(): FormControl {
   //   return (this.parentForm && this.controlName) ? this.parentForm.get(this.controlName) as FormControl: null;
@@ -60,11 +60,11 @@ export class MultiInputComponent  implements OnInit {
 
   toggleDropdown() {
     this.showDropdown = !this.showDropdown;
-    if (this.showDropdown) {
-      this.disableBodyScroll();
-    } else {
-      this.enableBodyScroll();
-    }
+    // if (this.showDropdown) {
+    //   this.disableBodyScroll();
+    // } else {
+    //   this.enableBodyScroll();
+    // }
     this.setPopoverPosition();
   }
 
@@ -97,14 +97,14 @@ export class MultiInputComponent  implements OnInit {
     }
   }
 
-  disableBodyScroll() {
-    console.log("in disable");
+  // disableBodyScroll() {
+  //   console.log("in disable");
     
-    this.renderer.addClass(document.body, 'no-scroll');
-  }
+  //   this.renderer.addClass(document.body, 'no-scroll');
+  // }
 
-  enableBodyScroll() {
-    this.renderer.removeClass(document.body, 'no-scroll');
-  }
+  // enableBodyScroll() {
+  //   this.renderer.removeClass(document.body, 'no-scroll');
+  // }
 
 }

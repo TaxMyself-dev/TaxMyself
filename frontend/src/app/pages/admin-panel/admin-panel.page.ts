@@ -1,4 +1,7 @@
 import { Component, OnInit } from '@angular/core';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { catchError, EMPTY } from 'rxjs';
+import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { CategoryManagementComponent } from 'src/app/shared/category-management/category-management.component';
 
@@ -16,6 +19,7 @@ export class AdminPanelPage implements OnInit {
   ];
 
   selectedTab: string = 'category-management'; // Set default tab value
+  fisiteDataForm: FormGroup;
 
 
   readonly buttonSize = ButtonSize;
@@ -23,9 +27,20 @@ export class AdminPanelPage implements OnInit {
   selectedFile: File = null;
 
 
-  constructor() { }
+  constructor(private formBuilder: FormBuilder, private adminPanelService: AdminPanelService) { }
 
   ngOnInit() {
+   this.fisiteDataForm = this.formBuilder.group({
+    startDate: new FormControl(
+      Date, Validators.required,
+    ),
+    endDate: new FormControl(
+      Date, Validators.required,
+    ),
+    finsiteId: new FormControl(
+      '', Validators.required,
+    ),
+   })
   }
 
   onTabChange(newTabValue: string) {
@@ -38,6 +53,20 @@ export class AdminPanelPage implements OnInit {
     console.log(this.selectedFile);
   }
 
+  getTransFromApi(): void {
+    const formData = this.fisiteDataForm.value;
+    console.log(formData);
+    this.adminPanelService.getTransFromApi(formData)
+    .pipe(
+      catchError((error) => {
+        console.log("error in get trans from api: ", error);
+        return EMPTY;
+      })
+    )
+    .subscribe((res) => {
+      console.log("res of get trans from api: ", res);
+    })
+  }
 
   // onUpload(): void {
   //   if (this.selectedFile) {

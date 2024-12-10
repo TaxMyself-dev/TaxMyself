@@ -1,5 +1,6 @@
 .multi-input-form {
   height: 80px;
+  width: 100%;
 }
 
 ion-icon{
@@ -9,8 +10,10 @@ ion-icon{
 .wrap-multi-input {
   border: 1px solid #bbb8b8;
   border-radius: 15px;
-  width: 172px;
+  width: 100%;
+  // width: 172px;
   --border-style: none;
+  
   &.wide {
     width: 250px;
   }

@@ -20,14 +20,19 @@ ion-segment-button.md {
     align-items: center;
     flex-direction: column;
     justify-content: space-around;
+    //overflow-y: auto;
 }
 
 .form-exist-category {
     display: flex;
     flex-direction: column;
-    justify-content: space-around;
+    justify-content: flex-start;
+    // justify-content: space-around;
     align-items: center;
-    height: 50%;
+    height: auto;
+    padding: 10px;
+    gap: 15px;
+    // height: 50%;
     width: 100%;
 }
 
@@ -35,17 +40,18 @@ ion-segment-button.md {
     display: flex;
     flex-direction: column;
     height: 45%;
-    justify-content: space-around;
+    // justify-content: space-around;
+    justify-content: flex-start;
     align-items: center;
-    // gap: 10px;
+    gap: 10px;
 }
 
 
 .wrapp-ion-card {
-    height: 20%;
-    margin: 20px;
+    min-height: 80px;
+    max-height: 20%;
+    margin: 20px 0;
     width: 100%;
-    // margin: auto;
 }
 
 

@@ -318,7 +318,7 @@ export class ExpensesService {
         if (isAlreadyExist) {
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
-                error: `Supplier with this name: "${name}" already exists`
+                error: `Supplier with this name: "${supplier}" already exists`
             }, HttpStatus.CONFLICT);
         }
         const newSupplier = this.supplier_repo.create(supplier);
