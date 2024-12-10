@@ -20,10 +20,12 @@ export class TransactionsController {
     private readonly sharedService: SharedService,
     private usersService: UsersService,) {}
 
-  @Post('get-trans')
-  async getTrans() {
+  @Get('get-trans')
+  async getTrans( @Headers('token') token: string,  @Query() query: any) {
+    // console.log("query in get trans :", query);
+    
     const jsonFilePath = './src/finsite/finsiteData.json';
-    return this.transactionsService.getTransactionsFromFinsite(jsonFilePath, "2024-10-01", "2024-10-05", "8706");
+    return this.transactionsService.getTransactionsFromFinsite(jsonFilePath, query.startDate, query.endDate, query.finsiteId );
   }
 
 

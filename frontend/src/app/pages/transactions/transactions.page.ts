@@ -60,6 +60,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
     { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
   fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
@@ -73,6 +74,7 @@ export class TransactionsPage implements OnInit {
     // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
   readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
@@ -84,35 +86,37 @@ export class TransactionsPage implements OnInit {
   ]);
 
   readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
-    [TransactionsOutcomesColumns.NAME, 1.6],
-    [TransactionsOutcomesColumns.CATEGORY, 1.6],
-    [TransactionsOutcomesColumns.SUBCATEGORY, 1.6],
-    [TransactionsOutcomesColumns.BILL_DATE, 2],
-    [TransactionsOutcomesColumns.BILL_NUMBER, 1.6],
-    [TransactionsOutcomesColumns.BILL_NAME, 1.3],
+    [TransactionsOutcomesColumns.NAME, 1.3],
+    [TransactionsOutcomesColumns.CATEGORY, 1.3],
+    [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
+    [TransactionsOutcomesColumns.BILL_DATE, 1.4],
+    [TransactionsOutcomesColumns.BILL_NUMBER, 1.3],
+    [TransactionsOutcomesColumns.BILL_NAME, 1.2],
     [TransactionsOutcomesColumns.MONTH_REPORT, 1],
-    [TransactionsOutcomesColumns.SUM, 1.3],
+    [TransactionsOutcomesColumns.SUM, 1.2],
     [TransactionsOutcomesColumns.ACTIONS, 1],
     [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
+    [TransactionsOutcomesColumns.NOTE, 1],
   ]);
-
+  
   readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
-    [TransactionsOutcomesColumns.NAME, 1.5],
-    [TransactionsOutcomesColumns.CATEGORY, 1.5],
-    [TransactionsOutcomesColumns.SUBCATEGORY, 1.5],
-    [TransactionsOutcomesColumns.BILL_DATE, 1.5],
+    [TransactionsOutcomesColumns.NAME, 1.2],
     [TransactionsOutcomesColumns.BILL_NUMBER, 1],
     [TransactionsOutcomesColumns.BILL_NAME, 1],
+    [TransactionsOutcomesColumns.CATEGORY, 1.3],
+    [TransactionsOutcomesColumns.SUBCATEGORY, 1.2],
+    [TransactionsOutcomesColumns.SUM, 1],
+    [TransactionsOutcomesColumns.BILL_DATE, 1.3],
+    [TransactionsOutcomesColumns.IS_RECOGNIZED, 1],
     [TransactionsOutcomesColumns.MONTH_REPORT, 1],
     [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
-    [TransactionsOutcomesColumns.SUM, 1],
     [TransactionsOutcomesColumns.ACTIONS, 1],
-    [TransactionsOutcomesColumns.IS_RECOGNIZED, 1],
+    [TransactionsOutcomesColumns.NOTE, 1],
   ]);
 
-  public COLUMNS_TO_IGNORE_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  public COLUMNS_TO_IGNORE_EXPENSES = ['finsiteId', 'businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   // public COLUMNS_TO_SHOW_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
-  public COLUMNS_TO_IGNORE_INCOMES = ['businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  public COLUMNS_TO_IGNORE_INCOMES = ['finsiteId', 'businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
 
@@ -232,10 +236,10 @@ export class TransactionsPage implements OnInit {
       if (expenseIndex > -1) {
         this.COLUMNS_TO_IGNORE_EXPENSES.splice(expenseIndex, 1);
       }
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.NAME, 1.3)
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.CATEGORY, 1.3)
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.SUBCATEGORY, 1.2)
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.BILL_DATE, 1.2);
+      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.NAME, 1)
+      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.CATEGORY, 1)
+      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.SUBCATEGORY, 1)
+      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.BILL_DATE, 1);
 
       //------------ incomes -------------
       this.fieldsNamesIncome.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
@@ -243,13 +247,13 @@ export class TransactionsPage implements OnInit {
       if (inomeIndex > -1) {
         this.COLUMNS_TO_IGNORE_INCOMES.splice(inomeIndex, 1); // Remove 1 element at the found index
       }
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_DATE, 1.3);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.NAME, 1.3);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NUMBER, 1.3);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NAME, 1.3);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.CATEGORY, 1.3)
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUBCATEGORY, 1.3);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUM, 1.2);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_DATE, 1.2);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.NAME, 1.2);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NUMBER, 1.2);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NAME, 1.2);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.CATEGORY, 1.1)
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUBCATEGORY, 1.1);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUM, 1);
     }
 
     this.setTableActions();
@@ -331,13 +335,12 @@ export class TransactionsPage implements OnInit {
       'billName',
       'category',
       'subCategory',
-      'monthReport',
       'sum',
       'billDate',
-      'payDate',
       'isRecognized',
       'vatReportingDate',
-      'businessNumber'
+      'note2',
+      'businessName',
     ];
 
     const indexA = columnsOrder.indexOf(a.key);

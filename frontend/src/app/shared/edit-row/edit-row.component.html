@@ -3,11 +3,11 @@
     <ng-container [ngSwitch]="field.type">
 
       <ng-container *ngSwitchCase="formTypes.DDL">
-        <app-generic-select [items]="field.listItems" controlName="{{field.name}}" title="{{field.value}}" [parentForm]="parentForm" [disabled]="disabledFields?.includes(field.name)" (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
+        <app-generic-select class="input-edit-row" [items]="field.listItems" controlName="{{field.name}}" title="{{field.value}}" [parentForm]="parentForm" [disabled]="disabledFields?.includes(field.name)" (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
       </ng-container>
 
       <ng-container *ngSwitchDefault>
-        <app-generic-input controlName="{{field.name}}" inputLabel="{{field.value}}" [parentForm]="parentForm"
+        <app-generic-input class="input-edit-row" controlName="{{field.name}}" inputLabel="{{field.value}}" [parentForm]="parentForm"
           [inputType]="field.type" [disabled]="disabledFields?.includes(field.name)"></app-generic-input>
       </ng-container>
     </ng-container>

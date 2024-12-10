@@ -6,7 +6,7 @@
       <div class="bars-header">
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
         [isDisabled]="transactionsForm.invalid" (onSearchClick)="getTransactions()"></app-search-bar>
-      <app-load-file [relativeUrl]="'load-file'"></app-load-file>
+      <!-- <app-load-file [relativeUrl]="'load-file'"></app-load-file> -->
     </div>
       <div *ngIf="!expensesData">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</div>
       <div class="wrap-collapse">
@@ -67,9 +67,9 @@
 <ng-template #incomeSearchBar>
   <form class="generic-search-bar-content" [formGroup]="incomeForm">
     <app-generic-select [parentForm]="incomeForm" [controlName]="'incomeType'" [items]="typeIncomeList"
-      [title]="'סוג ההכנסה'"></app-generic-select>
+      [title]="'סוג ההכנסה'" class="input-search-bar"></app-generic-select>
     <app-generic-select [parentForm]="incomeForm" [controlName]="'category'" [items]="listFilterCategory"
-      [title]="'קטגוריה'"></app-generic-select>
+      [title]="'קטגוריה'" class="input-search-bar"></app-generic-select>
   </form>
 </ng-template>
 
@@ -79,9 +79,9 @@
 <ng-template #expensesSearchBar>
   <form class="generic-search-bar-content" [formGroup]="expensesForm">
     <app-generic-select [parentForm]="expensesForm" [controlName]="'expensesType'" [items]="typeIncomeList"
-      [title]="'סוג ההוצאה'"></app-generic-select>
+      [title]="'סוג ההוצאה'" class="input-search-bar"></app-generic-select>
     <app-generic-select [parentForm]="expensesForm" [controlName]="'category'" [items]="listFilterCategory"
-      [title]="'קטגוריה'"></app-generic-select>
+      [title]="'קטגוריה'" class="input-search-bar"></app-generic-select>
   </form>
 </ng-template>
 

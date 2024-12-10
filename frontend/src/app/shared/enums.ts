@@ -94,7 +94,8 @@ export enum ExpenseFormColumns {
     SUBCATEGORY = 'subCategory',
     MONTH_REPORT = 'monthReport',
     CHECKBOX = 'checkbox',
-    ACTIONS = 'actions'
+    ACTIONS = 'actions',
+    NOTE = 'note2'
 
 }
 
@@ -117,7 +118,8 @@ export enum TransactionsOutcomesHebrewColumns {
   totalVat = 'מוכר למע"מ',
   checkbox = 'בחר',
   actions = 'פעולות',
-  businessName = 'שייך לעסק'
+  businessName = 'שייך לעסק',
+  note = 'הערה'
 }
 
   export const months = [

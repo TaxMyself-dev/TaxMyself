@@ -61,7 +61,8 @@ export class TransactionsService {
     endDate: string,
     companyId?: string // Optional company ID
   ): Promise<void> {
-
+    // console.log("startDate: ", startDate, "endDate: ", endDate, "companyId: ", companyId);
+    
     const sessionId = await this.finsiteService.getFinsiteToken(process.env.FINSITE_ID, process.env.FINSITE_KEY)
 
     // Step 1: Load JSON data
