@@ -98,7 +98,7 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
     [TransactionsOutcomesColumns.NOTE, 1],
   ]);
-  
+
   readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.NAME, 1.2],
     [TransactionsOutcomesColumns.BILL_NUMBER, 1],
@@ -159,16 +159,16 @@ export class TransactionsPage implements OnInit {
         false, Validators.required,
       ),
       month: new FormControl(
-        '', Validators.required,
+        '', [],
       ),
       year: new FormControl(
-        '', Validators.required,
+        '', [],
       ),
       startDate: new FormControl(
-        Date,
+        '', [],
       ),
       endDate: new FormControl(
-        Date,
+        '', [],
       ),
       accounts: new FormControl(
         '', Validators.required,
@@ -269,6 +269,49 @@ export class TransactionsPage implements OnInit {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  setFormValidators(event): void {
+    console.log("event in perid type transaction: ", event.value);
+    switch (event.value) {
+      case this.reportingPeriodType.ANNUAL:
+        this.transactionsForm.controls['month']?.setValidators([]);// for reset month control
+        this.transactionsForm.controls['startDate']?.setValidators([]);// for reset month control
+        this.transactionsForm.controls['endDate']?.setValidators([]);// for reset month control
+        this.transactionsForm.controls['year']?.setValidators([Validators.required]);
+        // this.transactionsForm.controls['year']?.updateValueAndValidity();
+        Object.values(this.transactionsForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+
+        });
+        console.log(this.transactionsForm);
+        break;
+
+      case this.reportingPeriodType.DATE_RANGE:
+        this.transactionsForm.controls['year']?.setValidators([]);// for reset year control
+        this.transactionsForm.controls['month']?.setValidators([]);// for reset month control
+        this.transactionsForm.controls['startDate']?.setValidators([Validators.required]);
+        this.transactionsForm.controls['startDate']?.updateValueAndValidity();
+        this.transactionsForm.controls['endDate']?.setValidators([Validators.required]);
+        // this.transactionsForm.controls['endDate']?.updateValueAndValidity();
+        Object.values(this.transactionsForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+        });
+        console.log(this.transactionsForm);
+        break;
+
+      case this.reportingPeriodType.BIMONTHLY:
+      case this.reportingPeriodType.MONTHLY:
+        this.transactionsForm.controls['startDate']?.setValidators([]);
+        this.transactionsForm.controls['endDate']?.setValidators([]);
+        this.transactionsForm.controls['month']?.setValidators([Validators.required]);
+        this.transactionsForm.controls['year']?.setValidators([Validators.required]);
+        Object.values(this.transactionsForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+        });
+        console.log(this.transactionsForm);
+    }
+
   }
 
   renameFields(obj: any): any {

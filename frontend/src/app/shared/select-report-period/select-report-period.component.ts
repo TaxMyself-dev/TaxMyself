@@ -1,4 +1,4 @@
-import { Component, Input} from '@angular/core';
+import { Component, EventEmitter, Input, Output} from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { ISelectItem } from '../interface';
 import { reportingPeriodTypeOptionsList } from '../enums';
@@ -13,8 +13,18 @@ export class SelectMonthFormatComponent {
   @Input() parentForm: FormGroup;
   @Input() optionsTypes: ISelectItem[] = reportingPeriodTypeOptionsList;
 
+  @Output() onSelectionChange: EventEmitter<void> = new EventEmitter<void>();
+
+
   selectedMonth: string = '';
 
   constructor() { }
+
+  onSelect(event: any): void {
+    console.log("event in period type: ",event);
+    
+    this.onSelectionChange.emit(event)
+  }
+
 }
 
