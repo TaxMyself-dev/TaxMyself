@@ -12,96 +12,113 @@
 </ion-toolbar>
 
 <ion-content>
-  <form *ngIf="addExpenseForm; else loader" class="form-expense" [formGroup]="addExpenseForm" scrollY="true">
-    <div class="modal-content">
-      <div class="wrap-supplier-list">
-        <div class="wrap-select-supplier">
-          <div class="supplier-text">לרשימת הספקים</div>
-          <div class="select-supplier-button">
-            <app-button (onButtonClicked)="openSelectSupplier()" [buttonSize]="ButtonSize.X_SMALL" [iconName]="'arrow-forward-outline'"
-            [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+  <div class="screen-add-expense">
+    <form *ngIf="addExpenseForm; else loader" class="form-expense" [formGroup]="addExpenseForm" scrollY="true">
+      <div class="modal-content">
+        <div class="wrap-supplier-list">
+          <div class="wrap-select-supplier">
+            <div class="supplier-text">לרשימת הספקים</div>
+            <div class="select-supplier-button">
+              <app-button (onButtonClicked)="openSelectSupplier()" [buttonSize]="ButtonSize.X_SMALL"
+                [iconName]="'arrow-forward-outline'" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
+            </div>
           </div>
-        </div>
-        <ion-list class="list-expense">
-          <ng-container *ngFor="let col of columns">
-            <ng-container [ngSwitch]="col.type">
-              <!-- text input -->
-              <ng-container *ngSwitchCase="formTypes.TEXT">
-                <app-generic-input [class]="col.name !== 'note' ? 'modal-input-30' : 'modal-input-100' " [className]="col.name === 'note' ? 'note' : ''"  [inputLabel]="col.value" 
-                  [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
-              </ng-container>
-              <!-- date input -->
-              <ng-container *ngSwitchCase="formTypes.DATE">
-                <app-generic-input class="modal-input-30" [inputType]="formTypes.DATE" [inputLabel]="col.value"
-                  [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
-              </ng-container>
-              <!-- select input -->
-              <ng-container *ngSwitchCase="formTypes.DDL">
-                <app-multi-input *ngIf="col.name === expenseFormColumns.SUPPLIER && displaySuppliersList" class="modal-input-30" [controlName]="expenseFormColumns.SUPPLIER" [items]="displaySuppliersList"
-                [parentForm]="addExpenseForm" [title]="'ספק'"></app-multi-input>
-                <app-generic-select *ngIf="userData.isTwoBusinessOwner && col.name === expenseFormColumns.BUSINESS_NUMBER" class="modal-input-30" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.BUSINESS_NUMBER"  [title]="expenseFormHebrewColumns.businessNumber" [items]="businessList"></app-generic-select>
-                <app-generic-select *ngIf="col.name === expenseFormColumns.IS_EQUIPMENT" class="modal-input-100" [className]="'note'"  [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.IS_EQUIPMENT" [title]="expenseFormHebrewColumns.isEquipment" [items]="equipmentList" (selectionChanged)="setValueEquipment($event)"></app-generic-select>
-                <app-generic-select *ngIf="col.name === expenseFormColumns.CATEGORY" class="modal-input-50" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.CATEGORY" [title]="expenseFormHebrewColumns.category" [items]="getListCategory()" (selectionChanged)="getSubCategory($event)"></app-generic-select>
-                <app-generic-select *ngIf="col.name === expenseFormColumns.SUB_CATEGORY" class="modal-input-50" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.SUB_CATEGORY" [title]="expenseFormHebrewColumns.subCategory" [items]="getListSubCategory()" (selectionChanged)="selectedSubcategory($event)"></app-generic-select>
-                <!-- <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'" [class.businessNumber]="col.name === 'businessNumber'"
+          <ion-list class="list-expense">
+            <ng-container *ngFor="let col of columns">
+              <ng-container [ngSwitch]="col.type">
+                <!-- text input -->
+                <ng-container *ngSwitchCase="formTypes.TEXT">
+                  <app-generic-input [class]="col.name !== 'note' ? 'modal-input-30' : 'modal-input-100' "
+                    [className]="col.name === 'note' ? 'note' : ''" [inputLabel]="col.value" [controlName]="col.name"
+                    [parentForm]="addExpenseForm"></app-generic-input>
+                </ng-container>
+                <!-- date input -->
+                <ng-container *ngSwitchCase="formTypes.DATE">
+                  <app-generic-input class="modal-input-30" [inputType]="formTypes.DATE" [inputLabel]="col.value"
+                    [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
+                </ng-container>
+                <!-- select input -->
+                <ng-container *ngSwitchCase="formTypes.DDL">
+                  <app-multi-input *ngIf="col.name === expenseFormColumns.SUPPLIER && displaySuppliersList"
+                    class="modal-input-30" [controlName]="expenseFormColumns.SUPPLIER" [items]="displaySuppliersList"
+                    [parentForm]="addExpenseForm" [title]="'ספק'"></app-multi-input>
+                  <app-generic-select
+                    *ngIf="userData.isTwoBusinessOwner && col.name === expenseFormColumns.BUSINESS_NUMBER"
+                    class="modal-input-30" [parentForm]="addExpenseForm"
+                    [controlName]="expenseFormColumns.BUSINESS_NUMBER" [title]="expenseFormHebrewColumns.businessNumber"
+                    [items]="businessList"></app-generic-select>
+                  <app-generic-select *ngIf="col.name === expenseFormColumns.IS_EQUIPMENT" class="modal-input-100"
+                    [className]="'note'" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.IS_EQUIPMENT"
+                    [title]="expenseFormHebrewColumns.isEquipment" [items]="equipmentList"
+                    (selectionChanged)="setValueEquipment($event)"></app-generic-select>
+                  <app-generic-select *ngIf="col.name === expenseFormColumns.CATEGORY" class="modal-input-50"
+                    [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.CATEGORY"
+                    [title]="expenseFormHebrewColumns.category" [items]="getListCategory()"
+                    (selectionChanged)="getSubCategory($event)"></app-generic-select>
+                  <app-generic-select *ngIf="col.name === expenseFormColumns.SUB_CATEGORY" class="modal-input-50"
+                    [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.SUB_CATEGORY"
+                    [title]="expenseFormHebrewColumns.subCategory" [items]="getListSubCategory()"
+                    (selectionChanged)="selectedSubcategory($event)"></app-generic-select>
+                  <!-- <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'" [class.businessNumber]="col.name === 'businessNumber'"
                   [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
                   class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
                   (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
                   <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
                     [value]="option.value">{{option.name}}</ion-select-option>
                 </ion-select> -->
+                </ng-container>
               </ng-container>
             </ng-container>
-          </ng-container>
-        </ion-list>
-      </div>
-      <label *ngIf="fileItem" class="label-file-add-expense">
-        <div class="div-wrap">
-          <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
-            <div *ngIf="!pdfLoaded" class="file-container">
-              <ng-container *ngIf="displayFile() && !(displayFile() == 'loading'); else loader">
-                <img class="image-file" [src]="displayFile()" alt="file" />
-              </ng-container>
-            </div>
-            <ng-container *ngIf="getPdfData(); else loader">
-              <object *ngIf="pdfLoaded" type="application/pdf" width="100%" height="100%" style="min-height: 500px;"
-                [data]="getPdfData()">
-              </object>
-            </ng-container>
-          </ng-container>
-          <ng-template #notFile>
-            <p class="text-file-type">ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
-            <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
-              <ion-icon size="large" name="document-outline"></ion-icon>
-            </div>
-          </ng-template>
-          <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
-          <div class="wrap-del-change-file">
-            <p><b>{{((isEditMode && !editModeFile) || selectedFile || pdfLoaded ) ? "שנה קובץ" : "בחר קובץ"}}</b></p>
-            <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
-          </div>
+          </ion-list>
         </div>
-        <ion-input (change)="fileSelected($event)" label-placement="floating" type="file"
-          accept=".pdf, .png, .jpeg, .jpg">
-        </ion-input>
-        <!-- <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input> -->
-      </label>
-    </div>
+        <label *ngIf="fileItem" class="label-file-add-expense">
+          <div class="div-wrap">
+            <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
+              <div *ngIf="!pdfLoaded" class="file-container">
+                <ng-container *ngIf="displayFile() && !(displayFile() == 'loading'); else loader">
+                  <img class="image-file" [src]="displayFile()" alt="file" />
+                </ng-container>
+              </div>
+              <ng-container *ngIf="getPdfData(); else loader">
+                <object *ngIf="pdfLoaded" type="application/pdf" width="100%" height="100%" style="min-height: 500px;"
+                  [data]="getPdfData()">
+                </object>
+              </ng-container>
+            </ng-container>
+            <ng-template #notFile>
+              <p class="text-file-type">ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
+              <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
+                <ion-icon size="large" name="document-outline"></ion-icon>
+              </div>
+            </ng-template>
+            <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
+            <div class="wrap-del-change-file">
+              <p><b>{{((isEditMode && !editModeFile) || selectedFile || pdfLoaded ) ? "שנה קובץ" : "בחר קובץ"}}</b></p>
+              <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
+            </div>
+          </div>
+          <ion-input (change)="fileSelected($event)" label-placement="floating" type="file"
+            accept=".pdf, .png, .jpeg, .jpg">
+          </ion-input>
+          <!-- <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input> -->
+        </label>
+      </div>
 
-    <!-- <ng-container *ngTemplateOutlet="customFooterTemplate"></ng-container> -->
+      <!-- <ng-container *ngTemplateOutlet="customFooterTemplate"></ng-container> -->
 
-    <ng-container *ngFor="let button of buttons">
-      <app-button [buttonSize]="button.size" [buttonText]="button.text" [disabled]="button.disabled"
-        (onButtonClicked)="button.action()"></app-button>
-    </ng-container>
+      <ng-container *ngFor="let button of buttons">
+        <app-button [buttonSize]="button.size" [buttonText]="button.text" [disabled]="button.disabled"
+          (onButtonClicked)="button.action()"></app-button>
+      </ng-container>
 
-    <div class="wrapp-btn-expense">
-      <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
-        (onButtonClicked)="confirm()"></app-button>
-      <app-button buttonText="שמירת ספק קבוע" [buttonSize]="ButtonSize.SMALL" [disabled]="disabledAddSupplier()"
-        (onButtonClicked)="addSupplier()"></app-button>
-    </div>
-  </form>
+      <div class="wrapp-btn-expense">
+        <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
+          (onButtonClicked)="confirm()"></app-button>
+        <app-button buttonText="שמירת ספק קבוע" [buttonSize]="ButtonSize.SMALL" [disabled]="disabledAddSupplier()"
+          (onButtonClicked)="addSupplier()"></app-button>
+      </div>
+    </form>
+  </div>
 </ion-content>
 <!-- </ion-modal> -->
 

@@ -41,7 +41,7 @@
       [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="suppliersList" [inputSearchLable]="'חיפוש לפי ספק'" (filterBy)="filterSuppliers($event)"></app-table>
     </ng-container>
     
-    <app-button *ngIf="suppliersList" (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
+    <app-button class="select-supplier-button" *ngIf="suppliersList" (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
   </div>
 
   <ng-template #notSuppliers>

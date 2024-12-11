@@ -40,7 +40,7 @@
     }
 }
 
-.generic-ionic-selectable-content  {
+.generic-ionic-selectable-content {
     max-width: 100%;
 }
 
@@ -81,20 +81,25 @@
 
 @media only screen and (max-width:1120px) {
     .generic-input-style {
-    
+
         &.wide {
             // width: 250px;
             width: 100%;
         }
-        
+
         &.narrow {
             width: 100%;
             // width: 250px;
         }
-        
+
+    }
+}
+
+@media only screen and (max-width:600px) {
+    .generic-input-style {
         &.note {
-            width: 100%;
-            // width: 250px;
+            border-bottom: 0;
+            --border-style: solid;
         }
     }
 }
