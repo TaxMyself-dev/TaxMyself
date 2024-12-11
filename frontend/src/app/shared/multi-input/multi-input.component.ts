@@ -60,6 +60,8 @@ export class MultiInputComponent  implements OnInit {
 
   toggleDropdown() {
     this.showDropdown = !this.showDropdown;
+    console.log("show drop: ", this.showDropdown);
+    
     // if (this.showDropdown) {
     //   this.disableBodyScroll();
     // } else {
@@ -82,8 +84,15 @@ export class MultiInputComponent  implements OnInit {
   }
 
   selectCategory(category: string) {
+    console.log("select category: ", category);
+    console.log("before categoryInput: ", this.categoryInput);
+    
+    this.categoryInput = "";
+    console.log("between categoryInput: ", this.categoryInput);
     this.categoryInput = category; // Set the input to the selected category
+    console.log("after categoryInput: ", this.categoryInput);
     this.showDropdown = false; // Close the dropdown
+    console.log("show drop: ", this.showDropdown);
   }
 
   setPopoverPosition() {
