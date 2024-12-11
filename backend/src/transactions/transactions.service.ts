@@ -11,6 +11,7 @@ import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { Expense } from '../expenses/expenses.entity';
+import { Finsite } from 'src/finsite/finsite.entity';
 
 //Services
 import { SharedService } from '../shared/shared.service';
@@ -39,6 +40,8 @@ export class TransactionsService {
     private userRepo: Repository<User>,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
+    @InjectRepository(Finsite)
+    private finsiteRepo: Repository<Finsite>,
     @InjectRepository(ClassifiedTransactions)
     private classifiedTransactionsRepo: Repository<ClassifiedTransactions>,
     @InjectRepository(Bill)
@@ -55,144 +58,139 @@ export class TransactionsService {
     private defaultSubCategoryRepo: Repository<DefaultSubCategory>
   ) {}
 
+
   async getTransactionsFromFinsite(
-    jsonFilePath: string,
     startDate: string,
     endDate: string,
     companyId?: string // Optional company ID
   ): Promise<void> {
-
     console.log("getTransactionsFromFinsite - start");
-    
-    const sessionId = await this.finsiteService.getFinsiteToken(process.env.FINSITE_ID, process.env.FINSITE_KEY)
-
-    // Step 1: Load JSON data
-    const companiesData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf-8'));
-
-    console.log("companyId is ", companyId);
-
-    // Step 2: Filter companies if companyId is provided
-    const filteredCompanies = companyId
-    ? companiesData.filter((company: any) => String(company.id) === String(companyId))
-    : companiesData;
-
-    console.log("filteredCompanies is ", filteredCompanies);
-    
-
+  
+    const sessionId = await this.finsiteService.getFinsiteToken(
+      process.env.FINSITE_ID,
+      process.env.FINSITE_KEY
+    );
+  
+    // Step 1: Load Finsite data from the database
+    const query = companyId
+      ? { finsiteId: companyId }
+      : {}; // Filter by companyId if provided
+  
+    const finsiteData = await this.finsiteRepo.find({
+      where: query,
+    });
+  
+    console.log("Finsite data loaded:", finsiteData);
+  
+    // Step 2: Group Finsite data by company
+    const companiesData: Record<string, any> = {};
+  
+    finsiteData.forEach(record => {
+      if (!companiesData[record.finsiteId]) {
+        companiesData[record.finsiteId] = {
+          id: record.finsiteId,
+          name: record.companyName,
+          paymentMethods: [],
+        };
+      }
+      companiesData[record.finsiteId].paymentMethods.push(record);
+    });
+  
+    const filteredCompanies = Object.values(companiesData);
+  
+    console.log("Filtered companies:", filteredCompanies);
+  
     for (const company of filteredCompanies) {
       console.log("###### company is ", company.name);
-      // Step 2: Fetch Firebase ID for the company
+  
+      // Step 3: Fetch Firebase ID for the company
       const user = await this.userRepo.findOne({
         where: { finsiteId: company.id },
       });
-
+  
       if (!user) {
         console.warn(`User with finsiteId ${company.id} not found. Skipping.`);
         continue;
       }
-
+  
       const firebaseId = user.firebaseId;
       console.log("###### firebaseId is ", firebaseId);
-
-      // Step 3: Iterate over accounts and payment methods
-      for (const account of company.accounts) {
-        console.log("###### account is ", account.AccountNumber);
-        for (const method of account.paymentMethods) {
-          if (method.subtype === 'Current' || method.subtype === 'CreditCard') {
-            console.log("###### method is ", method.bookingAccountCode);
-            try {
-              // Step 4: Fetch transactions for the payment method
-              const transactions = await this.finsiteService.getTransactionsById(
-                sessionId,
-                method.id,
-                startDate,
-                endDate
-              ); 
-              
-              //console.log("###### transactions are ", transactions);
-
-              // Step 5: Save transactions to the database
-              for (const transaction of transactions) {
-
-                const existingTransaction = await this.transactionsRepo.findOne({
-                  where: { finsiteId: transaction.EntryID }, // Adjust field name if different
-                });
-
-                if (!existingTransaction) {
-
-                  const billName = await this.getBillNameBySourceName(firebaseId, method.bookingAccountCode);
-                  const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
-
-                  const classifiedTransaction = await this.classifiedTransactionsRepo.findOne({
-                    where: { 
-                      userId: firebaseId, 
-                      transactionName: transaction.Notes1, 
-                      billName: billName 
-                    }
-                  });
-
-                  const newTransaction: Partial<Transactions> = {
+  
+      // Step 4: Iterate over payment methods
+      for (const method of company.paymentMethods) {
+        if (method.paymentMethodType === SourceType.CREDIT_CARD || method.paymentMethodType === SourceType.BANK_ACCOUNT) {
+          console.log("###### method is ", method.paymentId);
+          try {
+            // Step 5: Fetch transactions for the payment method
+            const transactions = await this.finsiteService.getTransactionsById(
+              sessionId,
+              method.getTransFid,
+              startDate,
+              endDate
+            );
+  
+            // Step 6: Save transactions to the database
+            for (const transaction of transactions) {
+              const existingTransaction = await this.transactionsRepo.findOne({
+                where: { finsiteId: transaction.EntryID }, // Adjust field name if different
+              });
+  
+              if (!existingTransaction) {
+                const billName = await this.getBillNameBySourceName(firebaseId, method.linkedToAccount);
+                const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
+  
+                const classifiedTransaction = await this.classifiedTransactionsRepo.findOne({
+                  where: {
                     userId: firebaseId,
-                    finsiteId: transaction.EntryID,
-                    paymentIdentifier: method.bookingAccountCode,
+                    transactionName: transaction.Notes1,
                     billName: billName,
-                    businessNumber: businessNumber,
-                    name: transaction.Notes1,
-                    note2: transaction.Notes2,
-                    billDate: transaction.Date,
-                    sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
-                  };
-                
-                  // If classifiedTransaction exists, merge its fields
-                  if (classifiedTransaction) {
-                    newTransaction.category = classifiedTransaction.category;
-                    newTransaction.subCategory = classifiedTransaction.subCategory;
-                    newTransaction.isRecognized = classifiedTransaction.isRecognized;
-                    newTransaction.vatPercent = classifiedTransaction.vatPercent;
-                    newTransaction.taxPercent = classifiedTransaction.taxPercent;
-                    newTransaction.isEquipment = classifiedTransaction.isEquipment;
-                    newTransaction.reductionPercent = classifiedTransaction.reductionPercent;
-                  }
-
-                  await this.transactionsRepo.save(newTransaction);
-                 
-                } else {
-                  console.log(`Transaction with EntryID ${transaction.EntryID} already exists. Skipping.`);
+                  },
+                });
+  
+                const newTransaction: Partial<Transactions> = {
+                  userId: firebaseId,
+                  finsiteId: transaction.EntryID,
+                  paymentIdentifier: method.linkedToAccount,
+                  billName: billName,
+                  businessNumber: businessNumber,
+                  name: transaction.Notes1,
+                  note2: transaction.Notes2,
+                  billDate: transaction.Date,
+                  sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
+                };
+  
+                // Merge fields if classifiedTransaction exists
+                if (classifiedTransaction) {
+                  newTransaction.category = classifiedTransaction.category;
+                  newTransaction.subCategory = classifiedTransaction.subCategory;
+                  newTransaction.isRecognized = classifiedTransaction.isRecognized;
+                  newTransaction.vatPercent = classifiedTransaction.vatPercent;
+                  newTransaction.taxPercent = classifiedTransaction.taxPercent;
+                  newTransaction.isEquipment = classifiedTransaction.isEquipment;
+                  newTransaction.reductionPercent = classifiedTransaction.reductionPercent;
                 }
+  
+                await this.transactionsRepo.save(newTransaction);
+
+              } else {
+                console.log(`Transaction with EntryID ${transaction.EntryID} already exists. Skipping.`);
               }
-            } catch (error) {
-              console.error(
-                `Failed to fetch/save transactions for PaymentMethod ID: ${method.id}`,
-                error
-              );
             }
+            console.log("###### transactions from method save done", method.paymentId);
+
+          } catch (error) {
+            console.error(
+              `Failed to fetch/save transactions for PaymentMethod ID: ${method.getTransFId}`,
+              error
+            );
           }
         }
       }
     }
-
-    console.log('All transactions processed and saved.');
+  
+    console.log("All transactions processed and saved.");
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
 
   async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
 

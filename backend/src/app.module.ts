@@ -25,6 +25,8 @@ import { Child } from './users/child.entity';
 import { Bill } from './transactions/bill.entity';
 import { Source } from './transactions/source.entity';
 import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
+import { Finsite } from './finsite/finsite.entity';
+
 import 'dotenv/config'
 import admin from 'firebase-admin';
 import { TransactionsService } from './transactions/transactions.service';
@@ -57,7 +59,8 @@ serviceAccount = {
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory],
+      entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
+                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -73,6 +76,7 @@ serviceAccount = {
       UserCategory,
       DefaultSubCategory,
       UserSubCategory,
+      Finsite,
     ]),
     ScheduleModule.forRoot(),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule],

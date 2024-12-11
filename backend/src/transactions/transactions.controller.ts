@@ -10,8 +10,6 @@ import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
-import { SourceType } from 'src/enum';
-import * as path from 'path';
 
 
 @Controller('transactions')
@@ -23,24 +21,7 @@ export class TransactionsController {
 
   @Get('get-trans')
   async getTrans( @Headers('token') token: string,  @Query() query: any) {
-
-    console.log('Current Working Directory:', process.cwd());
-
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    const basePath = isProduction ? path.join(process.cwd(), 'dist/finsite') : path.join(process.cwd(), 'src/finsite');
-    const jsonFilePath = path.join(basePath, 'finsiteData.json');
-  
-    console.log('Resolved JSON file path:', jsonFilePath);
-  
-
-    // const jsonFilePath = isProduction
-    //   ? path.resolve(__dirname, '../finsite/finsiteData.json')
-    //   : path.resolve(__dirname, '../../src/finsite/finsiteData.json');
-
-    console.log("jsonFilePath is ", jsonFilePath);
-    
-    return this.transactionsService.getTransactionsFromFinsite(jsonFilePath, query.startDate, query.endDate, query.finsiteId );
+    return this.transactionsService.getTransactionsFromFinsite(query.startDate, query.endDate, query.finsiteId );
   }
 
 

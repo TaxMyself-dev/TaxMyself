@@ -2,6 +2,9 @@ import { Injectable, BadRequestException, NotFoundException, HttpException, Http
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
 import * as fs from 'fs';
+import { Finsite } from './finsite.entity';
+import { Repository } from 'typeorm';
+import { SourceType } from 'src/enum';
 
 
 @Injectable()
@@ -11,6 +14,8 @@ export class FinsiteService {
   sessionID : string;
 
   constructor(
+    @InjectRepository(Finsite)
+    private finsiteRepo: Repository<Finsite>,
   ) {
     this.apiClient = axios.create({
       baseURL: 'https://app.finsite.co.il/api/Kraken/ExternalAPI',
@@ -56,11 +61,46 @@ export class FinsiteService {
       });
     });
 
-    console.log("Companies Data:", JSON.stringify(companiesData, null, 2));
+    console.log("companiesData is ", companiesData);
 
-    // Save the JSON data to a file
-    const filePath = './src/finsite/finsiteData.json';
-    fs.writeFileSync(filePath, JSON.stringify(companiesData, null, 2), 'utf-8');
+    // Save each payment method in the Finsite entity
+    for (const company of companiesData) {
+      for (const account of company.accounts) {
+        for (const method of account.paymentMethods) {
+
+          // Save only if subtype is "CreditCard" or "Current"
+          if (method.subtype !== 'CreditCard' && method.subtype !== 'Current') {
+            continue;
+          }
+
+          // Check if the method.id already exists in the database
+          const existingRecord = await this.finsiteRepo.findOneBy({ getTransFid: method.id });
+          if (existingRecord) {
+            console.log(`Skipping payment method with id ${method.id} - already exists`);
+            continue;
+          }
+
+          const finsiteMethod = new Finsite();
+          finsiteMethod.getTransFid = method.id;
+          finsiteMethod.accountFid = method.accountId;
+          finsiteMethod.paymentId =  method.bookingAccountCode;
+          finsiteMethod.accountId = account.AccountNumber;
+          finsiteMethod.companyName = company.name;
+          finsiteMethod.finsiteId = company.id;
+          finsiteMethod.paymentMethodType = method.subtype === 'CreditCard' ? SourceType.CREDIT_CARD : method.subtype === 'Current' ? SourceType.BANK_ACCOUNT : null;
+        
+          // Save the entity to the database
+          await this.finsiteRepo.save(finsiteMethod);
+        }
+      }
+    }
+    
+
+    // console.log("Companies Data:", JSON.stringify(companiesData, null, 2));
+
+    // // Save the JSON data to a file
+    // const filePath = './src/finsite/finsiteData.json';
+    // fs.writeFileSync(filePath, JSON.stringify(companiesData, null, 2), 'utf-8');
 
   }
 
@@ -86,7 +126,7 @@ export class FinsiteService {
           'M4u-Session': sessionId,
         },
       });
-      console.log("GetBookingAccounts: data is ", response.data);
+      //console.log("GetBookingAccounts: data is ", response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching booking accounts');
