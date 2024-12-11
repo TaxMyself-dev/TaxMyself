@@ -164,6 +164,16 @@ export class RegisterPage implements OnInit, OnDestroy {
     this.gelAllCities();
   }
 
+  doRefresh(event: any) {
+    console.log('Begin async operation');
+
+    // Simulate a network request or page refresh
+    setTimeout(() => {
+      console.log('Async operation has ended');
+      event.target.complete(); // Stop the refresher spinner
+    }, 2000);
+  }
+
   get personalForm(): FormGroup {
     return this.myForm.get(RegisterFormModules.PERSONAL) as FormGroup;
   }
