@@ -9,15 +9,11 @@ export class FinsiteController {
   ) {}
 
 
-    @Post('finsite-connect')
+    @Get('finsite-connect')
     async connectToFinsite() {
-
       const userId =  process.env.FINSITE_ID;
       const password =  process.env.FINSITE_KEY;
-      const startDate = "2024-07-01";
-      const endDate = "2024-07-10";
-      const data = await this.transactionsService.createFinsiteJsonFile(userId, password);
-      
+      return await this.transactionsService.getFinsiteBills(userId, password);
     }
 
 

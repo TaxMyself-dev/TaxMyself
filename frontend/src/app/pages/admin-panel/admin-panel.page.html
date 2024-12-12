@@ -10,15 +10,9 @@
   <div>
   <app-category-management *ngIf="selectedTab === 'category-management'">
   </app-category-management>
+  <app-trans-management *ngIf="selectedTab === 'trans-management'"></app-trans-management>
 </div>
-<div class="finsite-search-bar">  
-  <app-search-bar  [customTemplate]="finsiteForm" (onSearchClick)="getTransFromApi()"></app-search-bar>
-</div>
-  <ng-template #finsiteForm>
-    <app-sort-date [controlName]="'startDate'" [parentForm]="fisiteDataForm" [inputLabel]="'מתאריך'"></app-sort-date>
-    <app-sort-date [controlName]="'endDate'" [parentForm]="fisiteDataForm" [inputLabel]="'עד תאריך'"></app-sort-date>
-    <app-generic-input [parentForm]="fisiteDataForm" [controlName]="'finsiteId'" [inputLabel]="'מזהה פינסייט'"></app-generic-input>
-  </ng-template>
+
 
   <!-- <app-manage-categories *ngIf="selectedTab === 'manage-categories'"></app-manage-categories> -->
   <!-- <app-track-expenses *ngIf="selectedTab === 'track-expenses'"></app-track-expenses> -->

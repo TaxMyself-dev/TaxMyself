@@ -19,13 +19,8 @@ export class AppService {
 
     console.log('Running daily task');
 
-    const jsonFilePath = './src/finsite/finsiteData.json';
-
-    // Save a copy of the old file
-    await this.backupOldJsonFile(jsonFilePath);
-
     // Create a new JSON file
-    await this.finsiteService.createFinsiteJsonFile(process.env.FINSITE_ID, process.env.FINSITE_KEY);
+    await this.finsiteService.getFinsiteBills(process.env.FINSITE_ID, process.env.FINSITE_KEY);
     
     // Calculate dates
     const today = new Date();
@@ -36,33 +31,7 @@ export class AppService {
     const endDate = today.toISOString().split('T')[0];
     const startDate = threeDaysAgo.toISOString().split('T')[0];
  
-    await this.transactionsService.getTransactionsFromFinsite(jsonFilePath, startDate, endDate);
+    await this.transactionsService.getTransactionsFromFinsite(startDate, endDate);
   }
-
-
-  private async backupOldJsonFile(filePath: string): Promise<void> {
-    const backupDir = './src/finsite/backups';
-    const timestamp = new Date().toISOString().replace(/[-:.]/g, '_'); // Create a timestamp (e.g., 2024_12_08T000000)
-    const backupFilePath = path.join(backupDir, `finsiteData_${timestamp}.json`);
-
-    try {
-      // Ensure the backup directory exists
-      if (!fs.existsSync(backupDir)) {
-        fs.mkdirSync(backupDir, { recursive: true });
-      }
-
-      // Check if the file exists
-      if (fs.existsSync(filePath)) {
-        // Copy the file to the backup directory
-        fs.copyFileSync(filePath, backupFilePath);
-        console.log(`Backup created: ${backupFilePath}`);
-      } else {
-        console.log(`No file found at ${filePath}, skipping backup.`);
-      }
-    } catch (error) {
-      console.error(`Error while backing up file: ${error.message}`);
-    }
-  }
-
 
 }
