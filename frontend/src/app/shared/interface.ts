@@ -39,7 +39,7 @@ export interface IUserDate {
 }
 
 export interface IRowDataTable {
-    [key: string]: string | number | Date | boolean | ISelectItem;
+    [key: string]: string | number | Date | boolean | ISelectItem | File;
 }
 
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {

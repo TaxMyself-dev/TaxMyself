@@ -24,7 +24,7 @@ export class FinsiteService {
   }
 
 
-  async createFinsiteJsonFile(Username: string, Password: string): Promise<any> {
+  async getFinsiteBills(Username: string, Password: string): Promise<any> {
 
     this.sessionID = await this.getFinsiteToken(Username, Password);
 
@@ -62,7 +62,7 @@ export class FinsiteService {
     });
 
     console.log("companiesData is ", companiesData);
-
+    let isAllDataExist: boolean = true;
     // Save each payment method in the Finsite entity
     for (const company of companiesData) {
       for (const account of company.accounts) {
@@ -90,17 +90,17 @@ export class FinsiteService {
           finsiteMethod.paymentMethodType = method.subtype === 'CreditCard' ? SourceType.CREDIT_CARD : method.subtype === 'Current' ? SourceType.BANK_ACCOUNT : null;
         
           // Save the entity to the database
+          isAllDataExist = false;
           await this.finsiteRepo.save(finsiteMethod);
         }
       }
     }
-    
-
-    // console.log("Companies Data:", JSON.stringify(companiesData, null, 2));
-
-    // // Save the JSON data to a file
-    // const filePath = './src/finsite/finsiteData.json';
-    // fs.writeFileSync(filePath, JSON.stringify(companiesData, null, 2), 'utf-8');
+    if (isAllDataExist) {
+      return {message: "all data is already exist"};
+    }
+    else {
+      return {message: "saved new data"};
+    }
 
   }
 
@@ -180,6 +180,8 @@ export class FinsiteService {
 
 
   async getCompanies(sessionId: string): Promise<any> {
+    console.log("sessionId: ", sessionId);
+    
     try {
       // Set the M4u-Session header for this request
       const response = await this.apiClient.get('/GetCompanies', {

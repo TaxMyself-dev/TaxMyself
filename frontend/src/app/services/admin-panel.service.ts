@@ -27,6 +27,11 @@ export class AdminPanelService {
       'token': token
     }
     return this.http.get<any>(url, {params: param, headers: headers})
-
+  }
+  
+  getAllUsersDataFromFinsite(): Observable<any> {
+    // const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}finsite/finsite-connect`;
+    return this.http.get<any>(url);
   }
 }

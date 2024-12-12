@@ -19,11 +19,11 @@
 
 <div class="grid-container">
   <ion-grid class="grid">
-    <app-filter-input (filterBy)="onSearch($event)" *ngIf="displayFilter" [inputLabelName]="inputSearchLable"></app-filter-input>
+    <app-filter-input (filterBy)="onSearch($event)" *ngIf="displayFilter"
+      [inputLabelName]="inputSearchLable"></app-filter-input>
     <ion-row class="table-headers">
-      <ion-col *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
-        בחר
-      </ion-col>
+      <ion-col (click)="selectAll()" *ngIf="displayCheckbox" [class.selectAll] = "isAvailableSelectAll" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
+        {{selectColumnString}} </ion-col>
       <ion-col *ngFor="let col of fieldsNames" [size]="columnsWidth?.get(col.name) ?? baseSize"
         class="col-header {{col.name}}">
         {{col.value}}
@@ -58,7 +58,8 @@
         <ng-template #defaultCell>
           <ion-col class="text-cell" title="{{ field.value }}" *ngIf="!columnsToIgnore.includes(field.key)"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
-            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded" class="inner-div-cell">
+            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded"
+              class="inner-div-cell">
               {{field.value}}
             </div>
           </ion-col>
@@ -68,7 +69,8 @@
           <ion-col class="text-cell ion-col-with-icon" title="{{ field.value }}"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
             <!-- another div for ellipsis -->
-            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded" class="inner-div-cell"> 
+            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded"
+              class="inner-div-cell">
               {{field.value}}
               <div class="wrap-button-category">
                 <app-button [buttonSize]="buttonSize.X_SMALL" [title]="iconToolTip"
@@ -81,8 +83,9 @@
 
         <ng-template #billRenderCell>
           <ng-container *ngIf="field.value === 'זמני'; else defaultCell">
-            <ion-col class="text-cell" [class.expanded]="expandedRowId === row.id && isExpanded" (click)="toggleExpand(row)" title="{{ field.value }}"
-              *ngIf="field.value === 'זמני'; else defaultCell" class="special-cell"
+            <ion-col class="text-cell" [class.expanded]="expandedRowId === row.id && isExpanded"
+              (click)="toggleExpand(row)" title="{{ field.value }}" *ngIf="field.value === 'זמני'; else defaultCell"
+              class="special-cell"
               [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize"
               (click)="openAddBill(row)">
               <span class="text-special-cell">שייך לחשבון</span>
@@ -91,7 +94,8 @@
         </ng-template>
 
         <ng-template #categoryRenderCell>
-          <ion-col class="text-cell" [class.expanded]="expandedRowId === row.id && isExpanded" (click)="toggleExpand(row)" title="{{ field.value }}"
+          <ion-col class="text-cell" [class.expanded]="expandedRowId === row.id && isExpanded"
+            (click)="toggleExpand(row)" title="{{ field.value }}"
             *ngIf="field.value === 'טרם סווג'; else defaultCellWithIcon" class="special-cell"
             [size]="columnsWidth?.get(field.key) ?? baseSize" (click)="openAddTransaction(row)">
             <span class="text-special-cell">טרם סווג</span>
@@ -99,11 +103,11 @@
         </ng-template>
 
         <ng-template #dateRenderCell>
-          <ion-col class="text-cell"
-            title="{{field.value | dateFormat}}" *ngIf="!columnsToIgnore.includes(field.key)"
+          <ion-col class="text-cell" title="{{field.value| dateFormat}}" *ngIf="!columnsToIgnore.includes(field.key)"
             [size]="columnsWidth?.get(field.key) ?? baseSize">
-            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded" class="inner-div-cell">
-              {{field.value | dateFormat}}
+            <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded"
+              class="inner-div-cell">
+              {{field.value| dateFormat}}
             </div>
           </ion-col>
         </ng-template>
@@ -116,8 +120,9 @@
             <label class="label-file-table">
               <ion-icon [name]="row[action.fieldName] ? 'document-attach-outline' : 'attach-outline'"
                 [title]="action.title ?? ''"></ion-icon>
-              <ion-input (click)="beforeFile ? beforeChooseFile($event, row) : null" (change)="action.action($event, row)"
-                label-placement="floating" type="file" accept=".pdf, .jpg, .jpeg, .png">
+              <ion-input (click)="beforeFile ? beforeChooseFile($event, row) : null"
+                (change)="action.action($event, row)" label-placement="floating" type="file"
+                accept=".pdf, .jpg, .jpeg, .png">
               </ion-input>
             </label>
           </ng-container>
