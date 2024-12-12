@@ -17,7 +17,8 @@ import { AuthService } from 'src/app/services/auth.service';
 export class FlowReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
-  expensesData: IRowDataTable[];
+  expensesData: IRowDataTable[] = [];
+  // filteredExpense: IRowDataTable[] = [];
   expensesData$ = new BehaviorSubject<IRowDataTable[]>(null);
 
   private _params: {};
@@ -30,14 +31,15 @@ export class FlowReportPage implements OnInit {
   startDate: string;
   endDate: string;
   businessNumber: string;
+  // chosenTrans = new Map<number, File | string>
   chosenTrans: { id: number, file?: File | string }[] = [];
   isSelectTransaction: boolean = false; // for able or disable send button
   isToastOpen: boolean = false;
   messageToast: string = "";
   userData: IUserDate;
   strFilter: string;
-  
-  public COLUMNS_TO_IGNORE = ['businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
+
+  public COLUMNS_TO_IGNORE = ['note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
 
   readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.CHECKBOX, 0.5],
@@ -69,7 +71,7 @@ export class FlowReportPage implements OnInit {
   ]);
   tableActions: ITableRowAction[];
 
-  constructor(private authService: AuthService, private genericService: GenericService,  private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService) { }
+  constructor(private authService: AuthService, private genericService: GenericService, private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService) { }
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
@@ -87,13 +89,13 @@ export class FlowReportPage implements OnInit {
         this.COLUMNS_TO_IGNORE.splice(expenseIndex, 1);
       }
     }
-    
+
     this.route.queryParams.subscribe((params) => {
       this.params = params;
       this.startDate = this.params['startDate'];
       this.endDate = this.params['endDate'];
       this.businessNumber = this.params['businessNumber'];
-      
+
       this.getTransaction();
     });
     this.setTableActions();
@@ -180,7 +182,7 @@ export class FlowReportPage implements OnInit {
   }
 
   checkedClicked(event: { row: IRowDataTable, checked: boolean }): void {
-    
+
     // If the checkbox is checked, add it to chosenTrans
     if (event.checked) {
       this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string });
@@ -197,8 +199,37 @@ export class FlowReportPage implements OnInit {
     console.log(this.chosenTrans);
   }
 
-  selectedAll(event: { id: number[], checked: boolean }): void {
-    // console.log(event);
+  // selectAll(event: { id: number[], checked: boolean }): void {
+  selectAll(event: boolean, expensesData: IRowDataTable[]): void {
+    console.log("select all in flow report");
+    let exists: boolean = false;
+    console.log(event);
+    // console.log(this.filteredExpense);
+    if (event) {
+      this.chosenTrans = [];
+      // this.expensesData$.forEach
+      this.expensesData.forEach((expense) => {
+        this.chosenTrans.push({id: expense.id as number, file: expense.firebaseFile as File})
+        // exists = false;
+        // this.chosenTrans.forEach((tran) => {
+        //   if (tran.id === expense.id) {
+        //     exists = true;
+        //     return;
+        //   }
+        // })
+        // if (!exists) {
+        //   this.chosenTrans.push({ id: expense.id as number })
+        // }
+      })
+      console.log(this.chosenTrans);
+      this.isSelectTransaction = true;
+    }
+    else {
+      this.chosenTrans = [];
+      this.isSelectTransaction = false;
+    }
+    console.log(expensesData);
+    
     // event.checked ? event.id.forEach((id) => {
     //   if (!this.chosenTrans.includes(id)){
     //     this.chosenTrans.push(id)
@@ -266,7 +297,7 @@ export class FlowReportPage implements OnInit {
           // })
 
         });
-        return; // Exit the function since file uploads are skipped
+      return; // Exit the function since file uploads are skipped
     }
 
     // Update loader for transactions with files
@@ -287,13 +318,13 @@ export class FlowReportPage implements OnInit {
             return EMPTY;
           }),
           tap((res) => {
-              tran.file = res.metadata.fullPath;  // Update the file path after upload
-              console.log("Uploaded file path: ", tran.file);
-              filesUploaded++;
-              const progress = Math.round((filesUploaded / transactionsWithFiles) * 100);
-              this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
-              this.genericService.dismissLoader();
-            }
+            tran.file = res.metadata.fullPath;  // Update the file path after upload
+            console.log("Uploaded file path: ", tran.file);
+            filesUploaded++;
+            const progress = Math.round((filesUploaded / transactionsWithFiles) * 100);
+            this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
+            this.genericService.dismissLoader();
+          }
           )
         );
       } else {
@@ -348,7 +379,7 @@ export class FlowReportPage implements OnInit {
   }
 
   addFile(event: any, row: IRowDataTable): void {
- 
+
     row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0];
     row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
     this.chosenTrans.map((tran) => {
@@ -362,20 +393,22 @@ export class FlowReportPage implements OnInit {
 
     })
     console.log(this.chosenTrans);
+    console.log(this.expensesData);
+    // console.log(this.filteredExpense);
   }
 
   filterBy(event: string): void {
-    console.log(event);
-    
+    // this.filteredExpense = this.expensesData?.filter((e) => {
+    //   return String(e.name).includes(event)
+    // });
+    // console.log("filtered expenses: ", this.filteredExpense);
+
     this.strFilter = event;
-    console.log(this.strFilter);
     this.expensesData$.next(this.expensesData?.filter((e) => {
-      console.log(e);
-      
       return String(e.name).includes(event)
     }
-  ));
-    
+    ));
+
   }
 
 

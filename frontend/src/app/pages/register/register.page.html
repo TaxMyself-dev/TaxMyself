@@ -1,9 +1,9 @@
-<ion-refresher (ionRefresh)="doRefresh($event)">
-  <ion-refresher-content pullingText="Pull to refresh"></ion-refresher-content>
-</ion-refresher>
 
 <ion-content [fullscreen]="true">
-
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content pullingText="Pull to refresh"></ion-refresher-content>
+  </ion-refresher>
+  
   <div class="register-content">
     <ng-container *ngIf="authService.error$ | async as errorType">
       <ng-container [ngSwitch]="errorType">
@@ -42,8 +42,8 @@
     </ng-container>
 
     <app-item-navigate class="navigate-item-container" [navigationItems]="itemsNavigate" [disableClick]="true"
-      navigationItemStyle="button-item-navigate-register" (onNavButtonClicked)="navigateclicked($event)">
-    </app-item-navigate>
+    navigationItemStyle="button-item-navigate-register" (onNavButtonClicked)="navigateclicked($event)">
+  </app-item-navigate>
 
     <div class="wrap-register-modulse">
       <!-------------- PRESONAL MODULE ------------->
@@ -69,6 +69,7 @@
             <!-----date of birth----->
             <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
               [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
+              
             <!---------city ----->
             <!-- <ion-item class="generic-ionic-selectable-wrapper">
               <ion-label *ngIf="!(personalForm.get('city').value)">עיר</ion-label>

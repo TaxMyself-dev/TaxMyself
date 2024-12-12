@@ -6,7 +6,7 @@ import { ISelectItem } from '../shared/interface';
 })
 export class DateFormatPipe implements PipeTransform {
 
-  transform(value: string| number | boolean | Date | ISelectItem): string  {
+  transform(value: string| number | boolean | Date | ISelectItem | File): string  {
     
     if (!value) return "";
     
