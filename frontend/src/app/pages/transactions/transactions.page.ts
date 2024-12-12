@@ -570,11 +570,6 @@ export class TransactionsPage implements OnInit {
     return rows;
   }
 
-  printbill() {
-    console.log(this.transactionsForm.value);
-
-  }
-
   getCategory(): void {
     this.expenseDataService.getcategry(null)
       .pipe(
