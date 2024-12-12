@@ -150,7 +150,7 @@ export class TransactionsService {
                 const newTransaction: Partial<Transactions> = {
                   userId: firebaseId,
                   finsiteId: transaction.EntryID,
-                  paymentIdentifier: method.linkedToAccount,
+                  paymentIdentifier: method.bookingAccountCode,
                   billName: billName,
                   businessNumber: businessNumber,
                   name: transaction.Notes1,
