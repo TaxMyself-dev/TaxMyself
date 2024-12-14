@@ -19,19 +19,15 @@
         <p>דו"ח רווח והפסד</p>
         <p>עבור עסק: {{userData.businessName}}</p>
         <p>לתאריך: {{endDate}} - {{startDate}}</p>
-        <!-- <ion-title>דו"ח רווח והפסד {{userData.businessName}}  {{endDate}} - {{startDate}}</ion-title> -->
-        <!-- <ion-title>{{endDate}} - {{startDate}}</ion-title> -->
       </div>
       <div class="wrap-output-report">
         <p class="report-title">נתוני דו"ח רווח והפסד</p>
         <!-- Display Income -->
         <div class="output-pnl-report">
           <div class="field-report">סך הכל הכנסות לפני מע"מ:</div>
-          <!-- <div class="value-field-report">{{ pnlReport.income | number }}</div> -->
           <div class="input-container">
             <ion-input color="light"  class="input-value" [(ngModel)]="pnlReport.income" (ionInput)="updateIncome($event)"></ion-input>
           </div>
-          <!-- <ion-input [value]="pnlReport.income | number" (ionInput)="updateIncome($event)"></ion-input> -->
         </div>
         <!-- Dynamically Display Expenses -->
         <ng-container *ngFor="let category of pnlReport.expenses">
@@ -43,7 +39,7 @@
         <!-- Display Net Profit Before Tax -->
         <div class="output-pnl-report">
           <div class="field-report">רווח נקי לפני מס:</div>
-          <div class="value-field-report">{{ pnlReport.netProfitBeforeTax | number }}</div>
+          <div class="value-field-report">{{ pnlReport.netProfitBeforeTax }}</div>
         </div>
       </div>
     </ng-container>

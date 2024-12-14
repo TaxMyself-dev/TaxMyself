@@ -75,7 +75,7 @@ export class FinsiteService {
             continue;
           }
 
-          //console.log("--------method is ", method);
+          console.log("--------method is ", method);
 
           // Check if the method.id already exists in the database
           const existingRecord = await this.finsiteRepo.findOneBy({ getTransFid: method.id });

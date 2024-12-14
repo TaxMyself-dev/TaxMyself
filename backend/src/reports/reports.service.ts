@@ -98,8 +98,6 @@ export class ReportsService {
         const year = startDate.getFullYear();
         const vatPercent = this.sharedService.getVatPercent(year);
 
-        console.log("reports.service - pnl-report start");
-
         // Get total income
         let totalIncome : number = 0;
         totalIncome = await this.transactionsService.getTaxableIncomefromTransactions(firebaseId, businessNumber, startDate, endDate);
@@ -134,9 +132,7 @@ export class ReportsService {
             })
         );
 
-      
         const depreciationExpenses = await this.createReductionReport(firebaseId, businessNumber, year);
-        console.log("reducionExpenses are ", depreciationExpenses);
 
         if (depreciationExpenses?.length > 0) {
           // Calculate the total of currentReduction from reductionExpenses using a for loop
@@ -180,7 +176,6 @@ export class ReportsService {
     async createReductionReport(firebaseId: string, businessNumber: string, year: number): Promise<DepreciationReportDto[]> {
 
         const equipmentExpenses = await this.expensesService.getExpensesForReductionReport(firebaseId, businessNumber, year);
-        console.log("equipmentExpenses are ", equipmentExpenses);
         return this.calculateReductionsForExpenses(equipmentExpenses, year)
 
     }
@@ -216,8 +211,6 @@ export class ReportsService {
             const yearFraction = this.calculateYearlyReductionFraction(year, validDate, fixedReductionPercent, totalReductionYears);            
             const yearReduction = Math.round((yearFraction / 100) * sum);
       
-            console.log("yearReduction[",year,"] is ", yearReduction);
-
             if (year < requiredYear) {
               // Accumulate reduction for past years
               pastDepreciation += yearReduction;
@@ -251,8 +244,6 @@ export class ReportsService {
       
         const fullYears = Math.round(100 / reductionPercent);
         const totalYears = fullYears + (isPartialYear ? 1 : 0);
-
-        console.log("totalYears is ", totalYears);
       
         return totalYears;
     }
@@ -297,8 +288,6 @@ export class ReportsService {
         } else {
           result = reductionPercent;
         }
-
-        console.log("result[",year,"] is ", result);
         
         return result;
       }
