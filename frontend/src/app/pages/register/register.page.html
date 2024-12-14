@@ -80,7 +80,7 @@
             <app-multi-input class="default-input-register" [controlName]="'city'" [parentForm]="personalForm" [items]="cities" [title]="'עיר'"></app-multi-input>
             <!--------------- employee ------------->
             <app-generic-select class="default-input-register" [controlName]="registerFormControls.EMPLOYEMENTSTATUS" title="סטטוס תעסוקתי"
-              [items]="employmentTypeOptionsList" [parentForm]="personalForm"></app-generic-select>
+              [items]="employmentTypeOptionsList" [parentForm]="personalForm" (selectionChanged)="resetBusinessDetails()"></app-generic-select>
             <!--------- family status----->
             <app-generic-select class="default-input-register" [controlName]="registerFormControls.FAMILYSTATUS" title="מצב משפחתי"
               [items]="familyStatusOptionsList" [parentForm]="personalForm"></app-generic-select>
@@ -107,7 +107,7 @@
               [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
             <!--------------- employee ------------->
             <app-generic-select class="default-input-register" [controlName]="registerFormControls.SPOUSEEMPLOYEMENTSTATUS" title="סטטוס תעסוקתי"
-              [items]="employmentTypeOptionsList" [parentForm]="spouseForm"></app-generic-select>
+              [items]="employmentTypeOptionsList" [parentForm]="spouseForm" (selectionChanged)="resetBusinessSpouseDetails()"></app-generic-select>
           </form>
         </ng-container>
 
@@ -139,12 +139,14 @@
                     [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH"
                     [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                   <!------- buttons add and remove child----->
-                  <app-button class="child-button" aria-label="הוסף ילד" iconName="add-outline"
+                  <div class="wrap-add-remove-child-button">
+                    <app-button class="child-button" aria-label="הוסף ילד" iconName="add-outline"
                     [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY"
                     (onButtonClicked)="addChild()"></app-button>
-                  <app-button class="child-button" aria-label="הסר ילד" iconName="remove-outline"
+                    <app-button class="child-button" aria-label="הסר ילד" iconName="remove-outline"
                     [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY" [buttonStyle]="{}"
                     (onButtonClicked)="removeChild(i)"></app-button>
+                  </div>
                 </div>
               </div>
             </form>
@@ -204,10 +206,10 @@
           <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm"
             class="validation-form-register">
             <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
-            <app-generic-input class="default-input-register" [inputType]="formTypes.PASSWORD" inputLabel="סיסמא"
+            <app-generic-input class="password-input-register" [inputType]="formTypes.PASSWORD" inputLabel="סיסמא"
               [controlName]="registerFormControls.PASSWORD" [parentForm]="validationForm"
               [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>
-            <app-generic-input class="default-input-register" [inputType]="formTypes.PASSWORD" inputLabel="אימות סיסמא"
+            <app-generic-input class="password-input-register" [inputType]="formTypes.PASSWORD" inputLabel="אימות סיסמא"
               [controlName]="registerFormControls.CONFIRM_PASSWORD" [parentForm]="validationForm"
               [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)"
               (onInputChange)="checkPassword($event)"></app-generic-input>

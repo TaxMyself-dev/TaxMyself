@@ -40,7 +40,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
-  requierdField: boolean = true;
+  requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;
@@ -77,22 +77,22 @@ export class RegisterPage implements OnInit, OnDestroy {
 
     const spouseForm = this.formBuilder.group({
       [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEID]: new FormControl(
-        '', this.requierdField ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
+        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
       ),
       [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        '', this.requierdField ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
     })
 
@@ -117,19 +117,19 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField && this.isMarried() ? Validators.required : null,
       ),
     })
 
@@ -175,27 +175,27 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   get personalForm(): FormGroup {
-    return this.myForm.get(RegisterFormModules.PERSONAL) as FormGroup;
+    return this.myForm?.get(RegisterFormModules.PERSONAL) as FormGroup;
   }
 
   get spouseForm(): FormGroup {
-    return this.myForm.get(RegisterFormModules.SPOUSE) as FormGroup;
+    return this.myForm?.get(RegisterFormModules.SPOUSE) as FormGroup;
   }
 
   get childrenForm(): FormGroup {
-    return this.myForm.get(RegisterFormModules.CHILDREN) as FormGroup;
+    return this.myForm?.get(RegisterFormModules.CHILDREN) as FormGroup;
   }
 
   get childrenArray(): FormArray {
-    return this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+    return this.myForm?.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
   }
 
   get businessForm(): FormGroup {
-    return this.myForm.get(RegisterFormModules.BUSINESS) as FormGroup;
+    return this.myForm?.get(RegisterFormModules.BUSINESS) as FormGroup;
   }
 
   get validationForm(): FormGroup {
-    return this.myForm.get(RegisterFormModules.VALIDATION) as FormGroup;
+    return this.myForm?.get(RegisterFormModules.VALIDATION) as FormGroup;
   }
 
   get buttonNextText(): string {
@@ -238,8 +238,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   addChild() {
-    //console.log(this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN).value);
-
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
     items.push(
       this.formBuilder.group({
@@ -452,4 +450,23 @@ export class RegisterPage implements OnInit, OnDestroy {
       this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.BOTH);
   }
 
+  resetBusinessSpouseDetails(): void {
+    if (this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.EMPLOYEE) {
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSNAME).patchValue("");
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSTYPE).patchValue("");
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSDATE).patchValue("");
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSNUMBER).patchValue("");
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSINVENTORY).patchValue("");
+    }
+  }
+
+  resetBusinessDetails(): void {
+    if (this.personalForm?.get(RegisterFormControls.EMPLOYEMENTSTATUS)?.value === EmploymentType.EMPLOYEE) {
+      this.businessForm.get(RegisterFormControls.BUSINESSNAME).patchValue("");
+      this.businessForm.get(RegisterFormControls.BUSINESSTYPE).patchValue("");
+      this.businessForm.get(RegisterFormControls.BUSINESSDATE).patchValue("");
+      this.businessForm.get(RegisterFormControls.BUSINESSNUMBER).patchValue("");
+      this.businessForm.get(RegisterFormControls.BUSINESSINVENTORY).patchValue("");
+    }
+  }
 }
