@@ -20,7 +20,8 @@ export class MultiInputComponent  implements OnInit {
   @Input() errorText: string;
   @Input() className: string;
   @Input() controlName: string;
-  
+  @Input() disabled: boolean = false;
+
   @Input() set title (val: string) {
     this.inputLabelName = val;
   }

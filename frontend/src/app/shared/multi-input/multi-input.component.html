@@ -1,48 +1,14 @@
-<!-- <app-generic-input [inputLabel]="inputLabelName" [errorText]="errorText" [controlName]="controlName" [className]="className"></app-generic-input>
-<app-generic-select [addOther]="true" [items]="items" [errorText]="errorText" [title]="title" [controlName]="controlName" [className]="className"></app-generic-select> -->
 
 <form [formGroup]="parentForm" class="multi-input-form">
-<ion-item (blur)="toggleDropdown()" class="wrap-multi-input {{className}}">
-  <ion-input class="mupti-input"
-  [formControlName]="controlName"
-    [placeholder]="inputLabelName"
-    [(ngModel)]="categoryInput"
-    (ionFocus)="showDropdown = true"
-    (ionInput)="filterCategories()"
-  ></ion-input>
-  <!-- <ion-button fill="clear"> -->
-  <ion-icon
-    slot="end"
-    name="caret-down-outline"
-    (click)="toggleDropdown()"
-    (ionBlur)="toggleDropdown()"
-  ></ion-icon>
-<!-- </ion-button> -->
-</ion-item>
-
-<!-- <cdk-virtual-scroll-viewport
-  itemSize="56"
-  minBufferPx="900"
-  maxBufferPx="1350"
-  class="virtual-scroll-container"
->
-  <ion-list>
-    <ion-item *cdkVirtualFor="let item of filteredCategories">
-      <ion-label>{{ item }}</ion-label>
-    </ion-item>
-  </ion-list>
-</cdk-virtual-scroll-viewport> -->
-
-<div class="popover-container"
-*ngIf="showDropdown"
-[ngStyle]="popoverStyles">
-<ion-list *ngIf="showDropdown" class="dropdown-list">
-  <ion-item
-    *ngFor="let category of filteredCategories"
-    (click)="selectCategory(category.value.toString())"
-  >
-    {{ category.name }}
+  <ion-item [disabled]="disabled" (blur)="toggleDropdown()" class="wrap-multi-input {{className}}">
+    <ion-input class="mupti-input" [formControlName]="controlName" [placeholder]="inputLabelName"
+      [(ngModel)]="categoryInput" (ionFocus)="showDropdown = true" (ionInput)="filterCategories()"></ion-input>
+    <!-- <ion-button fill="clear"> -->
+    <ion-icon slot="end" name="caret-down-outline" (click)="toggleDropdown()" (ionBlur)="toggleDropdown()"></ion-icon>
+    <!-- </ion-button> -->
   </ion-item>
-</ion-list>
-</div>
+  <cdk-virtual-scroll-viewport itemSize="50" class="example-viewport" *ngIf="showDropdown">
+    <div *cdkVirtualFor="let item of filteredCategories" class="example-item" (click)="selectCategory(item.value.toString())">{{item.name}}</div>
+  </cdk-virtual-scroll-viewport>
+
 </form>

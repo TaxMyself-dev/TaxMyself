@@ -23,51 +23,23 @@ ion-icon{
   border: 1px solid black;
 }
 
-.popover-container {
-  position: relative;
-  z-index: 1000;
-  background-color: var(--ion-background-color, white);
-  border-radius: var(--ion-border-radius, 8px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.popover-container ion-list {
-  margin: 0;
-  padding: 0;
-}
-
-.popover-container ion-item {
-  --min-height: 40px;
-  cursor: pointer;
-}
-
 .no-scroll {
   overflow: hidden;
   height: 100vh; /* Prevent vertical scrolling */
 }
 
-.dropdown-container {
-  position: relative; /* Make this container the reference point for absolute positioning */
-  width: 100%;
+
+.example-viewport {
+  height: 200px;
+  width: 200px;
+  border: 1px solid gray;
+  background-color: var(--ion-background-color, white);
+  border-radius: var(--ion-border-radius, 8px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 100;
 }
 
-.ion-content-scroll-host {
-  height: 400px; /* Adjust as per your layout */
-  width: 100%;   /* Full width */
-  overflow: auto;
-  position: absolute;
-  // position: absolute; /* Position the list absolutely */
-  // top: 100%; /* Adjust to place it right below the input */
-  // left: 0;
-  // width: 100%; /* Make the dropdown match the input width */
-  z-index: 1000; /* Ensure it appears above other elements */
-  // background: white; /* Optional: Add background for clarity */
-  // box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional: Add shadow */
-  // max-height: 300px; /* Limit the dropdown height */
-  // overflow-y: auto; /* Enable scrolling for long lists */
-  // border: 1px solid #ddd; /* Optional: Add border for distinction */
-  
+.example-item {
+  height: 50px;
+  cursor: pointer;
 }

@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl } from '@angular/forms';
 import { RegisterService } from './register.service';
-import { ICityData, IItemNavigate, ISelectItem } from 'src/app/shared/interface';
+import { IItemNavigate, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
