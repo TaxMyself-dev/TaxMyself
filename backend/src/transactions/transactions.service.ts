@@ -254,11 +254,8 @@ export class TransactionsService {
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
       
-      try {
-                
-        console.log("save transaction: date is ", row[billDateIndex], ", type is ", typeof(row[billDateIndex]));
+      try {                
         transaction.billDate = this.sharedService.convertStringToDateObject(row[billDateIndex]);
-        
       } catch (error) {
         console.error(`Failed to parse date for row: ${row}, error: ${error.message}`);
         throw new BadRequestException(`Invalid date format in the file: ${error.message}`);
@@ -302,9 +299,11 @@ export class TransactionsService {
       }
   
       // Check if there's a matching classified transaction
-      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.paymentIdentifier);
+      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.billName);
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
+        console.log("matchingClassifiedTransaction is ", matchingClassifiedTransaction);
+        
         transaction.category = matchingClassifiedTransaction.category;
         transaction.subCategory = matchingClassifiedTransaction.subCategory;
         transaction.isRecognized = matchingClassifiedTransaction.isRecognized;
@@ -312,6 +311,9 @@ export class TransactionsService {
         transaction.taxPercent = matchingClassifiedTransaction.taxPercent;
         transaction.isEquipment = matchingClassifiedTransaction.isEquipment;
         transaction.reductionPercent = matchingClassifiedTransaction.reductionPercent;
+      }
+      else {
+        console.log("no match: ", transaction.name, transaction.billName, transaction.paymentIdentifier);
       }
 
       transactionsToSave.push(transaction);

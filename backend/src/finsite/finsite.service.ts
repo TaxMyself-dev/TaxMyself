@@ -66,12 +66,16 @@ export class FinsiteService {
     // Save each payment method in the Finsite entity
     for (const company of companiesData) {
       for (const account of company.accounts) {
-        for (const method of account.paymentMethods) {
+        //console.log("######### account is ", account);
+
+        for (const method of account.paymentMethods) {          
 
           // Save only if subtype is "CreditCard" or "Current"
           if (method.subtype !== 'CreditCard' && method.subtype !== 'Current') {
             continue;
           }
+
+          //console.log("--------method is ", method);
 
           // Check if the method.id already exists in the database
           const existingRecord = await this.finsiteRepo.findOneBy({ getTransFid: method.id });
