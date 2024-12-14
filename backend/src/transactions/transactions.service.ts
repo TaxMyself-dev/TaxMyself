@@ -131,12 +131,14 @@ export class TransactionsService {
   
             // Step 6: Save transactions to the database
             for (const transaction of transactions) {
+
               const existingTransaction = await this.transactionsRepo.findOne({
                 where: { finsiteId: transaction.EntryID }, // Adjust field name if different
               });
   
-              if (!existingTransaction) {
-                const billName = await this.getBillNameBySourceName(firebaseId, method.linkedToAccount);
+              if ((!existingTransaction) || ((transaction.Notes1 != 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
+
+                const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
   
                 const classifiedTransaction = await this.classifiedTransactionsRepo.findOne({
