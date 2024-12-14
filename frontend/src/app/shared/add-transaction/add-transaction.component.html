@@ -31,7 +31,7 @@
             [className]="'wide'"></app-generic-select>
         </div>
       </form>
-      <div class="wrapp-ion-card">
+      <div class="wrapp-ion-card" [class.hidden-card]="!subCategorySelected">
         <ion-card class="ion-card" *ngIf="subCategorySelected">
           <ion-card-header>
             <ion-card-title>פרטי קטגוריה נבחרת</ion-card-title>
@@ -57,7 +57,8 @@
         </ion-card>
       </div>
       <div class="button-add-transaction">
-        <app-button [buttonText]="'סווג תנועה'" (onButtonClicked)="addClasssificationExistCategory()"></app-button>
+        <app-button [buttonText]="'סווג תנועה'" [disabled]="existCategoryEquipmentForm.invalid"
+          (onButtonClicked)="addClasssificationExistCategory()"></app-button>
       </div>
     </div>
 
@@ -80,10 +81,12 @@
             [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה מוגדרת כציוד?'"
             (selectionChanged)="setValueEquipment($event)" [disabled]="!isRecognize">
           </app-generic-select>
-          <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'קטגוריה'"
+          <!-- <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'קטגוריה'"
             [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize || incomeMode"
             [title]="incomeMode ? 'לא ניתן לשנות שם קטגוריה' : ''">
-          </app-generic-input>
+          </app-generic-input> -->
+          <app-multi-input [className]="'wide'" [controlName]="'category'" [items]="categoryList"
+          [parentForm]="newCategoryNotRecognizedForm" [title]="incomeMode ? 'הכנסה מעסק(לא ניתן לשנות)' : 'בחר/הכנס קטגוריה'" [disabled]="incomeMode || !isRecognize"></app-multi-input>
           <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'תת-קטגוריה'"
             [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
           </app-generic-input>
@@ -94,7 +97,7 @@
             [parentForm]="newCategoryIsRecognizeForm" [controlName]="'vatPercent'" [disabled]="!isRecognize">
           </app-generic-input>
           <app-generic-input *ngIf="!incomeMode" className="wide" [controlName]="'reductionPercent'"
-            [inputLabel]="'אחוז פחת'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
+            [inputLabel]="'אחוז פחת'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize || !newCategoryIsRecognizeForm.get('isEquipment').value">
           </app-generic-input>
         </form>
       </div>
@@ -109,7 +112,7 @@
             [title]="'לסווג תנועה באופן חד-פעמי?'" [disabled]="isRecognize"
             [parentForm]="newCategoryNotRecognizedForm"></app-generic-select>
           <app-multi-input [className]="'wide'" [controlName]="'category'" [items]="categoryList"
-            [parentForm]="newCategoryNotRecognizedForm" [title]="'בחר/הכנס קטגוריה'"></app-multi-input>
+            [parentForm]="newCategoryNotRecognizedForm" [title]="'בחר/הכנס קטגוריה'" [disabled]="isRecognize"></app-multi-input>
           <!-- <app-generic-input *ngIf="!isOnlySubCategory" className="wide" [controlName]="'category'" [inputLabel]="'הכנס קטגוריה'" -->
           <!-- [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input> -->
           <app-generic-input className="wide" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'"
@@ -118,6 +121,6 @@
       </div>
 
     </div>
-    <app-button [buttonText]="'הוסף וסווג תנועה'" (onButtonClicked)="addClasssificationNewCategory()"></app-button>
+    <app-button [buttonText]="'הוסף וסווג תנועה'" [disabled]="isRecognize ? newCategoryIsRecognizeForm.invalid : newCategoryNotRecognizedForm.invalid" (onButtonClicked)="addClasssificationNewCategory()"></app-button>
   </div>
   <ion-toast message="התנועה סווגה בהצלחה" [isOpen]="isOpenToast" [duration]="5000"></ion-toast>

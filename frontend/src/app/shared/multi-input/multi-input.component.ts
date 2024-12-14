@@ -20,7 +20,8 @@ export class MultiInputComponent  implements OnInit {
   @Input() errorText: string;
   @Input() className: string;
   @Input() controlName: string;
-  
+  @Input() disabled: boolean = false;
+
   @Input() set title (val: string) {
     this.inputLabelName = val;
   }
@@ -84,15 +85,9 @@ export class MultiInputComponent  implements OnInit {
   }
 
   selectCategory(category: string) {
-    console.log("select category: ", category);
-    console.log("before categoryInput: ", this.categoryInput);
-    
     this.categoryInput = "";
-    console.log("between categoryInput: ", this.categoryInput);
     this.categoryInput = category; // Set the input to the selected category
-    console.log("after categoryInput: ", this.categoryInput);
     this.showDropdown = false; // Close the dropdown
-    console.log("show drop: ", this.showDropdown);
   }
 
   setPopoverPosition() {
