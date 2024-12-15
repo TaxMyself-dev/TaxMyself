@@ -138,9 +138,14 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
       ),
       [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
-        '', [Validators.required, this.confirmPasswordValidator]
+        '', [Validators.required]
       ),
-    })
+    }, { validators: this.matchPasswords })
+
+    // Subscribe to PASSWORD field changes to revalidate CONFIRM_PASSWORD
+    this.validationForm?.get(RegisterFormControls.PASSWORD)?.valueChanges.subscribe(() => {
+      this.validationForm?.get(RegisterFormControls.CONFIRM_PASSWORD)?.updateValueAndValidity();
+    });
 
     this.myForm = this.formBuilder.group({
       [RegisterFormModules.PERSONAL]: personalForm,
@@ -345,13 +350,24 @@ export class RegisterPage implements OnInit, OnDestroy {
     }
   }
 
-  checkPassword(event: string) {
-    const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
-    if (event === realPass) {
-      this.passwordValid = true;
-    } else {
-      this.passwordValid = false;
-    }
+  // checkPassword(event: string) {
+  //   const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
+  //   if (event === realPass) {
+  //     this.passwordValid = true;
+  //   } else {
+  //     this.passwordValid = false;
+  //   }
+  // }
+
+  checkPassword() {
+    const passwordsValid = this.validationForm.errors?.passwordsMismatch;
+    console.log("passwordsValid: ", passwordsValid);
+    const password = this.myForm.get(RegisterFormModules.VALIDATION).get(RegisterFormControls.PASSWORD)?.value;
+    const confirmPassword = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.CONFIRM_PASSWORD)?.value;
+
+    this.passwordValid = passwordsValid;
+    return password === confirmPassword ? null : { passwordsMismatch: true };
+
   }
 
   navigateclicked(event: IItemNavigate): void {
@@ -414,23 +430,34 @@ export class RegisterPage implements OnInit, OnDestroy {
     }
   }
 
-  private confirmPasswordValidator(control: AbstractControl) {
-    const confirmPassword = control?.value;
+  private matchPasswords(formGroup: AbstractControl): { [key: string]: boolean } | null {
+    const password = formGroup.get(RegisterFormControls.PASSWORD)?.value;
+    const confirmPassword = formGroup.get(RegisterFormControls.CONFIRM_PASSWORD)?.value;
 
-    if (!confirmPassword) {
-      return null;
+    if (!password || !confirmPassword) {
+      return null; // Valid until both fields are filled
     }
 
-    if (confirmPassword === control?.parent?.get('password')?.value) {
-      // input is valid
-      return null;
-    }
-
-    // input is not valid
-    return {
-      match: false
-    }
+    return password === confirmPassword ? null : { passwordsMismatch: true };
   }
+
+  // private confirmPasswordValidator(control: AbstractControl) {
+  //   const confirmPassword = control?.value;
+
+  //   if (!confirmPassword) {
+  //     return null;
+  //   }
+
+  //   if (confirmPassword === control?.parent?.get('password')?.value) {
+  //     // input is valid
+  //     return null;
+  //   }
+
+  //   // input is not valid
+  //   return {
+  //     match: false
+  //   }
+  // }
 
   private isSingle(): boolean {
     return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.SINGLE;

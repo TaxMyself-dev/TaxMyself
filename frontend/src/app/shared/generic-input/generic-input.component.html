@@ -1,10 +1,14 @@
 <!-- <form *ngIf="parentForm; else notForm" class="generic-input-wrapper {{inputType}}" [formGroup]="parentForm"> -->
   <form *ngIf="parentForm; else notForm" class="generic-input-wrapper" [formGroup]="parentForm">
   <ng-container [ngSwitch]="inputType">
-    <ion-input *ngSwitchCase="formTypes.DATE" class="generic-input-style {{className}}" [ngStyle]="inputCustomStyle" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate"></ion-input>
-    <app-custom-input *ngSwitchCase="formTypes.PASSWORD" [controlName]="controlName" [inputLabel]="inputLabelName" [errorText]="errorMessage" [inputType]="inputType" [parentForm]="parentForm"></app-custom-input>
-    <ion-input *ngSwitchCase="formTypes.FILE" (input)="onFileUpload($event)" [formControlName]="controlName" [type]="formTypes.FILE" [accept]="fileTypes" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value"></ion-input>
-    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [ngStyle]="inputCustomStyle" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [value]="parentForm.get(controlName)?.value" [title]="title"></ion-input>
+
+    <ion-input *ngSwitchCase="formTypes.DATE" class="generic-input-style {{className}}" [ngStyle]="inputCustomStyle" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value" fill="outline" label-placement="floating" [type]="inputType" [max]="maxDate" [min]="minDate" (ionChange)="onInputChanged($event)"></ion-input>
+
+    <app-custom-input *ngSwitchCase="formTypes.PASSWORD" [controlName]="controlName" [inputLabel]="inputLabelName" [errorText]="errorMessage" [inputType]="inputType" (ionChange)="onInputChanged($event)" [parentForm]="parentForm"></app-custom-input>
+
+    <ion-input *ngSwitchCase="formTypes.FILE" (input)="onFileUpload($event)" [formControlName]="controlName" [type]="formTypes.FILE" (ionChange)="onInputChanged($event)"  [accept]="fileTypes" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value"></ion-input>
+    
+    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [ngStyle]="inputCustomStyle" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [value]="parentForm.get(controlName)?.value" [title]="title" (ionChange)="onInputChanged($event)"></ion-input>
   </ng-container>
 </form>
 

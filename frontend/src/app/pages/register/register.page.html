@@ -211,8 +211,8 @@
               [errorText]="'הסיסמה אינה חוקית'"></app-generic-input>
             <app-generic-input class="password-input-register" [inputType]="formTypes.PASSWORD" inputLabel="אימות סיסמא"
               [controlName]="registerFormControls.CONFIRM_PASSWORD" [parentForm]="validationForm"
-              [errorText]="'סיסמאות לא זהות'" [showError]="!(this.passwordValid)"
-              (onInputChange)="checkPassword($event)"></app-generic-input>
+              [errorText]="'סיסמאות לא זהות'" [showError]="(this.passwordValid)"
+              (onInputChange)="checkPassword()"></app-generic-input>
           </form>
         </ng-container>
       </ng-container>
