@@ -136,7 +136,7 @@ export class TransactionsService {
                 where: { finsiteId: transaction.EntryID }, // Adjust field name if different
               });
   
-              if ((!existingTransaction) || ((transaction.Notes1 != 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
+              if ((!existingTransaction) || ((transaction.Notes1 == 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
 
                 const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
