@@ -69,14 +69,7 @@
             <!-----date of birth----->
             <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
               [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
-              
-            <!---------city ----->
-            <!-- <ion-item class="generic-ionic-selectable-wrapper">
-              <ion-label *ngIf="!(personalForm.get('city').value)">עיר</ion-label>
-              <ionic-selectable class="generic-ionic-selectable-content" formControlName="city"
-                [shouldFocusSearchbar]="true" [searchDebounce]="1" [items]="cities ?? []" itemValueField="name"
-                itemTextField="name" [canSearch]="true"></ionic-selectable>
-            </ion-item> -->
+            <!-- city -->
             <app-multi-input class="default-input-register" [controlName]="'city'" [parentForm]="personalForm" [items]="cities" [title]="'עיר'"></app-multi-input>
             <!--------------- employee ------------->
             <app-generic-select class="default-input-register" [controlName]="registerFormControls.EMPLOYEMENTSTATUS" title="סטטוס תעסוקתי"

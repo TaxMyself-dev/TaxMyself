@@ -40,8 +40,8 @@ export class AddBillComponent implements OnInit {
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
-      this.businessNames.push({name: this.userData.businessName, value: this.userData.id});
-      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseId});
+      this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
       this.addBillForm.get('businessNumber')?.setValidators([Validators.required]);
     }
     else {

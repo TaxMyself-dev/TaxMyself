@@ -201,9 +201,9 @@ export enum TransactionsOutcomesHebrewColumns {
   }
   
   export const EmploymentTypeLabels = {
-    [EmploymentType.SELF_EMPLOYED]: 'עצמאי',
-    [EmploymentType.BOTH]: 'עצמאי ושכיר',
-    [EmploymentType.EMPLOYEE]: 'שכיר'
+    [EmploymentType.SELF_EMPLOYED]: 'עצמאי/ת',
+    [EmploymentType.BOTH]: 'עצמאי/ת + שכיר/ה',
+    [EmploymentType.EMPLOYEE]: 'שכיר/ה'
   };
 
   export const employmentTypeOptionsList = [
