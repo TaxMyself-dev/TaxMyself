@@ -42,13 +42,14 @@
       </ion-card-header>
 
       <ion-card-content class="login-card-content">
-        <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="signin()">
+        <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="login2()">
+          <!-- <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="signin()"> -->
           <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="אימייל" controlName="userName" className="wide"
             [parentForm]="loginForm" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
           <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="סיסמא" controlName="password"
             [parentForm]="loginForm" [showAsterisk]="false" [showError]="false"></app-generic-input>
           <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.loginForm.invalid" buttonText="התחבר"
-            (onButtonClicked)="signin()"></app-button>
+            (onButtonClicked)="login2()"></app-button>
         </ng-container>
         <ng-template #resetTemplate>
           <app-generic-input (keyup.enter)="resetPassword()" [inputType]="formTypes.EMAIL" inputLabel="אימייל"
