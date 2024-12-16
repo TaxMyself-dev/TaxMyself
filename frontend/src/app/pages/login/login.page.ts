@@ -7,6 +7,7 @@ import { LoadingController } from '@ionic/angular';
 import { EMPTY, catchError, finalize } from 'rxjs';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { FormTypes } from 'src/app/shared/enums';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-login',
@@ -29,7 +30,7 @@ export class LoginPage implements OnInit {
   messageToast: string = "";
   resetMode = false;
 
-  constructor(private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
+  constructor(private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
     this.loginForm = this.formBuilder.group({
       userName: new FormControl(
@@ -77,7 +78,7 @@ export class LoginPage implements OnInit {
           }
           if (res.user.emailVerified) {
             this.authService.signIn(res)
-              .subscribe(async (res) => {
+              .subscribe((res) => {
                 localStorage.setItem('userData', JSON.stringify(res));
                 console.log('Sign-in response:', res);
                 this.router.navigate(['my-account']);
@@ -88,6 +89,20 @@ export class LoginPage implements OnInit {
           }
         });
       }
+  }
+
+  login2(): void {
+    this.authService.error$.next(null);
+    this.genericService.getLoader().subscribe();
+    const formData = this.loginForm.value;
+    this.authService.userVerify(formData.userName, formData.password)
+    .pipe(
+      finalize(() => this.genericService.dismissLoader()),
+      catchError((err) => {
+        console.log("err in user verify in sign in", err);
+        return EMPTY;
+      })
+    )
   }
 
   sendVerficaitonEmail(): void {

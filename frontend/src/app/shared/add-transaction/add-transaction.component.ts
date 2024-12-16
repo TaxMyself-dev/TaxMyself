@@ -191,7 +191,7 @@ export class AddTransactionComponent implements OnInit {
           )
 
 
-          const separator: ISelectItem[] = [{ name: '-- מוגדרות כציוד --', value: null, disable: true }];
+          const separator: ISelectItem[] = [{ name: '--  קטגוריות רכוש קבוע --', value: null, disable: true }];
           if (isEquipmentSubCategoryList && notEquipmentSubCategoryList) {
             this.combinedListSubCategory.push(...notEquipmentSubCategoryList, ...separator, ...isEquipmentSubCategoryList);
           }

@@ -182,7 +182,7 @@ export class addSupplierComponent implements OnInit {
       return this.categoryList;
     }
     else {
-      return [{ name: "נא לבחור מוגדר כציוד או לא", value: "" }];
+      return [{ name: "נא לבחור רכוש קבוע או לא", value: "" }];
     }
   }
 

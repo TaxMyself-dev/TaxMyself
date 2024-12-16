@@ -78,7 +78,7 @@
             [title]="'לסווג תנועה באופן חד-פעמי?'" [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
           </app-generic-select>
           <app-generic-select *ngIf="!incomeMode" className="wide" [items]="equipmentList" [controlName]="'isEquipment'"
-            [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה מוגדרת כציוד?'"
+            [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה היא רכוש קבוע?'"
             (selectionChanged)="setValueEquipment($event)" [disabled]="!isRecognize">
           </app-generic-select>
           <!-- <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'קטגוריה'"

@@ -182,10 +182,12 @@ export class AuthService {
   // }
 
   handleErrorLogin(err: string): void {
-    if (err === "auth/wrong-password") {
-      this.error$.next("password");
-    }
-    if (err === "auth/user-not-found" || err === "auth/invalid-email") {
+    console.log("err string: ", err);
+    
+    // if (err === "auth/wrong-password") {
+    //   this.error$.next("password");
+    // }
+    if (err === "auth/user-not-found" || err === "auth/invalid-email" || err === 'auth/invalid-login-credentials' || err === "auth/wrong-password") {
       this.error$.next("user");
     }
 

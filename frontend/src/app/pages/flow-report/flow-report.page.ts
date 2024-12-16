@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserDate } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
@@ -72,7 +72,7 @@ export class FlowReportPage implements OnInit {
   ]);
   tableActions: ITableRowAction[];
 
-  constructor(private authService: AuthService, private genericService: GenericService, private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService) { }
+  constructor(private authService: AuthService, private genericService: GenericService, private fileService: FilesService, private route: ActivatedRoute, private flowReportService: FlowReportService, private router: Router) { }
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
@@ -245,7 +245,7 @@ console.log(this.isAllChecked);
     if (transactionsWithFiles === 0) {
       this.genericService.getLoader().subscribe()
       console.log("No transactions with files, skipping file upload...");
-      this.genericService.updateLoaderMessage('Uploading transactions without files...');
+      this.genericService.updateLoaderMessage('אנא המתן');
 
       // Directly call addTransToExpense since there are no files to upload
       this.flowReportService.addTransToExpense(this.chosenTrans)
@@ -270,7 +270,9 @@ console.log(this.isAllChecked);
           console.log("chosenTrans after upload: ", this.chosenTrans);
           this.getTransaction();
           this.genericService.dismissLoader();
-          //this.router.navigate(['vat-report']);
+          setTimeout(() => {
+            this.router.navigate(['reports']);
+          }, 3000)
 
           // this.router.navigate(['vat-report'], {
           //   queryParams: {
@@ -285,7 +287,7 @@ console.log(this.isAllChecked);
 
     // Update loader for transactions with files
     this.genericService.getLoader().subscribe();
-    this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
+    this.genericService.updateLoaderMessage(`מעלה קבצים... ${0}%`);
 
     // Create an array of observables for each file upload
     const fileUploadObservables = this.chosenTrans.map((tran) => {
@@ -305,7 +307,7 @@ console.log(this.isAllChecked);
             console.log("Uploaded file path: ", tran.file);
             filesUploaded++;
             const progress = Math.round((filesUploaded / transactionsWithFiles) * 100);
-            this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
+            this.genericService.updateLoaderMessage(`מעלה קבצים... ${progress}%`);
             this.genericService.dismissLoader();
           }
           )
@@ -342,7 +344,7 @@ console.log(this.isAllChecked);
           this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
           this.isToastOpen = true;
           this.genericService.dismissLoader();
-          //this.router.navigate(['vat-report']);
+        
           // this.router.navigate(['vat-report'], {
           //   queryParams: {
           //     isToastOpen: true,
@@ -354,7 +356,11 @@ console.log(this.isAllChecked);
           this.genericService.dismissLoader();
         }),
       )
-      .subscribe();
+      .subscribe(() => {
+        setTimeout(() => {
+          this.router.navigate(['reports']);
+        }, 3000)
+      });
   }
 
   setCloseToast(): void {

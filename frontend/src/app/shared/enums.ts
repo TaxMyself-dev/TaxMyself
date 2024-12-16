@@ -23,7 +23,7 @@ export enum displayColumnsExpense {
   vatPercent = 'מוכר למעמ',
   taxPercent = 'מוכר למס',
   month = 'דווח לחודש',
-  isEquipment = 'מוגדר כציוד',
+  isEquipment = 'רכוש קבוע',
   isRecognized = 'הוצאה מוכרת',
   reductionPercent = 'אחוז פחת'
 }

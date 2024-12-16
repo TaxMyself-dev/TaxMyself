@@ -109,3 +109,13 @@ $app-theme: mat.define-light-theme((
   --height: 150px;
   --width: 275px;
 }
+
+ion-toast {
+  --border-width: 2px;
+  --background: #f4f4fa;
+  --box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2);
+  --color: #4b4a50;
+  --border-color: rgb(1, 1, 1);
+  --border-style: solid;
+  font-style: italic;
+}
