@@ -3,7 +3,7 @@
 
 
 <ion-content [fullscreen]="true">
-  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent" [isDisabled]="storageForm.invalid"></app-search-bar>
+  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent" [isDisabled]="storageForm.invalid" (onSearchClick)="setRowsData()"></app-search-bar>
 
     <div *ngIf="items$ | async as items">
       <app-table (filterBy)="updateFilter($event)" [inputSearchLable]="'חיפוש לפי ספק'" [actionsToIgnore]="ACTIONS_TO_IGNORE" [columnsWidth]="COLUMNS_WIDTH" [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="filterRows"
@@ -29,11 +29,28 @@
   </ng-template>
 </ion-popover>
 
-<ng-template #searchBarContent>
-  <form *ngIf="storageForm" class="generic-search-bar-content" [formGroup]="storageForm">
-    <app-sort-date [parentForm]="storageForm" [controlName]="'until'" [inputLabel]="'מתאריך'"></app-sort-date>
-    <app-sort-date [parentForm]="storageForm" [controlName]="'from'" [inputLabel]="'עד תאריך'"></app-sort-date>
+<!-- <ng-template #searchBarContent> -->
+  <!-- <form *ngIf="storageForm" class="generic-search-bar-content" [formGroup]="storageForm"> -->
+    <!-- <app-sort-date [parentForm]="storageForm" [controlName]="'startDate'" [inputLabel]="'מתאריך'"></app-sort-date> -->
+    <!-- <app-sort-date [parentForm]="storageForm" [controlName]="'endDate'" [inputLabel]="'עד תאריך'"></app-sort-date> -->
     <!-- <app-generic-input [parentForm]="storageForm" [controlName]="'supplier'" [inputLabel]="'ספק'"></app-generic-input> -->
     <!-- <app-generic-input [parentForm]="storageForm" [controlName]="'category'" [inputLabel]="'קטגוריה'"></app-generic-input> -->
+  <!-- </form> -->
+<!-- </ng-template> -->
+
+<ng-template #searchBarContent>
+  <form class="generic-search-bar-content" [formGroup]="storageForm">
+    <app-select-report-period class="input-search-bar" [parentForm]="storageForm" (onSelectionChange)="setFormValidators($event)" [title]="'סנן לפי'"></app-select-report-period>
+    <app-select-month 
+    *ngIf="this.storageForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
+           this.storageForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="storageForm" class="input-search-bar">
+    </app-select-month>
+    <app-select-year *ngIf="this.storageForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="storageForm" class="input-search-bar"></app-select-year>
+    <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="storageForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
+    <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="storageForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
+    <app-generic-select class="input-search-bar" *ngIf="userData.isTwoBusinessOwner" [items]="businessNamesList" [parentForm]="storageForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+
+    <!-- <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'" -->
+      <!-- [parentForm]="storageForm" class="input-search-bar"></app-generic-select> -->
   </form>
 </ng-template>

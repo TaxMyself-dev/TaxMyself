@@ -31,8 +31,6 @@ export class DateService {
     let start: Date;
     let end: Date;
 
-    console.log("periodType is ", periodType);
-
     switch (periodType) {
       case ReportingPeriodType.MONTHLY:
         start = startOfMonth(new Date(year, month - 1));

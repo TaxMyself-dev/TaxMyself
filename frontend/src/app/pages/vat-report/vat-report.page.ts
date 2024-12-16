@@ -69,7 +69,7 @@ export class VatReportPage implements OnInit {
   isToastOpen: boolean;
   isSkip: boolean = false;
   userData: IUserDate;
-  businessNames: ISelectItem[] = [];
+  businessNamesList: ISelectItem[] = [];
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
                       { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
 
@@ -140,8 +140,8 @@ export class VatReportPage implements OnInit {
     this.setTableActions()
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
-      this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
-      this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
       this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
       //this.vatReportForm.get('businessNumber')?.patchValue("");
     }

@@ -116,19 +116,19 @@
               <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
                 <div *ngFor="let child of childrenArray.controls; let i = index" [formGroupName]="i" class="child-row">
                   <!-------Fname of child----->
-                  <app-generic-input class="default-input-register" inputLabel="שם פרטי של הילד"
+                  <app-generic-input class="default-input-register" inputLabel="שם פרטי של הילד/ה"
                     [controlName]="registerFormControls.CHILD_FIRST_NAME"
                     [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                   <!-------Lname of child----->
-                  <app-generic-input class="default-input-register" inputLabel="שם משפחה של הילד"
+                  <app-generic-input class="default-input-register" inputLabel="שם משפחה של הילד/ה"
                     [controlName]="registerFormControls.CHILD_LAST_NAME"
                     [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                   <!-------id of child----->
-                  <app-generic-input class="default-input-register" inputLabel="תעודת זהות של הילד"
+                  <app-generic-input class="default-input-register" inputLabel="תעודת זהות של הילד/ה"
                     [controlName]="registerFormControls.CHILD_ID"
                     [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                   <!-------dateBirth of child----->
-                  <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
+                  <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה של הילד/ה"
                     [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH"
                     [parentForm]="getChildFormByIndex(i)"></app-generic-input>
                   <!------- buttons add and remove child----->
@@ -152,7 +152,7 @@
           <!-------Business name 1 ------>
           <div class="wrap-two-detial-business">
             <div class="wrap-one-detial-business">
-              <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש ראשי</div>
+              <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש/ת ראשי/ת</div>
               <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
                 <app-generic-input class="default-input-register" inputLabel="שם עסק" [controlName]="registerFormControls.BUSINESSNAME"
                   [parentForm]="businessForm"></app-generic-input>
@@ -172,7 +172,7 @@
             </div>
             <!-------Business name 2 ------>
             <div class="wrap-one-detial-business">
-              <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן זוג</div>
+              <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן/בת הזוג</div>
               <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
                 <app-generic-input class="default-input-register" inputLabel="שם עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNAME"
                   [parentForm]="businessForm"></app-generic-input>

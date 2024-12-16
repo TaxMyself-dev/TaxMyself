@@ -12,7 +12,7 @@ export class SelectMonthFormatComponent {
   @Input() oneMonth: boolean = false;
   @Input() parentForm: FormGroup;
   @Input() optionsTypes: ISelectItem[] = reportingPeriodTypeOptionsList;
-
+  @Input() title: string;
   @Output() onSelectionChange: EventEmitter<void> = new EventEmitter<void>();
 
 

@@ -6,13 +6,15 @@ import { EMPTY, Observable, catchError, finalize, from, switchMap, tap } from 'r
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, ICellRenderer } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, ICellRenderer, ReportingPeriodType } from 'src/app/shared/enums';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserDate } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { environment } from 'src/environments/environment';
 import { cloneDeep } from 'lodash';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { GenericService } from 'src/app/services/generic.service';
+import { DateService } from 'src/app/services/date.service';
+import { AuthService } from 'src/app/services/auth.service';
 
 @Component({
   selector: 'app-my-storage',
@@ -34,6 +36,7 @@ export class MyStoragePage implements OnInit {
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId', 'id', 'file', 'isReported', 'vatReportingDate', 'transId'];
   readonly ACTIONS_TO_IGNORE = ['share', 'preview', 'download file'];
   readonly ButtonSize = ButtonSize;
+  readonly reportingPeriodType = ReportingPeriodType;
 
   filterRows: IRowDataTable[]; // Holds the filter text
   items$: Observable<IRowDataTable[]>;//Data of expenses
@@ -47,25 +50,45 @@ export class MyStoragePage implements OnInit {
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
   storageForm: FormGroup;
+  userData: IUserDate;
+  businessNamesList: ISelectItem[] = [];
 
-  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder, private genericService: GenericService) {
+
+  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder, private genericService: GenericService, private dateService: DateService, private authService: AuthService) {
     this.storageForm = this.formBuilder.group({
-      from: new FormControl(
-        '', Validators.required,
+      reportingPeriodType: new FormControl(
+        false, Validators.required,
       ),
-      until: new FormControl(
-        '', Validators.required,
+      month: new FormControl(
+        '', [],
       ),
-      supplier: new FormControl(
-        '', Validators.required,
+      year: new FormControl(
+        '', [],
       ),
-      category: new FormControl(
-        '', Validators.required,
-      )
+      startDate: new FormControl(
+        '', [],
+      ),
+      endDate: new FormControl(
+        '', [],
+      ),
+      businessNumber: new FormControl(
+        '', [],
+      ),
+      // supplier: new FormControl(
+      //   '', Validators.required,
+      // ),
+      // category: new FormControl(
+      //   '', Validators.required,
+      // )
     })
   }
 
   ngOnInit() {
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    if (this.userData.isTwoBusinessOwner) {
+      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+    }
     this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
     this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
     this.setRowsData();
@@ -78,9 +101,78 @@ export class MyStoragePage implements OnInit {
       })
   }
 
+  setFormValidators(event): void {
+    switch (event.value) {
+      case this.reportingPeriodType.ANNUAL:
+        this.storageForm.controls['month']?.setValidators([]);// for reset month control
+        this.storageForm.controls['startDate']?.setValidators([]);// for reset month control
+        this.storageForm.controls['endDate']?.setValidators([]);// for reset month control
+        this.storageForm.controls['year']?.setValidators([Validators.required]);
+        Object.values(this.storageForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+
+        });
+        break;
+
+      case this.reportingPeriodType.DATE_RANGE:
+        this.storageForm.controls['year']?.setValidators([]);// for reset year control
+        this.storageForm.controls['month']?.setValidators([]);// for reset month control
+        this.storageForm.controls['startDate']?.setValidators([Validators.required]);
+        this.storageForm.controls['startDate']?.updateValueAndValidity();
+        this.storageForm.controls['endDate']?.setValidators([Validators.required]);
+        Object.values(this.storageForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+        });
+        break;
+
+      case this.reportingPeriodType.BIMONTHLY:
+      case this.reportingPeriodType.MONTHLY:
+        this.storageForm.controls['startDate']?.setValidators([]);
+        this.storageForm.controls['endDate']?.setValidators([]);
+        this.storageForm.controls['month']?.setValidators([Validators.required]);
+        this.storageForm.controls['year']?.setValidators([Validators.required]);
+        Object.values(this.storageForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+        });
+    }
+
+  }
+
+
   // Get the data from server and update items
   setRowsData(): void {
-    this.items$ = this.expenseDataService.getExpenseByUser()
+    const formData = this.storageForm.value;
+    console.log("formData of storage",formData);
+    let startDate: string;
+    let endDate: string;
+    let businessNumber: string;
+   
+    
+    if (!formData.reportingPeriodType) {
+      businessNumber = this.userData.businessNumber;
+      // Set default values if periodType is false
+      startDate = '01/01/2000';
+      endDate = this.dateService.formatDate(new Date()); 
+    } else {
+      // Call the function if periodType is valid
+      ({ startDate, endDate } = this.dateService.getStartAndEndDates(
+        formData.reportingPeriodType,
+        formData.year,
+        formData.month,
+        formData.startDate,
+        formData.endDate
+      ));
+      if (this.userData.isTwoBusinessOwner) {
+        businessNumber = formData.businessNumber;
+      }
+      else {
+        businessNumber = this.userData.businessNumber;
+      }
+    }
+    console.log("startDate: ", startDate, "end date: ", endDate, "businnes: ", businessNumber);
+    
+
+    this.items$ = this.expenseDataService.getExpenseByUser(startDate, endDate, businessNumber)
       .pipe(
         tap((data) => {
           console.log(data);

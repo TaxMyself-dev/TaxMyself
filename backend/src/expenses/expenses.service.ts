@@ -384,18 +384,44 @@ async getSupplierById(id: number, userId: string): Promise<SupplierResponseDto> 
         return await this.expense_repo.find({ where: { supplier: supplier } });
     }
 
-    async getExpensesByUserID(userId: string): Promise<Expense[]> {
-        return await this.expense_repo.find({ where: { userId: userId } });
-    }
+    async getExpensesByUserID(
+        userId: string,
+        startDate?: Date,
+        endDate?: Date,
+        businessNumber?: string,
+        page: number = 1 // default to the first page
+    ): Promise<Expense[]> {
+        // Build the query object
+        const where: any = { userId };
+    
+        // Add date filtering if provided
+        if (startDate) {
+            where.date = { ...where.date, $gte: startDate };
+        }
+        if (endDate) {
+            where.date = { ...where.date, $lte: endDate };
+        }
+          // Add business number filtering if provided
+        if (businessNumber) {
+            where.businessNumber = businessNumber;
+        }
+    
+        // Query the database
+        const expenses = await this.expense_repo.find({
 
-    async getExpensesWithinDateRange(startDate: string, endDate: string): Promise<Expense[]> {
-        const parsedStartDate = new Date(startDate);
-        const parsedEndDate = new Date(endDate);
-        return await this.expense_repo.find({
             where: {
-               // date: Between(parsedStartDate, parsedEndDate),
-            },
-        });
+                userId: userId,
+                ...(startDate && endDate ? { date: Between(startDate, endDate) } : {}),
+                ...(businessNumber ? { businessNumber: businessNumber } : {})
+              },
+              order: { date: 'DESC' }, // Sort by the most recent date
+              take: 50, // Limit the results to 50
+              skip: (page - 1) * 50, // Offset for pagination
+            }
+
+        );
+    
+        return expenses;
     }
 
 

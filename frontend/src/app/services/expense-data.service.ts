@@ -71,13 +71,19 @@ export class ExpenseDataService {
     return this.columnsAddExpenseOrder;
   }
 
-  getExpenseByUser(): Observable<IRowDataTable[]> {
+  getExpenseByUser(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const token = localStorage.getItem('token');
+    const pagination = 1;
     const url = `${environment.apiUrl}expenses/get_by_userID`;
     const headers = {
       'token': token
     }
-    return this.http.get<IRowDataTable[]>(url, { headers: headers });
+    const params = new HttpParams()
+    .set('startDate', startDate)
+    .set('endDate', endDate)
+    .set('businessNumber', businessNumber)
+    .set('pagination', pagination)
+    return this.http.get<IRowDataTable[]>(url, {params: params, headers: headers });
   }
 
   getExpenseForVatReport(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {

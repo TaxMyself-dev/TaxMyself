@@ -13,6 +13,7 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
+import { GetExpensesDto } from './dtos/get-expenses.dto';
 
 
 @Controller('expenses')
@@ -50,9 +51,18 @@ export class ExpensesController {
   }
 
   @Get('get_by_userID')
-  async getExpensesByUserID(@Headers('token') token: string): Promise<Expense[]> {
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);    
-    return await this.expensesService.getExpensesByUserID(firebaseId);
+  async getExpensesByUserID(@Headers('token') token: string, @Query() query: GetExpensesDto): Promise<Expense[]> {
+    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);  
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (query.startDate ) {
+      startDate = this.sharedService.convertStringToDateObject(query.startDate);
+    }
+    if (query.endDate) {
+      endDate = this.sharedService.convertStringToDateObject(query.endDate);  
+    }
+    return await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
   }
 
 

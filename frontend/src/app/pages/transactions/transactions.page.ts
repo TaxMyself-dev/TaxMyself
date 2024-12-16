@@ -330,7 +330,7 @@ export class TransactionsPage implements OnInit {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
 
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 

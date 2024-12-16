@@ -23,7 +23,7 @@
       [inputLabelName]="inputSearchLable"></app-filter-input>
     <ion-row class="table-headers">
       <ion-col (click)="selectAll()" *ngIf="displayCheckbox" [class.selectAll] = "isAvailableSelectAll" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
-        {{selectColumnString}} </ion-col>
+       <ng-container *ngIf="!isAvailableSelectAll">{{selectColumnString}}</ng-container> <ion-checkbox *ngIf="isAvailableSelectAll"></ion-checkbox> </ion-col>
       <ion-col *ngFor="let col of fieldsNames" [size]="columnsWidth?.get(col.name) ?? baseSize"
         class="col-header {{col.name}}">
         {{col.value}}

@@ -165,9 +165,9 @@ export enum TransactionsOutcomesHebrewColumns {
   }
   
   export const FamilyStatusLabels = {
-    [FamilyStatus.MARRIED]: 'נשוי',
-    [FamilyStatus.SINGLE]: 'רווק',
-    [FamilyStatus.DIVORCED]: 'גרוש'
+    [FamilyStatus.MARRIED]: 'נשוי/אה',
+    [FamilyStatus.SINGLE]: 'רווק/ה',
+    [FamilyStatus.DIVORCED]: 'גרוש/ה'
   };
 
   export const familyStatusOptionsList = [
