@@ -38,6 +38,7 @@ export class FlowReportPage implements OnInit {
   messageToast: string = "";
   userData: IUserDate;
   strFilter: string;
+  checkedCount: number = 0;
 
   public COLUMNS_TO_IGNORE = ['note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
 
@@ -115,6 +116,10 @@ export class FlowReportPage implements OnInit {
     ]
   }
 
+  isAllChecked(): boolean {
+    return this.checkedCount === this.expensesData.length;
+  }
+
   getTransaction(): void {
     this.flowReportService.getFlowReportData(this.startDate, this.endDate, this.businessNumber)
       .pipe(
@@ -185,8 +190,10 @@ export class FlowReportPage implements OnInit {
 
     // If the checkbox is checked, add it to chosenTrans
     if (event.checked) {
+      this.checkedCount++;
       this.chosenTrans.push({ id: event.row.id as number, file: event.row.firebaseFile as string });
     } else {
+      this.checkedCount--;
       // If unchecked, remove it from chosenTrans
       this.chosenTrans = this.chosenTrans.filter((item) => {
         return item.id !== event.row.id;
@@ -195,49 +202,25 @@ export class FlowReportPage implements OnInit {
 
     // Update isSelectTransaction flag based on whether there are any selected transaction
     this.isSelectTransaction = this.chosenTrans.length > 0;
+console.log(this.isAllChecked);
 
     console.log(this.chosenTrans);
   }
 
-  // selectAll(event: { id: number[], checked: boolean }): void {
   selectAll(event: boolean, expensesData: IRowDataTable[]): void {
-    console.log("select all in flow report");
-    let exists: boolean = false;
-    console.log(event);
-    // console.log(this.filteredExpense);
     if (event) {
       this.chosenTrans = [];
-      // this.expensesData$.forEach
       this.expensesData.forEach((expense) => {
         this.chosenTrans.push({id: expense.id as number, file: expense.firebaseFile as File})
-        // exists = false;
-        // this.chosenTrans.forEach((tran) => {
-        //   if (tran.id === expense.id) {
-        //     exists = true;
-        //     return;
-        //   }
-        // })
-        // if (!exists) {
-        //   this.chosenTrans.push({ id: expense.id as number })
-        // }
       })
-      console.log(this.chosenTrans);
       this.isSelectTransaction = true;
+      this.checkedCount = this.expensesData.length;
     }
     else {
       this.chosenTrans = [];
       this.isSelectTransaction = false;
+      this.checkedCount = 0;
     }
-    console.log(expensesData);
-    
-    // event.checked ? event.id.forEach((id) => {
-    //   if (!this.chosenTrans.includes(id)){
-    //     this.chosenTrans.push(id)
-    //   }
-    // })
-    //     : this.chosenTrans = [];
-    // console.log(this.chosenTrans);
-
   }
 
   addTransToExpense(): void {
@@ -383,8 +366,6 @@ export class FlowReportPage implements OnInit {
     row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0];
     row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
     this.chosenTrans.map((tran) => {
-      console.log(tran.id, row.id);
-
       if (tran.id === row.id) {
         return (
           tran.file = event.target.files[0]
@@ -394,15 +375,9 @@ export class FlowReportPage implements OnInit {
     })
     console.log(this.chosenTrans);
     console.log(this.expensesData);
-    // console.log(this.filteredExpense);
   }
 
   filterBy(event: string): void {
-    // this.filteredExpense = this.expensesData?.filter((e) => {
-    //   return String(e.name).includes(event)
-    // });
-    // console.log("filtered expenses: ", this.filteredExpense);
-
     this.strFilter = event;
     this.expensesData$.next(this.expensesData?.filter((e) => {
       return String(e.name).includes(event)

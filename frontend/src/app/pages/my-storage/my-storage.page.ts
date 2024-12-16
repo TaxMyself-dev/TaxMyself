@@ -358,14 +358,14 @@ export class MyStoragePage implements OnInit {
           this.confirmDel(row);
         }
       },
-      {
-        name: 'share',
-        icon: 'share-social-outline',
-        title: 'שתף קובץ',
-        action: (row: IRowDataTable) => {
-          console.log('TODO: share-social-outline');
-        }
-      },
+      // {
+      //   name: 'share',
+      //   icon: 'share-social-outline',
+      //   title: 'שתף קובץ',
+      //   action: (row: IRowDataTable) => {
+      //     console.log('TODO: share-social-outline');
+      //   }
+      // },
       {
         name: 'preview',
         icon: 'glasses-outline',

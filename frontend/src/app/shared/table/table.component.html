@@ -22,8 +22,8 @@
     <app-filter-input (filterBy)="onSearch($event)" *ngIf="displayFilter"
       [inputLabelName]="inputSearchLable"></app-filter-input>
     <ion-row class="table-headers">
-      <ion-col (click)="selectAll()" *ngIf="displayCheckbox" [class.selectAll] = "isAvailableSelectAll" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
-       <ng-container *ngIf="!isAvailableSelectAll">{{selectColumnString}}</ng-container> <ion-checkbox *ngIf="isAvailableSelectAll"></ion-checkbox> </ion-col>
+      <ion-col *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize" class="col-header action">
+       <ng-container *ngIf="!isAvailableSelectAll">{{selectColumnString}}</ng-container> <ion-checkbox *ngIf="isAvailableSelectAll" (ionChange)="selectAll()" [checked]="isAllChecked"></ion-checkbox> </ion-col>
       <ion-col *ngFor="let col of fieldsNames" [size]="columnsWidth?.get(col.name) ?? baseSize"
         class="col-header {{col.name}}">
         {{col.value}}
@@ -42,16 +42,16 @@
         <ng-container [ngSwitch]="specialColumnsCellRendering?.get(field.key)">
 
           <ng-container *ngSwitchCase="ICellRenderer.BILL">
-            <ng-container *ngTemplateOutlet="billRenderCell"></ng-container>
+            <ng-container *ngTemplateOutlet="billRenderCell">ffff</ng-container>
           </ng-container>
           <ng-container *ngSwitchCase="ICellRenderer.CATEGORY">
-            <ng-container *ngTemplateOutlet="categoryRenderCell"></ng-container>
+            <ng-container *ngTemplateOutlet="categoryRenderCell">dddd</ng-container>
           </ng-container>
           <ng-container *ngSwitchCase="ICellRenderer.DATE">
-            <ng-container *ngTemplateOutlet="dateRenderCell"></ng-container>
+            <ng-container *ngTemplateOutlet="dateRenderCell">sss</ng-container>
           </ng-container>
           <ng-container *ngSwitchDefault>
-            <ng-container *ngTemplateOutlet="defaultCell"></ng-container>
+            <ng-container *ngTemplateOutlet="defaultCell">aaa</ng-container>
           </ng-container>
         </ng-container>
 
@@ -60,7 +60,8 @@
             [size]="columnsWidth?.get(field.key) ?? baseSize">
             <div (click)="toggleExpand(row)" [class.expanded]="expandedRowId === row.id && isExpanded"
               class="inner-div-cell">
-              {{field.value}}
+             <ng-container *ngIf="field.key === 'sum'">₪</ng-container>{{field.value}}
+             <!-- <div class="sign-div">{{field.value}}<div *ngIf="field.key === 'sum'">₪</div></div>  -->
             </div>
           </ion-col>
         </ng-template>

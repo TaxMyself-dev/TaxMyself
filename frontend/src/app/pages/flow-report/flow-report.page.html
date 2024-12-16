@@ -4,7 +4,7 @@
 
 
     <app-table *ngIf="expensesData$ | async as expensesData" [inputSearchLable]="'חיפוש לפי שם העסק'"
-     [columnsWidth]="COLUMNS_WIDTH" (filterBy)="filterBy($event)" [selectColumnString]="'בחר הכל'" [isAvailableSelectAll]="true" (onCheckedAll)="selectAll($event, expensesData)" [fieldsNames]="fieldsNames" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE" [columnsOrderByFunc]="columnsOrderByFunc" [displayCheckbox]="true" (onCheckedClicked)="checkedClicked($event)" [actions]="tableActions" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
+     [columnsWidth]="COLUMNS_WIDTH" (filterBy)="filterBy($event)" [selectColumnString]="'בחר הכל'" [isAvailableSelectAll]="true" [isAllChecked]="isAllChecked()" (onCheckedAll)="selectAll($event, expensesData)" [fieldsNames]="fieldsNames" [rows]="expensesData" [columnsToIgnore]="COLUMNS_TO_IGNORE" [columnsOrderByFunc]="columnsOrderByFunc" [displayCheckbox]="true" (onCheckedClicked)="checkedClicked($event)" [actions]="tableActions" [specialColumnsCellRendering]="specialColumnsCellRendering"></app-table>
     
     <app-button [buttonText]="'הוסף'" (onButtonClicked)="addTransToExpense()" [disabled]="!isSelectTransaction"></app-button>
     

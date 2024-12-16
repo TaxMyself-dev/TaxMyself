@@ -35,7 +35,7 @@
         <app-table *ngIf="incomesData$ | async as incomesData" (filterBy)="filterByIncomes($event)" [iconToolTip]="'ערוך קטגוריה'" [inputSearchLable]="'חיפוש לפי שם העסק'" iconSrc="../../../assets/custom-ion-icons/md-edit.svg" [iconName]="'create'" (onClickedCell)="onClickedCell($event,false)" [specialColumnsCellRendering]="specialColumnsCellRendering"
          [fieldsNames]="fieldsNamesIncome" [rows]="incomesData"
           [columnsOrderByFunc]="columnsOrderByFunc" [columnsToIgnore]="COLUMNS_TO_IGNORE_INCOMES"
-          [columnsWidth]="COLUMNS_WIDTH_INCOME" [actions]="tableActionsIncomes"></app-table>
+          [columnsWidth]="COLUMNS_WIDTH_INCOME" [actions]="userData.isTwoBusinessOwner ? tableActionsIncomes : null"></app-table>
       </ng-template>
 
       <ng-container *ngIf="addPayment">

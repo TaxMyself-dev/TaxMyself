@@ -23,6 +23,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
   @Input() iconSrc: string;
   @Input() beforeFile: boolean = false;
   @Input() isAvailableSelectAll: boolean = false;
+  @Input() isAllChecked: boolean = false;
   @Input() checkedId: number;
   @Input() iconName: string;
   @Input() selectColumnString: string = 'בחר';

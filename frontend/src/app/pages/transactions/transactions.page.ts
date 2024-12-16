@@ -48,7 +48,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList },
+    // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList },
   ];
 
   fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
@@ -87,16 +87,16 @@ export class TransactionsPage implements OnInit {
 
   readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.NAME, 1.3],
+    [TransactionsOutcomesColumns.BILL_NUMBER, 1.3],
+    [TransactionsOutcomesColumns.BILL_NAME, 1.2],
     [TransactionsOutcomesColumns.CATEGORY, 1.3],
     [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
     [TransactionsOutcomesColumns.BILL_DATE, 1.4],
-    [TransactionsOutcomesColumns.BILL_NUMBER, 1.3],
-    [TransactionsOutcomesColumns.BILL_NAME, 1.2],
     [TransactionsOutcomesColumns.MONTH_REPORT, 1],
     [TransactionsOutcomesColumns.SUM, 1.2],
-    [TransactionsOutcomesColumns.ACTIONS, 1],
-    [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
-    [TransactionsOutcomesColumns.NOTE, 1],
+    // [TransactionsOutcomesColumns.ACTIONS, 1],
+    // [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
+    [TransactionsOutcomesColumns.NOTE, 2],
   ]);
 
   readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
@@ -109,7 +109,7 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.BILL_DATE, 1.3],
     [TransactionsOutcomesColumns.IS_RECOGNIZED, 1],
     [TransactionsOutcomesColumns.MONTH_REPORT, 1],
-    [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
+    // [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
     [TransactionsOutcomesColumns.ACTIONS, 1],
     [TransactionsOutcomesColumns.NOTE, 1],
   ]);
@@ -232,6 +232,7 @@ export class TransactionsPage implements OnInit {
     if (this.userData.isTwoBusinessOwner) {
       //------------ expenses -------------
       this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
+      this.editFieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
       const expenseIndex = this.COLUMNS_TO_IGNORE_EXPENSES.indexOf('businessNumber');
       if (expenseIndex > -1) {
         this.COLUMNS_TO_IGNORE_EXPENSES.splice(expenseIndex, 1);
@@ -248,13 +249,15 @@ export class TransactionsPage implements OnInit {
       if (inomeIndex > -1) {
         this.COLUMNS_TO_IGNORE_INCOMES.splice(inomeIndex, 1); // Remove 1 element at the found index
       }
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_DATE, 1.2);
       this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.NAME, 1.2);
       this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NUMBER, 1.2);
       this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NAME, 1.2);
       this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.CATEGORY, 1.1)
       this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUBCATEGORY, 1.1);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUM, 1);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_DATE, 1.1);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUM, 1.1);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.NOTE, 1);
+      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.ACTIONS, 1);
     }
 
     this.setTableActions();
