@@ -97,9 +97,10 @@ export class LoginPage implements OnInit {
     const formData = this.loginForm.value;
     this.authService.userVerify(formData.userName, formData.password)
     .pipe(
-      finalize(() => this.genericService.dismissLoader()),
+      //finalize(() => this.genericService.dismissLoader()),
       catchError((err) => {
         console.log("err in user verify in sign in", err);
+        this.genericService.dismissLoader()
         return EMPTY;
       }),
       filter((res) => {
@@ -112,6 +113,7 @@ export class LoginPage implements OnInit {
       switchMap(() => this.authService.signIn(this.userCredential)),
       catchError((err) => {
         console.log("error in sign-in of login page: ", err);
+        this.genericService.dismissLoader()
         return EMPTY;
       })
     )
@@ -119,6 +121,7 @@ export class LoginPage implements OnInit {
       localStorage.setItem('userData', JSON.stringify(res));
       console.log('Sign-in response:', res);
       this.router.navigate(['my-account']);
+      this.genericService.dismissLoader()
     })
   }
 

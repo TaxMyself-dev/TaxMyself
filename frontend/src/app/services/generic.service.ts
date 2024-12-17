@@ -63,19 +63,29 @@ export class GenericService {
   }
 
   addComma(number: number | string): string {
-    console.log("number in add comma: ",number);
+    // console.log("number in add comma: ",number);
     
     if (typeof number !== 'number') {
       const tempNum = Number(number);
-      console.log("number in if add comma: ",tempNum);
-      console.log(tempNum.toLocaleString());
+      // console.log("number in if add comma: ",tempNum);
+      // console.log(tempNum.toLocaleString());
       
       return tempNum.toLocaleString();
       //throw new Error('Input must be a number');
     }
-    console.log(number.toLocaleString());
+    // console.log(number.toLocaleString());
     return number.toLocaleString();
   }
+
+  convertStringToNumber(value: string): number {
+    console.log("convertStringToNumber value: ", value);
+    
+    if (!value) return NaN; // Handle empty or invalid input
+  
+    // Remove commas and convert to number
+    return Number(value.replace(/,/g, ''));
+  }
+  
 
 
 }

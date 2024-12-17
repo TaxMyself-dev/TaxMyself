@@ -42,6 +42,23 @@ export interface IRowDataTable {
     [key: string]: string | number | Date | boolean | ISelectItem | File;
 }
 
+export interface IPnlReportData {
+    income: number | string;
+    netProfitBeforeTax: number | string;
+    expenses: {
+        category: string,
+        total: number
+    }[];
+}
+
+export interface IVatReportData {
+    vatableTurnover: string | number;
+    nonVatableTurnover: string | number;
+    vatRefundOnAssets: string | number;
+    vatRefundOnExpenses: string | number;
+    vatPayment: string | number;
+  }
+
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     name: TFormColumns;
     value: TFormHebrewColumns;
@@ -77,14 +94,6 @@ export interface IItemNavigate {
     id?: string,
     disable?: boolean
 };
-
-
-export interface IVatReportData {
-    equipmentVatRefund: number;
-    generalVatRefund: number;
-    transactionVAT: number;
-    transactionFreeVAT: number;
-}
 
 export interface IVatReportTableData {
     [key: string]: string | number;
