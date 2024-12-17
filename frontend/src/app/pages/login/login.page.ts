@@ -30,7 +30,7 @@ export class LoginPage implements OnInit {
   messageToast: string = "";
   resetMode = false;
 
-  constructor(private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
+  constructor(private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
     this.loginForm = this.formBuilder.group({
       userName: new FormControl(
@@ -49,6 +49,13 @@ export class LoginPage implements OnInit {
   }
 
   ngOnInit() {
+    this.route.queryParams.subscribe(params => {
+      if (params['from'] === 'register') {
+        console.log('Navigated to Login Page from Register Page');
+        this.authService.error$.next('email');
+        // alert('בסיום ההרשמה נשלח לחשבון הדוא"ל שלך מייל לאימות אנא ודן כי אישרת אותו')
+      }
+    });
   }
 
   onEnterKeyPressed(): void {

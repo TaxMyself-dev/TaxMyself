@@ -198,8 +198,10 @@ export class AuthService {
     
     return from(user.user.getIdToken(true))
       .pipe(
+        finalize(() =>   this.genericService.dismissLoader()),
         catchError((err) => {
           console.log("err in get id token: ", err);
+        
           return EMPTY;
         }),
         tap((token) => {
@@ -218,6 +220,7 @@ export class AuthService {
   handleErrorSignup(err: string): void {
     switch (err) {
       case "auth/email-already-in-use":
+      
         this.error$.next("user");
         break;
       case "auth/invalid-email":
@@ -228,6 +231,7 @@ export class AuthService {
         break;
       case "auth/user-disabled":
       case "auth/user-not-found":
+        case "auth/missing-email":
         this.error$.next("disabled");
         break;
       case "auth/too-many-requests":

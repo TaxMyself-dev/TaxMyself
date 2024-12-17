@@ -210,7 +210,7 @@ export class MyStoragePage implements OnInit {
       return EMPTY;
     }), switchMap((modal) => from(modal.present())), catchError((err) => {
       alert("openPopupAddExpense switchMap error");
-      console.log(err);
+      console.log("openPopupAddExpense switchMap error: ", err);
 
       return EMPTY;
     })).subscribe();

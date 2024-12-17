@@ -178,7 +178,6 @@ export class FilesService {
     return this.http.patch(url, formData);
   }
 
-
   uploadExcelFile(file: File, relativeUrl: string): Observable<any> {
     if (!file) {
       alert("אנא בחר קובץ")

@@ -273,7 +273,7 @@ export class RegisterPage implements OnInit, OnDestroy {
     formData.personal.city = formData?.personal?.city?.name;
     const data = { fromReg: false, email: formData.email };
     this.authService.SignUp(formData).subscribe(() => {
-      this.router.navigate(['login'])
+      this.router.navigate(['login'], { queryParams: { from: 'register' } })
     })
   }
 

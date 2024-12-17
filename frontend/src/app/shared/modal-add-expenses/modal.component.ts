@@ -156,18 +156,11 @@ export class ModalExpensesComponent {
       this.businessList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
     }
     this.orderColumns();
-    console.log("this.columns: ", this.columns);
-
     const today = new Date();
     this.maxDate = this.formatDate(today);
-    console.log(this.maxDate);
-
-    console.log("xdfgdgfgf", this.columns);
     this.getCategory();
     this.initForm();
     this.getSuppliers();
-    console.log(this.displaySuppliersList);
-    
   }
 
   formatDate(date: Date): string {
@@ -178,18 +171,11 @@ export class ModalExpensesComponent {
     console.log("data in init form modal edit", data);
     if (data) {
       this.getSubCategory(data?.category as string)
-      // .subscribe((res) => {
-      // console.log(res);
-      // this.subCategoryList = res;
-      // });
     }
 
-
     this.addExpenseForm = this.formBuilder.group({
-      // [ExpenseFormColumns.CATEGORY]: [{ name: data?.category, value: data?.category } || '', Validators.required],
       [ExpenseFormColumns.CATEGORY]: [data?.category || '', Validators.required],
       [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
-      // [ExpenseFormColumns.SUB_CATEGORY]: [{ name: data?.subCategory, value: data?.subCategory } || '', Validators.required],
       [ExpenseFormColumns.SUPPLIER]: [data?.supplier || data?.name || '', Validators.required],
       [ExpenseFormColumns.SUM]: [data?.sum || '', Validators.required],
       [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || ''],
@@ -201,14 +187,12 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.FILE]: [data?.file || File],// TODO: what to show in edit mode
       [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
       [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0],
+      [ExpenseFormColumns.BUSINESS_NUMBER]: [data?.businessNumber || ''],
     });
 
     if (this.userData.isTwoBusinessOwner) {
       this.addExpenseForm.addControl('businessNumber', new FormControl('', [Validators.required]));
     }
-    console.log(this.addExpenseForm);
-
-
     this.initialForm = cloneDeep(this.addExpenseForm);
   }
 
@@ -291,15 +275,9 @@ export class ModalExpensesComponent {
 
 
   async fileSelected(event: any) {
-    console.log("fileSelected - start");
-
-    console.log("in filelelel");
-
     this.pdfLoaded = false;// on change pdf to image
-
     let file = event.target.files[0];
-    console.log("fileeeeeeeeeeee", file);
-
+    this.fileToUpload = file;
     if (!file) {
       return;
     }
@@ -313,11 +291,9 @@ export class ModalExpensesComponent {
     }
 
     if (extension === "pdf") {
-      console.log("in pdf");
       const target = event.target as HTMLInputElement;
       const files = target.files as FileList;
       const file = files.item(0);
-      console.log("pdf file:", file);
 
       if (!file) {
         return;
@@ -348,7 +324,10 @@ export class ModalExpensesComponent {
   }
 
   disableSave(): boolean {
-    return !this.addExpenseForm.valid || (this.isEditMode ? isEqual(this.initialForm.value, this.addExpenseForm.value) : false)
+    return !this.addExpenseForm.valid || 
+           (this.isEditMode ? 
+            (isEqual(this.initialForm.value, this.addExpenseForm.value) && this.selectedFile === "") 
+            : false);
   }
 
   disabledAddSupplier(): boolean {
@@ -380,7 +359,6 @@ export class ModalExpensesComponent {
     // this.setFormData("sdf", "Sdfg");
 
     let filePath = '';
-
     this.getLoader().pipe(
       finalize(() => {
         this.loadingController.dismiss();
@@ -390,7 +368,7 @@ export class ModalExpensesComponent {
         alert('Something Went Wrong in first catchError: ' + err.message)
         return EMPTY;
       }),
-      map((res) => {
+      map((res) => {        
         if (res) {
           console.log("full path of firebase file: ",res);
           filePath = res.metadata.fullPath;
@@ -433,16 +411,14 @@ export class ModalExpensesComponent {
 
   update(): void {
     let filePath = '';
-    const previousFile = this.addExpenseForm.get('file').value;
-    console.log("previos file: ", previousFile);
-
+    const previousFile = this.addExpenseForm?.get('file').value;
     this.getFileData().pipe(
       finalize(() => this.modalCtrl.dismiss()),
       catchError((err) => {
         alert('File upload failed, please try again ' + err.error.message.join(', '));
         return EMPTY;
       }),
-      map((res) => {
+      map((res) => {        
         if (res) { //if a file is selected 
           filePath = res.metadata.fullPath;
         }
@@ -541,13 +517,6 @@ export class ModalExpensesComponent {
         }
       })
     ).subscribe((res) => {
-      console.log(this.categoryList);
-      console.log(this.displaySubCategoryList);
-
-      console.log('res in modal comp: ', res);
-      console.log("res.role: ", res.role);
-      console.log("type:", typeof (res.data));
-
       if (res.role === 'success') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
           if (res) {
@@ -679,7 +648,7 @@ export class ModalExpensesComponent {
     console.log("event in sub category: ", event);
     
     let category: string;
-    if (typeof (event !== 'string')) {
+    if (typeof(event) !== 'string') {
       category = event.value;
     }
     else {
@@ -722,27 +691,29 @@ export class ModalExpensesComponent {
     //   this.categoryList = categoryList;
     //   return;
     // }
+    console.log("in get category: ", data);
+    
 
     this.expenseDataServise.getcategry()
       .pipe(
+        catchError((err) => {
+          console.log("error in get category: ", err);
+          return EMPTY;
+        }),
         map((res) => {
           console.log(res);
-
           return res.map((item) => ({
             name: item.categoryName,
             value: item.categoryName
-          })
-          )
-        }), tap((res) => {
+          }))
+        }),
+        tap((res) => {
           this.categoryList = res;
-          console.log("category list:", res);
         }),
         // switchMap((data) => this.getSubCategory(data. as string)),
         tap((res) => {
-          console.log('res of category', res);
 
           if (data && this.isEditMode || data && this.isSelectSupplierMode) {
-            console.log("datta: ", data);
             this.initForm(data);
           }
         })
@@ -763,13 +734,7 @@ export class ModalExpensesComponent {
   }
 
   setValueEquipment(event: any): void {
-    console.log("event is equipment: ",event);
-    
     const value = event.value;
-    console.log("in set value", value);
-    console.log(this.isEquipment);
-
-    console.log("category form value", this.addExpenseForm.get(ExpenseFormColumns.CATEGORY).value);
 
     if (value != this.isEquipment) {
       this.addExpenseForm.patchValue({ 'category': "" })
@@ -852,12 +817,14 @@ export class ModalExpensesComponent {
       fileInput.value = '';
     }
     this.selectedFile = '';
+    console.log("this.selectedFile: ",this.selectedFile);
+    
     this.editModeFile = '';
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
     this.pdfLoaded = false;
-    if (this.isEditMode) {
-      this.addExpenseForm.patchValue({ file: '' });
-    }
+    // if (this.isEditMode) {
+    //   this.addExpenseForm.patchValue({ file: '' });
+    // }
     event.preventDefault();
   }
 

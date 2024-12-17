@@ -106,10 +106,10 @@
 
       <!-- <ng-container *ngTemplateOutlet="customFooterTemplate"></ng-container> -->
 
-      <ng-container *ngFor="let button of buttons">
+      <!-- <ng-container *ngFor="let button of buttons">
         <app-button [buttonSize]="button.size" [buttonText]="button.text" [disabled]="button.disabled"
           (onButtonClicked)="button.action()"></app-button>
-      </ng-container>
+      </ng-container> -->
 
       <div class="wrapp-btn-expense">
         <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
