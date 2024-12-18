@@ -36,4 +36,7 @@ export class editRowComponent<TFormColumns, TFormHebrewColumns> implements OnIni
     }
   }
 
+  cancel() {
+    this.modalCtrl.dismiss(null, 'cancel');
+  }
 }

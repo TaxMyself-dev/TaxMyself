@@ -51,7 +51,7 @@
 
 <ng-template #searchBarContent>
   <form class="generic-search-bar-content" [formGroup]="transactionsForm">
-    <app-select-report-period class="input-search-bar" [parentForm]="transactionsForm" (onSelectionChange)="setFormValidators($event)" [title]="'תקופת דיווח'"></app-select-report-period>
+    <app-select-report-period class="input-search-bar" [parentForm]="transactionsForm" (onSelectionChange)="setFormValidators($event)" [title]="'סנן לפי'"></app-select-report-period>
     <app-select-month 
     *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
            this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="transactionsForm" class="input-search-bar">

@@ -1,8 +1,16 @@
-.title-toolbar{
+.title-toolbar {
     display: flex;
     justify-content: space-between;
 }
 
-.icon-toolbar{
+.icon-toolbar {
     display: flex;
+}
+
+
+@media only screen and (max-width:600px) {
+
+    .hello-user {
+        visibility: hidden;
+    }
 }

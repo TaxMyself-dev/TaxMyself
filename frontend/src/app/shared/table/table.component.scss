@@ -17,6 +17,11 @@
   font-size: small;
 }
 
+.disabled-row {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
 .icon-table{
   cursor: pointer;
   width: 25px ;

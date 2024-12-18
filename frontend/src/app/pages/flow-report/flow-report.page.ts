@@ -130,11 +130,13 @@ export class FlowReportPage implements OnInit {
         map((data) => {
           console.log(data);
 
-          data.forEach((row) => {
+          data.map((row) => {
             row.sum = Math.abs(row.sum);
             row.sum = this.genericService.addComma(row.sum)
             row?.businessNumber === this.userData.businessNumber ? row.businessNumber = this.userData.businessName : row.businessNumber = this.userData.spouseBusinessName;
-
+            if (row.vatReportingDate) {
+              row.disabled = true;
+            }
           })
           return data;
         }),

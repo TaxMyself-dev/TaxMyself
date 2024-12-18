@@ -34,7 +34,7 @@
         פעולות
       </ion-col>
     </ion-row>
-    <ion-row *ngFor="let row of rows; let i = index" class="table-row">
+    <ion-row *ngFor="let row of rows; let i = index" class="table-row" [class.disabled-row]="row.disabled">
       <ion-col class="checkbox-col" *ngIf="displayCheckbox" [size]="columnsWidth?.get('checkbox') ?? baseSize">
         <ion-checkbox [checked]="showChecked(row)" (ionChange)="onChecked($event, row)"></ion-checkbox>
       </ion-col>

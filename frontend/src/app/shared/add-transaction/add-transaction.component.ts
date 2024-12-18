@@ -69,7 +69,7 @@ export class AddTransactionComponent implements OnInit {
   readonly formTypes = FormTypes;
   readonly displayHebrew = displayColumnsExpense;
 
-  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService, private modalController: ModalController, private generivService: GenericService) {
+  constructor(private modalCtrl: ModalController, private expenseDataServise: ExpenseDataService, private formBuilder: FormBuilder, private transactionsService: TransactionsService, private modalController: ModalController, private genericvService: GenericService) {
     this.existCategoryEquipmentForm = this.formBuilder.group({
       isSingleUpdate: new FormControl(
         false, [Validators.required,]
@@ -302,7 +302,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   addClasssificationExistCategory(): void {
-    this.generivService.getLoader().subscribe();
+    this.genericvService.getLoader().subscribe();
     let formData: IClassifyTrans;
     formData = this.existCategoryEquipmentForm.value;
     formData.id = this.data.id;
@@ -321,13 +321,15 @@ export class AddTransactionComponent implements OnInit {
     console.log(formData);
     this.transactionsService.addClassifiction(formData, this.date)
       .pipe(
+        finalize(() => this.genericvService.dismissLoader()),
         catchError((err) => {
+          this.modalController.dismiss(null, 'error');
           return EMPTY;
         })
       )
       .subscribe((res) => {
         this.modalController.dismiss(null, 'send');
-        this.generivService.dismissLoader()
+        this.genericvService.dismissLoader()
         this.isOpenToast = true;
         console.log(res);
       })
@@ -335,7 +337,7 @@ export class AddTransactionComponent implements OnInit {
 
   addClasssificationNewCategory(): void {
     
-    this.generivService.getLoader().subscribe()
+    this.genericvService.getLoader().subscribe()
     let formData: IClassifyTrans;
     if (this.incomeMode) {
       if (this.isRecognize) {
@@ -388,7 +390,7 @@ export class AddTransactionComponent implements OnInit {
         })
       )
       .subscribe((res) => {
-        this.generivService.dismissLoader()
+        this.genericvService.dismissLoader()
         this.modalController.dismiss(null, 'send');
         this.isOpenToast = true;
         console.log(res);

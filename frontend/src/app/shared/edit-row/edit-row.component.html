@@ -1,17 +1,36 @@
-<form *ngIf="parentForm" class="edit-row-screen">
-  <ng-container *ngFor="let field of fields">
-    <ng-container [ngSwitch]="field.type">
+<ion-header>
+  <ion-toolbar>
+    <ion-list class="list-header">
+      <ion-icon class="cancel-icon-edit-row" (click)="cancel()" aria-label="back" size="large"
+        name="close-outline"></ion-icon>
+      <ion-title>
+        עריכת תנועה בודדת
+      </ion-title>
+    </ion-list>
+  </ion-toolbar>
+</ion-header>
 
-      <ng-container *ngSwitchCase="formTypes.DDL">
-        <app-generic-select class="input-edit-row" [items]="field.listItems" controlName="{{field.name}}" title="{{field.value}}" [parentForm]="parentForm" [disabled]="disabledFields?.includes(field.name)" (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
+<ion-content>
+  <div class="edit-row-screen">
+    <form *ngIf="parentForm" [formGroup]="parentForm" class="edit-row-form">
+      <ng-container *ngFor="let field of fields">
+        <ng-container [ngSwitch]="field.type">
+
+          <ng-container *ngSwitchCase="formTypes.DDL">
+            <app-generic-select class="input-edit-row" [items]="field.listItems" controlName="{{field.name}}"
+              title="{{field.value}}" [parentForm]="parentForm" [disabled]="disabledFields?.includes(field.name)"
+              (selectionChanged)="onSelectionChanged($event, field)"></app-generic-select>
+          </ng-container>
+
+          <ng-container *ngSwitchDefault>
+            <app-generic-input class="input-edit-row" controlName="{{field.name}}" inputLabel="{{field.value}}"
+              [parentForm]="parentForm" [inputType]="field.type"
+              [disabled]="disabledFields?.includes(field.name)"></app-generic-input>
+          </ng-container>
+        </ng-container>
+
       </ng-container>
-
-      <ng-container *ngSwitchDefault>
-        <app-generic-input class="input-edit-row" controlName="{{field.name}}" inputLabel="{{field.value}}" [parentForm]="parentForm"
-          [inputType]="field.type" [disabled]="disabledFields?.includes(field.name)"></app-generic-input>
-      </ng-container>
-    </ng-container>
-
-  </ng-container>
-<app-button [buttonText]="'עדכן'" (onButtonClicked)="updateRow()"></app-button>
-</form>
+      <app-button [buttonText]="'עדכן'" (onButtonClicked)="updateRow()"></app-button>
+    </form>
+  </div>
+</ion-content>

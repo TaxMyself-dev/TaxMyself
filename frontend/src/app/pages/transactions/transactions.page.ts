@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil } from 'rxjs';
+import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserDate } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
@@ -36,6 +36,12 @@ export class TransactionsPage implements OnInit {
 
 
   editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+    { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList },
+    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DDL, listItems: this.equipmentList },
+    { name: TransactionsOutcomesColumns.IS_EQUIPMENT, value: TransactionsOutcomesHebrewColumns.isEquipment, type: FormTypes.DDL, listItems: this.equipmentList },
+    { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
+    { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.NUMBER },
+    { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
@@ -43,12 +49,6 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
-    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DDL, listItems: this.equipmentList },
-    { name: TransactionsOutcomesColumns.IS_EQUIPMENT, value: TransactionsOutcomesHebrewColumns.isEquipment, type: FormTypes.DDL, listItems: this.equipmentList },
-    { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER },
-    // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList },
   ];
 
   fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
@@ -225,14 +225,14 @@ export class TransactionsPage implements OnInit {
 
   ngOnInit(): void {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber }, { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
-    )
+    this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
+    this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
     console.log(this.userData);
 
     if (this.userData.isTwoBusinessOwner) {
       //------------ expenses -------------
       this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
-      this.editFieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
+      //this.editFieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
       const expenseIndex = this.COLUMNS_TO_IGNORE_EXPENSES.indexOf('businessNumber');
       if (expenseIndex > -1) {
         this.COLUMNS_TO_IGNORE_EXPENSES.splice(expenseIndex, 1);
@@ -602,10 +602,19 @@ export class TransactionsPage implements OnInit {
   openEditRow(data: IRowDataTable, isExpense: boolean = true): void {
     let editFieldsNamesIncomes: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = []; // For does changes in fieldsNamesIncomes array before open update row.
     let disabledFields: TransactionsOutcomesColumns[];
-    const businessNumber = data.businessNumber === this.userData.businessNumber ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
+    console.log("data.businessNumber: ", data.businessNumber);
+    console.log(" this.userData.businessNumber: ",  this.userData.businessNumber);
+    
+    const businessNumber = data.businessNumber === this.userData.businessNumber || this.userData.businessName ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
     console.log("data in open edit row: ", data);
+    console.log("businessNumber: ", businessNumber);
+    
 
     if (isExpense) {
+      if (!this.userData.isTwoBusinessOwner) {
+        this.editFieldsNamesExpenses = this.editFieldsNamesExpenses.filter(
+          field => field.name !== TransactionsOutcomesColumns.BUSINESS_NUMBER); // For remove column businessNumber from array for one business 
+      }
       const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
       const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
       disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
@@ -688,6 +697,7 @@ export class TransactionsPage implements OnInit {
           }))
         .subscribe((res) => {
           if (res.role == 'send') {
+            this.genericService.getLoader().subscribe();
             this.updateRow(res.data.id)
           }
         });
@@ -710,7 +720,22 @@ export class TransactionsPage implements OnInit {
     formData.taxPercent = +formData.taxPercent;
     formData.reductionPercent = +formData.reductionPercent;
 
-    this.transactionService.updateRow(formData).pipe(takeUntil(this.destroy$)).subscribe((res) => this.getExpensesData());
+    this.transactionService.updateRow(formData)
+    .pipe(
+      // finalize(() => this.genericService.dismissLoader()),
+      catchError((err) => {
+        alert("עדכון שורה נכשל");
+        this.genericService.dismissLoader();
+        return EMPTY;
+      }),
+      takeUntil(this.destroy$)
+    )
+    .subscribe((res) => {
+      this.genericService.dismissLoader();
+      this.messageToast = "עדכון שורה הצליח"
+      this.isToastOpen = true;
+      this.getExpensesData()
+    });
   }
 
   openAddTransaction(event, isExpense: boolean): void {
@@ -734,9 +759,18 @@ export class TransactionsPage implements OnInit {
             switchMap(() => from(modal.onWillDismiss())
               .pipe(
                 tap((data) => {
-                  if (data.role != 'backdrop' && data.role != 'cancel') {
+                  if(data.role === 'error') {
+                    setTimeout(() => {
+                      this.genericService.dismissLoader()
+                      alert("אירעה שגיאה התנועה לא סווגה אנא נסה מאוחר יותר")
+                    }, 500)
+                  }
+                  else if (data.role != 'backdrop' && data.role != 'cancel') {
+                    this.messageToast = "התנועה סווגה בהצלחה"
+                    this.isToastOpen = true;
                     this.getTransactions()
                   }
+
                 })
               )
             )

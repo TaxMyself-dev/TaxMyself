@@ -99,22 +99,6 @@ export class PnLReportPage implements OnInit {
 
   }
 
-  // updateIncome(event: any) {
-  //   if (event.detail.value === "") {
-  //     event.detail.value = '0';
-  //     this.vatReport.vatableTurnover = '0';
-  //   }
-  //     const vatableTurnover = this.genericService.convertStringToNumber(event.detail.value);
-  //     Object.keys(this.vatReport).forEach((field) => { // convert all to type number for math manipulation
-  //       this.vatReport[field] = this.genericService.convertStringToNumber(this.vatReport[field]);
-  //     });
-  //     this.vatReport.vatPayment = vatableTurnover - Number(this.vatReport.vatRefundOnAssets) - Number(this.vatReport.vatRefundOnExpenses);
-  //     Object.keys(this.vatReport).forEach((field) => { //convert all to type string for display with comma
-  //       this.vatReport[field] = this.genericService.addComma(this.vatReport[field]);
-  //     });
-  // }
-
-
   updateIncome(event: any) {
     if (event.detail.value === "") {
       event.detail.value = '0';
