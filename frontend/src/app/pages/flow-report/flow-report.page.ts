@@ -39,8 +39,9 @@ export class FlowReportPage implements OnInit {
   userData: IUserDate;
   strFilter: string;
   checkedCount: number = 0;
+  disabledRows: number = 0;
 
-  public COLUMNS_TO_IGNORE = ['note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
+  public COLUMNS_TO_IGNORE = ['disabled', 'note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
 
   readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.CHECKBOX, 0.5],
@@ -117,7 +118,18 @@ export class FlowReportPage implements OnInit {
   }
 
   isAllChecked(): boolean {
-    return this.checkedCount === this.expensesData.length;
+    this.disabledRows = 0;
+    let disabled: number = 0;
+    this.expensesData.forEach((expense) => {
+      if (expense.disabled) {
+        disabled++;
+        this.disabledRows++;
+      }
+    })
+    console.log("this.expensesData.length - disabled: ", this.expensesData.length - this.disabledRows);
+    console.log("checkedCount: ", this.checkedCount);
+
+    return this.checkedCount === (this.expensesData.length - this.disabledRows);
   }
 
   getTransaction(): void {
@@ -204,8 +216,6 @@ export class FlowReportPage implements OnInit {
 
     // Update isSelectTransaction flag based on whether there are any selected transaction
     this.isSelectTransaction = this.chosenTrans.length > 0;
-console.log(this.isAllChecked);
-
     console.log(this.chosenTrans);
   }
 
@@ -213,16 +223,20 @@ console.log(this.isAllChecked);
     if (event) {
       this.chosenTrans = [];
       this.expensesData.forEach((expense) => {
-        this.chosenTrans.push({id: expense.id as number, file: expense.firebaseFile as File})
+        if (!expense.disabled) {
+          this.chosenTrans.push({ id: expense.id as number, file: expense.firebaseFile as File })
+        }
       })
       this.isSelectTransaction = true;
-      this.checkedCount = this.expensesData.length;
+      this.checkedCount = this.expensesData.length - this.disabledRows;
     }
     else {
       this.chosenTrans = [];
       this.isSelectTransaction = false;
       this.checkedCount = 0;
     }
+    console.log();
+
   }
 
   addTransToExpense(): void {
@@ -346,7 +360,7 @@ console.log(this.isAllChecked);
           this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
           this.isToastOpen = true;
           this.genericService.dismissLoader();
-        
+
           // this.router.navigate(['vat-report'], {
           //   queryParams: {
           //     isToastOpen: true,
