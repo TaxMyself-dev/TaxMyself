@@ -32,6 +32,8 @@ import admin from 'firebase-admin';
 import { TransactionsService } from './transactions/transactions.service';
 import { FinsiteService } from './finsite/finsite.service';
 import { ExpensesService } from './expenses/expenses.service';
+import { MailModule } from './mail/mail.module';
+import { MailService } from './mail/mail.service';
 
 let serviceAccount: any;
 
@@ -79,9 +81,9 @@ serviceAccount = {
       Finsite,
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule],
     controllers: [AppController],
-  providers: [AppService, TransactionsService, FinsiteService, ExpensesService],
+  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService],
 })
 export class AppModule {
 

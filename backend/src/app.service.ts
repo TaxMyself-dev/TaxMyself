@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import * as fs from 'fs';
-import * as path from 'path';
+//import * as fs from 'fs';
+//import * as path from 'path';
 import { TransactionsService } from './transactions/transactions.service';
 import { FinsiteService } from './finsite/finsite.service';
+import { MailService } from './mail/mail.service';
 
 
 @Injectable()
@@ -12,16 +13,14 @@ export class AppService {
   constructor(
     private readonly transactionsService: TransactionsService,
     private readonly finsiteService: FinsiteService,
+    private readonly mailService: MailService,
   ) {}
   //     min  hr  day  mon  dayOfWeek
-  @Cron('0   0   *    *   *') // Runs daily at midnight
+  @Cron('00 02 * * *') // Runs daily 02:00
   async handleDailyTask() {
 
     console.log('Running daily task');
 
-    // Create a new JSON file
-    await this.finsiteService.getFinsiteBills(process.env.FINSITE_ID, process.env.FINSITE_KEY);
-    
     // Calculate dates
     const today = new Date();
     const threeDaysAgo = new Date(today);
@@ -30,8 +29,35 @@ export class AppService {
     // Format dates as "YYYY-MM-DD"
     const endDate = today.toISOString().split('T')[0];
     const startDate = threeDaysAgo.toISOString().split('T')[0];
- 
-    await this.transactionsService.getTransactionsFromFinsite(startDate, endDate);
-  }
 
+    try {
+      // Update finsite user database
+      await this.finsiteService.getFinsiteBills(process.env.FINSITE_ID, process.env.FINSITE_KEY);
+  
+      // Try to get transactions from finsite
+      await this.transactionsService.getTransactionsFromFinsite(startDate, endDate);
+  
+      console.log('Transactions retrieved successfully from Finsite.');
+  
+      // Send success email using Brevo
+      await this.mailService.sendMail(
+        //'info@taxmyself.co.il',
+        process.env.BREVO_SENDER,
+        'Daily Task Success',
+        `The daily task ran successfully. Transactions were retrieved from ${startDate} to ${endDate}.`
+      );
+
+    } catch (error) {
+
+      console.error('Failed to retrieve transactions from Finsite:', error.message);
+
+      // Send failure email using Brevo
+      await this.mailService.sendMail(
+        'info@taxmyself.co.il',
+        'Daily Task Failed',
+        `The daily task failed with the following error: ${error.message}`
+      );
+    }
+
+  }
 }
