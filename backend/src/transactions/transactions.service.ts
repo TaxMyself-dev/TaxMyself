@@ -63,7 +63,8 @@ export class TransactionsService {
     startDate: string,
     endDate: string,
     companyId?: string // Optional company ID
-  ): Promise<void> {
+  ): Promise<{ companyName: string; transactions: { name: string; date: string; sum: number }[] }[]> {
+    
     console.log("getTransactionsFromFinsite - start");
   
     const sessionId = await this.finsiteService.getFinsiteToken(
@@ -91,6 +92,7 @@ export class TransactionsService {
           id: record.finsiteId,
           name: record.companyName,
           paymentMethods: [],
+          transactions: [], // Collect transactions for debug
         };
       }
       companiesData[record.finsiteId].paymentMethods.push(record);
@@ -174,6 +176,13 @@ export class TransactionsService {
   
                 await this.transactionsRepo.save(newTransaction);
 
+                // Add to the company's transactions summary
+                company.transactions.push({
+                  name: newTransaction.name,
+                  date: newTransaction.billDate,
+                  sum: newTransaction.sum,
+                });
+
               } else {
                 console.log(`Transaction with EntryID ${transaction.EntryID} already exists. Skipping.`);
               }
@@ -189,8 +198,17 @@ export class TransactionsService {
         }
       }
     }
-  
+
+    // Format and return the transactions summary
+    const result = filteredCompanies.map(company => ({
+      companyName: company.name,
+      transactions: company.transactions,
+    }));
+
     console.log("All transactions processed and saved.");
+
+    return result; // Return the summarized result
+  
   }
   
 

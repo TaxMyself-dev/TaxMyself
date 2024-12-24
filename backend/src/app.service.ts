@@ -16,7 +16,7 @@ export class AppService {
     private readonly mailService: MailService,
   ) {}
   //     min  hr  day  mon  dayOfWeek
-  @Cron('00 02 * * *') // Runs daily 02:00
+  @Cron('00  02 * * *') // Runs daily 02:00
   async handleDailyTask() {
 
     console.log('Running daily task');
@@ -35,16 +35,21 @@ export class AppService {
       await this.finsiteService.getFinsiteBills(process.env.FINSITE_ID, process.env.FINSITE_KEY);
   
       // Try to get transactions from finsite
-      await this.transactionsService.getTransactionsFromFinsite(startDate, endDate);
-  
+      
+      const newTrans = await this.transactionsService.getTransactionsFromFinsite(startDate, endDate);
+
       console.log('Transactions retrieved successfully from Finsite.');
+
+      // Format transactions for email
+      const formattedTransactions = this.formatTransactionsForEmail(newTrans);
+      console.log("new transactions are:\n", formattedTransactions);
+
   
       // Send success email using Brevo
       await this.mailService.sendMail(
-        //'info@taxmyself.co.il',
         process.env.BREVO_SENDER,
         'Daily Task Success',
-        `The daily task ran successfully. Transactions were retrieved from ${startDate} to ${endDate}.`
+        `The daily task ran successfully - Transactions were retrieved from ${startDate} to ${endDate}:\n ${formattedTransactions}`
       );
 
     } catch (error) {
@@ -60,4 +65,20 @@ export class AppService {
     }
 
   }
+
+
+  formatTransactionsForEmail(transactionsSummary: any[]): string {
+    return transactionsSummary
+      .map(company => {
+        const transactionsDetails = company.transactions
+          .map(
+            (transaction: any) =>
+              `  - ${transaction.name} | Date: ${transaction.date} | Sum: ${transaction.sum}`
+          )
+          .join('\n');
+        return `Company: ${company.companyName}\nTransactions:\n${transactionsDetails}`;
+      })
+      .join('\n\n');
+  }
+  
 }
