@@ -16,7 +16,7 @@ export class AppService {
     private readonly mailService: MailService,
   ) {}
   //     min  hr  day  mon  dayOfWeek
-  @Cron('00  02 * * *') // Runs daily 02:00
+  @Cron('00  08 * * *') // Runs daily 02:00
   async handleDailyTask() {
 
     console.log('Running daily task');
@@ -25,6 +25,9 @@ export class AppService {
     const today = new Date();
     const threeDaysAgo = new Date(today);
     threeDaysAgo.setDate(today.getDate() - 3);
+
+    const currentHour = new Date().getHours(); // Returns the hour (0–23)
+    console.log(`Current hour: ${currentHour}`);
     
     // Format dates as "YYYY-MM-DD"
     const endDate = today.toISOString().split('T')[0];
