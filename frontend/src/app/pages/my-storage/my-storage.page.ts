@@ -57,7 +57,7 @@ export class MyStoragePage implements OnInit {
   constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder, private genericService: GenericService, private dateService: DateService, private authService: AuthService) {
     this.storageForm = this.formBuilder.group({
       reportingPeriodType: new FormControl(
-        false, Validators.required,
+        '', Validators.required,
       ),
       month: new FormControl(
         '', [],
@@ -86,6 +86,7 @@ export class MyStoragePage implements OnInit {
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
+      this.storageForm?.get('businessNumber').setValidators([Validators.required]);
       this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
       this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
     }

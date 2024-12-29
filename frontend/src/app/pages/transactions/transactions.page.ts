@@ -156,7 +156,7 @@ export class TransactionsPage implements OnInit {
 
     this.transactionsForm = this.formBuilder.group({
       reportingPeriodType: new FormControl(
-        false, Validators.required,
+        '', Validators.required,
       ),
       month: new FormControl(
         '', [],

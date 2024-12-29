@@ -16,47 +16,89 @@ export class FilesService {
 
   uniqueIdFile: string;
   safePdfBase64String: SafeResourceUrl;
+  fileName: string;
 
 
   constructor(private http: HttpClient,private genericService: GenericService) { }
 
 
-  downloadFile(urlFile: string): string {
-    let returnUrl: string;
+  // downloadFile1(urlFile: string): string {
+  //   let returnUrl: string;
+  //   const storage = getStorage();
+  //   getDownloadURL(ref(storage, urlFile))
+  //     .then((url) => {
+  //       // `url` is the download URL for 'images/stars.jpg'
+  //       console.log("'url: ", url);
+  //       const fullFileName = urlFile.split('/').pop();
+  //       const fileName = fullFileName.slice(21);
+
+  //       // This can be downloaded directly:
+  //       const xhr = new XMLHttpRequest();
+  //       xhr.responseType = 'blob';
+  //       xhr.onload = (event) => {
+  //         const blob = new Blob([xhr.response], { type: 'image/jpg' });
+  //         const a: any = document.createElement('a');
+  //         a.style = 'display: none';
+  //         document.body.appendChild(a);
+  //         const url = window.URL.createObjectURL(blob);
+  //         a.href = url;
+  //         returnUrl = url;
+  //         a.download = fileName;
+  //         a.click();
+  //         window.URL.revokeObjectURL(url);
+  //       };
+  //       xhr.open('GET', url);
+  //       xhr.send();
+  //     })
+  //     .catch((error) => {
+  //       console.log("err in download file: ", error.code);
+  //       if (error.code === "storage/object-not-found") {
+  //         alert("לא שמור קובץ עבור הוצאה זו")
+  //       }
+  //       alert("לא ניתן להוריד את הקובץ")
+  //       return null
+  //     });
+  //   return returnUrl;
+  // }
+
+  downloadFile(urlFile: string): void {
     const storage = getStorage();
     getDownloadURL(ref(storage, urlFile))
-      .then((url) => {
-        // `url` is the download URL for 'images/stars.jpg'
-        console.log("'url: ", url);
+        .then((url) => {
+            console.log("'url: ", url);
 
-        // This can be downloaded directly:
-        const xhr = new XMLHttpRequest();
-        xhr.responseType = 'blob';
-        xhr.onload = (event) => {
-          const blob = new Blob([xhr.response], { type: 'image/jpg' });
-          const a: any = document.createElement('a');
-          a.style = 'display: none';
-          document.body.appendChild(a);
-          const url = window.URL.createObjectURL(blob);
-          a.href = url;
-          returnUrl = url;
-          a.download = urlFile;
-          a.click();
-          window.URL.revokeObjectURL(url);
-        };
-        xhr.open('GET', url);
-        xhr.send();
-      })
-      .catch((error) => {
-        console.log("err in download file: ", error.code);
-        if (error.code === "storage/object-not-found") {
-          alert("לא שמור קובץ עבור הוצאה זו")
-        }
-        alert("לא ניתן להוריד את הקובץ")
-        return null
-      });
-    return returnUrl;
-  }
+            // Extract the full file name from directories
+            const fullFileName = urlFile.split('/').pop();
+
+            // Remove the unique ID prefix
+            const fileName = fullFileName.slice(21);
+
+            // Perform the download
+            const xhr = new XMLHttpRequest();
+            xhr.responseType = 'blob';
+            xhr.onload = (event) => {
+                const blob = new Blob([xhr.response]);
+                const a: HTMLAnchorElement = document.createElement('a');
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                const objectUrl = window.URL.createObjectURL(blob);
+                a.href = objectUrl;
+                a.download = fileName; // Use the cleaned-up file name
+                a.click();
+                window.URL.revokeObjectURL(objectUrl);
+                document.body.removeChild(a); // Clean up
+            };
+            xhr.open('GET', url);
+            xhr.send();
+        })
+        .catch((error) => {
+            console.log("Error downloading file: ", error.code);
+            if (error.code === "storage/object-not-found") {
+                alert("לא שמור קובץ עבור הוצאה זו");
+            }
+            alert("לא ניתן להוריד את הקובץ");
+        });
+}
 
   public async previewFile(urlFile: string) {
     const storage = getStorage();
@@ -87,6 +129,9 @@ export class FilesService {
   }
 
   uploadFileViaFront(file: File): Observable<any> {
+    this.fileName = file.name;
+    console.log("fileName: ", this.fileName);
+    
     return this.convertFileToBase64(file).pipe(
       catchError((err) => {
         console.log("error in convert file to base 64: ", err);
@@ -108,7 +153,7 @@ export class FilesService {
     const uid = tempB.uid;
     this.uniqueIdFile = nanoid();
     const storage = getStorage(); // bucket root
-    const fileRef = ref(storage, `users/${uid}/${this.uniqueIdFile}`); // full path relative to bucket's root
+    const fileRef = ref(storage, `users/${uid}/${this.uniqueIdFile}${this.fileName}`); // full path relative to bucket's root
     return from(uploadString(fileRef, base64String, 'data_url'));
   }
 

@@ -154,6 +154,7 @@ export class ModalExpensesComponent {
         });
       this.businessList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
+
     }
     this.orderColumns();
     const today = new Date();
@@ -191,7 +192,7 @@ export class ModalExpensesComponent {
     });
 
     if (this.userData.isTwoBusinessOwner) {
-      this.addExpenseForm.addControl('businessNumber', new FormControl('', [Validators.required]));
+            this.addExpenseForm?.get('businessNumber').setValidators([Validators.required]);
     }
     this.initialForm = cloneDeep(this.addExpenseForm);
   }
