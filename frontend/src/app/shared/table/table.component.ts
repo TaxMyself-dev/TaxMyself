@@ -99,7 +99,7 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
 
   showChecked(data: IRowDataTable): boolean {
     if (this.isAvailableSelectAll) {
-      if (this.isSelectedAll) {
+      if (this.isSelectedAll && !data.disabled) {
         return true;
       }
       else {
