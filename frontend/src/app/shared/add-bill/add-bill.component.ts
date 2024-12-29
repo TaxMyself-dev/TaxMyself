@@ -1,11 +1,12 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
-import { map } from 'rxjs';
+import { catchError, EMPTY, finalize, map } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ISelectItem, IUserDate } from '../interface';
 import { paymentIdentifierType } from '../enums';
 import { AuthService } from 'src/app/services/auth.service';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-add-bill',
@@ -26,7 +27,7 @@ export class AddBillComponent implements OnInit {
   businessNames: ISelectItem[] = [];
   userData: IUserDate;
 
-  constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, public authService: AuthService) {
+  constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, public authService: AuthService, private genericService: GenericService) {
     this.addBillForm = this.formBuilider.group({
       billName: new FormControl(
         '', [Validators.required,]
@@ -84,17 +85,31 @@ export class AddBillComponent implements OnInit {
   }
 
   addSource(): void {
+    this.genericService.getLoader().subscribe();
     this.transactionsService.addSource(this.billSelected, this.paymentMethod, this.typeSelected)
-      .pipe()
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          console.log('err in add source: ', err);
+          return EMPTY;
+        })
+      )
       .subscribe(() => {
         this.modalCtrl.dismiss(null, 'success');
       })
   }
 
   addBill(): void {
+    this.genericService.getLoader().subscribe();
     const formData = this.addBillForm.value;
     this.transactionsService.addBill(formData.billName, formData.businessNumber)
-      .pipe()
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          console.log('err in add bill: ', err);
+          return EMPTY;
+        })
+      )
       .subscribe(() => {
         this.transactionsService.getAllBills();
         this.addBillForm.reset();
