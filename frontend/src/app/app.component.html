@@ -23,7 +23,7 @@
               </ion-item>
             </ng-container>
             <ng-container *ngIf="p.url === 'add-expenses'">
-              <ion-item class="icon" (click)="openPopupAddExpense()" side="end" routerDirection="root" lines="none"
+              <ion-item class="icon" (click)="openModalAddExpense()" side="end" routerDirection="root" lines="none"
                 detail="false" routerLinkActive="selected">
                 <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
                   [md]="p.icon + '-sharp'"></ion-icon>

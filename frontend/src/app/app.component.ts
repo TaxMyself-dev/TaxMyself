@@ -7,8 +7,8 @@ import { AuthService } from './services/auth.service';
 import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
-import { catchError, EMPTY, finalize, from, map, Observable, switchMap } from 'rxjs';
-import { filter, pairwise } from 'rxjs/operators';
+import { catchError, EMPTY, finalize, from, map, Observable, Subject, switchMap } from 'rxjs';
+import { filter, pairwise, takeUntil } from 'rxjs/operators';
 
 
 
@@ -42,17 +42,21 @@ export class AppComponent implements OnInit {
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserDate;
   isUserAdmin: boolean = false; 
+  destroy$ = new Subject<void>();
+
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService) { };
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.getRoute();
-    this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
+    //this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
     this.getRoleUser();
     this.authService.startTokenRefresh(); // Start refreshing the token
   }
 
   ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
     this.authService.stopTokenRefresh(); // Clean up on app component destruction
   }
 
@@ -97,16 +101,22 @@ export class AppComponent implements OnInit {
     console.log(this.isPopoverOpen);
   }
 
-  async openPopupAddExpense() {
-    const modal = await this.modalCtrl.create({
-      component: ModalExpensesComponent,
-      componentProps: {
-        columns: this.columns,
-        data: {},
-      },
-      cssClass: 'expense-modal'
-    })
-    await modal.present();
+  async openModalAddExpense() {
+
+    this.expenseDataServise.openModalAddExpense()
+    .pipe(
+      takeUntil(this.destroy$)
+    )
+    .subscribe()
+    // const modal = await this.modalCtrl.create({
+    //   component: ModalExpensesComponent,
+    //   componentProps: {
+    //     columns: this.columns,
+    //     data: {},
+    //   },
+    //   cssClass: 'expense-modal'
+    // })
+    // await modal.present();
   }
 
   async signOut() {

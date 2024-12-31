@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { LoadingController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, catchError, from, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, from, map, switchMap, tap } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -25,6 +25,8 @@ export class GenericService {
         }),
         switchMap((loader) => {
           if (loader) {
+            console.log("in get loader");
+            
             this.loaderInstance = loader;  // Store the loader instance
             return from(loader.present())
               .pipe(
@@ -51,6 +53,7 @@ export class GenericService {
   }
 
   // Method to update the loader's message dynamically
+
   updateLoaderMessage(message: string): void {
     this.loaderMessage$.next(message);  // Trigger message update
   }
@@ -59,6 +62,10 @@ export class GenericService {
     if (this.loaderInstance) {
       this.loaderInstance.dismiss();
       this.loaderInstance = null; // Reset the reference after dismissing
+    }
+    else {
+      console.log("in else dissmis");
+      
     }
   }
 

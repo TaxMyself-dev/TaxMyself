@@ -255,17 +255,8 @@ export class VatReportPage implements OnInit {
 
   onPreviewFileClicked(expense: IRowDataTable): void {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
-      this.genericService.getLoader().subscribe();
-      from(this.filesService.previewFile(expense.file as string))
-      .pipe(
-        finalize(()=> this.genericService.dismissLoader()),
-        catchError((err) => {
-        console.log("err in try to open file: ", err);
-        alert("לא ניתן לפתוח את הקובץ");
-        return EMPTY;
-      })).subscribe((fileUrl) => {
-        window.open(fileUrl.file, '_blank');
-      });
+      this.filesService.previewFile(expense.file as string).subscribe();
+    
     }
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")

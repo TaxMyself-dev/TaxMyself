@@ -44,7 +44,7 @@ export class ModalExpensesComponent {
       this.getCategory(val);
       if (val.file != "" && val.file != undefined) {
         this.editModeFile = "loading"; // for the icon of choose file does not show
-        this.fileService.previewFile(val.file as string)
+        this.fileService.getFirebaseUrlFile(val.file as string)
           .then((res) => {
             console.log(res);
 

@@ -44,7 +44,7 @@ export class ExpensesController {
 
 
   @Delete('delete-expense/:id')
-  async deleteExpense(@Param('id') id: number, @Query('token') token: string) {
+  async deleteExpense(@Param('id') id: number, @Headers('token') token: string) {
     console.log("controller delete expense - Start");
     const userId = await this.usersService.getFirbsaeIdByToken(token)
     return this.expensesService.deleteExpense(id, userId);

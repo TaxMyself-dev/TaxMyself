@@ -2,9 +2,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@angular/fire/storage";
 import { SafeResourceUrl } from '@angular/platform-browser';
-import { log } from 'console';
+import { error, log } from 'console';
 import { nanoid } from 'nanoid';
-import { Observable, catchError, from, of, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
@@ -100,7 +100,7 @@ export class FilesService {
         });
 }
 
-  public async previewFile(urlFile: string) {
+  public async getFirebaseUrlFile(urlFile: string) {
     const storage = getStorage();
     const pathReference = ref(storage, urlFile);
     let blob: Blob;
@@ -117,7 +117,54 @@ export class FilesService {
     return { file: urlFile, type: blob.type };
   }
 
-  public async deleteFile(urlFile: string) {
+  previewFile(urlFile: string): Observable<void> {
+    this.genericService.getLoader().subscribe();
+    if (!urlFile) {
+      alert("קובץ לא נמצא, לא ניתן לפתוח את הקובץ");
+      this.genericService.dismissLoader();
+      return EMPTY; // Terminate the observable immediately
+    }
+  
+    const storage = getStorage();
+    const pathReference = ref(storage, urlFile);
+  
+    return from(getDownloadURL(pathReference)).pipe(
+      finalize(() => this.genericService.dismissLoader()),
+      catchError((error) => {
+        console.error("Error fetching file URL:", error);
+        alert("לא ניתן לפתוח את הקובץ, ייתכן שהקובץ לא קיים");
+        return EMPTY; // Terminate the observable gracefully
+      }),
+      switchMap((url) => {
+        return from(fetch(url)).pipe(
+          catchError((error) => {
+            console.error("Error fetching file:", error);
+            alert("שגיאה בהורדת הקובץ, נסה שנית");
+            return EMPTY;
+          })
+        );
+      }),
+      switchMap((response) => {
+        if (!response.ok) {
+          alert("קובץ לא תקין, לא ניתן לפתוח אותו");
+          throw new Error('Failed to fetch file');
+        }
+        return from(response.blob());
+      }),
+      tap((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+      }),
+      map(() => undefined), // Explicitly map the result to void
+      catchError((error) => {
+        console.error("Unexpected error:", error);
+        alert("אירעה שגיאה בלתי צפויה, אנא נסה שוב");
+        return EMPTY; // Terminate the observable gracefully
+      })
+    );
+  }
+  
+  public async deleteFile(urlFile: string): Promise<void> {
     const storage = getStorage();
     const delRef = ref(storage, urlFile);
     await deleteObject(delRef).then(() => {
