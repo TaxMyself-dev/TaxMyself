@@ -49,7 +49,6 @@ export class AppComponent implements OnInit {
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.getRoute();
-    //this.columns = this.expenseDataServise.getAddExpenseColumns() // TODO: remove?
     this.getRoleUser();
     this.authService.startTokenRefresh(); // Start refreshing the token
   }
@@ -101,7 +100,7 @@ export class AppComponent implements OnInit {
     console.log(this.isPopoverOpen);
   }
 
-  async openModalAddExpense() {
+  openModalAddExpense() {
 
     this.expenseDataServise.openModalAddExpense()
     .pipe(

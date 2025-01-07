@@ -43,8 +43,8 @@ export class MyStoragePage implements OnInit {
   tableActions: ITableRowAction[] = [];
   fieldsNamesToAdd: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
-  isToastOpen: boolean = false;
-  toastMessage: string = "";
+  // isToastOpen: boolean = false;
+  // toastMessage: string = "";
   isOpenConfirmDel: boolean = false;
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
@@ -225,15 +225,20 @@ export class MyStoragePage implements OnInit {
       }),
       switchMap(() => this.expenseDataService.deleteExpense(event)),
       catchError((err) => {
-        this.toastMessage = "אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר";
-        this.isToastOpen = true;
+        this.genericService.showToast("אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר", "error")
+        //this.toastMessage = "אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר";
+        //this.isToastOpen = true;
         console.log("The expense can not be deleted", err);
         return EMPTY;
       }),
       switchMap((res) => this.filesService.deleteFile(res?.['file'])),
       tap((res) => {
-        this.toastMessage = "ההוצאה נמחקה בהצלחה";
-        this.isToastOpen = true;
+        console.log("in tap");
+        
+        this.genericService.showToast("ההוצאה נמחקה בהצלחה", "success");
+        // this.toastMessage = "ההוצאה נמחקה בהצלחה";
+        // this.isToastOpen = true;
+        this.genericService.dismissLoader()
         this.setRowsData();
       })
     )
@@ -265,9 +270,9 @@ export class MyStoragePage implements OnInit {
     }
   }
 
-  setOpenToast(): void {
-    this.isToastOpen = false;
-  }
+  // setOpenToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
   deleteExpense(): void {
     this.onDeleteClicked(this.id);

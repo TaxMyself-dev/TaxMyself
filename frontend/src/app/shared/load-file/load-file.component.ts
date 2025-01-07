@@ -29,8 +29,8 @@ export class LoadFileComponent implements OnInit, OnChanges {
   isLoading: boolean = false;
   faildUpload: boolean = false;
   destroy$ = new Subject<void>();
-  messageToast: string = "";
-  isToastOpen: boolean = false;
+  // messageToast: string = "";
+  // isToastOpen: boolean = false;
   readonly buttonSize = ButtonSize;
   readonly buttonClass = ButtonClass;
 
@@ -72,8 +72,9 @@ export class LoadFileComponent implements OnInit, OnChanges {
         console.log(res);
         this.selectedFile = null
         if (res) {
-          this.isToastOpen = true;
-          this.messageToast = res.message;
+          this.genericService.showToast(res.message, "success");
+          // this.isToastOpen = true;
+          // this.messageToast = res.message;
         }
       })
 
@@ -89,8 +90,8 @@ export class LoadFileComponent implements OnInit, OnChanges {
     this.selectedFile = null
   }
 
-  setCloseToast(): void {
-    this.isToastOpen = false;
-  }
+  // setCloseToast(): void {
+    // this.isToastOpen = false;
+  // }
 
 }

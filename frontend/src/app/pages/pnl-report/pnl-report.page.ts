@@ -20,8 +20,8 @@ export class PnLReportPage implements OnInit {
   userData: any = {};
   displayExpenses: boolean = false;
   reportClick: boolean = true;
-  messageToast: string;
-  isToastOpen: boolean;
+  // messageToast: string;
+  // isToastOpen: boolean;
   startDate: string;
   endDate: string;
   totalExpense: number = 0;
@@ -117,9 +117,9 @@ export class PnLReportPage implements OnInit {
   }
 
 
-  setCloseToast(): void {
-    this.isToastOpen = false;
-  }
+  // setCloseToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
 
 }

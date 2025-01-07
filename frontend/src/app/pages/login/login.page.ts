@@ -26,8 +26,8 @@ export class LoginPage implements OnInit {
   resetForm: FormGroup;
   displayError: string;
   showPassword: boolean = false;
-  isToastOpen: boolean = false;
-  messageToast: string = "";
+  // isToastOpen: boolean = false;
+  // messageToast: string = "";
   resetMode = false;
 
   constructor(private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
@@ -135,8 +135,9 @@ export class LoginPage implements OnInit {
   sendVerficaitonEmail(): void {
     this.authService.SendVerificationMail()
     .subscribe (() => {
-      this.messageToast = "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת"
-      this.isToastOpen = true;
+      this.genericService.showToast("מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת", "success")
+      // this.messageToast = "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת"
+      // this.isToastOpen = true;
     })
   }
 
@@ -172,8 +173,9 @@ export class LoginPage implements OnInit {
         return EMPTY;
       })
     ).subscribe(() => {
-      this.messageToast = "קישור לאיפוס סיסמא נשלח אליך למייל";
-      this.isToastOpen =true;
+      this.genericService.showToast("קישור לאיפוס סיסמא נשלח אליך למייל", "success")
+      // this.messageToast = "קישור לאיפוס סיסמא נשלח אליך למייל";
+      // this.isToastOpen =true;
     });
   }
   else {
@@ -181,9 +183,9 @@ export class LoginPage implements OnInit {
   }
 }
 
-  setOpenToast(): void {
-    this.isToastOpen = false;
-  }
+  // setOpenToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
   saveEmailForReset(email: string): void {
     this.userEmailForReset = email;

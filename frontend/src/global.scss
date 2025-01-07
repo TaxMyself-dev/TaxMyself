@@ -110,12 +110,20 @@ $app-theme: mat.define-light-theme((
   --width: 275px;
 }
 
-ion-toast {
+.ion-toast {
   --border-width: 2px;
-  --background: #f4f4fa;
   --box-shadow: 3px 3px 10px 0 rgba(0, 0, 0, 0.2);
-  --color: #4b4a50;
-  --border-color: rgb(1, 1, 1);
+  --color: black;
   --border-style: solid;
+  --border-color: rgb(1, 1, 1);
   font-style: italic;
+  
+  &.success {
+    --background: green;
+  }
+  
+  &.error {
+    --background: red;
+  
+  }
 }

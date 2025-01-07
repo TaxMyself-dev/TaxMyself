@@ -1,0 +1,9 @@
+<ion-toast
+  [isOpen]="showToastMessage1"
+  [message]="showToastMessage?.message"
+  [duration]="showToastMessage?.duration"
+  [buttons]="toastButtons"
+  (didDismiss)="closeToast()"
+  class="ion-toast {{showToastMessage?.type}}" 
+  
+  ><app-button [buttonText]="showToastMessage?.type"></app-button></ion-toast>

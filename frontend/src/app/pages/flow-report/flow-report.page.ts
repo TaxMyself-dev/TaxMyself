@@ -34,8 +34,8 @@ export class FlowReportPage implements OnInit {
   // chosenTrans = new Map<number, File | string>
   chosenTrans: { id: number, file?: File | string }[] = [];
   isSelectTransaction: boolean = false; // for able or disable send button
-  isToastOpen: boolean = false;
-  messageToast: string = "";
+  // isToastOpen: boolean = false;
+  // messageToast: string = "";
   userData: IUserDate;
   strFilter: string;
   checkedCount: number = 0;
@@ -272,16 +272,17 @@ export class FlowReportPage implements OnInit {
           catchError((err) => {
             console.log("Error in addTransToExpense: ", err);
             this.genericService.dismissLoader();
-
-            this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
-            this.isToastOpen = true;
+            this.genericService.showToast("אירעה שגיאה העלאת תנועות לדוח לא נקלטה", "error");
+            // this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+            // this.isToastOpen = true;
             return EMPTY;
           }),
         )
         .subscribe((res) => {
           console.log("Response from addTransToExpense:", res);
-          this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
-          this.isToastOpen = true;
+          this.genericService.showToast(`הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`, "success")
+          // this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+          // this.isToastOpen = true;
           this.chosenTrans = [];
           console.log("chosenTrans after upload: ", this.chosenTrans);
           this.getTransaction();
@@ -351,14 +352,16 @@ export class FlowReportPage implements OnInit {
             }
           })
           this.genericService.dismissLoader();
-          this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
-          this.isToastOpen = true;
+          this.genericService.showToast("אירעה שגיאה העלאת תנועות לדוח לא נקלטה", "error");
+          // this.messageToast = "אירעה שגיאה העלאת תנועות לדוח לא נקלטה"
+          // this.isToastOpen = true;
           return EMPTY
         }),
         tap(() => {
           console.log("All file uploads complete.");
-          this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
-          this.isToastOpen = true;
+          this.genericService.showToast( `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`, "success");
+          // this.messageToast = `הועלו ${totalTransactions} תנועות. מתוכם ${transactionsWithFiles} עם קובץ ו${transactionsWithoutFiles} בלי קובץ`
+          // this.isToastOpen = true;
           this.genericService.dismissLoader();
 
           // this.router.navigate(['vat-report'], {
@@ -379,9 +382,9 @@ export class FlowReportPage implements OnInit {
       });
   }
 
-  setCloseToast(): void {
-    this.isToastOpen = false;
-  }
+  // setCloseToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
   addFile(event: any, row: IRowDataTable): void {
 

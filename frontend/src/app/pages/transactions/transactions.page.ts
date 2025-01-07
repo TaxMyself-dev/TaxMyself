@@ -145,8 +145,8 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
-  isToastOpen: boolean = false;
-  messageToast: string = "";
+  // isToastOpen: boolean = false;
+  // messageToast: string = "";
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserDate;
@@ -732,8 +732,9 @@ export class TransactionsPage implements OnInit {
     )
     .subscribe((res) => {
       this.genericService.dismissLoader();
-      this.messageToast = "עדכון שורה הצליח"
-      this.isToastOpen = true;
+      this.genericService.showToast( "עדכון שורה הצליח", "success");
+      // this.messageToast = "עדכון שורה הצליח"
+      // this.isToastOpen = true;
       this.getExpensesData()
     });
   }
@@ -766,8 +767,9 @@ export class TransactionsPage implements OnInit {
                     }, 500)
                   }
                   else if (data.role != 'backdrop' && data.role != 'cancel') {
-                    this.messageToast = "התנועה סווגה בהצלחה"
-                    this.isToastOpen = true;
+                    this.genericService.showToast("התנועה סווגה בהצלחה", "success");
+                    // this.messageToast = "התנועה סווגה בהצלחה"
+                    // this.isToastOpen = true;
                     this.getTransactions()
                   }
 
@@ -847,9 +849,9 @@ export class TransactionsPage implements OnInit {
     })
   }
 
-  setOpenToast(): void {
-    this.isToastOpen = false;
-  }
+  // setOpenToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
   filterByExpenses(event: string): void {
     this.filterByExpense = event;

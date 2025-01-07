@@ -59,8 +59,8 @@ export class VatReportPage implements OnInit {
   items$: Observable<IRowDataTable[]>;
   item: IRowDataTable;
   rows: IRowDataTable[] = [];
-  messageToast: string;
-  isToastOpen: boolean;
+  // messageToast: string;
+  // isToastOpen: boolean;
   isSkip: boolean = false;
   userData: IUserDate;
   businessNamesList: ISelectItem[] = [];
@@ -428,14 +428,16 @@ export class VatReportPage implements OnInit {
               this.filesService.deleteFile(tran.file as string);
             }
           })
-          this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
-          this.isToastOpen = true;
+          this.genericService.showToast( "אירעה שגיאה העלאת קבצים נכשלה", "error");
+          // this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
+          // this.isToastOpen = true;
           return EMPTY
         }),
         tap(() => {
           console.log("All file uploads complete.");
-          this.messageToast = `הועלו ${totalTransactions} קבצים `
-          this.isToastOpen = true;
+          this.genericService.showToast(`הועלו ${totalTransactions} קבצים `, "success");
+          // this.messageToast = `הועלו ${totalTransactions} קבצים `
+          // this.isToastOpen = true;
         }),
        
       )
@@ -445,9 +447,9 @@ export class VatReportPage implements OnInit {
       });
   }
 
-  setCloseToast(): void {
-    this.isToastOpen = false;
-  }
+  // setCloseToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
 
 

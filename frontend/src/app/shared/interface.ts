@@ -236,3 +236,11 @@ export interface ISelectItem {
     name: string | number;
     disable?: boolean
 }
+
+export interface IToastData {
+    message: string;
+    color?: string; 
+    position?: 'top' | 'middle' | 'bottom'; 
+    duration: number;
+    type: 'success' | 'error'; // Added type for toast
+  }

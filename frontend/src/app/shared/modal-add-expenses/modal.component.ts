@@ -125,7 +125,7 @@ export class ModalExpensesComponent {
   errorString: string = "";
   isOpen: boolean = false;
   isSelectSupplierMode: boolean = false;
-  isToastOpen: boolean = false;
+  // isToastOpen: boolean = false;
   safePdfBase64String: SafeResourceUrl;
   //safePdfBase64String$ = new BehaviorSubject<SafeResourceUrl>('');
   pdfLoaded: boolean = false;
@@ -369,7 +369,7 @@ export class ModalExpensesComponent {
       pipe(
         finalize(() => {
           this.genericService.dismissLoader();
-          this.loadingController.dismiss();
+          // this.loadingController.dismiss();
         }),
         catchError((err) => {
           alert('Something Went Wrong in first catchError: ' + err.message)
@@ -408,6 +408,7 @@ export class ModalExpensesComponent {
       // )
       .subscribe((res) => {
         this.router.navigate(['my-storage']);
+        this.genericService.showToast("ההוספה נוצרה בהצלחה", "success")
         console.log('Saved expense data in DB. The response is: ', res);
         if (res) {
           this.expenseDataServise.updateTable$.next(true);
@@ -605,7 +606,8 @@ export class ModalExpensesComponent {
         }),
       ).subscribe((res) => {
         //this.loadingController.dismiss();
-        this.isToastOpen = true;
+        // this.isToastOpen = true;
+        this.genericService.showToast("ספק נשמר בהצלחה", "success");
         console.log("res in add supplier:", res);
         this.getSuppliers();
       })
@@ -817,9 +819,9 @@ export class ModalExpensesComponent {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string;
   }
 
-  setOpenToast(): void {
-    this.isToastOpen = !this.isToastOpen;
-  }
+  // setOpenToast(): void {
+  //   this.isToastOpen = !this.isToastOpen;
+  // }
 
   deleteFile(event: any): void {
     const fileInput = event.target.closest('label').querySelector('ion-input[type="file"]');

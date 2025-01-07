@@ -19,6 +19,7 @@ import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
 import { AngularFireDatabaseModule } from '@angular/fire/compat/database';
 import { HttpClientModule } from  '@angular/common/http';
 import { NgArrayPipesModule } from 'ngx-pipes';
+import { SharedModule } from './shared/shared.module';
 
 
     
@@ -32,7 +33,8 @@ import { NgArrayPipesModule } from 'ngx-pipes';
     AngularFireStorageModule,
     AngularFireDatabaseModule,
     HttpClientModule,
-    NgArrayPipesModule
+    NgArrayPipesModule,
+    SharedModule
   ],
   providers: [{ provide: RouteReuseStrategy, useClass: IonicRouteStrategy }],
   bootstrap: [AppComponent],

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { LoadingController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, catchError, from, map, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, catchError, from, map, switchMap, tap } from 'rxjs';
+import { IToastData } from '../shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -9,9 +10,27 @@ export class GenericService {
 
   private loaderMessage$ = new BehaviorSubject<string>("Please wait...");
   private loaderInstance: HTMLIonLoadingElement | null = null; // Keep a reference to the loader instance
+  private toastSubject = new Subject<IToastData>();
+
+  toast$ = this.toastSubject.asObservable();
 
   constructor(private loader: LoadingController) { }
 
+
+  // showToast(nmessage: string): void {
+
+  // }
+
+  showToast(message: string, type: 'success' | 'error', duration: number = 3000, color: string = 'primary', position: 'top' | 'middle' | 'bottom' = 'bottom') {
+    const toastData: IToastData = {
+      message,
+      duration: type === 'error' ? -1 : duration,
+      color,
+      position,
+      type
+    }
+    this.toastSubject.next(toastData);
+  }
 
   getLoader(): Observable<any> {
     return from(this.loader.create({
