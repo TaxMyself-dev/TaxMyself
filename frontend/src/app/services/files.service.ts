@@ -2,9 +2,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@angular/fire/storage";
 import { SafeResourceUrl } from '@angular/platform-browser';
-import { log } from 'console';
+import { error, log } from 'console';
 import { nanoid } from 'nanoid';
-import { Observable, catchError, from, of, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
@@ -16,49 +16,91 @@ export class FilesService {
 
   uniqueIdFile: string;
   safePdfBase64String: SafeResourceUrl;
+  fileName: string;
 
 
   constructor(private http: HttpClient,private genericService: GenericService) { }
 
 
-  downloadFile(urlFile: string): string {
-    let returnUrl: string;
+  // downloadFile1(urlFile: string): string {
+  //   let returnUrl: string;
+  //   const storage = getStorage();
+  //   getDownloadURL(ref(storage, urlFile))
+  //     .then((url) => {
+  //       // `url` is the download URL for 'images/stars.jpg'
+  //       console.log("'url: ", url);
+  //       const fullFileName = urlFile.split('/').pop();
+  //       const fileName = fullFileName.slice(21);
+
+  //       // This can be downloaded directly:
+  //       const xhr = new XMLHttpRequest();
+  //       xhr.responseType = 'blob';
+  //       xhr.onload = (event) => {
+  //         const blob = new Blob([xhr.response], { type: 'image/jpg' });
+  //         const a: any = document.createElement('a');
+  //         a.style = 'display: none';
+  //         document.body.appendChild(a);
+  //         const url = window.URL.createObjectURL(blob);
+  //         a.href = url;
+  //         returnUrl = url;
+  //         a.download = fileName;
+  //         a.click();
+  //         window.URL.revokeObjectURL(url);
+  //       };
+  //       xhr.open('GET', url);
+  //       xhr.send();
+  //     })
+  //     .catch((error) => {
+  //       console.log("err in download file: ", error.code);
+  //       if (error.code === "storage/object-not-found") {
+  //         alert("לא שמור קובץ עבור הוצאה זו")
+  //       }
+  //       alert("לא ניתן להוריד את הקובץ")
+  //       return null
+  //     });
+  //   return returnUrl;
+  // }
+
+  downloadFile(urlFile: string): void {
     const storage = getStorage();
     getDownloadURL(ref(storage, urlFile))
-      .then((url) => {
-        // `url` is the download URL for 'images/stars.jpg'
-        console.log("'url: ", url);
+        .then((url) => {
+            console.log("'url: ", url);
 
-        // This can be downloaded directly:
-        const xhr = new XMLHttpRequest();
-        xhr.responseType = 'blob';
-        xhr.onload = (event) => {
-          const blob = new Blob([xhr.response], { type: 'image/jpg' });
-          const a: any = document.createElement('a');
-          a.style = 'display: none';
-          document.body.appendChild(a);
-          const url = window.URL.createObjectURL(blob);
-          a.href = url;
-          returnUrl = url;
-          a.download = urlFile;
-          a.click();
-          window.URL.revokeObjectURL(url);
-        };
-        xhr.open('GET', url);
-        xhr.send();
-      })
-      .catch((error) => {
-        console.log("err in download file: ", error.code);
-        if (error.code === "storage/object-not-found") {
-          alert("לא שמור קובץ עבור הוצאה זו")
-        }
-        alert("לא ניתן להוריד את הקובץ")
-        return null
-      });
-    return returnUrl;
-  }
+            // Extract the full file name from directories
+            const fullFileName = urlFile.split('/').pop();
 
-  public async previewFile(urlFile: string) {
+            // Remove the unique ID prefix
+            const fileName = fullFileName.slice(21);
+
+            // Perform the download
+            const xhr = new XMLHttpRequest();
+            xhr.responseType = 'blob';
+            xhr.onload = (event) => {
+                const blob = new Blob([xhr.response]);
+                const a: HTMLAnchorElement = document.createElement('a');
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                const objectUrl = window.URL.createObjectURL(blob);
+                a.href = objectUrl;
+                a.download = fileName; // Use the cleaned-up file name
+                a.click();
+                window.URL.revokeObjectURL(objectUrl);
+                document.body.removeChild(a); // Clean up
+            };
+            xhr.open('GET', url);
+            xhr.send();
+        })
+        .catch((error) => {
+            console.log("Error downloading file: ", error.code);
+            if (error.code === "storage/object-not-found") {
+                alert("לא שמור קובץ עבור הוצאה זו");
+            }
+            alert("לא ניתן להוריד את הקובץ");
+        });
+}
+
+  public async getFirebaseUrlFile(urlFile: string) {
     const storage = getStorage();
     const pathReference = ref(storage, urlFile);
     let blob: Blob;
@@ -75,7 +117,54 @@ export class FilesService {
     return { file: urlFile, type: blob.type };
   }
 
-  public async deleteFile(urlFile: string) {
+  previewFile(urlFile: string): Observable<void> {
+    this.genericService.getLoader().subscribe();
+    if (!urlFile) {
+      alert("קובץ לא נמצא, לא ניתן לפתוח את הקובץ");
+      this.genericService.dismissLoader();
+      return EMPTY; // Terminate the observable immediately
+    }
+  
+    const storage = getStorage();
+    const pathReference = ref(storage, urlFile);
+  
+    return from(getDownloadURL(pathReference)).pipe(
+      finalize(() => this.genericService.dismissLoader()),
+      catchError((error) => {
+        console.error("Error fetching file URL:", error);
+        alert("לא ניתן לפתוח את הקובץ, ייתכן שהקובץ לא קיים");
+        return EMPTY; // Terminate the observable gracefully
+      }),
+      switchMap((url) => {
+        return from(fetch(url)).pipe(
+          catchError((error) => {
+            console.error("Error fetching file:", error);
+            alert("שגיאה בהורדת הקובץ, נסה שנית");
+            return EMPTY;
+          })
+        );
+      }),
+      switchMap((response) => {
+        if (!response.ok) {
+          alert("קובץ לא תקין, לא ניתן לפתוח אותו");
+          throw new Error('Failed to fetch file');
+        }
+        return from(response.blob());
+      }),
+      tap((blob) => {
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+      }),
+      map(() => undefined), // Explicitly map the result to void
+      catchError((error) => {
+        console.error("Unexpected error:", error);
+        alert("אירעה שגיאה בלתי צפויה, אנא נסה שוב");
+        return EMPTY; // Terminate the observable gracefully
+      })
+    );
+  }
+  
+  public async deleteFile(urlFile: string): Promise<void> {
     const storage = getStorage();
     const delRef = ref(storage, urlFile);
     await deleteObject(delRef).then(() => {
@@ -87,6 +176,9 @@ export class FilesService {
   }
 
   uploadFileViaFront(file: File): Observable<any> {
+    this.fileName = file.name;
+    console.log("fileName: ", this.fileName);
+    
     return this.convertFileToBase64(file).pipe(
       catchError((err) => {
         console.log("error in convert file to base 64: ", err);
@@ -108,7 +200,7 @@ export class FilesService {
     const uid = tempB.uid;
     this.uniqueIdFile = nanoid();
     const storage = getStorage(); // bucket root
-    const fileRef = ref(storage, `users/${uid}/${this.uniqueIdFile}`); // full path relative to bucket's root
+    const fileRef = ref(storage, `users/${uid}/${this.uniqueIdFile}${this.fileName}`); // full path relative to bucket's root
     return from(uploadString(fileRef, base64String, 'data_url'));
   }
 

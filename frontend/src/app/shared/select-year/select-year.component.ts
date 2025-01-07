@@ -10,6 +10,7 @@ import { FormGroup } from '@angular/forms';
 export class SelectYearComponent implements OnInit {
   @Input() parentForm: FormGroup;
   @Input() errorText: string;
+  @Input() disabled: boolean;
 
   @Output() yearChanged = new EventEmitter<number>();
 

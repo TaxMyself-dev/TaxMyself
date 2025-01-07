@@ -44,7 +44,7 @@ export class ModalExpensesComponent {
       this.getCategory(val);
       if (val.file != "" && val.file != undefined) {
         this.editModeFile = "loading"; // for the icon of choose file does not show
-        this.fileService.previewFile(val.file as string)
+        this.fileService.getFirebaseUrlFile(val.file as string)
           .then((res) => {
             console.log(res);
 
@@ -125,7 +125,7 @@ export class ModalExpensesComponent {
   errorString: string = "";
   isOpen: boolean = false;
   isSelectSupplierMode: boolean = false;
-  isToastOpen: boolean = false;
+  // isToastOpen: boolean = false;
   safePdfBase64String: SafeResourceUrl;
   //safePdfBase64String$ = new BehaviorSubject<SafeResourceUrl>('');
   pdfLoaded: boolean = false;
@@ -154,6 +154,7 @@ export class ModalExpensesComponent {
         });
       this.businessList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
+
     }
     this.orderColumns();
     const today = new Date();
@@ -191,7 +192,7 @@ export class ModalExpensesComponent {
     });
 
     if (this.userData.isTwoBusinessOwner) {
-      this.addExpenseForm.addControl('businessNumber', new FormControl('', [Validators.required]));
+      this.addExpenseForm?.get('businessNumber').setValidators([Validators.required]);
     }
     this.initialForm = cloneDeep(this.addExpenseForm);
   }
@@ -324,10 +325,10 @@ export class ModalExpensesComponent {
   }
 
   disableSave(): boolean {
-    return !this.addExpenseForm.valid || 
-           (this.isEditMode ? 
-            (isEqual(this.initialForm.value, this.addExpenseForm.value) && this.selectedFile === "") 
-            : false);
+    return !this.addExpenseForm.valid ||
+      (this.isEditMode ?
+        (isEqual(this.initialForm.value, this.addExpenseForm.value) && this.selectedFile === "")
+        : false);
   }
 
   disabledAddSupplier(): boolean {
@@ -348,8 +349,8 @@ export class ModalExpensesComponent {
   }
 
   confirm() {
-    console.log("this.isEditMode: ",this.isEditMode);
-    
+    console.log("this.isEditMode: ", this.isEditMode);
+
     this.isEditMode ? this.update() : this.add();
   }
 
@@ -357,52 +358,62 @@ export class ModalExpensesComponent {
     // const formData = this.addExpenseForm.value;
     // console.log(formData);
     // this.setFormData("sdf", "Sdfg");
-
+    this.genericService.getLoader().subscribe();
     let filePath = '';
-    this.getLoader().pipe(
-      finalize(() => {
-        this.loadingController.dismiss();
-      }),
-      switchMap(() => this.getFileData()),
-      catchError((err) => {
-        alert('Something Went Wrong in first catchError: ' + err.message)
-        return EMPTY;
-      }),
-      map((res) => {        
+    // this.getLoader().pipe(
+    //   finalize(() => {
+    //     this.loadingController.dismiss();
+    //   }),
+    // switchMap(() => this.getFileData()),
+    this.getFileData().
+      pipe(
+        finalize(() => {
+          this.genericService.dismissLoader();
+          // this.loadingController.dismiss();
+        }),
+        catchError((err) => {
+          alert('Something Went Wrong in first catchError: ' + err.message)
+          return EMPTY;
+        }),
+        map((res) => {
+          if (res) {
+            console.log("full path of firebase file: ", res);
+            filePath = res.metadata.fullPath;
+          }
+          const token = localStorage.getItem('token');
+          return this.setFormData(filePath, token);
+        }),
+        switchMap((res) => this.expenseDataServise.addExpenseData(res)),
+        finalize(() => {
+          this.genericService.dismissLoader();
+          this.modalCtrl.dismiss();
+        }),
+        catchError((err) => {
+          console.log(err);
+          if (err.status == 401) {
+            this.errorString = "משתמש לא חוקי , אנא התחבר למערכת";
+            this.isOpen = true;
+          }
+          if (err.status == 0) {
+            //this.loadingController.dismiss();
+            this.errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
+            this.isOpen = true;
+          }
+          if (filePath !== '') {
+            this.fileService.deleteFile(filePath);
+          }
+          return EMPTY;
+        })
+      )
+      // )
+      .subscribe((res) => {
+        this.router.navigate(['my-storage']);
+        this.genericService.showToast("ההוספה נוצרה בהצלחה", "success")
+        console.log('Saved expense data in DB. The response is: ', res);
         if (res) {
-          console.log("full path of firebase file: ",res);
-          filePath = res.metadata.fullPath;
+          this.expenseDataServise.updateTable$.next(true);
         }
-        const token = localStorage.getItem('token');
-        return this.setFormData(filePath, token);
-      }),
-      switchMap((res) => this.expenseDataServise.addExpenseData(res)),
-      finalize(() => {
-        this.modalCtrl.dismiss();
-      }),
-      catchError((err) => {
-        console.log(err);
-        if (err.status == 401) {
-          this. errorString = "משתמש לא חוקי , אנא התחבר למערכת";
-          this.isOpen = true;
-        }
-        if (err.status == 0) {
-          this.loadingController.dismiss();
-          this. errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
-          this.isOpen = true;
-        }
-        if (filePath !== '') {
-          this.fileService.deleteFile(filePath);
-        }
-        return EMPTY;
-      })
-    ).subscribe((res) => {
-      this.router.navigate(['my-storage']);
-      console.log('Saved expense data in DB. The response is: ', res);
-      if (res) {
-        this.expenseDataServise.updateTable$.next(true);
-      }
-    });
+      });
   }
 
   getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path and if not returns null
@@ -418,7 +429,7 @@ export class ModalExpensesComponent {
         alert('File upload failed, please try again ' + err.error.message.join(', '));
         return EMPTY;
       }),
-      map((res) => {        
+      map((res) => {
         if (res) { //if a file is selected 
           filePath = res.metadata.fullPath;
         }
@@ -565,7 +576,7 @@ export class ModalExpensesComponent {
 
     const formData = this.addExpenseForm.value;
     console.log("formdata add supplier: ", formData);
-    
+
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
     const { date, file, sum, note, expenseNumber, ...newFormData } = formData;
     this.genericService.getLoader().subscribe();
@@ -595,7 +606,8 @@ export class ModalExpensesComponent {
         }),
       ).subscribe((res) => {
         //this.loadingController.dismiss();
-        this.isToastOpen = true;
+        // this.isToastOpen = true;
+        this.genericService.showToast("ספק נשמר בהצלחה", "success");
         console.log("res in add supplier:", res);
         this.getSuppliers();
       })
@@ -646,9 +658,9 @@ export class ModalExpensesComponent {
 
   getSubCategory(event: any): void {
     console.log("event in sub category: ", event);
-    
+
     let category: string;
-    if (typeof(event) !== 'string') {
+    if (typeof (event) !== 'string') {
       category = event.value;
     }
     else {
@@ -692,7 +704,7 @@ export class ModalExpensesComponent {
     //   return;
     // }
     console.log("in get category: ", data);
-    
+
 
     this.expenseDataServise.getcategry()
       .pipe(
@@ -754,7 +766,7 @@ export class ModalExpensesComponent {
 
   selectedSubcategory(event: any): void {
     console.log("event after sub: ", event);
-    
+
     const subCategoryDetails = this.originalSubCategoryList.find(item => item.subCategoryName === event.value);
     console.log("data in select sub:", subCategoryDetails);
     if (subCategoryDetails) {
@@ -766,22 +778,22 @@ export class ModalExpensesComponent {
 
   getSuppliers(): void {
     this.expenseDataServise.getAllSuppliers()
-    .pipe(
-      catchError((err) => {
-        console.log("err in get suppliers:", err);
-        return EMPTY;
-      }),
-      map((res) => {
-        this.originalSuppliersList = res;
+      .pipe(
+        catchError((err) => {
+          console.log("err in get suppliers:", err);
+          return EMPTY;
+        }),
+        map((res) => {
+          this.originalSuppliersList = res;
           return res.map((item) => ({
             name: item.supplier,
             value: item.supplier
           }))
-      })
+        })
       )
-    .subscribe((res) => {
-      this.displaySuppliersList = res
-    })
+      .subscribe((res) => {
+        this.displaySuppliersList = res
+      })
   }
 
   selectedSupplier(data: IGetSupplier): void {
@@ -807,9 +819,9 @@ export class ModalExpensesComponent {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string;
   }
 
-  setOpenToast(): void {
-    this.isToastOpen = !this.isToastOpen;
-  }
+  // setOpenToast(): void {
+  //   this.isToastOpen = !this.isToastOpen;
+  // }
 
   deleteFile(event: any): void {
     const fileInput = event.target.closest('label').querySelector('ion-input[type="file"]');
@@ -817,8 +829,8 @@ export class ModalExpensesComponent {
       fileInput.value = '';
     }
     this.selectedFile = '';
-    console.log("this.selectedFile: ",this.selectedFile);
-    
+    console.log("this.selectedFile: ", this.selectedFile);
+
     this.editModeFile = '';
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
     this.pdfLoaded = false;

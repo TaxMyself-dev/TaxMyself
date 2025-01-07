@@ -5,6 +5,7 @@ import { ModalExpensesComponent } from '../modal-add-expenses/modal.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ModalController } from '@ionic/angular';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, NavigationItemClass } from '../enums';
+import { Subject, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'app-item-navigate',
@@ -22,6 +23,8 @@ export class ItemNavigateComponent  implements OnInit{
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense// TODO: what? why is this here? should be generic??
 
   page: string;
+  destroy$ = new Subject<void>();
+
 
 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController) { }
@@ -36,11 +39,16 @@ export class ItemNavigateComponent  implements OnInit{
     
   }
 
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   onButtonClicked(selectedItem: IItemNavigate): void {
     console.log("onButtonClicked");
     
     if (selectedItem.link === "/add-expenses") {
-      this.openPopupAddExpense();
+      this.openModalAddExpense();
       return;
     }
     if (selectedItem.link != "" ){
@@ -54,16 +62,11 @@ export class ItemNavigateComponent  implements OnInit{
     this.onNavButtonClicked.emit(selectedItem);
   }
 
-  async openPopupAddExpense() {
-    const modal = await this.modalCtrl.create({
-      component: ModalExpensesComponent,
-      componentProps: {
-        columns: this.columns,
-        data: {},
-      },
-      cssClass: 'expense-modal'
-    })
-    await modal.present();
+  openModalAddExpense() {
+    this.expenseDataServise.openModalAddExpense()
+    .pipe(
+      takeUntil(this.destroy$)
+    )
+    .subscribe();
   }
-
 }

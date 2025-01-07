@@ -143,7 +143,7 @@ export class addSupplierComponent implements OnInit {
           ).subscribe();
         break;
       case 'subCategory':
-        const subCategoryDetails = this.subCategoryList.find(item => item.subCategoryName === event.detail.value);
+        const subCategoryDetails = this.subCategoryList?.find(item => item?.subCategoryName === event?.detail?.value);
         this.selectedSubcategory(subCategoryDetails);
         break;
     }

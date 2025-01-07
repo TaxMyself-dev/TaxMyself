@@ -1,15 +1,13 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-// import { getDownloadURL, getStorage, ref } from "@angular/fire/storage";
-import { LoadingController, ModalController } from '@ionic/angular';
-import { EMPTY, Observable, catchError, finalize, from, switchMap, tap } from 'rxjs';
+import { ModalController } from '@ionic/angular';
+import { EMPTY, Observable, Subject, catchError, finalize, from, switchMap, takeUntil, tap } from 'rxjs';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, ICellRenderer, ReportingPeriodType } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserDate } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
-import { environment } from 'src/environments/environment';
 import { cloneDeep } from 'lodash';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { GenericService } from 'src/app/services/generic.service';
@@ -33,6 +31,7 @@ export class MyStoragePage implements OnInit {
   readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
     [ExpenseFormColumns.DATE, ICellRenderer.DATE],
   ]);
+
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'reductionDone', 'reductionPercent', 'expenseNumber', 'isEquipment', 'loadingDate', 'note', 'supplierID', 'userId', 'id', 'file', 'isReported', 'vatReportingDate', 'transId'];
   readonly ACTIONS_TO_IGNORE = ['share', 'preview', 'download file'];
   readonly ButtonSize = ButtonSize;
@@ -44,20 +43,22 @@ export class MyStoragePage implements OnInit {
   tableActions: ITableRowAction[] = [];
   fieldsNamesToAdd: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
-  isToastOpen: boolean = false;
-  toastMessage: string = "";
-  isOpen: boolean = false;
+  // isToastOpen: boolean = false;
+  // toastMessage: string = "";
+  isOpenConfirmDel: boolean = false;
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
   storageForm: FormGroup;
   userData: IUserDate;
   businessNamesList: ISelectItem[] = [];
+  destroy$ = new Subject<void>();
 
 
-  constructor(private loadingController: LoadingController, private http: HttpClient, private expenseDataService: ExpenseDataService, private filesService: FilesService, private modalController: ModalController, private formBuilder: FormBuilder, private genericService: GenericService, private dateService: DateService, private authService: AuthService) {
+
+  constructor(private expenseDataService: ExpenseDataService, private filesService: FilesService, private formBuilder: FormBuilder, private genericService: GenericService, private dateService: DateService, private authService: AuthService) {
     this.storageForm = this.formBuilder.group({
       reportingPeriodType: new FormControl(
-        false, Validators.required,
+        '', Validators.required,
       ),
       month: new FormControl(
         '', [],
@@ -85,10 +86,13 @@ export class MyStoragePage implements OnInit {
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
+
     if (this.userData.isTwoBusinessOwner) {
-      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
-      this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+      this.storageForm?.get('businessNumber').setValidators([Validators.required]);
+      this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
+      this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
     }
+
     this.fieldsNamesToAdd = this.expenseDataService.getAddExpenseColumns();
     this.fieldsNamesToShow = this.expenseDataService.getShowExpenseColumns();
     this.setRowsData();
@@ -99,6 +103,11 @@ export class MyStoragePage implements OnInit {
           this.setRowsData();
         }
       })
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   setFormValidators(event): void {
@@ -142,17 +151,17 @@ export class MyStoragePage implements OnInit {
   // Get the data from server and update items
   setRowsData(): void {
     const formData = this.storageForm.value;
-    console.log("formData of storage",formData);
+    console.log("formData of storage", formData);
     let startDate: string;
     let endDate: string;
     let businessNumber: string;
-   
-    
+
+
     if (!formData.reportingPeriodType) {
       businessNumber = this.userData.businessNumber;
       // Set default values if periodType is false
       startDate = '01/01/2000';
-      endDate = this.dateService.formatDate(new Date()); 
+      endDate = this.dateService.formatDate(new Date());
     } else {
       // Call the function if periodType is valid
       ({ startDate, endDate } = this.dateService.getStartAndEndDates(
@@ -170,7 +179,7 @@ export class MyStoragePage implements OnInit {
       }
     }
     console.log("startDate: ", startDate, "end date: ", endDate, "businnes: ", businessNumber);
-    
+
 
     this.items$ = this.expenseDataService.getExpenseByUser(startDate, endDate, businessNumber)
       .pipe(
@@ -196,51 +205,44 @@ export class MyStoragePage implements OnInit {
     })
   }
 
-  openPopupAddExpense(data?: IRowDataTable): void {
-    from(this.modalController.create({
-      component: ModalExpensesComponent,
-      componentProps: {
-        columns: this.fieldsNamesToAdd,
-        editMode: !!Object.keys(data).length,
-        data
-      },
-      cssClass: 'expense-modal'
-    })).pipe(catchError((err) => {
-      alert("openPopupAddExpense error");
-      return EMPTY;
-    }), switchMap((modal) => from(modal.present())), catchError((err) => {
-      alert("openPopupAddExpense switchMap error");
-      console.log("openPopupAddExpense switchMap error: ", err);
-
-      return EMPTY;
-    })).subscribe();
+  openModalAddExpense(data?: IRowDataTable): void {
+    this.expenseDataService.openModalAddExpense(data, !!Object.keys(data).length)
+      .pipe(
+        takeUntil(this.destroy$)
+      )
+      .subscribe()
   }
 
   onUpdateClicked(expense: IRowDataTable): void {
     const expenseData = this.rows.find((row) => row.id === expense.id);
-    this.openPopupAddExpense(cloneDeep(expenseData));
+    this.openModalAddExpense(cloneDeep(expenseData));
   }
 
   onDeleteClicked(event: number): void {
-    const token = localStorage.getItem('token');
-    const options = {
-      params: new HttpParams().set("token", token),
-    }
-    const url = `${environment.apiUrl}expenses/delete-expense/` + event
-    this.getLoader()
-      .pipe(
-        finalize(() => this.loadingController.dismiss()),
-        switchMap(() => this.http.delete(url, options)),
-        catchError((err) => {
-          this.toastMessage = "אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר";
-          this.isToastOpen = true;
-          console.log("The expense cannot be deleted", err);
-          return EMPTY;
-        })).subscribe((res) => {
-          console.log("resfrom delete: ", res);
-          this.setRowsData();
-        })
-
+    this.genericService.getLoader().pipe(
+      finalize(() => {
+        this.genericService.dismissLoader()
+      }),
+      switchMap(() => this.expenseDataService.deleteExpense(event)),
+      catchError((err) => {
+        this.genericService.showToast("אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר", "error")
+        //this.toastMessage = "אירעה שגיאה לא ניתן למחוק את ההוצאה, אנא ודא שהינך מחובר למערכת או נסה מאוחר יותר";
+        //this.isToastOpen = true;
+        console.log("The expense can not be deleted", err);
+        return EMPTY;
+      }),
+      switchMap((res) => this.filesService.deleteFile(res?.['file'])),
+      tap((res) => {
+        console.log("in tap");
+        
+        this.genericService.showToast("ההוצאה נמחקה בהצלחה", "success");
+        // this.toastMessage = "ההוצאה נמחקה בהצלחה";
+        // this.isToastOpen = true;
+        this.genericService.dismissLoader()
+        this.setRowsData();
+      })
+    )
+      .subscribe();
   }
 
   onDownloadFileClicked(expense: IRowDataTable): void {
@@ -256,63 +258,34 @@ export class MyStoragePage implements OnInit {
 
   onPreviewFileClicked(expense: IRowDataTable): void {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
-      this.genericService.getLoader().subscribe();
-      from(this.filesService.previewFile(expense.file as string))
+      this.filesService.previewFile(expense.file as string)
         .pipe(
-          finalize(() => this.genericService.dismissLoader()),
-          catchError((err) => {
-            console.log("err in try to open file: ", err);
-            alert("לא ניתן לפתוח את הקובץ");
-            return EMPTY;
-          })).subscribe((fileUrl) => {
-            window.open(fileUrl.file, '_blank');
-          });
+          takeUntil(this.destroy$)
+        )
+        .subscribe(() => {
+        });
     }
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")
     }
   }
 
-  getLoader(): Observable<any> {
-    return from(this.loadingController.create({
-      message: 'Please wait...',
-      spinner: 'crescent'
-    }))
-      .pipe(
-        catchError((err) => {
-          console.log("err in create loader in save supplier", err);
-          return EMPTY;
-        }),
-        switchMap((loader) => {
-          if (loader) {
-            return from(loader.present())
-          }
-          console.log("loader in save supplier is null");
-          return EMPTY;
-        }),
-        catchError((err) => {
-          console.log("err in open loader in save supplier", err);
-          return EMPTY;
-        })
-      )
-  }
-
-  setOpenToast(): void {
-    this.isToastOpen = false;
-  }
+  // setOpenToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
   deleteExpense(): void {
     this.onDeleteClicked(this.id);
-    this.isOpen = false;
+    this.isOpenConfirmDel = false;
   }
 
   confirmDel(ev: IRowDataTable): void {
     this.id = +ev.id;
-    this.isOpen = true;
+    this.isOpenConfirmDel = true;
   }
 
   cancelDel(): void {
-    this.isOpen = false;
+    this.isOpenConfirmDel = false;
   }
 
   columnsOrderByFunc(a, b): number {

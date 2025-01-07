@@ -59,8 +59,8 @@ export class VatReportPage implements OnInit {
   items$: Observable<IRowDataTable[]>;
   item: IRowDataTable;
   rows: IRowDataTable[] = [];
-  messageToast: string;
-  isToastOpen: boolean;
+  // messageToast: string;
+  // isToastOpen: boolean;
   isSkip: boolean = false;
   userData: IUserDate;
   businessNamesList: ISelectItem[] = [];
@@ -255,17 +255,8 @@ export class VatReportPage implements OnInit {
 
   onPreviewFileClicked(expense: IRowDataTable): void {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
-      this.genericService.getLoader().subscribe();
-      from(this.filesService.previewFile(expense.file as string))
-      .pipe(
-        finalize(()=> this.genericService.dismissLoader()),
-        catchError((err) => {
-        console.log("err in try to open file: ", err);
-        alert("לא ניתן לפתוח את הקובץ");
-        return EMPTY;
-      })).subscribe((fileUrl) => {
-        window.open(fileUrl.file, '_blank');
-      });
+      this.filesService.previewFile(expense.file as string).subscribe();
+    
     }
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")
@@ -437,14 +428,16 @@ export class VatReportPage implements OnInit {
               this.filesService.deleteFile(tran.file as string);
             }
           })
-          this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
-          this.isToastOpen = true;
+          this.genericService.showToast( "אירעה שגיאה העלאת קבצים נכשלה", "error");
+          // this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
+          // this.isToastOpen = true;
           return EMPTY
         }),
         tap(() => {
           console.log("All file uploads complete.");
-          this.messageToast = `הועלו ${totalTransactions} קבצים `
-          this.isToastOpen = true;
+          this.genericService.showToast(`הועלו ${totalTransactions} קבצים `, "success");
+          // this.messageToast = `הועלו ${totalTransactions} קבצים `
+          // this.isToastOpen = true;
         }),
        
       )
@@ -454,9 +447,9 @@ export class VatReportPage implements OnInit {
       });
   }
 
-  setCloseToast(): void {
-    this.isToastOpen = false;
-  }
+  // setCloseToast(): void {
+  //   this.isToastOpen = false;
+  // }
 
 
 

@@ -1,10 +1,11 @@
 import { Injectable } from '@angular/core';
 import { IColumnDataTable, IGetSupplier, IRowDataTable } from '../shared/interface';
-import { Observable, Subject } from 'rxjs';
+import { catchError, EMPTY, from, Observable, Subject, switchMap } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from '../shared/enums';
 import { environment } from 'src/environments/environment';
-import { LoadingController } from '@ionic/angular';
+import { LoadingController, ModalController } from '@ionic/angular';
+import { ModalExpensesComponent } from '../shared/modal-add-expenses/modal.component';
 
 
 @Injectable({
@@ -12,7 +13,7 @@ import { LoadingController } from '@ionic/angular';
 })
 export class ExpenseDataService {
 
-  constructor(private http: HttpClient, private loader: LoadingController) { 
+  constructor(private http: HttpClient, private modalController: ModalController) {
   }
 
   private readonly columnsAddExpense: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
@@ -63,8 +64,8 @@ export class ExpenseDataService {
 
   public updateTable$: Subject<boolean> = new Subject();//I need to check what is do
   public isToastOpen$: Subject<boolean> = new Subject();
-  
-  
+
+
 
 
   getColomnsOrder(): string[] {
@@ -79,11 +80,11 @@ export class ExpenseDataService {
       'token': token
     }
     const params = new HttpParams()
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    .set('businessNumber', businessNumber)
-    .set('pagination', pagination)
-    return this.http.get<IRowDataTable[]>(url, {params: params, headers: headers });
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber)
+      .set('pagination', pagination)
+    return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers });
   }
 
   getExpenseForVatReport(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
@@ -159,18 +160,18 @@ export class ExpenseDataService {
     const url = `${environment.apiUrl}expenses/add-supplier`;
     const headers = {
       'token':
-       token
+        token
     }
-    return this.http.post(url, formData,{headers});
+    return this.http.post(url, formData, { headers });
   }
 
   editSupplier(formData: any, id: number): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/update-supplier/` + id;
     const headers = {
-      'token':token
+      'token': token
     }
-    return this.http.patch(url, formData,{headers});
+    return this.http.patch(url, formData, { headers });
   }
 
   deleteSupplier(id: number): Observable<any> {
@@ -178,23 +179,55 @@ export class ExpenseDataService {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/delete-supplier/` + id;
     const param = new HttpParams()
-    .set('token', token);
+      .set('token', token);
     return this.http.delete(url, { params: param });
   }
-  
+
   addExpenseData(data: any): Observable<any> {
     //TODO: change token to headers
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-expense`;
-    console.log("form data in send",data);
+    console.log("form data in send", data);
     return this.http.post(url, data);
     // return this.http.post(`${environment.apiUrl}expenses/add-expense`, data);
   }
-  
+
+  deleteExpense(id: number): Observable<any> {
+    const url = `${environment.apiUrl}expenses/delete-expense/` + id;
+    const headers = {
+      'token': localStorage.getItem('token')
+    }
+    console.log("id in del expense", id);
+    return this.http.delete(url, { headers });
+  }
+
   updateExpenseData(data: any, id: number): Observable<any> {
     //TODO: change token to headers
     const url = `${environment.apiUrl}expenses/update-expense/${id}`;
     return this.http.patch(url, data);
+  }
+
+  openModalAddExpense(data?: IRowDataTable, editMode: boolean = false): Observable<any> {
+    return from(this.modalController.create({
+      component: ModalExpensesComponent,
+      componentProps: {
+        columns: this.columnsAddExpense,
+        editMode,
+        data
+      },
+      cssClass: 'expense-modal'
+    }))
+      .pipe(
+        catchError((err) => {
+          console.log("error in create modal add expense: ", err);
+          return EMPTY;
+        }),
+        switchMap((modal) => from(modal.present())),
+        catchError((err) => {
+          console.log("error in present modal add expense: ", err);
+          return EMPTY;
+        }))
+      //.subscribe();
   }
 
 
