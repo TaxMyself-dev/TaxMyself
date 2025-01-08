@@ -9,7 +9,7 @@
         'small': buttonSize === ButtonSize.SMALL,
         'big': buttonSize === ButtonSize.BIG}"
     [disabled]="disabled"
-    (click)="onClick()"
+    (click)="onClick($event)"
 >
 
 <ion-icon *ngIf="iconName" [ariaLabel]="ariaLabel" [ngStyle]="iconStyle" [slot]="iconPosition" [name]="iconName"></ion-icon>

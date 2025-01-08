@@ -78,8 +78,11 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
     this.onClickedCell.emit({ str: "bill", data: event })
   }
 
-  openAddTransaction(event: IRowDataTable): any {
-    this.onClickedCell.emit({ str: "tran", data: event })
+  openAddTransaction(row: IRowDataTable, event: Event): any {
+    console.log(event);
+    
+    this.onClickedCell.emit({ str: "tran", data: row })
+    event.stopPropagation();
   }
 
   onChecked(event: any, row: IRowDataTable): void {
