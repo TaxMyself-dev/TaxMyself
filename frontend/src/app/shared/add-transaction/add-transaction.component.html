@@ -81,12 +81,8 @@
             [parentForm]="newCategoryIsRecognizeForm" [title]="'האם ההוצאה היא רכוש קבוע?'"
             (selectionChanged)="setValueEquipment($event)" [disabled]="!isRecognize">
           </app-generic-select>
-          <!-- <app-generic-input className="wide" [controlName]="'category'" [inputLabel]="'קטגוריה'"
-            [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize || incomeMode"
-            [title]="incomeMode ? 'לא ניתן לשנות שם קטגוריה' : ''">
-          </app-generic-input> -->
           <app-multi-input  class="default-input-add-transaction" [controlName]="'category'" [items]="categoryList"
-          [parentForm]="newCategoryNotRecognizedForm" [title]="incomeMode ? 'הכנסה מעסק(לא ניתן לשנות)' : 'בחר/הכנס קטגוריה'" [disabled]="incomeMode || !isRecognize"></app-multi-input>
+          [parentForm]="newCategoryIsRecognizeForm" [title]="incomeMode ? 'הכנסה מעסק(לא ניתן לשנות)' : 'בחר/הכנס קטגוריה'" [disabled]="incomeMode || !isRecognize"></app-multi-input>
           <app-generic-input  class="default-input-add-transaction" [controlName]="'subCategory'" [inputLabel]="'תת-קטגוריה'"
             [parentForm]="newCategoryIsRecognizeForm" [disabled]="!isRecognize">
           </app-generic-input>
@@ -113,8 +109,6 @@
             [parentForm]="newCategoryNotRecognizedForm"></app-generic-select>
           <app-multi-input   class="default-input-add-transaction" [controlName]="'category'" [items]="categoryList"
             [parentForm]="newCategoryNotRecognizedForm" [title]="'בחר/הכנס קטגוריה'" [disabled]="isRecognize"></app-multi-input>
-          <!-- <app-generic-input *ngIf="!isOnlySubCategory" className="wide" [controlName]="'category'" [inputLabel]="'הכנס קטגוריה'" -->
-          <!-- [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input> -->
           <app-generic-input   class="default-input-add-transaction" [controlName]="'subCategory'" [inputLabel]="'הכנס תת-קטגוריה'"
             [parentForm]="newCategoryNotRecognizedForm" [disabled]="isRecognize"></app-generic-input>
         </form>
