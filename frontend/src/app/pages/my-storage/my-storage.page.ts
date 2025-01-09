@@ -270,10 +270,6 @@ export class MyStoragePage implements OnInit {
     }
   }
 
-  // setOpenToast(): void {
-  //   this.isToastOpen = false;
-  // }
-
   deleteExpense(): void {
     this.onDeleteClicked(this.id);
     this.isOpenConfirmDel = false;

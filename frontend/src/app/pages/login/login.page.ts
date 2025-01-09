@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
-import { EMPTY, catchError, filter, finalize, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, filter, finalize, from, switchMap, tap } from 'rxjs';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { FormTypes } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
@@ -100,45 +100,47 @@ export class LoginPage implements OnInit {
 
   login2(): void {
     this.authService.error$.next(null);
-    this.genericService.getLoader().subscribe();
     const formData = this.loginForm.value;
-    this.authService.userVerify(formData.userName, formData.password)
-    .pipe(
-      //finalize(() => this.genericService.dismissLoader()),
-      catchError((err) => {
-        console.log("err in user verify in sign in", err);
-        this.genericService.dismissLoader()
-        return EMPTY;
-      }),
-      filter((res) => {
-        if (!res?.user?.emailVerified) {
-          this.authService.error$.next("email");
-        }
-        this.userCredential = res;
-        return res?.user?.emailVerified;
-      }),
-      switchMap(() => this.authService.signIn(this.userCredential)),
-      catchError((err) => {
-        console.log("error in sign-in of login page: ", err);
-        this.genericService.dismissLoader()
-        return EMPTY;
-      })
-    )
-    .subscribe((res) => {
-      localStorage.setItem('userData', JSON.stringify(res));
-      console.log('Sign-in response:', res);
-      this.router.navigate(['my-account']);
-      this.genericService.dismissLoader()
-    })
+    this.genericService.getLoader()
+      .pipe(
+        finalize(() => {
+          this.genericService.dismissLoader();
+          console.log("in finlize");  
+        }),
+        switchMap(() => from(this.authService.userVerify(formData.userName, formData.password))),
+        catchError((err) => {
+          console.log("err in user verify in sign in", err);
+          return EMPTY;
+        }),
+        filter((res) => {
+          if (!res?.user?.emailVerified) {
+            this.authService.error$.next("email");
+          }
+          this.userCredential = res;
+          return res?.user?.emailVerified;
+        }),
+        switchMap(() => this.authService.signIn(this.userCredential)),
+        catchError((err) => {
+          console.log("error in sign-in of login page: ", err);
+          return EMPTY;
+        }),
+        tap((res) => {
+          localStorage.setItem('userData', JSON.stringify(res));
+          console.log('Sign-in response:', res);
+          this.router.navigate(['my-account']);
+          this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
+        }),
+      )
+      .subscribe()
   }
 
   sendVerficaitonEmail(): void {
     this.authService.SendVerificationMail()
-    .subscribe (() => {
-      this.genericService.showToast("מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת", "success")
-      // this.messageToast = "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת"
-      // this.isToastOpen = true;
-    })
+      .subscribe(() => {
+        this.genericService.showToast("מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת", "success")
+        // this.messageToast = "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת"
+        // this.isToastOpen = true;
+      })
   }
 
   navigateToRegister(): void {
@@ -155,33 +157,33 @@ export class LoginPage implements OnInit {
 
   resetPassword(): void {
     if (this.resetForm.valid) {
-    this.authService.ForgotPassword(this.userEmailForReset)
-    .pipe(
-      catchError((err) => {
-        console.log("err in reset: ", err);
-        switch (err.code) {
-          case "auth/invalid-email":
-          case "auth/user-not-found":
-            this.authService.error$.next("user");
-            break;
-          case "auth/too-many-requests":
-          case "auth/network-request-failed":
-          case "auth/operation-not-allowed":
-            this.authService.error$.next("error");
-        }
+      this.authService.ForgotPassword(this.userEmailForReset)
+        .pipe(
+          catchError((err) => {
+            console.log("err in reset: ", err);
+            switch (err.code) {
+              case "auth/invalid-email":
+              case "auth/user-not-found":
+                this.authService.error$.next("user");
+                break;
+              case "auth/too-many-requests":
+              case "auth/network-request-failed":
+              case "auth/operation-not-allowed":
+                this.authService.error$.next("error");
+            }
 
-        return EMPTY;
-      })
-    ).subscribe(() => {
-      this.genericService.showToast("קישור לאיפוס סיסמא נשלח אליך למייל", "success")
-      // this.messageToast = "קישור לאיפוס סיסמא נשלח אליך למייל";
-      // this.isToastOpen =true;
-    });
+            return EMPTY;
+          })
+        ).subscribe(() => {
+          this.genericService.showToast("קישור לאיפוס סיסמא נשלח אליך למייל", "success")
+          // this.messageToast = "קישור לאיפוס סיסמא נשלח אליך למייל";
+          // this.isToastOpen =true;
+        });
+    }
+    else {
+      alert("אנא הכנס אימייל תקין");
+    }
   }
-  else {
-    alert("אנא הכנס אימייל תקין");
-  }
-}
 
   // setOpenToast(): void {
   //   this.isToastOpen = false;
