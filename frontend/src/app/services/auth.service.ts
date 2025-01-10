@@ -2,7 +2,7 @@ import { Injectable, NgZone } from '@angular/core';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject, finalize } from 'rxjs';
+import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { UserCredential } from '@firebase/auth-types';
 import { sendEmailVerification } from '@angular/fire/auth';
@@ -94,7 +94,7 @@ export class AuthService {
         catchError((err) => {
           console.log("Error in sign in with email: ", err);
           this.handleErrorLogin(err.code);
-          return EMPTY;
+          return throwError(() => err);
         }),
         tap((user) => {
           // Store the user information locally after successful login
@@ -183,14 +183,9 @@ export class AuthService {
 
   handleErrorLogin(err: string): void {
     console.log("err string: ", err);
-    
-    // if (err === "auth/wrong-password") {
-    //   this.error$.next("password");
-    // }
     if (err === "auth/user-not-found" || err === "auth/invalid-email" || err === 'auth/invalid-login-credentials' || err === "auth/wrong-password") {
       this.error$.next("user");
     }
-
   }
 
   signIn(user: UserCredential): any {
@@ -198,11 +193,10 @@ export class AuthService {
     
     return from(user.user.getIdToken(true))
       .pipe(
-        finalize(() =>   this.genericService.dismissLoader()),
+        //finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log("err in get id token: ", err);
-        
-          return EMPTY;
+          return throwError(() => err);
         }),
         tap((token) => {
           localStorage.setItem('token', token);
@@ -211,7 +205,7 @@ export class AuthService {
         catchError((err) => {
             this.error$.next("error");
           console.log("err in post request: ", err);
-          return EMPTY;
+          return throwError(() => err);
         }),
       )
 

@@ -40,6 +40,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
+  // requierdField: boolean = true;
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
@@ -47,10 +48,10 @@ export class RegisterPage implements OnInit, OnDestroy {
 
     const personalForm = this.formBuilder.group({
       [RegisterFormControls.FIRSTNAME]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)] : null
       ),
       [RegisterFormControls.LASTNAME]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)] : null
       ),
       [RegisterFormControls.ID]: new FormControl(
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
@@ -59,7 +60,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
       ),
       [RegisterFormControls.PHONE]: new FormControl(
-        '', this.requierdField ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        '', this.requierdField ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
         '', this.requierdField ? Validators.required : null,
@@ -77,10 +78,10 @@ export class RegisterPage implements OnInit, OnDestroy {
 
     const spouseForm = this.formBuilder.group({
       [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? Validators.required : null,
+        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)] : null,
       ),
       [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? Validators.required : null,
+        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)] : null,
       ),
       [RegisterFormControls.SPOUSEID]: new FormControl(
         '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
@@ -92,7 +93,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        '', this.requierdField && !this.isSingle() ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
     })
 
@@ -111,7 +112,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField ? [Validators.required,  Validators.pattern(/^\d+$/)] : null,
       ),
       [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
         '', this.requierdField ? Validators.required : null,
@@ -247,10 +248,10 @@ export class RegisterPage implements OnInit, OnDestroy {
     items.push(
       this.formBuilder.group({
         [RegisterFormControls.CHILD_FIRST_NAME]: new FormControl(
-          '', Validators.required,
+          '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
         ),
         [RegisterFormControls.CHILD_LAST_NAME]: new FormControl(
-          '', Validators.required,
+          '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
         ),
         [RegisterFormControls.CHILD_ID]: new FormControl(
           '', [Validators.required, Validators.pattern(/^\d{9}$/)]

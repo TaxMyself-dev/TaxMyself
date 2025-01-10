@@ -30,7 +30,7 @@
                 <ng-container *ngSwitchCase="formTypes.TEXT">
                   <app-generic-input [class]="col.name !== 'note' ? 'modal-input-30' : 'modal-input-100' "
                     [className]="col.name === 'note' ? 'note' : ''" [inputLabel]="col.value" [controlName]="col.name"
-                    [parentForm]="addExpenseForm"></app-generic-input>
+                    [parentForm]="addExpenseForm" [errorText]="col.errorText"></app-generic-input>
                 </ng-container>
                 <!-- date input -->
                 <ng-container *ngSwitchCase="formTypes.DATE">
@@ -59,13 +59,6 @@
                     [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.SUB_CATEGORY"
                     [title]="expenseFormHebrewColumns.subCategory" [items]="getListSubCategory()"
                     (selectionChanged)="selectedSubcategory($event)"></app-generic-select>
-                  <!-- <ion-select required="true" [class.isEquipment]="col.name === 'isEquipment'" [class.businessNumber]="col.name === 'businessNumber'"
-                  [class.category]="col.name === 'category'" [class.subCategory]="col.name === 'subCategory'"
-                  class="input-expense ddl" fill="outline" label="{{col.value}}" [formControlName]="col.name"
-                  (ionChange)="onDdlSelectionChange($event, col)" label-placement="floating" interface="popover">
-                  <ion-select-option *ngFor="let option of getListOptionsByKey(col.name)"
-                    [value]="option.value">{{option.name}}</ion-select-option>
-                </ion-select> -->
                 </ng-container>
               </ng-container>
             </ng-container>
