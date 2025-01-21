@@ -36,13 +36,17 @@ export class ModalExpensesComponent {
         val.isEquipment = "0";
         this.isEquipment = false;
       }
-      else if (val.isEquipment === true) {
+      else {
         val.isEquipment = "1";
         this.isEquipment = true;
       }
       this.id = +val.id;
       this.getCategory(val);
       if (val.file != "" && val.file != undefined) {
+        this.isFileExist = true;
+        this.originalFileName = this.fileService.extratFileName(val.file as string);
+        console.log("originalFileName: ", this.originalFileName);
+
         this.editModeFile = "loading"; // for the icon of choose file does not show
         this.fileService.getFirebaseUrlFile(val.file as string)
           .then((res) => {
@@ -53,21 +57,16 @@ export class ModalExpensesComponent {
               this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(res.file);
               this.pdfLoaded = true;
             }
-            console.log("in then", this.editModeFile);
           })
-        console.log("url edit mode file: ", this.editModeFile);
+      }
+      else {
+        this.isFileExist = false;
       }
     }
   };
   @Input() buttons: IButtons[];
   @Input() set columns(val: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]) {
     this.fileItem = val?.find((item: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) => item.type === FormTypes.FILE);
-    // const newColumn: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns> = {
-    //   name: ExpenseFormColumns.BUSINESS_NUMBER,
-    //   value: ExpenseFormHebrewColumns.businessNumber,
-    //   type: this.formTypes.DDL
-    // }
-    // this.columnsList = [...val, newColumn];
     this.columnsList = val;
   }
   @Input() customFooterTemplate: TemplateRef<any>;
@@ -86,23 +85,9 @@ export class ModalExpensesComponent {
   readonly expenseFormHebrewColumns = ExpenseFormHebrewColumns;
   readonly ButtonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
-  readonly inputStyles = new Map<ExpenseFormColumns, {}>([
-    [ExpenseFormColumns.DATE, { 'width': '30%' }],
-    [ExpenseFormColumns.SUM, { 'width': '30%' }],
-    [ExpenseFormColumns.EXPENSE_NUMBER, { 'width': '30%' }],
-    [ExpenseFormColumns.SUPPLIER, { 'width': '47%' }],
-    [ExpenseFormColumns.SUPPLIER_ID, { 'width': '47%' }],
-    [ExpenseFormColumns.TAX_PERCENT, { 'width': '30%' }],
-    [ExpenseFormColumns.VAT_PERCENT, { 'width': '30%' }],
-    [ExpenseFormColumns.REDUCTION_PERCENT, { 'width': '30%' }],
-    [ExpenseFormColumns.NOTE, { 'width': '100%', '--border-style': 'none', 'border-bottom': '1px solid gray', 'border-radius': '0px' }],
-  ]);
 
-
-  isEnlarged: boolean = false;
   isEquipment: boolean;
-  isEditMode: boolean = false;
-  // TODO: should modal be generic? if so remove the expense specific declerations
+  errorFile: boolean = false;
   columnsList: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   fileItem: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>;
   columnsFilter: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
@@ -110,13 +95,12 @@ export class ModalExpensesComponent {
   initialForm: FormGroup;
   addExpenseForm: FormGroup;
   selectedFile: string = "";
-  editModeFile: string = "";
   id: number;
   equipmentList: ISelectItem[] = [{ name: "לא", value: "0" }, { name: "כן", value: "1" }];
   categoryList: ISelectItem[];
   displaySubCategoryList: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[];
-  displaySuppliersList: ISelectItem[];
+  //displaySuppliersList: ISelectItem[]; Use this variable only if changing the supplier field to DDL.
   originalSuppliersList: IGetSupplier[];
   doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
   doneLoadingSubCategoryList$ = new BehaviorSubject<boolean>(false);
@@ -125,15 +109,19 @@ export class ModalExpensesComponent {
   errorString: string = "";
   isOpen: boolean = false;
   isSelectSupplierMode: boolean = false;
-  // isToastOpen: boolean = false;
   safePdfBase64String: SafeResourceUrl;
-  //safePdfBase64String$ = new BehaviorSubject<SafeResourceUrl>('');
   pdfLoaded: boolean = false;
-  maxDate: string;
   fileToUpload: File;
   userData: IUserDate;
   businessList: ISelectItem[] = [];
 
+  // Variables for edit mode //
+  isEditMode: boolean = false;
+  editModeFile: string = "";
+  isFileChanged: boolean = false;
+  isFileExist: boolean;
+  originalFileName: string = "";
+  currentFileName: string = "";
 
   constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private loadingController: LoadingController, private sanitizer: DomSanitizer, private authService: AuthService, private genericService: GenericService, private router: Router) {
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
@@ -158,18 +146,12 @@ export class ModalExpensesComponent {
     }
     this.orderColumns();
     const today = new Date();
-    this.maxDate = this.formatDate(today);
     this.getCategory();
     this.initForm();
-    this.getSuppliers();
-  }
-
-  formatDate(date: Date): string {
-    return formatDate(date, 'YYYY-MM-dd', 'en-US');
+    //this.getSuppliers(); Use this function only if changing the supplier field to DDL.
   }
 
   initForm(data?: IRowDataTable): void {
-    console.log("data in init form modal edit", data);
     if (data) {
       this.getSubCategory(data?.category as string)
     }
@@ -183,8 +165,8 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || '', [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
       [ExpenseFormColumns.DATE]: [data?.date || Date, Validators.required,],
       [ExpenseFormColumns.NOTE]: [data?.note || ''],
-      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || '', [ Validators.pattern(/^\d+$/)]],
-      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || '', [ Validators.pattern(/^\d+$/)]],
+      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || '', [Validators.pattern(/^\d+$/)]],
+      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || '', [Validators.pattern(/^\d+$/)]],
       [ExpenseFormColumns.FILE]: [data?.file || File],// TODO: what to show in edit mode
       [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
       [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0, [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
@@ -195,24 +177,6 @@ export class ModalExpensesComponent {
       this.addExpenseForm?.get('businessNumber').setValidators([Validators.required]);
     }
     this.initialForm = cloneDeep(this.addExpenseForm);
-  }
-
-  convertPdfFileToBase64String(file: File) {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener('load', () => {
-        const result = reader.result;
-
-        if (!result) {
-          reject('result is null');
-          return;
-        }
-
-        resolve(reader.result.toString());
-      });
-      reader.addEventListener('error', reject);
-      reader.readAsDataURL(file);
-    });
   }
 
   orderColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
@@ -238,101 +202,16 @@ export class ModalExpensesComponent {
 
   }
 
-  // async fileSelected(event: any) {
-  //   console.log("fileSelected - start");
-
-  //   this.fileToUpload = event.target.files[0];
-
-  //   // Trigger OCR after file selection
-  //   if (this.fileToUpload) {
-  //     // Call the OCR service to extract text from the file
-  //     const extractedText = await this.fileService.extractTextFromFile(this.fileToUpload);
-  //     console.log("extractedText is ", extractedText);
-
-  //     // Automatically fill the form fields with the extracted text
-  //     this.autoFillForm(extractedText);
-  //   }
-  // }
-
-
-  // autoFillForm(extractedText: string) {
-  //   // Split the text by lines or use regex to extract specific information
-  //   const lines = extractedText.split('\n');
-
-  //   // Example of mapping text to form fields
-  //   this.addExpenseForm.patchValue({
-  //     [ExpenseFormColumns.SUPPLIER]: this.extractValueFromText(lines, 'Supplier:'),
-  //     [ExpenseFormColumns.SUM]: this.extractValueFromText(lines, 'Sum:'),
-  //     [ExpenseFormColumns.DATE]: this.extractValueFromText(lines, 'Date:'),
-  //     // Map more fields as needed
-  //   });
-  // }
-
-  // extractValueFromText(lines: string[], key: string): string {
-  //   // A helper function to find a specific key and return the corresponding value
-  //   const line = lines.find(line => line.includes(key));
-  //   return line ? line.split(key)[1].trim() : '';
-  // }
-
-
-  async fileSelected(event: any) {
-    this.pdfLoaded = false;// on change pdf to image
-    let file = event.target.files[0];
-    this.fileToUpload = file;
-    if (!file) {
-      return;
-    }
-
-    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
-    const extension = file.name.split('.').pop().toLowerCase();
-
-    if (!allowedExtensions.includes(`.${extension}`)) {
-      alert('Please upload only PDF, PNG, or JPEG files.');
-      return;
-    }
-
-    if (extension === "pdf") {
-      const target = event.target as HTMLInputElement;
-      const files = target.files as FileList;
-      const file = files.item(0);
-
-      if (!file) {
-        return;
-      }
-
-      const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
-      this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
-      this.pdfLoaded = true;
-    }
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      if (this.isEditMode) {
-        this.editModeFile = reader.result as string;
-        this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
-      }
-      else {
-        this.selectedFile = reader.result as string;
-      }
-      console.log(this.selectedFile);
-
-    }
-  }
-
   getPdfData(): SafeResourceUrl {
     return this.safePdfBase64String;
   }
 
   disableSave(): boolean {
-    return !this.addExpenseForm.valid ||
-      (this.isEditMode ?
-        (isEqual(this.initialForm.value, this.addExpenseForm.value) && this.selectedFile === "")
-        : false);
+    return (this.isEditMode ?
+      (isEqual(this.initialForm.value, this.addExpenseForm.value) && !this.isFileChanged) : !this.addExpenseForm.valid);
   }
 
   disabledAddSupplier(): boolean {
-    // if (this.addExpenseForm.controls != undefined){
     const formData = this.addExpenseForm.controls;
     const category = (formData.category.invalid);
     const subCategory = (formData.subCategory.invalid);
@@ -349,22 +228,17 @@ export class ModalExpensesComponent {
   }
 
   confirm() {
-    console.log("this.isEditMode: ", this.isEditMode);
-
     this.isEditMode ? this.update() : this.add();
   }
 
   add(): void {
-    // const formData = this.addExpenseForm.value;
-    // console.log(formData);
-    // this.setFormData("sdf", "Sdfg");
-    this.genericService.getLoader().subscribe();
     let filePath = '';
-    this.getFileData().
-      pipe(
+    this.genericService.getLoader()
+      .pipe(
         finalize(() => {
           this.genericService.dismissLoader();
         }),
+        switchMap(() => this.getFileData()),
         catchError((err) => {
           alert('Something Went Wrong in first catchError: ' + err.message)
           return EMPTY;
@@ -599,7 +473,7 @@ export class ModalExpensesComponent {
       ).subscribe((res) => {
         this.genericService.showToast("ספק נשמר בהצלחה", "success");
         console.log("res in add supplier:", res);
-        this.getSuppliers();
+        //this.getSuppliers();
       })
   }
 
@@ -611,22 +485,22 @@ export class ModalExpensesComponent {
     return 0;
   }
 
-  getListOptionsByKey(key: ExpenseFormColumns): any {
-    switch (key) {
-      case ExpenseFormColumns.IS_EQUIPMENT:
-        return this.equipmentList;
-      case ExpenseFormColumns.CATEGORY:
-        return this.getListCategory();
-      case ExpenseFormColumns.SUB_CATEGORY:
-        return this.getListSubCategory();
-      case ExpenseFormColumns.SUPPLIER:
-        return this.displaySuppliersList;
-      case ExpenseFormColumns.BUSINESS_NUMBER:
-        return this.businessList;
-      default:
-        return [];
-    }
-  }
+  // getListOptionsByKey(key: ExpenseFormColumns): any {
+  //   switch (key) {
+  //     case ExpenseFormColumns.IS_EQUIPMENT:
+  //       return this.equipmentList;
+  //     case ExpenseFormColumns.CATEGORY:
+  //       return this.getListCategory();
+  //     case ExpenseFormColumns.SUB_CATEGORY:
+  //       return this.getListSubCategory();
+  //     case ExpenseFormColumns.SUPPLIER:
+  //       return this.displaySuppliersList;
+  //     case ExpenseFormColumns.BUSINESS_NUMBER:
+  //       return this.businessList;
+  //     default:
+  //       return [];
+  //   }
+  // }
 
   getListSubCategory(): ISelectItem[] {
     if (this.addExpenseForm.get(ExpenseFormColumns.CATEGORY).value) {
@@ -684,18 +558,7 @@ export class ModalExpensesComponent {
       .subscribe()
   }
 
-  getCategory(data?: IRowDataTable): void {
-    // console.log("in get category");
-    // const categoryList = this.categoriesListDataMap.get(this.isEquipment);
-    // if (categoryList) {
-    //   console.log("in category list");
-
-    //   this.categoryList = categoryList;
-    //   return;
-    // }
-    console.log("in get category: ", data);
-
-
+  getCategory(data?: IRowDataTable | IGetSupplier): void {
     this.expenseDataServise.getcategry()
       .pipe(
         catchError((err) => {
@@ -712,11 +575,12 @@ export class ModalExpensesComponent {
         tap((res) => {
           this.categoryList = res;
         }),
-        // switchMap((data) => this.getSubCategory(data. as string)),
         tap((res) => {
-
-          if (data && this.isEditMode || data && this.isSelectSupplierMode) {
-            this.initForm(data);
+          if (data && this.isSelectSupplierMode) {
+            this.selectedSupplier(data as IGetSupplier)
+          }
+          else if (data && this.isEditMode) {
+            this.initForm(data as IRowDataTable);
           }
         })
       ).subscribe();
@@ -765,45 +629,134 @@ export class ModalExpensesComponent {
     }
   }
 
-  getSuppliers(): void {
-    this.expenseDataServise.getAllSuppliers()
-      .pipe(
-        catchError((err) => {
-          console.log("err in get suppliers:", err);
-          return EMPTY;
-        }),
-        map((res) => {
-          this.originalSuppliersList = res;
-          return res.map((item) => ({
-            name: item.supplier,
-            value: item.supplier
-          }))
-        })
-      )
-      .subscribe((res) => {
-        this.displaySuppliersList = res
-      })
-  }
+  // getSuppliers(): void { // Use this function only if changing the supplier field to DDL.
+  //   this.expenseDataServise.getAllSuppliers()
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("err in get suppliers:", err);
+  //         return EMPTY;
+  //       }),
+  //       map((res) => {
+  //         this.originalSuppliersList = res;
+  //         return res.map((item) => ({
+  //           name: item.supplier,
+  //           value: item.supplier
+  //         }))
+  //       })
+  //     )
+  //     .subscribe((res) => {
+  //       this.displaySuppliersList = res
+  //     })
+  // }
 
   selectedSupplier(data: IGetSupplier): void {
+    if (data) {
+      this.getSubCategory(data?.category as string)
+    }
+
+    this.addExpenseForm.patchValue({ isEquipment: data.isEquipment });
+    this.addExpenseForm.patchValue({ supplier: data.supplier });
     this.addExpenseForm.patchValue({ category: data.category });
     this.addExpenseForm.patchValue({ subCategory: data.subCategory });
     this.addExpenseForm.patchValue({ supplierID: data.supplierID });
     this.addExpenseForm.patchValue({ taxPercent: data.taxPercent });
     this.addExpenseForm.patchValue({ vatPercent: data.vatPercent });
+    this.addExpenseForm.patchValue({ reductionPercent: data.reductionPercent });
   }
 
   displayFile(): any {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string;
   }
 
+  fileSelected(event: any) {
+    this.pdfLoaded = false; // If user change from pdf file to png file
+    this.errorFile = false; // Reset the error message
+    const file = event.target.files[0];
+    this.fileToUpload = file;
+    if (!file) {
+      this.errorFile = true;
+      return;
+    }
+    // For check if change the file in edit mode
+    if (this.isEditMode && this.isFileExist) {
+      this.currentFileName = file.name;
+      if (this.currentFileName !== this.originalFileName) {
+        this.isFileChanged = true;
+      }
+      else {
+        this.isFileChanged = false;
+      }
+    }
+    else if (this.isEditMode && !this.isFileExist) {
+      this.currentFileName = file.name;
+      this.isFileChanged = true;
+    }
+
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const extension = file.name.split('.').pop().toLowerCase();
+
+    if (!allowedExtensions.includes(`.${extension}`)) {
+      alert('Please upload only PDF, PNG, or JPEG files.');
+      return;
+    }
+
+    if (extension === "pdf") {
+      const target = event.target as HTMLInputElement;
+      const files = target.files as FileList;
+      const file = files.item(0);
+
+      if (!file) {
+        this.errorFile = true;
+        return;
+      }
+
+      this.fileService.convertFileToBase64(file)
+        .pipe(
+          catchError((err) => {
+            console.log("error in select PDF file: ", err);
+            this.errorFile = true;
+            return EMPTY;
+          })
+        )
+        .subscribe((res) => {
+          this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(res);
+        })
+      // const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
+      // this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
+      this.pdfLoaded = true;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      if (this.isEditMode) {
+        this.editModeFile = reader.result as string;
+        // this.selectedFile = reader.result as string;// If change file on edit mode.
+      }
+      else {
+        this.selectedFile = reader.result as string;
+      }
+    }
+  }
+
   deleteFile(event: any): void {
+
+    // For check if change the file in edit mode
+    if (this.isEditMode && this.isFileExist) {
+      this.isFileChanged = true;
+    }
+    else if (this.isEditMode && !this.isFileExist) {
+      if (this.currentFileName !== "") {
+        this.isFileChanged = false;
+      }
+    }
+
     const fileInput = event.target.closest('label').querySelector('ion-input[type="file"]');
     if (fileInput) {
       fileInput.value = '';
     }
     this.selectedFile = '';
-    console.log("this.selectedFile: ", this.selectedFile);
+    this.editModeFile = '';
 
     this.editModeFile = '';
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');

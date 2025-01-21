@@ -65,13 +65,7 @@ export class FilesService {
     const storage = getStorage();
     getDownloadURL(ref(storage, urlFile))
         .then((url) => {
-            console.log("'url: ", url);
-
-            // Extract the full file name from directories
-            const fullFileName = urlFile.split('/').pop();
-
-            // Remove the unique ID prefix
-            const fileName = fullFileName.slice(21);
+            const fileName = this.extractFileName(urlFile);
 
             // Perform the download
             const xhr = new XMLHttpRequest();
@@ -98,6 +92,15 @@ export class FilesService {
             }
             alert("לא ניתן להוריד את הקובץ");
         });
+}
+
+extractFileName(file: string): string {
+  // Extract the full file name from directories
+  const fullFileName = file.split('/').pop();
+
+  // Remove the unique ID prefix
+  const fileName = fullFileName.slice(21);
+  return fileName
 }
 
   public async getFirebaseUrlFile(urlFile: string) {

@@ -39,9 +39,10 @@
                 </ng-container>
                 <!-- select input -->
                 <ng-container *ngSwitchCase="formTypes.DDL">
-                  <app-multi-input *ngIf="col.name === expenseFormColumns.SUPPLIER && displaySuppliersList"
+                  <!-- Use app-multi-input only if changing the supplier field to DDL. -->
+                  <!-- <app-multi-input *ngIf="col.name === expenseFormColumns.SUPPLIER && displaySuppliersList"
                     class="modal-input-30" [controlName]="expenseFormColumns.SUPPLIER" [items]="displaySuppliersList"
-                    [parentForm]="addExpenseForm" [title]="'ספק'"></app-multi-input>
+                    [parentForm]="addExpenseForm" [title]="'ספק'"></app-multi-input> -->
                   <app-generic-select
                     *ngIf="userData.isTwoBusinessOwner && col.name === expenseFormColumns.BUSINESS_NUMBER"
                     class="modal-input-30" [parentForm]="addExpenseForm"
@@ -84,6 +85,9 @@
                 <ion-icon size="large" name="document-outline"></ion-icon>
               </div>
             </ng-template>
+            <p *ngIf="errorFile">
+              אירעה שגיאה לא ניתן להעלות קובץ זה
+            </p>
             <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
             <div class="wrap-del-change-file">
               <p><b>{{((isEditMode && !editModeFile) || selectedFile || pdfLoaded ) ? "שנה קובץ" : "בחר קובץ"}}</b></p>
