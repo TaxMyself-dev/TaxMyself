@@ -7,7 +7,7 @@ import { IonicModule } from '@ionic/angular';
 import { MyStoragePageRoutingModule } from './my-storage-routing.module';
 
 import { MyStoragePage } from './my-storage.page';
-import { SharedModule } from 'src/app/shared/shared.module';
+import { SharedModule } from '../../shared/shared.module';
 
 @NgModule({
   imports: [

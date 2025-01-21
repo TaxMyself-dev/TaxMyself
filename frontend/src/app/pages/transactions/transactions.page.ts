@@ -15,7 +15,7 @@ import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
-import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
+import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confirm.component';
 
 @Component({
   selector: 'app-transactions',
@@ -797,7 +797,7 @@ export class TransactionsPage implements OnInit {
 
   openPopupSelect(): void {
     from(this.modalController.create({
-      component: PopupSelectComponent,
+      component: PopupConfirmComponent,
       componentProps: {
         message: "עבור איזה עסק אתה רוצה להפיק דוח?",
         options: this.bussinesesList,

@@ -44,7 +44,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
-    this.itemsNavigate[0].selected = true;
+    this.itemsNavigate[0].selected = true;    
 
     const personalForm = this.formBuilder.group({
       [RegisterFormControls.FIRSTNAME]: new FormControl(
@@ -63,7 +63,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
       [RegisterFormControls.DATEOFBIRTH]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', this.requierdField ? [Validators.required] : null,
       ),
       [RegisterFormControls.EMPLOYEMENTSTATUS]: new FormControl(
         false, Validators.required,

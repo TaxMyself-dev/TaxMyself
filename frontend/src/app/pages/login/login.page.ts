@@ -103,23 +103,34 @@ export class LoginPage implements OnInit {
     const formData = this.loginForm.value;
     this.genericService.getLoader()
       .pipe(
-        finalize(() => {
-          this.genericService.dismissLoader();
-          console.log("in finlize");  
+        switchMap(() => {
+          console.log("before verify mail");
+          
+         return  from(this.authService.userVerify(formData.userName, formData.password))
         }),
-        switchMap(() => from(this.authService.userVerify(formData.userName, formData.password))),
         catchError((err) => {
           console.log("err in user verify in sign in", err);
           return EMPTY;
         }),
-        filter((res) => {
+        // filter((res) => {
+        //   if (!res?.user?.emailVerified) {
+        //     console.log("in email error");
+        //     // this.genericService.dismissLoader();
+        //     this.authService.error$.next("email");
+        //   }
+        //   this.userCredential = res;
+        //   return res?.user?.emailVerified;
+        // }),
+        switchMap((res) => {
           if (!res?.user?.emailVerified) {
+            console.log("in ");
+            
             this.authService.error$.next("email");
+            return EMPTY;
           }
           this.userCredential = res;
-          return res?.user?.emailVerified;
+         return this.authService.signIn(this.userCredential)
         }),
-        switchMap(() => this.authService.signIn(this.userCredential)),
         catchError((err) => {
           console.log("error in sign-in of login page: ", err);
           return EMPTY;
@@ -130,6 +141,11 @@ export class LoginPage implements OnInit {
           this.router.navigate(['my-account']);
           this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
         }),
+        finalize(() => {
+          console.log("Finalize called - Dismissing loader");
+          this.genericService.dismissLoader();
+        })
+       
       )
       .subscribe()
   }

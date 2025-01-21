@@ -53,7 +53,7 @@ export class AuthService {
         // Fetch the latest token
         const idToken = await user.getIdToken();
         const currentTime = new Date().toLocaleString(); // Human-readable time
-        console.log(`Token refreshed at ${currentTime}:`, idToken);
+        // console.log(`Token refreshed at ${currentTime}:`, idToken);
         console.log("user is ", user);
         
         // Store the token in local storage for easy access
@@ -87,11 +87,14 @@ export class AuthService {
 
   userVerify(email: string, password: string): Observable<UserCredential> {
     // Set token persistence to 'local' (persist the session across browser reloads and sessions)
-    return from(this.afAuth.setPersistence('local').then(() => {
+    // return from(this.afAuth.setPersistence('local').then(() => {
         // After persistence is set, attempt to sign in
-        return this.afAuth.signInWithEmailAndPassword(email, password);
-    })).pipe(
+        return from(this.afAuth.signInWithEmailAndPassword(email, password))
+    // }
+  // ))
+  .pipe(
         catchError((err) => {
+          this.genericService.dismissLoader();
           console.log("Error in sign in with email: ", err);
           this.handleErrorLogin(err.code);
           return throwError(() => err);
@@ -235,7 +238,7 @@ export class AuthService {
   }
 
   SignUp(formData: any): Observable<any> {
-    let uid: string = "";
+        let uid: string = "";
     this.genericService.getLoader().subscribe();
     return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.validation.password))
       .pipe(

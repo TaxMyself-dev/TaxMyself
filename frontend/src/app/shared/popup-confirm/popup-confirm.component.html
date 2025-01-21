@@ -1,0 +1,9 @@
+<div class="wrap-modal">
+  <div class="wrap-message">{{message}}</div>
+  <div class="wrap-buttons-message">
+    <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonTextConfirm"
+      (onButtonClicked)="confirm()"></app-button>
+    <app-button [buttonText]="buttonTextCancel" [buttonSize]="ButtonSize.SMALL"
+      (onButtonClicked)="cancel()"></app-button>
+  </div>
+</div>

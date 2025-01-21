@@ -85,6 +85,9 @@ export class MultiInputComponent  implements OnInit {
   }
 
   selectCategory(category: string) {
+    this.parentForm.patchValue({
+      [this.controlName]: category
+    });
     this.categoryInput = "";
     this.categoryInput = category; // Set the input to the selected category
     this.showDropdown = false; // Close the dropdown

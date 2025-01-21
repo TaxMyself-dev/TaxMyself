@@ -3,7 +3,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { IClassifyTrans, IColumnDataTable, IDisplayCategorytDetails, IGetSubCategory, ISelectItem } from '../interface';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
-import { EMPTY, catchError, finalize, map, tap, zip } from 'rxjs';
+import { EMPTY, catchError, finalize, map, switchMap, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ModalController } from '@ionic/angular';
 import { GenericService } from 'src/app/services/generic.service';
@@ -336,8 +336,7 @@ export class AddTransactionComponent implements OnInit {
   }
 
   addClasssificationNewCategory(): void {
-    
-    this.genericvService.getLoader().subscribe()
+
     let formData: IClassifyTrans;
     if (this.incomeMode) {
       if (this.isRecognize) {
@@ -356,13 +355,15 @@ export class AddTransactionComponent implements OnInit {
     }
     else {
       formData = this.newCategoryIsRecognizeForm.value;
+      console.log("form before set: ", formData);
+
       if (this.isRecognize) {
         formData.isExpense = true;
         formData.isEquipment === 1 ? formData.isEquipment = true : formData.isEquipment = false;
         formData.isSingleUpdate === 1 ? formData.isSingleUpdate = true : formData.isSingleUpdate = false;
         formData.taxPercent = +formData.taxPercent;
         formData.vatPercent = +formData.vatPercent;
-        formData.reductionPercent = +formData.reductionPercent;
+        formData.reductionPercent = formData.reductionPercent ? +formData.reductionPercent : 0;
       }
       else {
         formData = this.newCategoryNotRecognizedForm.value;
@@ -383,14 +384,18 @@ export class AddTransactionComponent implements OnInit {
     formData.billName = this.data.billName;
     formData.name = this.data.name;
     console.log(formData);
-    this.transactionsService.addClassifiction(formData, this.date)
+
+    this.genericvService.getLoader()
       .pipe(
+        switchMap(() => this.transactionsService.addClassifiction(formData, this.date)),
         catchError((err) => {
+          console.log("err in addClassifiction: ", err);
           return EMPTY;
-        })
+        }),
+        finalize(() => this.genericvService.dismissLoader())
       )
       .subscribe((res) => {
-        this.genericvService.dismissLoader()
+        this.genericvService.dismissLoader();
         this.modalController.dismiss(null, 'send');
         this.isOpenToast = true;
         console.log(res);

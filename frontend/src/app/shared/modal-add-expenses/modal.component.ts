@@ -1,13 +1,12 @@
-import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef, TemplateRef } from '@angular/core';
+import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef, TemplateRef, Inject } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
-import { LoadingController, ModalController, NavParams } from '@ionic/angular';
+import { LoadingController, ModalController, PopoverController, NavParams } from '@ionic/angular';
 import { IButtons, IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable, ISelectItem, IUserDate } from '../interface';
 import { KeyValue, formatDate } from '@angular/common';
-import { PopupMessageComponent } from '../popup-message/popup-message.component';
+import { PopupConfirmComponent } from '../popup-confirm/popup-confirm.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { cloneDeep, isEqual } from 'lodash';
-import { PopoverController } from '@ionic/angular';
 import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
 import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of, BehaviorSubject } from 'rxjs';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
@@ -17,6 +16,7 @@ import { Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { PopupMessageComponent } from '../popup-message/popup-message.component';
 
 @Component({
   selector: 'app-modal',
@@ -25,52 +25,48 @@ import { GenericService } from 'src/app/services/generic.service';
 })
 export class ModalExpensesComponent {
   @Input() set editMode(val: boolean) {
-    this.title = val ? "עריכת הוצאה" : "הוספת הוצאה";
+    val ? this.title = "עריכת הוצאה" : this.title = "הוספת הוצאה";
     this.isEditMode = !!val;
   };
+
   // data for edit mode:
   @Input() set data(val: IRowDataTable) {
     if (val) {
       console.log("val in modal", val);
-      if (val.isEquipment === false) {
-        val.isEquipment = "0";
-        this.isEquipment = false;
-      }
-      else if (val.isEquipment === true) {
-        val.isEquipment = "1";
-        this.isEquipment = true;
-      }
-      this.id = +val.id;
-      this.getCategory(val);
       if (val.file != "" && val.file != undefined) {
-        this.editModeFile = "loading"; // for the icon of choose file does not show
+        this.loadingFile = true;
         this.fileService.getFirebaseUrlFile(val.file as string)
           .then((res) => {
-            console.log(res);
-
-            this.editModeFile = res.file;
             if (res.type === "application/pdf") {
               this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(res.file);
               this.pdfLoaded = true;
             }
-            console.log("in then", this.editModeFile);
+            else {
+              this.editModeFile = res.file; // For png file
+            }
+            this.loadingFile = false;
+            console.log("url edit mode file: ", this.editModeFile);
           })
-        console.log("url edit mode file: ", this.editModeFile);
       }
+      if (val.isEquipment === false) {
+        val.isEquipment = "0";
+        this.isEquipment = false;
+      }
+      else {
+        val.isEquipment = "1";
+        this.isEquipment = true;
+      }
+      this.id = +val.id;
+      this.getCategory(val);// The list is needed for displing category field
+
     }
   };
   @Input() buttons: IButtons[];
   @Input() set columns(val: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]) {
     this.fileItem = val?.find((item: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) => item.type === FormTypes.FILE);
-    // const newColumn: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns> = {
-    //   name: ExpenseFormColumns.BUSINESS_NUMBER,
-    //   value: ExpenseFormHebrewColumns.businessNumber,
-    //   type: this.formTypes.DDL
-    // }
-    // this.columnsList = [...val, newColumn];
     this.columnsList = val;
   }
-  @Input() customFooterTemplate: TemplateRef<any>;
+  // @Input() customFooterTemplate: TemplateRef<any>;
 
 
   get columns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
@@ -86,31 +82,21 @@ export class ModalExpensesComponent {
   readonly expenseFormHebrewColumns = ExpenseFormHebrewColumns;
   readonly ButtonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
-  readonly inputStyles = new Map<ExpenseFormColumns, {}>([
-    [ExpenseFormColumns.DATE, { 'width': '30%' }],
-    [ExpenseFormColumns.SUM, { 'width': '30%' }],
-    [ExpenseFormColumns.EXPENSE_NUMBER, { 'width': '30%' }],
-    [ExpenseFormColumns.SUPPLIER, { 'width': '47%' }],
-    [ExpenseFormColumns.SUPPLIER_ID, { 'width': '47%' }],
-    [ExpenseFormColumns.TAX_PERCENT, { 'width': '30%' }],
-    [ExpenseFormColumns.VAT_PERCENT, { 'width': '30%' }],
-    [ExpenseFormColumns.REDUCTION_PERCENT, { 'width': '30%' }],
-    [ExpenseFormColumns.NOTE, { 'width': '100%', '--border-style': 'none', 'border-bottom': '1px solid gray', 'border-radius': '0px' }],
-  ]);
 
 
-  isEnlarged: boolean = false;
   isEquipment: boolean;
   isEditMode: boolean = false;
-  // TODO: should modal be generic? if so remove the expense specific declerations
   columnsList: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   fileItem: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>;
-  columnsFilter: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
+  // columnsFilter: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[];
   title: string = "הוספת הוצאה";
   initialForm: FormGroup;
   addExpenseForm: FormGroup;
-  selectedFile: string = "";
-  editModeFile: string = "";
+  selectedFile: string = ""; // Hold the file string.
+  editModeFile: string = ""; // Hold the file string in edit mode.
+  safePdfBase64String: SafeResourceUrl;// Hold the PDF file string.
+  pdfLoaded: boolean = false; // flag to know the user choosed PDF file.
+  loadingFile: boolean = false;
   id: number;
   equipmentList: ISelectItem[] = [{ name: "לא", value: "0" }, { name: "כן", value: "1" }];
   categoryList: ISelectItem[];
@@ -118,24 +104,19 @@ export class ModalExpensesComponent {
   originalSubCategoryList: IGetSubCategory[];
   displaySuppliersList: ISelectItem[];
   originalSuppliersList: IGetSupplier[];
-  doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
+  // doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
   doneLoadingSubCategoryList$ = new BehaviorSubject<boolean>(false);
-  subCategoriesListDataMap = new Map<string, any[]>();
-  categoriesListDataMap = new Map<boolean, any[]>();
+  // subCategoriesListDataMap = new Map<string, any[]>();
+  // categoriesListDataMap = new Map<boolean, any[]>();
   errorString: string = "";
-  isOpen: boolean = false;
-  isSelectSupplierMode: boolean = false;
-  // isToastOpen: boolean = false;
-  safePdfBase64String: SafeResourceUrl;
-  //safePdfBase64String$ = new BehaviorSubject<SafeResourceUrl>('');
-  pdfLoaded: boolean = false;
-  maxDate: string;
+  isSelectSupplierMode: boolean = false; // flag to update supplier details in add expense form
+  // maxDate: string;
   fileToUpload: File;
   userData: IUserDate;
   businessList: ISelectItem[] = [];
 
 
-  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private loadingController: LoadingController, private sanitizer: DomSanitizer, private authService: AuthService, private genericService: GenericService, private router: Router) {
+  constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private loadingController: LoadingController, private sanitizer: DomSanitizer, private authService: AuthService, private genericService: GenericService, private router: Router, private popoverController: PopoverController) {
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
   }
 
@@ -143,35 +124,35 @@ export class ModalExpensesComponent {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
-      const businessNumberExists = this.columnsList.find(
+      const businessNumberFieldExists = this.columnsList.find( 
         (column) => column.name === ExpenseFormColumns.BUSINESS_NUMBER
       );
-      if (!businessNumberExists)
-        this.columnsList.push({
+      if (!businessNumberFieldExists) {
+        this.columnsList.push({ // add businessNumber field if not exist
           name: ExpenseFormColumns.BUSINESS_NUMBER,
           value: ExpenseFormHebrewColumns.businessNumber,
           type: this.formTypes.DDL
         });
+      }
       this.businessList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-
     }
     this.orderColumns();
     const today = new Date();
-    this.maxDate = this.formatDate(today);
+    // this.maxDate = this.formatDate(today);
     this.getCategory();
     this.initForm();
-    this.getSuppliers();
+    // this.getSuppliers();
   }
 
-  formatDate(date: Date): string {
-    return formatDate(date, 'YYYY-MM-dd', 'en-US');
-  }
+  // formatDate(date: Date): string {
+  //   return formatDate(date, 'YYYY-MM-dd', 'en-US');
+  // }
 
   initForm(data?: IRowDataTable): void {
     console.log("data in init form modal edit", data);
     if (data) {
-      this.getSubCategory(data?.category as string)
+      this.getSubCategory(data?.category as string)// // The list is needed for displing subCategory field
     }
 
     this.addExpenseForm = this.formBuilder.group({
@@ -183,8 +164,8 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || '', [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
       [ExpenseFormColumns.DATE]: [data?.date || Date, Validators.required,],
       [ExpenseFormColumns.NOTE]: [data?.note || ''],
-      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || '', [ Validators.pattern(/^\d+$/)]],
-      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || '', [ Validators.pattern(/^\d+$/)]],
+      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || '', [Validators.pattern(/^\d+$/)]],
+      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || '', [Validators.pattern(/^\d+$/)]],
       [ExpenseFormColumns.FILE]: [data?.file || File],// TODO: what to show in edit mode
       [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
       [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0, [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
@@ -197,23 +178,6 @@ export class ModalExpensesComponent {
     this.initialForm = cloneDeep(this.addExpenseForm);
   }
 
-  convertPdfFileToBase64String(file: File) {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener('load', () => {
-        const result = reader.result;
-
-        if (!result) {
-          reject('result is null');
-          return;
-        }
-
-        resolve(reader.result.toString());
-      });
-      reader.addEventListener('error', reject);
-      reader.readAsDataURL(file);
-    });
-  }
 
   orderColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     const desiredOrder = [
@@ -276,7 +240,7 @@ export class ModalExpensesComponent {
 
 
   async fileSelected(event: any) {
-    this.pdfLoaded = false;// on change pdf to image
+    this.pdfLoaded = false; // If user change from pdf file to png file
     let file = event.target.files[0];
     this.fileToUpload = file;
     if (!file) {
@@ -299,22 +263,24 @@ export class ModalExpensesComponent {
       if (!file) {
         return;
       }
-
-      const rawPdfBase64String = await this.convertPdfFileToBase64String(file);
-      this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(rawPdfBase64String);
+      this.fileService.convertFileToBase64(file)
+      .subscribe((res) => {
+        this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(res);
+      })
+      // const rawPdfBase64String = await this.fileService.convertFileToBase64(file);
       this.pdfLoaded = true;
     }
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
-      if (this.isEditMode) {
-        this.editModeFile = reader.result as string;
-        this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
-      }
-      else {
-        this.selectedFile = reader.result as string;
-      }
+      // if (this.isEditMode) {
+      this.editModeFile = reader.result as string;
+      this.selectedFile = reader.result as string;//for update expense can mabey change the func update 
+      // }
+      // else {
+      // this.selectedFile = reader.result as string;
+      // }
       console.log(this.selectedFile);
 
     }
@@ -327,7 +293,7 @@ export class ModalExpensesComponent {
   disableSave(): boolean {
     return !this.addExpenseForm.valid ||
       (this.isEditMode ?
-        (isEqual(this.initialForm.value, this.addExpenseForm.value) && this.selectedFile === "")
+        (isEqual(this.initialForm.value, this.addExpenseForm.value) && this.selectedFile !== "")
         : false);
   }
 
@@ -355,16 +321,11 @@ export class ModalExpensesComponent {
   }
 
   add(): void {
-    // const formData = this.addExpenseForm.value;
-    // console.log(formData);
-    // this.setFormData("sdf", "Sdfg");
-    this.genericService.getLoader().subscribe();
     let filePath = '';
-    this.getFileData().
-      pipe(
-        finalize(() => {
-          this.genericService.dismissLoader();
-        }),
+    this.genericService.getLoader()
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        switchMap(() => this.getFileData()),
         catchError((err) => {
           alert('Something Went Wrong in first catchError: ' + err.message)
           return EMPTY;
@@ -386,12 +347,11 @@ export class ModalExpensesComponent {
           console.log(err);
           if (err.status == 401) {
             this.errorString = "משתמש לא חוקי , אנא התחבר למערכת";
-            this.isOpen = true;
           }
           if (err.status == 0) {
             this.errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
-            this.isOpen = true;
           }
+          this.openPopoverMessage(this.errorString)
           if (filePath !== '') {
             this.fileService.deleteFile(filePath);
           }
@@ -408,7 +368,7 @@ export class ModalExpensesComponent {
       });
   }
 
-  getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path and if not returns null
+  getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path. if not returns null
     return this.fileToUpload ? this.fileService.uploadFileViaFront(this.fileToUpload) : of(null);
   }
 
@@ -449,6 +409,33 @@ export class ModalExpensesComponent {
         this.expenseDataServise.updateTable$.next(true);
       }
     });
+  }
+
+  openPopoverMessage(message: string): void {
+    from(this.popoverController.create({
+      component: PopupMessageComponent,
+      componentProps: {
+        message,
+      },
+      // cssClass: 
+    }))
+      .pipe(
+        catchError((err) => {
+          console.log("open Popover message failed in create ", err);
+          return EMPTY;
+        }),
+        switchMap((popover) => {
+          const popoverElement = popover as HTMLIonPopoverElement;
+          return from(popoverElement.present()).pipe(
+            switchMap(() => from(popoverElement.onDidDismiss()))
+          )
+        }),
+        catchError((err) => {
+          console.log("open Popover message failed in present ", err);
+          return EMPTY;
+        })
+      )
+      .subscribe()
   }
 
   onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
@@ -523,7 +510,6 @@ export class ModalExpensesComponent {
       if (res.role === 'success') {// if the popover closed due to onblur dont change values 
         if (res !== null && res !== undefined) {
           if (res) {
-
             if (res.data.isEquipment == false) {
               res.data.isEquipment = "0";
               this.isEquipment = false;
@@ -533,7 +519,7 @@ export class ModalExpensesComponent {
               this.isEquipment = true;
             }
             this.isSelectSupplierMode = true;
-            this.getCategory(res.data);
+            this.getCategory(res.data); // // The list is needed for displing category field
           }
         }
       }
@@ -571,28 +557,27 @@ export class ModalExpensesComponent {
 
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
     const { date, file, sum, note, expenseNumber, ...newFormData } = formData;
-    this.genericService.getLoader().subscribe();
-
-    this.expenseDataServise.addSupplier(newFormData)
+    this.genericService.getLoader()
       .pipe(
         finalize(() => this.genericService.dismissLoader()),
+        switchMap(() => this.expenseDataServise.addSupplier(newFormData)),
         catchError((err) => {
           if (err.status == 0) {
-            this.loadingController.dismiss();
+            // this.loadingController.dismiss();
             this.errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
-            this.isOpen = true;
+            // this.isOpen = true;
           }
           if (err.status == 401) {
-            this.loadingController.dismiss();
+            // this.loadingController.dismiss();
             this.errorString = "משתמש לא חוקי , אנא התחבר למערכת";
-            this.isOpen = true;
+            // this.isOpen = true;
           }
           if (err.status == 409) {
-            this.loadingController.dismiss();
+            // this.loadingController.dismiss();
             this.errorString = "כבר קיים ספק בשם זה, אנא בחר שם שונה. אם ברצונך לערוך ספק זה אנא  לחץ על כפתור עריכה דרך הרשימה .";
-            this.isOpen = true;
+            // this.isOpen = true;
           }
-
+          this.openPopoverMessage(this.errorString)
           console.log("err in add supplier: ", err);
           return EMPTY;
         }),
@@ -601,10 +586,6 @@ export class ModalExpensesComponent {
         console.log("res in add supplier:", res);
         this.getSuppliers();
       })
-  }
-
-  closePop(): void {
-    this.isOpen = false;
   }
 
   valueAscOrder(a: KeyValue<string, string>, b: KeyValue<string, string>): number {// stay the list of fields in the original order
@@ -684,18 +665,8 @@ export class ModalExpensesComponent {
       .subscribe()
   }
 
-  getCategory(data?: IRowDataTable): void {
-    // console.log("in get category");
-    // const categoryList = this.categoriesListDataMap.get(this.isEquipment);
-    // if (categoryList) {
-    //   console.log("in category list");
-
-    //   this.categoryList = categoryList;
-    //   return;
-    // }
+  getCategory(data?: IRowDataTable | IGetSupplier): void {
     console.log("in get category: ", data);
-
-
     this.expenseDataServise.getcategry()
       .pipe(
         catchError((err) => {
@@ -715,16 +686,19 @@ export class ModalExpensesComponent {
         // switchMap((data) => this.getSubCategory(data. as string)),
         tap((res) => {
 
-          if (data && this.isEditMode || data && this.isSelectSupplierMode) {
-            this.initForm(data);
+          if (data && this.isSelectSupplierMode) {
+            this.selectedSupplier(data as IGetSupplier)
+          }
+          else if (data && this.isEditMode) {
+            this.initForm(data as IRowDataTable);
           }
         })
       ).subscribe();
   }
 
-  async openPopupMessage(message: string) {
+  async openPopupConfirm(message: string) {
     const modal = await this.modalCtrl.create({
-      component: PopupMessageComponent,
+      component: PopupConfirmComponent,
       //showBackdrop: false,
       componentProps: {
         message: message,
@@ -786,7 +760,11 @@ export class ModalExpensesComponent {
   }
 
   selectedSupplier(data: IGetSupplier): void {
+    this.getSubCategory(data?.category as string)// The list is needed for displing subCategory field
+
     this.addExpenseForm.patchValue({ category: data.category });
+    this.addExpenseForm.patchValue({ supplier: data.supplier });
+    this.addExpenseForm.patchValue({ isEquipment: data.isEquipment });
     this.addExpenseForm.patchValue({ subCategory: data.subCategory });
     this.addExpenseForm.patchValue({ supplierID: data.supplierID });
     this.addExpenseForm.patchValue({ taxPercent: data.taxPercent });
@@ -797,7 +775,7 @@ export class ModalExpensesComponent {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string;
   }
 
-  deleteFile(event: any): void {
+  deleteFileFromScreen(event: any): void {
     const fileInput = event.target.closest('label').querySelector('ion-input[type="file"]');
     if (fileInput) {
       fileInput.value = '';

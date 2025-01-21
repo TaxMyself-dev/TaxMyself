@@ -7,7 +7,7 @@ import { IonicModule } from '@ionic/angular';
 import { PnLReportPageRoutingModule } from './pnl-report-routing.module';
 
 import { PnLReportPage } from './pnl-report.page';
-import { SharedModule } from 'src/app/shared/shared.module';
+import { SharedModule } from '../../shared/shared.module';
 
 @NgModule({
   imports: [

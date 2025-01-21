@@ -68,32 +68,33 @@
           <div class="div-wrap">
             <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
               <div *ngIf="!pdfLoaded" class="file-container">
-                <ng-container *ngIf="displayFile() && !(displayFile() == 'loading'); else loader">
+                  <ng-container *ngIf="displayFile() && !(displayFile() == 'loading'); else loader">
                   <img class="image-file" [src]="displayFile()" alt="file" />
                 </ng-container>
               </div>
-              <ng-container *ngIf="getPdfData(); else loader">
+                <ng-container *ngIf="getPdfData(); else loader">
                 <object *ngIf="pdfLoaded" type="application/pdf" width="100%" height="100%" style="min-height: 500px;"
                   [data]="getPdfData()">
                 </object>
               </ng-container>
             </ng-container>
             <ng-template #notFile>
-              <p class="text-file-type">ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
-              <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
-                <ion-icon size="large" name="document-outline"></ion-icon>
-              </div>
+              <ng-container *ngIf="!loadingFile; else loader">
+                <p class="text-file-type">ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
+                <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
+                  <ion-icon size="large" name="document-outline"></ion-icon>
+                </div>
+              </ng-container>
             </ng-template>
-            <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
+            <p *ngIf="isEditMode && !editModeFile && !loadingFile && !safePdfBase64String">לא נשמר קובץ עבור הוצאה זאת</p>
             <div class="wrap-del-change-file">
               <p><b>{{((isEditMode && !editModeFile) || selectedFile || pdfLoaded ) ? "שנה קובץ" : "בחר קובץ"}}</b></p>
-              <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
+              <p *ngIf="selectedFile || editModeFile || pdfLoaded" (click)="deleteFileFromScreen($event)">מחק קובץ</p>
             </div>
           </div>
           <ion-input (change)="fileSelected($event)" label-placement="floating" type="file"
             accept=".pdf, .png, .jpeg, .jpg">
           </ion-input>
-          <!-- <app-generic-input *ngIf="fileItem" [inputType]="formTypes.FILE" [controlName]="fileItem.name" accept=".pdf, .png, .jpeg, .jpg" [parentForm]="addExpenseForm" (onInputChange)="fileSelected($event)"></app-generic-input> -->
         </label>
       </div>
 
@@ -113,7 +114,6 @@
     </form>
   </div>
 </ion-content>
-<!-- </ion-modal> -->
 
 
 <ng-template #loader>
@@ -123,20 +123,3 @@
 <ng-template #lineLoader>
   <ion-loading></ion-loading>
 </ng-template>
-
-<ion-popover [isOpen]="isOpen">
-  <ng-template>
-    <ion-content>
-      <div class="wrap-message">
-        <div>{{errorString}}</div>
-        <div class="wrap-buttons-message">
-          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="OK" (onButtonClicked)="closePop()"></app-button>
-        </div>
-      </div>
-    </ion-content>
-  </ng-template>
-</ion-popover>
-
-<!-- <ion-toast [isOpen]="isToastOpen" message="ספק נשמר בהצלחה" [duration]="3000" (didDismiss)="setOpenToast()"></ion-toast> -->
-
-<!-- </div> -->

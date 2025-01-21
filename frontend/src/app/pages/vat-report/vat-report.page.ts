@@ -10,7 +10,7 @@ import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserDat
 import { Router } from '@angular/router';
 import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
-import { PopupMessageComponent } from 'src/app/shared/popup-message/popup-message.component';
+import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confirm.component';
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
@@ -183,7 +183,7 @@ export class VatReportPage implements OnInit {
       this.isSkip = true;
       event.event.preventDefault()
         from(this.modalController.create({
-          component: PopupMessageComponent,
+          component: PopupConfirmComponent,
           componentProps: {
             message: "להוצאה זו כבר שמור קובץ, אתה בטוח שברצונך להחליפו?",
             buttonTextConfirm: "כן",
