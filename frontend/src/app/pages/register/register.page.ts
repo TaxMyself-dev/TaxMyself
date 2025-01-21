@@ -71,28 +71,28 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.FAMILYSTATUS]: new FormControl(
-        '', Validators.required,
+        null, Validators.required,
       ),
     })
 
     const spouseForm = this.formBuilder.group({
       [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? Validators.required : null,
+        null, this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSELASTNAME]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? Validators.required : null,
+        null, this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEID]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
+        null, this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
       ),
       [RegisterFormControls.SPOUSEDATEOFBIRTH]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? Validators.required : null,
+        null, this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? Validators.required : null,
+        null, this.requierdField && !this.isSingle() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
-        '', this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
+        null, this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
     })
 
@@ -117,19 +117,19 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
-        '', this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
-        '', this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
-        '', this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
-        '', this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
-        '', this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() ? Validators.required : null,
       ),
     })
 
@@ -270,7 +270,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   handleFormRegister() {
     const formData = cloneDeep(this.myForm.value);
     formData.validation = { password: formData?.validation?.password };
-    formData.personal.city = formData?.personal?.city?.name;
     const data = { fromReg: false, email: formData.email };
     this.authService.SignUp(formData).subscribe(() => {
       this.router.navigate(['login'], { queryParams: { from: 'register' } })

@@ -40,7 +40,7 @@ export class MultiInputComponent  implements OnInit {
 
 
   inputLabelName: string;
-  categoryInput: string = ''; // Bound to the input
+  categoryInput: string; // Bound to the input
   showDropdown: boolean = false;
   filteredCategories: ISelectItem[];
   fullItems: ISelectItem[];
@@ -88,6 +88,9 @@ export class MultiInputComponent  implements OnInit {
     this.categoryInput = "";
     this.categoryInput = category; // Set the input to the selected category
     this.showDropdown = false; // Close the dropdown
+    this.parentForm.patchValue({
+      [this.controlName]: category
+    });
   }
 
   setPopoverPosition() {

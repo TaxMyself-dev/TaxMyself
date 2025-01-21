@@ -46,7 +46,7 @@ export class AddBillComponent implements OnInit {
       this.addBillForm.get('businessNumber')?.setValidators([Validators.required]);
     }
     else {
-      this.addBillForm.get('businessNumber')?.patchValue(this.userData.id);
+      this.addBillForm.get('businessNumber')?.patchValue(this.userData.businessNumber);
       console.log(this.addBillForm.get('businessNumber')?.value);
     }
     this.transactionsService.accountsList$

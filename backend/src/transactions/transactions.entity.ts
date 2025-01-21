@@ -35,32 +35,32 @@ export class Transactions {
   @Column('date')
   billDate: Date;
 
-  @Column('date')
-  payDate: Date;
+  @Column({ type: 'date', nullable: true, default: null })
+  payDate: Date | null;
 
   @Column('decimal', { precision: 10, scale: 2 })
   sum: number;
 
-  @Column()
-  category: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  category: string | null;
 
-  @Column()
-  subCategory: string;
+  @Column({ type: 'varchar', nullable: true, default: null })
+  subCategory: string | null;
 
-  @Column('boolean', { default: false })
-  isRecognized: boolean;
+  @Column({ type: 'boolean', nullable: true, default: false })
+  isRecognized: boolean | null;
 
-  @Column()
-  vatPercent: number;
+  @Column({ type: 'int', nullable: true, default: 0 })
+  vatPercent: number | null;
 
-  @Column()
-  taxPercent: number;
+  @Column({ type: 'int', nullable: true, default: 0 })
+  taxPercent: number | null;
 
-  @Column('boolean', { default: false })
-  isEquipment: boolean;
+  @Column({ type: 'boolean', nullable: true, default: false })
+  isEquipment: boolean | null;
 
-  @Column()
-  reductionPercent: number;
+  @Column({ type: 'int', nullable: true, default: 0 })
+  reductionPercent: number | null;
 
   @Column({
     type: 'varchar',

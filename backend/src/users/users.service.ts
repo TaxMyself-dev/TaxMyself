@@ -90,6 +90,11 @@ export class UsersService {
             ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH))) {
             newUser.isTwoBusinessOwner = true;
         }
+        else {
+            newUser.isTwoBusinessOwner = false;
+        }
+
+        newUser.finsiteId = 0;
 
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);

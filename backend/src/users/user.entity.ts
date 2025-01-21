@@ -79,28 +79,29 @@ export class User {
     /////////   Spouse details  ////////
     ////////////////////////////////////
 
-    @Column()
-    spouseFName: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseFName: string | null;
 
-    @Column()
-    spouseLName: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseLName: string | null;
 
-    @Column()
-    spouseId: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseId: string | null;
 
-    @Column('date')
-    spouseDateOfBirth: Date;
+    @Column({ type: 'date', nullable: true, default: null })
+    spouseDateOfBirth: Date | null;
 
-    @Column()
-    spousePhone: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spousePhone: string | null;
 
     @Column({
       type: 'enum',
       enum: EmploymentType,
       enumName: 'EmploymentType',
+      nullable: true,
       default: EmploymentType.SELF_EMPLOYED
     })
-    spouseEmploymentStatus: EmploymentType;
+    spouseEmploymentStatus: EmploymentType | null;
 
     ////////////////////////////////////
     ////////  Buisness 1 details  //////
@@ -109,8 +110,8 @@ export class User {
     @Column()
     businessName: string;
 
-    @Column()
-    businessField: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    businessField: string | null;
 
     @Column()
     businessNumber: string;
@@ -149,43 +150,46 @@ export class User {
     ////////  Buisness 2 details  //////
     ///////////////////////////////////
 
-    @Column()
-    spouseBusinessName: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseBusinessName: string | null;
 
-    @Column()
-    spouseBusinessField: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseBusinessField: string | null;
 
-    @Column()
-    spouseBusinessNumber: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseBusinessNumber: string | null;
 
     @Column({
       type: 'enum',
       enum: BusinessType,
       enumName: 'BusinessType',
+      nullable: true,
       default: BusinessType.EXEMPT
     })
-    spouseBusinessType: BusinessType;
+    spouseBusinessType: BusinessType | null;
 
-    @Column()
-    spouseBusinessInventory: boolean;
+    @Column({ type: 'boolean', nullable: true, default: null })
+    spouseBusinessInventory: boolean | null;
 
-    @Column('date')
-    spouseBusinessDate: Date;
+    @Column({ type: 'date', nullable: true, default: null })
+    spouseBusinessDate: Date | null;
 
     @Column({
       type: 'enum',
       enum: VATReportingType,
       enumName: 'VATReportingType',
+      nullable: true,
       default: VATReportingType.NOT_REQUIRED
     })
-    spouseVatReportingType: VATReportingType;
+    spouseVatReportingType: VATReportingType | null;
 
     @Column({
       type: 'enum',
       enum: TaxReportingType,
       enumName: 'TaxReportingType',
+      nullable: true,
       default: TaxReportingType.NOT_REQUIRED
     })
-    spouseTaxReportingType: TaxReportingType;
+    spouseTaxReportingType: TaxReportingType | null;
 
 }

@@ -160,6 +160,7 @@ export class TransactionsService {
                   name: transaction.Notes1,
                   note2: transaction.Notes2,
                   billDate: transaction.Date,
+                  payDate: null,
                   sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
                 };
   
@@ -845,6 +846,9 @@ export class TransactionsService {
     endDate: Date
   ): Promise<Transactions[]> {
 
+    console.log("userId is ", userId);
+    console.log("businessNumber is ", businessNumber);
+    
     const expenses = await this.transactionsRepo.find({
       where: [
         {
@@ -856,6 +860,9 @@ export class TransactionsService {
         },
       ]
     });
+
+    console.log("expenses are ", expenses);
+    
 
     return expenses;
 
