@@ -119,14 +119,11 @@ export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChang
     }
   }
 
-
   onSearch(event): void {
     console.log("in table", event);
 
     this.filterBy.emit(event);
   }
-
-
 
   selectAll(): void {
     if (this.isAvailableSelectAll) {

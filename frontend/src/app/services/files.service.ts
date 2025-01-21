@@ -24,41 +24,44 @@ export class FilesService {
   downloadFile(urlFile: string): void {
     const storage = getStorage();
     getDownloadURL(ref(storage, urlFile))
-      .then((url) => {
-        console.log("'url: ", url);
+        .then((url) => {
+            const fileName = this.extractFileName(urlFile);
 
-        // Extract the full file name from directories
-        const fullFileName = urlFile.split('/').pop();
+            // Perform the download
+            const xhr = new XMLHttpRequest();
+            xhr.responseType = 'blob';
+            xhr.onload = (event) => {
+                const blob = new Blob([xhr.response]);
+                const a: HTMLAnchorElement = document.createElement('a');
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                const objectUrl = window.URL.createObjectURL(blob);
+                a.href = objectUrl;
+                a.download = fileName; // Use the cleaned-up file name
+                a.click();
+                window.URL.revokeObjectURL(objectUrl);
+                document.body.removeChild(a); // Clean up
+            };
+            xhr.open('GET', url);
+            xhr.send();
+        })
+        .catch((error) => {
+            console.log("Error downloading file: ", error.code);
+            if (error.code === "storage/object-not-found") {
+                alert("לא שמור קובץ עבור הוצאה זו");
+            }
+            alert("לא ניתן להוריד את הקובץ");
+        });
+}
 
-        // Remove the unique ID prefix
-        const fileName = fullFileName.slice(21);
+extractFileName(file: string): string {
+  // Extract the full file name from directories
+  const fullFileName = file.split('/').pop();
 
-        // Perform the download
-        const xhr = new XMLHttpRequest();
-        xhr.responseType = 'blob';
-        xhr.onload = (event) => {
-          const blob = new Blob([xhr.response]);
-          const a: HTMLAnchorElement = document.createElement('a');
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          const objectUrl = window.URL.createObjectURL(blob);
-          a.href = objectUrl;
-          a.download = fileName; // Use the cleaned-up file name
-          a.click();
-          window.URL.revokeObjectURL(objectUrl);
-          document.body.removeChild(a); // Clean up
-        };
-        xhr.open('GET', url);
-        xhr.send();
-      })
-      .catch((error) => {
-        console.log("Error downloading file: ", error.code);
-        if (error.code === "storage/object-not-found") {
-          alert("לא שמור קובץ עבור הוצאה זו");
-        }
-        alert("לא ניתן להוריד את הקובץ");
-      });
-  }
+  // Remove the unique ID prefix
+  const fileName = fullFileName.slice(21);
+  return fileName
+}
 
   public async getFirebaseUrlFile(urlFile: string) {
     const storage = getStorage();
