@@ -44,7 +44,7 @@ export class ModalExpensesComponent {
       this.getCategory(val);
       if (val.file != "" && val.file != undefined) {
         this.isFileExist = true;
-        this.originalFileName = this.fileService.extratFileName(val.file as string);
+        this.originalFileName = this.fileService.extractFileName(val.file as string);
         console.log("originalFileName: ", this.originalFileName);
 
         this.editModeFile = "loading"; // for the icon of choose file does not show
