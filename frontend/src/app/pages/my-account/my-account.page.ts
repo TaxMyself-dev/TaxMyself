@@ -1,6 +1,4 @@
-import { HttpClient } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
-import { AuthService } from 'src/app/services/auth.service';
 import { IItemNavigate } from 'src/app/shared/interface';
 
 @Component({
@@ -16,7 +14,7 @@ export class MyAccountPage implements OnInit {
                                     { name: "תזרים", link: "/transactions", icon: "swap-vertical-outline", id: '3', index: 'three' }, 
                                     { name: "סטטוס", link: "/my-status", icon: "information-outline", id: '4', index: 'four', disable: true, }, 
                                     { name: "דוחות", link: "/reports", icon: "receipt-outline", id: '5', index: 'five' }];
-  constructor(private http: HttpClient, private authService: AuthService) { }
+  constructor() { }
 
     ngOnInit() {
       

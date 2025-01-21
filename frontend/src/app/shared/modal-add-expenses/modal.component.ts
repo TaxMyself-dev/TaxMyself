@@ -178,16 +178,16 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.CATEGORY]: [data?.category || '', Validators.required],
       [ExpenseFormColumns.SUB_CATEGORY]: [data?.subCategory || '', Validators.required],
       [ExpenseFormColumns.SUPPLIER]: [data?.supplier || data?.name || '', Validators.required],
-      [ExpenseFormColumns.SUM]: [data?.sum || '', Validators.required],
-      [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || ''],
-      [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || ''],
+      [ExpenseFormColumns.SUM]: [data?.sum || '', [Validators.required, Validators.pattern(/^\d+$/)]],
+      [ExpenseFormColumns.TAX_PERCENT]: [data?.taxPercent || '', [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
+      [ExpenseFormColumns.VAT_PERCENT]: [data?.vatPercent || '', [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
       [ExpenseFormColumns.DATE]: [data?.date || Date, Validators.required,],
       [ExpenseFormColumns.NOTE]: [data?.note || ''],
-      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || ''],
-      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || ''],
+      [ExpenseFormColumns.EXPENSE_NUMBER]: [data?.expenseNumber || '', [ Validators.pattern(/^\d+$/)]],
+      [ExpenseFormColumns.SUPPLIER_ID]: [data?.supplierID || '', [ Validators.pattern(/^\d+$/)]],
       [ExpenseFormColumns.FILE]: [data?.file || File],// TODO: what to show in edit mode
       [ExpenseFormColumns.IS_EQUIPMENT]: [data?.isEquipment || false, Validators.required], // TODO
-      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0],
+      [ExpenseFormColumns.REDUCTION_PERCENT]: [data?.reductionPercent || 0, [Validators.pattern(/^(?:\d{1,2}|100)$/)]],
       [ExpenseFormColumns.BUSINESS_NUMBER]: [data?.businessNumber || ''],
     });
 
@@ -360,16 +360,10 @@ export class ModalExpensesComponent {
     // this.setFormData("sdf", "Sdfg");
     this.genericService.getLoader().subscribe();
     let filePath = '';
-    // this.getLoader().pipe(
-    //   finalize(() => {
-    //     this.loadingController.dismiss();
-    //   }),
-    // switchMap(() => this.getFileData()),
     this.getFileData().
       pipe(
         finalize(() => {
           this.genericService.dismissLoader();
-          // this.loadingController.dismiss();
         }),
         catchError((err) => {
           alert('Something Went Wrong in first catchError: ' + err.message)
@@ -395,7 +389,6 @@ export class ModalExpensesComponent {
             this.isOpen = true;
           }
           if (err.status == 0) {
-            //this.loadingController.dismiss();
             this.errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
             this.isOpen = true;
           }
@@ -405,7 +398,6 @@ export class ModalExpensesComponent {
           return EMPTY;
         })
       )
-      // )
       .subscribe((res) => {
         this.router.navigate(['my-storage']);
         this.genericService.showToast("ההוספה נוצרה בהצלחה", "success")
@@ -605,8 +597,6 @@ export class ModalExpensesComponent {
           return EMPTY;
         }),
       ).subscribe((res) => {
-        //this.loadingController.dismiss();
-        // this.isToastOpen = true;
         this.genericService.showToast("ספק נשמר בהצלחה", "success");
         console.log("res in add supplier:", res);
         this.getSuppliers();
@@ -741,7 +731,6 @@ export class ModalExpensesComponent {
         // Add more props as needed
       }
     })
-    //.then(modal => modal.present());
     await modal.present();
   }
 
@@ -802,26 +791,11 @@ export class ModalExpensesComponent {
     this.addExpenseForm.patchValue({ supplierID: data.supplierID });
     this.addExpenseForm.patchValue({ taxPercent: data.taxPercent });
     this.addExpenseForm.patchValue({ vatPercent: data.vatPercent });
-    // this.addExpenseForm.patchValue({reductionPercent: data.reductionPercent});//TODO: add to supplier table
   }
-
-  // toggleEnlarged(ev :Event): void {
-  //   ev.stopPropagation();
-  //   ev.preventDefault();
-  //   console.log("asdfghjkl;lkjhgfdsasdfghjkl;lkjhgfd");
-  //   console.log(this.isEnlarged);
-
-  //   this.isEnlarged = !this.isEnlarged;
-  //   console.log(this.isEnlarged);
-  // }
 
   displayFile(): any {
     return this.isEditMode ? this.editModeFile : this.selectedFile as string;
   }
-
-  // setOpenToast(): void {
-  //   this.isToastOpen = !this.isToastOpen;
-  // }
 
   deleteFile(event: any): void {
     const fileInput = event.target.closest('label').querySelector('ion-input[type="file"]');

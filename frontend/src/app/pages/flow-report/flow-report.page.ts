@@ -287,9 +287,7 @@ export class FlowReportPage implements OnInit {
           console.log("chosenTrans after upload: ", this.chosenTrans);
           this.getTransaction();
           this.genericService.dismissLoader();
-          setTimeout(() => {
             this.router.navigate(['reports']);
-          }, 3000)
 
           // this.router.navigate(['vat-report'], {
           //   queryParams: {
@@ -312,6 +310,7 @@ export class FlowReportPage implements OnInit {
         return this.fileService.uploadFileViaFront(tran.file as File).pipe(
           finalize(() => {
             this.genericService.dismissLoader();
+            this.genericService.updateLoaderMessage("please wait...");
           }),
           catchError((error) => {
             console.log("Error in uploading file: ", error);
@@ -337,6 +336,7 @@ export class FlowReportPage implements OnInit {
     // Use forkJoin to wait for all file uploads to finish
     forkJoin(fileUploadObservables)
       .pipe(
+        finalize(() => this.genericService.updateLoaderMessage("please wait...")),
         catchError((err) => {
           console.log("Error in forkJoin: ", err);
           this.genericService.dismissLoader();
@@ -376,9 +376,7 @@ export class FlowReportPage implements OnInit {
         }),
       )
       .subscribe(() => {
-        setTimeout(() => {
           this.router.navigate(['reports']);
-        }, 3000)
       });
   }
 

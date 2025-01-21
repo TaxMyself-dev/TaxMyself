@@ -20,18 +20,18 @@ export class ButtonComponent {
   @Input() buttonStyle: Partial<CSSStyleDeclaration> = {};
   @Input() href: string;
 
-  @Output() onButtonClicked: EventEmitter<void> = new EventEmitter<void>();
+  @Output() onButtonClicked: EventEmitter<Event> = new EventEmitter<Event>();
   
   readonly ButtonSize = ButtonSize;
   readonly ButtonClass = ButtonClass;
 
   constructor() {}
 
-  onClick(): void {
+  onClick(event: Event): void {
     if (this.href) {
       window.open(this.href, '_blank'); // Handle navigation if href is provided
     } else {
-      this.onButtonClicked.emit();
+      this.onButtonClicked.emit(event);
     }
   }
 }

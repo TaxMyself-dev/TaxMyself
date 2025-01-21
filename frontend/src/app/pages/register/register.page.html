@@ -52,20 +52,20 @@
           <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm">
             <!---------first name----->
             <app-generic-input class="default-input-register" inputLabel="שם פרטי" [controlName]="registerFormControls.FIRSTNAME"
-              [parentForm]="personalForm"></app-generic-input>
+              [parentForm]="personalForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
             <!--------last name------->
             <app-generic-input  class="default-input-register" inputLabel="שם משפחה" [controlName]="registerFormControls.LASTNAME"
-              [parentForm]="personalForm"></app-generic-input>
+              [parentForm]="personalForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
             <!-------id number------->
             <app-generic-input  class="default-input-register" inputLabel="תעודת זהות" [controlName]="registerFormControls.ID"
-              [parentForm]="personalForm"></app-generic-input>
+              [parentForm]="personalForm" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-generic-input>
             <!-----email ---->
             <app-generic-input class="wide-input-register" [inputType]="formTypes.EMAIL" inputLabel="כתובת מייל"
-              [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm"
+              [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm" [errorText]="'כתובת המייל לא חוקית'"
               ></app-generic-input>
             <!----phone ----->
             <app-generic-input  class="default-input-register" [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון"
-              [controlName]="registerFormControls.PHONE" [parentForm]="personalForm"></app-generic-input>
+              [controlName]="registerFormControls.PHONE" [parentForm]="personalForm" [errorText]="'מספר הפלאפון לא חוקי'"></app-generic-input>
             <!-----date of birth----->
             <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
               [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
@@ -85,16 +85,16 @@
           <form *ngIf="spouseForm" class="form-register" [formGroup]="spouseForm">
             <!---------first name----->
             <app-generic-input class="default-input-register" inputLabel="שם פרטי בן / בת הזוג" [controlName]="registerFormControls.SPOUSEFIRSTNAME"
-              [parentForm]="spouseForm"></app-generic-input>
+              [parentForm]="spouseForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
             <!--------last name------->
             <app-generic-input class="default-input-register" inputLabel="שם משפחה" [controlName]="registerFormControls.SPOUSELASTNAME"
-              [parentForm]="spouseForm"></app-generic-input>
+              [parentForm]="spouseForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
             <!-------id number------->
             <app-generic-input class="default-input-register" inputLabel="תעודת זהות" [controlName]="registerFormControls.SPOUSEID"
-              [parentForm]="spouseForm"></app-generic-input>
+              [parentForm]="spouseForm" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-generic-input>
             <!----phone ----->
             <app-generic-input class="default-input-register" [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון"
-              [controlName]="registerFormControls.SPOUSEPHONE" [parentForm]="spouseForm"></app-generic-input>
+              [controlName]="registerFormControls.SPOUSEPHONE" [parentForm]="spouseForm" [errorText]="'מספר הפלאפון לא חוקי'"></app-generic-input>
             <!-----date of birth----->
             <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
               [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
@@ -118,15 +118,15 @@
                   <!-------Fname of child----->
                   <app-generic-input class="default-input-register" inputLabel="שם פרטי של הילד/ה"
                     [controlName]="registerFormControls.CHILD_FIRST_NAME"
-                    [parentForm]="getChildFormByIndex(i)"></app-generic-input>
+                    [parentForm]="getChildFormByIndex(i)" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
                   <!-------Lname of child----->
                   <app-generic-input class="default-input-register" inputLabel="שם משפחה של הילד/ה"
                     [controlName]="registerFormControls.CHILD_LAST_NAME"
-                    [parentForm]="getChildFormByIndex(i)"></app-generic-input>
+                    [parentForm]="getChildFormByIndex(i)" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
                   <!-------id of child----->
                   <app-generic-input class="default-input-register" inputLabel="תעודת זהות של הילד/ה"
                     [controlName]="registerFormControls.CHILD_ID"
-                    [parentForm]="getChildFormByIndex(i)"></app-generic-input>
+                    [parentForm]="getChildFormByIndex(i)" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-generic-input>
                   <!-------dateBirth of child----->
                   <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה של הילד/ה"
                     [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH"
@@ -161,7 +161,7 @@
                   [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select>
                 <!-------Business id------>
                 <app-generic-input class="default-input-register" inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSNUMBER"
-                  [parentForm]="businessForm"></app-generic-input>
+                  [parentForm]="businessForm" [errorText]="'נא הכנס מספרים בלבד'"></app-generic-input>
                 <!------- business date ----->
                 <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק"
                   [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input>

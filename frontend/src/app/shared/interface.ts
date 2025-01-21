@@ -65,6 +65,7 @@ export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     type: FormTypes;
     listItems?: ISelectItem[];
     cellRenderer?: ICellRenderer;
+    errorText?: string;
     onChange?: (event?: any, parent?: any) => void;
 }
 
