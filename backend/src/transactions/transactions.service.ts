@@ -745,6 +745,10 @@ export class TransactionsService {
       startDate: startDate,
       endDate: endDate,
     });
+
+    // Add ordering by billDate (ascending)
+    queryBuilder.orderBy('transaction.billDate', 'ASC');
+
     const transactions = await queryBuilder.getMany();
   
     return transactions;
