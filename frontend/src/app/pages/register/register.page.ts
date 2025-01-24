@@ -479,21 +479,21 @@ export class RegisterPage implements OnInit, OnDestroy {
 
   resetBusinessSpouseDetails(): void {
     if (this.spouseForm?.get(RegisterFormControls.SPOUSEEMPLOYEMENTSTATUS)?.value === EmploymentType.EMPLOYEE) {
-      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSNAME).patchValue("");
-      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSTYPE).patchValue("");
-      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSDATE).patchValue("");
-      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSNUMBER).patchValue("");
-      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSINVENTORY).patchValue("");
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSNAME).patchValue(null);
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSTYPE).patchValue(null);
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSDATE).patchValue(null);
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSNUMBER).patchValue(null);
+      this.businessForm.get(RegisterFormControls.SPOUSEBUSINESSINVENTORY).patchValue(null);
     }
   }
 
   resetBusinessDetails(): void {
     if (this.personalForm?.get(RegisterFormControls.EMPLOYEMENTSTATUS)?.value === EmploymentType.EMPLOYEE) {
-      this.businessForm.get(RegisterFormControls.BUSINESSNAME).patchValue("");
-      this.businessForm.get(RegisterFormControls.BUSINESSTYPE).patchValue("");
-      this.businessForm.get(RegisterFormControls.BUSINESSDATE).patchValue("");
-      this.businessForm.get(RegisterFormControls.BUSINESSNUMBER).patchValue("");
-      this.businessForm.get(RegisterFormControls.BUSINESSINVENTORY).patchValue("");
+      this.businessForm.get(RegisterFormControls.BUSINESSNAME).patchValue(null);
+      this.businessForm.get(RegisterFormControls.BUSINESSTYPE).patchValue(null);
+      this.businessForm.get(RegisterFormControls.BUSINESSDATE).patchValue(null);
+      this.businessForm.get(RegisterFormControls.BUSINESSNUMBER).patchValue(null);
+      this.businessForm.get(RegisterFormControls.BUSINESSINVENTORY).patchValue(null);
     }
   }
 }
