@@ -235,9 +235,11 @@ export class ModalExpensesComponent {
     let filePath = '';
     this.genericService.getLoader()
       .pipe(
-        finalize(() => {
-          this.genericService.dismissLoader();
-        }),
+        // finalize(() => {
+        //   console.log("in 1 finalize");
+          
+        //   this.genericService.dismissLoader();
+        // }),
         switchMap(() => this.getFileData()),
         catchError((err) => {
           alert('Something Went Wrong in first catchError: ' + err.message)
@@ -253,18 +255,20 @@ export class ModalExpensesComponent {
         }),
         switchMap((res) => this.expenseDataServise.addExpenseData(res)),
         finalize(() => {
+          console.log("in 2 finalize");
           this.genericService.dismissLoader();
           this.modalCtrl.dismiss();
         }),
         catchError((err) => {
           console.log(err);
           if (err.status == 401) {
-            this.errorString = "משתמש לא חוקי , אנא התחבר למערכת";
-            this.isOpen = true;
+            this.genericService.showToast("משתמש לא חוקי , אנא התחבר למערכת", "error");
           }
-          if (err.status == 0) {
-            this.errorString = "אין אינטרנט, אנא ודא חיבור לרשת או נסה שנית מאוחר יותר";
-            this.isOpen = true;
+          else if (err.status == 0) {
+            this.genericService.showToast("אין אינטרנט, אנא ודא חיבור לרשת. ההוצאה לא נשמרה אנא נסה מאוחר יותר", "error");
+          }
+          else {
+            this.genericService.showToast("אירעה שגיאה , ההוצאה לא נשמרה אנא נסה מאוחר יותר", "error");
           }
           if (filePath !== '') {
             this.fileService.deleteFile(filePath);
