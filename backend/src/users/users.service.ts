@@ -31,6 +31,11 @@ export class UsersService {
         const newChildren = children?.children;
         let newUser = {...personal, ...spouse, ...business};
 
+        console.log("newUser is ", newUser);
+        console.log("personal is ", personal);
+        console.log("spouse is ", spouse);
+        console.log("business is ", business);
+        
         if (newChildren.length > 0) {
             for (let i = 0; i < newChildren.length; i++){
                 const child: Child = newChildren[i];
