@@ -67,9 +67,7 @@ export class LoginPage implements OnInit {
     const formData = this.loginForm.value;
     this.genericService.getLoader()
       .pipe(
-        switchMap(() => {
-         return from(this.authService.userVerify(formData.userName, formData.password))
-        }),
+        switchMap(() => from(this.authService.userVerify(formData.userName, formData.password))),
         catchError((err) => {
           console.log("err in user verify in sign in", err);
           return EMPTY;

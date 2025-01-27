@@ -70,7 +70,11 @@ export class Expense {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   totalVatPayable: number;
 
-  @Column('int')
+  @Column({
+    type: 'int',
+    nullable: true,
+    default: null,
+  })  
   transId: number;
 
   @Column({
@@ -80,7 +84,11 @@ export class Expense {
   })
   vatReportingDate: SingleMonthReport | DualMonthReport | null;
 
-  @Column('boolean')
+  @Column({
+    type: 'boolean',
+    nullable: true,
+    default: null,
+  }) 
   isReported: boolean;
 
   @BeforeInsert()
