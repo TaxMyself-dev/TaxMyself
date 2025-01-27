@@ -13,23 +13,32 @@
                 <ion-icon aria-hidden="true" slot="start" [name]="'settings-outline'"></ion-icon>
                 <ion-label>פאנל ניהול</ion-label>
               </ion-item>
-            </ng-container>
-            <ng-container *ngIf="p.title === 'logOut'">
-              <ion-item class="icon" (click)="openCloseLogOutPopup()" side="end" routerDirection="root" lines="none"
-                detail="false" routerLinkActive="selected">
-                <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
-                  [md]="p.icon + '-sharp'"></ion-icon>
-                <ion-label>התנתקות</ion-label>
-              </ion-item>
-            </ng-container>
-            <ng-container *ngIf="p.url === 'add-expenses'">
-              <ion-item class="icon" (click)="openModalAddExpense()" side="end" routerDirection="root" lines="none"
-                detail="false" routerLinkActive="selected">
-                <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
-                  [md]="p.icon + '-sharp'"></ion-icon>
-                <ion-label>הוספת הוצאה</ion-label>
-              </ion-item>
-            </ng-container>
+          </ng-container>
+
+          <ng-container *ngIf="p.url === 'client-panel' && isAccountant">
+            <ion-item class="icon" [routerLink]="'client-panel'" side="end" routerDirection="root" lines="none"
+              detail="false" routerLinkActive="selected">
+              <ion-icon aria-hidden="true" slot="start" [name]="'settings-outline'"></ion-icon>
+              <ion-label>הלקוחות שלי</ion-label>
+            </ion-item>
+          </ng-container>
+
+          <ng-container *ngIf="p.title === 'logOut'">
+            <ion-item class="icon" (click)="openCloseLogOutPopup()" side="end" routerDirection="root" lines="none"
+              detail="false" routerLinkActive="selected">
+              <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
+                [md]="p.icon + '-sharp'"></ion-icon>
+              <ion-label>התנתקות</ion-label>
+            </ion-item>
+          </ng-container>
+          <ng-container *ngIf="p.url === 'add-expenses'">
+            <ion-item class="icon" (click)="openModalAddExpense()" side="end" routerDirection="root" lines="none"
+              detail="false" routerLinkActive="selected">
+              <ion-icon aria-hidden="true" slot="start" [ios]="p.icon + '-outline'"
+                [md]="p.icon + '-sharp'"></ion-icon>
+              <ion-label>הוספת הוצאה</ion-label>
+            </ion-item>
+          </ng-container>
 
             <ng-container *ngIf="p.title !== 'logOut' && p.url !== 'add-expenses' && p.url !== 'admin-panel' ">
               <ion-item side="end" routerDirection="root" [routerLink]="[p.url]" lines="none" detail="false"

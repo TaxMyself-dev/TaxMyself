@@ -1,0 +1,24 @@
+<app-custom-toolbar></app-custom-toolbar>
+
+<ion-content [fullscreen]="true">
+  <div class="screen-client-panel">
+    <app-generic-select
+      [items]="myClients"
+      [parentForm]="clientForm"
+      controlName="client"
+      [title]="'Select a Client'"
+      (selectionChanged)="onClientSelectionChange($event)"
+    ></app-generic-select>
+  </div>
+  <div class="invite-user">
+    <label for="inviteEmail">Invite a User via Email:</label>
+    <input
+      type="email"
+      id="inviteEmail"
+      [(ngModel)]="inviteEmail"
+      placeholder="Enter user's email"
+    />
+    <button (click)="sendInvitation()">Send Invitation</button>
+  </div>
+  
+</ion-content>

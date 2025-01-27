@@ -11,6 +11,7 @@ import { ExcelModule } from './transactions/transactions.module';
 import { CloudModule } from './cloud/cloud.module';
 import { SharedModule } from './shared/shared.module';
 import { FinsiteModule } from './finsite/finsite.module';
+import { DelegationModule } from './delegation/delegation.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -26,6 +27,7 @@ import { Bill } from './transactions/bill.entity';
 import { Source } from './transactions/source.entity';
 import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
 import { Finsite } from './finsite/finsite.entity';
+import { Delegation } from './delegation/delegation.entity';
 
 import 'dotenv/config'
 import admin from 'firebase-admin';
@@ -62,7 +64,7 @@ serviceAccount = {
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
-                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite],
+                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -79,9 +81,10 @@ serviceAccount = {
       DefaultSubCategory,
       UserSubCategory,
       Finsite,
+      Delegation,
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule],
     controllers: [AppController],
   providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService],
 })
