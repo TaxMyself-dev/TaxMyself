@@ -128,7 +128,7 @@ export class ModalExpensesComponent {
   ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData?.isTwoBusinessOwner) {
       const businessNumberFieldExists = this.columnsList.find( 
         (column) => column.name === ExpenseFormColumns.BUSINESS_NUMBER
       );
@@ -171,7 +171,7 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.BUSINESS_NUMBER]: [data?.businessNumber || ''],
     });
 
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData?.isTwoBusinessOwner) {
       this.addExpenseForm?.get('businessNumber').setValidators([Validators.required]);
     }
     this.initialForm = cloneDeep(this.addExpenseForm);
@@ -255,7 +255,7 @@ export class ModalExpensesComponent {
         finalize(() => {
           console.log("in 2 finalize");
           this.genericService.dismissLoader();
-          this.modalCtrl.dismiss();
+          //this.modalCtrl.dismiss();
         }),
         catchError((err) => {
           console.log(err);
@@ -268,7 +268,7 @@ export class ModalExpensesComponent {
           else {
             this.genericService.showToast("אירעה שגיאה , ההוצאה לא נשמרה אנא נסה מאוחר יותר", "error");
           }
-          this.openPopoverMessage(this.errorString)
+          //this.openPopoverMessage(this.errorString)
           if (filePath !== '') {
             this.fileService.deleteFile(filePath);
           }
@@ -379,8 +379,8 @@ export class ModalExpensesComponent {
   setFormData(filePath: string, token: string) {
     const formData = this.addExpenseForm.value;
     console.log("form in set form", formData);
-    if (!this.userData.isTwoBusinessOwner) {
-      formData.businessNumber = this.userData.businessNumber;
+    if (!this.userData?.isTwoBusinessOwner) {
+      formData.businessNumber = this.userData?.businessNumber;
     }
     formData.taxPercent = +formData.taxPercent;
     formData.vatPercent = +formData.vatPercent;

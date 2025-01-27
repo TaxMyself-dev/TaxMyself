@@ -50,13 +50,13 @@ export class AppComponent implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.getRoute();
     this.getRoleUser();
-    this.authService.startTokenRefresh(); // Start refreshing the token
+    //this.authService.startTokenRefresh(); // Start refreshing the token
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this.authService.stopTokenRefresh(); // Clean up on app component destruction
+    //this.authService.stopTokenRefresh(); // Clean up on app component destruction
   }
 
   getRoute(): void {

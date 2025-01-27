@@ -42,44 +42,44 @@ export class AuthService {
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
 
-  startTokenRefresh() {
+  // startTokenRefresh() {
 
-    if (this.tokenListenerInitialized) return; // Avoid multiple listeners
-    this.tokenListenerInitialized = true;
+  //   if (this.tokenListenerInitialized) return; // Avoid multiple listeners
+  //   this.tokenListenerInitialized = true;
 
-    // Firebase listener for ID token changes
-    this.afAuth.onIdTokenChanged(async (user) => {
-      if (user) {
-        // Fetch the latest token
-        const idToken = await user.getIdToken();
-        const currentTime = new Date().toLocaleString(); // Human-readable time
-        // console.log(`Token refreshed at ${currentTime}:`, idToken);
-        console.log("user is ", user);
+  //   // Firebase listener for ID token changes
+  //   this.afAuth.onIdTokenChanged(async (user) => {
+  //     if (user) {
+  //       // Fetch the latest token
+  //       const idToken = await user.getIdToken();
+  //       const currentTime = new Date().toLocaleString(); // Human-readable time
+  //       // console.log(`Token refreshed at ${currentTime}:`, idToken);
+  //       console.log("user is ", user);
         
-        // Store the token in local storage for easy access
-        localStorage.setItem('token', idToken);
+  //       // Store the token in local storage for easy access
+  //       localStorage.setItem('token', idToken);
 
-        // Optionally, send the token to the backend for verification
-      } else {
-        // User is logged out or the token is invalid
-        console.log('User is signed out or token has expired');
-        localStorage.removeItem('token');
-      }
-    });
-  }
+  //       // Optionally, send the token to the backend for verification
+  //     } else {
+  //       // User is logged out or the token is invalid
+  //       console.log('User is signed out or token has expired');
+  //       localStorage.removeItem('token');
+  //     }
+  //   });
+  // }
 
 
-  stopTokenRefresh(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
-  }
+  // stopTokenRefresh(): void {
+  //   if (this.refreshInterval) {
+  //     clearInterval(this.refreshInterval);
+  //   }
+  // }
 
 
   logout(): void {
     this.afAuth.signOut().then(() => {
       localStorage.clear();
-      this.stopTokenRefresh(); // Stop refreshing tokens
+      //this.stopTokenRefresh(); // Stop refreshing tokens
       console.log('User logged out and token refresh stopped');
     });
   }

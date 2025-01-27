@@ -85,7 +85,7 @@ export class MyStoragePage implements OnInit {
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
 
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData?.isTwoBusinessOwner) {
       this.storageForm?.get('businessNumber').setValidators([Validators.required]);
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -156,7 +156,7 @@ export class MyStoragePage implements OnInit {
 
 
     if (!formData.reportingPeriodType) {
-      businessNumber = this.userData.businessNumber;
+      businessNumber = this.userData?.businessNumber;
       // Set default values if periodType is false
       startDate = '01/01/2000';
       endDate = this.dateService.formatDate(new Date());

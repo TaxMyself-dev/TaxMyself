@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
-import { UserCredential } from '@firebase/auth-types';
+// import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
 import { EMPTY, catchError, filter, finalize, from, switchMap, tap } from 'rxjs';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
@@ -21,7 +21,7 @@ export class LoginPage implements OnInit {
 
   // emailVerify: boolean = true;
   userEmailForReset: string = "";
-  userCredential: UserCredential;
+  //userCredential: UserCredential;
   loginForm: FormGroup;
   resetForm: FormGroup;
   displayError: string;
@@ -62,75 +62,27 @@ export class LoginPage implements OnInit {
     this.login2();
   }
 
-  // async signin(): Promise<any> {
-  //   this.authService.error$.next(null);
-  //   if (this.loginForm.valid) {
-  //     const loading = await this.loadingController.create({
-  //       message: 'Please wait...',
-  //       spinner: 'crescent'
-  //     });
-  //     await loading.present();
-  //     const formData = this.loginForm.value;
-  //     this.authService.userVerify(formData.userName, formData.password)
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.log("err in user verify in sign in", err);
-  //         return EMPTY;
-  //       }),
-  //       finalize(() => loading.dismiss()),
-  //       )
-  //       .subscribe((res) => {
-  //         if (res) {
-  //           // this.userCredential = res;
-  //         }
-  //         if (res.user.emailVerified) {
-  //           this.authService.signIn(res)
-  //             .subscribe((res) => {
-  //               localStorage.setItem('userData', JSON.stringify(res));
-  //               console.log('Sign-in response:', res);
-  //               this.router.navigate(['my-account']);
-  //             })
-  //         }
-  //         else {
-  //           this.authService.error$.next("email");
-  //         }
-  //       });
-  //     }
-  // }
-
   login2(): void {
     this.authService.error$.next(null);
     const formData = this.loginForm.value;
     this.genericService.getLoader()
       .pipe(
         switchMap(() => {
-          console.log("before verify mail");
-          
-         return  from(this.authService.userVerify(formData.userName, formData.password))
+         return from(this.authService.userVerify(formData.userName, formData.password))
         }),
         catchError((err) => {
           console.log("err in user verify in sign in", err);
           return EMPTY;
         }),
-        // filter((res) => {
-        //   if (!res?.user?.emailVerified) {
-        //     console.log("in email error");
-        //     // this.genericService.dismissLoader();
-        //     this.authService.error$.next("email");
-        //   }
-        //   this.userCredential = res;
-        //   return res?.user?.emailVerified;
-        // }),
-        switchMap((res) => {
+        filter((res) => {
           if (!res?.user?.emailVerified) {
-            console.log("in ");
-            
+            console.log("in email error");
+            this.genericService.dismissLoader();
             this.authService.error$.next("email");
-            return EMPTY;
           }
-          this.userCredential = res;
-         return this.authService.signIn(this.userCredential)
+          return res?.user?.emailVerified;
         }),
+        switchMap((res) => this.authService.signIn(res)),
         catchError((err) => {
           console.log("error in sign-in of login page: ", err);
           return EMPTY;
@@ -139,7 +91,7 @@ export class LoginPage implements OnInit {
           localStorage.setItem('userData', JSON.stringify(res));
           console.log('Sign-in response:', res);
           this.router.navigate(['my-account']);
-          this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
+         this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
         }),
         finalize(() => {
           console.log("Finalize called - Dismissing loader");
