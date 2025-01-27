@@ -5,7 +5,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus } from '../enum';
 
 
 @Entity()
@@ -61,13 +61,26 @@ export class User {
     @Column()
     isTwoBusinessOwner: boolean;
 
+    // @Column({
+    //   type: 'enum',
+    //   enum: UserRole,
+    //   enumName: 'UserRole',
+    //   default: UserRole.FREE_USER
+    // })
+    // role: UserRole;
+
+    @Column({
+      type: 'simple-array', // Store as a comma-separated string
+    })
+    role: UserRole[];
+
     @Column({
       type: 'enum',
-      enum: UserRole,
-      enumName: 'UserRole',
-      default: UserRole.FREE_USER
+      enum: PayStatus,
+      enumName: 'PayStatus',
+      default: PayStatus.FREE, // Default to FREE
     })
-    role: UserRole;
+    payStatus: PayStatus;
 
     @Column()
     firebaseId: string;

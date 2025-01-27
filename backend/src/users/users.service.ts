@@ -29,7 +29,13 @@ export class UsersService {
     async signup({personal,spouse,children,business} : any) {
         
         const newChildren = children?.children;
-        let newUser = {...personal, ...spouse, ...business};
+
+        let newUser = {
+            ...personal,
+            ...spouse,
+            ...business,
+            role: [UserRole.REGULAR], // Add the REGULAR role by default
+          };
 
         console.log("newUser is ", newUser);
         console.log("personal is ", personal);
@@ -100,6 +106,7 @@ export class UsersService {
         }
 
         newUser.finsiteId = 0;
+        newUser.role 
 
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
@@ -183,9 +190,14 @@ export class UsersService {
 
 
     async isAdmin(userId: string): Promise<boolean> {
-        const user = await this.user_repo.findOneBy({firebaseId: userId});
-        return user?.role === UserRole.ADMIN;
+        const user = await this.user_repo.findOneBy({ firebaseId: userId });
+        return user?.role?.includes(UserRole.ADMIN) || false;
     }
+
+    // async isAdmin(userId: string): Promise<boolean> {
+    //     const user = await this.user_repo.findOneBy({firebaseId: userId});
+    //     return user?.role === UserRole.ADMIN;
+    // }
 
 
 }

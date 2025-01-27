@@ -1,7 +1,13 @@
 export enum UserRole {
-  FREE_USER = 'FREE_USER',
-  PAID_USER = 'PAID_USER',
-  ADMIN = 'ADMIN'
+  REGULAR = 'REGULAR',
+  ADMIN = 'ADMIN',
+  ACCOUNTANT = 'ACCOUNTANT',
+}
+
+export enum PayStatus {
+  FREE = 'FREE',
+  PAID = 'PAID',
+  TRIAL = 'TRIAL',
 }
 
 export enum BusinessType {
