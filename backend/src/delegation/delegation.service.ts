@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Delegation } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { MailService } from 'src/mail/mail.service';
@@ -50,8 +50,6 @@ export class DelegationService {
   private async sendPermissionRequestEmail(user: any, agent: any): Promise<void> {
 
     const token = await this.generateDelegationToken(user.firebaseId, agent.firebaseId);
-    console.log("permission token is ", token);
-
     const approveLink = `https://${process.env.APP_URL}/delegations/approve-delegation?token=${token}`;
   
     const emailContent = `
@@ -69,30 +67,70 @@ export class DelegationService {
   }
 
 
-  private async generateDelegationToken(accountantId: string, userId: string): Promise<string> {
-    const payload = { accountantId, userId };
-    const secret = process.env.JWT_SECRET; // Use a strong secret
+  private async generateDelegationToken( userId: string, agentId: string): Promise<string> {
+    const payload = { userId, agentId };
+    const secret = process.env.JWT_SECRET;
     return jwt.sign(payload, secret);
   }
 
 
-  async grantPermission(ownerId: string, delegateId: string, expiresAt?: Date): Promise<Delegation> {
-    const delegation = this.delegationRepository.create({
-      ownerId,
-      delegateId
+  async grantPermission(delegationToken: string): Promise<{ success: boolean; message: string }> {
+
+    const secret = process.env.JWT_SECRET;
+
+    // Verify and decode the token
+    let payload;
+    try {
+      payload = jwt.verify(delegationToken, secret);
+    } catch (error) {
+      console.error('JWT verification error:', error.message);
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+    const { userId, agentId } = payload;
+
+    // Create and save the delegation entry
+    try {
+      const delegation = this.delegationRepository.create({
+        userId,
+        agentId,
+      });
+      await this.delegationRepository.save(delegation);
+      return {
+        success: true,
+        message: `Delegation created successfully`,
+      };
+    } catch (error) {
+      console.error('Database error:', error.message);
+      throw new Error('Failed to save delegation to the database');
+    }
+  }
+
+
+  async getUsersForAgent(agentFirebaseId: string): Promise<{ fullName: string; firebaseId: string }[]> {
+
+    // Step 1: Query delegations for the given agent
+    const delegations = await this.delegationRepository.find({
+      where: { agentId: agentFirebaseId },
     });
-    return this.delegationRepository.save(delegation);
-  }
-
-  async revokePermission(ownerId: string, delegateId: string): Promise<void> {
-    await this.delegationRepository.delete({ ownerId, delegateId });
-  }
-
-  async getUsersManagedBy(delegateId: string): Promise<User[]> {
-    const delegations = await this.delegationRepository.find({ where: { delegateId } });
-    const ownerIds = delegations.map((d) => d.ownerId);
-    return this.userRepository.findByIds(ownerIds); // Fetch user details for owners
-  }
   
+    // Step 2: Extract userFirebaseIds from delegations
+    const userFirebaseIds = delegations.map((delegation) => delegation.userId);
+  
+    if (userFirebaseIds.length === 0) {
+      return []; // Return an empty array if no delegations exist for this agent
+    }
+  
+    // Step 3: Use `findBy` with `In` to fetch user entities
+    const users = await this.userRepository.findBy({
+      firebaseId: In(userFirebaseIds),
+    });
+  
+    // Step 4: Map the results to include fullName and firebaseId
+    return users.map((user) => ({
+      fullName: `${user.fName} ${user.lName}`, // Concatenate fName and lName
+      firebaseId: user.firebaseId,            // Include firebaseId
+    }));
+  }
+
 
 }
