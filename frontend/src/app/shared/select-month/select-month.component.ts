@@ -9,6 +9,7 @@ import { ReportingPeriodType } from '../enums';
 })
 export class SelectMonthComponent {
   @Input() oneMonth: boolean = false;
+  @Input() year: string;
   @Input() parentForm: FormGroup;
   @Input() controlName: string = 'month';
 

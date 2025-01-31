@@ -243,7 +243,7 @@ export class MyStoragePage implements OnInit {
     const selectedExpense = this.rows.find((row) => row.id === expense.id);
     const fileName = selectedExpense.file;
     if (!(fileName === undefined || fileName === "" || fileName === null)) {
-      this.filesService.downloadFile(fileName as string)
+      this.filesService.downloadFirebaseFile(fileName as string)
     }
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")

@@ -8,9 +8,9 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { cloneDeep, isEqual } from 'lodash';
 import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
-import { EMPTY, Observable, catchError, finalize, filter, from, map, switchMap, tap, of, BehaviorSubject } from 'rxjs';
+import {catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
+import {of, BehaviorSubject, Observable, from, EMPTY} from 'rxjs';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { ButtonClass, ButtonSize } from '../button/button.enum';
 import { Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -44,6 +44,7 @@ export class ModalExpensesComponent {
       this.id = +val.id;
       this.getCategory(val);
       if (val.file != "" && val.file != undefined) {
+        console.log("file is: ", val.file);
         this.isFileExist = true;
         this.originalFileName = this.fileService.extractFileName(val.file as string);
         console.log("originalFileName: ", this.originalFileName);
@@ -55,6 +56,10 @@ export class ModalExpensesComponent {
               this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl(res.file);
               this.pdfLoaded = true;
             }
+            this.editModeFile = res.file;
+          })
+          .catch((err) => {
+            console.log("error in get file in edit mode: ", err);
           })
       }
       else {
@@ -129,7 +134,7 @@ export class ModalExpensesComponent {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData?.isTwoBusinessOwner) {
-      const businessNumberFieldExists = this.columnsList.find( 
+      const businessNumberFieldExists = this.columnsList.find(
         (column) => column.name === ExpenseFormColumns.BUSINESS_NUMBER
       );
       if (!businessNumberFieldExists) {
@@ -235,7 +240,7 @@ export class ModalExpensesComponent {
       .pipe(
         // finalize(() => {
         //   console.log("in 1 finalize");
-          
+
         //   this.genericService.dismissLoader();
         // }),
         switchMap(() => this.getFileData()),
@@ -276,6 +281,8 @@ export class ModalExpensesComponent {
         })
       )
       .subscribe((res) => {
+        this.genericService.dismissLoader();
+        this.modalCtrl.dismiss();
         this.router.navigate(['my-storage']);
         this.genericService.showToast("ההוספה נוצרה בהצלחה", "success")
         console.log('Saved expense data in DB. The response is: ', res);
@@ -292,41 +299,103 @@ export class ModalExpensesComponent {
   update(): void {
     let filePath = '';
     const previousFile = this.addExpenseForm?.get('file').value;
-    this.getFileData().pipe(
-      finalize(() => this.modalCtrl.dismiss()),
-      catchError((err) => {
-        alert('File upload failed, please try again ' + err.error.message.join(', '));
-        return EMPTY;
-      }),
-      map((res) => {
-        if (res) { //if a file is selected 
-          filePath = res.metadata.fullPath;
+    this.getFileData()          
+      .pipe(
+        finalize(() => {
+          console.log('finalize');
+          
+          this.modalCtrl.dismiss();
+          this.genericService.dismissLoader();
+        }),
+        catchError((err) => {
+          alert('File upload failed, please try again ' + err.error.message.join(', '));
+          //this.modalCtrl.dismiss();
+          return EMPTY;
+        }),
+        map((res) => {
+          if (res) { //if a file is selected 
+            filePath = res.metadata.fullPath;
+          }
+          else {
+            filePath = this.addExpenseForm.get('file').value;
+          }
+          const token = localStorage.getItem('token');
+          return this.setFormData(filePath, token);
+        }),
+        switchMap((res) => this.expenseDataServise.updateExpenseData(res, this.id)),
+        catchError((err) => {
+          alert('Something Went Wrong in second catchError ' + err.error.message)
+          if (this.selectedFile) {
+            this.fileService.deleteFile(filePath);
+          }
+          //this.genericService.dismissLoader();
+          return EMPTY;
+        })
+      ).subscribe((res) => {
+        if (previousFile !== "") {
+          if (this.selectedFile) {
+            this.fileService.deleteFile(previousFile);
+          }
         }
-        else {
-          filePath = this.addExpenseForm.get('file').value;
+        if (res) { // TODO: why returning this object from BE?
+          this.expenseDataServise.updateTable$.next(true);
         }
-        const token = localStorage.getItem('token');
-        return this.setFormData(filePath, token);
-      }),
-      switchMap((res) => this.expenseDataServise.updateExpenseData(res, this.id)),
-      catchError((err) => {
-        alert('Something Went Wrong in second catchError ' + err.error.message)
-        if (this.selectedFile) {
-          this.fileService.deleteFile(filePath);
-        }
-        return EMPTY;
-      })
-    ).subscribe((res) => {
-      if (previousFile !== "") {
-        if (this.selectedFile) {
-          this.fileService.deleteFile(previousFile);
-        }
-      }
-      if (res) { // TODO: why returning this object from BE?
-        this.expenseDataServise.updateTable$.next(true);
-      }
-    });
+      
+        this.genericService.dismissLoader();
+        // this.modalCtrl.dismiss();
+      });
   }
+
+  // update(): void {
+  //   let filePath = '';
+  //   const previousFile = this.addExpenseForm?.get('file').value;
+  //   this.genericService.getLoader()
+  //     .pipe(
+  //       finalize(() => {
+  //         console.log('finalize');
+          
+  //         this.modalCtrl.dismiss();
+  //         this.genericService.dismissLoader();
+  //       }),
+  //       switchMap(() => this.getFileData()),
+  //       catchError((err) => {
+  //         alert('File upload failed, please try again ' + err.error.message.join(', '));
+  //         //this.modalCtrl.dismiss();
+  //         return EMPTY;
+  //       }),
+  //       map((res) => {
+  //         if (res) { //if a file is selected 
+  //           filePath = res.metadata.fullPath;
+  //         }
+  //         else {
+  //           filePath = this.addExpenseForm.get('file').value;
+  //         }
+  //         const token = localStorage.getItem('token');
+  //         return this.setFormData(filePath, token);
+  //       }),
+  //       switchMap((res) => this.expenseDataServise.updateExpenseData(res, this.id)),
+  //       catchError((err) => {
+  //         alert('Something Went Wrong in second catchError ' + err.error.message)
+  //         if (this.selectedFile) {
+  //           this.fileService.deleteFile(filePath);
+  //         }
+  //         //this.genericService.dismissLoader();
+  //         return EMPTY;
+  //       })
+  //     ).subscribe((res) => {
+  //       if (previousFile !== "") {
+  //         if (this.selectedFile) {
+  //           this.fileService.deleteFile(previousFile);
+  //         }
+  //       }
+  //       if (res) { // TODO: why returning this object from BE?
+  //         this.expenseDataServise.updateTable$.next(true);
+  //       }
+      
+  //       this.genericService.dismissLoader();
+  //       // this.modalCtrl.dismiss();
+  //     });
+  // }
 
   openPopoverMessage(message: string): void {
     from(this.popoverController.create({
@@ -508,23 +577,6 @@ export class ModalExpensesComponent {
   valueAscOrder(a: KeyValue<string, string>, b: KeyValue<string, string>): number {// stay the list of fields in the original order
     return 0;
   }
-
-  // getListOptionsByKey(key: ExpenseFormColumns): any {
-  //   switch (key) {
-  //     case ExpenseFormColumns.IS_EQUIPMENT:
-  //       return this.equipmentList;
-  //     case ExpenseFormColumns.CATEGORY:
-  //       return this.getListCategory();
-  //     case ExpenseFormColumns.SUB_CATEGORY:
-  //       return this.getListSubCategory();
-  //     case ExpenseFormColumns.SUPPLIER:
-  //       return this.displaySuppliersList;
-  //     case ExpenseFormColumns.BUSINESS_NUMBER:
-  //       return this.businessList;
-  //     default:
-  //       return [];
-  //   }
-  // }
 
   getListSubCategory(): ISelectItem[] {
     if (this.addExpenseForm.get(ExpenseFormColumns.CATEGORY).value) {
@@ -766,7 +818,7 @@ export class ModalExpensesComponent {
   }
 
   deleteFile(event: any): void {
-
+    this.addExpenseForm.patchValue({ file: "" }) // For delete file from form in edit mode. 
     // For check if change the file in edit mode
     if (this.isEditMode && this.isFileExist) {
       this.isFileChanged = true;
@@ -787,9 +839,6 @@ export class ModalExpensesComponent {
     this.editModeFile = '';
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
     this.pdfLoaded = false;
-    // if (this.isEditMode) {
-    //   this.addExpenseForm.patchValue({ file: '' });
-    // }
     event.preventDefault();
   }
 

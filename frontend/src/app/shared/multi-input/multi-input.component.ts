@@ -40,7 +40,6 @@ export class MultiInputComponent  implements OnInit {
 
 
   inputLabelName: string;
-  categoryInput: string; // Bound to the input
   showDropdown: boolean = false;
   filteredCategories: ISelectItem[];
   fullItems: ISelectItem[];
@@ -71,16 +70,17 @@ export class MultiInputComponent  implements OnInit {
     this.setPopoverPosition();
   }
 
-  filterCategories() {
-    const inputValue = this.categoryInput.toLowerCase();
+  filterCategories(event) {
+    const inputValue = event.detail.value.toLowerCase();
     this.filteredCategories = this.fullItems.filter((category) =>
       category.value.toString().toLowerCase().includes(inputValue)
     );
-    if (this.categoryInput.length < 0 || this.filteredCategories.length === 0 || inputValue === "") {
+    if(!this.filteredCategories.length) {
       this.showDropdown = false;
     }
     else {
       this.showDropdown = true;
+      
     }
   }
 
@@ -88,8 +88,6 @@ export class MultiInputComponent  implements OnInit {
     this.parentForm.patchValue({
       [this.controlName]: category
     });
-    this.categoryInput = "";
-    this.categoryInput = category; // Set the input to the selected category
     this.showDropdown = false; // Close the dropdown
     this.parentForm.patchValue({
       [this.controlName]: category

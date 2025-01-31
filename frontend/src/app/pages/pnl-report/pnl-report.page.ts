@@ -6,6 +6,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
+import { FilesService } from 'src/app/services/files.service';
 
 
 @Component({
@@ -27,7 +28,7 @@ export class PnLReportPage implements OnInit {
   totalExpense: number = 0;
   businessNames: ISelectItem[] = [];
 
-  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
     this.pnlReportForm = this.formBuilder.group({
       month: new FormControl(
         '', Validators.required,
@@ -116,10 +117,19 @@ export class PnLReportPage implements OnInit {
     this.displayExpenses = !this.displayExpenses
   }
 
+  createPDF(): void {
+    console.log("in cerate");
 
-  // setCloseToast(): void {
-  //   this.isToastOpen = false;
-  // }
-
-
+    this.pnlReportService.createPDF()
+      .pipe(
+        catchError((err) => {
+          console.log("error in create pdf: ", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log('res of create pdf: ', res);
+        this.fileService.downloadFile("my pdf", res)
+      })
+  }
 }

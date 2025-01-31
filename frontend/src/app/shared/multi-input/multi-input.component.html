@@ -2,7 +2,7 @@
 <form [formGroup]="parentForm" class="multi-input-form">
   <ion-item [disabled]="disabled" (blur)="toggleDropdown()" class="wrap-multi-input {{className}}">
     <ion-input class="mupti-input" [formControlName]="controlName" [placeholder]="inputLabelName"
-     (ionFocus)="showDropdown = true" (ionInput)="filterCategories()"></ion-input>
+     (ionFocus)="showDropdown = true" (ionInput)="filterCategories($event)"></ion-input>
     <!-- <ion-button fill="clear"> -->
     <ion-icon slot="end" name="caret-down-outline" (click)="toggleDropdown()" (ionBlur)="toggleDropdown()"></ion-icon>
     <!-- </ion-button> -->

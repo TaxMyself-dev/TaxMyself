@@ -52,11 +52,11 @@
 <ng-template #searchBarContent>
   <form class="generic-search-bar-content" [formGroup]="transactionsForm">
     <app-select-report-period class="input-search-bar" [parentForm]="transactionsForm" (onSelectionChange)="setFormValidators($event)" [title]="'סנן לפי'"></app-select-report-period>
+    <app-select-year *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="transactionsForm" class="input-search-bar"></app-select-year>
     <app-select-month 
     *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
            this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="transactionsForm" class="input-search-bar">
     </app-select-month>
-    <app-select-year *ngIf="this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="transactionsForm" class="input-search-bar"></app-select-year>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="transactionsForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="transactionsForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
     <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'"

@@ -565,7 +565,7 @@ export class TransactionsPage implements OnInit {
         data.sum = String(Math.abs(Number(data.sum)));
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
-        console.log(data);
+        //console.log(data);
         
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
         

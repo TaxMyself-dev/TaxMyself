@@ -21,47 +21,34 @@ export class FilesService {
 
   constructor(private http: HttpClient, private genericService: GenericService) { }
 
-  downloadFile(urlFile: string): void {
-    const storage = getStorage();
-    getDownloadURL(ref(storage, urlFile))
-        .then((url) => {
-            const fileName = this.extractFileName(urlFile);
+  async downloadFirebaseFile(urlFile: string) {
+    const orginalNameFile = this.extractFileName(urlFile);
+    const file = await this.getFirebaseUrlFile(urlFile);
+    this.downloadFile(orginalNameFile, file.blob);
+  }
 
-            // Perform the download
-            const xhr = new XMLHttpRequest();
-            xhr.responseType = 'blob';
-            xhr.onload = (event) => {
-                const blob = new Blob([xhr.response]);
-                const a: HTMLAnchorElement = document.createElement('a');
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                const objectUrl = window.URL.createObjectURL(blob);
-                a.href = objectUrl;
-                a.download = fileName; // Use the cleaned-up file name
-                a.click();
-                window.URL.revokeObjectURL(objectUrl);
-                document.body.removeChild(a); // Clean up
-            };
-            xhr.open('GET', url);
-            xhr.send();
-        })
-        .catch((error) => {
-            console.log("Error downloading file: ", error.code);
-            if (error.code === "storage/object-not-found") {
-                alert("לא שמור קובץ עבור הוצאה זו");
-            }
-            alert("לא ניתן להוריד את הקובץ");
-        });
-}
 
-extractFileName(file: string): string {
-  // Extract the full file name from directories
-  const fullFileName = file.split('/').pop();
+  downloadFile(fileName: string, blob: Blob): void {
+    // Perform the download
+    const a: HTMLAnchorElement = document.createElement('a');
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    const objectUrl = window.URL.createObjectURL(blob);
+    a.href = objectUrl;
+    a.download = fileName; // Use the cleaned-up file name
+    a.click();
+    window.URL.revokeObjectURL(objectUrl);
+    document.body.removeChild(a); // Clean up
+  };
 
-  // Remove the unique ID prefix
-  const fileName = fullFileName.slice(21);
-  return fileName
-}
+  extractFileName(file: string): string {
+    // Extract the full file name from directories
+    const fullFileName = file.split('/').pop();
+
+    // Remove the unique ID prefix
+    const fileName = fullFileName.slice(21);
+    return fileName
+  }
 
   public async getFirebaseUrlFile(urlFile: string) {
     const storage = getStorage();
@@ -77,7 +64,7 @@ extractFileName(file: string): string {
       console.error("error from download file", error);
     }
 
-    return { file: urlFile, type: blob.type };
+    return { file: urlFile, type: blob.type, blob };
   }
 
   previewFile(urlFile: string): Observable<void> {
@@ -126,24 +113,6 @@ extractFileName(file: string): string {
       })
     );
   }
-
-  // convertPdfFileToBase64String(file: File): Promise<string> {
-  //   return new Promise<string>((resolve, reject) => {
-  //     const reader = new FileReader();
-  //     reader.addEventListener('load', () => {
-  //       const result = reader.result;
-
-  //       if (!result) {
-  //         reject('result is null');
-  //         return;
-  //       }
-
-  //       resolve(reader.result.toString());
-  //     });
-  //     reader.addEventListener('error', reject);
-  //     reader.readAsDataURL(file);
-  //   });
-  // }
 
   public async deleteFile(urlFile: string): Promise<void> {
     const storage = getStorage();
