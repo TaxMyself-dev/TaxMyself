@@ -22,6 +22,7 @@ export class AppComponent implements OnInit {
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
     { title: 'פאנל ניהול', url: 'admin-panel', icon: 'settings' },
+    { title: 'הלקוחות שלי', url: 'client-panel', icon: 'settings' },
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
     { title: 'הענן שלי', url: 'my-storage', icon: 'cloud-download' },
     { title: ' הגשת דוחות', url: 'reports', icon: 'documents' },
@@ -42,6 +43,7 @@ export class AppComponent implements OnInit {
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserDate;
   isUserAdmin: boolean = false; 
+  isAccountant: boolean = false; 
   destroy$ = new Subject<void>();
 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService) { };
@@ -84,14 +86,24 @@ export class AppComponent implements OnInit {
   }
 
   getRoleUser(): void {
-    //console.log(this.authService.userDetails);
     
-    if (this.userData?.role === 'ADMIN') {
-      this.isUserAdmin = true;
-    }
-    else {
-      this.isUserAdmin = false
-    }
+    this.isUserAdmin = this.userData?.role?.includes('ADMIN') || false;
+    this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
+
+    // if (this.userData?.role === 'ADMIN') {
+    //   this.isUserAdmin = true;
+    // }
+    // else {
+    //   this.isUserAdmin = false
+    // }
+
+    // if (this.userData?.role === 'ACCOUNTANT') {
+    //   this.isAccountant = true;
+    // }
+    // else {
+    //   this.isAccountant = false
+    // }
+    
   }
 
   openCloseLogOutPopup() {
