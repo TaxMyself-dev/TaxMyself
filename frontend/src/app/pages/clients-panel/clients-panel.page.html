@@ -1,15 +1,11 @@
 <app-custom-toolbar></app-custom-toolbar>
 
 <ion-content [fullscreen]="true">
-  <div class="screen-client-panel">
-    <app-generic-select
-      [items]="myClients"
-      [parentForm]="clientForm"
-      controlName="client"
-      [title]="'Select a Client'"
-      (selectionChanged)="onClientSelectionChange($event)"
-    ></app-generic-select>
-  </div>
+
+  <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="clientSearchBar" 
+    (onSearchClick)="setClient()"()>
+  </app-search-bar>
+
   <div class="invite-user">
     <label for="inviteEmail">Invite a User via Email:</label>
     <input
@@ -22,3 +18,17 @@
   </div>
   
 </ion-content>
+
+<ng-template #clientSearchBar>
+  <div class="screen-client-panel">
+    <form class="generic-search-bar-content">
+      <app-generic-select class="search-client-class"
+        [items]="myClients"
+        [parentForm]="clientForm"
+        controlName="client"
+        [title]="'בחר לקוח'"
+        (selectionChanged)="onClientSelectionChange($event)"
+    ></app-generic-select>
+    </form>
+  </div>
+</ng-template>

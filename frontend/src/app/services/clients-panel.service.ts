@@ -22,7 +22,11 @@ export class ClientPanelService {
 
   getMyClients(): Observable<any> {
     const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}transactions/get-trans`;
+    const agent = localStorage.getItem('firebaseUserData');
+    const agentId = JSON.parse(agent).uid;
+    console.log("agentId is ", agentId);
+    
+    const url = `${environment.apiUrl}delegations/users-for-agent/${agentId}`;
     const headers = {
       'token': token
     }

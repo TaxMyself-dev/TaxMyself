@@ -7,7 +7,7 @@ import { ISelectItem } from 'src/app/shared/interface';
 @Component({
   selector: 'app-clients-panel',
   templateUrl: './clients-panel.page.html',
-  styleUrls: ['./clients-panel.page.scss'],
+  styleUrls: ['./clients-panel.page.scss', '../../shared/shared-styling.scss'],
 })
 export class ClientPanelPage implements OnInit {
 
@@ -16,7 +16,18 @@ export class ClientPanelPage implements OnInit {
   clientForm: FormGroup; // Reactive form for the dropdown
   inviteEmail: string = '';
 
-  constructor(private clientService: ClientPanelService) {}
+
+  constructor(private clientService: ClientPanelService, private formBuilder: FormBuilder) {
+    this.clientForm = this.formBuilder.group({
+      clientName: new FormControl(
+        null, Validators.required,
+      ),
+      clientId: new FormControl(
+        null, Validators.required,
+      ),
+    })
+  }  
+
 
   ngOnInit() {
     // Initialize the form group
@@ -24,8 +35,8 @@ export class ClientPanelPage implements OnInit {
       client: new FormControl(null), // Control for the selected client
     });
 
-    // Fetch the list of clients
-    //this.fetchClients();
+    //Fetch the list of clients
+    this.fetchClients();
   }
 
 
@@ -50,32 +61,39 @@ export class ClientPanelPage implements OnInit {
   }
 
 
-  fetchClients() {
+  // Fetch clients from the backend and format them for the dropdown
+  fetchClients(): void {
     this.clientService.getMyClients().subscribe({
       next: (clients) => {
-        this.myClients = clients.map((client) => ({
-          value: client.id.toString(),
-          label: client.name,
+        console.log("clients is ", clients);
+        
+        this.myClients = clients.users.map(client => ({
+          value: client.firebaseId,
+          name: client.fullName,
         }));
-  
-        if (this.myClients.length > 0) {
-          this.selectedClientId = this.myClients[0].value.toString();
-          this.clientForm.get('client')?.setValue(this.selectedClientId); // Set default value
-        }
+        console.log("myClients is ", this.myClients);
       },
+      
+      
       error: (error) => {
         console.error('Failed to fetch clients:', error);
       },
       complete: () => {
-        console.log('Client fetching process completed.');
+        console.log('Client fetching completed successfully!');
       },
     });
+    
   }
   
 
   onClientSelectionChange(selectedValue: any): void {
     this.selectedClientId = selectedValue; // Update selectedClientId
     console.log('Selected client ID:', this.selectedClientId);
+  }
+
+  setClient(): void {
+    const formData = this.clientForm.value;
+    console.log("formDate is ", formData);
   }
 
 

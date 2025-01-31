@@ -1,4 +1,4 @@
-import { Controller, Post, Delete, Get, Body, Req, Headers, UseGuards, Query, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Delete, Get, Body, Req, Headers, UseGuards, Query, UnauthorizedException, Param } from '@nestjs/common';
 import { DelegationService } from './delegation.service';
 import { UsersService } from 'src/users/users.service';
 import * as jwt from 'jsonwebtoken';
@@ -24,61 +24,67 @@ export class DelegationController {
 
 
   @Get('approve-delegation')
-  async handleApproveDelegation(@Query('token') token: string): Promise<any> {
-    
-    const secret = process.env.JWT_SECRET;
+  async ApproveDelegation(@Query('token') token: string): Promise<any> {
 
-    // Verify and decode the token
-    let payload;
-    try {
-      payload = jwt.verify(token, secret) as { userFirebaseId: string; agentFirebaseId: string };
-    } catch (error) {
-      throw new UnauthorizedException('Invalid or expired token');
+    const result = await this.delegationService.grantPermission(token);
+
+    if (result.success) {
+      return {
+        message: result.message, // Provide a success message only
+      };
+    } else {
+      throw new Error('Delegation failed'); // This would rarely trigger as exceptions are thrown for errors
     }
 
-    const { userFirebaseId, agentFirebaseId } = payload;
+  }
 
-    // Grant permission by creating a delegation entry
-    await this.delegationService.grantPermission(userFirebaseId, agentFirebaseId);
+
+  @Get('users-for-agent/:agentId')
+  async getUsersForAgent(@Param('agentId') agentId: string): Promise<any> {
+    
+    const users = await this.delegationService.getUsersForAgent(agentId);
 
     return {
-      message: `Permission granted successfully for user ${userFirebaseId} to agent ${agentFirebaseId}`,
+      message: `Users retrieved successfully`,
+      users,
     };
-}
+    
+  }
+
 
 
   /**
    * Grant permission to a delegate
    * POST /delegations
    */
-  @Post()
-  async grantPermission(
-    @Body('ownerId') ownerId: string, // User granting access
-    @Body('delegateId') delegateId: string, // User receiving access
-  ) {
-    return this.delegationService.grantPermission(ownerId, delegateId);
-  }
+  // @Post()
+  // async grantPermission(
+  //   @Body('ownerId') ownerId: string, // User granting access
+  //   @Body('delegateId') delegateId: string, // User receiving access
+  // ) {
+  //   return this.delegationService.grantPermission(ownerId, delegateId);
+  // }
 
   /**
    * Revoke permission from a delegate
    * DELETE /delegations
    */
-  @Delete()
-  async revokePermission(
-    @Body('ownerId') ownerId: string, // User revoking access
-    @Body('delegateId') delegateId: string, // User losing access
-  ) {
-    await this.delegationService.revokePermission(ownerId, delegateId);
-    return { message: 'Permission revoked successfully' };
-  }
+  // @Delete()
+  // async revokePermission(
+  //   @Body('ownerId') ownerId: string, // User revoking access
+  //   @Body('delegateId') delegateId: string, // User losing access
+  // ) {
+  //   await this.delegationService.revokePermission(ownerId, delegateId);
+  //   return { message: 'Permission revoked successfully' };
+  // }
 
   /**
    * Get the list of users managed by a delegate
    * GET /delegations
    */
-  @Get()
-  async getManagedUsers(@Req() req) {
-    const delegateId = req.user.id; // Get the authenticated user's ID from the request
-    return this.delegationService.getUsersManagedBy(delegateId);
-  }
+  // @Get()
+  // async getManagedUsers(@Req() req) {
+  //   const delegateId = req.user.id; // Get the authenticated user's ID from the request
+  //   return this.delegationService.getUsersManagedBy(delegateId);
+  // }
 }
