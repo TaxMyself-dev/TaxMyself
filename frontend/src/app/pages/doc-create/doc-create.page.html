@@ -1,0 +1,19 @@
+<app-custom-toolbar></app-custom-toolbar>
+
+
+
+<ion-content [fullscreen]="true">
+  <div class="wrap-screen">
+    <app-search-bar class="generic-searchbar-wrapper" 
+      (onSearchClick)="onSubmit()" [customTemplate]="docCreateTemplate">
+    </app-search-bar>
+  </div>
+</ion-content>
+
+<ng-template #docCreateTemplate>
+  <form class="generic-search-bar-content" [formGroup]="docCreateForm">
+    <app-generic-select class="default-input-register" [controlName]="'docType'" title="בחר מסמך" [items]="docCreateTypeList"
+      [parentForm]="docCreateForm">
+    </app-generic-select>
+  </form>
+</ng-template> 

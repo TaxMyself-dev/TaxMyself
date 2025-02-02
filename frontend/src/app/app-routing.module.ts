@@ -75,6 +75,10 @@ const routes: Routes = [
     path: 'client-panel',
     loadChildren: () => import('./pages/clients-panel/clients-panel.module').then( m => m.ClientPanelPageModule)
   },
+  {
+    path: 'doc-create',
+    loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule)
+  },
  
 ];
 

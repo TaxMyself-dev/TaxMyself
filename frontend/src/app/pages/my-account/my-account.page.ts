@@ -8,7 +8,7 @@ import { IItemNavigate } from 'src/app/shared/interface';
 })
 export class MyAccountPage implements OnInit {
 
-  itemsNavigate: IItemNavigate[] = [{ name: "הפקת מסמך", link: "", icon: "document-outline", id: '0', index: 'zero', disable: true, }, 
+  itemsNavigate: IItemNavigate[] = [{ name: "הפקת מסמך", link: "/doc-create", icon: "document-outline", id: '0', index: 'zero' }, 
                                     { name: "הוספת הוצאה", link: "/add-expenses", icon: "cloud-upload-outline", id: '1', index: 'one' }, 
                                     { name: "הענן שלי", link: "/my-storage", icon: "cloud-outline", id:'2', index: 'two'}, 
                                     { name: "תזרים", link: "/transactions", icon: "swap-vertical-outline", id: '3', index: 'three' }, 
