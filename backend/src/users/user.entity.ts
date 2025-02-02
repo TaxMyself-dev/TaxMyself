@@ -120,44 +120,47 @@ export class User {
     ////////  Buisness 1 details  //////
     ////////////////////////////////////
 
-    @Column()
-    businessName: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    businessName: string | null;
 
     @Column({ type: 'varchar', nullable: true, default: null })
     businessField: string | null;
 
-    @Column()
-    businessNumber: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    businessNumber: string | null;
 
     @Column({
       type: 'enum',
       enum: BusinessType,
       enumName: 'BusinessType',
+      nullable: true,
       default: BusinessType.EXEMPT
     })
-    businessType: BusinessType;
+    businessType: BusinessType | null;
 
-    @Column()
-    businessInventory: boolean;
+    @Column({ type: 'boolean', nullable: true, default: null })
+    businessInventory: boolean | null;
 
-    @Column('date')
-    businessDate: Date;
+    @Column({ type: 'date', nullable: true, default: null })
+    businessDate: Date | null;
 
     @Column({
       type: 'enum',
       enum: VATReportingType,
       enumName: 'VATReportingType',
+      nullable: true,
       default: VATReportingType.NOT_REQUIRED
     })
-    vatReportingType: VATReportingType;
+    vatReportingType: VATReportingType | null;
 
     @Column({
       type: 'enum',
       enum: TaxReportingType,
       enumName: 'TaxReportingType',
+      nullable: true,
       default: TaxReportingType.NOT_REQUIRED
     })
-    taxReportingType: TaxReportingType;
+    taxReportingType: TaxReportingType | null;
 
     ////////////////////////////////////
     ////////  Buisness 2 details  //////

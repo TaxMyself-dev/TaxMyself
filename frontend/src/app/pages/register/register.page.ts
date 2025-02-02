@@ -66,7 +66,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         '', this.requierdField ? [Validators.required] : null,
       ),
       [RegisterFormControls.EMPLOYEMENTSTATUS]: new FormControl(
-        false, Validators.required,
+        null, Validators.required,
       ),
       [RegisterFormControls.CITY]: new FormControl(
         '', this.requierdField ? Validators.required : null,
@@ -103,19 +103,19 @@ export class RegisterPage implements OnInit, OnDestroy {
 
     const businessForm = this.formBuilder.group({
       [RegisterFormControls.BUSINESSNAME]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        null, this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        null, this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSDATE]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        null, this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-        '', this.requierdField ? [Validators.required,  Validators.pattern(/^\d+$/)] : null,
+        null, this.requierdField ? [Validators.required,  Validators.pattern(/^\d+$/)] : null,
       ),
       [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        null, this.requierdField ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
         null, this.requierdField && this.isMarried() ? Validators.required : null,

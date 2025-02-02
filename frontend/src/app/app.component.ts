@@ -26,7 +26,7 @@ export class AppComponent implements OnInit {
     { title: 'איזור אישי', url: 'my-account', icon: 'person-circle' },
     { title: 'הענן שלי', url: 'my-storage', icon: 'cloud-download' },
     { title: ' הגשת דוחות', url: 'reports', icon: 'documents' },
-    { title: ' הפקת מסמך', url: 'doc-create', icon: 'documents' },
+    //{ title: ' הפקת מסמך', url: 'doc-create', icon: 'documents' },
     { title: 'הוספת חשבונית', url: 'add-expenses', icon: 'cloud-upload' },
     { title: 'תזרים', url: 'transactions', icon: 'swap-vertical' },
     //{ title: 'יעוץ פיננסי', url: 'spam', icon: 'chatbubbles' },
