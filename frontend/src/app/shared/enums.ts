@@ -146,6 +146,18 @@ export const singleMonths = [
   { value: 11, name: 'דצמבר' }
 ];
 
+export const docCreateTypeList = [
+  { value: 0, name: 'קבלה' },
+  { value: 1, name: 'חשבונית מס' },
+  { value: 2, name: 'חשבונית מס קבלה' },
+  { value: 3, name: 'חשבונית עסקה' },
+  { value: 4, name: 'חשבונית זיכוי' },
+  { value: 5, name: 'הצעת מחיר' },
+  { value: 6, name: 'הזמנת עבודה' },
+  { value: 7, name: 'תעודת משלוח' },
+  { value: 8, name: 'תעודת החזרה' },
+];
+
 export enum ICellRenderer {
   CATEGORY = 'category',
   SUBCATEGORY = 'subCategory',
