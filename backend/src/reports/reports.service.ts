@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
@@ -14,6 +14,7 @@ import { User } from '../users/user.entity';
 import { BusinessType} from 'src/enum';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { Transactions } from 'src/transactions/transactions.entity';
+import axios from 'axios';
 
 
 
@@ -30,6 +31,32 @@ export class ReportsService {
         private sharedService: SharedService
     ) {}
 
+
+    async createPDF(data: any): Promise<Blob | undefined> {
+      console.log('in createPDF function');
+      
+      const url = 'https://api.fillfaster.com/v1/generatePDF';
+      const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+    
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+    
+      try {
+        const response = await axios.post<Blob>(url, data, {
+          headers: headers,
+          responseType: 'arraybuffer', // ensures the response is treated as a Blob
+        });
+        
+        return response.data;
+      } 
+      catch (error) {
+        console.error('Error in createPDF:', error);
+        throw new InternalServerErrorException("something went wrong in create PDF");
+      }
+    }
+    
 
     async createVatReport(
       firebaseId: string,

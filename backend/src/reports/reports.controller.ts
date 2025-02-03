@@ -1,5 +1,6 @@
 //General
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Response } from 'express';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res } from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from '../shared/shared.service';
@@ -7,15 +8,23 @@ import { UsersService } from '../users/users.service';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { PnLReportDto } from './dtos/pnl-report.dto';
-import { log } from 'console';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
 
 @Controller('reports')
 export class ReportsController {
-    
+
     constructor(private reportsService: ReportsService,
-                private sharedService: SharedService,
-                private usersService: UsersService) {}
+        private sharedService: SharedService,
+        private usersService: UsersService) { }
+
+    @Post('create-pdf')
+    async createPDF(@Headers('token') token: string, @Body() body: any, @Res() res: Response) {
+        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+        console.log("body: ", body);
+        const pdfBuffer = await this.reportsService.createPDF(body);
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
+    }
 
     @Get('vat-report')
     async getVatReport(
@@ -24,14 +33,14 @@ export class ReportsController {
     ): Promise<VatReportDto> {
 
         console.log("reports.controller - vat-report start");
-      
+
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
 
         console.log("vatReport is ", vatReport);
-        
+
 
         return vatReport;
     }
@@ -42,9 +51,9 @@ export class ReportsController {
         @Headers('token') token: string,
         @Query() query: any,
     ): Promise<PnLReportDto> {
-      
+
         console.log("reports.controller - pnl-report start");
-        
+
         const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);

@@ -245,3 +245,11 @@ export interface IToastData {
     duration: number;
     type: 'success' | 'error'; // Added type for toast
   }
+
+export interface ICreateDataFile {
+    fid: string;
+    prefill_data: {
+        [key: string]: number | string | (string | number)[][],
+        table?: (string | number)[][];
+    }
+}

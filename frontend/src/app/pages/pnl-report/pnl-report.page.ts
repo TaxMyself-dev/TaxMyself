@@ -1,12 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { IPnlReportData, ISelectItem } from 'src/app/shared/interface';
+import { ICreateDataFile, IPnlReportData, ISelectItem, IUserDate } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
+import { ReportingPeriodType } from 'src/app/shared/enums';
 
 
 @Component({
@@ -18,15 +19,15 @@ export class PnLReportPage implements OnInit {
 
   pnlReportForm: FormGroup;
   pnlReport: IPnlReportData;
-  userData: any = {};
+  userData: IUserDate;
   displayExpenses: boolean = false;
   reportClick: boolean = true;
-  // messageToast: string;
-  // isToastOpen: boolean;
   startDate: string;
   endDate: string;
   totalExpense: number = 0;
   businessNames: ISelectItem[] = [];
+
+  reportingPeriodType = ReportingPeriodType;
 
   constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
     this.pnlReportForm = this.formBuilder.group({
@@ -64,6 +65,48 @@ export class PnLReportPage implements OnInit {
     }
   }
 
+  setFormValidators(event): void {
+    console.log("event in perid type transaction: ", event.value);
+    switch (event.value) {
+      case this.reportingPeriodType.ANNUAL:
+        this.pnlReportForm.controls['month']?.setValidators([]);// for reset month control
+        this.pnlReportForm.controls['startDate']?.setValidators([]);// for reset month control
+        this.pnlReportForm.controls['endDate']?.setValidators([]);// for reset month control
+        this.pnlReportForm.controls['year']?.setValidators([Validators.required]);
+        // this.pnlReportForm.controls['year']?.updateValueAndValidity();
+        Object.values(this.pnlReportForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+
+        });
+        console.log(this.pnlReportForm);
+        break;
+
+      case this.reportingPeriodType.DATE_RANGE:
+        this.pnlReportForm.controls['year']?.setValidators([]);// for reset year control
+        this.pnlReportForm.controls['month']?.setValidators([]);// for reset month control
+        this.pnlReportForm.controls['startDate']?.setValidators([Validators.required]);
+        this.pnlReportForm.controls['startDate']?.updateValueAndValidity();
+        this.pnlReportForm.controls['endDate']?.setValidators([Validators.required]);
+        Object.values(this.pnlReportForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+        });
+        console.log(this.pnlReportForm);
+        break;
+
+      case this.reportingPeriodType.BIMONTHLY:
+      case this.reportingPeriodType.MONTHLY:
+        this.pnlReportForm.controls['startDate']?.setValidators([]);
+        this.pnlReportForm.controls['endDate']?.setValidators([]);
+        this.pnlReportForm.controls['month']?.setValidators([Validators.required]);
+        this.pnlReportForm.controls['year']?.setValidators([Validators.required]);
+        Object.values(this.pnlReportForm.controls).forEach((control) => {
+          control.updateValueAndValidity();
+        });
+        console.log(this.pnlReportForm);
+    }
+
+  }
+
   onSubmit() {
     const formData = this.pnlReportForm.value;
     this.reportClick = false;
@@ -72,7 +115,6 @@ export class PnLReportPage implements OnInit {
     this.endDate = endDate;
     this.getPnLReportData(startDate, endDate, formData.businessNumber);
   }
-
 
   getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
     this.genericService.getLoader().subscribe();
@@ -112,15 +154,31 @@ export class PnLReportPage implements OnInit {
     this.pnlReport.income = this.genericService.addComma(this.pnlReport.income);
   }
 
-
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
 
   createPDF(): void {
     console.log("in cerate");
-
-    this.pnlReportService.createPDF()
+    let dataTable: (string | number)[][] = [];
+    this.pnlReport.expenses.forEach((expense) => {
+      dataTable.push([String(expense.total), expense.category]);
+    })
+     //console.log("dataTable: ", dataTable);
+     
+    const data: ICreateDataFile = {
+      fid: "ydAEQsvSbC",
+      prefill_data: {
+      name: this.userData.fName + " " + this.userData.lName,
+      id: this.userData.businessNumber,
+      peryod: `${this.endDate} - ${this.startDate}`,
+      income: this.pnlReport.income as string,
+      profit: this.pnlReport.netProfitBeforeTax as string,
+      expenses: String(this.totalExpense),
+      table: dataTable,
+    }
+  }
+    this.fileService.createPDF(data)
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);
