@@ -65,7 +65,7 @@ serviceAccount = {
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
                  DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: true, //TODO: uncomment after the database is stable: // process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
     TypeOrmModule.forFeature([
