@@ -40,14 +40,68 @@ export class SelectMonthComponent {
     { value: '12', name: 'דצמבר' }
   ];
 
-  constructor() { }
+  constructor() {
+    const now = new Date();
+  const currentYear = now.getFullYear();
+  console.log("currentYear: ", currentYear);
+  
+   }
 
   get month(): ({value: string | number; name: string | number;})[] {
     if (this.parentForm?.get('reportingPeriodType')?.value === ReportingPeriodType.MONTHLY) {
-      return this.singleMonths;
+      // return this.singleMonths;
+      return this.getValidSingleMonths();
     }
-    else return this.doubleMonths;
+    else return this.getValidDoubleMonths();
+    // else return this.doubleMonths;
   }
 
+  getValidSingleMonths() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-based (January = 1)
+  
+    // If the selected year is before the current year, return ALL months
+    if (+this.year < currentYear) {
+      return this.singleMonths;
+    }
+    
+    // If the selected year is after the current year, return an empty array
+    if (+this.year > currentYear) {
+      return [];
+    }
+    
+    // If the selected year IS the current year, allow months up to (and including) the current month
+    return this.singleMonths.filter((m) => {
+      const monthValue = parseInt(m.value, 10);
+      return monthValue <= currentMonth;
+    });
+  }
+
+  getValidDoubleMonths() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+  
+    // If the selected year is before the current year, return all double-months
+    if (+this.year < currentYear) {
+      return this.doubleMonths;
+    }
+  
+    // If the selected year is after the current year, return empty (or all, if you prefer)
+    if (+this.year > currentYear) {
+      return [];
+    }
+  
+    // If it's the current year, we need to see if the end of each 2-month range has passed.
+    return this.doubleMonths.filter((dm) => {
+      const start = parseInt(dm.value, 10);
+      const end = start + 1; // e.g. if start = 1, end = 2
+      // This double-month is valid if we've reached or passed its end month
+      return end <= currentMonth;
+    });
+  }
+  
+  
 }
 

@@ -19,6 +19,8 @@ export class ButtonComponent {
   @Input() iconStyle: Partial<CSSStyleDeclaration> = {margin: '0'};
   @Input() buttonStyle: Partial<CSSStyleDeclaration> = {};
   @Input() href: string;
+  @Input() isLoading: boolean = false;
+
 
   @Output() onButtonClicked: EventEmitter<Event> = new EventEmitter<Event>();
   

@@ -30,6 +30,7 @@ interface FieldTitles {
 export class VatReportPage implements OnInit {
 
   readonly ButtonSize = ButtonSize;
+  readonly reportingPeriodType = ReportingPeriodType;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
@@ -220,6 +221,7 @@ export class VatReportPage implements OnInit {
           });
     }
   }
+
 
   addFile(event: any, row: IRowDataTable): void {
     console.log("in add file");
@@ -446,12 +448,5 @@ export class VatReportPage implements OnInit {
         this.setRowsData();
       });
   }
-
-  // setCloseToast(): void {
-  //   this.isToastOpen = false;
-  // }
-
-
-
 
 }
