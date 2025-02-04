@@ -21,6 +21,7 @@ export class PnLReportPage implements OnInit {
   pnlReport: IPnlReportData;
   userData: IUserDate;
   displayExpenses: boolean = false;
+  isLoading: boolean = false;
   reportClick: boolean = true;
   startDate: string;
   endDate: string;
@@ -159,6 +160,7 @@ export class PnLReportPage implements OnInit {
   }
 
   createPDF(): void {
+    this.isLoading = true;
     console.log("in cerate");
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
@@ -182,7 +184,11 @@ export class PnLReportPage implements OnInit {
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);
+          this.isLoading = false;
           return EMPTY;
+        }),
+        finalize(() =>{
+          this.isLoading = false;
         })
       )
       .subscribe((res) => {

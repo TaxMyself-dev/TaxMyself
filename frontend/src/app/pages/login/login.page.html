@@ -48,7 +48,7 @@
             [parentForm]="loginForm" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
           <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="סיסמא" controlName="password"
             [parentForm]="loginForm" [showAsterisk]="false" [showError]="false"></app-generic-input>
-          <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.loginForm.invalid" buttonText="התחבר"
+          <app-button [isLoading]="isLoading" [buttonSize]="ButtonSize.SMALL" [disabled]="this.loginForm.invalid" buttonText="התחבר"
             (onButtonClicked)="login2()"></app-button>
         </ng-container>
         <ng-template #resetTemplate>

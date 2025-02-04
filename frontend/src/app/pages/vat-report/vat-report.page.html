@@ -47,15 +47,10 @@
 
 <ng-template #vatReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="vatReportForm">
-    <app-select-report-period class="vat-report-search-bar-input" [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm" [title]="'תקופת דיווח'"></app-select-report-period>
-    <app-select-month class="vat-report-search-bar-input" [parentForm]="vatReportForm"></app-select-month>
+    <app-select-report-period class="vat-report-search-bar-input" [optionsTypes]="optionsTypesList" [parentForm]="vatReportForm" [title]="'תקופת דיווח'" ></app-select-report-period>
     <app-select-year class="vat-report-search-bar-input" [parentForm]="vatReportForm"></app-select-year>
-    <!-- <app-generic-input [controlName]="'vatableTurnover'" [inputLabel]="'הכנסה חייבת במעמ'" -->
-      <!-- [parentForm]="vatReportForm"></app-generic-input> -->
-    <!-- <app-generic-input [controlName]="'nonVatableTurnover'" [inputLabel]="'הכנסה פטורה ממעמ'" -->
-      <!-- [parentForm]="vatReportForm"></app-generic-input> -->
+    <app-select-month  *ngIf="this.vatReportForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
+           this.vatReportForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" class="vat-report-search-bar-input" [parentForm]="vatReportForm" [year]="this.vatReportForm.get('year').value"></app-select-month>
       <app-generic-select class="vat-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNamesList" [parentForm]="vatReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
   </form>
 </ng-template> 
-
-<!-- <ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="3000" (didDismiss)="setCloseToast()"></ion-toast> -->

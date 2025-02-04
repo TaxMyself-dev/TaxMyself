@@ -8,10 +8,10 @@
         'x_small': buttonSize === ButtonSize.X_SMALL,
         'small': buttonSize === ButtonSize.SMALL,
         'big': buttonSize === ButtonSize.BIG}"
-    [disabled]="disabled"
+    [disabled]="disabled || isLoading"
     (click)="onClick($event)"
 >
 
 <ion-icon *ngIf="iconName" [ariaLabel]="ariaLabel" [ngStyle]="iconStyle" [slot]="iconPosition" [name]="iconName"></ion-icon>
 <ion-icon *ngIf="iconSrc" size="0.5" [ariaLabel]="ariaLabel" [ngStyle]="iconStyle" [slot]="iconPosition"  [src]="iconSrc"></ion-icon>
-{{buttonText}}</ion-button>
+{{isLoading ? "בטעינה..." : buttonText}}<ion-spinner *ngIf="isLoading"  style="width: 20px; height: 20px;"></ion-spinner></ion-button>
