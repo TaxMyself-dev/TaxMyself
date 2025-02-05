@@ -45,20 +45,21 @@
     </ng-container>
   </div>
 
-  <app-button buttonText="Create PDF" (onButtonClicked)="createPDF()"></app-button>
+  <app-button [disabled]="!pnlReport" buttonText="Create PDF" (onButtonClicked)="createPDF()" [isLoading]="isLoading"></app-button>
 </ion-content>
 
 <ng-template #pnlReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="pnlReportForm">
     <app-select-report-period class="pnl-report-search-bar-input" (onSelectionChange)="setFormValidators($event)" [parentForm]="pnlReportForm" [title]="'תקופת דיווח'"></app-select-report-period>
-    <app-select-year class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-year>
+    <app-select-year *ngIf="this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-year>
     <!-- <app-select-month class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-month> -->
 
     <app-select-month 
     *ngIf="this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
-           this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="pnlReportForm" class="pnl-report-search-bar-input">
+           this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="pnlReportForm" class="pnl-report-search-bar-input" [year]="this.pnlReportForm.get('year').value">
     </app-select-month>
-
+    <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="pnlReportForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
+    <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="pnlReportForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
     <!-- <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
       [parentForm]="pnlReportForm"></app-generic-input> -->
       <app-generic-select class="pnl-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 

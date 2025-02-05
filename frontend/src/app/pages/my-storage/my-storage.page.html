@@ -41,11 +41,11 @@
 <ng-template #searchBarContent>
   <form class="generic-search-bar-content" [formGroup]="storageForm">
     <app-select-report-period class="input-search-bar" [parentForm]="storageForm" (onSelectionChange)="setFormValidators($event)" [title]="'סנן לפי'"></app-select-report-period>
+    <app-select-year *ngIf="this.storageForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="storageForm" class="input-search-bar"></app-select-year>
     <app-select-month 
     *ngIf="this.storageForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
-           this.storageForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="storageForm" class="input-search-bar">
+           this.storageForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="storageForm" class="input-search-bar" [year]="this.storageForm.get('year').value">
     </app-select-month>
-    <app-select-year *ngIf="this.storageForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" [parentForm]="storageForm" class="input-search-bar"></app-select-year>
     <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="storageForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
     <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="storageForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
     <app-generic-select class="input-search-bar" *ngIf="userData?.isTwoBusinessOwner" [items]="businessNamesList" [parentForm]="storageForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 

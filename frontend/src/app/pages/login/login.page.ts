@@ -26,9 +26,8 @@ export class LoginPage implements OnInit {
   resetForm: FormGroup;
   displayError: string;
   showPassword: boolean = false;
-  // isToastOpen: boolean = false;
-  // messageToast: string = "";
   resetMode = false;
+  isLoading = false;
 
   constructor(private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
@@ -63,11 +62,13 @@ export class LoginPage implements OnInit {
   }
 
   login2(): void {
+    this.isLoading = true;
     this.authService.error$.next(null);
     const formData = this.loginForm.value;
-    this.genericService.getLoader()
+    // this.genericService.getLoader()
+    this.authService.userVerify(formData.userName, formData.password)
       .pipe(
-        switchMap(() => from(this.authService.userVerify(formData.userName, formData.password))),
+        // switchMap(() => from(this.authService.userVerify(formData.userName, formData.password))),
         catchError((err) => {
           console.log("err in user verify in sign in", err);
           return EMPTY;
@@ -75,7 +76,7 @@ export class LoginPage implements OnInit {
         filter((res) => {
           if (!res?.user?.emailVerified) {
             console.log("in email error");
-            this.genericService.dismissLoader();
+            // this.genericService.dismissLoader();
             this.authService.error$.next("email");
           }
           return res?.user?.emailVerified;
@@ -89,11 +90,13 @@ export class LoginPage implements OnInit {
           localStorage.setItem('userData', JSON.stringify(res));
           console.log('Sign-in response:', res);
           this.router.navigate(['my-account']);
-         this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
+          this.isLoading = false;
+          // this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
         }),
         finalize(() => {
           console.log("Finalize called - Dismissing loader");
-          this.genericService.dismissLoader();
+          this.isLoading = false;
+          // this.genericService.dismissLoader();
         })
        
       )
