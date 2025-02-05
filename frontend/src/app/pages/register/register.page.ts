@@ -26,7 +26,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   private ngUnsubscribe = new Subject();
 
   myForm: FormGroup;
-  // cities: ICityData[];
   cities: ISelectItem[];
   selectedFormModule: RegisterFormModules = this.registerFormModules.PERSONAL;
   selectedOption!: string;
@@ -40,7 +39,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
-  // requierdField: boolean = true;
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
@@ -103,34 +101,34 @@ export class RegisterPage implements OnInit, OnDestroy {
 
     const businessForm = this.formBuilder.group({
       [RegisterFormControls.BUSINESSNAME]: new FormControl(
-        null, this.requierdField ? Validators.required : null,
+        null, this.requierdField && this.isIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-        null, this.requierdField ? Validators.required : null,
+        null, this.requierdField && this.isIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSDATE]: new FormControl(
-        null, this.requierdField ? Validators.required : null,
+        null, this.requierdField && this.isIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-        null, this.requierdField ? [Validators.required,  Validators.pattern(/^\d+$/)] : null,
+        null, this.requierdField && this.isIndependent() ? [Validators.required,  Validators.pattern(/^\d+$/)] : null,
       ),
       [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
-        null, this.requierdField ? Validators.required : null,
+        null, this.requierdField && this.isIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
-        null, this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
-        null, this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
-        null, this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
-        null, this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
-        null, this.requierdField && this.isMarried() ? Validators.required : null,
+        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
     })
 
@@ -209,7 +207,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   get isNextButtonDisabled(): boolean {
-    //console.log("!this.isCurrentFormValid(): ",!this.isCurrentFormValid());
     return !this.isCurrentFormValid();
   }
 
@@ -281,8 +278,13 @@ export class RegisterPage implements OnInit, OnDestroy {
   onBackBtnClicked(): void {
     switch (this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
-        this.selectedFormModule = RegisterFormModules.BUSINESS;
-        this.setSelectedNavItem(RegisterFormModules.BUSINESS);
+        if (this.isIndependent() || this.isSpouseIndependent()) {
+          this.selectedFormModule = RegisterFormModules.BUSINESS;
+          this.setSelectedNavItem(RegisterFormModules.BUSINESS);
+        } else {
+          this.selectedFormModule = RegisterFormModules.CHILDREN;
+          this.setSelectedNavItem(RegisterFormModules.CHILDREN);
+        }
         break;
       case RegisterFormModules.BUSINESS:
         if (this.isSingle()) {
@@ -310,8 +312,6 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   onNextBtnClicked(): void {
-    console.log("onNextBtnClicked - start");
-
     switch (this.selectedFormModule) {
       case RegisterFormModules.VALIDATION:
         this.handleFormRegister();
