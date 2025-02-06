@@ -59,7 +59,7 @@
            this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="pnlReportForm" class="pnl-report-search-bar-input" [year]="this.pnlReportForm.get('year').value">
     </app-select-month>
     <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="pnlReportForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
-    <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="pnlReportForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
+    <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="pnlReportForm" class="input-search-bar" [inputLabel]="'עד תאריך'" [minDate]="this.pnlReportForm.get('startDate').value"></app-sort-date>
     <!-- <app-generic-input [controlName]="'taxableTurnover'" [inputLabel]="'הכנסה חייבת'"
       [parentForm]="pnlReportForm"></app-generic-input> -->
       <app-generic-select class="pnl-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 

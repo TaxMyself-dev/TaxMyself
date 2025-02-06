@@ -58,7 +58,7 @@
            this.transactionsForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="transactionsForm" class="input-search-bar" [year]="this.transactionsForm.get('year').value">
     </app-select-month>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="transactionsForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
-    <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="transactionsForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
+    <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [minDate]="this.transactionsForm.get('startDate').value" [parentForm]="transactionsForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
     <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'"
       [parentForm]="transactionsForm" class="input-search-bar"></app-generic-select>
   </form>

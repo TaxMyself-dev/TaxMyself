@@ -36,6 +36,9 @@ import { FinsiteService } from './finsite/finsite.service';
 import { ExpensesService } from './expenses/expenses.service';
 import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
+import { SettingDocuments } from './documents/settingDocuments.entity';
+import { DocumentsModule } from './documents/documents.module';
+import { DocumentsService } from './documents/documents.service';
 
 let serviceAccount: any;
 
@@ -64,7 +67,7 @@ serviceAccount = {
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
-                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation],
+                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments],
       synchronize: true, //TODO: uncomment after the database is stable: // process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -82,11 +85,12 @@ serviceAccount = {
       UserSubCategory,
       Finsite,
       Delegation,
+      SettingDocuments,
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule],
     controllers: [AppController],
-  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService],
+  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService],
 })
 export class AppModule {
 

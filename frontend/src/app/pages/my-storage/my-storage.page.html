@@ -47,7 +47,7 @@
            this.storageForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="storageForm" class="input-search-bar" [year]="this.storageForm.get('year').value">
     </app-select-month>
     <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="storageForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
-    <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="storageForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
+    <app-sort-date *ngIf="this.storageForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="storageForm" class="input-search-bar" [inputLabel]="'עד תאריך'" [minDate]="this.storageForm.get('startDate').value"></app-sort-date>
     <app-generic-select class="input-search-bar" *ngIf="userData?.isTwoBusinessOwner" [items]="businessNamesList" [parentForm]="storageForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
 
     <!-- <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'" -->
