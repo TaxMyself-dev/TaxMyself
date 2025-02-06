@@ -9,7 +9,7 @@ import { SettingDocuments } from './settingDocuments.entity';
   imports: [TypeOrmModule.forFeature([SettingDocuments])],
   controllers: [DocumentsController],
   providers: [
-    DocumentsService
+    DocumentsService,
   ],
 })
 export class DocumentsModule {}

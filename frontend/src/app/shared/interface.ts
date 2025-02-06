@@ -69,6 +69,26 @@ export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     onChange?: (event?: any, parent?: any) => void;
 }
 
+export interface ICreateFileField<TFieldsHebrew, TFields> {
+    name: TFieldsHebrew;
+    value: TFields;
+    type: FormTypes;
+    listItems?: ISelectItem[];
+    //cellRenderer?: ICellRenderer;
+    errorText?: string;
+    onChange?: (event?: any, parent?: any) => void;
+}
+
+export interface ISettingDoc {
+    id: string;
+    userId: string;
+    documentType: string;
+    initialIndex: number | null;
+    currentIndex;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 export interface ISuppliers {
     id: number,
     name: string,
