@@ -10,6 +10,7 @@ import { SharedService } from 'src/shared/shared.service';
 import { Child } from 'src/users/child.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 
 @Module({
@@ -19,7 +20,9 @@ import { Transactions } from 'src/transactions/transactions.entity';
     DelegationService,
     UsersService,
     SharedService,
-    MailService
+    MailService,
+    //FirebaseAuthGuard
   ],
+  //exports: [FirebaseAuthGuard],
 })
 export class DelegationModule {}

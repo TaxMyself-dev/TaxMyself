@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe, Put } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe, Put, UseGuards, Req } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { SharedService } from '../shared/shared.service';
@@ -10,6 +10,8 @@ import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 
 
 @Controller('transactions')
@@ -20,23 +22,26 @@ export class TransactionsController {
     private usersService: UsersService,) {}
 
   @Get('get-trans')
-  async getTrans( @Headers('token') token: string,  @Query() query: any) {
+  //TODO: Add Admin guard
+  async getTrans(@Query() query: any) {
     return this.transactionsService.getTransactionsFromFinsite(query.startDate, query.endDate, query.finsiteId );
   }
 
 
   @Post('load-file')
+  @UseGuards(FirebaseAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
+    @Req() request: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,
-    @Headers('token') token: string,
   ) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactions(file, userId);
   }
 
 
   @Post('load-default-categories')
+  //TODO: Add Admin guard
   @UseInterceptors(FileInterceptor('file'))
   async loadDefaultCategories(
     @UploadedFile() file: Express.Multer.File) {
@@ -44,105 +49,100 @@ export class TransactionsController {
   }
 
 
-  @Get('get_by_userID')
-  async getTransactionsByUserID(@Query('billId') userID: string): Promise<Transactions[]> {
-    return await this.transactionsService.getTransactionsByUserID(userID);
-  }
-
-
   @Post('add-bill')
-  async addBill(@Headers('token') token: string,
-  @Body() body: CreateBillDto) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
+  @UseGuards(FirebaseAuthGuard)
+  async addBill(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: CreateBillDto) {
+    const userId = request.user?.firebaseId;
     return await this.transactionsService.addBill(userId, body); 
   }
 
 
   @Post(':id/sources')
+  @UseGuards(FirebaseAuthGuard)
   async addSourceToBill(
+    @Req() request: AuthenticatedRequest,
     @Param('id') billId: number,
-    @Headers('token') token: string,
     @Body() body: any,
   ): Promise<Source> {
-      const userId = await this.usersService.getFirbsaeIdByToken(token);
-      return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId);
+    const userId = request.user?.firebaseId;
+    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId);
   }
 
 
   @Get('get-bills')
-  async getBills(
-    @Headers('token') token: string
-  ) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+  @UseGuards(FirebaseAuthGuard)
+  async getBills(@Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    console.log('User Firebase ID:', userId);
     return this.transactionsService.getBillsByUserId(userId);
   }
   
 
   @Get('get-sources')
-  async getSources(@Headers('token') token: string) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+  @UseGuards(FirebaseAuthGuard)
+  async getSources(@Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
     return this.transactionsService.getSources(userId);
   }
 
 
   @Get('get-incomes')
+  @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getIncomesForBill(
+    @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
-    @Headers('token') token: string
   ): Promise<Transactions[]> {
-        
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
-
+    const userId = request.user?.firebaseId;
     return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, query.billId);
-
   }
 
 
   @Get('get-expenses')
+  @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getForBill(
+    @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
-    @Headers('token') token: string
   ): Promise<Transactions[]> {
-
     query.billId === 'null' ? null : parseInt(query.billId, 10);
-  
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const userId = request.user?.firebaseId;
     return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, query.billId);
-
   }
   
 
   @Post('classify-trans')
+  @UseGuards(FirebaseAuthGuard)
   async classifyTransaction(
+    @Req() request: AuthenticatedRequest,
     @Body() classifyDto: ClassifyTransactionDto,
-    @Headers('token') token: string,
     @Query('startDate') startDate: string | Date,
     @Query('endDate') endDate: string | Date,
   ): Promise<void> {
     startDate = this.sharedService.convertStringToDateObject(startDate);
     endDate = this.sharedService.convertStringToDateObject(endDate);
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
+    const userId = request.user?.firebaseId;
     return this.transactionsService.classifyTransaction(classifyDto, userId, startDate, endDate);
   }
 
 
   @Patch('update-trans')
+  @UseGuards(FirebaseAuthGuard)
   async updateTransaction(
+    @Req() request: AuthenticatedRequest,
     @Body() updateDto: UpdateTransactionsDto,
-    @Headers('token') token: string,
     @Query('year') year: string,
     @Query('month') month: string,
     @Query('isSingleMonth') isSingleMonth: boolean
   ): Promise<{ message: string }> {
     console.log("in update trans");
-    
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const userId = request.user?.firebaseId;
     const { startDate, endDate } = this.sharedService.getStartAndEndDate(year, month, isSingleMonth);
     await this.transactionsService.updateTransaction(updateDto, userId, startDate, endDate);
     return { message: 'Transactions updated successfully' };
@@ -150,14 +150,14 @@ export class TransactionsController {
 
 
   @Get('get-expenses-to-build-report')
+  @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getExpensesToBuildReport(
+    @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
-    @Headers('token') token: string
   ): Promise<Transactions[]> {
     console.log("query is: ", query);
-    
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     return this.transactionsService.getExpensesToBuildReport(userId, query.businessNumber, startDate, endDate);
@@ -165,30 +165,27 @@ export class TransactionsController {
   }
 
   @Get('get-incomes-to-build-report')
+  @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getIncomesToBuildReport(
+    @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
-    @Headers('token') token: string
   ): Promise<Transactions[]> {
-    
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
+    const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     return this.transactionsService.getIncomesToBuildReport(userId, startDate, endDate);
-
   }
 
 
   @Post('save-trans-to-expenses')
+  @UseGuards(FirebaseAuthGuard)
   async saveTransToExpenses(
-  @Body() transactionData: {id: number, file: string | null}[],
-  @Headers('token') token: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() transactionData: {id: number, file: string | null}[],
   ): Promise<{ message: string }> {
-
-    const userId = await this.usersService.getFirbsaeIdByToken(token);
-
+    const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
-
   }
 
 

@@ -85,8 +85,8 @@ export class User {
     @Column()
     firebaseId: string;
 
-    @Column()
-    finsiteId: string;
+    @Column({ type: 'varchar', nullable: true, default: null })
+    finsiteId: string | null;
 
     ////////////////////////////////////
     /////////   Spouse details  ////////

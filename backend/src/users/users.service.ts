@@ -113,8 +113,14 @@ export class UsersService {
     }
 
 
-    async signin(token: string) {
-        const firebaseId = await this.getFirbsaeIdByToken(token);
+    // async signin(token: string) {
+    //     const firebaseId = await this.getFirbsaeIdByToken(token);
+    //     const user = await this.findFireUser(firebaseId);
+    //     return user;
+    // }
+
+    async signin(firebaseId: string) {
+        //const firebaseId = await this.getFirbsaeIdByToken(token);
         const user = await this.findFireUser(firebaseId);
         return user;
     }

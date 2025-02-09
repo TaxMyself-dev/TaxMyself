@@ -3,6 +3,7 @@ import { ActivatedRoute, Route } from '@angular/router';
 import { Location } from '@angular/common';
 import { AuthService } from 'src/app/services/auth.service';
 import { IUserDate } from '../interface';
+import { ClientPanelService } from 'src/app/services/clients-panel.service';
 
 
 @Component({
@@ -13,13 +14,19 @@ import { IUserDate } from '../interface';
 export class CustomToolbarComponent implements OnInit {
 
   @Input() title: string = "";
-  userData: IUserDate;
-  constructor(private location: Location, public authService: AuthService) { };
+  loggedInUserData: IUserDate;
+  loggedInUserName: string | null = null;
+  clientName: string | null = null;
+  constructor(
+    private location: Location, 
+    public authService: AuthService,
+    public clientService: ClientPanelService,  
+  ) { };
 
   public folder!: string;
   public name: string = "";
   ngOnInit() {
-    this.userData = this.authService.getUserDataFromLocalStorage();
+    this.loadUserData();
     if (this.title != "") {
       this.folder = this.title;
     }
@@ -95,6 +102,24 @@ export class CustomToolbarComponent implements OnInit {
       }
     }
   };
+
+
+  loadUserData(): void {
+
+    this.loggedInUserData = this.authService.getUserDataFromLocalStorage();
+    this.loggedInUserName = this.loggedInUserData.fName + " " + this.loggedInUserData.lName;     
+    const clientId = this.clientService.getSelectedClientId();
+
+    if (clientId) {
+      this.clientName = this.clientService.getFullNameById(clientId); // ✅ Get from cache
+    }
+
+  }
+
+
+  isAgentActingOnClient(): boolean {
+    return this.clientName !== null;
+  }
 
 
 }

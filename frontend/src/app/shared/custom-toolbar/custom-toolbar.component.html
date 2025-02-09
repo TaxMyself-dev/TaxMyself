@@ -6,8 +6,14 @@
     <ion-title>
       <div class="title-toolbar">
         <div>{{folder }}</div>
-        <div class="hello-user">{{"שלום" + " " + userData?.fName + " " + userData?.lName}}</div>
-        <!-- <ion-icon slot="end" size="large" [name]="name"></ion-icon> -->
+        <div class="hello-user">
+          <ng-container *ngIf="isAgentActingOnClient(); else regularUser">
+            {{ "שלום " + loggedInUserName + " | עבודה על תיק לקוח " + clientName }}
+          </ng-container>
+          <ng-template #regularUser>
+            {{ "שלום " +  loggedInUserName }}
+          </ng-template>
+        </div>
         <div class="icon-toolbar">
             <ion-icon size="large" name="notifications-circle-outline"></ion-icon>
             <ion-icon size="large" name="chatbubbles-outline"></ion-icon>
