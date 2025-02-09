@@ -8,7 +8,7 @@ import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap 
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
-import { ICreateDataFile } from '../shared/interface';
+import { ICreateDataDoc } from '../shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -239,7 +239,7 @@ export class FilesService {
     }
   }
 
-  createPDF(dataFile: ICreateDataFile): Observable<Blob> {
+  createPDF(dataFile: ICreateDataDoc): Observable<Blob> {
     console.log("cerate in service");
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/create-pdf`;

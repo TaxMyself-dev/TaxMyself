@@ -109,9 +109,9 @@
 
       <div class="wrapp-btn-expense">
         <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
-          (onButtonClicked)="confirm()"></app-button>
+          (onButtonClicked)="confirm()" [isLoading]="isLoadingAddExpense"></app-button>
         <app-button buttonText="שמירת ספק קבוע" [buttonSize]="ButtonSize.SMALL" [disabled]="disabledAddSupplier()"
-          (onButtonClicked)="addSupplier()"></app-button>
+          (onButtonClicked)="addSupplier()" [isLoading]="isLoadingAddSupplier"></app-button>
       </div>
     </form>
   </div>

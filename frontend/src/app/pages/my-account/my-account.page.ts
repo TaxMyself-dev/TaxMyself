@@ -13,7 +13,9 @@ export class MyAccountPage implements OnInit {
                                     { name: "הענן שלי", link: "/my-storage", icon: "cloud-outline", id:'2', index: 'two'}, 
                                     { name: "תזרים", link: "/transactions", icon: "swap-vertical-outline", id: '3', index: 'three' }, 
                                     { name: "סטטוס", link: "/my-status", icon: "information-outline", id: '4', index: 'four', disable: true, }, 
-                                    { name: "דוחות", link: "/reports", icon: "receipt-outline", id: '5', index: 'five' }];
+                                    { name: "דוחות", link: "/reports", icon: "receipt-outline", id: '5', index: 'five' },
+                                    { name: "יצירת מסמך", link: "/doc-create", icon: "receipt-outline", id: '6', index: 'six' },
+                                  ];
   constructor() { }
 
     ngOnInit() {

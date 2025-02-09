@@ -8,16 +8,18 @@
       (onSearchClick)="onSubmit()" [customTemplate]="docCreateTemplate">
     </app-search-bar> -->
     <app-generic-select class="default-input-doc" title="בחר מסמך" [items]="DocCreateTypeList"
-      (selectionChanged)="onSelectedFile($event)">
+      (selectionChanged)="onSelectedDoc($event)">
     </app-generic-select>
   </div>
   <div *ngIf="fileSelected && !isInitial; else initialTemplate">
+
     <!-- User details card -->
     <ion-card *ngIf="showUserDetailsCard">
       <ion-card-header>
         <ion-card-title>פרטי לקוח</ion-card-title>
       </ion-card-header>
       <ion-card-content>
+        <app-button buttonText="בחר לקוח" (onButtonClicked)="openSelectClients()"></app-button>
         <ion-list>
           <ng-container *ngFor="let field of userDetailsFields">
             <ng-container [ngSwitch]="field.type">

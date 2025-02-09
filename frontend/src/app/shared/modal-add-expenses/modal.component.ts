@@ -103,7 +103,7 @@ export class ModalExpensesComponent {
   categoryList: ISelectItem[];
   displaySubCategoryList: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[];
-  //displaySuppliersList: ISelectItem[]; Use this variable only if changing the supplier field to DDL.
+  displaySuppliersList: ISelectItem[]; //Use this variable only if changing the supplier field to DDL.
   originalSuppliersList: IGetSupplier[];
   // doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
   doneLoadingSubCategoryList$ = new BehaviorSubject<boolean>(false);
@@ -117,6 +117,8 @@ export class ModalExpensesComponent {
   fileToUpload: File;
   userData: IUserDate;
   businessList: ISelectItem[] = [];
+  isLoadingAddSupplier: boolean = false;
+  isLoadingAddExpense: boolean = false;
 
   // Variables for edit mode //
   isEditMode: boolean = false;
@@ -151,7 +153,7 @@ export class ModalExpensesComponent {
     const today = new Date();
     this.getCategory();
     this.initForm();
-    //this.getSuppliers(); Use this function only if changing the supplier field to DDL.
+    this.getSuppliers(); // Use this function only if changing the supplier field to DDL.
   }
 
   initForm(data?: IRowDataTable): void {
@@ -231,19 +233,19 @@ export class ModalExpensesComponent {
   }
 
   confirm() {
+    console.log("🚀 ~ ModalExpensesComponent ~ confirm ~ this.isLoadingAddExpense:", this.isLoadingAddExpense)
     this.isEditMode ? this.update() : this.add();
   }
-
+  
   add(): void {
+    this.isLoadingAddExpense = true;
+    console.log("🚀 ~ ModalExpensesComponent ~ add ~ this.isLoadingAddExpense:", this.isLoadingAddExpense)
     let filePath = '';
-    this.genericService.getLoader()
+    this.getFileData()
       .pipe(
-        // finalize(() => {
-        //   console.log("in 1 finalize");
-
-        //   this.genericService.dismissLoader();
-        // }),
-        switchMap(() => this.getFileData()),
+        finalize(() => {
+          this.isLoadingAddExpense = false;
+        }),
         catchError((err) => {
           alert('Something Went Wrong in first catchError: ' + err.message)
           return EMPTY;
@@ -257,11 +259,6 @@ export class ModalExpensesComponent {
           return this.setFormData(filePath, token);
         }),
         switchMap((res) => this.expenseDataServise.addExpenseData(res)),
-        finalize(() => {
-          console.log("in 2 finalize");
-          this.genericService.dismissLoader();
-          //this.modalCtrl.dismiss();
-        }),
         catchError((err) => {
           console.log(err);
           if (err.status == 401) {
@@ -281,7 +278,6 @@ export class ModalExpensesComponent {
         })
       )
       .subscribe((res) => {
-        this.genericService.dismissLoader();
         this.modalCtrl.dismiss();
         this.router.navigate(['my-storage']);
         this.genericService.showToast("ההוספה נוצרה בהצלחה", "success")
@@ -297,23 +293,21 @@ export class ModalExpensesComponent {
   }
 
   update(): void {
+   this.isLoadingAddExpense = true;
+   
     let filePath = '';
     const previousFile = this.addExpenseForm?.get('file').value;
     this.getFileData()          
       .pipe(
         finalize(() => {
-          console.log('finalize');
-          
-          this.modalCtrl.dismiss();
-          this.genericService.dismissLoader();
+          this.isLoadingAddExpense = false;
         }),
         catchError((err) => {
           alert('File upload failed, please try again ' + err.error.message.join(', '));
-          //this.modalCtrl.dismiss();
           return EMPTY;
         }),
         map((res) => {
-          if (res) { //if a file is selected 
+          if (res) { // If a file is selected 
             filePath = res.metadata.fullPath;
           }
           else {
@@ -328,7 +322,6 @@ export class ModalExpensesComponent {
           if (this.selectedFile) {
             this.fileService.deleteFile(filePath);
           }
-          //this.genericService.dismissLoader();
           return EMPTY;
         })
       ).subscribe((res) => {
@@ -340,9 +333,7 @@ export class ModalExpensesComponent {
         if (res) { // TODO: why returning this object from BE?
           this.expenseDataServise.updateTable$.next(true);
         }
-      
-        this.genericService.dismissLoader();
-        // this.modalCtrl.dismiss();
+        this.modalCtrl.dismiss();
       });
   }
 
@@ -424,26 +415,26 @@ export class ModalExpensesComponent {
       .subscribe()
   }
 
-  onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
+  // onDdlSelectionChange(event, colData: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>) {
 
-    switch (colData.name) {
-      case ExpenseFormColumns.IS_EQUIPMENT:
-        this.setValueEquipment(event);
-        break;
-      case ExpenseFormColumns.CATEGORY:
-        this.getSubCategory(event.detail.value)
-        break;
-      case ExpenseFormColumns.SUB_CATEGORY:
-        const subCategoryDetails = this.originalSubCategoryList.find(item => item.subCategoryName === event.detail.value);
-        this.selectedSubcategory(subCategoryDetails);
-        break;
-      case ExpenseFormColumns.SUPPLIER:
-        const supplierDetails = this.originalSuppliersList.find((supplier => supplier.supplier === event.detail.value));
-        console.log(supplierDetails);
-        this.selectedSupplier(supplierDetails)
-        break;
-    }
-  }
+  //   switch (colData.name) {
+  //     case ExpenseFormColumns.IS_EQUIPMENT:
+  //       this.setValueEquipment(event);
+  //       break;
+  //     case ExpenseFormColumns.CATEGORY:
+  //       this.getSubCategory(event.detail.value)
+  //       break;
+  //     case ExpenseFormColumns.SUB_CATEGORY:
+  //       const subCategoryDetails = this.originalSubCategoryList.find(item => item.subCategoryName === event.detail.value);
+  //       this.selectedSubcategory(subCategoryDetails);
+  //       break;
+  //     case ExpenseFormColumns.SUPPLIER:
+  //       const supplierDetails = this.originalSuppliersList.find((supplier => supplier.supplier === event.detail.value));
+  //       console.log(supplierDetails);
+  //       this.selectedSupplier(supplierDetails)
+  //       break;
+  //   }
+  // }
 
   setFormData(filePath: string, token: string) {
     const formData = this.addExpenseForm.value;
@@ -463,14 +454,13 @@ export class ModalExpensesComponent {
   }
 
   openSelectSupplier(event?: Event) {
-    //event.preventDefault();
-    //console.log(event);
+    console.log("🚀 ~ ModalExpensesComponent ~ openSelectSupplier ~ this.originalSuppliersList:", this.originalSuppliersList)
 
     from(this.modalCtrl.create({
       component: selectSupplierComponent,
-      // componentProps: {
-      //   data: this.originalSuppliersList,
-      // },
+      componentProps: {
+        //items: this.originalSuppliersList,
+      },
       cssClass: 'expense-modal'
     })).pipe(
       catchError((err) => {
@@ -537,16 +527,20 @@ export class ModalExpensesComponent {
   }
 
   addSupplier(): void {
-
+    this.isLoadingAddSupplier = true;
     const formData = this.addExpenseForm.value;
     console.log("formdata add supplier: ", formData);
 
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
     const { date, file, sum, note, expenseNumber, ...newFormData } = formData;
-    this.genericService.getLoader()
+    //this.genericService.getLoader()
+    this.expenseDataServise.addSupplier(newFormData)
       .pipe(
-        finalize(() => this.genericService.dismissLoader()),
-        switchMap(() => this.expenseDataServise.addSupplier(newFormData)),
+        finalize(() => {
+          // this.genericService.dismissLoader();
+          this.isLoadingAddSupplier = false;
+        }),
+        // switchMap(() => this.expenseDataServise.addSupplier(newFormData)),
         catchError((err) => {
           if (err.status == 0) {
             // this.loadingController.dismiss();
@@ -570,7 +564,7 @@ export class ModalExpensesComponent {
       ).subscribe((res) => {
         this.genericService.showToast("ספק נשמר בהצלחה", "success");
         console.log("res in add supplier:", res);
-        //this.getSuppliers();
+        this.getSuppliers();
       })
   }
 
@@ -705,25 +699,27 @@ export class ModalExpensesComponent {
     }
   }
 
-  // getSuppliers(): void { // Use this function only if changing the supplier field to DDL.
-  //   this.expenseDataServise.getAllSuppliers()
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.log("err in get suppliers:", err);
-  //         return EMPTY;
-  //       }),
-  //       map((res) => {
-  //         this.originalSuppliersList = res;
-  //         return res.map((item) => ({
-  //           name: item.supplier,
-  //           value: item.supplier
-  //         }))
-  //       })
-  //     )
-  //     .subscribe((res) => {
-  //       this.displaySuppliersList = res
-  //     })
-  // }
+  getSuppliers(): void { // Use this function only if changing the supplier field to DDL.
+    this.expenseDataServise.getAllSuppliers()
+      .pipe(
+        catchError((err) => {
+          console.log("err in get suppliers:", err);
+          return EMPTY;
+        }),
+        map((res) => {
+          console.log("🚀 ~ ModalExpensesComponent ~ map ~ res:", res)
+          
+          this.originalSuppliersList = res;
+          return res.map((item) => ({
+            name: item.supplier,
+            value: item.supplier
+          }))
+        })
+      )
+      .subscribe((res) => {
+        this.displaySuppliersList = res
+      })
+  }
 
   selectedSupplier(data: IGetSupplier): void {
     if (data) {

@@ -12,7 +12,7 @@ export interface IUserDate {
     email: string;
     employmentStatus: string;
     fName: string;
-    familyStatus : string;
+    familyStatus: string;
     firebaseId: string;
     id: string;
     index: number;
@@ -57,7 +57,7 @@ export interface IVatReportData {
     vatRefundOnAssets: string | number;
     vatRefundOnExpenses: string | number;
     vatPayment: string | number;
-  }
+}
 
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     name: TFormColumns;
@@ -65,16 +65,6 @@ export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     type: FormTypes;
     listItems?: ISelectItem[];
     cellRenderer?: ICellRenderer;
-    errorText?: string;
-    onChange?: (event?: any, parent?: any) => void;
-}
-
-export interface ICreateFileField<TFieldsHebrew, TFields> {
-    name: TFieldsHebrew;
-    value: TFields;
-    type: FormTypes;
-    listItems?: ISelectItem[];
-    //cellRenderer?: ICellRenderer;
     errorText?: string;
     onChange?: (event?: any, parent?: any) => void;
 }
@@ -260,16 +250,26 @@ export interface ISelectItem {
 
 export interface IToastData {
     message: string;
-    color?: string; 
-    position?: 'top' | 'middle' | 'bottom'; 
+    color?: string;
+    position?: 'top' | 'middle' | 'bottom';
     duration: number;
     type: 'success' | 'error'; // Added type for toast
-  }
+}
 
-export interface ICreateDataFile {
+export interface ICreateDataDoc {
     fid: string;
     prefill_data: {
         [key: string]: number | string | (string | number)[][],
         table?: (string | number)[][];
     }
+}
+
+export interface ICreateDocField<TFieldsHebrew, TFields> {
+    name: TFieldsHebrew;
+    value: TFields;
+    type: FormTypes;
+    listItems?: ISelectItem[];
+    //cellRenderer?: ICellRenderer;
+    errorText?: string;
+    onChange?: (event?: any, parent?: any) => void;
 }

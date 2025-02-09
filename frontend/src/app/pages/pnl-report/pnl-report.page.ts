@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ICreateDataFile, IPnlReportData, ISelectItem, IUserDate } from 'src/app/shared/interface';
+import { ICreateDataDoc, IPnlReportData, ISelectItem, IUserDate } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
@@ -168,7 +168,7 @@ export class PnLReportPage implements OnInit {
     })
      //console.log("dataTable: ", dataTable);
      
-    const data: ICreateDataFile = {
+    const data: ICreateDataDoc = {
       fid: "ydAEQsvSbC",
       prefill_data: {
       name: this.userData.fName + " " + this.userData.lName,

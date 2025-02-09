@@ -1,10 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { FieldsCreateFileName, FieldsCreateFileValue, FormTypes } from 'src/app/shared/enums';
+import { FieldsCreateDocName, FieldsCreateDocValue, FormTypes } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateFileField, ISettingDoc,  } from 'src/app/shared/interface';
+import { ICreateDocField, ISettingDoc,  } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
+import { ModalController } from '@ionic/angular';
+import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
 
 
 
@@ -23,8 +25,8 @@ export class DocCreatePage implements OnInit {
 
   docCreateForm: FormGroup;
   initialDetailsForm: FormGroup;
-  userDetailsFields: ICreateFileField<FieldsCreateFileName, FieldsCreateFileValue>[] = [];
-  paymentDetailsFields: ICreateFileField<FieldsCreateFileName, FieldsCreateFileValue>[] = [];
+  userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
+  paymentDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   showUserDetailsCard: boolean = false;
   showPatmentDetailsCard: boolean = false;
   serialNumberFile: ISettingDoc;
@@ -47,18 +49,27 @@ readonly DocCreateTypeList = [
 readonly formTypes = FormTypes;
 
 
-  constructor(private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder) {
+  constructor(private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder) {
     this.docCreateForm = this.formBuilder.group({
-     [ FieldsCreateFileValue.USER_NAME]: new FormControl(
+     [ FieldsCreateDocValue.CLIENT_NAME]: new FormControl(
         '', Validators.required,
       ),
-      [FieldsCreateFileValue.PAYMENT_ID]: new FormControl(
+      [ FieldsCreateDocValue.CLIENT_EMAIL]: new FormControl(
         '', Validators.required,
       ),
-      [FieldsCreateFileValue.SUM]: new FormControl(
+      [ FieldsCreateDocValue.CLIENT_PHONE]: new FormControl(
         '', Validators.required,
       ),
-      [FieldsCreateFileValue.DATE]: new FormControl(
+      [ FieldsCreateDocValue.CLIENT_ADDRESS]: new FormControl(
+        '', Validators.required,
+      ),
+      [FieldsCreateDocValue.PAYMENT_ID]: new FormControl(
+        '', Validators.required,
+      ),
+      [FieldsCreateDocValue.SUM]: new FormControl(
+        '', Validators.required,
+      ),
+      [FieldsCreateDocValue.DATE]: new FormControl(
         '', Validators.required,
       ),
     });
@@ -82,7 +93,7 @@ readonly formTypes = FormTypes;
   ngOnInit() {
   }
 
-  onSelectedFile(event: any): void {
+  onSelectedDoc(event: any): void {
     this.fileSelected = event.value;
     console.log("🚀 ~ DocCreatePage ~ onSelectedFile ~ fileSelected:", this.fileSelected);
     this.getHebrewNameDoc(event.value);
@@ -127,19 +138,22 @@ readonly formTypes = FormTypes;
     switch (this.fileSelected) {
       case 1:
         this.userDetailsFields = [
-          {name: FieldsCreateFileName.userName, value: FieldsCreateFileValue.USER_NAME, type: FormTypes.TEXT },
+          {name: FieldsCreateDocName.clientName, value: FieldsCreateDocValue.CLIENT_NAME, type: FormTypes.TEXT },
+          {name: FieldsCreateDocName.clientAddress, value: FieldsCreateDocValue.CLIENT_ADDRESS, type: FormTypes.TEXT },
+          {name: FieldsCreateDocName.clientPhone, value: FieldsCreateDocValue.CLIENT_PHONE, type: FormTypes.TEXT },
+          {name: FieldsCreateDocName.clientEmail, value: FieldsCreateDocValue.CLIENT_EMAIL, type: FormTypes.TEXT },
         ];
         this.paymentDetailsFields = [
-          {name: FieldsCreateFileName.sum, value: FieldsCreateFileValue.SUM, type: FormTypes.TEXT },
+          {name: FieldsCreateDocName.sum, value: FieldsCreateDocValue.SUM, type: FormTypes.TEXT },
         ];
         break;
 
       case 2:
         this.userDetailsFields = [
-          {name: FieldsCreateFileName.date, value: FieldsCreateFileValue.DATE, type: FormTypes.DATE },
+          {name: FieldsCreateDocName.date, value: FieldsCreateDocValue.DATE, type: FormTypes.DATE },
         ];
         this.paymentDetailsFields = [
-          {name: FieldsCreateFileName.paymentId, value: FieldsCreateFileValue.PAYMENT_ID, type: FormTypes.TEXT },
+          {name: FieldsCreateDocName.paymentId, value: FieldsCreateDocValue.PAYMENT_ID, type: FormTypes.TEXT },
         ];
         break;
       default:
@@ -172,5 +186,42 @@ readonly formTypes = FormTypes;
     })
   }
 
+    openSelectClients() {
+    
+        from(this.modalController.create({
+          component: SelectClientComponent,
+          // componentProps: {},
+          cssClass: 'expense-modal'
+        })).pipe(
+          catchError((err) => {
+            console.log("Open select clients failed in create ", err);
+            return EMPTY;
+          }),
+          switchMap((modal) => {
+            if (modal) {
+              return from(modal.present())
+              .pipe(
+                catchError((err) => {
+                  console.log("Open select clients failed in present ", err);
+                  return EMPTY;
+                }),
+                switchMap(() => from(modal.onDidDismiss())),
+              );
+            }
+            else {
+              console.log('Popover modal is null');
+              return EMPTY;
+            }
+          })
+        ).subscribe((res) => {
+          if (res.role === 'success') {// if the popover closed due to onblur dont change values 
+            if (res !== null && res !== undefined) {
+              if (res) {
+                
+              }
+            }
+          }
+        })
+      }
 
 }

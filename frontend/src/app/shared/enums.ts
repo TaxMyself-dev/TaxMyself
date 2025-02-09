@@ -182,18 +182,24 @@ export enum TransactionsOutcomesHebrewColumns {
 //   RETURN_CERTIFICATE = 8,
 // }
 
-export enum FieldsCreateFileValue {
+export enum FieldsCreateDocValue {
   TYPE_FILE = 'typeFile',
   DATE = 'date',
-  USER_NAME = 'userName',
+  CLIENT_NAME = 'clientName',
+  CLIENT_PHONE = 'clientPhone',
+  CLIENT_ADDRESS = 'clientAddress',
+  CLIENT_EMAIL = 'clientEmail',
   PAYMENT_ID = 'paymentId',
   SUM = 'sum',
 }
 
-export enum FieldsCreateFileName {
+export enum FieldsCreateDocName {
   typeFile = "באיזה מסמך אתה מעוניין?",
   date = "תאריך",
-  userName = "שם הלקוח",
+  clientName = "שם הלקוח",
+  clientEmail= "אימייל של הלקוח",
+  clientAddress = "כתובת הלקוח",
+  clientPhone = "מס' טלפון של הלקוח",
   paymentId = "אמצעי תשלום",
   sum = "סכום",
 }

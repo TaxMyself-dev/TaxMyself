@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 //Modules
+import { ClientsModule } from './clients/clients.module';
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
@@ -28,6 +29,7 @@ import { Source } from './transactions/source.entity';
 import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
 import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
+import { Clients } from './clients/clients.entity';
 
 import 'dotenv/config'
 import admin from 'firebase-admin';
@@ -39,6 +41,7 @@ import { MailService } from './mail/mail.service';
 import { SettingDocuments } from './documents/settingDocuments.entity';
 import { DocumentsModule } from './documents/documents.module';
 import { DocumentsService } from './documents/documents.service';
+import { ClientsService } from './clients/clients.service';
 
 let serviceAccount: any;
 
@@ -67,7 +70,7 @@ serviceAccount = {
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
-                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments],
+                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, Clients],
       synchronize: true, //TODO: uncomment after the database is stable: // process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -86,11 +89,12 @@ serviceAccount = {
       Finsite,
       Delegation,
       SettingDocuments,
+      Clients
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule],
     controllers: [AppController],
-  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService],
+  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService],
 })
 export class AppModule {
 
