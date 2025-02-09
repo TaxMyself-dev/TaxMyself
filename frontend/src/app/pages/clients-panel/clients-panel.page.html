@@ -3,7 +3,7 @@
 <ion-content [fullscreen]="true">
 
   <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="clientSearchBar" 
-    (onSearchClick)="setClient()"()>
+    (onSearchClick)="setClient()">
   </app-search-bar>
 
   <div class="invite-user">
@@ -21,14 +21,12 @@
 
 <ng-template #clientSearchBar>
   <div class="screen-client-panel">
-    <form class="generic-search-bar-content">
+    <div class="generic-search-bar-content">
       <app-generic-select class="search-client-class"
         [items]="myClients"
-        [parentForm]="clientForm"
-        controlName="client"
         [title]="'בחר לקוח'"
         (selectionChanged)="onClientSelectionChange($event)"
     ></app-generic-select>
-    </form>
+    </div>
   </div>
 </ng-template>

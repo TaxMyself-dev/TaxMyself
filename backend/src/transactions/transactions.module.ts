@@ -20,10 +20,11 @@ import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
 import { Finsite } from 'src/finsite/finsite.entity';
+import { Delegation } from 'src/delegation/delegation.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
-            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite])],
+            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,

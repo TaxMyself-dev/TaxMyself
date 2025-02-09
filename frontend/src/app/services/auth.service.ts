@@ -193,10 +193,8 @@ export class AuthService {
 
   signIn(user: UserCredential): any {
     const url = `${environment.apiUrl}auth/signin`
-    
     return from(user.user.getIdToken(true))
       .pipe(
-        //finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log("err in get id token: ", err);
           return throwError(() => err);
@@ -204,14 +202,13 @@ export class AuthService {
         tap((token) => {
           localStorage.setItem('token', token);
         } ),
-        switchMap((token) => this.http.post(url, { token: token })),
+        switchMap(() => this.http.post(url, {})),
         catchError((err) => {
             this.error$.next("error");
           console.log("err in post request: ", err);
           return throwError(() => err);
         }),
       )
-
   }
 
   handleErrorSignup(err: string): void {

@@ -43,11 +43,7 @@ export class DelegationController {
   async getUsersForAgent(@Param('agentId') agentId: string): Promise<any> {
     
     const users = await this.delegationService.getUsersForAgent(agentId);
-
-    return {
-      message: `Users retrieved successfully`,
-      users,
-    };
+    return users;
     
   }
 

@@ -3,6 +3,7 @@ import { Body, Controller, Post, Get, Patch, Delete, Headers,
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 
 @Controller('auth')
 // @Serialize(UserDto)
@@ -13,16 +14,19 @@ export class UsersController {
         private authService: AuthService
     ) {}
 
+    
     @Post('/signup')
     async createUser(@Body() body: any) {
         const user = await this.userService.signup(body);
         return body; //TODO: Elazar - check if it's necessary to return the body
     }
 
+
     @Post('/signin')
     @UseGuards(FirebaseAuthGuard)
-    async signin(@Body() body: any) {     
-        const user = await this.userService.signin(body.token);  
+    async signin(@Req() request: AuthenticatedRequest) { 
+        const userId = request.user?.firebaseId;    
+        const user = await this.userService.signin(userId);  
         return user[0];
     }
 
