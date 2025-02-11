@@ -20,6 +20,7 @@
       </ion-card-header>
       <ion-card-content>
         <app-button buttonText="בחר לקוח" (onButtonClicked)="openSelectClients()"></app-button>
+        <app-button buttonText="שמור לקוח" (onButtonClicked)="saveClient()"></app-button>
         <ion-list>
           <ng-container *ngFor="let field of userDetailsFields">
             <ng-container [ngSwitch]="field.type">

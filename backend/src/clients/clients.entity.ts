@@ -7,15 +7,18 @@ export class Clients {
     id: number;
 
     @Column()   
-    uid: string;
+    userId: string;
 
     @Column()
-    clientName: string;
+    name: string;
 
     @Column()
     phone: string;
 
     @Column()   
     email: string;
+
+    @Column()   
+    address: string;
 
 }

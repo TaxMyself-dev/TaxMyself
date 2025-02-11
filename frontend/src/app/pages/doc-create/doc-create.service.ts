@@ -30,4 +30,20 @@ export class DocCreateService {
     const url = `${environment.apiUrl}documents/setting-initial-index/${docType}`;
     return this.http.post<any>(url, {initialIndex: data.initialIndex}, {headers: {token}});
   }
+
+  saveClientDetails(data: any): Observable<any> {
+    console.log("🚀 ~ DocCreateService ~ saveClientDetails ~ data:", data)
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}clients/add-client`;
+    return this.http.post<any>(url, data, {headers: {token}});
+  }
+
+  getClients(): Observable<any> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}clients/get-clients`;
+    const headers = {
+      'token': token
+    }
+    return this.http.get<any[]>(url, { headers });
+  }
 }
