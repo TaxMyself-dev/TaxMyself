@@ -3,11 +3,11 @@ import { ModalController, PopoverController } from '@ionic/angular';
 import { BehaviorSubject, EMPTY, Observable, catchError, delay, finalize, from, map, switchMap, tap } from 'rxjs';
 import { addSupplierComponent } from '../add-supplier/add-supplier.component';
 import { cloneDeep } from 'lodash';
-import { FilesService } from 'src/app/services/files.service';
 import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISuppliers, ITableRowAction } from '../interface';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonSize } from '../button/button.enum';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, TransactionsOutcomesColumns } from '../enums';
+import { ExpenseFormColumns, ExpenseFormHebrewColumns, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, TransactionsOutcomesColumns } from '../enums';
+import { DocCreateService } from 'src/app/pages/doc-create/doc-create.service';
 
 
 @Component({
@@ -21,17 +21,19 @@ export class SelectClientComponent  implements OnInit {
 
 
 
-  readonly COLUMNS_TO_IGNORE = ['id', 'category', 'subCategory', 'taxPercent', 'vatPercent', 'isEquipment', 'reductionPercent'];
+  readonly COLUMNS_TO_IGNORE = ['id', 'userId'];
   readonly ButtonSize = ButtonSize;
 
-  readonly fieldsName: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
-    { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.SUPPLIER_ID, value: ExpenseFormHebrewColumns.supplierID, type: FormTypes.DATE },
+  readonly fieldsName: IColumnDataTable<FieldsCreateDocName, FieldsCreateDocValue>[] = [
+    { name: FieldsCreateDocName.clientName, value: FieldsCreateDocValue.CLIENT_NAME, type: FormTypes.TEXT },
+    { name: FieldsCreateDocName.clientEmail, value: FieldsCreateDocValue.CLIENT_EMAIL, type: FormTypes.TEXT },
+    { name: FieldsCreateDocName.clientPhone, value: FieldsCreateDocValue.CLIENT_PHONE, type: FormTypes.TEXT },
   ];
 
-  readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-    [ExpenseFormColumns.SUPPLIER, 3.7],
-    [ExpenseFormColumns.SUPPLIER_ID, 3.5],
+  readonly COLUMNS_WIDTH = new Map<FieldsCreateDocValue | ExpenseFormColumns, number>([
+    [FieldsCreateDocValue.CLIENT_NAME, 3.7],
+    [FieldsCreateDocValue.CLIENT_EMAIL, 3.5],
+    [FieldsCreateDocValue.CLIENT_PHONE, 3.5],
     [ExpenseFormColumns.ACTIONS, 3.8],
     [ExpenseFormColumns.CHECKBOX, 1]
   ]);
@@ -47,11 +49,12 @@ export class SelectClientComponent  implements OnInit {
   id: number;
   checkedSupplier: any;
 
-  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController) { }
+  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController, private docCreateService: DocCreateService) { }
 
   ngOnInit() {
-    this.getSuppliers();
+    //this.getSuppliers();
     this.setTableActions();
+    this.getClients();
   }
 
   private setTableActions(): void {
@@ -74,35 +77,21 @@ export class SelectClientComponent  implements OnInit {
     ]
   }
 
-  getSuppliers(): void {
-    this.expenseDataService.getAllSuppliers()
+  getClients(): void {
+    this.docCreateService.getClients()
       .pipe(
         catchError((err) => {
-          console.log("err in get suppliers:", err);
-          this.error = true;
+          console.log("err in get clients: ", err);
           return EMPTY;
-        }),
-        map((data) => {
-          return data.length ? data.map((supplier: IGetSupplier) => ({
-            id: supplier.id,
-            subCategory: supplier.subCategory,
-            category: supplier.category,
-            taxPercent: supplier.taxPercent,
-            vatPercent: supplier.vatPercent,
-            supplier: supplier.supplier,
-            supplierID: supplier.supplierID,
-            isEquipment: supplier.isEquipment,
-            reductionPercent: supplier.reductionPercent
-          } as IRowDataTable
-          )) : null;
-        }),
-      tap((data: IRowDataTable[]) => {
-        this.clientsList = data;
-        this.clientsList$.next(data);
-      }))
-      .subscribe();
-
+        })
+      )
+      .subscribe((res) => {
+        console.log("res in get clients: ", res);
+        this.clientsList = res;
+        this.clientsList$.next(this.clientsList);
+      })
   }
+
 
   selectedSupplier(): void {
     this.cancel(this.checkedSupplier.row);
@@ -147,7 +136,7 @@ export class SelectClientComponent  implements OnInit {
       })
     ).subscribe((res) => {
       console.log(res.data?.value);
-      this.getSuppliers();
+      //this.getSuppliers();
       // if (res.role === "send")
       // this.modalCtrl.dismiss(res.data?.value);//close the popover of suppliers list
     })
@@ -167,7 +156,7 @@ export class SelectClientComponent  implements OnInit {
       )
       .subscribe((res) => {
         console.log(res);
-        this.getSuppliers();
+        //this.getSuppliers();
       })
   }
 

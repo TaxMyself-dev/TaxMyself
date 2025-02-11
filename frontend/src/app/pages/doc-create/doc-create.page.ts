@@ -3,7 +3,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { FieldsCreateDocName, FieldsCreateDocValue, FormTypes } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDocField, ISettingDoc,  } from 'src/app/shared/interface';
+import { ICreateDocField, ISettingDoc, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -34,33 +34,33 @@ export class DocCreatePage implements OnInit {
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
 
-readonly DocCreateTypeList = [
-  { value: 1, name: 'קבלה' },
-  { value: 2, name: 'חשבונית מס' },
-  { value: 3, name: 'חשבונית מס קבלה' },
-  { value: 4, name: 'חשבונית עסקה' },
-  { value: 5, name: 'חשבונית זיכוי' },
-  { value: 6, name: 'הצעת מחיר' },
-  { value: 7, name: 'הזמנת עבודה' },
-  { value: 8, name: 'תעודת משלוח' },
-  { value: 9, name: 'תעודת החזרה' },
-];
+  readonly DocCreateTypeList = [
+    { value: 1, name: 'קבלה' },
+    { value: 2, name: 'חשבונית מס' },
+    { value: 3, name: 'חשבונית מס קבלה' },
+    { value: 4, name: 'חשבונית עסקה' },
+    { value: 5, name: 'חשבונית זיכוי' },
+    { value: 6, name: 'הצעת מחיר' },
+    { value: 7, name: 'הזמנת עבודה' },
+    { value: 8, name: 'תעודת משלוח' },
+    { value: 9, name: 'תעודת החזרה' },
+  ];
 
-readonly formTypes = FormTypes;
+  readonly formTypes = FormTypes;
 
 
   constructor(private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder) {
     this.docCreateForm = this.formBuilder.group({
-     [ FieldsCreateDocValue.CLIENT_NAME]: new FormControl(
+      [FieldsCreateDocValue.CLIENT_NAME]: new FormControl(
         '', Validators.required,
       ),
-      [ FieldsCreateDocValue.CLIENT_EMAIL]: new FormControl(
+      [FieldsCreateDocValue.CLIENT_EMAIL]: new FormControl(
         '', Validators.required,
       ),
-      [ FieldsCreateDocValue.CLIENT_PHONE]: new FormControl(
+      [FieldsCreateDocValue.CLIENT_PHONE]: new FormControl(
         '', Validators.required,
       ),
-      [ FieldsCreateDocValue.CLIENT_ADDRESS]: new FormControl(
+      [FieldsCreateDocValue.CLIENT_ADDRESS]: new FormControl(
         '', Validators.required,
       ),
       [FieldsCreateDocValue.PAYMENT_ID]: new FormControl(
@@ -76,15 +76,15 @@ readonly formTypes = FormTypes;
 
     this.initialDetailsForm = this.formBuilder.group({
       initialIndex: new FormControl(
-         '', [Validators.required, Validators.pattern(/^\d+$/)]
-       ),
+        '', [Validators.required, Validators.pattern(/^\d+$/)]
+      ),
       //  currentIndex: new FormControl(
       //   '', [Validators.pattern(/^\d+$/)]
       // ),
       //  docType: new FormControl(
       //    this.fileSelected, Validators.required,
       //  ),
-     });
+    });
 
 
   }
@@ -114,17 +114,17 @@ readonly formTypes = FormTypes;
   onClickInitialIndex(): void {
     const formData = this.initialDetailsForm.value;
     this.docCreateService.setInitialDocDetails(formData, this.fileSelected)
-    .pipe(
-      catchError((err) => {
-        console.log("err in set initial index: ", err);
-        return EMPTY;
+      .pipe(
+        catchError((err) => {
+          console.log("err in set initial index: ", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log("res in set initial index: ", res);
+        this.isInitial = false;
       })
-    )
-    .subscribe((res) => {
-      console.log("res in set initial index: ", res);
-      this.isInitial = false;
-    })
-  
+
   }
 
   getHebrewNameDoc(typeDoc: number): void {
@@ -138,22 +138,22 @@ readonly formTypes = FormTypes;
     switch (this.fileSelected) {
       case 1:
         this.userDetailsFields = [
-          {name: FieldsCreateDocName.clientName, value: FieldsCreateDocValue.CLIENT_NAME, type: FormTypes.TEXT },
-          {name: FieldsCreateDocName.clientAddress, value: FieldsCreateDocValue.CLIENT_ADDRESS, type: FormTypes.TEXT },
-          {name: FieldsCreateDocName.clientPhone, value: FieldsCreateDocValue.CLIENT_PHONE, type: FormTypes.TEXT },
-          {name: FieldsCreateDocName.clientEmail, value: FieldsCreateDocValue.CLIENT_EMAIL, type: FormTypes.TEXT },
+          { name: FieldsCreateDocName.clientName, value: FieldsCreateDocValue.CLIENT_NAME, type: FormTypes.TEXT },
+          { name: FieldsCreateDocName.clientAddress, value: FieldsCreateDocValue.CLIENT_ADDRESS, type: FormTypes.TEXT },
+          { name: FieldsCreateDocName.clientPhone, value: FieldsCreateDocValue.CLIENT_PHONE, type: FormTypes.TEXT },
+          { name: FieldsCreateDocName.clientEmail, value: FieldsCreateDocValue.CLIENT_EMAIL, type: FormTypes.TEXT },
         ];
         this.paymentDetailsFields = [
-          {name: FieldsCreateDocName.sum, value: FieldsCreateDocValue.SUM, type: FormTypes.TEXT },
+          { name: FieldsCreateDocName.sum, value: FieldsCreateDocValue.SUM, type: FormTypes.TEXT },
         ];
         break;
 
       case 2:
         this.userDetailsFields = [
-          {name: FieldsCreateDocName.date, value: FieldsCreateDocValue.DATE, type: FormTypes.DATE },
+          { name: FieldsCreateDocName.date, value: FieldsCreateDocValue.DATE, type: FormTypes.DATE },
         ];
         this.paymentDetailsFields = [
-          {name: FieldsCreateDocName.paymentId, value: FieldsCreateDocValue.PAYMENT_ID, type: FormTypes.TEXT },
+          { name: FieldsCreateDocName.paymentId, value: FieldsCreateDocValue.PAYMENT_ID, type: FormTypes.TEXT },
         ];
         break;
       default:
@@ -163,65 +163,86 @@ readonly formTypes = FormTypes;
 
   getDocDetails(): void {
     this.docCreateService.getDetailsDoc(this.fileSelected)
-    .pipe(
+      .pipe(
+        catchError((err) => {
+          console.log("err in get doc details: ", err);
+          if (err.status === 404) {
+            this.isInitial = true;
+          }
+          else {
+            //TODO: handle error screen
+          }
+          return EMPTY;
+        }),
+        tap((data) => {
+          if (!data.initialIndex) this.isInitial = true;
+          else this.isInitial = false;
+          console.log("this.isInitial: ", this.isInitial);
+
+        })
+      )
+      .subscribe((res) => {
+        console.log("res in get doc details: ", res);
+      })
+  }
+
+  openSelectClients() {
+
+    from(this.modalController.create({
+      component: SelectClientComponent,
+      // componentProps: {},
+      cssClass: 'expense-modal'
+    })).pipe(
       catchError((err) => {
-        console.log("err in get doc details: ", err);
-        if (err.status === 404) {
-          this.isInitial = true;
-        }
-        else {
-          //TODO: handle error screen
-        }
+        console.log("Open select clients failed in create ", err);
         return EMPTY;
       }),
-      tap((data) => {
-        if (!data.initialIndex) this.isInitial = true;
-        else this.isInitial = false;
-        console.log("this.isInitial: ", this.isInitial);
-        
+      switchMap((modal) => {
+        if (modal) {
+          return from(modal.present())
+            .pipe(
+              catchError((err) => {
+                console.log("Open select clients failed in present ", err);
+                return EMPTY;
+              }),
+              switchMap(() => from(modal.onDidDismiss())),
+            );
+        }
+        else {
+          console.log('Popover modal is null');
+          return EMPTY;
+        }
       })
-    )
-    .subscribe((res) => {
-      console.log("res in get doc details: ", res);
+    ).subscribe((res) => {
+      if (res.role === 'success') {// if the popover closed due to onblur dont change values 
+        if (res !== null && res !== undefined) {
+          if (res) {
+
+          }
+        }
+      }
     })
   }
 
-    openSelectClients() {
-    
-        from(this.modalController.create({
-          component: SelectClientComponent,
-          // componentProps: {},
-          cssClass: 'expense-modal'
-        })).pipe(
-          catchError((err) => {
-            console.log("Open select clients failed in create ", err);
-            return EMPTY;
-          }),
-          switchMap((modal) => {
-            if (modal) {
-              return from(modal.present())
-              .pipe(
-                catchError((err) => {
-                  console.log("Open select clients failed in present ", err);
-                  return EMPTY;
-                }),
-                switchMap(() => from(modal.onDidDismiss())),
-              );
-            }
-            else {
-              console.log('Popover modal is null');
-              return EMPTY;
-            }
-          })
-        ).subscribe((res) => {
-          if (res.role === 'success') {// if the popover closed due to onblur dont change values 
-            if (res !== null && res !== undefined) {
-              if (res) {
-                
-              }
-            }
-          }
+  saveClient() {
+    console.log("🚀 ~ DocCreatePage ~ saveClient ~ this.docCreateForm.value", this.docCreateForm.value);
+    const {[FieldsCreateDocValue.CLIENT_NAME]: name, [FieldsCreateDocValue.CLIENT_EMAIL]: email, [FieldsCreateDocValue.CLIENT_PHONE]: phone, [FieldsCreateDocValue.CLIENT_ADDRESS]: address} = this.docCreateForm.value;
+    const clientData = {
+      name,
+      email,
+      phone,
+      address
+    };
+    this.docCreateService.saveClientDetails(clientData)
+      .pipe(
+        catchError((err) => {
+          console.log("err in save client: ", err);
+          return EMPTY;
         })
-      }
+      )
+      .subscribe((res) => {
+        console.log("res in save client: ", res);
+      })
+  }
 
 }

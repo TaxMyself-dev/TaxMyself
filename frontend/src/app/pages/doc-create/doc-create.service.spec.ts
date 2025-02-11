@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { VatReportService } from './doc-create.service';
+import { DocCreateService } from './doc-create.service';
 
 describe('VatReportService', () => {
-  let service: VatReportService;
+  let service: DocCreateService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(VatReportService);
+    service = TestBed.inject(DocCreateService);
   });
 
   it('should be created', () => {
