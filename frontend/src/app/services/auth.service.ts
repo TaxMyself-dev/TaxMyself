@@ -106,83 +106,20 @@ export class AuthService {
     );
   }
 
+
+  getUserBussinesNumber(): string {
+    const userData = this.getUserDataFromLocalStorage();
+    const businessNumber = userData.businessNumber;
+    return businessNumber;
+  }
+
+  
   
   getUserDataFromLocalStorage(): IUserDate {
     const tempA = localStorage.getItem('userData');
     return JSON.parse(tempA)
   }
 
-  // set setUserDetails(user: IUserDate) {
-  //   this.userDetails = user;
-  // }
-
-  // get userData(): IUserDate {
-  //   if (!this.userDetails) {
-  //     this.userDetails = this.getUserDataFromLocalStorage();
-  //   }
-  //   //console.log(this.userDetails);
-    
-  //   return this.userDetails
-  // }
-
-  // get userRole(): string {
-  //   return this.userData?.role;
-  // }
-
-  // get userFName(): string {
-  //   return this.userData?.fName;
-  // }
-
-  // get userLName(): string {
-  //   return this.userData?.lName;
-  // }
-
-  // get userBusinessName(): string {
-  //   return this.userData?.businessName;
-  // }
-
-  // get userBusinessNumber(): string {
-  //   //console.log(this.userData.businessNumber);
-    
-  //   return this.userData?.businessNumber;
-  // }
-
-  // get userBusinessType(): string {
-  //   return this.userData?.businessType;
-  // }
-
-  // get isTwoBusinessOwner(): boolean {
-  //   return this.userData?.isTwoBusinessOwner;
-  // }
-
-  // get spouseFName(): string {
-  //   return this.userData?.spouseFName;
-  // }
-
-  // get spouseLName(): string {
-  //   return this.userData?.spouseLName;
-  // }
-
-  // get spouseBusinessType(): string {
-  //   return this.userData?.spouseBusinessType;
-  // }
-
-
-  // get spouseBusinessName(): string {
-  //   return this.userData?.spouseBusinessName;
-  // }
-
-  // get spouseBusinessNumber(): string {
-  //   return this.userData?.spouseBusinessNumber;
-  // }
-
-  // get spouseId(): string {
-  //   return this.userData?.spouseId;
-  // }
-
-  // get userId(): string {
-  //   return this.userData?.id;
-  // }
 
   handleErrorLogin(err: string): void {
     console.log("err string: ", err);
@@ -190,6 +127,7 @@ export class AuthService {
       this.error$.next("user");
     }
   }
+
 
   signIn(user: UserCredential): any {
     const url = `${environment.apiUrl}auth/signin`
@@ -210,6 +148,7 @@ export class AuthService {
         }),
       )
   }
+
 
   handleErrorSignup(err: string): void {
     switch (err) {
@@ -233,6 +172,7 @@ export class AuthService {
         break;
     }
   }
+
 
   SignUp(formData: any): Observable<any> {
         let uid: string = "";
@@ -271,6 +211,7 @@ export class AuthService {
       )
   }
 
+
   SendVerificationMail(): Observable<any> {
     return from(this.afAuth.currentUser)
     .pipe(
@@ -282,6 +223,7 @@ export class AuthService {
       )
   }
 
+
   ForgotPassword(passwordResetEmail: string): Observable<any> {
     return from(this.afAuth.sendPasswordResetEmail(passwordResetEmail));
   }
@@ -292,6 +234,7 @@ export class AuthService {
     return user !== null && user.emailVerified !== false ? true : false;
   }
 
+
   updateUser(updatedData: any): Observable<any> {
     console.log("updatedData is ", updatedData);
     
@@ -301,6 +244,7 @@ export class AuthService {
     return this.http.patch(url, updatedData, { headers });
   }
 
+
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('userData');
@@ -309,7 +253,6 @@ export class AuthService {
       this.router.navigate(['login']);
     });
   }
-
 
 
 }

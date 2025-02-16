@@ -73,6 +73,10 @@ export class CustomToolbarComponent implements OnInit {
           this.folder = 'דו"ח מקדמות מס הכנסה'
           break;
 
+        case "uniform-file":
+          this.folder = 'מבנה קבצים אחיד'
+          break;
+
         case "income-statement":
           this.folder = 'דו"ח רווח והפסד'
           break;

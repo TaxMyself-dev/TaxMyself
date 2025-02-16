@@ -14,6 +14,8 @@ import { Supplier } from '../expenses/suppliers.entity';
 import { User } from '../users/user.entity';
 import { Child } from '../users/child.entity';
 import { Finsite } from 'src/finsite/finsite.entity';
+import { Documents } from 'src/documents/documents.entity';
+import { Delegation } from 'src/delegation/delegation.entity';
 //Controllers
 import { ReportsController } from './reports.controller';
 //Services
@@ -28,7 +30,7 @@ import { FinsiteService } from 'src/finsite/finsite.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Transactions, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, ClassifiedTransactions, 
-                                      Bill, Source, Supplier, User, Child, Finsite]),
+                                      Bill, Source, Supplier, User, Child, Finsite, Documents, Delegation]),
             SharedModule],
   controllers: [ReportsController],
   providers: [ReportsService, ExpensesService, UsersService, TransactionsService, FinsiteService]
