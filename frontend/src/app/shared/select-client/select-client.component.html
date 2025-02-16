@@ -1,26 +1,12 @@
 <ion-toolbar>
   <ion-header class="supplier-header">
     <ion-title>
-      רשימת ספקים
+      רשימת לקוחות
     </ion-title>
     <ion-icon (click)="cancel()" class="supplier-icon-header" aria-label="back" size="large"
       name="close-outline"></ion-icon>
   </ion-header>
 </ion-toolbar>
-
-<ion-popover [isOpen]="isOpen">
-  <ng-template>
-    <ion-content>
-      <div class="wrap-message">
-        <div>{{message}}</div>
-        <div class="wrap-buttons-message">
-          <app-button [buttonSize]="ButtonSize.SMALL" buttonText="כן" (onButtonClicked)="deleteSupplier()"></app-button>
-          <app-button buttonText="לא" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="cancelDel()"></app-button>
-        </div>
-      </div>
-    </ion-content>
-  </ng-template>
-</ion-popover>
 
 <ion-content>
   <div *ngIf="error" class="wrap-error">
@@ -28,7 +14,7 @@
       <p>
         שגיאה
         <br>
-        לא ניתן להציג ספקים
+        לא ניתן להציג לקוחות
         <br>
         אנא נסה שנית מאוחר יותר
       </p>
@@ -36,12 +22,12 @@
   </div>
   <div *ngIf="clientsList$ | async as clientsList; else notSuppliers " class="wrap-table-and-button">
     <ng-container *ngIf="clientsList ">
-      <app-table [checkedId]="checkedSupplier?.row?.id" [displayCheckbox]="true" (onCheckedClicked)="onChecked($event)"
+      <app-table [checkedId]="checkedClient?.row?.id" [displayCheckbox]="true" (onCheckedClicked)="onChecked($event)"
       [actions]="tableActions" [columnsWidth]="COLUMNS_WIDTH" [fieldsNames]="fieldsName"
       [columnsToIgnore]="COLUMNS_TO_IGNORE" [rows]="clientsList" [inputSearchLable]="'חיפוש לפי ספק'" (filterBy)="filterClients($event)"></app-table>
     </ng-container>
     
-    <app-button class="select-supplier-button" *ngIf="clientsList" (onButtonClicked)="selectedSupplier()" [buttonText]="'בחר'" [disabled]="!checkedSupplier"></app-button>
+    <app-button class="select-supplier-button" *ngIf="clientsList" (onButtonClicked)="onSelect()" [buttonText]="'בחר'" [disabled]="!checkedClient"></app-button>
   </div>
 
   <ng-template #notSuppliers>

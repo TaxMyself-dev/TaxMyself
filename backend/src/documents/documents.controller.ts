@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Res, } from '@nestjs/common';
+import { Response } from 'express';
+
 import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
 
@@ -50,4 +52,17 @@ export class DocumentsController {
         throw error;
       }
     }
+
+      @Post('create-pdf')
+        async createPDF(@Headers('token') token: string, @Body() body: any, @Res() res: Response) {
+            //const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+            const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
+
+            console.log("body: ", body);
+            const pdfBuffer = await this.documentsService.createPDF(body);
+            console.log("pdfBuffer: ", pdfBuffer);
+            
+            res.setHeader('Content-Type', 'application/pdf');
+            return res.send(pdfBuffer);
+        }
 }

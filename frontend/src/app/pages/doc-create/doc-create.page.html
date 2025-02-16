@@ -12,14 +12,15 @@
     </app-generic-select>
   </div>
   <div *ngIf="fileSelected && !isInitial; else initialTemplate">
-
+    <p>{{HebrewNameFileSelected}} מספר: {{docDetails?.currentIndex}}</p>
     <!-- User details card -->
-    <ion-card *ngIf="showUserDetailsCard">
+    <ion-card *ngIf="userDetailsFields.length > 0">
       <ion-card-header>
         <ion-card-title>פרטי לקוח</ion-card-title>
       </ion-card-header>
       <ion-card-content>
         <app-button buttonText="בחר לקוח" (onButtonClicked)="openSelectClients()"></app-button>
+        <app-button buttonText="שמור לקוח" (onButtonClicked)="saveClient()"></app-button>
         <ion-list>
           <ng-container *ngFor="let field of userDetailsFields">
             <ng-container [ngSwitch]="field.type">
@@ -45,35 +46,42 @@
     </ion-card>
 
     <!-- Payment details card -->
-    <ion-card *ngIf="showPatmentDetailsCard">
-      <ion-card-header>
-        <ion-card-title>פרטי תשלום</ion-card-title>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-list>
-          <ng-container *ngFor="let field of paymentDetailsFields">
-            <ng-container [ngSwitch]="field.type">
-              <ng-container *ngSwitchCase="formTypes.TEXT">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText"></app-generic-input>
-              </ng-container>
+    <!-- <form *ngIf="paymentsForm"  [formGroup]="paymentsForm"> -->
+    <!-- <ng-container *ngFor="let paymentGroup of paymentsFormArray.controls; let i = index" [formGroupName]="i"> -->
+      <ion-card *ngIf="paymentDetailsFields.length > 0">;
+        <ion-card-header>
+          <ion-card-title>פרטי תשלום</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <ion-list>
+            <ng-container *ngFor="let field of paymentDetailsFields">
+              <ng-container [ngSwitch]="field.type">
+                <ng-container *ngSwitchCase="formTypes.TEXT">
+                  <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                    [errorText]="field.errorText"></app-generic-input>
+                </ng-container>
 
-              <ng-container *ngSwitchCase="formTypes.DDL">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText"></app-generic-input>
-              </ng-container>
+                <ng-container *ngSwitchCase="formTypes.DDL">
+                  <app-generic-select [title]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                    [errorText]="field.errorText" [items]="onDdlSelectionChange(field.value)"></app-generic-select>
+                </ng-container>
 
-              <ng-container *ngSwitchCase="formTypes.DATE">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText" [inputType]="formTypes.DATE"></app-generic-input>
-              </ng-container>
+                <ng-container *ngSwitchCase="formTypes.DATE">
+                  <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                    [errorText]="field.errorText" [inputType]="formTypes.DATE"></app-generic-input>
+                </ng-container>
 
+              </ng-container>
             </ng-container>
-          </ng-container>
-        </ion-list>
-      </ion-card-content>
-    </ion-card>
+          </ion-list>
+        </ion-card-content>
+        <!-- <app-button [buttonText]="'add'" (onButtonClicked)="addPayment()"></app-button> -->
+        <!-- <app-button [buttonText]="'remove'" (onButtonClicked)="removePayment(i)"></app-button> -->
+      </ion-card>
+    <!-- </ng-container> -->
+  <!-- </form> -->
   </div>
+  <app-button [buttonText]="'Create'" (onButtonClicked)="createReceiptDoc()" [isLoading]="createPDFIsLoading"></app-button>
 </ion-content>
 
 <ng-template #initialTemplate>
@@ -81,12 +89,14 @@
 
     <p>
       היי תמיד יש פעם ראשונה...
-      <br/>
+      <br />
       כמה הגדרות קצרות ונמשיך להפקת ה{{HebrewNameFileSelected}}
     </p>
     <form class="" [formGroup]="initialDetailsForm">
-      <app-generic-input inputLabel="באיזה מספר סידורי תרצה להתחיל?" [parentForm]="initialDetailsForm" controlName="initialIndex" errorText="מספרים בלבד"></app-generic-input>
+      <app-generic-input inputLabel="באיזה מספר סידורי תרצה להתחיל?" [parentForm]="initialDetailsForm"
+        controlName="initialIndex" errorText="מספרים בלבד"></app-generic-input>
     </form>
-    <app-button buttonText="Save" (onButtonClicked)="onClickInitialIndex()" [disabled]="initialDetailsForm.invalid"></app-button>
+    <app-button buttonText="Save" (onButtonClicked)="onClickInitialIndex()"
+      [disabled]="initialDetailsForm.invalid"></app-button>
   </ng-container>
 </ng-template>

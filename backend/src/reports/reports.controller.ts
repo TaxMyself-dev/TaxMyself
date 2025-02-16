@@ -19,14 +19,6 @@ export class ReportsController {
         private sharedService: SharedService,
         private usersService: UsersService) { }
 
-    @Post('create-pdf')
-    async createPDF(@Headers('token') token: string, @Body() body: any, @Res() res: Response) {
-        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-        console.log("body: ", body);
-        const pdfBuffer = await this.reportsService.createPDF(body);
-        res.setHeader('Content-Type', 'application/pdf');
-        return res.send(pdfBuffer);
-    }
 
     @Get('vat-report')
     async getVatReport(

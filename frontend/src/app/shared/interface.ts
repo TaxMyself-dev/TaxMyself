@@ -74,7 +74,7 @@ export interface ISettingDoc {
     userId: string;
     documentType: string;
     initialIndex: number | null;
-    currentIndex;
+    currentIndex: number | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -261,7 +261,8 @@ export interface ICreateDataDoc {
     prefill_data: {
         [key: string]: number | string | (string | number)[][],
         table?: (string | number)[][];
-    }
+    },
+    digitallySign?: boolean;
 }
 
 export interface ICreateDocField<TFieldsHebrew, TFields> {
