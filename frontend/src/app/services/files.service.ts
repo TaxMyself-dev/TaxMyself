@@ -4,7 +4,7 @@ import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@an
 import { SafeResourceUrl } from '@angular/platform-browser';
 import { error, log } from 'console';
 import { nanoid } from 'nanoid';
-import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap, throwError } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
@@ -239,6 +239,18 @@ export class FilesService {
     }
   }
 
+
+
+
+  createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
+    const url = `${environment.apiUrl}reports/create-uniform-file`;
+    const body = { startDate, endDate, businessNumber };
+
+    // Make a POST request to get the ZIP file from the backend
+    return this.http.post(url, body, { responseType: 'blob' });
+  }
+
+  
 
 
 }

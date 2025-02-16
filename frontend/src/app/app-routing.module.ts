@@ -52,10 +52,14 @@ const routes: Routes = [
     loadChildren: () => import('./pages/annual-report/annual-report.module').then( m => m.AnnualReportPageModule),
     canActivate: [AuthGuard] 
   },
-  
   {
     path: 'advance-income-tax-report',
     loadChildren: () => import('./pages/advance-income-tax-report/advance-income-tax-report.module').then( m => m.AdvanceIncomeTaxReportPageModule),
+    canActivate: [AuthGuard] 
+  },
+  {
+    path: 'uniform-file',
+    loadChildren: () => import('./pages/uniform-file/uniform-file.module').then( m => m.UnifromFilePageModule),
     canActivate: [AuthGuard] 
   },
   {

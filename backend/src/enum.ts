@@ -71,3 +71,28 @@ export enum SourceType {
   CREDIT_CARD = 'CREDIT_CARD',
   BANK_ACCOUNT = 'BANK_ACCOUNT'
 }
+
+export enum DocumentType {
+  RECEIPT = 'RECEIPT', // קבלה
+  TAX_INVOICE = 'TAX_INVOICE', // חשבונית מס
+  TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT', // חשבונית מס קבלה
+  TRANSACTION_INVOICE = 'TRANSACTION_INVOICE', // חשבונית עסקה
+  CREDIT_INVOICE = 'CREDIT_INVOICE', // חשבונית זיכוי
+}
+
+export const DocumentTypeCodeMap: Record<DocumentType, number> = {
+  [DocumentType.TRANSACTION_INVOICE]: 300,
+  [DocumentType.TAX_INVOICE]: 305,
+  [DocumentType.TAX_INVOICE_RECEIPT]: 320,
+  [DocumentType.CREDIT_INVOICE]: 330,
+  [DocumentType.RECEIPT]: 400,
+};
+
+export enum PaymentMethod {
+  CASH = 'CASH',
+  TRANSFER = 'TRANSFER',
+  BIT = 'BIT',
+  PAYBOX = 'PAYBOX',
+  CREDIT_CARD = 'CREDIT_CARD',
+  CHECK = 'CHECK',
+}

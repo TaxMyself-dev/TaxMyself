@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req } from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from '../shared/shared.service';
@@ -9,6 +9,8 @@ import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { PnLReportDto } from './dtos/pnl-report.dto';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 
 @Controller('reports')
 export class ReportsController {
@@ -33,7 +35,6 @@ export class ReportsController {
 
         console.log("vatReport is ", vatReport);
 
-
         return vatReport;
     }
 
@@ -52,6 +53,22 @@ export class ReportsController {
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
 
         return pnlReport;
+    }
+
+
+    @Post('create-uniform-file')
+    @UseGuards(FirebaseAuthGuard)
+    async getHelloWorldZip(
+        @Req() request: AuthenticatedRequest,
+        @Body() body: any,
+        @Res() res: Response) {  
+            const userId = request.user?.firebaseId;
+            const { fileName, zipBuffer } = await this.reportsService.createUniformFile(userId, body.startDate, body.endDate, body.businessNumber);
+            res.set({
+                'Content-Type': 'application/zip',
+                'Content-Disposition': `attachment; filename=${fileName}`,
+            });
+        res.send(zipBuffer);
     }
 
 
