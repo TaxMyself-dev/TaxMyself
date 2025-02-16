@@ -13,19 +13,20 @@ export class ClientsService {
   ) { }
 
   async addClient(clientData: CreateClientDto, userId: string) {
-    console.log("🚀 ~ ClientsService ~ addClient ~ clientData:", clientData)
     const newClient = this.clientsRepo.create(clientData);
-    console.log("🚀 ~ ClientsService ~ addClient ~ newClient:", newClient)
-
     newClient.userId = userId;
     try {
-      const savedClient = await this.clientsRepo.save(newClient);
-      console.log("🚀 ~ ClientsService ~ addClient ~ savedClient:", savedClient)
-
-      if (!savedClient) {
-        throw new Error('Client not saved');
+      const client = await this.clientsRepo.findOne({ where: { userId: userId, name: clientData.name } });
+      
+      if (client) {
+        throw new HttpException('Client already exists', HttpStatus.CONFLICT);
       }
-      //return savedClient
+      
+      const savedClient = await this.clientsRepo.insert(newClient);
+      if (!savedClient) {
+        throw new HttpException('Something went wrong. Client not saved', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      return savedClient
     }
     catch (error) {
       throw error;
@@ -35,6 +36,8 @@ export class ClientsService {
   async getClients(userId: string) {
     try {
       const clients = await this.clientsRepo.find({ where: { userId } });
+      console.log("🚀 ~ ClientsService ~ getClients ~ clients", clients);
+
       if (clients.length === 0) {
         throw new NotFoundException('No clients found');
       }
@@ -43,6 +46,24 @@ export class ClientsService {
       }
       return clients;
 
+    }
+    catch (error) {
+      throw error;
+    }
+  }
+
+  async deleteClient(userId: string, clientId: number) {
+    try {
+      const client = await this.clientsRepo.findOne({ where: { userId, id: clientId } });
+
+      if (!client) {
+        throw new NotFoundException('Client not found');
+      }
+      const deletedClient = await this.clientsRepo.delete(clientId);
+      if (!deletedClient) {
+        throw new HttpException('Error in delete client', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      return deletedClient;
     }
     catch (error) {
       throw error;

@@ -1,24 +1,28 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, PrimaryColumn } from 'typeorm';
 
 @Entity()
 export class Clients {
 
-    @PrimaryGeneratedColumn()
+    @PrimaryGeneratedColumn() // Change primary key to userId and name
     id: number;
 
-    @Column()   
+
+    //@PrimaryColumn()
+    @Column()
     userId: string;
 
+
+    //@PrimaryColumn()
     @Column()
     name: string;
 
     @Column()
     phone: string;
 
-    @Column()   
+    @Column()
     email: string;
 
-    @Column()   
+    @Column()
     address: string;
 
 }

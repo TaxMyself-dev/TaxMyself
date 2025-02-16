@@ -191,6 +191,8 @@ export enum FieldsCreateDocValue {
   CLIENT_EMAIL = 'clientEmail',
   PAYMENT_ID = 'paymentId',
   SUM = 'sum',
+  NOTE = 'note',
+  REASON_PAYMENT = 'reasonPayment'
 }
 
 export enum FieldsCreateDocName {
@@ -202,6 +204,8 @@ export enum FieldsCreateDocName {
   clientPhone = "מס' טלפון של הלקוח",
   paymentId = "אמצעי תשלום",
   sum = "סכום",
+  note = "פירוט",
+  reasonPayment = "תשלום עבור",
 }
 
 

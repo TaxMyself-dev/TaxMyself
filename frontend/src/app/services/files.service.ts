@@ -239,14 +239,6 @@ export class FilesService {
     }
   }
 
-  createPDF(dataFile: ICreateDataDoc): Observable<Blob> {
-    console.log("cerate in service");
-    const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}reports/create-pdf`;
-    const headers = {
-      'token': token
-    }
-    return this.http.post<Blob>(url,dataFile,{ headers, responseType: 'blob' as 'json'})
-  }
+
 
 }

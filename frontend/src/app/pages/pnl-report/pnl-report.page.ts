@@ -8,6 +8,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
+import { DocCreateService } from '../doc-create/doc-create.service';
 
 
 @Component({
@@ -30,7 +31,7 @@ export class PnLReportPage implements OnInit {
 
   reportingPeriodType = ReportingPeriodType;
 
-  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
+  constructor(private docCreateService: DocCreateService, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
     this.pnlReportForm = this.formBuilder.group({
       month: new FormControl(
         '', Validators.required,
@@ -161,7 +162,7 @@ export class PnLReportPage implements OnInit {
 
   createPDF(): void {
     this.isLoading = true;
-    console.log("in cerate");
+    //console.log("in cerate");
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
       dataTable.push([String(expense.total), expense.category]);
@@ -178,9 +179,9 @@ export class PnLReportPage implements OnInit {
       profit: this.pnlReport.netProfitBeforeTax as string,
       expenses: String(this.totalExpense),
       table: dataTable,
-    }
+    },
   }
-    this.fileService.createPDF(data)
+    this.docCreateService.createPDF(data)
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);

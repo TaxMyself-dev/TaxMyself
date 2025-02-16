@@ -4,15 +4,16 @@ import {
     IsDateString,
     IsBoolean,
     IsOptional,
-    isString
 } from 'class-validator'
 
 
 export class CreateClientDto {
 
+    @IsString()
+    userId: string;
 
-   @IsString()
-    Name: string;
+    @IsString()
+    name: string;
 
     @IsString()
     phone: string;

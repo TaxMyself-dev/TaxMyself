@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core';
 import { ButtonSize } from '../button/button.enum';
-import { ModalController } from '@ionic/angular';
+import { ModalController, PopoverController } from '@ionic/angular';
 
 @Component({
   selector: 'app-popup-confirm',
@@ -17,17 +17,17 @@ export class PopupConfirmComponent  implements OnInit {
   //@Output() onCancelClicked: EventEmitter<boolean> = new EventEmitter<boolean>();
 
   readonly ButtonSize = ButtonSize;
-  constructor(private modalController: ModalController) { }
+  constructor(private popoverController: PopoverController) { }
 
   ngOnInit() {}
 
   confirm() {
-    this.modalController.dismiss(true)
+    this.popoverController.dismiss(true)
     //this.onConfirmClicked.emit(true);
   }
   
   cancel(): void {
     //this.onCancelClicked.emit(false);
-    this.modalController.dismiss(false)
+    this.popoverController.dismiss(false)
   }
 }

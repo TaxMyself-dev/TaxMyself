@@ -8,6 +8,7 @@ import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISuppliers,
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonSize } from '../button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, TransactionsOutcomesColumns } from '../enums';
+import { GenericService } from 'src/app/services/generic.service';
 
 
 @Component({
@@ -42,10 +43,9 @@ export class selectSupplierComponent implements OnInit {
   error: boolean = false;
   isOpen: boolean = false;
   message: string = "האם אתה בטוח שברצונך למחוק ספק זה?";
-  id: number;
   checkedSupplier: any;
 
-  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController) { }
+  constructor(private genericService: GenericService,  private expenseDataService: ExpenseDataService, private modalCtrl: ModalController) { }
 
   ngOnInit() {
     this.getSuppliers();
@@ -152,10 +152,10 @@ export class selectSupplierComponent implements OnInit {
 
   }
 
-  deleteSupplier(): void {
-    console.log("id of del sup", this.id);
+  deleteSupplier(id: number): void {
+    console.log("id of del sup", id);
 
-    this.expenseDataService.deleteSupplier(this.id)
+    this.expenseDataService.deleteSupplier(id)
       .pipe(
         finalize(() => { this.isOpen = false }),
         catchError((err) => {
@@ -169,31 +169,28 @@ export class selectSupplierComponent implements OnInit {
       })
   }
 
-  cancelDel(): void {
-    this.isOpen = false;
-  }
-
   confirmDel(id: number): void {
     console.log("event in confirm ", id);
-    this.id = id;
-    this.isOpen = true;
+    this.genericService.openPopupConfirm(this.message, "מחק", "בטל")
+    .subscribe((res) => {
+       if (res.data) {
+         this.deleteSupplier(id);
+       }
+     })
   }
 
   onChecked(event: any): void {
-    console.log("checked event: ", event);
     if (event.checked) {
       this.checkedSupplier = event;
     }
     else {
       this.checkedSupplier = null
     }
-    console.log("checkedSupplier: ", this.checkedSupplier);
-
   }
 
-  filterSuppliers(filtrrBy: string): void {
-    console.log(filtrrBy);
-    this.suppliersList$.next(this.supplierList.filter((supplier) => supplier.supplier.toString().includes(filtrrBy)));
+  filterSuppliers(filterBy: string): void {
+    console.log(filterBy);
+    this.suppliersList$.next(this.supplierList.filter((supplier) => supplier.supplier.toString().includes(filterBy)));
 
   }
 }

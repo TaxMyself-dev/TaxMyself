@@ -557,7 +557,7 @@ export class ModalExpensesComponent {
             this.errorString = "כבר קיים ספק בשם זה, אנא בחר שם שונה. אם ברצונך לערוך ספק זה אנא  לחץ על כפתור עריכה דרך הרשימה .";
             // this.isOpen = true;
           }
-          this.openPopoverMessage(this.errorString)
+          this.genericService.openPopupMessage(this.errorString);
           console.log("err in add supplier: ", err);
           return EMPTY;
         }),
@@ -656,17 +656,17 @@ export class ModalExpensesComponent {
       ).subscribe();
   }
 
-  async openPopupConfirm(message: string) {
-    const modal = await this.modalCtrl.create({
-      component: PopupConfirmComponent,
-      //showBackdrop: false,
-      componentProps: {
-        message: message,
-        // Add more props as needed
-      }
-    })
-    await modal.present();
-  }
+  // async openPopupConfirm(message: string) {
+  //   const modal = await this.modalCtrl.create({
+  //     component: PopupConfirmComponent,
+  //     //showBackdrop: false,
+  //     componentProps: {
+  //       message: message,
+  //       // Add more props as needed
+  //     }
+  //   })
+  //   await modal.present();
+  // }
 
   setValueEquipment(event: any): void {
     const value = event.value;

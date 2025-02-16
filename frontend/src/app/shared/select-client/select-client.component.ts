@@ -8,6 +8,7 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonSize } from '../button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, TransactionsOutcomesColumns } from '../enums';
 import { DocCreateService } from 'src/app/pages/doc-create/doc-create.service';
+import { GenericService } from 'src/app/services/generic.service';
 
 
 @Component({
@@ -46,10 +47,10 @@ export class SelectClientComponent  implements OnInit {
   error: boolean = false;
   isOpen: boolean = false;
   message: string = "האם אתה בטוח שברצונך למחוק לקוח זה?";
-  id: number;
-  checkedSupplier: any;
+  //id: number;
+  checkedClient: any;
 
-  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController, private docCreateService: DocCreateService) { }
+  constructor(private expenseDataService: ExpenseDataService, private modalCtrl: ModalController, private docCreateService: DocCreateService, private genericService: GenericService) { }
 
   ngOnInit() {
     //this.getSuppliers();
@@ -82,6 +83,9 @@ export class SelectClientComponent  implements OnInit {
       .pipe(
         catchError((err) => {
           console.log("err in get clients: ", err);
+          if (err.status !== 404) {
+            this.error = true;
+          }
           return EMPTY;
         })
       )
@@ -93,8 +97,8 @@ export class SelectClientComponent  implements OnInit {
   }
 
 
-  selectedSupplier(): void {
-    this.cancel(this.checkedSupplier.row);
+  onSelect(): void {
+    this.cancel(this.checkedClient.row);
   }
 
   cancel(data?: IRowDataTable) {
@@ -143,20 +147,22 @@ export class SelectClientComponent  implements OnInit {
 
   }
 
-  deleteSupplier(): void {
-    console.log("id of del sup", this.id);
+  deleteClient(id: number): void {
+    console.log("id of del sup", id);
 
-    this.expenseDataService.deleteSupplier(this.id)
+    this.docCreateService.deleteClient(id)
       .pipe(
-        finalize(() => { this.isOpen = false }),
+        //finalize(() => this.genericService.showToast("הלקוח נמחק בהצלחה", "success")),
         catchError((err) => {
           console.log("err in delete supplier: ", err);
+          this.genericService.showToast("אירעה שגיאה, לא ניתן למחוק כעת את הלקוח אנא נסה מאוחר יותר", "error")
           return EMPTY;
         })
       )
       .subscribe((res) => {
         console.log(res);
-        //this.getSuppliers();
+        this.genericService.showToast("הלקוח נמחק בהצלחה", "success")
+        this.getClients();
       })
   }
 
@@ -166,19 +172,24 @@ export class SelectClientComponent  implements OnInit {
 
   confirmDel(id: number): void {
     console.log("event in confirm ", id);
-    this.id = id;
-    this.isOpen = true;
+  
+   this.genericService.openPopupConfirm(this.message, "מחק", "בטל")
+   .subscribe((res) => {
+      if (res.data) {
+        this.deleteClient(id);
+      }
+    })
   }
 
   onChecked(event: any): void {
     console.log("checked event: ", event);
     if (event.checked) {
-      this.checkedSupplier = event;
+      this.checkedClient = event;
     }
     else {
-      this.checkedSupplier = null
+      this.checkedClient = null
     }
-    console.log("checkedSupplier: ", this.checkedSupplier);
+    console.log("checkedClient: ", this.checkedClient);
 
   }
 

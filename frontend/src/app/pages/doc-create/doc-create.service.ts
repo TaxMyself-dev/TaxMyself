@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { ISettingDoc } from 'src/app/shared/interface';
+import { ICreateDataDoc, ISettingDoc } from 'src/app/shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -45,5 +45,21 @@ export class DocCreateService {
       'token': token
     }
     return this.http.get<any[]>(url, { headers });
+  }
+
+  deleteClient(clientId: number): Observable<any> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}clients/delete-client/${clientId}`;
+    return this.http.delete<any>(url, { headers: { token } });
+  }
+
+  createPDF(dataFile: ICreateDataDoc): Observable<Blob> {
+    console.log("cerate in service");
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}documents/create-pdf`;
+    const headers = {
+      'token': token
+    }
+    return this.http.post<Blob>(url,dataFile,{ headers, responseType: 'blob' as 'json'})
   }
 }
