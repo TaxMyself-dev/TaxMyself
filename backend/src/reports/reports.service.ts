@@ -1,6 +1,6 @@
 import { HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
@@ -11,25 +11,62 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VAT_RATE_2023 } from '../constants';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType} from 'src/enum';
+import { BusinessType, DocumentType, DocumentTypeCodeMap} from 'src/enum';
 import { TransactionsService } from 'src/transactions/transactions.service';
+import { Documents } from 'src/documents/documents.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
 import axios from 'axios';
-
+//import path from 'node:path';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as archiver from 'archiver';
+import * as stream from 'stream';
 
 
 @Injectable()
 export class ReportsService {
-    constructor(
-        @InjectRepository(Expense)
-        private expenseRepo: Repository<Expense>,
-        @InjectRepository(Expense)
-        private transactionsRepo: Repository<Transactions>,
-        @InjectRepository(User) private userRepo: Repository<User>,
-        private expensesService: ExpensesService,
-        private transactionsService: TransactionsService,
-        private sharedService: SharedService
-    ) {}
+
+  private recordCounter = 1;
+
+  constructor(
+    @InjectRepository(Expense)
+    private expenseRepo: Repository<Expense>,
+    @InjectRepository(Transactions)
+    private transactionsRepo: Repository<Transactions>,
+    @InjectRepository(Documents)
+    private documentsRepo: Repository<Documents>,
+    @InjectRepository(User) private userRepo: Repository<User>,
+    private expensesService: ExpensesService,
+    private transactionsService: TransactionsService,
+    private sharedService: SharedService
+  ) {}
+
+
+  async createPDF(data: any): Promise<Blob | undefined> {
+    console.log('in createPDF function');
+    
+    const url = 'https://api.fillfaster.com/v1/generatePDF';
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+  
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  
+    try {
+      const response = await axios.post<Blob>(url, data, {
+        headers: headers,
+        responseType: 'arraybuffer', // ensures the response is treated as a Blob
+      });
+      
+      return response.data;
+    } 
+    catch (error) {
+      console.error('Error in createPDF:', error);
+      throw new InternalServerErrorException("something went wrong in create PDF");
+    }
+  }
     
 
     async createVatReport(
@@ -296,6 +333,151 @@ export class ReportsService {
       // Helper function to determine if a year is a leap year
       isLeapYear(year: number): boolean {
         return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+      }
+      
+
+      async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ fileName: string; zipBuffer: Buffer }> {
+
+        const zipFileName = `openformat.zip`;
+
+        // Generate Unique Random Number (15 digits)
+        const uniqueId = this.generateUniqueId();
+
+        // Trim businessNumber to 8 digits if it has 9
+        if (businessNumber.length === 9) {
+          businessNumber = businessNumber.substring(0, 8);
+        }
+
+        // Get current year suffix (XX)
+        const currentYear = new Date().getFullYear();
+        const XX = String(currentYear).slice(-2); // 2025 → "25"
+
+        // Create folder names
+        const businessFolder = `${businessNumber}.${XX}`;
+        const MMDDhhmm = this.getCurrentTimestamp();
+
+        // Generate file contents
+        const iniContent = this.generateIniFileContent(businessNumber, currentYear, businessFolder, MMDDhhmm, uniqueId);
+        const dataContent = await this.generateDataFileContent(userId, businessNumber, startDate, endDate, uniqueId);
+
+        return new Promise((resolve, reject) => {
+          const archive = archiver('zip', { zlib: { level: 9 } });
+          const chunks: Buffer[] = [];
+
+          archive.append(Buffer.from(iniContent, 'utf-8'), { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
+          archive.append(Buffer.from(dataContent, 'utf-8'), { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/BKMVDATA.TXT` });
+
+          // Finalize ZIP file
+          archive.finalize();
+
+          archive.on('data', (chunk) => chunks.push(chunk));
+          archive.on('end', () => {
+            const zipBuffer = Buffer.concat(chunks);
+            console.log(`ZIP file created with unique ID: ${uniqueId}`);
+            resolve({ fileName: zipFileName, zipBuffer });
+          });
+
+          archive.on('error', (err) => reject(err));
+        });
+      }
+
+
+      // Function to generate INI.TXT content
+      private generateIniFileContent(businessNumber: string, currentYear: number, businessFolder: string, MMDDhhmm: string, uniqueId: string): string {
+        return `A000 | 1.31 | 000000000 | ${businessNumber} | ${currentYear} | ${businessFolder}\\${MMDDhhmm} | ${this.getCurrentDate()} | ${this.getCurrentTime()} | ${uniqueId}`;
+      }
+
+
+      // Function to generate a 15-digit unique random number
+      private generateUniqueId(): string {
+        return Math.floor(100000000000000 + Math.random() * 900000000000000).toString();
+      }
+
+
+      // Function to get current date in YYYYMMDD format
+      private getCurrentDate(): string {
+        const now = new Date();
+        return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      }
+
+
+      // Function to get current time in HHMM format
+      private getCurrentTime(): string {
+        const now = new Date();
+        return `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      }
+
+
+      // Function to get current timestamp for folder naming (MMDDhhmm)
+      private getCurrentTimestamp(): string {
+        const now = new Date();
+        return `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      }
+
+
+      private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<string> {
+
+        const documents = await this.fetchDocuments(userId, businessNumber, startDate, endDate);
+      
+        let content = '';
+      
+        // Add A100 section first
+        content += this.generateA100Section(businessNumber, uniqueId);
+
+        // Add C100 section
+        content += this.generateC100Section(documents);
+      
+        return content;
+      }
+
+
+      private generateA100Section(businessNumber: string, uniqueId: string): string {
+        const reportDate = this.getCurrentDate();
+        const reportTime = this.getCurrentTime();
+      
+        // Build the A100 record
+        const a100Record = `A100 | ${this.recordCounter++} | ${businessNumber} | ${reportDate} | ${reportTime} | ${uniqueId}\n`;
+      
+        return a100Record;
+      }
+      
+
+      // Generate C100 section dynamically
+      private generateC100Section(documents: Documents[]): string {
+        let result = '';
+
+        documents.forEach((doc) => {
+          const docCode = this.getDocumentTypeCode(doc.documentType);
+          const docDate = this.formatDateYYYYMMDD(doc.documentDate);
+
+          result += `C100 | ${this.recordCounter++} | ${docCode} | ${doc.id} | ${docDate} | ${doc.amountBeforeTax.toFixed(2)} | ${doc.vatAmount.toFixed(2)} | ${doc.totalAmount.toFixed(2)}\n`;
+        });
+
+        return result;
+      }
+
+
+      // Use this function to get the numeric code
+      private getDocumentTypeCode(documentType: DocumentType): number {
+        return DocumentTypeCodeMap[documentType] || 0; // Default to 0 if not found
+      }
+
+
+      // Format date to YYYYMMDD
+      private formatDateYYYYMMDD(date: Date): string {
+        return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+      }
+      
+
+      // Fetch documents by userId, businessNumber, startDate, and endDate
+      async fetchDocuments(userId: string, businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
+        return this.documentsRepo.find({
+          where: {
+            issuerId: businessNumber, // Only fetch documents issued by this business
+            documentDate: Between(new Date(startDate), new Date(endDate)),
+          },
+          order: { documentDate: 'ASC' },
+        });
       }
 
     

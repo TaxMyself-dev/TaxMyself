@@ -103,12 +103,6 @@ export class VatReportPage implements OnInit {
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
     this.vatReportForm = this.formBuilder.group({
-      // vatableTurnover: new FormControl(
-      //   '', [Validators.required, Validators.pattern(/^\d+$/)]
-      // ),
-      // nonVatableTurnover: new FormControl(
-      //   '', [Validators.required, Validators.pattern(/^\d+$/)]
-      // ),
       month: new FormControl(
         '', Validators.required,
       ),
@@ -147,10 +141,6 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  // selectBusiness(): void {
-  //   console.log("form: ", this.vatReportForm.value);
-    
-  // }
 
   private setTableActions(): void {
     this.tableActions = [
