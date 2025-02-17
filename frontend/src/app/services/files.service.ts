@@ -115,6 +115,11 @@ export class FilesService {
     );
   }
 
+  previewFile1(file: Blob): void {
+    const blobUrl = URL.createObjectURL(file);
+    window.open(blobUrl, '_blank');
+  }
+
   public async deleteFile(urlFile: string): Promise<void> {
     const storage = getStorage();
     const delRef = ref(storage, urlFile);

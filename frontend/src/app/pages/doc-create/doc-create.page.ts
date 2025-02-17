@@ -36,6 +36,7 @@ export class DocCreatePage implements OnInit {
   isInitial: boolean = false;
   docDetails: ISettingDoc;
   createPDFIsLoading: boolean = false;
+  createPreviewPDFIsLoading: boolean = false;
 
   readonly DocCreateTypeList = [
     { value: 1, name: 'קבלה' },
@@ -70,10 +71,10 @@ export class DocCreatePage implements OnInit {
         '', Validators.required,
       ),
       [FieldsCreateDocValue.CLIENT_EMAIL]: new FormControl(
-        '', Validators.required,
+        '', [Validators.required,Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       [FieldsCreateDocValue.CLIENT_PHONE]: new FormControl(
-        '', Validators.required,
+        '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
       ),
       [FieldsCreateDocValue.CLIENT_ADDRESS]: new FormControl(
         '', Validators.required,
@@ -81,7 +82,7 @@ export class DocCreatePage implements OnInit {
       //payments: this.formBuilder.array([this.createPaymentGroup()]),
         
       [FieldsCreateDocValue.SUM]: new FormControl(
-        '', Validators.required,
+        '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
       [FieldsCreateDocValue.DATE]: new FormControl(
         '', Validators.required,
@@ -348,39 +349,120 @@ export class DocCreatePage implements OnInit {
     return null;
   }
 
-  createReceiptDoc() {
-    this.createPDFIsLoading = true;
-    const formData = this.docCreateForm.value;
-    let dataTable: (string | number)[][] = [];
-    // this.paymentsFormArray.c  .forEach((expense) => {
-    //   dataTable.push([String(expense.total), expense.category]);
-    // })
-    //console.log("dataTable: ", dataTable);
-    dataTable.push([formData.sum, formData.date, formData.paymentId, formData.note]);
-    console.log("dataTable: ", dataTable);
+  // createReceiptDoc(flag: string): void {
+  //   if (flag === 'Preview') {
+  //     this.createPreviewPDFIsLoading = true;
+  //   } 
+  //   else if (flag === 'Create') {
+  //     this.createPDFIsLoading = true;
+  //   }
+  //   const formData = this.docCreateForm.value;
+  //   let dataTable: (string | number)[][] = [];
+  //   // this.paymentsFormArray.c  .forEach((expense) => {
+  //   //   dataTable.push([String(expense.total), expense.category]);
+  //   // })
+  //   //console.log("dataTable: ", dataTable);
+  //   dataTable.push([formData.sum, formData.date, formData.paymentId, formData.note]);
+  //   console.log("dataTable: ", dataTable);
     
-    const data: ICreateDataDoc = {
-      fid: "RVxpym2O68",
-      prefill_data: {
-        userName: formData.clientName,
-        currentIndex: this.docDetails.currentIndex,
-        reasonPayment: formData.reasonPayment,
-        table: dataTable,
-      },
-      digitallySign: true
-    }
+  //   const data: ICreateDataDoc = {
+  //     fid: "RVxpym2O68",
+  //     prefill_data: {
+  //       userName: formData.clientName,
+  //       currentIndex: this.docDetails.currentIndex,
+  //       reasonPayment: formData.reasonPayment,
+  //       table: dataTable,
+  //     },
+  //     digitallySign: true
+  //   }
 
-    this.docCreateService.createPDF(data)
+  //   this.docCreateService.createPDF(data)
+  //   .pipe(
+  //     finalize(() => {
+  //       this.createPDFIsLoading = false; 
+  //       this.createPreviewPDFIsLoading = false; 
+  //     }),
+  //     catchError((err) => {
+  //       console.log("err in create pdf: ", err);
+  //       return EMPTY;
+  //     })  
+  //   )
+  //   .subscribe((res) => {
+  //     console.log("res in create pdf: ", res);
+  //     if (this.createPDFIsLoading) {
+  //       this.fileService.downloadFile("my pdf", res);
+  //       this.docCreateService.updateCurrentIndex(this.fileSelected)
+  //     }else if (this.createPreviewPDFIsLoading) {
+  //       this.fileService.previewFile1(res)
+  //     }
+  //   })
+  // }
+
+private getReceiptData(): ICreateDataDoc {
+  const formData = this.docCreateForm.value;
+  const dataTable: (string | number)[][] = [
+    [formData.sum, formData.date, formData.paymentId, formData.note]
+  ];
+  console.log("dataTable: ", dataTable);
+  
+  return {
+    fid: "RVxpym2O68",
+    prefill_data: {
+      userName: formData?.clientName,
+      currentIndex: this.docDetails?.currentIndex,
+      reasonPayment: formData?.reasonPayment,
+      table: dataTable,
+    },
+    digitallySign: true
+  };
+}
+
+// Function for previewing the receipt
+previewReceiptDoc(): void {
+  this.createPreviewPDFIsLoading = true;
+  const data = this.getReceiptData();
+  
+  this.docCreateService.createPDF(data)
     .pipe(
-      finalize(() => this.createPDFIsLoading = false),
+      finalize(() => {
+        this.createPreviewPDFIsLoading = false;
+      }),
       catchError((err) => {
-        console.log("err in create pdf: ", err);
+        console.error("Error in createPDF (Preview):", err);
         return EMPTY;
-      })  
+      })
     )
     .subscribe((res) => {
-      console.log("res in create pdf: ", res);
-      this.fileService.downloadFile("my pdf", res)
-    })
-  }
+      console.log("PDF creation result (Preview):", res);
+      this.fileService.previewFile1(res);
+    });
+}
+
+// Function for creating the receipt (with current index update)
+createReceiptDoc(): void {
+  this.createPDFIsLoading = true;
+  const data = this.getReceiptData();
+  
+  this.docCreateService.createPDF(data)
+    .pipe(
+      switchMap((res) => {
+        // Download the file and chain the updateCurrentIndex call
+        this.fileService.downloadFile("my pdf", res);
+        return this.docCreateService.updateCurrentIndex(this.fileSelected);
+      }),
+      finalize(() => {
+        this.createPDFIsLoading = false;
+      }),
+      catchError((err) => {
+        console.error("Error in createPDF (Create):", err);
+        return EMPTY;
+      })
+    )
+    .subscribe((updateRes) => {
+      console.log("Update current index result:", updateRes);
+    });
+}
+
+  
+    
 }

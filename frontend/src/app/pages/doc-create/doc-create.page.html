@@ -82,6 +82,7 @@
   <!-- </form> -->
   </div>
   <app-button [buttonText]="'Create'" (onButtonClicked)="createReceiptDoc()" [isLoading]="createPDFIsLoading"></app-button>
+  <app-button [buttonText]="'Preview'" (onButtonClicked)="previewReceiptDoc()" [isLoading]="createPreviewPDFIsLoading"></app-button>
 </ion-content>
 
 <ng-template #initialTemplate>

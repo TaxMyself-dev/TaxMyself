@@ -62,4 +62,10 @@ export class DocCreateService {
     }
     return this.http.post<Blob>(url,dataFile,{ headers, responseType: 'blob' as 'json'})
   }
+
+  updateCurrentIndex(docType: number): Observable<any> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}documents/update-cerrunt-index/${docType}`;
+    return this.http.patch<any>(url, {}, {headers: {token}});
+  }
 }
