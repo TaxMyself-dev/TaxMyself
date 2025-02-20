@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserDate } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import { FlowReportService } from './flow-report.page.service';
 import { BehaviorSubject, EMPTY, catchError, finalize, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
@@ -36,7 +36,7 @@ export class FlowReportPage implements OnInit {
   isSelectTransaction: boolean = false; // for able or disable send button
   // isToastOpen: boolean = false;
   // messageToast: string = "";
-  userData: IUserDate;
+  userData: IUserData;
   strFilter: string;
   checkedCount: number = 0;
   disabledRows: number = 0;

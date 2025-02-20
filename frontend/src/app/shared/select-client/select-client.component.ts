@@ -26,15 +26,15 @@ export class SelectClientComponent  implements OnInit {
   readonly ButtonSize = ButtonSize;
 
   readonly fieldsName: IColumnDataTable<FieldsCreateDocName, FieldsCreateDocValue>[] = [
-    { name: FieldsCreateDocName.clientName, value: FieldsCreateDocValue.CLIENT_NAME, type: FormTypes.TEXT },
-    { name: FieldsCreateDocName.clientEmail, value: FieldsCreateDocValue.CLIENT_EMAIL, type: FormTypes.TEXT },
-    { name: FieldsCreateDocName.clientPhone, value: FieldsCreateDocValue.CLIENT_PHONE, type: FormTypes.TEXT },
+    { name: FieldsCreateDocName.recipientName, value: FieldsCreateDocValue. RECIPIENT_NAME, type: FormTypes.TEXT },
+    { name: FieldsCreateDocName.recipientEmail, value: FieldsCreateDocValue. RECIPIENT_EMAIL, type: FormTypes.TEXT },
+    { name: FieldsCreateDocName.recipientPhone, value: FieldsCreateDocValue. RECIPIENT_PHONE, type: FormTypes.TEXT },
   ];
 
   readonly COLUMNS_WIDTH = new Map<FieldsCreateDocValue | ExpenseFormColumns, number>([
-    [FieldsCreateDocValue.CLIENT_NAME, 3.7],
-    [FieldsCreateDocValue.CLIENT_EMAIL, 3.5],
-    [FieldsCreateDocValue.CLIENT_PHONE, 3.5],
+    [FieldsCreateDocValue. RECIPIENT_NAME, 3.7],
+    [FieldsCreateDocValue. RECIPIENT_EMAIL, 3.5],
+    [FieldsCreateDocValue. RECIPIENT_PHONE, 3.5],
     [ExpenseFormColumns.ACTIONS, 3.8],
     [ExpenseFormColumns.CHECKBOX, 1]
   ]);

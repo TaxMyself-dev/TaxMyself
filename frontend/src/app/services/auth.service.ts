@@ -9,7 +9,7 @@ import { sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
-import { IUserDate } from '../shared/interface';
+import { IUserData } from '../shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -18,7 +18,7 @@ export class AuthService {
 
   //userData: any; // Save logged in user data
   token: string;
-  private userDetails: IUserDate = null;
+  private userDetails: IUserData = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
 
@@ -115,7 +115,7 @@ export class AuthService {
 
   
   
-  getUserDataFromLocalStorage(): IUserDate {
+  getUserDataFromLocalStorage(): IUserData {
     const tempA = localStorage.getItem('userData');
     return JSON.parse(tempA)
   }

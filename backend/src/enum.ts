@@ -73,6 +73,7 @@ export enum SourceType {
 }
 
 export enum DocumentType {
+  GENERAL = 'GENERAL', // כללי
   RECEIPT = 'RECEIPT', // קבלה
   TAX_INVOICE = 'TAX_INVOICE', // חשבונית מס
   TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT', // חשבונית מס קבלה
@@ -80,7 +81,7 @@ export enum DocumentType {
   CREDIT_INVOICE = 'CREDIT_INVOICE', // חשבונית זיכוי
 }
 
-export const DocumentTypeCodeMap: Record<DocumentType, number> = {
+export const DocumentTypeCodeMap: Partial<Record<DocumentType, number>> = {
   [DocumentType.TRANSACTION_INVOICE]: 300,
   [DocumentType.TAX_INVOICE]: 305,
   [DocumentType.TAX_INVOICE_RECEIPT]: 320,

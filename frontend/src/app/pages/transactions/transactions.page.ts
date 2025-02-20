@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
-import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserDate } from 'src/app/shared/interface';
+import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
@@ -149,7 +149,7 @@ export class TransactionsPage implements OnInit {
   // messageToast: string = "";
   filterByExpense: string = "";
   filterByIncome: string = "";
-  userData: IUserDate;
+  userData: IUserData;
   businessSelect: string = "";
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {

@@ -1,6 +1,6 @@
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
 
-export interface IUserDate {
+export interface IUserData {
     businessDate: string;
     businessField: string;
     businessInventory: boolean;
@@ -259,7 +259,7 @@ export interface IToastData {
 export interface ICreateDataDoc {
     fid: string;
     prefill_data: {
-        [key: string]: number | string | (string | number)[][],
+        [key: string]: number | string | boolean | (string | number)[][],
         table?: (string | number)[][];
     },
     digitallySign?: boolean;

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from 'src/app/services/auth.service';
-import { IItemNavigate, IUserDate } from 'src/app/shared/interface';
+import { IItemNavigate, IUserData } from 'src/app/shared/interface';
 
 @Component({
   selector: 'app-reports',
@@ -9,7 +9,7 @@ import { IItemNavigate, IUserDate } from 'src/app/shared/interface';
 })
 export class ReportsPage implements OnInit {
  
-  userData: IUserDate;
+  userData: IUserData;
   itemsNavigate: IItemNavigate[] 
   constructor(private authService: AuthService) { }
 

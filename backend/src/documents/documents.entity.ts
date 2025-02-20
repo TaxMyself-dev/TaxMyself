@@ -30,16 +30,16 @@ export class Documents {
   @Column()
   recipientName: string; // שם הלקוח / מקבל המסמך
 
-  @Column()
+  @Column({ nullable: true })
   recipientId: string; // ח.פ / ת.ז של הלקוח
 
-  @Column()
+  @Column({ nullable: true })
   recipientAddress: string; // כתובת הלקוח (אם רלוונטי)
 
-  @Column()
+  @Column({ nullable: true })
   recipientPhone: string; // טלפון הלקוח (אם רלוונטי)
 
-  @Column()
+  @Column({ nullable: true })
   recipientEmail: string; // אימייל הלקוח (אם רלוונטי)
 
   // פרטי העסקה
@@ -61,7 +61,7 @@ export class Documents {
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod; // אמצעי תשלום
 
-  @Column({ type: 'date' })
+  @Column({ type: 'date',  nullable: true, default: null })
   documentDate: Date; // תאריך המסמך (כפי שמופיע עליו)
 
   @CreateDateColumn()

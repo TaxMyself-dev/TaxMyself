@@ -6,7 +6,7 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, ICellRenderer, ReportingPeriodType } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserDate } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import { ModalExpensesComponent } from 'src/app/shared/modal-add-expenses/modal.component';
 import { cloneDeep } from 'lodash';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
@@ -47,7 +47,7 @@ export class MyStoragePage implements OnInit {
   id: number;
   message: string = "האם אתה בטוח שברצונך למחוק הוצאה זו?";
   storageForm: FormGroup;
-  userData: IUserDate;
+  userData: IUserData;
   businessNamesList: ISelectItem[] = [];
   destroy$ = new Subject<void>();
 

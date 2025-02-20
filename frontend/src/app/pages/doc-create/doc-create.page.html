@@ -13,6 +13,37 @@
   </div>
   <div *ngIf="fileSelected && !isInitial; else initialTemplate">
     <p>{{HebrewNameFileSelected}} מספר: {{docDetails?.currentIndex}}</p>
+
+     <!-- General details card -->
+     <ion-card>
+      <ion-card-header>
+        <ion-card-title>נתוני מסמך כלליים</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-list>
+          <ng-container *ngFor="let field of generalDetailsFields">
+            <ng-container [ngSwitch]="field.type">
+              <ng-container *ngSwitchCase="formTypes.TEXT">
+                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                  [errorText]="field.errorText"></app-generic-input>
+              </ng-container>
+
+              <ng-container *ngSwitchCase="formTypes.DDL">
+                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                  [errorText]="field.errorText"></app-generic-input>
+              </ng-container>
+
+              <ng-container *ngSwitchCase="formTypes.DATE">
+                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                  [errorText]="field.errorText" [inputType]="formTypes.DATE"></app-generic-input>
+              </ng-container>
+
+            </ng-container>
+          </ng-container>
+        </ion-list>
+      </ion-card-content>
+    </ion-card>
+
     <!-- User details card -->
     <ion-card *ngIf="userDetailsFields.length > 0">
       <ion-card-header>
@@ -81,7 +112,9 @@
     <!-- </ng-container> -->
   <!-- </form> -->
   </div>
-  <app-button [buttonText]="'Create'" (onButtonClicked)="createReceiptDoc()" [isLoading]="createPDFIsLoading"></app-button>
+  <app-button [buttonText]="'Create'" (onButtonClicked)="createDoc()" [isLoading]="createPDFIsLoading"></app-button>
+  <app-button [buttonText]="'Preview'" (onButtonClicked)="previewtDoc()" [isLoading]="createPreviewPDFIsLoading"></app-button>
+  <!-- <app-button [buttonText]="'Add'" (onButtonClicked)="addDoc()" [isLoading]="addPDFIsLoading"></app-button> -->
 </ion-content>
 
 <ng-template #initialTemplate>

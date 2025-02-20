@@ -1,7 +1,7 @@
 import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef, TemplateRef, Inject } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { LoadingController, ModalController, PopoverController, NavParams } from '@ionic/angular';
-import { IButtons, IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable, ISelectItem, IUserDate } from '../interface';
+import { IButtons, IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable, ISelectItem, IUserData } from '../interface';
 import { KeyValue, formatDate } from '@angular/common';
 import { PopupConfirmComponent } from '../popup-confirm/popup-confirm.component';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -115,7 +115,7 @@ export class ModalExpensesComponent {
   safePdfBase64String: SafeResourceUrl;
   pdfLoaded: boolean = false;
   fileToUpload: File;
-  userData: IUserDate;
+  userData: IUserData;
   businessList: ISelectItem[] = [];
   isLoadingAddSupplier: boolean = false;
   isLoadingAddExpense: boolean = false;

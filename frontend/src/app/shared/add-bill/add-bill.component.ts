@@ -3,7 +3,7 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { ModalController } from '@ionic/angular';
 import { catchError, EMPTY, finalize, map } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { ISelectItem, IUserDate } from '../interface';
+import { ISelectItem, IUserData } from '../interface';
 import { paymentIdentifierType } from '../enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -25,7 +25,7 @@ export class AddBillComponent implements OnInit {
   typeSelected: string;
   addBillForm: FormGroup;
   businessNames: ISelectItem[] = [];
-  userData: IUserDate;
+  userData: IUserData;
 
   constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, public authService: AuthService, private genericService: GenericService) {
     this.addBillForm = this.formBuilider.group({
