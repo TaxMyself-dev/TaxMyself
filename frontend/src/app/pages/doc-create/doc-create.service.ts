@@ -16,7 +16,7 @@ export class DocCreateService {
   constructor(private http: HttpClient) {};
 
 
-  getDetailsDoc(docType: number): Observable<ISettingDoc> {
+  getDetailsDoc(docType: string): Observable<ISettingDoc> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
     const headers = {
@@ -25,7 +25,7 @@ export class DocCreateService {
     return this.http.get<ISettingDoc>(url,{headers});
   }
 
-  setInitialDocDetails(data,docType: number): Observable<any> {
+  setInitialDocDetails(data,docType: string): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}documents/setting-initial-index/${docType}`;
     return this.http.post<any>(url, {initialIndex: data.initialIndex}, {headers: {token}});
@@ -67,5 +67,11 @@ export class DocCreateService {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}documents/update-cerrunt-index/${docType}`;
     return this.http.patch<any>(url, {}, {headers: {token}});
+  }
+
+  addDoc(data: any): Observable<any> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}documents/add-doc`;
+    return this.http.post<any>(url, data, {headers: {token}});
   }
 }

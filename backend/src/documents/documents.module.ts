@@ -3,10 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm'
 import { DocumentsService,  } from './documents.service';
 import { DocumentsController } from './documents.controller';
 import { SettingDocuments } from './settingDocuments.entity';
+import { Documents } from './documents.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SettingDocuments])],
+  imports: [TypeOrmModule.forFeature([SettingDocuments, Documents])],
   controllers: [DocumentsController],
   providers: [
     DocumentsService,

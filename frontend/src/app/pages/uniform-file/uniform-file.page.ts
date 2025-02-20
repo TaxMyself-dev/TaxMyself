@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { IPnlReportData, ISelectItem, IUserDate } from 'src/app/shared/interface';
+import { IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap, throwError } from 'rxjs';
@@ -17,7 +17,7 @@ export class UniformFilePage implements OnInit {
 
   uniformFileForm: FormGroup;
   pnlReport: IPnlReportData;
-  userData: IUserDate;
+  userData: IUserData;
   displayExpenses: boolean = false;
   isLoading: boolean = false;
   reportClick: boolean = true;

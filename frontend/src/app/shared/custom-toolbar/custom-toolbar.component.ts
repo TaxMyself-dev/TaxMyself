@@ -2,7 +2,7 @@ import { Component, inject, Input, OnInit } from '@angular/core';
 import { ActivatedRoute, Route } from '@angular/router';
 import { Location } from '@angular/common';
 import { AuthService } from 'src/app/services/auth.service';
-import { IUserDate } from '../interface';
+import { IUserData } from '../interface';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 
 
@@ -14,7 +14,7 @@ import { ClientPanelService } from 'src/app/services/clients-panel.service';
 export class CustomToolbarComponent implements OnInit {
 
   @Input() title: string = "";
-  loggedInUserData: IUserDate;
+  loggedInUserData: IUserData;
   loggedInUserName: string | null = null;
   clientName: string | null = null;
   constructor(

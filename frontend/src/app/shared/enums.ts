@@ -119,7 +119,8 @@ export enum TransactionsOutcomesHebrewColumns {
   checkbox = 'בחר',
   actions = 'פעולות',
   businessName = 'שייך לעסק',
-  note = 'הערה'
+  note = 'הערה',
+  documentDate = 'תאריך המסמך',
 }
 
 // export const months = [
@@ -185,29 +186,50 @@ export enum TransactionsOutcomesHebrewColumns {
 export enum FieldsCreateDocValue {
   TYPE_FILE = 'typeFile',
   DATE = 'date',
-  CLIENT_NAME = 'clientName',
-  CLIENT_PHONE = 'clientPhone',
-  CLIENT_ADDRESS = 'clientAddress',
-  CLIENT_EMAIL = 'clientEmail',
-  PAYMENT_ID = 'paymentId',
+  RECIPIENT_NAME = 'recipientName', 
+  RECIPIENT_PHONE = 'recipientPhone',
+  RECIPIENT_ADDRESS = 'recipientAddress',
+  RECIPIENT_EMAIL = 'recipientEmail',
+  PAYMENT_METHOD = 'paymentMethod',
+  RECIPIENT_ID= 'recipientId',
   SUM = 'sum',
   NOTE = 'note',
-  REASON_PAYMENT = 'reasonPayment'
+  REASON_PAYMENT = 'reasonPayment',
+  DOCUMENT_DATE = 'documentDate',
 }
 
 export enum FieldsCreateDocName {
   typeFile = "באיזה מסמך אתה מעוניין?",
-  date = "תאריך",
-  clientName = "שם הלקוח",
-  clientEmail= "אימייל של הלקוח",
-  clientAddress = "כתובת הלקוח",
-  clientPhone = "מס' טלפון של הלקוח",
-  paymentId = "אמצעי תשלום",
+  date = "תאריך ביצוע התשלום",
+  documentDate = "תאריך המסמך",
+  recipientName = "שם הלקוח",
+  recipientId = "ת.ז. / ח.פ. של הלקוח",
+  recipientEmail= "אימייל של הלקוח",
+  recipientAddress = "כתובת הלקוח",
+  recipientPhone = "מס' טלפון של הלקוח",
+  paymentMethod = "אמצעי תשלום",
   sum = "סכום",
   note = "פירוט",
   reasonPayment = "תשלום עבור",
 }
 
+export enum PaymentMethodValue {
+  CASH = 'CASH',
+  TRANSFER = 'TRANSFER',
+  BIT = 'BIT',
+  PAYBOX = 'PAYBOX',
+  CREDIT_CARD = 'CREDIT_CARD',
+  CHECK = 'CHECK',
+}
+
+export enum PaymentMethodName {
+  CASH = 'מזומן',
+  TRANSFER = 'העברה בנקאית',
+  BIT = 'ביט',
+  PAYBOX = 'פייבוקס',
+  CREDIT_CARD = 'כרטיס אשראי',
+  CHECK = "צ'ק",
+}
 
 export enum ICellRenderer {
   CATEGORY = 'category',

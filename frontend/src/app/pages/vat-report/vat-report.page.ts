@@ -6,7 +6,7 @@ import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switc
 import { FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserDate, IVatReportData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
 import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
@@ -63,7 +63,7 @@ export class VatReportPage implements OnInit {
   // messageToast: string;
   // isToastOpen: boolean;
   isSkip: boolean = false;
-  userData: IUserDate;
+  userData: IUserData;
   businessNamesList: ISelectItem[] = [];
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
                       { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
