@@ -89,11 +89,53 @@ export const DocumentTypeCodeMap: Partial<Record<DocumentType, number>> = {
   [DocumentType.RECEIPT]: 400,
 };
 
-export enum PaymentMethod {
-  CASH = 'CASH',
-  TRANSFER = 'TRANSFER',
-  BIT = 'BIT',
-  PAYBOX = 'PAYBOX',
-  CREDIT_CARD = 'CREDIT_CARD',
-  CHECK = 'CHECK',
+export enum PaymentMethodType {
+  CASH = 1,            // מזומן
+  CHECK = 2,           // המחאה
+  CREDIT_CARD = 3,     // אשראי
+  BANK_TRANSFER = 4,   // העברה בנקאית
+  GIFT_CARD = 5,       // תווי קנייה
+  BILL_EXCHANGE = 6,   // תלוש חלפה
+  VOUCHER = 7,         // שטר
+  STANDING_ORDER = 8,  // הוראת קבע
+  OTHER = 9            // אחר
 }
+
+export enum Currency {
+  ILS = 'ILS',
+  USD = 'USD',
+  EUR = 'EUR',
+}
+
+export enum UnitOfMeasure {
+  UNIT = 'UNIT',
+  WORK_HOUR = 'WORK_HOUR',
+  LITER = 'LITER',
+  KILOGRAM = 'KILOGRAM'
+}
+
+export enum VatOptions {
+  INCLUDE = 1,
+  NONE_INCLUDE = 2,
+  WITHOUT = 3
+}
+
+export enum CreditTransactionType {
+  REGULAR = 1,   // רגיל
+  INSTALLMENTS = 2, // תשלומים
+  CREDIT = 3, // קרדיט
+  DEFERRED_CHARGE = 4, // חיוב נדחה
+  OTHER = 5 // אחר
+}
+
+export enum CardCompany {
+  ISRACARD = 1,
+  CAL = 2,
+  DINERS = 3,
+  AMERICAN_EXPRESS = 4,
+  VISA = 5,
+  LEUMI_CARD = 6,
+  MASTERCARD = 7,
+  OTHER = 8
+}
+
