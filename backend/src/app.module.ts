@@ -31,6 +31,7 @@ import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
 import { Clients } from './clients/clients.entity';
 import { Documents } from './documents/documents.entity';
+import { DocLines } from './documents/doc-lines.entity';
 
 import 'dotenv/config'
 import admin from 'firebase-admin';
@@ -71,7 +72,8 @@ serviceAccount = {
       password: process.env.DB_PASSWORD,
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
-                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, Clients, Documents],
+                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, 
+                 Clients, Documents, DocLines],
       synchronize: true, //TODO: uncomment after the database is stable: // process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -91,7 +93,8 @@ serviceAccount = {
       Delegation,
       SettingDocuments,
       Clients,
-      Documents
+      Documents,
+      DocLines
     ]),
     ScheduleModule.forRoot(),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule],
