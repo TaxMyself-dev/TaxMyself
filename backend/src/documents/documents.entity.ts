@@ -1,82 +1,220 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
-import { DocumentType, PaymentMethod } from 'src/enum';
+import { Currency, DocumentType } from 'src/enum';
 
 
 @Entity()
 export class Documents {
+
   @PrimaryGeneratedColumn()
   id: number;
 
+
+  // General document info
+  // ******************************************************************************************************************************************************** //
+
+  // docDate
+  // docDescription
+  // +
+  // docVatRate  (by default 18%)
+  // currency
+
+  // ******************************************************************************************************************************************************** //
+
+
+
+  // Recipient Details
+  // ******************************************************************************************************************************************************** //
+  
+  // recipientName
+  // recipientId
+  // recipientEmail
+  // recipientPhone
+  // +
+  // recipientStreet
+  // recipientHomeNumber
+  // recipientCity
+  // recipientPostalCode
+
+  // ******************************************************************************************************************************************************** //
+
+
+
+  // RECEIPT + TAX_INVOICE_RECEIPT
+  // ******************************************************************************************************************************************************** //
+
+  // lineDesc     -----     unitAmount     -----     lineCost     -----     vatOption (include/none-include/without)     -----     paymentMethod    -----
+  // +
+  // lineDiscount
+  // +
+  // :: paymentMethod ::
+  // Transfer -     bankNumber, branchNumber, accountNumber
+  // Check    -     bankNumber, branchNumber, accountNumber, checkNumber, paymentCheckDate
+  // Credit   -     cardCompany, card4Number, creditTransType, creditPayNumber 
+  // App
+  // Cash
+
+  // ******************************************************************************************************************************************************** //
+
+
+
+  // TRANSACTION_INVOICE + TAX_INVOICE
+  // ******************************************************************************************************************************************************** //
+
+  // lineDesc     -----     unitAmount     -----     lineCost     -----     vatOption (include/none-include/without)     -----     paymentMethod    -----
+  // +
+  // lineDiscount
+
+  // ******************************************************************************************************************************************************** //
+
+
+
+  // CREDIT_INVOICE
+  // ******************************************************************************************************************************************************** //
+
+  // lineDesc     -----     unitAmount     -----     lineCost     -----     vatOption (include/none-include/without)     -----     paymentMethod    -----
+
+  // ******************************************************************************************************************************************************** //
+
+
+  // Another fields to save
+  // ******************************************************************************************************************************************************** //
+
+  // docType
+  // generalDocIndex
+  // docNumber
+  // issueDate
+  // issueHour
+  // isCancelled
+  // transType = 3
+  // branchCode
+  // operationPerformer
+
+
+
+  /// *********** Document Issuer Details *********** ///
+
+  @Column()
+  issuerbusinessNumber: string;
+
+
+
+  // /// *********** Document Recipient Details *********** ///
+
+  @Column()
+  recipientName: string;
+
+  @Column()
+  recipientId: string;
+
+  @Column()
+  recipientStreet: string;
+
+  @Column()
+  recipientHomeNumber: string;
+
+  @Column()
+  recipientCity: string;
+
+  @Column()
+  recipientPostalCode: string;
+
+  @Column()
+  recipientState: string;
+
+  @Column()
+  recipientStateCode: string;
+
+  @Column()
+  recipientPhone: string;
+
+  @Column()
+  recipientEmail: string;
+
+
+
+  // /// *********** Document Details *********** ///
+
   @Column({ type: 'enum', enum: DocumentType })
-  documentType: DocumentType;
+  docType: DocumentType;
 
-  // פרטי מפיק המסמך (העסק)
-  @Column()
-  issuerName: string; // שם העסק שהפיק את המסמך
+  @Column({ type: 'varchar', length: 7, nullable: true })
+  generalDocIndex: string;
 
-  @Column()
-  issuerId: string; // ח.פ / ת.ז של העסק המפיק
+  @Column({ type: 'varchar', nullable: true })
+  docDescription: string;
 
-  @Column()
-  issuerAddress: string; // כתובת העסק
-
-  @Column()
-  issuerPhone: string; // טלפון העסק
-
-  @Column()
-  issuerEmail: string; // אימייל העסק
-
-  // פרטי מקבל המסמך (הלקוח)
-  @Column()
-  recipientName: string; // שם הלקוח / מקבל המסמך
-
-  @Column({ nullable: true })
-  recipientId: string; // ח.פ / ת.ז של הלקוח
-
-  @Column({ nullable: true })
-  recipientAddress: string; // כתובת הלקוח (אם רלוונטי)
-
-  @Column({ nullable: true })
-  recipientPhone: string; // טלפון הלקוח (אם רלוונטי)
-
-  @Column({ nullable: true })
-  recipientEmail: string; // אימייל הלקוח (אם רלוונטי)
-
-  // פרטי העסקה
-  @Column({ type: 'decimal', precision: 10, scale: 2 }) 
-  amountBeforeTax: number; // סכום לפני מע"מ
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  docNumber: string;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true }) 
-  vatRate: number; // שיעור המע"מ (לחשבונית מס)
+  docVatRate: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 }) 
-  vatAmount: number; // סכום המע"מ
+  @Column({ type: 'varchar', length: 1, nullable: true })
+  transType: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 }) 
-  totalAmount: number; // סכום כולל (כולל מע"מ)
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  amountForeign: number; // סכום המסמך במט"ח
 
-  @Column()
-  paymentDescription: string; // מהות העסקה / השירות
+  @Column({ type: 'enum', enum: Currency, default: Currency.ILS })
+  currency: Currency;
 
-  @Column({ type: 'enum', enum: PaymentMethod })
-  paymentMethod: PaymentMethod; // אמצעי תשלום
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  sumBefDisBefVat: number; //  סכום המסמך לפני הנחה ולפני מע"מ
 
-  @Column({ type: 'date',  nullable: true, default: null })
-  documentDate: Date; // תאריך המסמך (כפי שמופיע עליו)
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  disSum: number; //  סכום ההנחה במסמך
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  sumAftDisBefVAT: number; // סכום המסמך לאחר הנחה לפני מע"מ
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  vatSum: number; //  סכום המע"מ במסמך
+  
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  sumAftDisWithVAT: number; // סכום המסמך לאחר הנחה כולל מע"מ
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true }) 
+  withholdingTaxAmount: number; // סכום הניכוי במקור
+  
+  @CreateDateColumn()
+  docDate: Date; // תאריך המסמך)
 
   @CreateDateColumn()
-  issueDate: Date; // תאריך הפקה (נוצר אוטומטית)
+  issueDate: Date; // תאריך הפקה 
 
-  @Column({ nullable: true })
-  referenceNumber: string; // מספר מסמך קשור (למשל מספר חשבונית בקבלה)
+  @CreateDateColumn()
+  valueDate: Date; // תאריך ערך 
 
-  @Column({ nullable: true })
-  notes: string; // הערות למסמך (אם יש)
+  @CreateDateColumn()
+  issueHour: Date; // שעת הפקה 
+
+  @Column({ type: 'varchar', length: 15, nullable: true })
+  customerKey: string; // מפתח הלקוח אצל המוכר
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  matchField: string; // שדה התאמה
 
   @Column({ default: false })
   isCancelled: boolean; // האם המסמך בוטל
 
-  @Column({ nullable: true })
-  cancellationReason: string; // סיבת הביטול (אם המסמך בוטל)
+  @Column({ type: 'varchar', length: 7, nullable: true })
+  branchCode: string; // מספר הסניף בו הופק המסמך
+  
+  @Column({ type: 'varchar', length: 9, nullable: true })
+  operationPerformer: string; // שם המשתמש של מפיק המסמך
+
+
+
+  /// *********** Parent document Details *********** ///
+
+  @Column({ type: 'enum', enum: DocumentType })
+  parentDocType: DocumentType;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  parentDocNumber: string;
+
+  @Column({ type: 'varchar', length: 7, nullable: true })
+  parentBranchCode: string; //  מספר הסניף בו הופק המסמך האב
+ 
   
 }
