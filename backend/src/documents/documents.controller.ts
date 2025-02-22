@@ -62,22 +62,31 @@ export class DocumentsController {
   //   }
   // }
 
-  @Post('create-pdf')
+  @Post('create-doc')
   async createPDF(@Body() body: any, @Res() res: Response) {
     const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
+    console.log("🚀 ~ DocumentsController ~ createPDF ~ body:", body)
+    const pdfBuffer = await this.documentsService.createDoc(body, userId);
 
     //console.log("body: ", body);
-    const pdfBuffer = await this.documentsService.createPDF(body, userId);
     console.log("pdfBuffer: ", pdfBuffer);
 
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }
 
-  @Post('add-doc')
-  async addDoc(@Headers('token') token: string, @Body() body: any) {
-    //const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+  @Post('generate-pdf')
+  async generatePDF(@Body() body: any, @Res() res: Response) {
     const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
-    return this.documentsService.addDoc(userId, body);
+    const pdfBuffer = await this.documentsService.generatePDF(body, userId);
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.send(pdfBuffer);
   }
+
+  // @Post('add-doc')
+  // async addDoc(@Headers('token') token: string, @Body() body: any) {
+  //   //const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+  //   const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
+  //   return this.documentsService.addDoc(userId, body);
+  // }
 }

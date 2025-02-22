@@ -62,13 +62,13 @@ export class DocumentsService {
   async settingGeneralIndex(userId: string) {
     console.log("settingGeneralIndex - in service");
     let generalIndex: any;
-      generalIndex = await this.settingDocuments.findOne({ where: { userId,  documentType: DocumentType.GENERAL } });
+    generalIndex = await this.settingDocuments.findOne({ where: { userId, documentType: DocumentType.GENERAL } });
+    if (!generalIndex) {
+      generalIndex = await this.settingDocuments.insert({ userId, documentType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
       if (!generalIndex) {
-        generalIndex = await this.settingDocuments.insert({ userId, documentType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
-        if (!generalIndex) {
-          throw new HttpException('Error in add general serial number', HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+        throw new HttpException('Error in add general serial number', HttpStatus.INTERNAL_SERVER_ERROR);
       }
+    }
   }
 
   async incrementGeneralIndex(userId: string) {
@@ -88,6 +88,10 @@ export class DocumentsService {
   }
 
   async decrementGeneralIndex(userId: string) {
+    if (!this.isGeneralIncrement) {
+      console.log("not increment");
+      return;
+    }
     console.log("decrementGeneralIndex - in service");
     let generalIndex: any;
     try {
@@ -102,12 +106,8 @@ export class DocumentsService {
     }
   }
 
-  async createPDF(data: any, userId: string): Promise<Blob | undefined> {
-    this.isIncrement = false;
-    this.isGeneralIncrement = false;
-    console.log('in createPDF function');
-    
-
+  async generatePDF(data: any, userId: string): Promise<Blob | undefined> {
+    console.log('in generate PDF function');
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
 
@@ -117,10 +117,8 @@ export class DocumentsService {
     };
 
     try {
-      // Increment the general index
-      await this.incrementGeneralIndex(userId);
 
-      // Create the PDF
+      // Generate the PDF
       const response = await axios.post<Blob>(url, data, {
         headers: headers,
         responseType: 'arraybuffer', // ensures the response is treated as a Blob
@@ -129,6 +127,20 @@ export class DocumentsService {
       if (!response.data) {
         throw new HttpException('Error in create PDF', HttpStatus.INTERNAL_SERVER_ERROR);
       };
+      return response.data;
+    }
+    catch (error) {
+      throw error;
+    }
+  }
+
+  async createDoc(data: any, userId: string): Promise<any> {
+    console.log("🚀 ~ DocumentsService ~ createDoc ~ data:", data)
+    try {
+      // Generate the PDF
+      const pdfBlob = await this.generatePDF(data, userId);
+      // Increment the general index
+      await this.incrementGeneralIndex(userId);
 
       // Increment the current index
       const docDetails = await this.incrementCurrentIndex(userId, data.prefill_data.documentType);
@@ -146,7 +158,8 @@ export class DocumentsService {
       if (!newDoc) {
         throw new HttpException('Error in addDoc', HttpStatus.INTERNAL_SERVER_ERROR);
       };
-      return response.data;
+
+      return pdfBlob;
     }
     catch (error) {
       // Cancel the increment general index
@@ -213,7 +226,7 @@ export class DocumentsService {
     console.log("addDoc - in service");
     console.log("body: ", body);
     try {
-      const doc = await this.documents.insert({ userId, ...body});
+      const doc = await this.documents.insert({ userId, ...body });
       if (!doc) {
         throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
       }

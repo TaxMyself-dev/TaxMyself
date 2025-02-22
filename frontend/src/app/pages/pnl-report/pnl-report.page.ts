@@ -181,7 +181,7 @@ export class PnLReportPage implements OnInit {
       table: dataTable,
     },
   }
-    this.docCreateService.createPDF(data)
+    this.docCreateService.generatePDF(data)
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);

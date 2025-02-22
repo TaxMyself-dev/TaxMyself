@@ -13,9 +13,6 @@ export class SettingDocuments {
   @Column({ type: 'enum', enum: DocumentType })
   documentType: DocumentType;
 
-  // @Column({ type: 'varchar', length: 50 })
-  // documentType: number;
-
   @Column({ type: 'int', nullable: true, default: null })
   initialIndex: number | null;
 

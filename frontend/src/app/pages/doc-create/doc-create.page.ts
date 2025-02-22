@@ -25,7 +25,7 @@ import { AuthService } from 'src/app/services/auth.service';
 export class DocCreatePage implements OnInit {
 
   docCreateForm: FormGroup;
-  //paymentsForm: FormGroup;
+  paymentsForm: FormGroup;
   initialDetailsForm: FormGroup;
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   paymentDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
@@ -63,7 +63,7 @@ export class DocCreatePage implements OnInit {
   ];
 
   readonly paymentMethodList = [
-    { value: PaymentMethodValue.TRANSFER , name: PaymentMethodName.TRANSFER },
+    { value: PaymentMethodValue.TRANSFER, name: PaymentMethodName.TRANSFER },
     { value: PaymentMethodValue.CASH, name: PaymentMethodName.CASH },
     { value: PaymentMethodValue.BIT, name: PaymentMethodName.BIT },
     { value: PaymentMethodValue.PAYBOX, name: PaymentMethodName.PAYBOX },
@@ -72,8 +72,8 @@ export class DocCreatePage implements OnInit {
   ];
 
   readonly formTypes = FormTypes;
-  
-  
+
+
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder) {
     // const paymentsForm = this.formBuilder.group({
     //   payments: this.formBuilder.array([this.createPaymentGroup()]),
@@ -87,7 +87,7 @@ export class DocCreatePage implements OnInit {
         '', [Validators.pattern(/^\d{9}$/)]
       ),
       [FieldsCreateDocValue.RECIPIENT_EMAIL]: new FormControl(
-        '', [Validators.required,Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
       ),
       [FieldsCreateDocValue.RECIPIENT_PHONE]: new FormControl(
         '', [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
@@ -96,7 +96,7 @@ export class DocCreatePage implements OnInit {
         '', Validators.required,
       ),
       //payments: this.formBuilder.array([this.createPaymentGroup()]),
-        
+
       [FieldsCreateDocValue.SUM]: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
@@ -117,9 +117,9 @@ export class DocCreatePage implements OnInit {
       ),
     });
 
-    // this.paymentsForm = new FormGroup({
-    //   payments: new FormArray([this.createPaymentGroup()])  // Initialize with 1 group
-    // });
+    this.paymentsForm = new FormGroup({
+      payments: new FormArray([this.createPaymentGroup()])  // Initialize with 1 group
+    });
 
     console.log("🚀 ~ DocCreatePage ~ constructor ~ this.paymentsForm:", this.paymentsForm)
 
@@ -154,9 +154,6 @@ export class DocCreatePage implements OnInit {
       [FieldsCreateDocValue.NOTE]: new FormControl(
         '', Validators.required,
       ),
-      // [FieldsCreateDocValue.REASON_PAYMENT]: new FormControl(
-      //   '', Validators.required,
-      // ),
       [FieldsCreateDocValue.PAYMENT_METHOD]: new FormControl(
         '', Validators.required,
       ),
@@ -166,7 +163,9 @@ export class DocCreatePage implements OnInit {
   addPayment(): void {
     //this.paymentsForm.push(this.createPaymentGroup());
     const items = this.paymentsForm?.get('payments') as FormArray;
+    console.log("🚀 ~ DocCreatePage ~ addPayment ~ items ~ before add:", items)
     items.push(this.createPaymentGroup());
+    console.log("🚀 ~ DocCreatePage ~ addPayment ~ items ~ after add:", items)
   }
 
   removePayment(index: number): void {
@@ -175,8 +174,12 @@ export class DocCreatePage implements OnInit {
     items.removeAt(index);
   }
 
-  get paymentsForm(): FormGroup {
-    return this.docCreateForm.get('payments') as FormGroup;
+  getPaymentFormByIndex(index: number): FormGroup {
+    return this.paymentsFormArray.at(index) as FormGroup;
+  }
+
+  get getPaymentsForm(): FormGroup {
+    return this.paymentsForm.get('payments') as FormGroup;
   }
 
   get paymentsFormArray(): FormArray {
@@ -226,9 +229,10 @@ export class DocCreatePage implements OnInit {
     switch (this.fileSelected) {
       case 'RECEIPT': // receipt
 
-      this.generalDetailsFields = [
-        { name: FieldsCreateDocName.documentDate, value: FieldsCreateDocValue.DOCUMENT_DATE, type: FormTypes.DATE },
-      ];
+        this.generalDetailsFields = [
+          { name: FieldsCreateDocName.documentDate, value: FieldsCreateDocValue.DOCUMENT_DATE, type: FormTypes.DATE },
+          { name: FieldsCreateDocName.reasonPayment, value: FieldsCreateDocValue.REASON_PAYMENT, type: FormTypes.TEXT },
+        ];
         this.userDetailsFields = [
           { name: FieldsCreateDocName.recipientName, value: FieldsCreateDocValue.RECIPIENT_NAME, type: FormTypes.TEXT },
           { name: FieldsCreateDocName.recipientId, value: FieldsCreateDocValue.RECIPIENT_ID, type: FormTypes.TEXT },
@@ -239,7 +243,6 @@ export class DocCreatePage implements OnInit {
         this.paymentDetailsFields = [
           { name: FieldsCreateDocName.sum, value: FieldsCreateDocValue.SUM, type: FormTypes.TEXT },
           { name: FieldsCreateDocName.paymentMethod, value: FieldsCreateDocValue.PAYMENT_METHOD, type: FormTypes.DDL },
-          { name: FieldsCreateDocName.reasonPayment, value: FieldsCreateDocValue.REASON_PAYMENT, type: FormTypes.TEXT },
           { name: FieldsCreateDocName.note, value: FieldsCreateDocValue.NOTE, type: FormTypes.TEXT },
           { name: FieldsCreateDocName.date, value: FieldsCreateDocValue.DATE, type: FormTypes.DATE },
         ];
@@ -386,7 +389,7 @@ export class DocCreatePage implements OnInit {
   //   //console.log("dataTable: ", dataTable);
   //   dataTable.push([formData.sum, formData.date, formData.paymentId, formData.note]);
   //   console.log("dataTable: ", dataTable);
-    
+
   //   const data: ICreateDataDoc = {
   //     fid: "RVxpym2O68",
   //     prefill_data: {
@@ -427,16 +430,16 @@ export class DocCreatePage implements OnInit {
     if (temp) return temp.name;
     return null;
   }
-  
+
   getDocData(): ICreateDataDoc {
     const formData = this.docCreateForm.value;
     formData.paymentMethod = this.getPaymentMethodHebrew(formData.paymentMethod);
-    console.log("🚀 ~ DocCreatePage ~ getReceiptData ~  formData.paymentMethod:",  formData.paymentMethod)
+    console.log("🚀 ~ DocCreatePage ~ getReceiptData ~  formData.paymentMethod:", formData.paymentMethod)
     const dataTable: (string | number)[][] = [
-      [formData.sum, formData.date, formData.paymentMethod, formData.note]
+      [formData.sum, formData.date, formData.note, formData.paymentMethod]
     ];
     console.log("dataTable: ", dataTable);
-    
+
     return {
       fid: this.getFid(),
       prefill_data: {
@@ -456,7 +459,7 @@ export class DocCreatePage implements OnInit {
         amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
         vatRate: this.fileSelected === 'RECEIPT' ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
         vatAmount: formData.vatAmount ?? 0,
-        totalAmount: formData.amountBeforeTax ? formData.amountBeforeTax  + formData.vatAmount : formData.sum,
+        totalAmount: formData.amountBeforeTax ? formData.amountBeforeTax + formData.vatAmount : formData.sum,
         paymentDescription: formData?.reasonPayment,
         paymentMethod: formData.paymentMethod,
         documentDate: formData.documentDate, // Check with elazar
@@ -464,7 +467,7 @@ export class DocCreatePage implements OnInit {
         notes: formData?.note || null,
         isCancelled: false, // TODO: Change to dinamic value
         cancellationReason: formData?.cancellationReason || null,
-    
+
       },
       digitallySign: true
     };
@@ -474,8 +477,8 @@ export class DocCreatePage implements OnInit {
   previewtDoc(): void {
     this.createPreviewPDFIsLoading = true;
     const data = this.getDocData();
-    
-    this.docCreateService.createPDF(data)
+
+    this.docCreateService.generatePDF(data)
       .pipe(
         finalize(() => {
           this.createPreviewPDFIsLoading = false;
@@ -495,8 +498,8 @@ export class DocCreatePage implements OnInit {
   createDoc(): void {
     this.createPDFIsLoading = true;
     const data = this.getDocData();
-    
-    this.docCreateService.createPDF(data)
+
+    this.docCreateService.createDoc(data)
       .pipe(
         finalize(() => {
           this.createPDFIsLoading = false;
@@ -512,70 +515,70 @@ export class DocCreatePage implements OnInit {
       });
   }
 
-// addDoc(): void {
-//   this.addPDFIsLoading = true;
-//   const data = this.getDocData();
-//   console.log("🚀 ~ DocCreatePage ~ addDoc ~ data:", data)
-  
-//   this.docCreateService.addDoc(data)
-//     .pipe(
-//       catchError((err) => {
-//         console.error("Error in addDoc:", err);
-//         return EMPTY;
-//       }),
-//       finalize(() => {
-//         this.addPDFIsLoading = false;
-//       }),
-//     )
-//     .subscribe((res) => {
-//       console.log("addDoc result:", res);
-//     });
-// }
+  // addDoc(): void {
+  //   this.addPDFIsLoading = true;
+  //   const data = this.getDocData();
+  //   console.log("🚀 ~ DocCreatePage ~ addDoc ~ data:", data)
 
-// getDocData(): any {
-//   const formData = this.docCreateForm.value;
-//   const data = {
-//     documentType: this.fileSelected,
-//     issuerName: this.userDetails?.businessName,
-//     issuerId: this.userDetails?.businessNumber,
-//     issuerAddress: this.userDetails?.city,
-//     issuerPhone: this.userDetails?.phone,
-//     issuerEmail: this.userDetails?.email,
-//     recipientName: formData?.recipientName,
-//     recipientId: formData?.recipientId || null,
-//     recipientAddress: formData?.recipientAddress || null,
-//     recipientPhone: formData?.recipientPhone || null,
-//     recipientEmail: formData?.recipientEmail || null,
-//     amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
-//     vatRate: this.fileSelected === 1 ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
-//     vatAmount: formData.vatAmount ?? 0,
-//     totalAmount: formData.amountBeforeTax ? formData.amountBeforeTax  + formData.vatAmount : formData.sum,
-//     paymentDescription: formData?.reasonPayment,
-//     paymentMethod: formData.paymentMethod,
-//     documentDate: formData.documentDate, // Check with elazar
-//     referenceNumber: formData?.referenceNumber || null,
-//     notes: formData?.note || null,
-//     isCancelled: false, // TODO: Change to dinamic value
-//     cancellationReason: formData?.cancellationReason || null,
-//   };
-//   return data;
-// }
+  //   this.docCreateService.addDoc(data)
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.error("Error in addDoc:", err);
+  //         return EMPTY;
+  //       }),
+  //       finalize(() => {
+  //         this.addPDFIsLoading = false;
+  //       }),
+  //     )
+  //     .subscribe((res) => {
+  //       console.log("addDoc result:", res);
+  //     });
+  // }
 
-getFid(): string {
-  switch (this.fileSelected) {
-    case 'RECEIPT':
-      return "RVxpym2O68";
-    case 'TAX_INVOICE':
-      return "";
-    case 'TAX_INVOICE_RECEIPT':
-      return "";
-    case 'TRANSACTION_INVOICE':
-      return "";
-    case 'CREDIT_INVOICE':
-      return "";
+  // getDocData(): any {
+  //   const formData = this.docCreateForm.value;
+  //   const data = {
+  //     documentType: this.fileSelected,
+  //     issuerName: this.userDetails?.businessName,
+  //     issuerId: this.userDetails?.businessNumber,
+  //     issuerAddress: this.userDetails?.city,
+  //     issuerPhone: this.userDetails?.phone,
+  //     issuerEmail: this.userDetails?.email,
+  //     recipientName: formData?.recipientName,
+  //     recipientId: formData?.recipientId || null,
+  //     recipientAddress: formData?.recipientAddress || null,
+  //     recipientPhone: formData?.recipientPhone || null,
+  //     recipientEmail: formData?.recipientEmail || null,
+  //     amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
+  //     vatRate: this.fileSelected === 1 ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
+  //     vatAmount: formData.vatAmount ?? 0,
+  //     totalAmount: formData.amountBeforeTax ? formData.amountBeforeTax  + formData.vatAmount : formData.sum,
+  //     paymentDescription: formData?.reasonPayment,
+  //     paymentMethod: formData.paymentMethod,
+  //     documentDate: formData.documentDate, // Check with elazar
+  //     referenceNumber: formData?.referenceNumber || null,
+  //     notes: formData?.note || null,
+  //     isCancelled: false, // TODO: Change to dinamic value
+  //     cancellationReason: formData?.cancellationReason || null,
+  //   };
+  //   return data;
+  // }
+
+  getFid(): string {
+    switch (this.fileSelected) {
+      case 'RECEIPT':
+        return "RVxpym2O68";
+      case 'TAX_INVOICE':
+        return "";
+      case 'TAX_INVOICE_RECEIPT':
+        return "";
+      case 'TRANSACTION_INVOICE':
+        return "";
+      case 'CREDIT_INVOICE':
+        return "";
+    }
+    return null;
   }
-  return null;
-}
-  
-    
+
+
 }

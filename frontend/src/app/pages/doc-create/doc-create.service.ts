@@ -53,14 +53,17 @@ export class DocCreateService {
     return this.http.delete<any>(url, { headers: { token } });
   }
 
-  createPDF(dataFile: ICreateDataDoc): Observable<Blob> {
+  createDoc(dataFile: ICreateDataDoc): Observable<Blob> {
+    console.log("🚀 ~ DocCreateService ~ createDoc ~ dataFile:", dataFile)
     console.log("cerate in service");
-    const token = localStorage.getItem('token');
-    const url = `${environment.apiUrl}documents/create-pdf`;
-    const headers = {
-      'token': token
-    }
-    return this.http.post<Blob>(url,dataFile,{ headers, responseType: 'blob' as 'json'})
+    const url = `${environment.apiUrl}documents/create-doc`;
+   
+    return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
+  }
+
+  generatePDF(data: any): Observable<Blob> {
+    const url = `${environment.apiUrl}documents/generate-pdf`;
+    return this.http.post<Blob>(url, data, { responseType: 'blob' as 'json' });
   }
 
   updateCurrentIndex(docType: number): Observable<any> {

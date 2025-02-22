@@ -77,28 +77,30 @@
     </ion-card>
 
     <!-- Payment details card -->
-    <!-- <form *ngIf="paymentsForm"  [formGroup]="paymentsForm"> -->
-    <!-- <ng-container *ngFor="let paymentGroup of paymentsFormArray.controls; let i = index" [formGroupName]="i"> -->
-      <ion-card *ngIf="paymentDetailsFields.length > 0">;
+    <form *ngIf="paymentsForm" [formGroup]="getPaymentsForm">
+      <app-button [buttonText]="'Add'" (onButtonClicked)="addPayment()"></app-button>
+      <ng-container *ngFor="let paymentGroup of paymentsFormArray.controls; let i = index" [formGroupName]="i">
+      <app-button [buttonText]="'Remove'" (onButtonClicked)="removePayment(i)"></app-button>
+      <ion-card *ngIf="paymentDetailsFields.length > 0">
         <ion-card-header>
           <ion-card-title>פרטי תשלום</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-list>
-            <ng-container *ngFor="let field of paymentDetailsFields">
+            <ng-container *ngFor="let field of paymentDetailsFields; let index = index">
               <ng-container [ngSwitch]="field.type">
                 <ng-container *ngSwitchCase="formTypes.TEXT">
-                  <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                  <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                     [errorText]="field.errorText"></app-generic-input>
                 </ng-container>
 
                 <ng-container *ngSwitchCase="formTypes.DDL">
-                  <app-generic-select [title]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                  <app-generic-select [title]="field.name" [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                     [errorText]="field.errorText" [items]="onDdlSelectionChange(field.value)"></app-generic-select>
                 </ng-container>
 
                 <ng-container *ngSwitchCase="formTypes.DATE">
-                  <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
+                  <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                     [errorText]="field.errorText" [inputType]="formTypes.DATE"></app-generic-input>
                 </ng-container>
 
@@ -106,11 +108,9 @@
             </ng-container>
           </ion-list>
         </ion-card-content>
-        <!-- <app-button [buttonText]="'add'" (onButtonClicked)="addPayment()"></app-button> -->
-        <!-- <app-button [buttonText]="'remove'" (onButtonClicked)="removePayment(i)"></app-button> -->
       </ion-card>
-    <!-- </ng-container> -->
-  <!-- </form> -->
+    </ng-container>
+  </form>
   </div>
   <app-button [buttonText]="'Create'" (onButtonClicked)="createDoc()" [isLoading]="createPDFIsLoading"></app-button>
   <app-button [buttonText]="'Preview'" (onButtonClicked)="previewtDoc()" [isLoading]="createPreviewPDFIsLoading"></app-button>
