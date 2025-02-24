@@ -7,13 +7,21 @@ export enum UserRole {
 export enum PayStatus {
   FREE = 'FREE',
   PAID = 'PAID',
-  TRIAL = 'TRIAL',
+  PAYMENT_FAILED = 'PAYMENT_FAILED',
+  CANCELED = 'CANCELED'
+}
+
+export enum ModuleName {
+  INVOICES = 1,
+  OPEN_BANKING = 2,
+  ACCOUNTANT = 3,
+  FINANCIAL_ADVISOR = 4
 }
 
 export enum BusinessType {
   EXEMPT = 'EXEMPT',
   LICENSED = 'LICENSED',
-  COMPANY = 'COMPANY',
+  COMPANY = 'COMPANY'
 }
 
 export enum FamilyStatus {
@@ -137,5 +145,11 @@ export enum CardCompany {
   LEUMI_CARD = 6,
   MASTERCARD = 7,
   OTHER = 8
+}
+
+export enum ExpenseNecessity {
+  MANDATORY = 'MANDATORY', // הכרחי (למשל: חשבונות, מיסים)
+  IMPORTANT = 'IMPORTANT', // חשוב אבל אפשר להסתדר בלעדיו
+  OPTIONAL = 'OPTIONAL', // רשות (למשל: בילויים, מותרות)
 }
 

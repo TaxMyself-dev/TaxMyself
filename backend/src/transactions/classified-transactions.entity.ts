@@ -1,3 +1,4 @@
+import { ExpenseNecessity } from 'src/enum';
 import { 
     Entity, 
     Column, 
@@ -24,6 +25,9 @@ export class ClassifiedTransactions {
 
   @Column()
   subCategory: string;
+
+  @Column({ type: 'enum', enum: ExpenseNecessity, default: ExpenseNecessity.IMPORTANT })
+  necessity: ExpenseNecessity;
 
   @Column()
   isRecognized: boolean;

@@ -5,7 +5,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName } from '../enum';
 
 
 @Entity()
@@ -61,16 +61,8 @@ export class User {
     @Column()
     isTwoBusinessOwner: boolean;
 
-    // @Column({
-    //   type: 'enum',
-    //   enum: UserRole,
-    //   enumName: 'UserRole',
-    //   default: UserRole.FREE_USER
-    // })
-    // role: UserRole;
-
     @Column({
-      type: 'simple-array', // Store as a comma-separated string
+      type: 'simple-array',
     })
     role: UserRole[];
 
@@ -78,9 +70,24 @@ export class User {
       type: 'enum',
       enum: PayStatus,
       enumName: 'PayStatus',
-      default: PayStatus.FREE, // Default to FREE
+      default: PayStatus.FREE
     })
     payStatus: PayStatus;
+
+    @Column({ type: 'simple-array', nullable: true })
+    modulesAccess: ModuleName[];
+  
+    @Column({ type: 'date', nullable: true, default: null })
+    subscriptionEndDate: Date;
+  
+    @Column({ type: 'date', nullable: true, default: null })
+    nextBillingDate: Date;
+
+    @Column({ type: 'date', nullable: true, default: null })
+    createdAt: Date;
+
+    @Column({ type: 'int', default: 0 })
+    userCount: number; // Number of users under an accountant or financial advisor 
 
     @Column()
     firebaseId: string;

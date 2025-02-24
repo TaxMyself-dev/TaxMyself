@@ -3,7 +3,7 @@ import { Any, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, PayStatus, ModuleName } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -36,11 +36,6 @@ export class UsersService {
             ...business,
             role: [UserRole.REGULAR], // Add the REGULAR role by default
           };
-
-        console.log("newUser is ", newUser);
-        console.log("personal is ", personal);
-        console.log("spouse is ", spouse);
-        console.log("business is ", business);
         
         if (newChildren.length > 0) {
             for (let i = 0; i < newChildren.length; i++){
@@ -106,21 +101,18 @@ export class UsersService {
         }
 
         newUser.finsiteId = 0;
-        newUser.role 
+        newUser.createdAt = new Date();
+        newUser.subscriptionEndDate = new Date(newUser.createdAt);
+        newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
+        newUser.payStatus = PayStatus.FREE;
+        newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
 
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
     }
 
 
-    // async signin(token: string) {
-    //     const firebaseId = await this.getFirbsaeIdByToken(token);
-    //     const user = await this.findFireUser(firebaseId);
-    //     return user;
-    // }
-
     async signin(firebaseId: string) {
-        //const firebaseId = await this.getFirbsaeIdByToken(token);
         const user = await this.findFireUser(firebaseId);
         return user;
     }
