@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert } from 'typeorm';
 import { Currency, DocumentType } from 'src/enum';
 
 
@@ -24,7 +24,7 @@ export class Documents {
 
   // Recipient Details
   // ******************************************************************************************************************************************************** //
-  
+
   // recipientName
   // recipientId
   // recipientEmail
@@ -52,6 +52,8 @@ export class Documents {
   // Credit   -     cardCompany, card4Number, creditTransType, creditPayNumber 
   // App
   // Cash
+  // +
+  // ניכוי במקור (עבור מסמך)
 
   // ******************************************************************************************************************************************************** //
 
@@ -86,8 +88,8 @@ export class Documents {
   // issueHour
   // isCancelled
   // transType = 3
-  // branchCode
-  // operationPerformer
+  // branchCode = null
+  // operationPerformer = null
 
 
 
@@ -103,31 +105,31 @@ export class Documents {
   @Column()
   recipientName: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientId: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientStreet: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientHomeNumber: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientCity: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientPostalCode: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientState: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientStateCode: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientPhone: string;
 
-  @Column()
+  @Column({ nullable: true })
   recipientEmail: string;
 
 
@@ -143,16 +145,16 @@ export class Documents {
   @Column({ type: 'varchar', nullable: true })
   docDescription: string;
 
-  @Column({ type: 'varchar', length: 20, nullable: true })
+  @Column({ type: 'varchar', length: 20 })
   docNumber: string;
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true }) 
+  @Column({ type: 'decimal', precision: 5, scale: 2 })
   docVatRate: number;
 
-  @Column({ type: 'varchar', length: 1, nullable: true })
-  transType: string;
+  @Column({ type: 'varchar', length: 1 })
+  transType: string; // = 3
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   amountForeign: number; // סכום המסמך במט"ח
 
   @Column({ type: 'enum', enum: Currency, default: Currency.ILS })
@@ -161,7 +163,7 @@ export class Documents {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   sumBefDisBefVat: number; //  סכום המסמך לפני הנחה ולפני מע"מ
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   disSum: number; //  סכום ההנחה במסמך
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
@@ -169,20 +171,21 @@ export class Documents {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   vatSum: number; //  סכום המע"מ במסמך
-  
+
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   sumAftDisWithVAT: number; // סכום המסמך לאחר הנחה כולל מע"מ
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true }) 
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
   withholdingTaxAmount: number; // סכום הניכוי במקור
-  
+
   @CreateDateColumn()
-  docDate: Date; // תאריך המסמך)
+  docDate: Date; // תאריך המסמך
 
   @CreateDateColumn()
   issueDate: Date; // תאריך הפקה 
 
   @CreateDateColumn()
+  // @CreateDateColumn({nullable: false })
   valueDate: Date; // תאריך ערך 
 
   @CreateDateColumn()
@@ -199,7 +202,7 @@ export class Documents {
 
   @Column({ type: 'varchar', length: 7, nullable: true })
   branchCode: string; // מספר הסניף בו הופק המסמך
-  
+
   @Column({ type: 'varchar', length: 9, nullable: true })
   operationPerformer: string; // שם המשתמש של מפיק המסמך
 
@@ -207,7 +210,7 @@ export class Documents {
 
   /// *********** Parent document Details *********** ///
 
-  @Column({ type: 'enum', enum: DocumentType })
+  @Column({ type: 'enum', enum: DocumentType, nullable: true })
   parentDocType: DocumentType;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
@@ -215,6 +218,4 @@ export class Documents {
 
   @Column({ type: 'varchar', length: 7, nullable: true })
   parentBranchCode: string; //  מספר הסניף בו הופק המסמך האב
- 
-  
 }

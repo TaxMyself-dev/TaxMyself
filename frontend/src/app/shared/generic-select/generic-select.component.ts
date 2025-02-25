@@ -53,7 +53,7 @@ export class GenericSelectComponent implements OnChanges{
 
 
   onSelectChange(event: any): void { 
-    console.log("event is ", event);
+    // console.log("event is ", event);
        
     this.selectionChanged.emit(event.detail);
   }

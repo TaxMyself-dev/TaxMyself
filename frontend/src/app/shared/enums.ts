@@ -121,6 +121,7 @@ export enum TransactionsOutcomesHebrewColumns {
   businessName = 'שייך לעסק',
   note = 'הערה',
   documentDate = 'תאריך המסמך',
+  currency = 'סוג מטבע'
 }
 
 // export const months = [
@@ -187,15 +188,29 @@ export enum FieldsCreateDocValue {
   TYPE_FILE = 'typeFile',
   DATE = 'date',
   RECIPIENT_NAME = 'recipientName', 
+  RECIPIENT_ID= 'recipientId',
+  RECIPIENT_STREET = 'recipientStreet',
+  RECIPIENT_HOME_NUMBER = 'recipientHomeNumber',
+  RECIPIENT_CITY = 'recipientCity',
+  RECIPIENT_POSTAL_CODE = 'recipientPostalCode',
+  RECIPIENT_STATE = 'recipientState',
+  RECIPIENT_STATE_CODE = 'recipientStateCode',
   RECIPIENT_PHONE = 'recipientPhone',
-  RECIPIENT_ADDRESS = 'recipientAddress',
   RECIPIENT_EMAIL = 'recipientEmail',
   PAYMENT_METHOD = 'paymentMethod',
-  RECIPIENT_ID= 'recipientId',
   SUM = 'sum',
-  NOTE = 'note',
-  REASON_PAYMENT = 'reasonPayment',
+  DESCRIPTION = 'description',
+  DOC_DESCRIPTION = 'docDescription',
   DOCUMENT_DATE = 'documentDate',
+  UNIT_AMOUNT = 'unitAmount',
+  VAT_OPTION = 'vatOption',
+  CURRENCY = "currency",
+}
+
+export enum Currency {
+  ILS = 'ILS',
+  USD = 'USD',
+  EUR = 'EUR',
 }
 
 export enum FieldsCreateDocName {
@@ -209,8 +224,10 @@ export enum FieldsCreateDocName {
   recipientPhone = "מס' טלפון של הלקוח",
   paymentMethod = "אמצעי תשלום",
   sum = "סכום",
-  note = "פירוט",
+  description = "פירוט",
   reasonPayment = "תשלום עבור",
+  unitAmount = "כמות יחידות",
+  vatOption = 'מע"מ'
 }
 
 export enum PaymentMethodValue {

@@ -31,6 +31,7 @@ export class GenericInputComponent implements OnChanges {
   }
 
   @Output() onInputChange: EventEmitter<string> = new EventEmitter<string>();  // for non form inputs
+  @Output() onblur: EventEmitter<string> = new EventEmitter<string>();  // for non form inputs
 
   @Input() set disabled(val: boolean) {
     const currentFormControl = this.currentFormControl();
@@ -52,7 +53,7 @@ export class GenericInputComponent implements OnChanges {
   inputLabelName: string;
   maxDate: string;
   showPassword = false;
-  isFocused = false;
+  // isFocused = false;
   isValid = false;
   isInvalid = false;
 
@@ -99,13 +100,15 @@ export class GenericInputComponent implements OnChanges {
     this.isInvalid = !this.isValid;
   }
 
-  onFocus(): void {
-    this.isFocused = true;
-  }
+  // onFocus(): void {
+  //   this.isFocused = true;
+  // }
 
   onBlur(): void {
-    this.isFocused = false;
-    this.isValid = this.currentFormControl().valid;
+    // this.isFocused = false;
+    this.isValid = this.currentFormControl()?.valid;
     this.isInvalid = !this.isValid;
+    this.onblur?.emit();
+
   }
 }

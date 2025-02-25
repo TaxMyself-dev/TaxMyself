@@ -8,7 +8,7 @@
 
     <ion-input *ngSwitchCase="formTypes.FILE" (input)="onFileUpload($event)" [formControlName]="controlName" [type]="formTypes.FILE" (ionChange)="onInputChanged($event)"  [accept]="fileTypes" [errorText]="errorMessage" [value]="parentForm.get(controlName)?.value"></ion-input>
     
-    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [ngStyle]="inputCustomStyle" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [value]="parentForm.get(controlName)?.value" [title]="title" (ionChange)="onInputChanged($event)"></ion-input>
+    <ion-input *ngSwitchDefault class="generic-input-style {{className}}" [ngStyle]="inputCustomStyle" [formControlName]="controlName" [label]="inputLabelName" [errorText]="errorMessage" fill="outline" label-placement="floating" [type]="inputType" [value]="parentForm.get(controlName)?.value" [title]="title" (ionChange)="onInputChanged($event)" (ionBlur)="onBlur()"></ion-input>
   </ng-container>
 </form>
 
