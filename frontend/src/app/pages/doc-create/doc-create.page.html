@@ -87,13 +87,14 @@
           <ng-container *ngFor="let paymentGroup of paymentsFormArray.controls; let i = index" [formGroupName]="i">
             <ion-list class="payment-list">
               <app-button [buttonText]="'Remove'" (onButtonClicked)="removePayment(i)"></app-button>
+              <div class="inputs-container">
               <ng-container *ngFor="let field of paymentDetailsFields; let index = index">
                 <ng-container [ngSwitch]="field.type">
+
                   <ng-container *ngSwitchCase="formTypes.TEXT">
                     <app-generic-input class="default-input-doc" [inputLabel]="field.name" [controlName]="field.value"
                       [parentForm]="getPaymentFormByIndex(i)" (ionBlur)="onBlur(field.value, i)"
                       [errorText]="field.errorText"></app-generic-input>
-
                   </ng-container>
 
                   <ng-container *ngSwitchCase="formTypes.DDL">
@@ -111,6 +112,12 @@
 
                 </ng-container>
               </ng-container>
+            </div>
+              <div class="wrap-amount">
+                <p>amount before vat: {{paymentsFormArray.controls[i].get('sumAfterDisBefVat'). value}}&nbsp;&nbsp;</p>
+                <p>vat amount: {{paymentsFormArray.controls[i].get('vatSum'). value}}&nbsp;&nbsp;</p>
+                <p>total amount: {{paymentsFormArray.controls[i].get('sumAftDisWithVAT'). value}}</p>
+              </div>
             </ion-list>
 
           </ng-container>
@@ -122,9 +129,9 @@
         <ion-card-title>סה"כ לתשלום</ion-card-title>
       </ion-card-header>
       <div class="wrap-amount">
-        <p>amount before vat: {{amountBeforeVat}}&nbsp;&nbsp;</p>
-        <p>vat amount: {{vatAmount}}&nbsp;&nbsp;</p>
-        <p>total amount: {{totalAmount}}</p>
+        <p>amount before vat: {{overallTotals?.sumBefDisBefVat}}&nbsp;&nbsp;</p>
+        <p>vat amount: {{overallTotals?.vatSum}}&nbsp;&nbsp;</p>
+        <p>total amount: {{overallTotals?.sumAftDisWithVAT}}</p>
       </div>
     </ion-card>
   </div>

@@ -3,7 +3,7 @@ import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@ang
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDataDoc, ICreateDocField, ISelectItem, ISettingDoc, IUserData, } from 'src/app/shared/interface';
+import { ICreateDataDoc, ICreateDocField, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -44,14 +44,9 @@ export class DocCreatePage implements OnInit {
   amountBeforeVat: number = 0;
   vatAmount: number = 0;
   totalAmount: number = 0;
+  overallTotals: ITotals;
+  vatRate = 0.18; // 18% VAT
 
-  // export enum DocumentType {
-  //   RECEIPT = 'RECEIPT', // קבלה
-  //   TAX_INVOICE = 'TAX_INVOICE', // חשבונית מס
-  //   TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT', // חשבונית מס קבלה
-  //   TRANSACTION_INVOICE = 'TRANSACTION_INVOICE', // חשבונית עסקה
-  //   CREDIT_INVOICE = 'CREDIT_INVOICE', // חשבונית זיכוי
-  // }
 
   readonly DocCreateTypeList = [
     { value: 'RECEIPT', name: 'קבלה' },
@@ -98,22 +93,22 @@ export class DocCreatePage implements OnInit {
         '', [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
       ),
       [FieldsCreateDocValue.RECIPIENT_STREET]: new FormControl(
-        '',[]
+        '', []
       ),
       [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: new FormControl(
-        '',[]
+        '', []
       ),
       [FieldsCreateDocValue.RECIPIENT_CITY]: new FormControl(
-        '',[]
+        '', []
       ),
       [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: new FormControl(
-        '',[]
+        '', []
       ),
       [FieldsCreateDocValue.RECIPIENT_STATE]: new FormControl(
-        '',[]
+        '', []
       ),
       [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: new FormControl(
-        '',[]
+        '', []
       ),
       //payments: this.formBuilder.array([this.createPaymentGroup()]),
 
@@ -136,6 +131,82 @@ export class DocCreatePage implements OnInit {
 
     this.paymentsForm = new FormGroup({
       payments: new FormArray([this.createPaymentGroup()])  // Initialize with 1 group
+    });
+
+    this.paymentsFormArray.valueChanges.subscribe((forms: any[]) => {
+      //console.log("in values changes");
+      
+      // Initialize overall totals
+      let totals = {
+        sumBefDisBefVat: 0,
+        sumAftDisBefVAT: 0,
+        vatSum: 0,
+        sumAftDisWithVAT: 0,
+      };
+
+      forms.forEach((item, index) => {
+        const sum = Number(item.sum) || 0;
+        const discount = Number(item.discount) || 0;
+        const vatOption = item.vatOptions;
+        console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatOption:", vatOption)
+        let sumAfterDisBefVat = 0;
+        let vatAmount = 0;
+        let sumAftDisWithVAT = 0;
+        let sumBeforeVat = 0;
+        let sumWithVat = 0;
+        let sumAfterDis = 0;
+
+        if (vatOption === 'BEFORE') {
+          // Discount applied before VAT calculation
+          sumBeforeVat = sum;
+          vatAmount = sum * this.vatRate;
+          sumWithVat = sum + vatAmount;
+          // sumDis = sumWithVat - discount; // For discount in number
+          sumAfterDis = sumWithVat - (sumWithVat  * discount / 100); // For discount in percentage
+          sumAfterDisBefVat = sum;
+          sumAftDisWithVAT = (sum + vatAmount) - discount;
+        } 
+        else if (vatOption === 'AFTER') {
+          // Discount applied after VAT calculation
+          vatAmount = sum / (1 + this.vatRate);
+          sumBeforeVat = sum - vatAmount;
+          sumWithVat = sum;
+          // sumDis = sum - discount; // For discount in number
+          sumAfterDis = sum - (sum  * discount / 100); // For discount in percentage
+          sumAfterDisBefVat = sum;
+          sumAftDisWithVAT = (sum + vatAmount) - discount;
+        } 
+        else if (vatOption === 'WITH_OUT') {
+          // No VAT is applied
+          vatAmount = 0;
+          sumBeforeVat = sum;
+          sumWithVat = sum;
+          // sumDis = sum - discount; // For discount in number
+          sumAfterDis = sum - (sum  * discount / 100); // For discount in percentage
+          sumAfterDisBefVat = sum - discount;
+          sumAftDisWithVAT = sumAfterDisBefVat;
+        }
+
+        // Optionally, update the FormGroup with calculated values:
+        const formGroup = this.getPaymentsForm['controls'][index];
+        formGroup.patchValue({
+          sumAfterDisBefVat: sumAfterDisBefVat,
+          vatSum: vatAmount,
+          sumAftDisWithVAT: sumAftDisWithVAT
+        }, { emitEvent: false });
+          console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAftDisWithVAT:", sumAftDisWithVAT)
+          console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatAmount:", vatAmount)
+          console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAfterDisBefVat:", sumAfterDisBefVat)
+
+        // Accumulate totals
+        totals.sumBefDisBefVat += sum;
+        totals.sumAftDisBefVAT += sumAfterDisBefVat;
+        totals.vatSum += vatAmount;
+        totals.sumAftDisWithVAT += sumAftDisWithVAT;
+      });
+
+      // Here you can assign totals to a property if you need to display overall values
+      this.overallTotals = totals;
     });
 
     this.initialDetailsForm = this.formBuilder.group({
@@ -161,9 +232,6 @@ export class DocCreatePage implements OnInit {
       [FieldsCreateDocValue.SUM]: new FormControl(
         '', Validators.required,
       ),
-      [FieldsCreateDocValue.DATE]: new FormControl(
-        '', Validators.required,
-      ),
       [FieldsCreateDocValue.DESCRIPTION]: new FormControl(
         '', Validators.required,
       ),
@@ -174,6 +242,18 @@ export class DocCreatePage implements OnInit {
         '', Validators.required,
       ),
       [FieldsCreateDocValue.VAT_OPTION]: new FormControl(
+        '', Validators.required,
+      ),
+      [FieldsCreateDocValue.DISCOUNT]: new FormControl(
+        '', Validators.required,
+      ),
+      sumAfterDisBefVat: new FormControl(
+        '', Validators.required,
+      ),
+      vatSum: new FormControl(
+        '', Validators.required,
+      ),
+      sumAftDisWithVAT: new FormControl(
         '', Validators.required,
       ),
     });
@@ -262,7 +342,8 @@ export class DocCreatePage implements OnInit {
           { name: FieldsCreateDocName.paymentMethod, value: FieldsCreateDocValue.PAYMENT_METHOD, type: FormTypes.DDL },
           { name: FieldsCreateDocName.description, value: FieldsCreateDocValue.DESCRIPTION, type: FormTypes.TEXT },
           { name: FieldsCreateDocName.unitAmount, value: FieldsCreateDocValue.UNIT_AMOUNT, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.vatOption, value: FieldsCreateDocValue.VAT_OPTION, type: FormTypes.DDL },
+          { name: FieldsCreateDocName.vatOptions, value: FieldsCreateDocValue.VAT_OPTION, type: FormTypes.DDL },
+          { name: FieldsCreateDocName.discount, value: FieldsCreateDocValue.DISCOUNT, type: FormTypes.TEXT },
         ];
         break;
 
@@ -384,7 +465,7 @@ export class DocCreatePage implements OnInit {
       case "paymentMethod":
         //console.log("🚀 ~ DocCreatePage ~ onDdlSelectionChange ~ paymentId");
         return this.paymentMethodList;
-      case "vatOption":
+      case "vatOptions":
         return this.vatOptionList;
       default:
         break;
@@ -450,7 +531,8 @@ export class DocCreatePage implements OnInit {
   }
 
   getDocData(): ICreateDataDoc {
-    const formData = this.docCreateForm.value;
+    const formData = this.paymentsForm.value;
+    console.log("🚀 ~ DocCreatePage ~ getReceiptData ~  formData:", formData)
     formData.paymentMethod = this.getPaymentMethodHebrew(formData.paymentMethod);
     console.log("🚀 ~ DocCreatePage ~ getReceiptData ~  formData.paymentMethod:", formData.paymentMethod)
     const dataTable: (string | number)[][] = [
@@ -461,14 +543,12 @@ export class DocCreatePage implements OnInit {
     return {
       fid: this.getFid(),
       prefill_data: {
-        docNumber: this.docDetails?.currentIndex,
         table: dataTable,
-        docType: this.fileSelected,
         issuerName: this.userDetails?.businessName,
-        issuerbusinessNumber: this.userDetails?.businessNumber,
         issuerAddress: this.userDetails?.city,
         issuerPhone: this.userDetails?.phone,
         issuerEmail: this.userDetails?.email,
+        issuerbusinessNumber: this.userDetails?.businessNumber,
         recipientName: formData?.recipientName,
         recipientId: formData?.recipientId || null,
         recipientStreet: formData?.recipientStreet || null,
@@ -479,31 +559,38 @@ export class DocCreatePage implements OnInit {
         recipientStateCode: formData?.recipientStateCode || null,
         recipientPhone: formData?.recipientPhone || null,
         recipientEmail: formData?.recipientEmail || null,
-        amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
+        docType: this.fileSelected,
+        //generalDocIndex // create in server
+        docDescription: formData?.reasonPayment,
+        docNumber: this.docDetails?.currentIndex,
         docVatRate: this.fileSelected === 'RECEIPT' ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
         transType: 3,
-        currency: formData?.currency || 'ILS',
         amountForeign: this.totalAmount, // Check with elazar
-        // sumAftDisBefVAT: 
+        currency: formData?.currency || 'ILS',
+        sumBefDisBefVat: 0, // need to update
+        disSum: 0, // need to update - per line or doc??
+        sumAftDisBefVAT: 450, // need to update 
         vatSum: this.vatAmount ?? 0,
-        // sumAftDisWithVAT
-        withholdingTaxAmount: null, // need to update 
-        totalAmount: this.totalAmount, // If currency is not ILS need to calculate the total amount
-        docDescription: formData?.reasonPayment,
-        paymentMethod: formData.paymentMethod,
+        sumAftDisWithVAT: 450, // need to update
+        withholdingTaxAmount: 0, // need to update 
         docDate: formData.documentDate, // Check with elazar
-        valueDate: null, // Check with elazar
+        // issueDate: create in server
+        // valueDate: null, // Check with elazar create in server??
+        // issueHour: create in server
         customerKey: null, // Check with elazar
         matchField: null, // Check with elazar
-        referenceNumber: formData?.referenceNumber || null,
-        notes: formData?.note || null,
         isCancelled: false, // TODO: Change to dinamic value
-        cancellationReason: formData?.cancellationReason || false,
         branchCode: null, // Check with elazar
         operationPerformer: null, // Check with elazar
-        parentDocType : null, // Check with elazar
+        parentDocType: null, // Check with elazar
         parentDocNumber: null, // Check with elazar
         parentBranchCode: null, // Check with elazar
+        // amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
+        // totalAmount: this.totalAmount, // If currency is not ILS need to calculate the total amount
+        // paymentMethod: formData.paymentMethod, // Per line
+        // referenceNumber: formData?.referenceNumber || null,// check with elazar
+        // notes: formData?.note || null, // Per line
+        // cancellationReason: formData?.cancellationReason || false, // check with elazar
       },
       digitallySign: true
     };
@@ -619,7 +706,7 @@ export class DocCreatePage implements OnInit {
   onBlur(field: string, i: number): void {
     // console.log("🚀 ~ DocCreatePage ~ onBlur ~ event:", event);
     const vatOptionControl = this.paymentsFormArray.controls[i]?.get(FieldsCreateDocValue.VAT_OPTION);
-    console.log("🚀 ~ DocCreatePage ~ onBlur ~ paymentMethodControl:", vatOptionControl)
+    // console.log("🚀 ~ DocCreatePage ~ onBlur ~ paymentMethodControl:", vatOptionControl)
     if (!vatOptionControl.value) return; // If don't choosen vat option
 
     if (field !== "sum") return; // If it is not "sum" field
@@ -629,15 +716,15 @@ export class DocCreatePage implements OnInit {
   }
 
   onVatOptionChange(event: any, formIndex: number): void {
-    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
     const sumControl = this.paymentsFormArray.controls[formIndex]?.get(FieldsCreateDocValue.SUM);
-    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex].get(FieldsCreateDocValue.SUM):", this.paymentsFormArray.controls[formIndex]?.get(FieldsCreateDocValue.SUM))
-    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex]:", this.paymentsFormArray)
-    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sumControl:", sumControl)
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex].get(FieldsCreateDocValue.SUM):", this.paymentsFormArray.controls[formIndex]?.get(FieldsCreateDocValue.SUM))
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex]:", this.paymentsFormArray)
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sumControl:", sumControl)
     if (!sumControl) return;
 
     const sum = parseFloat(sumControl.value);
-    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sum:", sum)
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sum:", sum)
     if (isNaN(sum)) return;
 
     this.amountBeforeVat = 0;
@@ -655,21 +742,21 @@ export class DocCreatePage implements OnInit {
         this.vatAmount = this.calculateVatAmountAfterVat(sum);
         this.amountBeforeVat = this.calculateSumAfterVat(sum);
         break;
-        case 'WITH_OUT':
-          this.amountBeforeVat = sum;
-          this.vatAmount = 0;
-          this.totalAmount = sum;
-          break;
-        }
-        console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ vatAmount:", this.vatAmount)
-        console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ totalAmount:", this.totalAmount)
-        console.log("after calc");
-        console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ amountBeforeVat:", this.amountBeforeVat)
-        
-        // this.paymentsFormArray.controls[formIndex].patchValue({
-        //   amountBeforeVat,
-        //   vatAmount,
-        //   totalAmount
+      case 'WITH_OUT':
+        this.amountBeforeVat = sum;
+        this.vatAmount = 0;
+        this.totalAmount = sum;
+        break;
+    }
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ vatAmount:", this.vatAmount)
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ totalAmount:", this.totalAmount)
+    // console.log("after calc");
+    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ amountBeforeVat:", this.amountBeforeVat)
+
+    // this.paymentsFormArray.controls[formIndex].patchValue({
+    //   amountBeforeVat,
+    //   vatAmount,
+    //   totalAmount
     // });
   }
 

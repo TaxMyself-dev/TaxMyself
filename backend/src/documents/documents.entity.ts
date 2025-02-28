@@ -185,7 +185,6 @@ export class Documents {
   issueDate: Date; // תאריך הפקה 
 
   @CreateDateColumn()
-  // @CreateDateColumn({nullable: false })
   valueDate: Date; // תאריך ערך 
 
   @CreateDateColumn()

@@ -4,6 +4,11 @@
 
 .payment-list {
     display: flex;
+    flex-direction: column;
+}
+
+.inputs-container {
+    display: flex;
 }
 
 .wrap-amount {

@@ -256,6 +256,13 @@ export interface IToastData {
     type: 'success' | 'error'; // Added type for toast
 }
 
+export interface ITotals  {
+    sumBefDisBefVat: number,
+    sumAftDisBefVAT: number,
+    vatSum: number,
+    sumAftDisWithVAT: number,
+  };
+
 export interface ICreateDataDoc {
     fid: string;
     prefill_data: {

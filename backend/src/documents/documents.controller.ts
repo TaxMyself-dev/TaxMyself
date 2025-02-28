@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Res, } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Req, Res, UseGuards, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType } from 'src/enum';
 
 
 import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+
 
 
 @Controller('documents')
@@ -12,14 +15,14 @@ export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     // private userService: UsersService,
-  ) {}
+  ) { }
 
   @Get('get-setting-doc-by-type/:typeDoc')
-  async getSettingDocByType(@Param('typeDoc') typeDoc: DocumentType) {
+  @UseGuards(FirebaseAuthGuard)
+  async getSettingDocByType(@Param('typeDoc') typeDoc: DocumentType, @Req() request: AuthenticatedRequest) {
     //console.log("typeDoc: ", typeDoc);
-    //console.log("token: ", token);
-    // const userId = await this.userService.getFirbsaeIdByToken(token);
-    const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
+    const userId = request.user?.firebaseId;
+    //console.log("🚀 ~ DocumentsController ~ getSettingDocByType ~ userId:", userId)
     try {
       const docDetails = await this.documentsService.getSettingDocByType(userId, typeDoc);
       //console.log("docDetails: ", docDetails);
@@ -28,19 +31,19 @@ export class DocumentsController {
     catch (error) {
       throw error;
     }
-
+    
   }
-
+  
   @Post('setting-initial-index/:typeDoc')
-  async setInitialDocDetails(@Param('typeDoc') typeDoc: DocumentType, @Body() data: any) {
-    // const userId = await this.userService.getFirbsaeIdByToken(token);
-    console.log("data: ", data);
-    console.log("typeDoc: ", typeDoc);
-
-    const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
+  @UseGuards(FirebaseAuthGuard)
+  async setInitialDocDetails(@Param('typeDoc') typeDoc: DocumentType, @Body() data: any, @Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    //console.log("🚀 ~ DocumentsController ~ setInitialDocDetails ~ userId:", userId)
+    //console.log("data: ", data);
+    //console.log("typeDoc: ", typeDoc);
     try {
       const docDetails = await this.documentsService.setInitialDocDetails(userId, typeDoc, data.initialIndex);
-      console.log("docDetails: ", docDetails);
+      //console.log("docDetails: ", docDetails);
       return docDetails
     }
     catch (error) {
@@ -61,23 +64,22 @@ export class DocumentsController {
   //     throw error;
   //   }
   // }
-
+  
   @Post('create-doc')
-  async createPDF(@Body() body: any, @Res() res: Response) {
-    const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
-    console.log("🚀 ~ DocumentsController ~ createPDF ~ body:", body)
+  @UseGuards(FirebaseAuthGuard)
+  async createPDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    //console.log("🚀 ~ DocumentsController ~ createPDF ~ body:", body)
     const pdfBuffer = await this.documentsService.createDoc(body, userId);
-
-    //console.log("body: ", body);
-    console.log("pdfBuffer: ", pdfBuffer);
-
+    //console.log("pdfBuffer: ", pdfBuffer);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }
-
+  
+  @UseGuards(FirebaseAuthGuard)
   @Post('generate-pdf')
-  async generatePDF(@Body() body: any, @Res() res: Response) {
-    const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
+  async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
     const pdfBuffer = await this.documentsService.generatePDF(body, userId);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);

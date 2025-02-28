@@ -121,7 +121,7 @@ export enum TransactionsOutcomesHebrewColumns {
   businessName = 'שייך לעסק',
   note = 'הערה',
   documentDate = 'תאריך המסמך',
-  currency = 'סוג מטבע'
+  currency = 'סוג מטבע',
 }
 
 // export const months = [
@@ -184,8 +184,15 @@ export enum TransactionsOutcomesHebrewColumns {
 //   RETURN_CERTIFICATE = 8,
 // }
 
+export enum Currency {
+  ILS = 'ILS',
+  USD = 'USD',
+  EUR = 'EUR',
+}
+
 export enum FieldsCreateDocValue {
   TYPE_FILE = 'typeFile',
+  DISCOUNT = 'discount',
   DATE = 'date',
   RECIPIENT_NAME = 'recipientName', 
   RECIPIENT_ID= 'recipientId',
@@ -203,14 +210,8 @@ export enum FieldsCreateDocValue {
   DOC_DESCRIPTION = 'docDescription',
   DOCUMENT_DATE = 'documentDate',
   UNIT_AMOUNT = 'unitAmount',
-  VAT_OPTION = 'vatOption',
+  VAT_OPTION = 'vatOptions',
   CURRENCY = "currency",
-}
-
-export enum Currency {
-  ILS = 'ILS',
-  USD = 'USD',
-  EUR = 'EUR',
 }
 
 export enum FieldsCreateDocName {
@@ -227,7 +228,9 @@ export enum FieldsCreateDocName {
   description = "פירוט",
   reasonPayment = "תשלום עבור",
   unitAmount = "כמות יחידות",
-  vatOption = 'מע"מ'
+  vatOptions = 'מע"מ',
+  discount = 'הנחה'
+
 }
 
 export enum PaymentMethodValue {
