@@ -188,7 +188,7 @@ export class Documents {
   valueDate: Date; // תאריך ערך 
 
   @CreateDateColumn()
-  issueHour: Date; // שעת הפקה 
+  issueHour: string; // שעת הפקה 
 
   @Column({ type: 'varchar', length: 15, nullable: true })
   customerKey: string; // מפתח הלקוח אצל המוכר

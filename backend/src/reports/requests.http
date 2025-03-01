@@ -1,30 +1,10 @@
+### Upload and immediately parse the file
+POST http://localhost:3000/reports/upload-and-debug
+Content-Type: multipart/form-data; boundary=WebAppBoundary
 
-POST http://localhost:3000/reports
-content-type: application/json
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="INI.TXT"
+Content-Type: text/plain
 
-{
-    "make": "toyota",
-    "model": "corolla",
-    "year": 1980,
-    "mileage": 100000,
-    "lng": 0,
-    "lat": 0,
-    "price": 3000
-}
-
-
-### Approve an existing report
-PATCH http://localhost:3000/reports/5
-content-type: application/json
-
-{
-    "approved": false
-}
-
-
-### Get an estimate for an existing vehicle
-GET http://localhost:3000/reports?make=toyota&model=corolla&lng=0&lat=0&mileage=20000&year=1980
-
-
-### Get reduction report
-GET http://localhost:3000/reports/tax-report/
+< C:\Users\harel\Downloads\INI.TXT
+--WebAppBoundary--

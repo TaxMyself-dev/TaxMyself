@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus} from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from '../shared/shared.service';
@@ -11,6 +11,10 @@ import { PnLReportDto } from './dtos/pnl-report.dto';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+
 
 @Controller('reports')
 export class ReportsController {
@@ -63,12 +67,46 @@ export class ReportsController {
         @Body() body: any,
         @Res() res: Response) {  
             const userId = request.user?.firebaseId;
+            console.log("startDate is ", body.startDate);
+            console.log("endDate is ", body.endDate);
+            console.log("businessNumber is ", body.businessNumber);
             const { fileName, zipBuffer } = await this.reportsService.createUniformFile(userId, body.startDate, body.endDate, body.businessNumber);
             res.set({
                 'Content-Type': 'application/zip',
                 'Content-Disposition': `attachment; filename=${fileName}`,
             });
         res.send(zipBuffer);
+    }
+
+
+
+    @Post('upload-and-debug')
+    @UseInterceptors(
+      FileInterceptor('file', {
+        storage: diskStorage({
+          destination: './src/generated/', // Save uploaded files here
+          filename: (req, file, callback) => {
+            const fileExt = extname(file.originalname);
+            const fileName = file.originalname.replace(fileExt, '') + '-' + Date.now() + fileExt;
+            callback(null, fileName);
+          }
+        })
+      })
+    )
+    async uploadAndDebug(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
+      if (!file) {
+        throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+      }
+  
+      try {
+        // Parse and generate debug file
+        const debugFilePath = await this.reportsService.parseAndSaveDebugFile(file.filename);
+  
+        // Send the debug file as a download
+        res.download(debugFilePath);
+      } catch (error) {
+        throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
     }
 
 
