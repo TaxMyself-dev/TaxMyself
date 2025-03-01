@@ -1,4 +1,4 @@
-import { HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
@@ -11,7 +11,7 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { VAT_RATE_2023 } from '../constants';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DocumentType, DocumentTypeCodeMap} from 'src/enum';
+import { BusinessType, DocumentType, DocumentTypeCodeMap, FIELD_MAP} from 'src/enum';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
@@ -22,12 +22,17 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as archiver from 'archiver';
 import * as stream from 'stream';
+import * as readline from 'readline';
 
 
 @Injectable()
 export class ReportsService {
 
   private recordCounter = 1;
+  private readonly logger = new Logger(ReportsService.name);  // Log service name
+  private readonly generatedFolder = "src/generated/";  // Define folder for uploads
+  private readonly debugFolder = "src/debug/";  // Define folder for debug files
+
 
   constructor(
     @InjectRepository(Expense)
@@ -42,7 +47,11 @@ export class ReportsService {
     private expensesService: ExpensesService,
     private transactionsService: TransactionsService,
     private sharedService: SharedService
-  ) {}
+  ) {
+    if (!fs.existsSync(this.debugFolder)) {
+      fs.mkdirSync(this.debugFolder, { recursive: true });
+    }
+  }
 
 
   async createPDF(data: any): Promise<Blob | undefined> {
@@ -340,27 +349,33 @@ export class ReportsService {
 
     async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ fileName: string; zipBuffer: Buffer }> {
 
-      const zipFileName = `openformat.zip`;
-
       // Generate Unique Random Number (15 digits)
       const uniqueId = this.generateUniqueId();
 
+      console.log("createUniformFile: startDate is ", startDate);
+      console.log("createUniformFile: endDate is ", endDate);
+      
+      const { content: dataContent, summary } = await this.generateDataFileContent(userId, businessNumber, startDate, endDate, uniqueId);
+
+      const zipFileName = `openformat.zip`;
+
       // Trim businessNumber to 8 digits if it has 9
+      let trimBusinessNumber = businessNumber;
       if (businessNumber.length === 9) {
-        businessNumber = businessNumber.substring(0, 8);
+        trimBusinessNumber = businessNumber.substring(0, 8);
       }
 
       // Get current year suffix (XX)
       const currentYear = new Date().getFullYear();
-      const XX = String(currentYear).slice(-2); // 2025 → "25"
+      const XX = String(currentYear).slice(-2);
 
       // Create folder names
-      const businessFolder = `${businessNumber}.${XX}`;
+      const businessFolder = `${trimBusinessNumber}.${XX}`;
       const MMDDhhmm = this.getCurrentTimestamp();
+      const filePath = `${businessFolder}/${MMDDhhmm}` 
 
       // Generate file contents
-      const iniContent = this.generateIniFileContent(businessNumber, currentYear, businessFolder, MMDDhhmm, uniqueId);
-      const dataContent = await this.generateDataFileContent(userId, businessNumber, startDate, endDate, uniqueId);
+      const iniContent = await this.generateIniFileContent(businessNumber, uniqueId, filePath, startDate, endDate);
 
       return new Promise((resolve, reject) => {
         const archive = archiver('zip', { zlib: { level: 9 } });
@@ -384,10 +399,58 @@ export class ReportsService {
     }
 
 
-    // Function to generate INI.TXT content
-    private generateIniFileContent(businessNumber: string, currentYear: number, businessFolder: string, MMDDhhmm: string, uniqueId: string): string {
-      return `A000 | 1.31 | 000000000 | ${businessNumber} | ${currentYear} | ${businessFolder}\\${MMDDhhmm} | ${this.getCurrentDate()} | ${this.getCurrentTime()} | ${uniqueId}`;
+    private async generateIniFileContent(businessNumber: string, uniqueId: string, filePath: string, startDate: string, endDate: string): Promise<string> {
+
+      const currentDate = new Date();
+      const formattedCurrentDate = `${currentDate.getFullYear()}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}`;
+      const currentTime = `${String(new Date().getHours()).padStart(2, '0')}${String(new Date().getMinutes()).padStart(2, '0')}`;
+
+      let result = '';
+    
+      const f_1001 = this.formatField("!", 5, '!');
+      const f_1002 = this.formatField(this.getFormattedRecordCounter(), 15, '0');
+      const f_1003 = this.formatField(businessNumber, 9, '0');
+      const f_1004 = this.formatField(uniqueId, 15, '0');
+      const f_1005 = this.formatField("&OF1.31&", 8, '');
+      const f_1006 = this.formatField("!", 8, '!'); // מספר רישום התוכנה ברשות המיסים
+      const f_1007 = this.formatField("KEEPINTAX", 20, '-');
+      const f_1008 = this.formatField("version-001", 20, '-');
+      const f_1009 = this.formatField("123456789", 9, "0"); // KEEPINTAX מספר עוסק של
+      const f_1010 = this.formatField("KEEPINTAX", 20, '-');
+      const f_1011 = this.formatField(2, 1, '0');
+      const f_1012 = this.formatField(filePath, 50, '-');
+      const f_1013 = this.formatField(1, 1, '0');
+      const f_1014 = this.formatField(1, 1, '0');
+      const f_1015 = this.formatField("123456789", 9, '0'); // מספר חברה ברשם החברות
+      const f_1016 = this.formatField("123456789", 9, '0'); // מספר תיק ניכויים
+      const f_1017 = this.formatField("!", 10, '!');
+      const f_1018 = this.formatField("KEEPINTAX", 50, '-');
+      const f_1019 = this.formatField("!", 50, '!');
+      const f_1020 = this.formatField("!", 10, '!');
+      const f_1021 = this.formatField("!", 30, '!');
+      const f_1022 = this.formatField("!", 8, '!');
+      const f_1023 = this.formatField("!", 4, '!');
+      const f_1024 = this.formatField(startDate.replace(/-/g, ""), 8, '!');
+      const f_1025 = this.formatField(endDate.replace(/-/g, ""), 8, '!');
+      const f_1026 = this.formatField(formattedCurrentDate, 8, '!');
+      const f_1027 = this.formatField(currentTime, 4, '!');
+      const f_1028 = this.formatField(0, 1, '0');
+      const f_1029 = this.formatField(1, 1, '0');
+      const f_1030 = this.formatField("ZIP", 20, '!');
+      const f_1032 = this.formatField("ILS", 20, '!');
+      const f_1034 = this.formatField(0, 1, '!');
+      const f_1035 = this.formatField("!", 46, '!');
+
+      result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n`;
+     
+      return result;
     }
+
+
+
+
+
+
 
 
     // Function to generate a 15-digit unique random number
@@ -417,34 +480,55 @@ export class ReportsService {
     }
 
 
-    private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<string> {
+    private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
+
 
       let content = "";
-
+      let recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
       const documents = await this.fetchDocuments(userId, businessNumber, startDate, endDate);
+
+      console.log("documents are: ", documents);
+      
     
       // Add A100 section first
       content += this.generateA100Section(businessNumber, uniqueId);
 
       // Add C100 section
-      content += this.generateC100Section(businessNumber, documents);
+      const c100 = await this.generateC100Section(documents);
+      recordSummary.C100 += (c100.match(/\n/g) || []).length;
+      content += c100;
 
       // Add D110 section
-      content += this.generateD110Section(documents);
+      const d110 = await this.generateD110Section(documents);
+      recordSummary.D110 += (d110.match(/\n/g) || []).length;
+      content += d110;
 
       // Add D120 section
-      content += this.generateD120Section(documents);
+      const d120 = await this.generateD120Section(documents);
+      recordSummary.D120 += (d120.match(/\n/g) || []).length;
+      content += d120;
 
       // Add B100 section
-      content += this.generateB100Section(documents);
+      const b100 = await this.generateB100Section(documents);
+      recordSummary.B100 += (b100.match(/\n/g) || []).length;
+      content += b100;
 
       // Add B110 section
-      content += this.generateB110Section(documents);
+      const b110 = await this.generateB110Section(documents);
+      recordSummary.B110 += (b110.match(/\n/g) || []).length;
+      content += b110;
 
       // Add Z900 section first
       content += this.generateZ900Section(businessNumber, uniqueId);
-    
-      return content;
+
+      return { 
+        content, 
+        summary: Object.keys(recordSummary).map((key) => ({
+          code: key,
+          description: this.getRecordDescription(key), // Add descriptions
+          count: recordSummary[key]
+        }))
+      };
 
     }
 
@@ -454,7 +538,7 @@ export class ReportsService {
     }
 
 
-    private async generateC100Section(businessNumber: string, documents: Documents[]): Promise<string> {
+    private async generateC100Section(documents: Documents[]): Promise<string> {
       let result = '';
       documents.forEach((doc) => {
         const f_1201 = this.getFormattedRecordCounter();
@@ -489,11 +573,60 @@ export class ReportsService {
         const f_1233 = this.formatField(doc.operationPerformer, 9, '!');
         const f_1234 = this.formatField(doc.generalDocIndex, 7, '!');
         const f_1235 = this.formatField("!", 13, '!');
+
+        const debugMode = true; // Change to false for mission mode
+
+        if (debugMode) {
+          result += `C100\n\
+          f_1201=${f_1201}\n\
+          f_1202=${f_1202}\n\
+          f_1203=${f_1203}\n\
+          f_1204=${f_1204}\n\
+          f_1205=${f_1205}\n\
+          f_1206=${f_1206}\n\
+          f_1207=${f_1207}\n\
+          f_1208=${f_1208}\n\
+          f_1209=${f_1209}\n\
+          f_1210=${f_1210}\n\
+          f_1211=${f_1211}\n\
+          f_1212=${f_1212}\n\
+          f_1213=${f_1213}\n\
+          f_1214=${f_1214}\n\
+          f_1215=${f_1215}\n\
+          f_1216=${f_1216}\n\
+          f_1217=${f_1217}\n\
+          f_1218=${f_1218}\n\
+          f_1219=${f_1219}\n\
+          f_1220=${f_1220}\n\
+          f_1221=${f_1221}\n\
+          f_1222=${f_1222}\n\
+          f_1223=${f_1223}\n\
+          f_1224=${f_1224}\n\
+          f_1225=${f_1225}\n\
+          f_1226=${f_1226}\n\
+          f_1228=${f_1228}\n\
+          f_1230=${f_1230}\n\
+          f_1231=${f_1231}\n\
+          f_1233=${f_1233}\n\
+          f_1234=${f_1234}\n\
+          f_1235=${f_1235}\n`;
+        } else {
+          result += `C100 ${f_1201} ${f_1202} ${f_1203} ${f_1204} ${f_1205} ${f_1206} ${f_1207} ${f_1208} ${f_1209} ${f_1210} 
+            ${f_1211} ${f_1212} ${f_1213} ${f_1214} ${f_1215} ${f_1216} ${f_1217} ${f_1218} ${f_1219} ${f_1220} 
+            ${f_1221} ${f_1222} ${f_1223} ${f_1224} ${f_1225} ${f_1226} ${f_1228} ${f_1230} ${f_1231} ${f_1233} 
+            ${f_1234} ${f_1235}\n`;
+        }
+
+        // result += `C100\nf_1201=${f_1201}\nf_1202=${f_1202}\nf_1203=${f_1203}\nf_1204=${f_1204}\nf_1205=${f_1205}\nf_1206=${f_1206}\nf_1207=${f_1207}\nf_1208=${f_1208}\nf_1209=${f_1209}\nf_1210=${f_1210}\n 
+        //                   f_1211=${f_1211}\n f_1212=${f_1212}\n f_1213=${f_1213}\n f_1214=${f_1214}\n f_1215=${f_1215}\n f_1216=${f_1216}\n f_1217=${f_1217}\n f_1218=${f_1218}\n f_1219=${f_1219}\n f_1220=${f_1220}\n 
+        //                   f_1221=${f_1221}\n f_1222=${f_1222}\n f_1223=${f_1223}\n f_1224=${f_1224}\n f_1225=${f_1225}\n f_1226=${f_1226}\n f_1228=${f_1228}\n f_1230=${f_1230}\n f_1231=${f_1231}\n f_1233=${f_1233}\n 
+        //                   f_1234=${f_1234}\n f_1235=${f_1235}\n`;
     
-        result += `C100 | ${f_1201} | ${f_1202} | ${f_1203} | ${f_1204} | ${f_1205} | ${f_1206} | ${f_1207} | ${f_1208} | ${f_1209} | ${f_1210} | 
-                          ${f_1211} | ${f_1212} | ${f_1213} | ${f_1214} | ${f_1215} | ${f_1216} | ${f_1217} | ${f_1218} | ${f_1219} | ${f_1220} | 
-                          ${f_1221} | ${f_1222} | ${f_1223} | ${f_1224} | ${f_1225} | ${f_1226} | ${f_1228} | ${f_1230} | ${f_1231} | ${f_1233} | 
-                          ${f_1234} | ${f_1235}\n`;
+        // result += `C100 | ${f_1201} | ${f_1202} | ${f_1203} | ${f_1204} | ${f_1205} | ${f_1206} | ${f_1207} | ${f_1208} | ${f_1209} | ${f_1210} | 
+        //                   ${f_1211} | ${f_1212} | ${f_1213} | ${f_1214} | ${f_1215} | ${f_1216} | ${f_1217} | ${f_1218} | ${f_1219} | ${f_1220} | 
+        //                   ${f_1221} | ${f_1222} | ${f_1223} | ${f_1224} | ${f_1225} | ${f_1226} | ${f_1228} | ${f_1230} | ${f_1231} | ${f_1233} | 
+        //                   ${f_1234} | ${f_1235}\n`;
+
       });
     
       return result;
@@ -744,6 +877,22 @@ export class ReportsService {
     }
 
 
+    private getRecordDescription(code: string): string {
+      const descriptions: Record<string, string> = {
+        A100: "רשומה פתיחה",
+        B100: "תנועות בהנהלת חשבונות",
+        B110: "חשבון בהנהלת חשבונות",
+        C100: "כותרת מסמך",
+        D110: "פרטי מסמך",
+        D120: "פרטי קבלות",
+        M100: "פריטים במלאי",
+        Z900: "רשומת סיום"
+      };
+    
+      return descriptions[code] || null;
+    }
+
+
     // Format a field to a fixed length
     private formatField(value: string | number | Date, length: number, padChar: string = ' ', alignLeft: boolean = false): string {
       let strValue: string;
@@ -798,6 +947,10 @@ export class ReportsService {
 
     // Fetch documents by userId, businessNumber, startDate, and endDate
     async fetchDocuments(userId: string, businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
+      console.log("fetchDocuments: startDate is ", startDate);
+      console.log("fetchDocuments: endDate is ", endDate);
+      console.log("fetchDocuments: businessNumber is ", businessNumber);
+      
       return this.documentsRepo.find({
         where: {
           issuerbusinessNumber: businessNumber, // Only fetch documents issued by this business
@@ -806,6 +959,155 @@ export class ReportsService {
         order: { docDate: 'ASC' },
       });
     }
+
+
+
+    async parseAndSaveDebugFile(fileName: string): Promise<string> {
+      const inputFilePath = path.join(this.generatedFolder, fileName);
+      const debugFilePath = path.join(this.debugFolder, fileName.replace('.TXT', '_DEBUG.TXT'));
+  
+      if (!fs.existsSync(inputFilePath)) {
+        this.logger.error(`❌ File not found: ${inputFilePath}`);
+        throw new Error(`File not found: ${fileName}`);
+      }
+  
+      const fileStream = fs.createReadStream(inputFilePath);
+      const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+  
+      const outputStream = fs.createWriteStream(debugFilePath);
+      outputStream.write("====================================\n");
+      outputStream.write("       DEBUG PARSED OUTPUT\n");
+      outputStream.write("====================================\n\n");
+  
+      for await (const line of rl) {
+        const fields = FIELD_MAP[line.substring(0, 4)]; // Get field definitions
+      
+        if (!fields) {
+          this.logger.warn(`⚠ Unknown list type: ${line.substring(0, 4)}`);
+          continue;
+        }
+      
+        // Extract the first field (list name) and use it for the section title
+        const firstField = fields[0]; // The first field is the list name
+        const listName = line.substring(0, firstField.length).trim();
+        outputStream.write(`==== ${listName} ====\n`);
+      
+        // Include the first field as the list type in the parsed output
+        outputStream.write(`f_${firstField.field} = ${listName}      | ${firstField.description}\n`);
+      
+        // Start parsing from the second field onward
+        let currentPosition = firstField.length;
+        fields.slice(1).forEach(({ field, length, description }) => {
+          const fieldValue = line.substring(currentPosition, currentPosition + length).trim();
+          currentPosition += length;
+          outputStream.write(`f_${field} = ${fieldValue}      | ${description}\n`);
+        });
+      
+        outputStream.write("\n"); // Add a space between sections
+      }
+  
+      outputStream.end();
+      this.logger.log(`✅ Debug file created: ${debugFilePath}`);
+      return debugFilePath;
+    }
+
+    // async parseAndSaveDebugFile(fileName: string): Promise<string> {
+    //   const inputFilePath = path.join(this.generatedFolder, fileName);
+    //   const debugFilePath = path.join(this.debugFolder, fileName.replace('.TXT', '_DEBUG.TXT'));
+  
+    //   if (!fs.existsSync(inputFilePath)) {
+    //     this.logger.error(`File not found: ${inputFilePath}`);
+    //     throw new Error(`File not found: ${fileName}`);
+    //   }
+  
+    //   const fileStream = fs.createReadStream(inputFilePath);
+    //   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+  
+    //   const outputStream = fs.createWriteStream(debugFilePath);
+    //   outputStream.write("====================================\n");
+    //   outputStream.write("       DEBUG PARSED OUTPUT\n");
+    //   outputStream.write("====================================\n\n");
+  
+    //   for await (const line of rl) {
+    //     const listName = line.substring(0, 4).trim(); // Extract list type (A100, C100, etc.)
+  
+    //     if (!FIELD_MAP[listName]) {
+    //       this.logger.warn(`⚠ Unknown list type: ${listName}`);
+    //       continue;
+    //     }
+  
+    //     const fields = FIELD_MAP[listName];
+    //     let currentPosition = 4; // Start after the first 4 characters (list name)
+  
+    //     // Write section header
+    //     outputStream.write(`==== ${listName} ====\n`);
+  
+    //     fields.forEach(({ field, length, description }) => {
+    //       const fieldValue = line.substring(currentPosition, currentPosition + length).trim();
+    //       currentPosition += length;
+    //       outputStream.write(`f_${field} = ${fieldValue}      | ${description}\n`);
+    //     });
+  
+    //     outputStream.write("\n"); // Add empty line between sections
+    //   }
+  
+    //   outputStream.end();
+    //   this.logger.log(`✅ Debug file created: ${debugFilePath}`);
+    //   return debugFilePath;
+    // }
+
+
+  // async parseAndSaveDebugFile(fileName: string): Promise<string> {
+
+  //   const inputFilePath = path.join(this.generatedFolder, fileName);
+  //   const debugFilePath = path.join(this.debugFolder, fileName.replace('.TXT', '_DEBUG.TXT'));
+
+  //   if (!fs.existsSync(inputFilePath)) {
+  //     this.logger.error(`❌ File not found: ${inputFilePath}`);
+  //     throw new Error(`File not found: ${fileName}`);
+  //   }
+
+  //   const fileStream = fs.createReadStream(inputFilePath);
+  //   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+
+  //   const outputStream = fs.createWriteStream(debugFilePath);
+  //   outputStream.write("List Name | Field | Value\n");
+  //   outputStream.write("---------------------------------\n");
+
+  //   for await (const line of rl) {
+  //     const listName = line.substring(0, 4).trim();
+
+  //     console.log("line is ", line);
+      
+
+  //     if (!FIELD_MAP[listName]) {
+  //       this.logger.warn(`⚠ Unknown list type: ${listName}`);
+  //       continue;
+  //     }
+
+  //     const fields = FIELD_MAP[listName];
+  //     let currentPosition = 4; // Start reading after the first 4 characters (list name)
+
+  //     outputStream.write(`\n=== ${listName} ===\n`);
+
+  //     fields.forEach(({ field, length, description }) => {
+  //       const fieldValue = line.substring(currentPosition, currentPosition + length).trim();
+  //       currentPosition += length;
+  //       outputStream.write(`${listName} | ${field} (${description}) | ${fieldValue}\n`);
+  //     });
+  //   }
+
+  //   outputStream.end();
+  //   this.logger.log(`✅ Debug file created: ${debugFilePath}`);
+  //   return debugFilePath;
+  // }
+
+
+
+
+
+
+
 
     
 }
