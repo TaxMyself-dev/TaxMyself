@@ -211,7 +211,11 @@ export enum FieldsCreateDocValue {
   DOCUMENT_DATE = 'documentDate',
   UNIT_AMOUNT = 'unitAmount',
   VAT_OPTION = 'vatOptions',
+  VAT_SUM = 'vatSum',
   CURRENCY = "currency",
+  SUM_AFTER_DIS_BEF_VAT = 'sumAfterDisBefVat',
+  SUM_AFTER_DIS_WITH_VAT = 'sumAfterDisWithVat',
+  SUM_BEF_DIS_BEF_VAT = 'sumBefDisBefVat',
 }
 
 export enum FieldsCreateDocName {
@@ -229,8 +233,11 @@ export enum FieldsCreateDocName {
   reasonPayment = "תשלום עבור",
   unitAmount = "כמות יחידות",
   vatOptions = 'מע"מ',
-  discount = 'הנחה'
-
+  discount = 'הנחה',
+  vatSum = 'סכום מע"מ',
+  sumAfterDisBefVat = 'סכום לאחר הנחה לפני מע"מ',
+  sumAfterDisWithVat = 'סכום לאחר הנחה כולל מע"מ',
+  sumBefDisBefVat = 'סכום לפני הנחה ולפני מע"מ',
 }
 
 export enum PaymentMethodValue {

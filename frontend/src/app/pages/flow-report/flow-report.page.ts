@@ -41,7 +41,7 @@ export class FlowReportPage implements OnInit {
   checkedCount: number = 0;
   disabledRows: number = 0;
 
-  public COLUMNS_TO_IGNORE = ['disabled', 'note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
+  public COLUMNS_TO_IGNORE = ['necessity', 'disabled', 'note2', 'finsiteId', 'businessNumber', 'firebaseFile', 'id', 'payDate', 'isRecognized', 'isEquipment', 'paymentIdentifier', 'userId', 'billName', 'vatReportingDate', this.UPLOAD_FILE_FIELD_NAME];
 
   readonly COLUMNS_WIDTH = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.CHECKBOX, 0.5],
