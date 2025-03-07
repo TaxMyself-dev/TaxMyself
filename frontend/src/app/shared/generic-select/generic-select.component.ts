@@ -65,4 +65,8 @@ export class GenericSelectComponent implements OnChanges{
   isRequired(): boolean {
     return !!this.currentFormControl()?.hasValidator(Validators.required);
   }
+
+  getFormControl(controlName: string): FormControl {
+    return this.parentForm.get(controlName) as FormControl;
+  }
 }

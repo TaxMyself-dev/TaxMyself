@@ -59,6 +59,8 @@ export class GenericInputComponent implements OnChanges {
 
   constructor(private dateService: DateService) {
     this.maxDate = this.dateService.getTodaysDate();
+    // console.log(this.parentForm);
+    
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -76,6 +78,10 @@ export class GenericInputComponent implements OnChanges {
 
   currentFormControl(): FormControl {
     return (this.parentForm && this.controlName) ? this.parentForm?.get(this.controlName) as FormControl: null;
+  }
+
+  getFormControl(controlName: string): FormControl {
+    return this.parentForm.get(controlName) as FormControl;
   }
 
   isRequired(): boolean {
@@ -96,7 +102,7 @@ export class GenericInputComponent implements OnChanges {
   }
 
   onInputKeyChange(): void {
-    this.isValid = this.currentFormControl().valid;
+    this.isValid = this.currentFormControl()?.valid;
     this.isInvalid = !this.isValid;
   }
 

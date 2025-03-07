@@ -2,6 +2,7 @@ export enum paymentIdentifierType {
   CREDIT_CARD = 'CREDIT_CARD',
   BANK_ACCOUNT = 'BANK_ACCOUNT'
 }
+
 export enum FormTypes {
   CHECKBOX = 'checkbox',
   TEXT = 'text',
@@ -192,27 +193,21 @@ export enum Currency {
 
 export enum FieldsCreateDocValue {
   TYPE_FILE = 'typeFile',
-  DISCOUNT = 'discount',
-  DATE = 'date',
+  DOC_DESCRIPTION = 'docDescription',
+  DOCUMENT_DATE = 'documentDate',
+  DOC_VAT_RATE = 'docVatRate',
+  VAT_SUM = 'vatSum',
+  CURRENCY = "currency",
   RECIPIENT_NAME = 'recipientName', 
   RECIPIENT_ID= 'recipientId',
+  RECIPIENT_PHONE = 'recipientPhone',
+  RECIPIENT_EMAIL = 'recipientEmail',
+  RECIPIENT_CITY = 'recipientCity',
   RECIPIENT_STREET = 'recipientStreet',
   RECIPIENT_HOME_NUMBER = 'recipientHomeNumber',
-  RECIPIENT_CITY = 'recipientCity',
   RECIPIENT_POSTAL_CODE = 'recipientPostalCode',
   RECIPIENT_STATE = 'recipientState',
   RECIPIENT_STATE_CODE = 'recipientStateCode',
-  RECIPIENT_PHONE = 'recipientPhone',
-  RECIPIENT_EMAIL = 'recipientEmail',
-  PAYMENT_METHOD = 'paymentMethod',
-  SUM = 'sum',
-  DESCRIPTION = 'description',
-  DOC_DESCRIPTION = 'docDescription',
-  DOCUMENT_DATE = 'documentDate',
-  UNIT_AMOUNT = 'unitAmount',
-  VAT_OPTION = 'vatOptions',
-  VAT_SUM = 'vatSum',
-  CURRENCY = "currency",
   SUM_AFTER_DIS_BEF_VAT = 'sumAfterDisBefVat',
   SUM_AFTER_DIS_WITH_VAT = 'sumAfterDisWithVat',
   SUM_BEF_DIS_BEF_VAT = 'sumBefDisBefVat',
@@ -220,25 +215,82 @@ export enum FieldsCreateDocValue {
 
 export enum FieldsCreateDocName {
   typeFile = "באיזה מסמך אתה מעוניין?",
+  currency = "מטבע",
+  docVatRate = "שיעור מעמ",
   date = "תאריך ביצוע התשלום",
   documentDate = "תאריך המסמך",
   recipientName = "שם הלקוח",
   recipientId = "ת.ז. / ח.פ. של הלקוח",
   recipientEmail= "אימייל של הלקוח",
-  recipientAddress = "כתובת הלקוח",
+  recipientCity = "עיר",
+  recipientStreet = "רחוב",
+  recipientHomeNumber = "מס' בית",
+  recipientPostalCode = "מיקוד",
+  recipientState = "מדינה",
+  recipientStateCode = "קוד מדינה",
   recipientPhone = "מס' טלפון של הלקוח",
-  paymentMethod = "אמצעי תשלום",
-  sum = "סכום",
-  description = "פירוט",
-  reasonPayment = "תשלום עבור",
-  unitAmount = "כמות יחידות",
-  vatOptions = 'מע"מ',
-  discount = 'הנחה',
+  docDescription = "תשלום עבור",
   vatSum = 'סכום מע"מ',
   sumAfterDisBefVat = 'סכום לאחר הנחה לפני מע"מ',
   sumAfterDisWithVat = 'סכום לאחר הנחה כולל מע"מ',
   sumBefDisBefVat = 'סכום לפני הנחה ולפני מע"מ',
 }
+
+export enum fieldLineDocValue {
+  SUM = 'sum',
+  LINE_DESCRIPTION = 'description',
+  UNIT_AMOUNT = 'unitAmount',
+  SUM_BEF_VAT = 'sumBefVat',
+  VAT_RATE = 'vatRate',
+  VAT_OPTIONS = 'vatOptions',
+  PAYMENT_METHOD = 'paymentMethod',
+  DISCOUNT = 'discount',
+  LINE_NUMBER = 'lineNumber',
+  UNIT_TYPE = 'unitType',
+  BANK_NUMBER = 'bankNumber',
+  BRANCH_NUMBER = 'branchNumber',
+  ACCOUNT_NUMBER = 'accountNumber',
+  CHECK_NUMBER = 'checkNumber',
+  PAYMENT_CHECK_DATE = 'paymentCheckDate',
+  CARD_COMPANY = 'cardCompany',
+  CARD_4_NUMBER = 'card4Number',
+  CREDIT_CARD_NAME = 'creditCardName',
+  CREDIT_TRANS_TYPE = 'creditTransType',
+  CREDIT_PAY_NUMBER = 'creditPayNumber',
+  MANUFACTURER_NAME = 'manufacturerName',
+  PRODUCT_SERIAL_NUMBER = 'productSerialNumber',
+  INTERNAL_NUMBER = 'internalNumber',
+  JOURNAL_ENTRY_MAIN_ID = 'journalEntryMainId',
+}
+
+export enum fieldLineDocName {
+  sum = 'סכום',
+  line_description = 'תיאור',
+  unitAmount = 'מחיר ליחידה',
+  sumBefVat = 'סכום לפני מע"מ',
+  vatRate = 'שיעור מע"מ',
+  vatOptions = 'מע"מ',
+  paymentMethod = 'אמצעי תשלום',
+  discount = 'הנחה',
+  lineNumber = 'מספר שורה',
+  unitType = 'יחידת מידה',
+  bankNumber = 'מספר הבנק',
+  branchNumber = 'מספר הסניף',
+  accountNumber = 'מספר חשבון',
+  checkNumber = 'מספר המחאה',
+  paymentCheckDate = 'תאריך הפירעון של הצ"ק',
+  cardCompany = 'חברת האשראי',
+  card4Number = 'ארבע ספרות אחרונות של הכרטיס',
+  creditCardName = 'שם הכרטיס הסולק',
+  creditTransType = 'סוג עסקת האשראי',
+  creditPayNumber = 'מספר תשלום',
+  manufacturerName = 'שם היצרן',
+  productSerialNumber = 'מספר סידורי של המוצר',
+  internalNumber = 'מספר פנימי',
+  journalEntryMainId = 'מספר ראשי של רשומת יומן',
+}
+
+export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;
 
 export enum PaymentMethodValue {
   CASH = 'CASH',
@@ -256,6 +308,42 @@ export enum PaymentMethodName {
   PAYBOX = 'פייבוקס',
   CREDIT_CARD = 'כרטיס אשראי',
   CHECK = "צ'ק",
+}
+
+export enum VatOptionsValue { 
+  WITH_OUT = 'WITH_OUT',
+  BEFORE = 'BEFORE',
+  AFTER = 'AFTER',
+}
+
+export enum UnitOfMeasure {
+  UNIT = 'UNIT',
+  WORK_HOUR = 'WORK_HOUR',
+  LITER = 'LITER',
+  KILOGRAM = 'KILOGRAM'
+}
+
+export enum CreditTransactionType {
+  REGULAR = 'REGULAR',   // רגיל
+  INSTALLMENTS = 'INSTALLMENTS', // תשלומים
+  CREDIT = 'CREDIT', // קרדיט
+  DEFERRED_CHARGE = 'DEFERRED_CHARGE', // חיוב נדחה
+  OTHER = 'OTHER' // אחר
+}
+
+export type VatOptions = 'WITH_OUT' | 'BEFORE' | 'AFTER'
+
+export type PaymentMethodType = 'CASH' | 'TRANSFER' | 'BIT' | 'PAYBOX' | 'CREDIT_CARD' | 'CHECK';
+
+export enum CardCompany {
+  ISRACARD = 'ISRACARD',
+  CAL = 'CAL',
+  DINERS = 'DINERS',
+  AMERICAN_EXPRESS = 'AMERICAN_EXPRESS',
+  VISA = 'VISA',
+  LEUMI_CARD = 'LEUMI_CARD',
+  MASTERCARD = 'MASTERCARD',
+  OTHER = 'OTHER'
 }
 
 export enum ICellRenderer {
