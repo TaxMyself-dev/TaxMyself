@@ -1,7 +1,5 @@
 <app-custom-toolbar></app-custom-toolbar>
 
-
-
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
     <!-- <app-search-bar class="generic-searchbar-wrapper" 
@@ -18,26 +16,33 @@
     <ion-card>
       <ion-card-header>
         <ion-card-title>נתוני מסמך כלליים</ion-card-title>
+        <app-button [buttonText]="isGeneralExpanded ? 'צמצם' : 'הרחב'"
+          (onButtonClicked)="expandGeneralDetails()"></app-button>
       </ion-card-header>
       <ion-card-content>
         <ion-list>
-          <ng-container *ngFor="let field of generalDetailsFields">
+          <ng-container *ngFor="let field of generalArray">
             <ng-container [ngSwitch]="field.type">
-              <ng-container *ngSwitchCase="formTypes.TEXT">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText"></app-generic-input>
-              </ng-container>
 
-              <ng-container *ngSwitchCase="formTypes.DDL">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText"></app-generic-input>
-              </ng-container>
+              <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
 
-              <ng-container *ngSwitchCase="formTypes.DATE">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText" [inputType]="formTypes.DATE"></app-generic-input>
-              </ng-container>
+              <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
 
+              <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
+
+              <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
+                [controlName]="field.value" [parentForm]="generalDetailsForm"
+                [inputType]="field.type"></app-generic-input>
+
+              <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
+
+              <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
+                [parentForm]="generalDetailsForm"
+                [items]="getDropdownItems(field.value)"></app-generic-select>
             </ng-container>
           </ng-container>
         </ion-list>
@@ -45,31 +50,39 @@
     </ion-card>
 
     <!-- User details card -->
-    <ion-card *ngIf="userDetailsFields.length > 0">
+    <ion-card *ngIf="myForm">
       <ion-card-header>
         <ion-card-title>פרטי לקוח</ion-card-title>
+        <app-button [buttonText]="isUserExpanded ? 'צמצם' : 'הרחב'"
+          (onButtonClicked)="expandUserDetails()"></app-button>
+
       </ion-card-header>
       <ion-card-content>
         <app-button buttonText="בחר לקוח" (onButtonClicked)="openSelectClients()"></app-button>
         <app-button buttonText="שמור לקוח" (onButtonClicked)="saveClient()"></app-button>
         <ion-list>
-          <ng-container *ngFor="let field of userDetailsFields">
+          <ng-container *ngFor="let field of userArray">
             <ng-container [ngSwitch]="field.type">
-              <ng-container *ngSwitchCase="formTypes.TEXT">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText"></app-generic-input>
-              </ng-container>
 
-              <ng-container *ngSwitchCase="formTypes.DDL">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText"></app-generic-input>
-              </ng-container>
+              <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
 
-              <ng-container *ngSwitchCase="formTypes.DATE">
-                <app-generic-input [inputLabel]="field.name" [controlName]="field.value" [parentForm]="docCreateForm"
-                  [errorText]="field.errorText" [inputType]="formTypes.DATE"></app-generic-input>
-              </ng-container>
+              <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
 
+              <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
+
+              <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
+                [controlName]="field.value" [parentForm]="userDetailsForm"
+                [inputType]="field.type"></app-generic-input>
+
+              <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
+                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
+
+              <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
+                [parentForm]="userDetailsForm"
+                [items]="getDropdownItems(field.value)"></app-generic-select>
             </ng-container>
           </ng-container>
         </ion-list>
@@ -77,53 +90,46 @@
     </ion-card>
 
     <!-- Payment details card -->
-    <ion-card *ngIf="paymentDetailsFields.length > 0">
+    <ion-card>
       <ion-card-header>
-        <app-button [buttonText]="'Add'" (onButtonClicked)="addPayment()"></app-button>
         <ion-card-title>פרטי תשלום</ion-card-title>
       </ion-card-header>
       <ion-card-content>
-        <form *ngIf="paymentsForm" [formGroup]="getPaymentsForm">
-          <ng-container *ngFor="let paymentGroup of paymentsFormArray.controls; let i = index" [formGroupName]="i">
-            <ion-list class="payment-list">
-              <app-button [buttonText]="'Remove'" (onButtonClicked)="removePayment(i)"></app-button>
-              <div class="inputs-container">
-              <ng-container *ngFor="let field of paymentDetailsFields; let index = index">
-                <ng-container [ngSwitch]="field.type">
+        <ion-list *ngIf="paymentsFormArray.length > 0">
+          <app-button [buttonText]="'Add'" (onButtonClicked)="addPayment()"></app-button>
+          <ng-container *ngFor="let form of paymentsArray; let i = index">
+            <app-button [buttonText]="'Remove'" (onButtonClicked)="removePayment(i)"></app-button>
+            <app-button [buttonText]="isPaymentExpanded ? 'צמצם' : 'הרחב'"
+              (onButtonClicked)="expandPaymentDetails(i)"></app-button>
+            <ng-container *ngFor="let field of form">
+              <ng-container [ngSwitch]="field.type">
+                <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
+                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input>
 
-                  <ng-container *ngSwitchCase="formTypes.TEXT">
-                    <app-generic-input class="default-input-doc" [inputLabel]="field.name" [controlName]="field.value"
-                      [parentForm]="getPaymentFormByIndex(i)" (ionBlur)="onBlur(field.value, i)"
-                      [errorText]="field.errorText"></app-generic-input>
-                  </ng-container>
+                <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
+                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input>
 
-                  <ng-container *ngSwitchCase="formTypes.DDL">
-                    <app-generic-select class="default-input-doc" [title]="field.name" [controlName]="field.value"
-                      [parentForm]="getPaymentFormByIndex(i)" [errorText]="field.errorText"
-                      [items]="onDdlSelectionChange(field.value)"
-                      (selectionChanged)="onVatOptionChange($event, i)"></app-generic-select>
-                  </ng-container>
+                <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name"
+                  [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
+                  [inputType]="field.type"></app-generic-input>
 
-                  <ng-container *ngSwitchCase="formTypes.DATE">
-                    <app-generic-input class="default-input-doc" [inputLabel]="field.name" [controlName]="field.value"
-                      [parentForm]="getPaymentFormByIndex(i)" [errorText]="field.errorText"
-                      [inputType]="formTypes.DATE"></app-generic-input>
-                  </ng-container>
+                <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
+                  [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
+                  [inputType]="field.type"></app-generic-input>
 
-                </ng-container>
+                <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
+                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input>
+
+                <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
+                  [parentForm]="getPaymentFormByIndex(i)" (selectionChanged)="onSelectionChanged(field.value, $event, i)"
+                  [items]="getDropdownItems(field.value)"></app-generic-select>
               </ng-container>
-            </div>
-              <div class="wrap-amount">
-                <p>amount before vat: {{paymentsFormArray?.controls[i]?.get('sumAfterDisBefVat')?.value}}&nbsp;&nbsp;</p>
-                <p>vat amount: {{paymentsFormArray?.controls[i]?.get('vatSum')?.value}}&nbsp;&nbsp;</p>
-                <p>total amount: {{paymentsFormArray?.controls[i]?.get('sumAftDisWithVAT')?.value}}</p>
-              </div>
-            </ion-list>
-
+            </ng-container>
           </ng-container>
-        </form>
+        </ion-list>
       </ion-card-content>
     </ion-card>
+
     <ion-card>
       <ion-card-header>
         <ion-card-title>סה"כ לתשלום</ion-card-title>

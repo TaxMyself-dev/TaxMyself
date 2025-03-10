@@ -34,6 +34,8 @@ export class Documents {
   // recipientHomeNumber
   // recipientCity
   // recipientPostalCode
+  // recipientState
+  // recipientStateCode
 
   // ******************************************************************************************************************************************************** //
 

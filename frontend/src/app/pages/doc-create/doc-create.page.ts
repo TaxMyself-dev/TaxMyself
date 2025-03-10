@@ -1,15 +1,17 @@
 import { Component, OnInit } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue } from 'src/app/shared/enums';
+import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDataDoc, ICreateDocField, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
+import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
 import { GenericService } from 'src/app/services/generic.service';
 import { FilesService } from 'src/app/services/files.service';
 import { AuthService } from 'src/app/services/auth.service';
+import { DocCreateBuilderService } from './doc-create-builder.service';
+import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 
 
 
@@ -24,11 +26,14 @@ import { AuthService } from 'src/app/services/auth.service';
 })
 export class DocCreatePage implements OnInit {
 
-  docCreateForm: FormGroup;
-  paymentsForm: FormGroup;
+  // docCreateForm: FormGroup;
+  paymentsDetailsForm: FormGroup;
+  // generalDetailsForm: FormGroup;
+  myForm: FormGroup;
+  // userDetailsForm: FormGroup;
   initialDetailsForm: FormGroup;
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
-  paymentDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
+  paymentDetailsFields: ICreateDocField<FieldsCreateDocName | fieldLineDocName, FieldsCreateDocValue | fieldLineDocValue>[] = [];
   generalDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   showUserDetailsCard: boolean = false;
   showPatmentDetailsCard: boolean = false;
@@ -46,6 +51,14 @@ export class DocCreatePage implements OnInit {
   totalAmount: number = 0;
   overallTotals: ITotals;
   vatRate = 0.18; // 18% VAT
+  isGeneralExpanded: boolean = false;
+  isUserExpanded: boolean = false;
+  isPaymentExpanded: boolean = false;
+  morePaymentDetails: boolean = false;
+  generalArray: IDocCreateFieldData[] = [];
+  userArray: IDocCreateFieldData[] = [];
+  paymentsArray: IDocCreateFieldData[][] = [];
+  paymentSectionName: SectionKeysEnum;
 
 
   readonly DocCreateTypeList = [
@@ -70,157 +83,126 @@ export class DocCreatePage implements OnInit {
   ];
 
   readonly vatOptionList = [
-    { value: 'WITH_OUT', name: 'ללא מע"מ' },
-    { value: 'BEFORE', name: 'לא כולל מע"מ' },
-    { value: 'AFTER', name: ' כולל מע"מ' },
+    { value: VatOptionsValue.WITH_OUT, name: 'ללא מע"מ' },
+    { value: VatOptionsValue.BEFORE, name: 'לא כולל מע"מ' },
+    { value: VatOptionsValue.AFTER, name: ' כולל מע"מ' },
   ];
+
+  readonly UnitOfMeasureList = [
+    { value: UnitOfMeasure.UNIT, name: 'יחידות' },
+    { value: UnitOfMeasure.WORK_HOUR, name: 'שעות עבודה' },
+    { value: UnitOfMeasure.LITER, name: 'ליטר' },
+    { value: UnitOfMeasure.KILOGRAM, name: 'קילוגרם' },
+  ];
+
+  readonly CardCompanyList = [
+    { value: CardCompany.ISRACARD, name: 'ישראכארט' },
+    { value: CardCompany.CAL, name: 'כאל' },
+    { value: CardCompany.DINERS, name: 'דיינרס' },
+    { value: CardCompany.VISA, name: 'ויזה' },
+    { value: CardCompany.LEUMI_CARD, name: 'לאומי קארד' },
+    { value: CardCompany.MASTERCARD, name: 'מאסטרקארד' },
+    { value: CardCompany.OTHER, name: 'אחר' },
+  ];
+
+  readonly CreditTransactionTypeList = [
+    { value: CreditTransactionType.REGULAR, name: 'רגיל' },
+    { value: CreditTransactionType.INSTALLMENTS, name: 'תשלומים' },
+    { value: CreditTransactionType.CREDIT, name: 'קרדיט' },
+    { value: CreditTransactionType.DEFERRED_CHARGE, name: 'חיוב נדחה' },
+    { value: CreditTransactionType.OTHER, name: 'אחר' },
+  ]
+
+  readonly currencyList = [
+    { value: Currency.ILS, name: 'שקל' },
+    { value: Currency.USD, name: 'דולר' },
+    { value: Currency.EUR, name: 'יורו' },
+  ];
+
   readonly formTypes = FormTypes;
 
 
-  constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder) {
-
-    this.docCreateForm = this.formBuilder.group({
-      [FieldsCreateDocValue.RECIPIENT_NAME]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.RECIPIENT_ID]: new FormControl(
-        '', [Validators.pattern(/^\d{9}$/)]
-      ),
-      [FieldsCreateDocValue.RECIPIENT_EMAIL]: new FormControl(
-        '', [Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
-      ),
-      [FieldsCreateDocValue.RECIPIENT_PHONE]: new FormControl(
-        '', [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
-      ),
-      [FieldsCreateDocValue.RECIPIENT_STREET]: new FormControl(
-        '', []
-      ),
-      [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: new FormControl(
-        '', []
-      ),
-      [FieldsCreateDocValue.RECIPIENT_CITY]: new FormControl(
-        '', []
-      ),
-      [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: new FormControl(
-        '', []
-      ),
-      [FieldsCreateDocValue.RECIPIENT_STATE]: new FormControl(
-        '', []
-      ),
-      [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: new FormControl(
-        '', []
-      ),
-      //payments: this.formBuilder.array([this.createPaymentGroup()]),
-
-      [FieldsCreateDocValue.SUM]: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
-      [FieldsCreateDocValue.DATE]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.DOC_DESCRIPTION]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.DOCUMENT_DATE]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.CURRENCY]: new FormControl(
-        '', Validators.required,
-      ),
-    });
-
-    this.paymentsForm = new FormGroup({
-      payments: new FormArray([this.createPaymentGroup()])  // Initialize with 1 group
-    });
-    // valueChanges subscribe
-    this.paymentsFormArray.valueChanges.subscribe((forms: any[]) => {
-      //console.log("in values changes");
-      
-      // Initialize overall totals
-      let totals = {
-        sumBefDisBefVat: 0,
-        sumAftDisBefVAT: 0,
-        vatSum: 0,
-        sumAftDisWithVAT: 0,
-      };
-
-      forms.forEach((item, index) => {
-        const sum = Number(item.sum) || 0;
-        const discount = Number(item.discount) || 0;
-        const vatOption = item.vatOptions;
-        // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatOption:", vatOption)
-        let sumBefDisBefVat = 0;
-        let sumAfterDisBefVat = 0;
-        let vatAmount = 0;
-        let sumAftDisWithVAT = 0;
-        let sumBeforeVat = 0;
-        // let sumWithVat = 0;
-        // let sumAfterDis = 0;
-
-        if (vatOption === 'BEFORE') {
-          // Discount applied before VAT calculation
-          sumBefDisBefVat = sum;
-          sumAfterDisBefVat = sum - discount; // For discount in number
-          //sumAfterDisBefVat = sum - (sum  * discount / 100); // For discount in percentage
-          vatAmount = sum * this.vatRate;
-          sumAftDisWithVAT = sumAfterDisBefVat + vatAmount;
-          // sumWithVat = sum + vatAmount;
-          sumAfterDisBefVat = sum;
-        } 
-        else if (vatOption === 'AFTER') {
-          // Discount applied after VAT calculation
-          vatAmount = sum / (1 + this.vatRate);
-          sumBefDisBefVat = sum / (1 + this.vatRate) + discount;
-          sumAfterDisBefVat = sumBefDisBefVat - discount; // For discount in number
-          //sumAfterDisBefVat = sumBefDisBefVat - (sumBefDisBefVat  * discount / 100); // For discount in percentage
-          sumAftDisWithVAT = sum;
-          //sumBeforeVat = sum - vatAmount;
-          // sumWithVat = sum;
-        } 
-        else if (vatOption === 'WITH_OUT') {
-          // No VAT is applied
-          vatAmount = 0;
-          sumBeforeVat = sum;
-          // sumWithVat = sum;
-          // sumDis = sum - discount; // For discount in number
-          // sumAfterDis = sum - (sum  * discount / 100); // For discount in percentage
-          sumAfterDisBefVat = sum - discount;
-          sumAftDisWithVAT = sumAfterDisBefVat;
-        }
-
-        // Optionally, update the FormGroup with calculated values:
-        const formGroup = this.getPaymentsForm['controls'][index];
-        formGroup.patchValue({
-          sumAfterDisBefVat: sumAfterDisBefVat,
-          vatSum: vatAmount,
-          sumAftDisWithVAT: sumAftDisWithVAT
-        }, { emitEvent: false });
-          // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAftDisWithVAT:", sumAftDisWithVAT)
-          // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatAmount:", vatAmount)
-          // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAfterDisBefVat:", sumAfterDisBefVat)
-
-        // Accumulate totals
-        totals.sumBefDisBefVat += sum;
-        totals.sumAftDisBefVAT += sumAfterDisBefVat;
-        totals.vatSum += vatAmount;
-        totals.sumAftDisWithVAT += sumAftDisWithVAT;
-      });
-
-      // Here you can assign totals to a property if you need to display overall values
-      this.overallTotals = totals;
-    });
+  constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService) {
 
     this.initialDetailsForm = this.formBuilder.group({
       initialIndex: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
-      //  currentIndex: new FormControl(
-      //   '', [Validators.pattern(/^\d+$/)]
-      // ),
-      //  docType: new FormControl(
-      //    this.fileSelected, Validators.required,
-      //  ),
     });
+
+    //Subscribe to value changes
+    // this.paymentsFormArray.valueChanges.subscribe((forms: any[]) => {
+    //   // valueChanges subscribe
+    //   //console.log("in values changes");
+
+    //   // Initialize overall totals
+    //   let totals = {
+    //     sumBefDisBefVat: 0,
+    //     sumAftDisBefVAT: 0,
+    //     vatSum: 0,
+    //     sumAftDisWithVAT: 0,
+    //   };
+
+    //   forms.forEach((item, index) => {
+    //     const sum = Number(item.sum) || 0;
+    //     const discount = Number(item.discount) || 0;
+    //     const vatOption = item.vatOptions;
+    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatOption:", vatOption)
+    //     let sumBefDisBefVat = 0;
+    //     let sumAfterDisBefVat = 0;
+    //     let vatAmount = 0;
+    //     let sumAftDisWithVAT = 0;
+    //     let sumBeforeVat = 0;
+    //     // let sumWithVat = 0;
+    //     // let sumAfterDis = 0;
+
+    //     if (vatOption === 'BEFORE') {
+    //       // Discount applied before VAT calculation
+    //       sumBefDisBefVat = sum;
+    //       sumAfterDisBefVat = sum - discount; // For discount in number
+    //       //sumAfterDisBefVat = sum - (sum  * discount / 100); // For discount in percentage
+    //       vatAmount = sum * this.vatRate;
+    //       sumAftDisWithVAT = sumAfterDisBefVat + vatAmount;
+    //       // sumWithVat = sum + vatAmount;
+    //       sumAfterDisBefVat = sum;
+    //     }
+    //     else if (vatOption === 'AFTER') {
+    //       // Discount applied after VAT calculation
+    //       vatAmount = sum / (1 + this.vatRate);
+    //       sumBefDisBefVat = sum / (1 + this.vatRate) + discount;
+    //       sumAfterDisBefVat = sumBefDisBefVat - discount; // For discount in number
+    //       //sumAfterDisBefVat = sumBefDisBefVat - (sumBefDisBefVat  * discount / 100); // For discount in percentage
+    //       sumAftDisWithVAT = sum;
+    //     }
+    //     else if (vatOption === 'WITH_OUT') {
+    //       // No VAT is applied
+    //       vatAmount = 0;
+    //       sumBeforeVat = sum;
+    //       sumAfterDisBefVat = sum - discount;
+    //       sumAftDisWithVAT = sumAfterDisBefVat;
+    //     }
+
+    //     // Optionally, update the FormGroup with calculated values:
+    //     const formGroup = this.getPaymentsForm['controls'][index];
+    //     formGroup.patchValue({
+    //       sumAfterDisBefVat: sumAfterDisBefVat,
+    //       vatSum: vatAmount,
+    //       sumAftDisWithVAT: sumAftDisWithVAT
+    //     }, { emitEvent: false });
+    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAftDisWithVAT:", sumAftDisWithVAT)
+    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatAmount:", vatAmount)
+    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAfterDisBefVat:", sumAfterDisBefVat)
+
+    //     // Accumulate totals
+    //     totals.sumBefDisBefVat += sum;
+    //     totals.sumAftDisBefVAT += sumAfterDisBefVat;
+    //     totals.vatSum += vatAmount;
+    //     totals.sumAftDisWithVAT += sumAftDisWithVAT;
+    //   });
+
+    //   // Here you can assign totals to a property if you need to display overall values
+    //   this.overallTotals = totals;
+    // });
   }
 
 
@@ -228,63 +210,33 @@ export class DocCreatePage implements OnInit {
     this.userDetails = this.authService.getUserDataFromLocalStorage();
   }
 
-  createPaymentGroup(): FormGroup {
-    return new FormGroup({
-      [FieldsCreateDocValue.SUM]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.DESCRIPTION]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.PAYMENT_METHOD]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.UNIT_AMOUNT]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.VAT_OPTION]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.DISCOUNT]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.SUM_BEF_DIS_BEF_VAT]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.SUM_AFTER_DIS_BEF_VAT]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.VAT_SUM]: new FormControl(
-        '', Validators.required,
-      ),
-      [FieldsCreateDocValue.SUM_AFTER_DIS_WITH_VAT]: new FormControl(
-        '', Validators.required,
-      ),
-    });
+  get paymentsFormArray(): FormArray {
+    return this.myForm.get(this.paymentSectionName) as FormArray;
+  }
+
+  get generalDetailsForm(): FormGroup {
+    return this.myForm.get('GeneralDetails') as FormGroup;
+  }
+
+  get userDetailsForm(): FormGroup {
+    return this.myForm.get('UserDetails') as FormGroup;
   }
 
   addPayment(): void {
-    //this.paymentsForm.push(this.createPaymentGroup());
-    const items = this.paymentsForm?.get('payments') as FormArray;
-    items.push(this.createPaymentGroup());
+    this.docCreateBuilderService.addFormGroupToFormArray(this.paymentsFormArray, this.paymentSectionName);
+    console.log(this.myForm);
+    this.paymentsArray[this.paymentsArray.length] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentsArray:", this.paymentsArray)
+
   }
 
   removePayment(index: number): void {
-    //this.paymentsForm.removeAt(index);
-    const items = this.paymentsForm.get('payments') as FormArray;
-    items.removeAt(index);
+    this.docCreateBuilderService.removeFormGroupFromFormArray(this.paymentsFormArray, index);
+    this.paymentsArray.splice(index, 1);
   }
 
   getPaymentFormByIndex(index: number): FormGroup {
     return this.paymentsFormArray.at(index) as FormGroup;
-  }
-
-  get getPaymentsForm(): FormGroup {
-    return this.paymentsForm.get('payments') as FormGroup;
-  }
-
-  get paymentsFormArray(): FormArray {
-    return this.paymentsForm.get('payments') as FormArray;
   }
 
   onSelectedDoc(event: any): void {
@@ -292,17 +244,28 @@ export class DocCreatePage implements OnInit {
     console.log("🚀 ~ DocCreatePage ~ onSelectedFile ~ fileSelected:", this.fileSelected);
     this.getHebrewNameDoc(event.value);
     switch (event.value) {
-      case 1:
-        this.showUserDetailsCard = true;
-        this.showPatmentDetailsCard = true;
+      case 'RECEIPT': // Receipt
+        // this.showUserDetailsCard = true;
+        // this.showPatmentDetailsCard = true;
+        this.paymentSectionName = 'ReceiptPaymentDetails';
         break;
-      case 2:
-        this.showUserDetailsCard = false;
-        this.showPatmentDetailsCard = true;
-        break;
-    }
-    this.getFields();
+        case 2:
+          this.paymentSectionName = 'ReceiptPaymentDetails';
+          // this.showUserDetailsCard = false;
+          // this.showPatmentDetailsCard = true;
+          break;
+        }
     this.getDocDetails()
+    this.createForms();
+
+  }
+
+  createForms(): void {
+    this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails', this.paymentSectionName]);
+    console.log("🚀 ~ DocCreatePage ~ createForms ~ this.myForm:", this.myForm)
+    this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
+    this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
   }
 
   onClickInitialIndex(): void {
@@ -324,44 +287,6 @@ export class DocCreatePage implements OnInit {
   getHebrewNameDoc(typeDoc: string): void {
     const temp = this.DocCreateTypeList.find((doc) => doc.value === typeDoc);
     if (temp) this.HebrewNameFileSelected = temp.name;
-  }
-
-  getFields(): void {
-    switch (this.fileSelected) {
-      case 'RECEIPT': // receipt
-
-        this.generalDetailsFields = [
-          { name: FieldsCreateDocName.documentDate, value: FieldsCreateDocValue.DOCUMENT_DATE, type: FormTypes.DATE },
-          { name: FieldsCreateDocName.reasonPayment, value: FieldsCreateDocValue.DOC_DESCRIPTION, type: FormTypes.TEXT },
-        ];
-        this.userDetailsFields = [
-          { name: FieldsCreateDocName.recipientName, value: FieldsCreateDocValue.RECIPIENT_NAME, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.recipientId, value: FieldsCreateDocValue.RECIPIENT_ID, type: FormTypes.TEXT },
-          // { name: FieldsCreateDocName.recipientAddress, value: FieldsCreateDocValue.RECIPIENT_ADDRESS, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.recipientPhone, value: FieldsCreateDocValue.RECIPIENT_PHONE, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.recipientEmail, value: FieldsCreateDocValue.RECIPIENT_EMAIL, type: FormTypes.TEXT },
-        ];
-        this.paymentDetailsFields = [
-          { name: FieldsCreateDocName.sum, value: FieldsCreateDocValue.SUM, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.paymentMethod, value: FieldsCreateDocValue.PAYMENT_METHOD, type: FormTypes.DDL },
-          { name: FieldsCreateDocName.description, value: FieldsCreateDocValue.DESCRIPTION, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.unitAmount, value: FieldsCreateDocValue.UNIT_AMOUNT, type: FormTypes.TEXT },
-          { name: FieldsCreateDocName.vatOptions, value: FieldsCreateDocValue.VAT_OPTION, type: FormTypes.DDL },
-          { name: FieldsCreateDocName.discount, value: FieldsCreateDocValue.DISCOUNT, type: FormTypes.TEXT },
-        ];
-        break;
-
-      case 'TAX_INVOICE': // invoice tax
-        this.userDetailsFields = [
-          { name: FieldsCreateDocName.date, value: FieldsCreateDocValue.DATE, type: FormTypes.DATE },
-        ];
-        this.paymentDetailsFields = [
-          { name: FieldsCreateDocName.paymentMethod, value: FieldsCreateDocValue.PAYMENT_METHOD, type: FormTypes.TEXT },
-        ];
-        break;
-      default:
-        break;
-    }
   }
 
   getDocDetails(): void {
@@ -431,7 +356,7 @@ export class DocCreatePage implements OnInit {
 
   fillClientDetails(client: any) {
     console.log("🚀 ~ DocCreatePage ~ fillClientDetails ~ client", client)
-    this.docCreateForm.patchValue({
+    this.userDetailsForm.patchValue({
       [FieldsCreateDocValue.RECIPIENT_NAME]: client.name,
       [FieldsCreateDocValue.RECIPIENT_EMAIL]: client.email,
       [FieldsCreateDocValue.RECIPIENT_PHONE]: client.phone,
@@ -439,7 +364,7 @@ export class DocCreatePage implements OnInit {
   }
 
   saveClient() {
-    const { [FieldsCreateDocValue.RECIPIENT_NAME]: name, [FieldsCreateDocValue.RECIPIENT_EMAIL]: email, [FieldsCreateDocValue.RECIPIENT_PHONE]: phone } = this.docCreateForm.value;
+    const { [FieldsCreateDocValue.RECIPIENT_NAME]: name, [FieldsCreateDocValue.RECIPIENT_EMAIL]: email, [FieldsCreateDocValue.RECIPIENT_PHONE]: phone } = this.userDetailsForm.value;
     const clientData = {
       name,
       email,
@@ -463,69 +388,6 @@ export class DocCreatePage implements OnInit {
       })
   }
 
-  onDdlSelectionChange(event: any): ISelectItem[] {
-    //console.log("🚀 ~ DocCreatePage ~ onDdlSelectionChange ~ event", event);
-    switch (event) {
-      case "paymentMethod":
-        //console.log("🚀 ~ DocCreatePage ~ onDdlSelectionChange ~ paymentId");
-        return this.paymentMethodList;
-      case "vatOptions":
-        return this.vatOptionList;
-      default:
-        break;
-    }
-    return null;
-  }
-
-  // createReceiptDoc(flag: string): void {
-  //   if (flag === 'Preview') {
-  //     this.createPreviewPDFIsLoading = true;
-  //   } 
-  //   else if (flag === 'Create') {
-  //     this.createPDFIsLoading = true;
-  //   }
-  //   const formData = this.docCreateForm.value;
-  //   let dataTable: (string | number)[][] = [];
-  //   // this.paymentsFormArray.c  .forEach((expense) => {
-  //   //   dataTable.push([String(expense.total), expense.category]);
-  //   // })
-  //   //console.log("dataTable: ", dataTable);
-  //   dataTable.push([formData.sum, formData.date, formData.paymentId, formData.note]);
-  //   console.log("dataTable: ", dataTable);
-
-  //   const data: ICreateDataDoc = {
-  //     fid: "RVxpym2O68",
-  //     prefill_data: {
-  //       userName: formData.clientName,
-  //       currentIndex: this.docDetails.currentIndex,
-  //       reasonPayment: formData.reasonPayment,
-  //       table: dataTable,
-  //     },
-  //     digitallySign: true
-  //   }
-
-  //   this.docCreateService.createPDF(data)
-  //   .pipe(
-  //     finalize(() => {
-  //       this.createPDFIsLoading = false; 
-  //       this.createPreviewPDFIsLoading = false; 
-  //     }),
-  //     catchError((err) => {
-  //       console.log("err in create pdf: ", err);
-  //       return EMPTY;
-  //     })  
-  //   )
-  //   .subscribe((res) => {
-  //     console.log("res in create pdf: ", res);
-  //     if (this.createPDFIsLoading) {
-  //       this.fileService.downloadFile("my pdf", res);
-  //       this.docCreateService.updateCurrentIndex(this.fileSelected)
-  //     }else if (this.createPreviewPDFIsLoading) {
-  //       this.fileService.previewFile1(res)
-  //     }
-  //   })
-  // }
-
   getPaymentMethodHebrew(paymentMethod: string): string {
     console.log("🚀 ~ DocCreatePage ~ getPaymentMethodHebrew ~ paymentMethod:", paymentMethod)
     const temp = this.paymentMethodList.find((payment) => payment.value === paymentMethod);
@@ -535,54 +397,77 @@ export class DocCreatePage implements OnInit {
   }
 
   getDocData(): ICreateDataDoc {
-    const formData = this.docCreateForm.value;
-    console.log("🚀 ~ DocCreatePage ~ getReceiptData ~  formData:", formData)
+    const generalFormData = this.generalDetailsForm.value;
+    const userFormData = this.userDetailsForm.value;
     const payments = this.paymentsFormArray.value;
-    console.log("🚀 ~ DocCreatePage ~ getDocData ~ payments:", payments)
-    let dataTable: (string | number)[][] = [];
-    payments.forEach((payment: any) => {
-      payment.paymentMethod = this.getPaymentMethodHebrew(payment.paymentMethod);
-      dataTable.push([payment[FieldsCreateDocValue.SUM], payment[FieldsCreateDocValue.DESCRIPTION], payment[FieldsCreateDocValue.PAYMENT_METHOD], payment[FieldsCreateDocValue.UNIT_AMOUNT], payment[FieldsCreateDocValue.VAT_OPTION], payment[FieldsCreateDocValue.DISCOUNT], payment.sumAfterDisBefVat, payment.vatSum, payment.sumAftDisWithVAT, this.userDetails?.businessName, ], );
-      //generalDocIndex // create in server
+    console.log("🚀 ~ DocCreatePage ~ getDocData ~ this.paymentsFormArray:", this.paymentsFormArray)
 
-    });
-    formData.paymentMethod = this.getPaymentMethodHebrew(formData.paymentMethod);
-    console.log("dataTable: ", dataTable);
+    console.log("🚀 ~ DocCreatePage ~ getDocDatas ~ payment:", payments);
+    const createLinesDoc: ICreateLineDoc[] = payments.map((payment: ICreateLineDoc) => ({
 
-    return {
+      issuerbusinessNumber: this.userDetails?.businessNumber,
+      description: payment?.description || null,
+      unitAmount: payment?.unitAmount || null,
+      sumBefVat: payment?.sumBefVat || null,
+      vatOpts: payment?.vatOptions,
+      vatRate: payment?.vatRate || null,
+      paymentMethod: this.getPaymentMethodHebrew(payment.paymentMethod),
+      discount: payment?.discount || null,
+      unitType: payment?.unitType || null,
+      bankNumber: payment?.bankNumber || null,
+      branchNumber: payment?.branchNumber || null,
+      accountNumber: payment?.accountNumber || null,
+      checkNumber: payment?.checkNumber || null,
+      paymentCheckDate: payment?.paymentCheckDate || null,
+      cardCompany: payment.cardCompany || null,
+      card4Number: payment?.card4Number || null,
+      creditCardName: payment?.creditCardName || null,
+      creditTransType: payment?.creditTransType || null,
+      creditPayNumber: payment?.creditPayNumber || null,
+      manufacturerName: payment?.manufacturerName || null,
+      productSerialNumber: payment?.productSerialNumber || null,
+      internalNumber: payment?.internalNumber || null,
+      journalEntryMainId: payment?.journalEntryMainId || null,
+    }));
+    console.log("🚀 ~ DocCreatePage ~ getDocData ~ createLineDocs:", createLinesDoc)
+
+
+    //return
+    const x = {
       fid: this.getFid(),
+      // line_data: dataTable,
       prefill_data: {
-        table: dataTable,
+        // table: createLinesDoc,
         issuerName: this.userDetails?.businessName,
         issuerAddress: this.userDetails?.city,
         issuerPhone: this.userDetails?.phone,
         issuerEmail: this.userDetails?.email,
         issuerbusinessNumber: this.userDetails?.businessNumber,
-        recipientName: formData?.recipientName,
-        recipientId: formData?.recipientId || null,
-        recipientStreet: formData?.recipientStreet || null,
-        recipientHomeNumber: formData?.recipientHomeNumber || null,
-        recipientCity: formData?.recipientCity || null,
-        recipientPostalCode: formData?.recipientPostalCode || null,
-        recipientState: formData?.recipientState || null,
-        recipientStateCode: formData?.recipientStateCode || null,
-        recipientPhone: formData?.recipientPhone || null,
-        recipientEmail: formData?.recipientEmail || null,
+        recipientName: userFormData?.recipientName,
+        recipientId: userFormData?.recipientId || null,
+        recipientStreet: userFormData?.recipientStreet || null,
+        recipientHomeNumber: userFormData?.recipientHomeNumber || null,
+        recipientCity: userFormData?.recipientCity || null,
+        recipientPostalCode: userFormData?.recipientPostalCode || null,
+        recipientState: userFormData?.recipientState || null,
+        recipientStateCode: userFormData?.recipientStateCode || null,
+        recipientPhone: userFormData?.recipientPhone || null,
+        recipientEmail: userFormData?.recipientEmail || null,
         docType: this.fileSelected,
         //generalDocIndex // create in server
-        docDescription: formData?.reasonPayment,
+        docDescription: generalFormData?.docDescription,
         docNumber: this.docDetails?.currentIndex,
         docVatRate: this.fileSelected === 'RECEIPT' ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
         transType: 3,
         amountForeign: this.totalAmount, // Check with elazar
-        currency: formData?.currency || 'ILS',
+        currency: generalFormData?.currency || 'ILS',
         sumBefDisBefVat: 0, // need to update
         disSum: 0, // need to update - per line or doc??
         sumAftDisBefVAT: 450, // need to update 
         vatSum: this.vatAmount ?? 0,
         sumAftDisWithVAT: 450, // need to update
         withholdingTaxAmount: 0, // need to update 
-        docDate: formData.documentDate, // Check with elazar
+        docDate: generalFormData.documentDate, // Check with elazar
         // issueDate: create in server
         // valueDate: null, // Check with elazar create in server??
         // issueHour: create in server
@@ -603,6 +488,9 @@ export class DocCreatePage implements OnInit {
       },
       digitallySign: true
     };
+    console.log("🚀 ~ DocCreatePage ~ getDocData ~ x:", x);
+
+    return null
   }
 
   // Function for previewing the doc
@@ -714,7 +602,7 @@ export class DocCreatePage implements OnInit {
 
   onBlur(field: string, i: number): void {
     // console.log("🚀 ~ DocCreatePage ~ onBlur ~ event:", event);
-    const vatOptionControl = this.paymentsFormArray.controls[i]?.get(FieldsCreateDocValue.VAT_OPTION);
+    const vatOptionControl = this.paymentsFormArray.controls[i]?.get(fieldLineDocValue.VAT_OPTIONS);
     // console.log("🚀 ~ DocCreatePage ~ onBlur ~ paymentMethodControl:", vatOptionControl)
     if (!vatOptionControl.value) return; // If don't choosen vat option
 
@@ -724,9 +612,24 @@ export class DocCreatePage implements OnInit {
 
   }
 
+  onSelectionChanged(field: string, event: any, i: number): void {
+    console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ event:", event)
+    console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ control:", field)
+    switch (field) {
+      case 'vatOptions':
+        this.onVatOptionChange(event, i);
+        break;
+      case 'paymentMethod':
+        this.expandPayentMethod(i, field, event.value);
+        break;
+      default:
+        break;
+    }
+  }
+
   onVatOptionChange(event: any, formIndex: number): void {
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
-    const sumControl = this.paymentsFormArray.controls[formIndex]?.get(FieldsCreateDocValue.SUM);
+    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
+    const sumControl = this.paymentsFormArray.controls[formIndex]?.get(fieldLineDocValue.SUM);
     // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex].get(FieldsCreateDocValue.SUM):", this.paymentsFormArray.controls[formIndex]?.get(FieldsCreateDocValue.SUM))
     // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex]:", this.paymentsFormArray)
     // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sumControl:", sumControl)
@@ -786,6 +689,85 @@ export class DocCreatePage implements OnInit {
   calculateVatAmountBeforVat(sum: number): number {
     const vatRate = 0.18;
     return sum * vatRate;
+  }
+
+  expandGeneralDetails(): void {
+    this.isGeneralExpanded = !this.isGeneralExpanded;
+    if (this.isGeneralExpanded) {
+      this.docCreateBuilderService.addFormControlsByExpandedSection(this.generalDetailsForm, 'GeneralDetails');
+      this.generalArray = this.docCreateBuilderService.getAllFieldsBySection('GeneralDetails');
+      console.log("this.generalDetailsForm: ", this.generalDetailsForm);
+
+    }
+    else {
+      this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
+      this.docCreateBuilderService.removeFormControlsByExpandedSection(this.generalDetailsForm, 'GeneralDetails');
+    }
+      console.log("🚀 ~ DocCreatePage ~ expandGeneralDetails ~ this.generalDetailsForm:", this.generalDetailsForm)
+    console.log("🚀 ~ DocCreatePage ~ expandGeneralDetails ~ this.generalArray:", this.generalArray)
+
+  }
+
+  expandUserDetails(): void {
+    console.log(this.userDetailsForm);
+    
+    this.isUserExpanded = !this.isUserExpanded;
+    if (this.isUserExpanded) {
+      this.docCreateBuilderService.addFormControlsByExpandedSection(this.userDetailsForm, 'UserDetails');
+      this.userArray = this.docCreateBuilderService.getAllFieldsBySection('UserDetails');
+    }
+    else {
+      this.docCreateBuilderService.removeFormControlsByExpandedSection(this.userDetailsForm, 'UserDetails');
+      this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
+    }
+  }
+
+  expandPaymentDetails(formIndex: number): void {
+    console.log(this.paymentsArray[formIndex]);
+    console.log(this.paymentsFormArray.controls[formIndex]);
+    
+    
+    this.isPaymentExpanded = !this.isPaymentExpanded;
+    if (this.isPaymentExpanded) {
+      this.docCreateBuilderService.addFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
+      const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName);
+      this.paymentsArray[formIndex] = [...this.paymentsArray[formIndex], ...expandedFields];
+    }
+    else {
+      this.docCreateBuilderService.removeFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
+      const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName); // For remove only the expanded fields and not enumValues fields
+      this.paymentsArray[formIndex] = this.paymentsArray[formIndex].filter((paymentField: IDocCreateFieldData) => {
+        return !expandedFields.some((expandedField: IDocCreateFieldData) => expandedField.value === paymentField.value);
+      });
+    }
+  }
+
+  expandPayentMethod(formIndex: number, field: string, paymentMethod: string): void {
+    this.docCreateBuilderService.addFormControlsByEnumValue(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
+    console.log("🚀 ~ DocCreatePage ~ expandPaymentDetails ~ this.paymentsFormArray.controls[formIndex]:", this.paymentsFormArray.controls[formIndex]);
+    console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
+    //this.paymentsArray[formIndex] = []; // Reset array for new values
+    this.paymentsArray[formIndex] = this.docCreateBuilderService.getFieldsBySectionAndEnumValue(this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
+    console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
+  }
+
+  getDropdownItems(controlValue: string): ISelectItem[] {
+    switch (controlValue) {
+      case FieldsCreateDocValue.CURRENCY:
+        return this.currencyList;
+      case fieldLineDocValue.PAYMENT_METHOD:
+        return this.paymentMethodList;
+      case fieldLineDocValue.VAT_OPTIONS:
+        return this.vatOptionList;
+      case fieldLineDocValue.UNIT_TYPE:
+        return this.UnitOfMeasureList;
+      case fieldLineDocValue.CARD_COMPANY:
+        return this.CardCompanyList;
+      case fieldLineDocValue.CREDIT_TRANS_TYPE:
+        return this.CreditTransactionTypeList;
+      default:
+        return [];
+    }
   }
 
 }

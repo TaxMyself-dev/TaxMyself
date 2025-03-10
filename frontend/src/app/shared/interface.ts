@@ -270,8 +270,37 @@ export interface ICreateDataDoc {
         [key: string]: number | string | boolean | (string | number)[][],
         table?: (string | number)[][];
     },
+    // line_data: ICreateLineDoc[],
     digitallySign?: boolean;
 }
+
+export interface ICreateLineDoc {
+    issuerbusinessNumber: string;
+    generalDocIndex?: string;
+    description: string;
+    unitAmount: number;
+    sumBefVat: number;
+    vatOptions: string;
+    vatRate: number;
+    paymentMethod: string;
+    discount?: number;
+    lineNumber?: string;
+    unitType: string;
+    bankNumber?: string;
+    branchNumber?: string;
+    accountNumber?: string;
+    checkNumber?: string;
+    paymentCheckDate?: Date;
+    cardCompany?: number;
+    card4Number?: string;
+    creditCardName?: string;
+    creditTransType?: number;
+    creditPayNumber?: string;
+    manufacturerName?: string;
+    productSerialNumber?: string;
+    internalNumber?: string;
+    journalEntryMainId?: string;
+  }
 
 export interface ICreateDocField<TFieldsHebrew, TFields> {
     name: TFieldsHebrew;
@@ -280,5 +309,6 @@ export interface ICreateDocField<TFieldsHebrew, TFields> {
     listItems?: ISelectItem[];
     //cellRenderer?: ICellRenderer;
     errorText?: string;
+    expandable?: boolean;
     onChange?: (event?: any, parent?: any) => void;
 }
