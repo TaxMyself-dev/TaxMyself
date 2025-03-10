@@ -62,12 +62,9 @@ export class FinsiteService {
     });
 
     console.log("companiesData is ", companiesData);
-    let isAllDataExist: boolean = true;
     // Save each payment method in the Finsite entity
     for (const company of companiesData) {
       for (const account of company.accounts) {
-        //console.log("######### account is ", account);
-
         for (const method of account.paymentMethods) {          
 
           // Save only if subtype is "CreditCard" or "Current"
@@ -77,35 +74,38 @@ export class FinsiteService {
 
           console.log("--------method is ", method);
 
-          // Check if the method.id already exists in the database
-          const existingRecord = await this.finsiteRepo.findOneBy({ getTransFid: method.id });
-          if (existingRecord) {
-            console.log(`Skipping payment method with id ${method.id} - already exists`);
-            continue;
-          }
+          // Fetch the balance before checking for existing record
+          const currentDate = new Date().toISOString().split('T')[0];
+          const balanceData = await this.getBalances(this.sessionID, method.id, currentDate);
+          const balance = balanceData?.[0]?.BalanceOriginal || 0; // Default to 0 if balance is not found
 
-          const finsiteMethod = new Finsite();
-          finsiteMethod.getTransFid = method.id;
-          finsiteMethod.accountFid = method.accountId;
-          finsiteMethod.paymentId =  method.bookingAccountCode;
-          finsiteMethod.accountId = account.AccountNumber;
-          finsiteMethod.companyName = company.name;
-          finsiteMethod.finsiteId = company.id;
-          finsiteMethod.paymentMethodType = method.subtype === 'CreditCard' ? SourceType.CREDIT_CARD : method.subtype === 'Current' ? SourceType.BANK_ACCOUNT : null;
-        
-          // Save the entity to the database
-          isAllDataExist = false;
-          await this.finsiteRepo.save(finsiteMethod);
+          // Check if the method.id already exists in the database
+          let existingRecord = await this.finsiteRepo.findOneBy({ getTransFid: method.id });
+
+          if (existingRecord) {
+            console.log(`Updating balance for existing payment method with id ${method.id}`);
+            existingRecord.balance = balance; // Update only the balance field
+            await this.finsiteRepo.save(existingRecord);
+          } else {
+            console.log(`Creating new record for payment method with id ${method.id}`);
+            const finsiteMethod = new Finsite();
+            finsiteMethod.getTransFid = method.id;
+            finsiteMethod.accountFid = method.accountId;
+            finsiteMethod.paymentId = method.bookingAccountCode;
+            finsiteMethod.accountId = account.AccountNumber;
+            finsiteMethod.companyName = company.name;
+            finsiteMethod.finsiteId = company.id;
+            finsiteMethod.bank = account.Bank;
+            finsiteMethod.paymentMethodType = method.subtype === 'CreditCard' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT;
+            finsiteMethod.balance = balance;
+
+            // Save the entity to the database
+            await this.finsiteRepo.save(finsiteMethod);
+          }
+   
         }
       }
     }
-    if (isAllDataExist) {
-      return {message: "all data is already exist"};
-    }
-    else {
-      return {message: "saved new data"};
-    }
-
   }
 
 
@@ -130,7 +130,6 @@ export class FinsiteService {
           'M4u-Session': sessionId,
         },
       });
-      //console.log("GetBookingAccounts: data is ", response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching booking accounts');
@@ -204,6 +203,29 @@ export class FinsiteService {
       );
     }
   }
+
+
+  async getBalances(sessionId: string, id: string, date: string): Promise<any> {
+    
+    try {
+      const response = await this.apiClient.get('/GetBalances', {
+        headers: {
+          'M4u-Session': sessionId,
+        },
+        params: {
+          BalanceDate: date,
+          ShowWithTransactions: true,
+          BookingAccountID: id,
+        },
+      });
+      return response.data.Entities;
+    } catch (error) {
+      throw new HttpException(`Authentication failed: ${error.message}`, HttpStatus.UNAUTHORIZED);
+    }
+  }
+
+
+
 
 
 

@@ -48,7 +48,6 @@ export class VatReportPage implements OnInit {
   ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
-  //report: IVatReportData;
   vatReport: IVatReportData;
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
@@ -60,8 +59,6 @@ export class VatReportPage implements OnInit {
   items$: Observable<IRowDataTable[]>;
   item: IRowDataTable;
   rows: IRowDataTable[] = [];
-  // messageToast: string;
-  // isToastOpen: boolean;
   isSkip: boolean = false;
   userData: IUserData;
   businessNamesList: ISelectItem[] = [];
@@ -294,11 +291,15 @@ export class VatReportPage implements OnInit {
       event.detail.value = '0';
       this.vatReport.vatableTurnover = '0';
     }
-      //this.vatReport.vatableTurnover = this.genericService.convertStringToNumber(event.detail.value);
       Object.keys(this.vatReport).forEach((field) => { // convert all to type number for math manipulation
         this.vatReport[field] = this.genericService.convertStringToNumber(this.vatReport[field]);
       });
-      this.vatReport.vatPayment = Number(this.vatReport.vatableTurnover) - Number(this.vatReport.vatRefundOnAssets) - Number(this.vatReport.vatRefundOnExpenses);
+      this.vatReport.vatPayment = (
+        Number(this.vatReport.vatableTurnover) * Number(this.vatReport.vatRate) - 
+        Number(this.vatReport.vatRefundOnAssets) - 
+        Number(this.vatReport.vatRefundOnExpenses)
+      ).toFixed(2);
+      //this.vatReport.vatPayment = Number(this.vatReport.vatableTurnover)*Number(this.vatReport.vatRate) - Number(this.vatReport.vatRefundOnAssets) - Number(this.vatReport.vatRefundOnExpenses);
       Object.keys(this.vatReport).forEach((field) => { //convert all to type string for display with comma
         this.vatReport[field] = this.genericService.addComma(this.vatReport[field]);
       });

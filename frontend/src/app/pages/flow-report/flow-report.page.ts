@@ -146,7 +146,10 @@ export class FlowReportPage implements OnInit {
             row.sum = Math.abs(row.sum);
             row.sum = this.genericService.addComma(row.sum)
             row?.businessNumber === this.userData.businessNumber ? row.businessNumber = this.userData.businessName : row.businessNumber = this.userData.spouseBusinessName;
-            if (row.vatReportingDate) {
+            //if (row.vatReportingDate) {
+            if (row.vatReportingDate !== undefined && row.vatReportingDate !== null && row.vatReportingDate !== "0") {
+              console.log("row is ", row);
+              console.log("row.vatReportingDate is ", row.vatReportingDate);
               row.disabled = true;
             }
           })

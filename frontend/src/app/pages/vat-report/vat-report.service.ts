@@ -24,10 +24,7 @@ export class VatReportService {
     const params = new HttpParams()
     .set('startDate', startDate)
     .set('endDate', endDate)
-    .set('businessNumber', businessNumber)
-    //.set('vatableTurnover', vatableTurnover.toString())
-    //.set('nonVatableTurnover', nonVatableTurnover.toString())
-  
+    .set('businessNumber', businessNumber)  
     const headers = {
       'token': token
     }

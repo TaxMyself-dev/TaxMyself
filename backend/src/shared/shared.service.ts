@@ -1,12 +1,12 @@
 //shared.service.ts
 
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityTarget, FindOptionsWhere, Between, Timestamp } from 'typeorm';
 import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
 import { Transactions } from '../transactions/transactions.entity';
-import { VATReportingType, SingleMonthReport, DualMonthReport } from 'src/enum';
+import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES } from 'src/enum';
 import * as annualParams from 'src/annual.params.json';
 
 
@@ -181,6 +181,18 @@ export class SharedService {
         const parameters = this.getParameters(year);
         return parameters.vatPercent / 100; // Convert percent to decimal
     }
+
+
+    getVatRateByYear(date: Date): number {
+        const year = date.getFullYear();
+        const vatRate = VAT_RATES[year];
+    
+        if (vatRate === undefined) {
+          throw new InternalServerErrorException(`VAT rate for year ${year} not found`);
+        }
+    
+        return vatRate;
+      }
 
 
 }

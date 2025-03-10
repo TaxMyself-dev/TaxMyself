@@ -22,4 +22,7 @@ export class VatReportDto {
     @IsNumber()
     vatPayment: number;
 
+    @IsNumber()
+    vatRate: number;
+
 }

@@ -42,6 +42,12 @@ export enum VATReportingType {
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
 
+export const VAT_RATES: Record<number, number> = {
+  2023: 0.17,
+  2024: 0.17,
+  2025: 0.18,
+};
+
 export enum TaxReportingType {
   NOT_REQUIRED = 'NOT_REQUIRED',
   SINGLE_MONTH_REPORT = 'SINGLE_MONTH_REPORT',

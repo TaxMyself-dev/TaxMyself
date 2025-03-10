@@ -69,9 +69,9 @@ export class ExpensesService {
         if (updateExpenseDto.vatPercent !== undefined) expense.vatPercent = updateExpenseDto.vatPercent;
         if (updateExpenseDto.taxPercent !== undefined) expense.taxPercent = updateExpenseDto.taxPercent;
         if (updateExpenseDto.sum !== undefined) expense.sum = updateExpenseDto.sum;
-        if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
-            expense.calculateSums();
-        }
+        // if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
+        //     expense.calculateSums();
+        // }
 
         return this.expense_repo.save({
             ...expense,

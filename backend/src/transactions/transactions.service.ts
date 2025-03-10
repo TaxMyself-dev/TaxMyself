@@ -130,6 +130,16 @@ export class TransactionsService {
               startDate,
               endDate
             );
+
+            const balances = await this.finsiteService.getBalances(
+              sessionId,
+              method.getTransFid,
+              startDate,
+            );
+            
+            console.log("**************************");
+            console.log("balances are ", balances)
+            
   
             // Step 6: Save transactions to the database
             for (const transaction of transactions) {
@@ -138,7 +148,7 @@ export class TransactionsService {
                 where: { finsiteId: transaction.EntryID }, // Adjust field name if different
               });
   
-              if ((!existingTransaction) || ((transaction.Notes1 == 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
+              if ((!existingTransaction) && !((transaction.Notes1 == 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
 
                 const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
@@ -963,6 +973,23 @@ export class TransactionsService {
       expense.transId = transaction.id;
       expense.reductionPercent = transaction.reductionPercent;
       expense.businessNumber = transaction.businessNumber;
+
+      // Retrieve the correct VAT rate based on the expense year
+      const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
+      expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
+      expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+
+      // Determine the last year for expense reduction
+      const purchaseYear = new Date(expense.date).getFullYear();
+      const purchaseMonth = new Date(expense.date).getMonth() + 1;
+
+      if (expense.reductionPercent) {
+        const fullReductionYears = Math.ceil(100 / expense.reductionPercent);
+        const isPartialYear = purchaseMonth > 1 || new Date(expense.date).getDate() > 1;
+        expense.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
+      } else {
+        expense.reductionDone = 0;
+      }
 
       // Save the updated transaction
       transaction.vatReportingDate = expense.vatReportingDate;

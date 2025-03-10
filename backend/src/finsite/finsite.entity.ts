@@ -20,10 +20,16 @@ export class Finsite {
   accountId: string;
 
   @Column()
+  bank: string;
+
+  @Column()
   companyName: string;
 
   @Column()
   finsiteId: string;
+
+  @Column('decimal', { precision: 10, scale: 2,  default: 0.00 })
+  balance: number;
 
   @Column({
     type: 'enum',

@@ -57,6 +57,7 @@ export interface IVatReportData {
     vatRefundOnAssets: string | number;
     vatRefundOnExpenses: string | number;
     vatPayment: string | number;
+    vatRate: string | number;
 }
 
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {

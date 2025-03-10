@@ -3,8 +3,6 @@ import {
     Entity, 
     Column, 
     PrimaryGeneratedColumn,
-    BeforeInsert,
-    BeforeUpdate
 } from 'typeorm'
 
 @Entity()
@@ -90,32 +88,5 @@ export class Expense {
     default: null,
   }) 
   isReported: boolean;
-
-  @BeforeInsert()
-  @BeforeUpdate()
-  calculateSums() {
-
-    // Calculate the Vat and Tax Payable
-    this.totalVatPayable = (this.sum/1.17) * 0.17 * (this.vatPercent/100);
-    this.totalTaxPayable = (this.sum - this.totalVatPayable) * (this.taxPercent/100);
-
-
-    // Calculate the last year for reduction
-    let validDate = new Date(this.date);
-    const purchaseYear = validDate.getFullYear();
-    const purchaseMonth = validDate.getMonth() + 1; // Month is zero-based, so add 1
-    // Determine total years required to fully apply reduction
-    if (this.reductionPercent) {
-      const fullReductionYears = Math.ceil(100 / this.reductionPercent);
-      // Check if the purchase date is not at the start of the year
-      const isPartialYear = purchaseMonth > 1 || this.date.getDate() > 1;
-      // Calculate the last reduction year
-      this.reductionDone = purchaseYear + fullReductionYears + (isPartialYear ? 1 : 0) - 1;
-    }
-    else {
-      this.reductionDone = 0;
-    }
-
-  }
 
 }

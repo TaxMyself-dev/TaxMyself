@@ -92,7 +92,8 @@ export class ReportsService {
           nonVatableTurnover: 0,
           vatRefundOnAssets: 0,
           vatRefundOnExpenses: 0,
-          vatPayment: 0
+          vatPayment: 0,
+          vatRate: 0
       };
 
       const year = startDate.getFullYear();
@@ -114,23 +115,15 @@ export class ReportsService {
       const assetsExpenses = expenses.filter(expense => expense.isEquipment);
   
       // Step 3: Calculate VAT for regular expenses
-      const vatRegularExpensesSum = regularExpenses.reduce((sum, expense) => {
-          return sum + (expense.sum * (expense.vatPercent / 100));
-      }, 0);
-  
-      // Calculate VAT refund on expenses
-      vatReport.vatRefundOnExpenses = Math.round(vatRegularExpensesSum * (1 - (1 / (1 + VAT_RATE_2023))));
-  
+      vatReport.vatRefundOnExpenses = regularExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
+      
       // Step 4: Calculate VAT for assets (equipment)
-      const vatAssetsExpensesSum = assetsExpenses.reduce((sum, expense) => {
-          return sum + (expense.sum * (expense.vatPercent / 100));
-      }, 0);
-  
-      // Calculate VAT refund on assets
-      vatReport.vatRefundOnAssets = Math.round(vatAssetsExpensesSum * (1 - (1 / (1 + VAT_RATE_2023))));
-  
+      vatReport.vatRefundOnAssets = assetsExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
+
       // Step 5: Calculate VAT payment
       vatReport.vatPayment = Math.round(vatReport.vatableTurnover * this.sharedService.getVatPercent(year)) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+
+      vatReport.vatRate = this.sharedService.getVatRateByYear(startDate);
   
       return vatReport;
   }
