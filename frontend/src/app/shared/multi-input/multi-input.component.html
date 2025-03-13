@@ -8,7 +8,8 @@
     <!-- </ion-button> -->
   </ion-item>
   <cdk-virtual-scroll-viewport itemSize="50" class="example-viewport" *ngIf="showDropdown">
-    <div *cdkVirtualFor="let item of filteredCategories" class="example-item" (click)="selectCategory(item.value.toString())">{{item.name}}</div>
+    <div *cdkVirtualFor="let item of filteredCategories" class="example-item" [class.disabled]="item.disable"
+     (click)="selectCategory(item.value.toString())">{{item.name}}</div>
   </cdk-virtual-scroll-viewport>
 
 </form>

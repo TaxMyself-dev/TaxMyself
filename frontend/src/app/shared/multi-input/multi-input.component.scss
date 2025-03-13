@@ -43,3 +43,8 @@ ion-icon{
   height: 50px;
   cursor: pointer;
 }
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none; /* This prevents the click event */
+}

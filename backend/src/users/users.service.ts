@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { SharedService } from 'src/shared/shared.service';
+import axios from 'axios';
 
 
 @Injectable()
@@ -196,6 +197,18 @@ export class UsersService {
     //     const user = await this.user_repo.findOneBy({firebaseId: userId});
     //     return user?.role === UserRole.ADMIN;
     // }
+
+    async getCities() {
+        const url = "https://raw.githubusercontent.com/royts/israel-cities/master/israel-cities.json";
+        try {
+            const response = await axios.get(url);
+            console.log(response.data);
+            return response.data;
+          } catch (error) {
+            console.error(error);
+            return[];
+          }
+    }
 
 
 }

@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl } from '@angular/forms';
 import { RegisterService } from './register.service';
-import { IItemNavigate, ISelectItem } from 'src/app/shared/interface';
+import { ICityData, IItemNavigate, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
@@ -215,7 +215,7 @@ export class RegisterPage implements OnInit, OnDestroy {
       takeUntil(this.ngUnsubscribe),
       startWith([]),
       map((cities) => {
-        return cities.map((city) => ({
+        return cities?.map((city: ICityData) => ({
           name: city.name,
           value: city.name
         }))
@@ -227,7 +227,7 @@ export class RegisterPage implements OnInit, OnDestroy {
           this.cities = res.slice(1);
         }
         else {
-          this.cities = [];
+          this.cities = [{ name: ' אירעה שגיאה ', value: 'אין ערים', disable: true }];  
         }
       }
       ),
