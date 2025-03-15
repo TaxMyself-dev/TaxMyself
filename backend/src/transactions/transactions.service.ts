@@ -137,10 +137,6 @@ export class TransactionsService {
               startDate,
             );
             
-            console.log("**************************");
-            console.log("balances are ", balances)
-            
-  
             // Step 6: Save transactions to the database
             for (const transaction of transactions) {
 
@@ -376,7 +372,7 @@ export class TransactionsService {
 
   async getBillNameBySourceName(userId: string, sourceName: string): Promise<string | null> {
     const source = await this.sourceRepo.findOne({
-      where: { sourceName },
+      where: { sourceName, userId },
       relations: ['bill'],
     });
   
@@ -654,8 +650,11 @@ export class TransactionsService {
       throw new Error('Bill not found');
     }
 
+    console.log("bill is ", bill);
+    
     // Create and save the new source
     const newSource = this.sourceRepo.create({
+      userId,
       sourceName,
       sourceType,  // Assuming sourceType is a valid column in your Source entity
       bill

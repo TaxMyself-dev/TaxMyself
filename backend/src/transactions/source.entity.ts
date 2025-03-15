@@ -10,6 +10,9 @@ export class Source {
   id: number;
 
   @Column()
+  userId: string;
+
+  @Column()
   sourceName: string;
 
   @Column({
