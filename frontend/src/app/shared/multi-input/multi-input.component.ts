@@ -1,7 +1,7 @@
 import { Component, ElementRef, EventEmitter, Input, OnInit, Output, Renderer2, ViewChild } from '@angular/core';
 import { SharedModule } from "../shared.module";
 import { ISelectItem } from '../interface';
-import { FormControl, FormGroup } from '@angular/forms';
+import { AbstractControl, FormControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-multi-input',
@@ -10,9 +10,9 @@ import { FormControl, FormGroup } from '@angular/forms';
   //imports: [SharedModule],
 })
 
-export class MultiInputComponent  implements OnInit {
+export class MultiInputComponent implements OnInit {
 
-  @Input() set items(val: ISelectItem[] ) {
+  @Input() set items(val: ISelectItem[]) {
     this.filteredCategories = [...val];
     this.fullItems = [...val];
   }
@@ -22,7 +22,7 @@ export class MultiInputComponent  implements OnInit {
   @Input() controlName: string;
   @Input() disabled: boolean = false;
 
-  @Input() set title (val: string) {
+  @Input() set title(val: string) {
     this.inputLabelName = val;
   }
   // @Input() set disabled(val: boolean) {
@@ -44,12 +44,13 @@ export class MultiInputComponent  implements OnInit {
   filteredCategories: ISelectItem[];
   fullItems: ISelectItem[];
   popoverStyles: { [key: string]: string } = {};
+  isValidValue: boolean = false;
 
   @ViewChild('inputElement', { static: false }) inputElement!: ElementRef;
 
   constructor(private renderer: Renderer2) { }
 
-  ngOnInit() {}
+  ngOnInit() { }
 
   get items(): ISelectItem[] {
     return this.filteredCategories
@@ -61,7 +62,7 @@ export class MultiInputComponent  implements OnInit {
   toggleDropdown() {
     this.showDropdown = !this.showDropdown;
     console.log("show drop: ", this.showDropdown);
-    
+
     // if (this.showDropdown) {
     //   this.disableBodyScroll();
     // } else {
@@ -75,23 +76,26 @@ export class MultiInputComponent  implements OnInit {
     this.filteredCategories = this.fullItems.filter((category) =>
       category.value.toString().toLowerCase().includes(inputValue)
     );
-    if(!this.filteredCategories.length) {
+    if (!this.filteredCategories.length) {
       this.showDropdown = false;
+      this.isValidValue = true;
     }
     else {
       this.showDropdown = true;
-      
+      this.isValidValue = false;
+
     }
   }
 
-  selectCategory(category: string) {
+  selectCategory(valueSelected: string) {
     this.parentForm.patchValue({
-      [this.controlName]: category
+      [this.controlName]: valueSelected
     });
     this.showDropdown = false; // Close the dropdown
     this.parentForm.patchValue({
-      [this.controlName]: category
+      [this.controlName]: valueSelected
     });
+    this.checkValue();
   }
 
   setPopoverPosition() {
@@ -105,14 +109,17 @@ export class MultiInputComponent  implements OnInit {
     }
   }
 
-  // disableBodyScroll() {
-  //   console.log("in disable");
-    
-  //   this.renderer.addClass(document.body, 'no-scroll');
-  // }
+  checkValue() {
+    const control = this.parentForm.get(this.controlName);
+    control.setValidators([this.customValidator.bind(this)]);
+    control.updateValueAndValidity();
+    console.log(control);
+  }
 
-  // enableBodyScroll() {
-  //   this.renderer.removeClass(document.body, 'no-scroll');
-  // }
+  customValidator(control: AbstractControl): ValidationErrors | null {
+    const value = control.value;
+    this.isValidValue = this.fullItems.some(item => item.value === value);
+    return this.isValidValue ? null : { notInList: true };
+  }
 
 }

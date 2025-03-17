@@ -55,8 +55,7 @@ export class UsersController {
 
     @Get('get-cities')
     async getCities() {
-       const x =  this.userService.getCities();
-        return x;
+       return this.userService.getCities();
     }
 
     

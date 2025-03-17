@@ -145,8 +145,6 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
-  // isToastOpen: boolean = false;
-  // messageToast: string = "";
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserData;
@@ -168,12 +166,25 @@ export class TransactionsPage implements OnInit {
         '', [],
       ),
       endDate: new FormControl(
-        '', [],
+        { value: '', disabled: true }, [],
       ),
       accounts: new FormControl(
         '', Validators.required,
       )
     });
+    // Subscribe to the value changes of startDate control for enable endDate control
+    this.transactionsForm.get('startDate').valueChanges.subscribe(startValue => {
+      const endControl = this.transactionsForm.get('endDate');
+      if (startValue) {
+        endControl.enable();
+        // reset the value of end date
+        endControl.setValue(null);
+      } else {
+        endControl.disable();
+        endControl.setValue(null);
+      }
+    });
+    
 
     this.incomeForm = this.formBuilder.group({
       incomeType: new FormControl(

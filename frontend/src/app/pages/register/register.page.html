@@ -70,7 +70,7 @@
             <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
               [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
             <!-- city -->
-            <app-multi-input class="default-input-register" [controlName]="registerFormControls.CITY" [parentForm]="personalForm" [items]="cities" [title]="'עיר'"></app-multi-input>
+            <app-multi-input class="default-input-register" [controlName]="registerFormControls.CITY" [parentForm]="personalForm" [items]="cities" [title]="'עיר'" errorText="העיר חייבת להיות מתוך הרשימה"></app-multi-input>
             <!--------------- employee ------------->
             <app-generic-select class="default-input-register" [controlName]="registerFormControls.EMPLOYEMENTSTATUS" title="סטטוס תעסוקתי"
               [items]="employmentTypeOptionsList" [parentForm]="personalForm" (selectionChanged)="resetBusinessDetails()"></app-generic-select>
