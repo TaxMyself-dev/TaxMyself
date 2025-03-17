@@ -180,16 +180,20 @@ export class Documents {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
   withholdingTaxAmount: number; // סכום הניכוי במקור
 
-  @CreateDateColumn()
+  //@CreateDateColumn()
+  @Column('date')
   docDate: Date; // תאריך המסמך
 
-  @CreateDateColumn()
+  //@CreateDateColumn()
+  @Column('date')
   issueDate: Date; // תאריך הפקה 
 
-  @CreateDateColumn()
+  //@CreateDateColumn()
+  @Column('date')
   valueDate: Date; // תאריך ערך 
 
-  @CreateDateColumn()
+  //@CreateDateColumn()
+  @Column({ type: 'varchar', length: 4 })
   issueHour: string; // שעת הפקה 
 
   @Column({ type: 'varchar', length: 15, nullable: true })

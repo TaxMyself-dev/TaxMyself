@@ -14,11 +14,6 @@ import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 
 
-
-
-
-
-
 @Component({
   selector: 'app-doc-create',
   templateUrl: './doc-create.page.html',
@@ -490,7 +485,8 @@ export class DocCreatePage implements OnInit {
     };
     console.log("🚀 ~ DocCreatePage ~ getDocData ~ x:", x);
 
-    return null
+    //return null
+    return x;
   }
 
   // Function for previewing the doc
@@ -518,7 +514,8 @@ export class DocCreatePage implements OnInit {
   createDoc(): void {
     this.createPDFIsLoading = true;
     const data = this.getDocData();
-
+    console.log("Debug - data is ", data);
+    
     this.docCreateService.createDoc(data)
       .pipe(
         finalize(() => {

@@ -222,19 +222,78 @@ export class DocumentsService {
     }
   }
 
+
+  // async addDoc(userId: string, body: any) {
+  //   console.log("addDoc - in service");
+  //   console.log("body: ", body);
+  //   try {
+  //     const doc = await this.documents.insert({ userId, ...body });
+  //     if (!doc) {
+  //       throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
+  //     }
+  //     return doc;
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
+
+
+
   async addDoc(userId: string, body: any) {
     console.log("addDoc - in service");
     console.log("body: ", body);
+  
     try {
-      const doc = await this.documents.insert({ userId, ...body });
+      // // Ensure required fields are present
+      // if (!body.docType || !body.docNumber || !body.docVatRate || !body.sumBefDisBefVat) {
+      //   throw new HttpException('Missing required fields', HttpStatus.BAD_REQUEST);
+      // }
+
+      // Get current time in HHMM format
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, '0'); // Ensures 2 digits
+      const minutes = now.getMinutes().toString().padStart(2, '0'); // Ensures 2 digits
+      const issueHour = `${hours}${minutes}`; // Format as HHMM
+  
+      // Default values set on the server
+      const serverGeneratedValues = {
+        issueDate: new Date(),
+        docDate: body.docDate ? new Date(body.docDate) : new Date(),
+        valueDate: body.valueDate ? new Date(body.valueDate) : new Date(),
+        issueHour,
+        isCancelled: body.isCancelled ?? false, // Default false if not provided
+        docNumber: body.docNumber.toString(), // Ensure string type
+      };
+
+      console.log("issueHour is ", serverGeneratedValues.issueHour);
+      
+  
+      // Ensure the provided `docType` and `currency` are valid enum values
+      // if (!(body.docType in DocumentType)) {
+      //   throw new HttpException(`Invalid docType: ${body.docType}`, HttpStatus.BAD_REQUEST);
+      // }
+      // if (!(body.currency in Currency)) {
+      //   throw new HttpException(`Invalid currency: ${body.currency}`, HttpStatus.BAD_REQUEST);
+      // }
+  
+      // Merge body with server-generated values
+      const docData = { userId, ...body, ...serverGeneratedValues };
+  
+      // Insert into database
+      const doc = await this.documents.insert(docData);
+  
       if (!doc) {
         throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
       }
+  
       return doc;
     } catch (error) {
-      throw error;
+      console.error("Error in addDoc: ", error);
+      throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+  
+
 
 
 }
