@@ -3,9 +3,10 @@ import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 
 @Component({
-  selector: 'app-generic-select',
-  templateUrl: './generic-select.component.html',
-  styleUrls: ['./generic-select.component.scss', '../shared-styling.scss'],
+    selector: 'app-generic-select',
+    templateUrl: './generic-select.component.html',
+    styleUrls: ['./generic-select.component.scss', '../shared-styling.scss'],
+    standalone: false
 })
 
 export class GenericSelectComponent implements OnChanges{  

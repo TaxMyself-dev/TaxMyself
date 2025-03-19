@@ -10,9 +10,10 @@ import { FormTypes } from 'src/app/shared/enums';
 
 
 @Component({
-  selector: 'my-status',
-  templateUrl: './my-status.page.html',
-  styleUrls: ['./my-status.page.scss'],
+    selector: 'my-status',
+    templateUrl: './my-status.page.html',
+    styleUrls: ['./my-status.page.scss'],
+    standalone: false
 })
 export class MyStatusPage {
 

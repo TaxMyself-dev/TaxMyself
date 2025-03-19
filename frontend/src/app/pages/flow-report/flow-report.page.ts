@@ -10,9 +10,10 @@ import { AuthService } from 'src/app/services/auth.service';
 
 
 @Component({
-  selector: 'app-flow-report',
-  templateUrl: './flow-report.page.html',
-  styleUrls: ['./flow-report.page.scss'],
+    selector: 'app-flow-report',
+    templateUrl: './flow-report.page.html',
+    styleUrls: ['./flow-report.page.scss'],
+    standalone: false
 })
 export class FlowReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';

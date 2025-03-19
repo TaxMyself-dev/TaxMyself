@@ -12,9 +12,10 @@ import { GenericService } from 'src/app/services/generic.service';
 
 
 @Component({
-  selector: 'app-select-client',
-  templateUrl: './select-client.component.html',
-  styleUrls: ['./select-client.component.scss'],
+    selector: 'app-select-client',
+    templateUrl: './select-client.component.html',
+    styleUrls: ['./select-client.component.scss'],
+    standalone: false
 })
 export class SelectClientComponent  implements OnInit {
 

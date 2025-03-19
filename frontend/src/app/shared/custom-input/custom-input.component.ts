@@ -5,9 +5,10 @@ import { ButtonClass, ButtonSize } from '../button/button.enum';
 import { FormTypes } from '../enums';
 
 @Component({
-  selector: 'app-custom-input',
-  templateUrl: './custom-input.component.html',
-  styleUrls: ['./custom-input.component.scss', '../shared-styling.scss', '../generic-input/generic-input.component.scss'],
+    selector: 'app-custom-input',
+    templateUrl: './custom-input.component.html',
+    styleUrls: ['./custom-input.component.scss', '../shared-styling.scss', '../generic-input/generic-input.component.scss'],
+    standalone: false
 })
 export class CustomInputComponent implements OnChanges {
 

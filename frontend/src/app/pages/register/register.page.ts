@@ -12,9 +12,10 @@ import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, fam
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 
 @Component({
-  selector: 'app-register',
-  templateUrl: './register.page.html',
-  styleUrls: ['./register.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-register',
+    templateUrl: './register.page.html',
+    styleUrls: ['./register.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormModules = RegisterFormModules;

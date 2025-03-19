@@ -6,9 +6,10 @@ import { ButtonClass, ButtonSize } from '../button/button.enum';
 
 
 @Component({
-  selector: 'app-table',
-  templateUrl: './table.component.html',
-  styleUrls: ['./table.component.scss'],
+    selector: 'app-table',
+    templateUrl: './table.component.html',
+    styleUrls: ['./table.component.scss'],
+    standalone: false
 })
 export class TableComponent<TFormColumns, TFormHebrewColumns> implements OnChanges {
   @Input() columnsWidth: Map<TFormColumns | string, number>;

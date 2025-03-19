@@ -5,9 +5,10 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
-  selector: 'app-trans-management',
-  templateUrl: './trans-management.component.html',
-  styleUrls: ['./trans-management.component.scss'],
+    selector: 'app-trans-management',
+    templateUrl: './trans-management.component.html',
+    styleUrls: ['./trans-management.component.scss'],
+    standalone: false
 })
 export class TransManagementComponent  implements OnInit {
 

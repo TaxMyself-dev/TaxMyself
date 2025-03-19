@@ -12,9 +12,10 @@ import { DocCreateService } from '../doc-create/doc-create.service';
 
 
 @Component({
-  selector: 'app-pnl-report',
-  templateUrl: './pnl-report.page.html',
-  styleUrls: ['./pnl-report.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-pnl-report',
+    templateUrl: './pnl-report.page.html',
+    styleUrls: ['./pnl-report.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class PnLReportPage implements OnInit {
 

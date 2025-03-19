@@ -4,10 +4,11 @@ import { DateService } from 'src/app/services/date.service';
 
 
 @Component({
-  selector: 'app-sort-date',
-  templateUrl: './sort-date.component.html',
-  styleUrls: ['./sort-date.component.scss', '../search-bar/search-bar.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-sort-date',
+    templateUrl: './sort-date.component.html',
+    styleUrls: ['./sort-date.component.scss', '../search-bar/search-bar.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class SortDateComponent implements OnChanges {
 

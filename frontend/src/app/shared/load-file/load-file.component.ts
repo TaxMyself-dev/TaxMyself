@@ -10,9 +10,10 @@ import { FilesService } from 'src/app/services/files.service';
 
 
 @Component({
-  selector: 'app-load-file',
-  templateUrl: './load-file.component.html',
-  styleUrls: ['./load-file.component.scss']
+    selector: 'app-load-file',
+    templateUrl: './load-file.component.html',
+    styleUrls: ['./load-file.component.scss'],
+    standalone: false
 })
 export class LoadFileComponent implements OnInit, OnChanges {
 

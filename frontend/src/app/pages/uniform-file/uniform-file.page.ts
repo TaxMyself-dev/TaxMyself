@@ -9,9 +9,10 @@ import { ReportingPeriodType } from 'src/app/shared/enums';
 
 
 @Component({
-  selector: 'app-uniform-file',
-  templateUrl: './uniform-file.page.html',
-  styleUrls: ['./uniform-file.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-uniform-file',
+    templateUrl: './uniform-file.page.html',
+    styleUrls: ['./uniform-file.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class UniformFilePage implements OnInit {
 

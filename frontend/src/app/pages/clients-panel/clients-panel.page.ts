@@ -4,9 +4,10 @@ import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { ISelectItem } from 'src/app/shared/interface';
 
 @Component({
-  selector: 'app-clients-panel',
-  templateUrl: './clients-panel.page.html',
-  styleUrls: ['./clients-panel.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-clients-panel',
+    templateUrl: './clients-panel.page.html',
+    styleUrls: ['./clients-panel.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class ClientPanelPage implements OnInit {
   myClients: ISelectItem[] = []; // Clients formatted as ISelectItem[]

@@ -2,9 +2,10 @@ import { Component, OnInit } from '@angular/core';
 import { IItemNavigate } from 'src/app/shared/interface';
 
 @Component({
-  selector: 'app-my-account',
-  templateUrl: './my-account.page.html',
-  styleUrls: ['./my-account.page.scss'],
+    selector: 'app-my-account',
+    templateUrl: './my-account.page.html',
+    styleUrls: ['./my-account.page.scss'],
+    standalone: false
 })
 export class MyAccountPage implements OnInit {
 

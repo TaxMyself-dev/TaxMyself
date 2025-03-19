@@ -3,9 +3,10 @@ import { ButtonSize } from '../button/button.enum';
 import { ModalController, PopoverController } from '@ionic/angular';
 
 @Component({
-  selector: 'app-popup-confirm',
-  templateUrl: './popup-confirm.component.html',
-  styleUrls: ['./popup-confirm.component.scss'],
+    selector: 'app-popup-confirm',
+    templateUrl: './popup-confirm.component.html',
+    styleUrls: ['./popup-confirm.component.scss'],
+    standalone: false
 })
 export class PopupConfirmComponent  implements OnInit {
 

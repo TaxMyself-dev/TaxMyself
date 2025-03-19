@@ -3,9 +3,10 @@ import { FormBuilder, FormGroup, FormArray } from '@angular/forms';
 
 
 @Component({
-  selector: 'app-update-data',
-  templateUrl: './update-data.component.html',
-  styleUrls: ['./update-data.component.scss']
+    selector: 'app-update-data',
+    templateUrl: './update-data.component.html',
+    styleUrls: ['./update-data.component.scss'],
+    standalone: false
 })
 export class UpdateDataComponent implements OnInit, OnChanges {
 

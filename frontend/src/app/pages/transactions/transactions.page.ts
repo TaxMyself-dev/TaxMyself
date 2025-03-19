@@ -18,9 +18,10 @@ import { AuthService } from 'src/app/services/auth.service';
 import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
 
 @Component({
-  selector: 'app-transactions',
-  templateUrl: './transactions.page.html',
-  styleUrls: ['./transactions.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-transactions',
+    templateUrl: './transactions.page.html',
+    styleUrls: ['./transactions.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 
 export class TransactionsPage implements OnInit {

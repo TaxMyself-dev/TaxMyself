@@ -9,9 +9,10 @@ import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
-  selector: 'app-add-bill',
-  templateUrl: './add-bill.component.html',
-  styleUrls: ['./add-bill.component.scss'],
+    selector: 'app-add-bill',
+    templateUrl: './add-bill.component.html',
+    styleUrls: ['./add-bill.component.scss'],
+    standalone: false
 })
 export class AddBillComponent implements OnInit {
 

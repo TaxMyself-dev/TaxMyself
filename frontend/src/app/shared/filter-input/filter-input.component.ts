@@ -1,9 +1,10 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 
 @Component({
-  selector: 'app-filter-input',
-  templateUrl: './filter-input.component.html',
-  styleUrls: ['./filter-input.component.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-filter-input',
+    templateUrl: './filter-input.component.html',
+    styleUrls: ['./filter-input.component.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class FilterInputComponent  implements OnInit {
 

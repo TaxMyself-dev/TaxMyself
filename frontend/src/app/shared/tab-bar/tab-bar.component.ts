@@ -1,9 +1,10 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 
 @Component({
-  selector: 'app-tab-bar',
-  templateUrl: './tab-bar.component.html',
-  styleUrls: ['./tab-bar.component.scss']
+    selector: 'app-tab-bar',
+    templateUrl: './tab-bar.component.html',
+    styleUrls: ['./tab-bar.component.scss'],
+    standalone: false
 })
 export class TabBarComponent {
   @Input() selectedTab: string = '';  // Input for the currently selected tab

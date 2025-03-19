@@ -3,9 +3,10 @@ import { AuthService } from 'src/app/services/auth.service';
 import { IItemNavigate, IUserData } from 'src/app/shared/interface';
 
 @Component({
-  selector: 'app-reports',
-  templateUrl: './reports.page.html',
-  styleUrls: ['./reports.page.scss'],
+    selector: 'app-reports',
+    templateUrl: './reports.page.html',
+    styleUrls: ['./reports.page.scss'],
+    standalone: false
 })
 export class ReportsPage implements OnInit {
  

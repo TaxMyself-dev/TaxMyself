@@ -5,9 +5,10 @@ import { FormTypes } from '../enums';
 import { ModalController } from '@ionic/angular';
 
 @Component({
-  selector: 'app-transaction-edit',
-  templateUrl: './edit-row.component.html',
-  styleUrls: ['./edit-row.component.scss'],
+    selector: 'app-transaction-edit',
+    templateUrl: './edit-row.component.html',
+    styleUrls: ['./edit-row.component.scss'],
+    standalone: false
 })
 export class editRowComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
 

@@ -4,9 +4,10 @@ import { ModalController } from '@ionic/angular';
 import { ButtonSize } from '../button/button.enum';
 
 @Component({
-  selector: 'app-popup-select',
-  templateUrl: './popup-select.component.html',
-  styleUrls: ['./popup-select.component.scss'],
+    selector: 'app-popup-select',
+    templateUrl: './popup-select.component.html',
+    styleUrls: ['./popup-select.component.scss'],
+    standalone: false
 })
 export class PopupSelectComponent  implements OnInit {
 

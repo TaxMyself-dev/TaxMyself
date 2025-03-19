@@ -8,9 +8,10 @@ import { ExpenseFormColumns, ExpenseFormHebrewColumns, NavigationItemClass } fro
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
-  selector: 'app-item-navigate',
-  templateUrl: './item-navigate.component.html',
-  styleUrls: ['./item-navigate.component.scss'],
+    selector: 'app-item-navigate',
+    templateUrl: './item-navigate.component.html',
+    styleUrls: ['./item-navigate.component.scss'],
+    standalone: false
 })
 export class ItemNavigateComponent  implements OnInit{
 

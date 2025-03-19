@@ -19,9 +19,10 @@ import { GenericService } from 'src/app/services/generic.service';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
 
 @Component({
-  selector: 'app-modal',
-  templateUrl: './modal.component.html',
-  styleUrls: ['./modal.component.scss'],
+    selector: 'app-modal',
+    templateUrl: './modal.component.html',
+    styleUrls: ['./modal.component.scss'],
+    standalone: false
 })
 export class ModalExpensesComponent {
   @Input() set editMode(val: boolean) {
