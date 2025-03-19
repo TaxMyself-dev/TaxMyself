@@ -2,9 +2,10 @@ import { Component, OnInit, Output, Input, EventEmitter } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 
 @Component({
-  selector: 'app-select-year',
-  templateUrl: './select-year.component.html',
-  styleUrls: ['./select-year.component.scss']
+    selector: 'app-select-year',
+    templateUrl: './select-year.component.html',
+    styleUrls: ['./select-year.component.scss'],
+    standalone: false
 })
 
 export class SelectYearComponent implements OnInit {

@@ -4,10 +4,10 @@ import { ISelectItem } from '../interface';
 import { FormControl, FormGroup } from '@angular/forms';
 
 @Component({
-  selector: 'app-multi-input',
-  templateUrl: './multi-input.component.html',
-  styleUrls: ['./multi-input.component.scss'],
-  //imports: [SharedModule],
+    selector: 'app-multi-input',
+    templateUrl: './multi-input.component.html',
+    styleUrls: ['./multi-input.component.scss'],
+    standalone: false
 })
 
 export class MultiInputComponent  implements OnInit {

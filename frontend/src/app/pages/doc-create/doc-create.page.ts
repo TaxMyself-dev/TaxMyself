@@ -18,9 +18,10 @@ import { AuthService } from 'src/app/services/auth.service';
 
 
 @Component({
-  selector: 'app-doc-create',
-  templateUrl: './doc-create.page.html',
-  styleUrls: ['./doc-create.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-doc-create',
+    templateUrl: './doc-create.page.html',
+    styleUrls: ['./doc-create.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class DocCreatePage implements OnInit {
 

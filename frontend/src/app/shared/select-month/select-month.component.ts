@@ -3,9 +3,10 @@ import { FormGroup } from '@angular/forms';
 import { ReportingPeriodType } from '../enums';
 
 @Component({
-  selector: 'app-select-month',
-  templateUrl: './select-month.component.html',
-  styleUrls: ['./select-month.component.scss','../shared-styling.scss']
+    selector: 'app-select-month',
+    templateUrl: './select-month.component.html',
+    styleUrls: ['./select-month.component.scss', '../shared-styling.scss'],
+    standalone: false
 })
 export class SelectMonthComponent {
   @Input() oneMonth: boolean = false;

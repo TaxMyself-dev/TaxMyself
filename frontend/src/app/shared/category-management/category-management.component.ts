@@ -2,9 +2,10 @@ import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/cor
 
 
 @Component({
-  selector: 'app-category-management',
-  templateUrl: './category-management.component.html',
-  styleUrls: ['./category-management.component.scss']
+    selector: 'app-category-management',
+    templateUrl: './category-management.component.html',
+    styleUrls: ['./category-management.component.scss'],
+    standalone: false
 })
 export class CategoryManagementComponent implements OnInit, OnChanges {
 

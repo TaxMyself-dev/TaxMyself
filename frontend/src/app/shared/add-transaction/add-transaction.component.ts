@@ -9,9 +9,10 @@ import { ModalController } from '@ionic/angular';
 import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
-  selector: 'app-add-transaction',
-  templateUrl: './add-transaction.component.html',
-  styleUrls: ['./add-transaction.component.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-add-transaction',
+    templateUrl: './add-transaction.component.html',
+    styleUrls: ['./add-transaction.component.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class AddTransactionComponent implements OnInit {
 

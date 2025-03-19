@@ -12,9 +12,10 @@ import { GenericService } from 'src/app/services/generic.service';
 
 
 @Component({
-  selector: 'app-select-supplier',
-  templateUrl: './select-supplier.component.html',
-  styleUrls: ['./select-supplier.component.scss'],
+    selector: 'app-select-supplier',
+    templateUrl: './select-supplier.component.html',
+    styleUrls: ['./select-supplier.component.scss'],
+    standalone: false
 })
 
 

@@ -7,9 +7,10 @@ import { ClientPanelService } from 'src/app/services/clients-panel.service';
 
 
 @Component({
-  selector: 'app-custom-toolbar',
-  templateUrl: './custom-toolbar.component.html',
-  styleUrls: ['./custom-toolbar.component.scss'],
+    selector: 'app-custom-toolbar',
+    templateUrl: './custom-toolbar.component.html',
+    styleUrls: ['./custom-toolbar.component.scss'],
+    standalone: false
 })
 export class CustomToolbarComponent implements OnInit {
 

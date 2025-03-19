@@ -15,9 +15,10 @@ import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 
 @Component({
-  selector: 'app-my-storage',
-  templateUrl: './my-storage.page.html',
-  styleUrls: ['./my-storage.page.scss', '../../shared/shared-styling.scss'],
+    selector: 'app-my-storage',
+    templateUrl: './my-storage.page.html',
+    styleUrls: ['./my-storage.page.scss', '../../shared/shared-styling.scss'],
+    standalone: false
 })
 export class MyStoragePage implements OnInit {
 

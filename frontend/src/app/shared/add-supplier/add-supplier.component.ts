@@ -10,9 +10,10 @@ import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
-  selector: 'app-add-supplier',
-  templateUrl: './add-supplier.component.html',
-  styleUrls: ['./add-supplier.component.scss'],
+    selector: 'app-add-supplier',
+    templateUrl: './add-supplier.component.html',
+    styleUrls: ['./add-supplier.component.scss'],
+    standalone: false
 })
 export class addSupplierComponent implements OnInit {
 

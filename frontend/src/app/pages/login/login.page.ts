@@ -10,10 +10,10 @@ import { FormTypes } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
-  selector: 'app-login',
-  templateUrl: './login.page.html',
-  styleUrls: ['./login.page.scss'],
-
+    selector: 'app-login',
+    templateUrl: './login.page.html',
+    styleUrls: ['./login.page.scss'],
+    standalone: false
 })
 export class LoginPage implements OnInit {
   readonly ButtonSize = ButtonSize;

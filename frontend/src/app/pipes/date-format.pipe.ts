@@ -2,7 +2,8 @@ import { Pipe, PipeTransform } from '@angular/core';
 import { ISelectItem } from '../shared/interface';
 
 @Pipe({
-  name: 'dateFormat'
+    name: 'dateFormat',
+    standalone: false
 })
 export class DateFormatPipe implements PipeTransform {
 
