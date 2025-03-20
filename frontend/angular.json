@@ -11,11 +11,9 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:application",
+          "builder": "@angular-devkit/build-angular:browser",
           "options": {
-            "outputPath": {
-              "base": "public"
-            },
+            "outputPath": "dist/app",
             "index": "src/index.html",
             "polyfills": [
               "src/polyfills.ts"
@@ -39,7 +37,17 @@
               "src/global.scss"
             ],
             "scripts": [],
-            "browser": "src/main.ts"
+            "main": "src/main.ts",
+            "vendorChunk": true,
+            "preserveSymlinks": true,
+            "optimization": {
+              "scripts": true,
+              "styles": {
+                "minify": true,
+                "inlineCritical": false
+              },
+              "fonts": true
+            }
           },
           "configurations": {
             "production": {
