@@ -264,7 +264,7 @@ export interface ITotals  {
     sumAftDisWithVAT: number,
   };
 
-export interface ICreateDataDoc {
+  export interface ICreateDataDoc {
     fid: string;
     prefill_data: {
         [key: string]: number | string | boolean | (string | number)[][],
@@ -274,33 +274,52 @@ export interface ICreateDataDoc {
     digitallySign?: boolean;
 }
 
+export interface IDataDocFormat {
+    generalData: {
+        [key: string]: number | string | boolean; // Global fields
+    };
+    lines: {
+        [key: string]: number | string | boolean; // Dynamic fields per line
+    }[];
+}
+
+// export interface ICreateDataDoc {
+//     [key: string]: number | string | boolean | (string | number)[][],
+//     //table?: (string | number)[][];
+// }
+
 export interface ICreateLineDoc {
-    issuerbusinessNumber: string;
-    generalDocIndex?: string;
-    description: string;
-    unitAmount: number;
-    sumBefVat: number;
-    vatOptions: string;
-    vatRate: number;
-    paymentMethod: string;
-    discount?: number;
-    lineNumber?: string;
-    unitType: string;
-    bankNumber?: string;
-    branchNumber?: string;
-    accountNumber?: string;
-    checkNumber?: string;
-    paymentCheckDate?: Date;
-    cardCompany?: number;
-    card4Number?: string;
-    creditCardName?: string;
-    creditTransType?: number;
-    creditPayNumber?: string;
-    manufacturerName?: string;
-    productSerialNumber?: string;
-    internalNumber?: string;
-    journalEntryMainId?: string;
-  }
+    [key: string]: string | number | boolean; 
+}
+
+
+// export interface ICreateLineDoc {
+//     issuerbusinessNumber: string;
+//     generalDocIndex?: string;
+//     description: string;
+//     unitAmount: number;
+//     sumBefVat: number;
+//     vatOptions: string;
+//     vatRate: number;
+//     paymentMethod: string;
+//     discount?: number;
+//     lineNumber?: string;
+//     unitType: string;
+//     bankNumber?: string;
+//     branchNumber?: string;
+//     accountNumber?: string;
+//     checkNumber?: string;
+//     paymentCheckDate?: Date;
+//     cardCompany?: number;
+//     card4Number?: string;
+//     creditCardName?: string;
+//     creditTransType?: number;
+//     creditPayNumber?: string;
+//     manufacturerName?: string;
+//     productSerialNumber?: string;
+//     internalNumber?: string;
+//     journalEntryMainId?: string;
+//   }
 
 export interface ICreateDocField<TFieldsHebrew, TFields> {
     name: TFieldsHebrew;

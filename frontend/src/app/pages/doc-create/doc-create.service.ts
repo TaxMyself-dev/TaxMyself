@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { ICreateDataDoc, ISettingDoc } from 'src/app/shared/interface';
+import { ICreateDataDoc, IDataDocFormat, ISettingDoc } from 'src/app/shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -42,7 +42,7 @@ export class DocCreateService {
     return this.http.delete<any>(url);
   }
 
-  createDoc(dataFile: ICreateDataDoc): Observable<Blob> {
+  createDoc(dataFile: IDataDocFormat): Observable<Blob> {
     //console.log("🚀 ~ DocCreateService ~ createDoc ~ dataFile:", dataFile)
     //console.log("cerate in service");
     const url = `${environment.apiUrl}documents/create-doc`;

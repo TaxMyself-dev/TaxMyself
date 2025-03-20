@@ -108,6 +108,14 @@ export class DocumentsService {
 
   async generatePDF(data: any, userId: string): Promise<Blob | undefined> {
     console.log('in generate PDF function');
+    console.log("data is ", data);
+    console.log("line_0 is ", data.lines[0].description);
+    console.log("line_1 is ", data.lines[1].description);
+    
+
+
+
+    
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
 
@@ -116,10 +124,111 @@ export class DocumentsService {
       'Content-Type': 'application/json'
     };
 
+    // const fileData = {
+    //   "fid": data.fid,
+    //   "digitallySign": true,
+    //   "prefill_data": {
+    //     "recipientName": data.prefill_data.recipientName,
+    //     "recipientTaxNumber": data.prefill_data.recipientId,
+    //     "docTitle": `${data.prefill_data.docType} ${data.prefill_data.docNumber}`,
+    //     "docDescription": data.prefill_data.docDescription,
+    //     "docDate": data.prefill_data.docDate,
+    //     "issuerName": data.prefill_data.issuerName,
+    //     "issuerbusinessNumber": data.prefill_data.issuerbusinessNumber,
+    //     "issuerAddress": data.prefill_data.issuerAddress,
+    //     "issuerPhone": data.prefill_data.issuerPhone,
+    //     "issuerEmail": data.prefill_data.issuerEmail,
+    //     "subTotal": data.prefill_data.sumBefDisBefVat,
+    //     "totalTax": data.prefill_data.vatSum,
+    //     "total": data.prefill_data.sumAftDisWithVAT,
+    //     "documentType": data.prefill_data.docType,
+    //     "items_table": [
+    //       {
+    //           "סכום": "$2,000",
+    //           "מחיר": "$1,000",
+    //           "כמות": "2",
+    //           "פירוט": "Website Development"
+    //       },
+    //       {
+    //           "סכום": "$500",
+    //           "מחיר": "$250",
+    //           "כמות": "2",
+    //           "פירוט": "Hosting Services"
+    //       }
+    //     ],
+    //     "payments_table": [
+    //       {
+    //           "סכום": "$1,000",
+    //           "תאריך": "2025-03-20",
+    //           "פירוט": "First payment",
+    //           "אמצעי תשלום": "Bank Transfer"
+    //       },
+    //       {
+    //           "סכום": "$1,500",
+    //           "תאריך": "2025-03-25",
+    //           "פירוט": "Final payment",
+    //           "אמצעי תשלום": "Credit Card"
+    //       }
+    //     ],
+    //   }
+    // };
+
+
+    const fileData =
+    { "fid": "RVxpym2O68",
+      "digitallySign": true,
+      "prefill_data":
+    { 
+      "recipientName": data.generalData.recipientName,
+      "recipientTaxNumber": data.generalData.recipientId,
+      "docTitle": "data.prefill_data.docType" ,
+      "docDescription": "Invoice for web development services",
+      "docDate": "2025-03-19",
+      "issuerName": "Tech Solutions Ltd.",
+      "issuerbusinessNumber": "987654321",
+      "issuerAddress": "123 Tech Street, Da Nang, Vietnam",
+      "issuerPhone": "+84-123-456-7890",
+      "issuerEmail": "contact@techsolutions.com",
+      "items_table": await this.transformLinesToItemsTable(data.lines),
+      // "items_table": [
+      //     {
+      //         "סכום": "$2,000",
+      //         "מחיר": "$1,000",
+      //         "כמות": "2",
+      //         "פירוט": "Website Development"
+      //     },
+      //     {
+      //         "סכום": "$500",
+      //         "מחיר": "$250",
+      //         "כמות": "2",
+      //         "פירוט": "Hosting Services"
+      //     }
+      // ],
+      "payments_table": [
+          {
+              "סכום": "$1,000",
+              "תאריך": "2025-03-20",
+              "פירוט": "First payment",
+              "אמצעי תשלום": "Bank Transfer"
+          },
+          {
+              "סכום": "$1,500",
+              "תאריך": "2025-03-25",
+              "פירוט": "Final payment",
+              "אמצעי תשלום": "Credit Card"
+          }
+      ],
+      "subTotal": "$2,500",
+      "totalTax": "$450",
+      "total": "$2,950",
+      "documentType": "Original"
+    }
+  };
+
     try {
 
       // Generate the PDF
-      const response = await axios.post<Blob>(url, data, {
+      const response = await axios.post<Blob>(url, fileData, {
         headers: headers,
         responseType: 'arraybuffer', // ensures the response is treated as a Blob
       });
@@ -134,6 +243,17 @@ export class DocumentsService {
     }
   }
 
+
+  async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
+    return lines.map(line => ({
+        "סכום": `$${line.sumBefVat ?? 0}`,  // Convert numbers to strings with $
+        "מחיר": `$${line.unitAmount ?? 0}`,
+        "כמות": String(line.quantity ?? 1), // Ensure quantity is a string
+        "פירוט": line.description || ""
+    }));
+  }
+
+
   async createDoc(data: any, userId: string): Promise<any> {
     console.log("🚀 ~ DocumentsService ~ createDoc ~ data:", data)
     try {
@@ -143,17 +263,17 @@ export class DocumentsService {
       await this.incrementGeneralIndex(userId);
 
       // Increment the current index
-      const docDetails = await this.incrementCurrentIndex(userId, data.prefill_data.documentType);
+      const docDetails = await this.incrementCurrentIndex(userId, data.generalData.documentType);
       // Check if the increment is valid
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
       // Convert the paymentMethod from hebrew to english
-      data.prefill_data.paymentMethod = this.convertPaymentMethod(data.prefill_data.paymentMethod);
+      data.generalData.paymentMethod = this.convertPaymentMethod(data.generalData.paymentMethod);
 
       // Add the document to the database
-      const newDoc = await this.addDoc(userId, data.prefill_data);
+      const newDoc = await this.addDoc(userId, data.generalData);
       // Check if the document was added successfully
       if (!newDoc) {
         throw new HttpException('Error in addDoc', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -165,7 +285,7 @@ export class DocumentsService {
       // Cancel the increment general index
       await this.decrementGeneralIndex(userId);
       // Cancel the increment current index
-      await this.decrementCurrentIndex(userId, data.prefill_data.documentType);
+      await this.decrementCurrentIndex(userId, data.generalData.documentType);
       throw error;
     }
   }

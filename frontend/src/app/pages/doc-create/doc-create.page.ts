@@ -3,7 +3,7 @@ import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@ang
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
+import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -391,22 +391,23 @@ export class DocCreatePage implements OnInit {
     return null;
   }
 
-  getDocData(): ICreateDataDoc {
+  getDocData(): IDataDocFormat {
+
     const generalFormData = this.generalDetailsForm.value;
     const userFormData = this.userDetailsForm.value;
     const payments = this.paymentsFormArray.value;
+
     console.log("🚀 ~ DocCreatePage ~ getDocData ~ this.paymentsFormArray:", this.paymentsFormArray)
-
     console.log("🚀 ~ DocCreatePage ~ getDocDatas ~ payment:", payments);
-    const createLinesDoc: ICreateLineDoc[] = payments.map((payment: ICreateLineDoc) => ({
 
+    const createLinesDoc: ICreateLineDoc[] = payments.map((payment: ICreateLineDoc) => ({
       issuerbusinessNumber: this.userDetails?.businessNumber,
       description: payment?.description || null,
       unitAmount: payment?.unitAmount || null,
       sumBefVat: payment?.sumBefVat || null,
       vatOpts: payment?.vatOptions,
       vatRate: payment?.vatRate || null,
-      paymentMethod: this.getPaymentMethodHebrew(payment.paymentMethod),
+      paymentMethod: this.getPaymentMethodHebrew(payments.paymentMethod),
       discount: payment?.discount || null,
       unitType: payment?.unitType || null,
       bankNumber: payment?.bankNumber || null,
@@ -426,13 +427,11 @@ export class DocCreatePage implements OnInit {
     }));
     console.log("🚀 ~ DocCreatePage ~ getDocData ~ createLineDocs:", createLinesDoc)
 
-
-    //return
-    const x = {
-      fid: this.getFid(),
-      // line_data: dataTable,
-      prefill_data: {
-        // table: createLinesDoc,
+    // Use the transformed table in your fileData
+    const fileData = {
+      //fid: this.getFid(),
+      generalData: {
+        //table: table, // Use the transformed table here
         issuerName: this.userDetails?.businessName,
         issuerAddress: this.userDetails?.city,
         issuerPhone: this.userDetails?.phone,
@@ -449,44 +448,33 @@ export class DocCreatePage implements OnInit {
         recipientPhone: userFormData?.recipientPhone || null,
         recipientEmail: userFormData?.recipientEmail || null,
         docType: this.fileSelected,
-        //generalDocIndex // create in server
         docDescription: generalFormData?.docDescription,
         docNumber: this.docDetails?.currentIndex,
-        docVatRate: this.fileSelected === 'RECEIPT' ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
+        docVatRate: this.fileSelected === 'RECEIPT' ? 0 : 18,
         transType: 3,
-        amountForeign: this.totalAmount, // Check with elazar
+        amountForeign: this.totalAmount,
         currency: generalFormData?.currency || 'ILS',
-        sumBefDisBefVat: 0, // need to update
-        disSum: 0, // need to update - per line or doc??
-        sumAftDisBefVAT: 450, // need to update 
+        sumBefDisBefVat: 0,
+        disSum: 0,
+        sumAftDisBefVAT: 450,
         vatSum: this.vatAmount ?? 0,
-        sumAftDisWithVAT: 450, // need to update
-        withholdingTaxAmount: 0, // need to update 
-        docDate: generalFormData.documentDate, // Check with elazar
-        // issueDate: create in server
-        // valueDate: null, // Check with elazar create in server??
-        // issueHour: create in server
-        customerKey: null, // Check with elazar
-        matchField: null, // Check with elazar
-        isCancelled: false, // TODO: Change to dinamic value
-        branchCode: null, // Check with elazar
-        operationPerformer: null, // Check with elazar
-        parentDocType: null, // Check with elazar
-        parentDocNumber: null, // Check with elazar
-        parentBranchCode: null, // Check with elazar
-        // amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
-        // totalAmount: this.totalAmount, // If currency is not ILS need to calculate the total amount
-        // paymentMethod: formData.paymentMethod, // Per line
-        // referenceNumber: formData?.referenceNumber || null,// check with elazar
-        // notes: formData?.note || null, // Per line
-        // cancellationReason: formData?.cancellationReason || false, // check with elazar
+        sumAftDisWithVAT: 450,
+        withholdingTaxAmount: 0,
+        docDate: generalFormData.documentDate,
+        isCancelled: false,
+        branchCode: null,
+        operationPerformer: null,
+        parentDocType: null,
+        parentDocNumber: null,
+        parentBranchCode: null,
       },
-      digitallySign: true
+      lines: createLinesDoc,
+      //digitallySign: true,
     };
-    console.log("🚀 ~ DocCreatePage ~ getDocData ~ x:", x);
+    console.log("🚀 ~ DocCreatePage ~ getDocData ~ fileData:", fileData);
 
     //return null
-    return x;
+    return fileData;
   }
 
   // Function for previewing the doc
