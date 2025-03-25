@@ -15,12 +15,18 @@ import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@a
 import { NgArrayPipesModule } from 'ngx-pipes';
 import { SharedModule } from './shared/shared.module';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
+// PrimeNG
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { providePrimeNG } from 'primeng/config';
+import Aura from '@primeng/themes/aura';
+
 
 @NgModule({
   declarations: [AppComponent],
   bootstrap: [AppComponent],
   imports: [
     BrowserModule,
+    BrowserAnimationsModule,
     IonicModule.forRoot(), // Ensure IonicModule is initialized
     AppRoutingModule,
     ReactiveFormsModule,
@@ -33,6 +39,7 @@ import { AuthInterceptor } from './interceptors/auth.interceptor';
     SharedModule,
   ],
   providers: [
+    providePrimeNG({theme: {preset: Aura}}),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     provideHttpClient(withInterceptorsFromDi()),

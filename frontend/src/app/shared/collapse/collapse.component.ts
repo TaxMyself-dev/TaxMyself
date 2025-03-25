@@ -21,17 +21,12 @@ export class collapseComponent  implements OnInit {
   ngOnInit() {}
 
   handleClick(): void {
-    console.log("clicked");
-    console.log(this.isOpen);
     this.isOpen = !this.isOpen;
-    console.log(this.isOpen);
     this.handleIcon();
     this.handleOpen.emit(this.isOpen);
   }
   
   handleIcon(): void {
-    console.log("handle icon");
-    
     this.isOpen ? this.arrowDirrection = "down" : this.arrowDirrection = "left";
   }
 
