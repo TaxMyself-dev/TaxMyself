@@ -1,0 +1,13 @@
+<p-button [label]="!iconOnly() ? buttonText() : null"
+  [attr.aria-label]="iconOnly() ? buttonText() : null" [rounded]="true" [loading]="isLoading()" [disabled]="disabled()" [variant]="variant()" [badge]="badge()"  (onClick)="onClick()"   [styleClass]="getButtonClasses()"> </p-button>
+
+
+  <!-- [styleClass]="buttonSize() === ButtonSize.BIG ? 'big' : (buttonSize() === ButtonSize.SMALL ? 'small' : (buttonSize() === ButtonSize.X_SMALL ? 'x_small' : ''))" -->
+
+  <!-- [ngClass]="{
+    'x_small': buttonSize() === ButtonSize.X_SMALL,
+    'small': buttonSize() === ButtonSize.SMALL,
+    'big': buttonSize() === ButtonSize.BIG,
+    'yellow': buttonColor() === ButtonColor.YELLOW,
+    'black': buttonColor() === ButtonColor.BLACK
+    }" -->

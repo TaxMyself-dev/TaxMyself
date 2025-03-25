@@ -5,7 +5,8 @@ import { AuthService } from 'src/app/services/auth.service';
 // import { UserCredential } from '@firebase/auth-types';
 import { LoadingController } from '@ionic/angular';
 import { EMPTY, catchError, filter, finalize, from, switchMap, tap } from 'rxjs';
-import { ButtonSize } from 'src/app/shared/button/button.enum';
+import { ButtonSize } from '../../components/button/button.enum';
+import { ButtonColor } from '../../components/button/button.enum';
 import { FormTypes } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
 
@@ -17,6 +18,7 @@ import { GenericService } from 'src/app/services/generic.service';
 })
 export class LoginPage implements OnInit {
   readonly ButtonSize = ButtonSize;
+  readonly ButtonColor = ButtonColor;
   readonly formTypes = FormTypes;
 
   // emailVerify: boolean = true;
