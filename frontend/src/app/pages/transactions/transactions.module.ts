@@ -6,6 +6,8 @@ import { IonicModule } from '@ionic/angular';
 import { TransactionsPage } from './transactions.page';
 import { TransactionsPageRoutingModule } from './transactions-routing.module';
 import { SharedModule } from '../../shared/shared.module';
+import { TopNavComponent } from "../../components/topNav/topNav.component";
+import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner.component";
 
 @NgModule({
   imports: [
@@ -14,8 +16,10 @@ import { SharedModule } from '../../shared/shared.module';
     ReactiveFormsModule,
     IonicModule,
     SharedModule,
-    TransactionsPageRoutingModule
-  ],
+    TransactionsPageRoutingModule,
+    TopNavComponent,
+    ImageBunnerComponent
+],
   declarations: [TransactionsPage]
 })
 export class TransactionsPageModule {}

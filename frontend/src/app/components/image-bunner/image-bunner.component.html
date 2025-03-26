@@ -1,0 +1,11 @@
+<div class="image-container" [ngStyle]="{'width': imageWidth(), 'height': imageHeight()}">
+  <img [src]="imageUrl()" [alt]="alt()" class="image"/>
+
+  <div class="overlay" [ngClass]="textPosition()">
+    <p class="title" >{{title()}}</p>
+    <p class="content" >{{content()}}</p>
+  </div>
+  <div [ngClass]="buttonPosition()"  class="overlay-button" >
+    <app-p-button [buttonText]="buttonLabel()" [buttonColor]="buttonColor()" [buttonSize]="buttonSize()"></app-p-button>
+  </div>
+</div>
