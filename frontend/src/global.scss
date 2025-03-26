@@ -134,6 +134,10 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.small {
+    width: 120px;
+  }
+
+  &.x_small {
     width: 100px;
   }
 
@@ -161,6 +165,17 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       background-color: #333;
       border-color: #333;
       color: white;
+    }
+  }
+
+  &.white {
+    background-color: white;
+    border-color: white;
+    color: black;
+    &.white:hover {
+      background-color: white;
+      border-color: white;
+      color: black;
     }
   }
 

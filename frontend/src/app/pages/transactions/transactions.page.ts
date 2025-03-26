@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
-import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { bunnerImagePosition, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
@@ -11,11 +11,12 @@ import { Router } from '@angular/router';
 import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
 import { DateService } from 'src/app/services/date.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
+import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
+import { ButtonClass } from 'src/app/shared/button/button.enum';
 
 @Component({
     selector: 'app-transactions',
@@ -124,10 +125,13 @@ export class TransactionsPage implements OnInit {
     {label: 'צור קשר'},
   ]
 
+  readonly bunnerImagePosition = bunnerImagePosition;
+
   public COLUMNS_TO_IGNORE_EXPENSES = ['necessity', 'finsiteId', 'businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   // public COLUMNS_TO_SHOW_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   public COLUMNS_TO_IGNORE_INCOMES = ['necessity','finsiteId', 'businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
+  readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
 

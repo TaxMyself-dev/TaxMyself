@@ -18,7 +18,7 @@ export class ButtonComponent  implements OnInit {
   buttonText = input<string>('Button');
   // buttonSize = input<"small" | "big" | 'x_small'>('big');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
-  buttonColor = input<string>();
+  buttonColor = input<ButtonColor>(ButtonColor.BLACK);
   badge = input<string>(); // Number for notifications TODO: check if need pass string or number
   variant = input<"outlined" | "text">(null);
   isLoading = input<boolean>(false);
@@ -44,6 +44,7 @@ export class ButtonComponent  implements OnInit {
       'big': this.buttonSize() === ButtonSize.BIG,
       'yellow': this.buttonColor() === ButtonColor.YELLOW,
       'black': this.buttonColor() === ButtonColor.BLACK,
+      'white': this.buttonColor() === ButtonColor.WHITE,
       'outlined': this.variant() === 'outlined',
     };
   

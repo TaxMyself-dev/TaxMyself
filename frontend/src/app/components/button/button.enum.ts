@@ -8,4 +8,5 @@ export enum ButtonSize {
 export enum ButtonColor {
    YELLOW = 'rgba(246, 255, 172, 0.8)',
    BLACK = 'black',
+   WHITE = 'white',
 }

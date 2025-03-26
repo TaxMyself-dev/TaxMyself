@@ -432,3 +432,13 @@ export const reportingPeriodTypeOptionsList = [
   { value: ReportingPeriodType.ANNUAL, name: ReportingPeriodTypeLabels[ReportingPeriodType.ANNUAL] },
   { value: ReportingPeriodType.DATE_RANGE, name: ReportingPeriodTypeLabels[ReportingPeriodType.DATE_RANGE] }
 ];
+
+export enum bunnerImagePosition {
+  TOP_LEFT = 'top-left',
+  TOP_RIGHT = 'top-right',
+  CENTER = 'center',
+  CENTER_LEFT = 'left-center',
+  CENTER_RGHIT = 'right-center',
+  BOTTOM_LEFT = 'bottom-left',
+  BOTTOM_RIGHT = 'bottom-right'
+}

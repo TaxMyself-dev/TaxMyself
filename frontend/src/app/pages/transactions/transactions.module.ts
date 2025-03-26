@@ -7,6 +7,7 @@ import { TransactionsPage } from './transactions.page';
 import { TransactionsPageRoutingModule } from './transactions-routing.module';
 import { SharedModule } from '../../shared/shared.module';
 import { TopNavComponent } from "../../components/topNav/topNav.component";
+import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner.component";
 
 @NgModule({
   imports: [
@@ -16,7 +17,8 @@ import { TopNavComponent } from "../../components/topNav/topNav.component";
     IonicModule,
     SharedModule,
     TransactionsPageRoutingModule,
-    TopNavComponent
+    TopNavComponent,
+    ImageBunnerComponent
 ],
   declarations: [TransactionsPage]
 })
