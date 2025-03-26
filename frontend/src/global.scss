@@ -57,6 +57,8 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 @import "@ionic/angular/css/text-transformation.css";
 @import "@ionic/angular/css/flex-utils.css";
 
+@import "primeicons/primeicons.css";
+
 .expense-modal {
   --width: 80%;
   --height: 70%;
@@ -126,21 +128,18 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 }
 
-.big.p-button {
-  width: 200px;
-}
-
-.small.p-button {
-  width: 100px;
-}
-
 .p-button {
   &.big {
     width: 200px;
   }
 
   &.small {
-    width: 200px;
+    width: 100px;
+  }
+
+  &.icon {
+    width: 25px;
+    height: 25px;
   }
 
   &.yellow {
@@ -148,7 +147,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     border-color: rgba(246, 255, 172, 0.8);
     color: gray;
     &.yellow:hover {
-      background-color: rgba(246, 255, 172, 1); // change to your desired hover color
+      background-color: rgba(246, 255, 172, 1);
       border-color: rgba(246, 255, 172, 1);
       color: gray
     }
@@ -159,9 +158,20 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     border-color: black;
     color: white;
     &.black:hover {
-      background-color: #333; // change to your desired hover color for black
+      background-color: #333;
       border-color: #333;
       color: white;
+    }
+  }
+
+  &.outlined {
+    background-color: white;
+    border-color: rgb(186, 183, 183);
+    color: black;
+    &.outlined:hover {
+      background-color: transparent;
+      border-color: rgb(186, 183, 183);
+      color: black;
     }
   }
 }

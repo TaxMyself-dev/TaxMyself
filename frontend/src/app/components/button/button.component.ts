@@ -23,15 +23,16 @@ export class ButtonComponent  implements OnInit {
   variant = input<"outlined" | "text">(null);
   isLoading = input<boolean>(false);
   disabled = input<boolean>(false);
-
+  
   readonly ButtonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   
   
   constructor() { }
   
-  ngOnInit() {}
-
+  ngOnInit() {
+  }
+  
   onClick(): void {
 
   }
@@ -42,7 +43,8 @@ export class ButtonComponent  implements OnInit {
       'small': this.buttonSize() === ButtonSize.SMALL,
       'big': this.buttonSize() === ButtonSize.BIG,
       'yellow': this.buttonColor() === ButtonColor.YELLOW,
-      'black': this.buttonColor() === ButtonColor.BLACK
+      'black': this.buttonColor() === ButtonColor.BLACK,
+      'outlined': this.variant() === 'outlined',
     };
   
     return Object.keys(classes).filter(className => classes[className]).join(' ');

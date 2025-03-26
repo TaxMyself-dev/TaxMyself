@@ -115,6 +115,15 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.NOTE, 1],
   ]);
 
+  readonly menuItems = [
+    {label: 'דף הבית'},
+    {label: 'פרופיל אישי'},
+    {label: 'תזרים'},
+    {label: 'דוחות'},
+    {label: 'הגדרות'},
+    {label: 'צור קשר'},
+  ]
+
   public COLUMNS_TO_IGNORE_EXPENSES = ['necessity', 'finsiteId', 'businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   // public COLUMNS_TO_SHOW_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   public COLUMNS_TO_IGNORE_INCOMES = ['necessity','finsiteId', 'businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];

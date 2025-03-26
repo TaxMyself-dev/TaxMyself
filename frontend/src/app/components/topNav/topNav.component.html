@@ -1,0 +1,13 @@
+<p-menubar [model]="menuItems()">
+    <ng-template pTemplate="start">
+      <img class="top-nav-logo" src="https://primefaces.org/cdn/primeng/images/galleria/galleria10.jpg" alt="Logo" height="40">
+    </ng-template>
+    <ng-template pTemplate="end">
+        <div class="top-nav-buttons">
+            <app-p-button [buttonText]="'הפקת דוח'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL"></app-p-button>
+            <app-p-button [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.ICON"  [variant]="'outlined'" [icon]="'pi pi-bell'" [iconOnly]="true" [buttonText]="'התראות'"></app-p-button>
+        </div>
+      </ng-template>
+  </p-menubar>
+
+  
