@@ -294,7 +294,7 @@ export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;
 
 export enum PaymentMethodValue {
   CASH = 'CASH',
-  TRANSFER = 'TRANSFER',
+  BANK_TRANSFER = 'BANK_TRANSFER',
   BIT = 'BIT',
   PAYBOX = 'PAYBOX',
   CREDIT_CARD = 'CREDIT_CARD',
@@ -303,7 +303,7 @@ export enum PaymentMethodValue {
 
 export enum PaymentMethodName {
   CASH = 'מזומן',
-  TRANSFER = 'העברה בנקאית',
+  BANK_TRANSFER = 'העברה בנקאית',
   BIT = 'ביט',
   PAYBOX = 'פייבוקס',
   CREDIT_CARD = 'כרטיס אשראי',
@@ -311,9 +311,9 @@ export enum PaymentMethodName {
 }
 
 export enum VatOptionsValue { 
-  WITH_OUT = 'WITH_OUT',
-  BEFORE = 'BEFORE',
-  AFTER = 'AFTER',
+  INCLUDE = 'INCLUDE',
+  EXCLUDE = 'EXCLUDE',
+  WITHOUT = 'WITHOUT',
 }
 
 export enum UnitOfMeasure {
@@ -333,7 +333,7 @@ export enum CreditTransactionType {
 
 export type VatOptions = 'WITH_OUT' | 'BEFORE' | 'AFTER'
 
-export type PaymentMethodType = 'CASH' | 'TRANSFER' | 'BIT' | 'PAYBOX' | 'CREDIT_CARD' | 'CHECK';
+export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' | 'CREDIT_CARD' | 'CHECK';
 
 export enum CardCompany {
   ISRACARD = 'ISRACARD',

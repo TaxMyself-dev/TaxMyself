@@ -130,7 +130,7 @@ export enum UnitOfMeasure {
 
 export enum VatOptions {
   INCLUDE = 1,
-  NONE_INCLUDE = 2,
+  EXCLUDE = 2,
   WITHOUT = 3
 }
 

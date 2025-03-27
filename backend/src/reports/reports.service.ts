@@ -493,6 +493,8 @@ export class ReportsService {
 
       // Add D110 section
       const d110 = await this.generateD110Section(documents);
+      console.log("d110 is: ", d110);
+      
       recordSummary.D110 += (d110.match(/\n/g) || []).length;
       content += d110;
 
@@ -514,6 +516,8 @@ export class ReportsService {
       // Add Z900 section first
       content += this.generateZ900Section(businessNumber, uniqueId);
 
+      //console.log("content is: ", content);
+      
       return { 
         content, 
         summary: Object.keys(recordSummary).map((key) => ({
@@ -549,7 +553,7 @@ export class ReportsService {
         const f_1213 = this.formatField(doc.recipientStateCode, 2, '!');
         const f_1214 = this.formatField(doc.recipientPhone, 15, '!');
         const f_1215 = this.formatField(doc.recipientId, 9, '0');
-        const f_1216 = this.formatField(doc.valueDate, 8, '!'); // תאריך ערך - לבדוק עם שריה
+        const f_1216 = this.formatField(this.formatDateYYYYMMDD(doc.valueDate), 8, '!'); // תאריך ערך - לבדוק עם שריה
         const f_1217 = this.formatAmount(doc.amountForeign, 12, 2); // ימולא רק בחשבונית ייצוא - לבדוק עם שריה
         const f_1218 = this.formatField(doc.currency, 3, '!');
         const f_1219 = this.formatAmount(doc.sumBefDisBefVat, 12, 2);
@@ -567,7 +571,7 @@ export class ReportsService {
         const f_1234 = this.formatField(doc.generalDocIndex, 7, '!');
         const f_1235 = this.formatField("!", 13, '!');
 
-        const debugMode = true; // Change to false for mission mode
+        const debugMode = false; // Change to false for mission mode
 
         if (debugMode) {
           result += `C100\n\
@@ -888,7 +892,12 @@ export class ReportsService {
 
     // Format a field to a fixed length
     private formatField(value: string | number | Date, length: number, padChar: string = ' ', alignLeft: boolean = false): string {
+
       let strValue: string;
+
+      if (value === null || value === undefined) {
+        return '!'.repeat(length);
+      }
   
       // Convert Date to YYYYMMDD format before processing
       if (value instanceof Date) {
@@ -933,7 +942,11 @@ export class ReportsService {
 
 
     // Format date to YYYYMMDD
-    private formatDateYYYYMMDD(date: Date): string {
+    private formatDateYYYYMMDD(dateInput: Date | string): string {
+      //console.log("formatDateYYYYMMDD: date is ", date);
+      //console.log(typeof date);
+      
+      const date = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
       return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
     }
 
