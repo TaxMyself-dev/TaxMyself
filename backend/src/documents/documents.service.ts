@@ -4,7 +4,8 @@ import axios, { AxiosInstance } from 'axios';
 import { Repository } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
-import { DocumentType } from 'src/enum';
+import { DocLines } from './doc-lines.entity';
+import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
 
 
 
@@ -18,7 +19,9 @@ export class DocumentsService {
     @InjectRepository(SettingDocuments)
     private settingDocuments: Repository<SettingDocuments>,
     @InjectRepository(Documents)
-    private documents: Repository<Documents>,
+    private documentsRepo: Repository<Documents>,
+    @InjectRepository(DocLines)
+    private docLinesRepo: Repository<DocLines>,
   ) { }
 
   isIncrement: boolean = false;
@@ -108,13 +111,9 @@ export class DocumentsService {
 
   async generatePDF(data: any, userId: string): Promise<Blob | undefined> {
     console.log('in generate PDF function');
-    console.log("data is ", data);
-    console.log("line_0 is ", data.lines[0].description);
-    console.log("line_1 is ", data.lines[1].description);
-    
-
-
-
+    console.log("docData is ", data.docData);
+    console.log("line_0 is ", data.linesData[0].description);
+    //console.log("line_1 is ", data.lines[1].description);
     
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
@@ -124,104 +123,27 @@ export class DocumentsService {
       'Content-Type': 'application/json'
     };
 
-    // const fileData = {
-    //   "fid": data.fid,
-    //   "digitallySign": true,
-    //   "prefill_data": {
-    //     "recipientName": data.prefill_data.recipientName,
-    //     "recipientTaxNumber": data.prefill_data.recipientId,
-    //     "docTitle": `${data.prefill_data.docType} ${data.prefill_data.docNumber}`,
-    //     "docDescription": data.prefill_data.docDescription,
-    //     "docDate": data.prefill_data.docDate,
-    //     "issuerName": data.prefill_data.issuerName,
-    //     "issuerbusinessNumber": data.prefill_data.issuerbusinessNumber,
-    //     "issuerAddress": data.prefill_data.issuerAddress,
-    //     "issuerPhone": data.prefill_data.issuerPhone,
-    //     "issuerEmail": data.prefill_data.issuerEmail,
-    //     "subTotal": data.prefill_data.sumBefDisBefVat,
-    //     "totalTax": data.prefill_data.vatSum,
-    //     "total": data.prefill_data.sumAftDisWithVAT,
-    //     "documentType": data.prefill_data.docType,
-    //     "items_table": [
-    //       {
-    //           "סכום": "$2,000",
-    //           "מחיר": "$1,000",
-    //           "כמות": "2",
-    //           "פירוט": "Website Development"
-    //       },
-    //       {
-    //           "סכום": "$500",
-    //           "מחיר": "$250",
-    //           "כמות": "2",
-    //           "פירוט": "Hosting Services"
-    //       }
-    //     ],
-    //     "payments_table": [
-    //       {
-    //           "סכום": "$1,000",
-    //           "תאריך": "2025-03-20",
-    //           "פירוט": "First payment",
-    //           "אמצעי תשלום": "Bank Transfer"
-    //       },
-    //       {
-    //           "סכום": "$1,500",
-    //           "תאריך": "2025-03-25",
-    //           "פירוט": "Final payment",
-    //           "אמצעי תשלום": "Credit Card"
-    //       }
-    //     ],
-    //   }
-    // };
-
-
     const fileData =
     { "fid": "RVxpym2O68",
       "digitallySign": true,
       "prefill_data":
     { 
-      "recipientName": data.generalData.recipientName,
-      "recipientTaxNumber": data.generalData.recipientId,
-      "docTitle": "data.prefill_data.docType" ,
-      "docDescription": "Invoice for web development services",
-      "docDate": "2025-03-19",
-      "issuerName": "Tech Solutions Ltd.",
-      "issuerbusinessNumber": "987654321",
-      "issuerAddress": "123 Tech Street, Da Nang, Vietnam",
-      "issuerPhone": "+84-123-456-7890",
-      "issuerEmail": "contact@techsolutions.com",
-      "items_table": await this.transformLinesToItemsTable(data.lines),
-      // "items_table": [
-      //     {
-      //         "סכום": "$2,000",
-      //         "מחיר": "$1,000",
-      //         "כמות": "2",
-      //         "פירוט": "Website Development"
-      //     },
-      //     {
-      //         "סכום": "$500",
-      //         "מחיר": "$250",
-      //         "כמות": "2",
-      //         "פירוט": "Hosting Services"
-      //     }
-      // ],
-      "payments_table": [
-          {
-              "סכום": "$1,000",
-              "תאריך": "2025-03-20",
-              "פירוט": "First payment",
-              "אמצעי תשלום": "Bank Transfer"
-          },
-          {
-              "סכום": "$1,500",
-              "תאריך": "2025-03-25",
-              "פירוט": "Final payment",
-              "אמצעי תשלום": "Credit Card"
-          }
-      ],
-      "subTotal": "$2,500",
-      "totalTax": "$450",
-      "total": "$2,950",
-      "documentType": "Original"
+      "recipientName": data.docData.recipientName,
+      "recipientTaxNumber": data.docData.recipientId,
+      "docTitle": data.fileData.hebrewNameDoc  + " מספר " + data.docData.docNumber,
+      "docDescription": "",
+      "docDate": data.docData.docDate,
+      "issuerDetails": 
+        data.fileData.issuerName + '\n' +
+        data.fileData.issuerPhone + '\n' +
+        data.fileData.issuerEmail + '\n' +
+        data.fileData.issuerAddress,
+      "items_table": await this.transformLinesToItemsTable(data.linesData),
+      "payments_table": await this.transformLinesToPaymentsTable(data.linesData),
+      "subTotal": data.docData.sumAftDisBefVAT,
+      "totalTax": data.docData.vatSum,
+      "total": data.docData.sumAftDisWithVAT,
+      "documentType": "מקור"
     }
   };
 
@@ -246,16 +168,64 @@ export class DocumentsService {
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
-        "סכום": `$${line.sumBefVat ?? 0}`,  // Convert numbers to strings with $
-        "מחיר": `$${line.unitAmount ?? 0}`,
-        "כמות": String(line.quantity ?? 1), // Ensure quantity is a string
+        "סכום": `₪${line.sumBefVat * line.unitAmount}`,
+        "מחיר": `₪${line.sumBefVat}`,
+        "כמות": String(line.unitAmount),
         "פירוט": line.description || ""
     }));
   }
 
+  
+  async transformLinesToPaymentsTable(lines: any[]): Promise<any[]> {
+    return lines.map(line => {
+      
+      console.log("line is ", line);
+      
+      let sum: number;
+      let details: string;
+      let paymentMethodHebrew: string;
+
+      console.log("line.vatOpts is ", line.vatOpts);
+      
+      if (line.vatOpts === 'INCLUDE') {
+        sum = line.sumBefVat + (line.sumBefVat * line.vatRate / 100);
+      } else if (line.vatOpts === 'EXCLUDE' || line.vatOpts === 'WITHOUT') {
+        sum = line.sumBefVat;
+      }
+
+      switch (line.paymentMethod) {
+        case 'CASH':
+          details = 'שולם במזומן';
+          paymentMethodHebrew = 'מזומן';
+          break;
+        case 'BANK_TRANSFER':
+          details = `${line.accountNumber} - חשבון ,${line.branchNumber} - סניף ,${line.bankNumber} - בנק`;
+          paymentMethodHebrew = 'העברה בנקאית';
+          break;
+        case 'CHECK':
+          details = `${line.checkNumber} - מספר המחאה`;
+          paymentMethodHebrew = 'צ׳ק';
+          break;
+        case 'CREDIT_CARD':
+          details = `${line.card4Number} - ${line.cardCompany}`;
+          paymentMethodHebrew = 'כרטיס אשראי';
+          break;
+        default:
+          throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
+      }
+
+      return {
+        "סכום": `₪${Number(sum).toFixed(2)}`,
+        "תאריך": line.payDate,
+        "פירוט": details,
+        "אמצעי תשלום": paymentMethodHebrew
+      };
+    });
+  }
+
 
   async createDoc(data: any, userId: string): Promise<any> {
-    console.log("🚀 ~ DocumentsService ~ createDoc ~ data:", data)
+    console.log("DocumentsService ~ createDoc ~ data:", data)
     try {
       // Generate the PDF
       const pdfBlob = await this.generatePDF(data, userId);
@@ -263,21 +233,24 @@ export class DocumentsService {
       await this.incrementGeneralIndex(userId);
 
       // Increment the current index
-      const docDetails = await this.incrementCurrentIndex(userId, data.generalData.documentType);
+      const docDetails = await this.incrementCurrentIndex(userId, data.docData.documentType);
       // Check if the increment is valid
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
       // Convert the paymentMethod from hebrew to english
-      data.generalData.paymentMethod = this.convertPaymentMethod(data.generalData.paymentMethod);
+      data.docData.paymentMethod = this.convertPaymentMethod(data.docData.paymentMethod);
 
       // Add the document to the database
-      const newDoc = await this.addDoc(userId, data.generalData);
+      const newDoc = await this.saveDocInfo(userId, data.docData);
       // Check if the document was added successfully
       if (!newDoc) {
-        throw new HttpException('Error in addDoc', HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       };
+
+       // Add the lines to the database
+       await this.saveLinesInfo(userId, data.linesData);
 
       return pdfBlob;
     }
@@ -285,7 +258,7 @@ export class DocumentsService {
       // Cancel the increment general index
       await this.decrementGeneralIndex(userId);
       // Cancel the increment current index
-      await this.decrementCurrentIndex(userId, data.generalData.documentType);
+      await this.decrementCurrentIndex(userId, data.docData.documentType);
       throw error;
     }
   }
@@ -343,31 +316,11 @@ export class DocumentsService {
   }
 
 
-  // async addDoc(userId: string, body: any) {
-  //   console.log("addDoc - in service");
-  //   console.log("body: ", body);
-  //   try {
-  //     const doc = await this.documents.insert({ userId, ...body });
-  //     if (!doc) {
-  //       throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
-  //     }
-  //     return doc;
-  //   } catch (error) {
-  //     throw error;
-  //   }
-  // }
-
-
-
-  async addDoc(userId: string, body: any) {
-    console.log("addDoc - in service");
-    console.log("body: ", body);
+  async saveDocInfo(userId: string, data: any) {
+    console.log("saveDocInfo - in service");
+    console.log("data: ", data);
   
     try {
-      // // Ensure required fields are present
-      // if (!body.docType || !body.docNumber || !body.docVatRate || !body.sumBefDisBefVat) {
-      //   throw new HttpException('Missing required fields', HttpStatus.BAD_REQUEST);
-      // }
 
       // Get current time in HHMM format
       const now = new Date();
@@ -378,29 +331,18 @@ export class DocumentsService {
       // Default values set on the server
       const serverGeneratedValues = {
         issueDate: new Date(),
-        docDate: body.docDate ? new Date(body.docDate) : new Date(),
-        valueDate: body.valueDate ? new Date(body.valueDate) : new Date(),
+        docDate: data.docDate ? new Date(data.docDate) : new Date(),
+        valueDate: data.valueDate ? new Date(data.valueDate) : new Date(),
         issueHour,
-        isCancelled: body.isCancelled ?? false, // Default false if not provided
-        docNumber: body.docNumber.toString(), // Ensure string type
+        isCancelled: data.isCancelled ?? false, // Default false if not provided
+        docNumber: data.docNumber.toString(), // Ensure string type
       };
-
-      console.log("issueHour is ", serverGeneratedValues.issueHour);
-      
-  
-      // Ensure the provided `docType` and `currency` are valid enum values
-      // if (!(body.docType in DocumentType)) {
-      //   throw new HttpException(`Invalid docType: ${body.docType}`, HttpStatus.BAD_REQUEST);
-      // }
-      // if (!(body.currency in Currency)) {
-      //   throw new HttpException(`Invalid currency: ${body.currency}`, HttpStatus.BAD_REQUEST);
-      // }
   
       // Merge body with server-generated values
-      const docData = { userId, ...body, ...serverGeneratedValues };
+      const docData = { userId, ...data, ...serverGeneratedValues };
   
       // Insert into database
-      const doc = await this.documents.insert(docData);
+      const doc = await this.documentsRepo.insert(docData);
   
       if (!doc) {
         throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -408,12 +350,44 @@ export class DocumentsService {
   
       return doc;
     } catch (error) {
-      console.error("Error in addDoc: ", error);
+      console.error("Error in saveDocInfo: ", error);
+      throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+  async saveLinesInfo(userId: string, data: any[]) {
+    if (!Array.isArray(data)) {
+      throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
+    }
+  
+    try {
+      for (const item of data) {
+
+        console.log("vatOpts is ", item.vatOpts);
+        console.log("unitAmount is ", item.unitAmount);
+        
+        const vatOptsRaw = item.vatOpts;
+        const paymentMethodRaw = item.paymentMethod;
+        console.log("vatOptsRaw is ", vatOptsRaw);
+
+        // Convert string to enum value
+        const vatOpts = VatOptions[vatOptsRaw as keyof typeof VatOptions];
+        const paymentMethod = PaymentMethodType[paymentMethodRaw as keyof typeof PaymentMethodType];
+
+        if (vatOpts === undefined) {
+          throw new HttpException(`Invalid vatOpts value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
+        }
+
+        const linesData = { userId, ...item, vatOpts, paymentMethod };
+        await this.docLinesRepo.insert(linesData); // If this fails, it will throw
+      }
+      // No need to return anything
+    } catch (error) {
+      console.error("Error in saveLinesInfo: ", error);
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
   
-
-
 
 }

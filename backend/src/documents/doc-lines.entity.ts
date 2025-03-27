@@ -41,6 +41,9 @@ export class DocLines {
   @Column({ type: 'enum', enum: UnitOfMeasure, default: UnitOfMeasure.UNIT })
   unitType: UnitOfMeasure;
 
+  @Column('date')
+  payDate: Date; // תאריך התשלום
+
   @Column({ type: 'varchar', length: 10, nullable: true })
   bankNumber: string; // מספר הבנק
 

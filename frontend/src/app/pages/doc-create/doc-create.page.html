@@ -2,9 +2,6 @@
 
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
-    <!-- <app-search-bar class="generic-searchbar-wrapper" 
-      (onSearchClick)="onSubmit()" [customTemplate]="docCreateTemplate">
-    </app-search-bar> -->
     <app-generic-select class="default-input-doc" title="בחר מסמך" [items]="DocCreateTypeList"
       (selectionChanged)="onSelectedDoc($event)">
     </app-generic-select>
@@ -113,12 +110,12 @@
                   [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                   [inputType]="field.type"></app-generic-input>
 
-                <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
+                <!-- <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
                   [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                   [inputType]="field.type"></app-generic-input>
 
                 <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
-                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input>
+                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input> -->
 
                 <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
                   [parentForm]="getPaymentFormByIndex(i)" (selectionChanged)="onSelectionChanged(field.value, $event, i)"
