@@ -66,9 +66,9 @@
           </ng-template>
 
           <ng-template #billRenderCell>
-            <ng-container *ngIf="field.value === 'זמני'; else defaultCell">
+            <ng-container *ngIf="field.value === 'לא שוייך'; else defaultCell">
               <ion-col class="text-cell"
-                title="{{ field.value }}" *ngIf="field.value === 'זמני'; else defaultCell"
+                title="{{ field.value }}" *ngIf="field.value === 'לא שוייך'; else defaultCell"
                 class="special-cell"
                 [size]="field.key == 'dateTimestamp' ? 1.5 : columnsWidth?.get(field.key) ?? baseSize"
                 (click)="openAddBill(row)">

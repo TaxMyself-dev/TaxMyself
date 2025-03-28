@@ -1,7 +1,5 @@
-<ion-app>
-  <!-- <ion-split-pane contentId="main-content"> -->
-
-  <ion-menu contentId="main-content" type="overlay">
+<!-- <ion-app>
+  <ion-menu  type="overlay">
     <ion-menu-button></ion-menu-button>
     <ion-content>
       <ion-list id="inbox-list">
@@ -60,14 +58,16 @@
       <ion-button (click)="openCloseLogOutPopup()">לא</ion-button>
     </ng-template>
   </ion-popover>
-  <ion-router-outlet id="main-content">
-
-  </ion-router-outlet>
   <app-toast></app-toast>
-  <!-- </ion-split-pane> -->
+  
+</ion-app> -->
+<app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
+<router-outlet id="main-content">
+</router-outlet>
+<!-- 
+<ion-router-outlet id="main-content">
 
-</ion-app>
-
+</ion-router-outlet> -->
 
 
 

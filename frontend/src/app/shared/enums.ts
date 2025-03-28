@@ -93,7 +93,7 @@ export enum TransactionsOutcomesColumns {
   SUM = 'sum',
   CATEGORY = 'category',
   SUBCATEGORY = 'subCategory',
-  MONTH_REPORT = 'monthReport',
+  MONTH_REPORT = 'vatReportingDate',
   CHECKBOX = 'checkbox',
   ACTIONS = 'actions',
   NOTE = 'note2'

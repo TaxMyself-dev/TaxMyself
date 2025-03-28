@@ -209,6 +209,8 @@ export interface ITransactionData {
     billName: string;
     vatReportingDate: string;
     businessNumber: string;
+    note: string;
+    note2: string;
 }
 
 export interface ITableRowAction {
