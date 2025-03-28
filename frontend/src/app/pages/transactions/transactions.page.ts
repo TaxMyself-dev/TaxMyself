@@ -230,7 +230,7 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
-    this.getTransactions();
+    // this.getTransactions();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
     this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
