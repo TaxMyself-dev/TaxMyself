@@ -8,6 +8,7 @@ import { TransactionsPageRoutingModule } from './transactions-routing.module';
 import { SharedModule } from '../../shared/shared.module';
 import { TopNavComponent } from "../../components/topNav/topNav.component";
 import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner.component";
+import { GenericTableComponent } from "../../components/generic-table/generic-table.component";
 
 @NgModule({
   imports: [
@@ -18,7 +19,8 @@ import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner
     SharedModule,
     TransactionsPageRoutingModule,
     TopNavComponent,
-    ImageBunnerComponent
+    ImageBunnerComponent,
+    GenericTableComponent
 ],
   declarations: [TransactionsPage]
 })

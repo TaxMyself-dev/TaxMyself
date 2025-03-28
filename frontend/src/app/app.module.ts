@@ -19,6 +19,8 @@ import { AuthInterceptor } from './interceptors/auth.interceptor';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeng/themes/aura';
+import { TopNavComponent } from "./components/topNav/topNav.component";
+import { ButtonComponent } from "./components/button/button.component";
 
 
 @NgModule({
@@ -37,7 +39,9 @@ import Aura from '@primeng/themes/aura';
     AngularFireDatabaseModule,
     NgArrayPipesModule,
     SharedModule,
-  ],
+    TopNavComponent,
+    ButtonComponent
+],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },

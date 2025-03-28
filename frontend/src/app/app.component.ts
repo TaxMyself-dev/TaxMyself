@@ -39,6 +39,16 @@ export class AppComponent implements OnInit {
 
   ];
 
+
+  menuItems = [
+    {label: 'דף הבית', routerLink: '/my-account'},
+    {label: 'פרופיל אישי'},
+    {label: 'תזרים', routerLink: '/transactions'},
+    {label: 'דוחות', routerLink: '/reports'},
+    {label: 'הגדרות', routerLink: '/my-status'},
+    {label: 'צור קשר'},
+  ]
+
   fromLoginPage = false; // Flag to check if entry was from login page
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;

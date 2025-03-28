@@ -116,14 +116,6 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.NOTE, 1],
   ]);
 
-  readonly menuItems = [
-    {label: 'דף הבית'},
-    {label: 'פרופיל אישי'},
-    {label: 'תזרים'},
-    {label: 'דוחות'},
-    {label: 'הגדרות'},
-    {label: 'צור קשר'},
-  ]
 
   readonly bunnerImagePosition = bunnerImagePosition;
 
@@ -238,6 +230,7 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
+    this.getTransactions();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
     this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -245,7 +238,7 @@ export class TransactionsPage implements OnInit {
 
     if (this.userData.isTwoBusinessOwner) {
       //------------ expenses -------------
-      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
+      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT });
       //this.editFieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
       const expenseIndex = this.COLUMNS_TO_IGNORE_EXPENSES.indexOf('businessNumber');
       if (expenseIndex > -1) {
@@ -351,8 +344,10 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, formData.accounts);
+    // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, "31/03/2025", formData.accounts);
 
+    // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
     const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
 
     zip(incomeData$, expensesData$)
@@ -571,7 +566,7 @@ export class TransactionsPage implements OnInit {
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
-        data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
+        data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
@@ -579,6 +574,7 @@ export class TransactionsPage implements OnInit {
         data.sum = String(Math.abs(Number(data.sum)));
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
+        data.note2 ? null : data.note2 = "--";
         //console.log(data);
         
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
@@ -805,7 +801,7 @@ export class TransactionsPage implements OnInit {
       this.openAddBill(event.data);
     }
     else {
-      event.data.billName === "זמני" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
+      event.data.billName === "לא שוייך" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
     }
   }
 

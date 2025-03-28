@@ -1,8 +1,8 @@
-<app-custom-toolbar></app-custom-toolbar>
+<!-- <app-custom-toolbar></app-custom-toolbar> -->
 
 
 
-<ion-content [fullscreen]="true">
+<!-- <ion-content [fullscreen]="true"> -->
   <div class="wrap-screen">
     <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"
       [isDisabled]="vatReportForm.invalid"></app-search-bar>
@@ -14,10 +14,6 @@
     <ng-container *ngIf="vatReport">
       <div class="wrap-output-report">
         <p class="report-title">נתוני דו"ח</p>
-         <!-- Display Income -->
-         <!-- <div class="output-pnl-report">
-          <div class="field-report">עסקאות חייבות</div>
-        </div> -->
         <div class="output-vat-report" *ngFor="let key of reportOrder">
           <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
           <ng-container *ngIf="vatReportFieldTitles[key] === 'עסקאות חייבות'; else rest">
@@ -43,7 +39,7 @@
     </ng-container>
   </div>
 
-</ion-content>
+<!-- </ion-content> -->
 
 <ng-template #vatReportTemplate>
   <form class="generic-search-bar-content" [formGroup]="vatReportForm">
