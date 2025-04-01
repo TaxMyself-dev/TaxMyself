@@ -1,4 +1,4 @@
-import { Component, input, OnInit } from '@angular/core';
+import { Component, EventEmitter, input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { ButtonModule } from 'primeng/button';
@@ -16,13 +16,16 @@ export class ButtonComponent  implements OnInit {
   iconPosition = input<string>();
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   buttonText = input<string>('Button');
-  // buttonSize = input<"small" | "big" | 'x_small'>('big');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
   buttonColor = input<ButtonColor>(ButtonColor.BLACK);
+  severity = input<"success" | "info" | "warn" | "danger" | "help" | "primary" | "secondary" | "contrast">();
   badge = input<string>(); // Number for notifications TODO: check if need pass string or number
   variant = input<"outlined" | "text">(null);
   isLoading = input<boolean>(false);
   disabled = input<boolean>(false);
+
+  @Output() onButtonClicked = new EventEmitter<Event>();
+
   
   readonly ButtonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
@@ -33,8 +36,8 @@ export class ButtonComponent  implements OnInit {
   ngOnInit() {
   }
   
-  onClick(): void {
-
+  onClick(event: Event): void {
+    this.onButtonClicked.emit(event);
   }
 
   getButtonClasses(): string {

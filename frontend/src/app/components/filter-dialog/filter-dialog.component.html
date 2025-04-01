@@ -1,0 +1,144 @@
+<!-- filter.component.html -->
+
+<!-- <p-dialog maskStyleClass="backdrop-blur-sm" [visible]="visible()" styleClass="!border-0 !bg-transparent">
+  <p-card>
+    <div>
+      <span>פילטרים</span>
+      <app-p-button [buttonText]="'נקה הכל'" [variant]="'text'" [severity]="'info'"
+        [buttonSize]="buttonSize.AUTO"></app-p-button>
+    </div>
+  </p-card>
+</p-dialog> -->
+
+
+
+<p-dialog header="סינון" [visible]="visible()" [style]="{width: '50vw', height: '400px'}">
+  @for(filter of filterFields(); track filter.value) {
+    <div class="filter-container">
+      <span>{{filter.name}}</span>
+      <p-button [label]="filter.name" (onClick)="openSelect(filter.name)"></p-button>
+      @if(isOpenTime() && isSelected() === filter.name) {
+        @for(item of filter.fields; track item.name) {
+          <p-checkbox [value]="item.name" [inputId]="item.name" [binary]="true" (onChange)="onCheckboxChange($event)" [(ngModel)]="item.checked" ></p-checkbox>
+          <label [for]="item.name">{{item.name}}</label>
+        }
+      }
+     <!-- <p-multiselect [options]="filter.fields" optionLabel="name" [placeholder]="filter.name" [maxSelectedLabels]="1"></p-multiselect> -->
+    </div>
+  }
+</p-dialog >
+<!-- <p-multiSelect [options]="options" [(ngModel)]="selectedValues" [style]="{'width': '200px'}">
+  <ng-template let-selected pTemplate="selectedItem">
+    <p>{{ selected.label }}</p>
+    <div class="card flex justify-center">
+      <input type="text" pInputText />
+      <p-select placeholder="Select a City"></p-select>
+  </div>
+  </ng-template>
+</p-multiSelect> -->
+
+
+
+<!-- <form> -->
+  <!-- <p-checkbox [value]="filter.value" [inputId]="filter.value" /> -->
+  <!-- <label [for]="filter.value">{{filter.name}}</label> -->
+<!-- </form> -->
+
+
+
+
+
+
+
+<!-- ////////////////// cluad ///////////////////////////// -->
+<!-- <div class="filter-container" dir="rtl">
+  Parent filters
+  @for (filter of filters; track filter.name) {
+    <div class="filter-row">
+      <div class="filter-label">{{ filter.name }}</div>
+      <div class="filter-value">
+        <button pButton 
+                type="button" 
+                [label]="getButtonLabel(filter)" 
+                icon="pi pi-chevron-down" 
+                iconPos="right" 
+                (click)="openChildrenDialog(filter)">
+        </button>
+        
+        Display selected child and grandchildren if any
+        @if (filter.selectedChild) {
+          <div class="grandchildren-container">
+            @if (filter.selectedChild.isDateRange) {
+              <div class="date-range-container">
+                <div class="date-field">
+                  <span>תאריך התחלה</span>
+                  <p-calendar [(ngModel)]="filter.selectedChild.startDate"></p-calendar>
+                </div>
+                <div class="date-field">
+                  <span>תאריך סוף</span>
+                  <p-calendar [(ngModel)]="filter.selectedChild.endDate"></p-calendar>
+                </div>
+              </div>
+            } @else if (filter.selectedChild.grandchildren) {
+              @for (grandchild of filter.selectedChild.grandchildren; track grandchild.name) {
+                <div class="grandchild-row">
+                  <span>{{ grandchild.name }}</span>
+                  <button pButton 
+                          type="button" 
+                          [label]="grandchild.selectedGreatgrandchild ? grandchild.selectedGreatgrandchild : grandchild.name"
+                          icon="pi pi-chevron-down" 
+                          iconPos="right" 
+                          (click)="openGreatgrandchildrenDialog(grandchild)">
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+  
+  Dialog for selecting children (for accounts and categories)
+  <p-dialog header="בחירה" [(visible)]="visibleChildrenDialog" [style]="{width: '450px'}" [modal]="true">
+    @if (currentParent) {
+      <div class="dialog-content">
+        @for (child of currentParent.children; track child.name) {
+          @if (child.checkable) {
+            <div class="checkbox-item">
+              <p-checkbox 
+                [value]="child.name" 
+                [(ngModel)]="selectedChildren" 
+                [binary]="!child.multiSelect">
+              </p-checkbox>
+              <label class="ml-2">{{ child.name }}</label>
+            </div>
+          } @else {
+            <div class="radio-item" (click)="selectChild(child)">
+              <span>{{ child.name }}</span>
+            </div>
+          }
+        }
+      </div>
+      <div class="dialog-footer">
+        <button pButton type="button" label="סגור" (click)="closeChildrenDialog()"></button>
+      </div>
+    }
+  </p-dialog>
+  
+  Dialog for selecting great-grandchildren
+  <p-dialog header="בחירה" [(visible)]="visibleGreatgrandchildrenDialog" [style]="{width: '450px'}" [modal]="true">
+    @if (currentGrandchild?.greatgrandchildren) {
+      <div class="dialog-content">
+        @for (item of currentGrandchild.greatgrandchildren; track item) {
+          <div class="list-item" (click)="selectGreatgrandchild(item)">
+            <span>{{ item }}</span>
+          </div>
+        }
+      </div>
+      <div class="dialog-footer">
+        <button pButton type="button" label="סגור" (click)="closeGreatgrandchildrenDialog()"></button>
+      </div>
+    }
+  </p-dialog>
+</div> -->
