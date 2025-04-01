@@ -8,8 +8,9 @@
       </p-iconfield>
     </div>
     <div class="sort-button">
-      <app-p-button [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'סינון טבלה'"
+      <app-p-button (onButtonClicked)="openSortDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'סינון טבלה'"
         [buttonColor]="ButtonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button>
+        <app-filter-dialog [visible]="visible()" [filterFields]="filterItems" ></app-filter-dialog>
     </div>
   </div>
   <div class="table">

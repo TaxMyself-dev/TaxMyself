@@ -146,6 +146,10 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     height: 25px;
   }
 
+  &.auto {
+    width: auto;
+  }
+
   &.yellow {
     background-color: rgba(246, 255, 172, 0.8);
     border-color: rgba(246, 255, 172, 0.8);

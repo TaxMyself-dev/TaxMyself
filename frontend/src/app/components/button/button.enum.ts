@@ -3,6 +3,7 @@ export enum ButtonSize {
     SMALL = 'small',
     BIG = 'big',
     ICON = 'icon',
+    AUTO = 'auto',
 }
 
 export enum ButtonColor {
