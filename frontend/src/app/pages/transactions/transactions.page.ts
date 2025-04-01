@@ -151,8 +151,6 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
-  // isToastOpen: boolean = false;
-  // messageToast: string = "";
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserData;
@@ -230,7 +228,7 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
-    // this.getTransactions();
+    this.getTransactions();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
     this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -340,15 +338,15 @@ export class TransactionsPage implements OnInit {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
 
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    this.dateForUpdate.startDate = startDate;
-    this.dateForUpdate.endDate = endDate;
+    // const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+    // this.dateForUpdate.startDate = startDate;
+    // this.dateForUpdate.endDate = endDate;
 
-    // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, "31/03/2025", formData.accounts);
+    const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    // const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, "31/03/2025", formData.accounts);
 
-    // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
+    const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    // const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -562,7 +560,7 @@ export class TransactionsPage implements OnInit {
   handleTableData(data: ITransactionData[]) {
     const rows = [];
     if (data.length) {
-      console.log("data in hnadle data in transaction: ", data);
+      console.log("data in handle data in transaction: ", data);
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
@@ -858,10 +856,6 @@ export class TransactionsPage implements OnInit {
       }
     })
   }
-
-  // setOpenToast(): void {
-  //   this.isToastOpen = false;
-  // }
 
   filterByExpenses(event: string): void {
     this.filterByExpense = event;

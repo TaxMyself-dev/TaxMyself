@@ -47,6 +47,7 @@ export class AppComponent implements OnInit {
     {label: 'דוחות', routerLink: '/reports'},
     {label: 'הגדרות', routerLink: '/my-status'},
     {label: 'צור קשר'},
+    {label: 'כניסה', routerLink: '/login'},
   ]
 
   fromLoginPage = false; // Flag to check if entry was from login page

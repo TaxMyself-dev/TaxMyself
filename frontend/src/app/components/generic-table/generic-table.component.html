@@ -3,39 +3,58 @@
     <div class="input-title-container">
       <p class="table-title">{{title()}}</p>
       <p-iconfield class="table-input-search">
-        <input class="input-icon" type="text" pInputText [placeholder]="placeholderSearch()" />
+        <input class="input-icon" type="text" pInputText [placeholder]="placeholderSearch()"
+          (input)="updateSearchTerm($event)" />
         <p-inputicon styleClass="pi pi-search" />
       </p-iconfield>
     </div>
     <div class="sort-button">
-      <app-p-button (onButtonClicked)="openSortDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'סינון טבלה'"
-        [buttonColor]="ButtonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button>
-        <app-filter-dialog [visible]="visible()" [filterFields]="filterItems" ></app-filter-dialog>
+      <app-p-button (onButtonClicked)="openFilterDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'"
+        variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
+        [buttonSize]="buttonSize.ICON"></app-p-button>
+      <app-filter-dialog [visible]="visible()" [filterFields]="filterItems"></app-filter-dialog>
     </div>
   </div>
   <div class="table">
-    <p-table [columns]="columnsTitle()" [value]="dataTable()" [tableStyle]="{ 'width': '100%' }" [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true" [virtualScrollItemSize]="76">
-      <ng-template #header let-columns>
-          <tr>
-              <th *ngFor="let col of columns" class="columns-header">
-                  {{ col.value }}
-              </th>
-          </tr>
+    <p-table [columns]="columnsTitle()" [value]="filteredDataTable()" [tableStyle]="{ 'width': '100%' }"
+      [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true" [virtualScrollItemSize]="76">
+      <ng-template  pTemplate="header" let-columns>
+        <tr>
+          <th *ngFor="let col of columns" class="columns-header">
+            {{ col.value }}
+          </th>
+        </tr>
       </ng-template>
-      <ng-template #body let-rowData let-columns="columns">
-          <tr [style.height]="isExpanded(rowData) ? 'auto' : '76px'">
-            @for(col of columns; track col.name) {
-              <td>
-                <span #tp="truncatePointer" [class.truncate]="!isExpanded(rowData)" class="data-text" (click)="tp.isTruncated && toggleRow(rowData)" appTruncatePointer [class.red-text]="col.name === 'category' && rowData[col.name] === 'טרם סווג'">
-                  @if(col.name === 'category' && rowData[col.name] === 'טרם סווג') {
-                    <i class="pi pi-clock" style="color: red"></i>
-                  }
-                  {{ rowData[col.name] }}
-                </span>
-              </td>
-            }
-          </tr>
+      <ng-template  pTemplate="body" let-rowData let-columns="columns">
+        <tr [style.height]="isExpanded(rowData) ? 'auto' : '76px'">
+          @for(col of columns; track col.name) {
+          <td>
+            <span #tp="truncatePointer" [class.truncate]="!isExpanded(rowData)" class="data-text"
+              (click)="tp.isTruncated && toggleRow(rowData)" appTruncatePointer
+              [class.red-text]="col.name === 'category' && rowData[col.name] === 'טרם סווג'">
+              @if(col.name === 'category' && rowData[col.name] === 'טרם סווג') {
+              <i class="pi pi-clock" style="color: red"></i> {{ rowData[col.name] }}
+              }
+              @else if (col.name === columnSearch()) {
+              <span [innerHTML]="rowData[columnSearch()] | highlight: searchTerm()"></span>
+              }
+              @else {
+              {{ rowData[col.name] }}
+              }
+            </span>
+          </td>
+          }
+        </tr>
       </ng-template>
-  </p-table>
+  <!-- Empty Data -->
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="100%" style="text-align: center; padding: 2rem;">
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXUGwt9dENEeO6NILWcXhb6Qg21fvbE3rgyQ&s"
+              style="width: 300px; height: 300px;" />
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
   </div>
 </div>

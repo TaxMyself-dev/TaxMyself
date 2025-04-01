@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, input, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal, WritableSignal } from '@angular/core';
 // import { ButtonModule } from 'primeng/button';
 // import { IconFieldModule } from 'primeng/iconfield';
 // import { InputIconModule } from 'primeng/inputicon';
@@ -15,23 +15,28 @@ import { IColumnDataTable, IRowDataTable, IFilterItems } from 'src/app/shared/in
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { FilterDialogComponent } from "../filter-dialog/filter-dialog.component"; // For add cursor pointer only to long text.
 import { TreeNode } from 'primeng/api';
+import { HighlightPipe } from "../../pipes/high-light.pipe";
 
 @Component({
   selector: 'app-generic-table',
   standalone: true,
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent, HighlightPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
 })
 export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
+
   title = input<string>();
+  columnSearch = input<string>('name');
   tableHeight = input<string>('500px');
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visible = signal(false);
+  searchTerm: WritableSignal<string> = signal('');
+
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   readonly filterItems: IFilterItems[] = [
@@ -252,9 +257,17 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   // DATE_RANGE = 'DATE_RANGE'
   expandedRows = new Set<number>();
 
+  filteredDataTable = computed(() => {
+    const data = this.dataTable();
+    const term = this.searchTerm().toLowerCase().trim();
+    const filtered = data?.filter(row => (String(row[this.columnSearch()]).includes(term)));
+    console.log('filteredDataTable', filtered);
+    return filtered;
+  });
+
   constructor() { }
 
-  ngOnInit() { }
+  ngOnInit() {}
 
   isExpanded(rowData: any): boolean {
     return this.expandedRows.has(rowData.id);
@@ -268,7 +281,14 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     }
   }
 
-  openSortDialod(): void {
+  openFilterDialod(): void {
     this.visible.set(!this.visible());
   }
+
+  updateSearchTerm(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.searchTerm.set(input.value);
+  }
+
+
 }
