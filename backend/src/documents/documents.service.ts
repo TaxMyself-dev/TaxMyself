@@ -6,6 +6,7 @@ import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
 import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
+import { log } from 'console';
 
 
 
@@ -27,11 +28,14 @@ export class DocumentsService {
   isIncrement: boolean = false;
   isGeneralIncrement: boolean = false;
 
-  async getSettingDocByType(userId: string, documentType: DocumentType) {
-    console.log("getSettingDocByType - in service");
+  
+  async getSettingDocByType(userId: string, docType: DocumentType) {
 
+    console.log("getSettingDocByType - in service");
+    console.log("userId: ", userId);
+    console.log("docType: ", docType);
     try {
-      const docDetails = await this.settingDocuments.findOne({ where: { userId, documentType } });
+      const docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
         throw new NotFoundException("not found userId or documentType")
       }
@@ -42,15 +46,37 @@ export class DocumentsService {
     }
   }
 
-  async setInitialDocDetails(userId: string, documentType: DocumentType, initialIndex: number) {
+
+  async getCurrentIndexes(userId: string, docType: DocumentType): Promise<{ docIndex: number; generalIndex: number }> {
+    const [docSetting, generalSetting] = await Promise.all([
+      this.settingDocuments.findOne({ where: { userId, docType } }),
+      this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
+    ]);
+  
+    if (!docSetting) {
+      throw new HttpException(`Document settings for type "${docType}" not found`, HttpStatus.NOT_FOUND);
+    }
+  
+    if (!generalSetting) {
+      throw new HttpException(`Document settings for type "GENERAL" not found`, HttpStatus.NOT_FOUND);
+    }
+  
+    return {
+      docIndex: docSetting.currentIndex,
+      generalIndex: generalSetting.currentIndex,
+    };
+  }
+  
+
+  async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
     console.log("updateSettingDocByType - in service");
     console.log("initialIndex: ", initialIndex);
 
     try {
       await this.settingGeneralIndex(userId);
-      let docDetails = await this.settingDocuments.findOne({ where: { userId, documentType } });
+      let docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
-        docDetails = await this.settingDocuments.save({ userId, documentType, initialIndex, currentIndex: initialIndex });
+        docDetails = await this.settingDocuments.save({ userId, docType, initialIndex, currentIndex: initialIndex });
         if (!docDetails) {
           throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -65,9 +91,9 @@ export class DocumentsService {
   async settingGeneralIndex(userId: string) {
     console.log("settingGeneralIndex - in service");
     let generalIndex: any;
-    generalIndex = await this.settingDocuments.findOne({ where: { userId, documentType: DocumentType.GENERAL } });
+    generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
     if (!generalIndex) {
-      generalIndex = await this.settingDocuments.insert({ userId, documentType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
+      generalIndex = await this.settingDocuments.insert({ userId, docType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
       if (!generalIndex) {
         throw new HttpException('Error in add general serial number', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -78,11 +104,11 @@ export class DocumentsService {
     console.log("incrementGeneralIndex - in service");
     let generalIndex: any;
     try {
-      generalIndex = await this.settingDocuments.findOne({ where: { userId, documentType: DocumentType.GENERAL } });
+      generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
       if (!generalIndex) {
         throw new NotFoundException("not found userId or documentType")
       }
-      generalIndex = await this.settingDocuments.update({ userId, documentType: DocumentType.GENERAL }, { currentIndex: generalIndex.currentIndex + 1 });
+      generalIndex = await this.settingDocuments.update({ userId, docType: DocumentType.GENERAL }, { currentIndex: generalIndex.currentIndex + 1 });
       this.isGeneralIncrement = true;
       return generalIndex;
     } catch (error) {
@@ -98,11 +124,11 @@ export class DocumentsService {
     console.log("decrementGeneralIndex - in service");
     let generalIndex: any;
     try {
-      generalIndex = await this.settingDocuments.findOne({ where: { userId, documentType: DocumentType.GENERAL } });
+      generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
       if (!generalIndex) {
         throw new NotFoundException("not found userId or documentType")
       }
-      generalIndex = await this.settingDocuments.update({ userId, documentType: DocumentType.GENERAL }, { currentIndex: generalIndex.currentIndex - 1 });
+      generalIndex = await this.settingDocuments.update({ userId, docType: DocumentType.GENERAL }, { currentIndex: generalIndex.currentIndex - 1 });
       return generalIndex;
     } catch (error) {
       throw error;
@@ -233,7 +259,7 @@ export class DocumentsService {
       await this.incrementGeneralIndex(userId);
 
       // Increment the current index
-      const docDetails = await this.incrementCurrentIndex(userId, data.docData.documentType);
+      const docDetails = await this.incrementCurrentIndex(userId, data.docData.docType);
       // Check if the increment is valid
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -280,15 +306,17 @@ export class DocumentsService {
     }
   }
 
-  async incrementCurrentIndex(userId: string, documentType: DocumentType) {
+  async incrementCurrentIndex(userId: string, docType: DocumentType) {
     console.log("incrementCurrentIndex - in service");
+    console.log("documentType is ", docType);
     let docDetails: any;
     try {
-      docDetails = await this.settingDocuments.findOne({ where: { userId, documentType } });
+      docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
         throw new NotFoundException("not found userId or documentType")
       }
-      docDetails = await this.settingDocuments.update({ userId, documentType }, { currentIndex: docDetails.currentIndex + 1 });
+      console.log("docDetails is ", docDetails);
+      docDetails = await this.settingDocuments.update({ userId, docType }, { currentIndex: docDetails.currentIndex + 1 });
       this.isIncrement = true;
       return docDetails;
     } catch (error) {
@@ -296,7 +324,7 @@ export class DocumentsService {
     }
   }
 
-  async decrementCurrentIndex(userId: string, documentType: DocumentType) {
+  async decrementCurrentIndex(userId: string, docType: DocumentType) {
     if (!this.isIncrement) {
       console.log("not increment");
       return;
@@ -304,11 +332,11 @@ export class DocumentsService {
     let docDetails: any;
     try {
       console.log("decrementCurrentIndex - in service");
-      docDetails = await this.settingDocuments.findOne({ where: { userId, documentType } });
+      docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
         throw new NotFoundException("not found userId or documentType")
       }
-      docDetails = await this.settingDocuments.update({ userId, documentType }, { currentIndex: docDetails.currentIndex - 1 });
+      docDetails = await this.settingDocuments.update({ userId, docType }, { currentIndex: docDetails.currentIndex - 1 });
       return docDetails;
     } catch (error) {
       throw error;

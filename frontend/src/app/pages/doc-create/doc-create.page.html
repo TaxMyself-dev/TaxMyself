@@ -7,7 +7,7 @@
     </app-generic-select>
   </div>
   <div *ngIf="fileSelected && !isInitial; else initialTemplate">
-    <p>{{HebrewNameFileSelected}} מספר: {{docDetails?.currentIndex}}</p>
+    <p>{{HebrewNameFileSelected}} מספר: {{docIndexes?.docIndex}}</p>
 
     <!-- General details card -->
     <ion-card>
@@ -110,13 +110,6 @@
                   [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                   [inputType]="field.type"></app-generic-input>
 
-                <!-- <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
-                  [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
-                  [inputType]="field.type"></app-generic-input>
-
-                <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
-                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input> -->
-
                 <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
                   [parentForm]="getPaymentFormByIndex(i)" (selectionChanged)="onSelectionChanged(field.value, $event, i)"
                   [items]="getDropdownItems(field.value)"></app-generic-select>
@@ -141,7 +134,6 @@
   <app-button [buttonText]="'Create'" (onButtonClicked)="createDoc()" [isLoading]="createPDFIsLoading"></app-button>
   <app-button [buttonText]="'Preview'" (onButtonClicked)="previewtDoc()"
     [isLoading]="createPreviewPDFIsLoading"></app-button>
-  <!-- <app-button [buttonText]="'Add'" (onButtonClicked)="addDoc()" [isLoading]="addPDFIsLoading"></app-button> -->
 </ion-content>
 
 <ng-template #initialTemplate>

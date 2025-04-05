@@ -40,7 +40,7 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.DOC_VAT_RATE]: {
             name: FieldsCreateDocName.docVatRate,
             value: FieldsCreateDocValue.DOC_VAT_RATE,
-            type: FormTypes.NUMBER,
+            type: FormTypes.TEXT,
             initialValue: 18,
             enumValues: [],
             editFormBasedOnValue: {},
@@ -477,8 +477,10 @@ export class DocCreateBuilderService {
     addFormControlsByExpandedSection(sectionForm: FormGroup, section: SectionKeysEnum) {
         const expandedFields = this.docCreateBuilderSectionsData[section].expandedFields;
         expandedFields.forEach((field) => {
+            console.log("field is ", field);
+            console.log(this.docCreateBuilderData[field]?.initialValue);
             sectionForm.addControl(field, new FormControl(
-                '', this.docCreateBuilderData[field].validators
+                this.docCreateBuilderData[field]?.initialValue, this.docCreateBuilderData[field].validators
             ));
         });
 

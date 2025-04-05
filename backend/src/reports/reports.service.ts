@@ -23,6 +23,7 @@ import * as os from 'os';
 import * as archiver from 'archiver';
 import * as stream from 'stream';
 import * as readline from 'readline';
+import * as iconv from 'iconv-lite';
 
 
 @Injectable()
@@ -33,6 +34,8 @@ export class ReportsService {
   private readonly generatedFolder = "src/generated/";  // Define folder for uploads
   private readonly debugFolder = "src/debug/";  // Define folder for debug files
 
+  private recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
+  private totalLists = 0;
 
   constructor(
     @InjectRepository(Expense)
@@ -52,6 +55,8 @@ export class ReportsService {
       fs.mkdirSync(this.debugFolder, { recursive: true });
     }
   }
+
+  
 
 
   async createPDF(data: any): Promise<Blob | undefined> {
@@ -374,8 +379,11 @@ export class ReportsService {
         const archive = archiver('zip', { zlib: { level: 9 } });
         const chunks: Buffer[] = [];
 
-        archive.append(Buffer.from(iniContent, 'utf-8'), { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
-        archive.append(Buffer.from(dataContent, 'utf-8'), { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/BKMVDATA.TXT` });
+        const iniBuffer = iconv.encode(iniContent, 'windows-1255');
+        archive.append(iniBuffer, { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
+
+        const dataBuffer = iconv.encode(dataContent, 'windows-1255');
+        archive.append(dataBuffer, { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/BKMVDATA.TXT` });
 
         // Finalize ZIP file
         archive.finalize();
@@ -401,21 +409,21 @@ export class ReportsService {
       let result = '';
     
       const f_1001 = this.formatField("!", 5, '!');
-      const f_1002 = this.formatField(this.getFormattedRecordCounter(), 15, '0');
+      const f_1002 = this.formatField(this.totalLists, 15, '0');
       const f_1003 = this.formatField(businessNumber, 9, '0');
       const f_1004 = this.formatField(uniqueId, 15, '0');
       const f_1005 = this.formatField("&OF1.31&", 8, '');
-      const f_1006 = this.formatField("!", 8, '!'); // מספר רישום התוכנה ברשות המיסים
+      const f_1006 = this.formatField("0", 8, '0'); // מספר רישום התוכנה ברשות המיסים
       const f_1007 = this.formatField("KEEPINTAX", 20, '-');
       const f_1008 = this.formatField("version-001", 20, '-');
-      const f_1009 = this.formatField("123456789", 9, "0"); // KEEPINTAX מספר עוסק של
+      const f_1009 = this.formatField("517134789", 9, "0"); // KEEPINTAX מספר עוסק של
       const f_1010 = this.formatField("KEEPINTAX", 20, '-');
       const f_1011 = this.formatField(2, 1, '0');
       const f_1012 = this.formatField(filePath, 50, '-');
       const f_1013 = this.formatField(1, 1, '0');
       const f_1014 = this.formatField(1, 1, '0');
-      const f_1015 = this.formatField("123456789", 9, '0'); // מספר חברה ברשם החברות
-      const f_1016 = this.formatField("123456789", 9, '0'); // מספר תיק ניכויים
+      const f_1015 = this.formatField("517134789", 9, '0'); // מספר חברה ברשם החברות
+      const f_1016 = this.formatField("000000000", 9, '0'); // מספר תיק ניכויים
       const f_1017 = this.formatField("!", 10, '!');
       const f_1018 = this.formatField("KEEPINTAX", 50, '-');
       const f_1019 = this.formatField("!", 50, '!');
@@ -430,20 +438,20 @@ export class ReportsService {
       const f_1028 = this.formatField(0, 1, '0');
       const f_1029 = this.formatField(1, 1, '0');
       const f_1030 = this.formatField("ZIP", 20, '!');
-      const f_1032 = this.formatField("ILS", 20, '!');
-      const f_1034 = this.formatField(0, 1, '!');
+      const f_1032 = this.formatField("ILS", 3, '!');
+      const f_1034 = this.formatField(0, 1, '0');
       const f_1035 = this.formatField("!", 46, '!');
+      const c100 = `C100${this.formatField(this.recordSummary[`C100`], 15, '0')}`;
+      const d110 = `D110${this.formatField(this.recordSummary[`D110`], 15, '0')}`;
+      const d120 = `D120${this.formatField(this.recordSummary[`D120`], 15, '0')}`;
+      const b100 = `B100${this.formatField(this.recordSummary[`B100`], 15, '0')}`;
+      const b110 = `B110${this.formatField(this.recordSummary[`B110`], 15, '0')}`;
+      const m100 = `M100${this.formatField(this.recordSummary[`M100`], 15, '0')}`;
 
-      result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n`;
+      result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
      
       return result;
     }
-
-
-
-
-
-
 
 
     // Function to generate a 15-digit unique random number
@@ -475,55 +483,52 @@ export class ReportsService {
 
     private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
 
-
       let content = "";
-      let recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
+      //let recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
       const documents = await this.fetchDocuments(userId, businessNumber, startDate, endDate);
 
       console.log("documents are: ", documents);
-      
     
       // Add A100 section first
       content += this.generateA100Section(businessNumber, uniqueId);
 
       // Add C100 section
       const c100 = await this.generateC100Section(documents);
-      recordSummary.C100 += (c100.match(/\n/g) || []).length;
+      this.recordSummary.C100 += (c100.match(/\n/g) || []).length;
       content += c100;
 
       // Add D110 section
-      const d110 = await this.generateD110Section(documents);
-      console.log("d110 is: ", d110);
-      
-      recordSummary.D110 += (d110.match(/\n/g) || []).length;
+      const d110 = await this.generateD110Section(documents);      
+      this.recordSummary.D110 += (d110.match(/\n/g) || []).length;
       content += d110;
 
       // Add D120 section
       const d120 = await this.generateD120Section(documents);
-      recordSummary.D120 += (d120.match(/\n/g) || []).length;
+      this.recordSummary.D120 += (d120.match(/\n/g) || []).length;
       content += d120;
 
       // Add B100 section
       const b100 = await this.generateB100Section(documents);
-      recordSummary.B100 += (b100.match(/\n/g) || []).length;
+      this.recordSummary.B100 += (b100.match(/\n/g) || []).length;
       content += b100;
 
       // Add B110 section
       const b110 = await this.generateB110Section(documents);
-      recordSummary.B110 += (b110.match(/\n/g) || []).length;
+      this.recordSummary.B110 += (b110.match(/\n/g) || []).length;
       content += b110;
+
+      //Calculate total lists
+      this.totalLists = Object.values(this.recordSummary).reduce((sum, val) => sum + val, 0);
 
       // Add Z900 section first
       content += this.generateZ900Section(businessNumber, uniqueId);
-
-      //console.log("content is: ", content);
       
       return { 
         content, 
-        summary: Object.keys(recordSummary).map((key) => ({
+        summary: Object.keys(this.recordSummary).map((key) => ({
           code: key,
           description: this.getRecordDescription(key), // Add descriptions
-          count: recordSummary[key]
+          count: this.recordSummary[key]
         }))
       };
 
@@ -531,7 +536,7 @@ export class ReportsService {
 
 
     private generateA100Section(businessNumber: string, uniqueId: string): string {
-      return `A100 | ${this.getFormattedRecordCounter()} | ${businessNumber} | ${uniqueId} | &OF1.31& | ${'?'.repeat(50)}\n`;
+      return `A100${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${'!'.repeat(50)}\n`;
     }
 
 
@@ -540,7 +545,7 @@ export class ReportsService {
       documents.forEach((doc) => {
         const f_1201 = this.getFormattedRecordCounter();
         const f_1202 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-        const f_1203 = this.formatField(this.getDocumentTypeCode(doc.docType), 3, '0');
+        const f_1203 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
         const f_1204 = this.formatField(doc.docNumber, 20, '0');
         const f_1205 = this.formatField(this.formatDateYYYYMMDD(doc.issueDate), 8, '0');
         const f_1206 = this.formatField(doc.issueHour, 4, '0');
@@ -608,21 +613,11 @@ export class ReportsService {
           f_1234=${f_1234}\n\
           f_1235=${f_1235}\n`;
         } else {
-          result += `C100 ${f_1201} ${f_1202} ${f_1203} ${f_1204} ${f_1205} ${f_1206} ${f_1207} ${f_1208} ${f_1209} ${f_1210} 
-            ${f_1211} ${f_1212} ${f_1213} ${f_1214} ${f_1215} ${f_1216} ${f_1217} ${f_1218} ${f_1219} ${f_1220} 
-            ${f_1221} ${f_1222} ${f_1223} ${f_1224} ${f_1225} ${f_1226} ${f_1228} ${f_1230} ${f_1231} ${f_1233} 
-            ${f_1234} ${f_1235}\n`;
-        }
 
-        // result += `C100\nf_1201=${f_1201}\nf_1202=${f_1202}\nf_1203=${f_1203}\nf_1204=${f_1204}\nf_1205=${f_1205}\nf_1206=${f_1206}\nf_1207=${f_1207}\nf_1208=${f_1208}\nf_1209=${f_1209}\nf_1210=${f_1210}\n 
-        //                   f_1211=${f_1211}\n f_1212=${f_1212}\n f_1213=${f_1213}\n f_1214=${f_1214}\n f_1215=${f_1215}\n f_1216=${f_1216}\n f_1217=${f_1217}\n f_1218=${f_1218}\n f_1219=${f_1219}\n f_1220=${f_1220}\n 
-        //                   f_1221=${f_1221}\n f_1222=${f_1222}\n f_1223=${f_1223}\n f_1224=${f_1224}\n f_1225=${f_1225}\n f_1226=${f_1226}\n f_1228=${f_1228}\n f_1230=${f_1230}\n f_1231=${f_1231}\n f_1233=${f_1233}\n 
-        //                   f_1234=${f_1234}\n f_1235=${f_1235}\n`;
-    
-        // result += `C100 | ${f_1201} | ${f_1202} | ${f_1203} | ${f_1204} | ${f_1205} | ${f_1206} | ${f_1207} | ${f_1208} | ${f_1209} | ${f_1210} | 
-        //                   ${f_1211} | ${f_1212} | ${f_1213} | ${f_1214} | ${f_1215} | ${f_1216} | ${f_1217} | ${f_1218} | ${f_1219} | ${f_1220} | 
-        //                   ${f_1221} | ${f_1222} | ${f_1223} | ${f_1224} | ${f_1225} | ${f_1226} | ${f_1228} | ${f_1230} | ${f_1231} | ${f_1233} | 
-        //                   ${f_1234} | ${f_1235}\n`;
+          result += `C100${f_1201}${f_1202}${f_1203}${f_1204}${f_1205}${f_1206}${f_1207}${f_1208}${f_1209}${f_1210}${f_1211}${f_1212}${f_1213}${f_1214}${f_1215}${f_1216}${f_1217}${f_1218}${f_1219}${f_1220}${f_1221}${f_1222}${f_1223}${f_1224}${f_1225}${f_1226}${f_1228}${f_1230}${f_1231}${f_1233}${f_1234}${f_1235}\n`;
+          // console.log("result is: ", result);         
+          
+        }
 
       });
     
@@ -647,10 +642,10 @@ export class ReportsService {
         docLines.forEach((line) => {
           const f_1251 = this.getFormattedRecordCounter();
           const f_1252 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-          const f_1253 = this.formatField(this.getDocumentTypeCode(doc.docType), 3, '0');
+          const f_1253 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1254 = this.formatField(doc.docNumber, 20, '0');
           const f_1255 = this.formatField(line.lineNumber, 4, '0');
-          const f_1256 = this.formatField(this.getDocumentTypeCode(doc.parentDocType), 3, '0');
+          const f_1256 = this.formatField(this.getDocumentTypeCode(doc.parentDocType, true), 3, '0');
           const f_1257 = this.formatField(doc.parentDocNumber, 20, '0');
           const f_1258 = this.formatField(doc.transType, 1, '0');
           const f_1259 = this.formatField(line.internalNumber, 20, '0');
@@ -662,17 +657,15 @@ export class ReportsService {
           const f_1265 = this.formatAmount(line.sumBefVat/line.unitAmount, 12, 2);
           const f_1266 = this.formatAmount(line.discount, 12, 2);
           const f_1267 = this.formatAmount(line.sumBefVat, 12, 2);
-          const f_1268 = this.formatAmount(line.vatRate, 2, 2);
+          const f_1268 = this.formatAmount(line.vatRate, 2, 2, false);
           const f_1270 = this.formatField(doc.branchCode, 7, '0');
           const f_1272 = this.formatField(this.formatDateYYYYMMDD(doc.docDate), 8, '0');
           const f_1273 = this.formatField(line.generalDocIndex, 7, '0');
           const f_1274 = this.formatField(doc.parentBranchCode, 7, '0');
           const f_1275 = this.formatField("!", 13, '!');
 
-          result += `D100 | ${f_1251} | ${f_1252} | ${f_1253} | ${f_1254} | ${f_1255} | ${f_1256} | ${f_1257} 
-                          | ${f_1258} | ${f_1259} | ${f_1260} | ${f_1261} | ${f_1262} | ${f_1263} | ${f_1264} 
-                          | ${f_1265} | ${f_1266} | ${f_1267} | ${f_1268} | ${f_1270} | ${f_1272} | ${f_1273}
-                          | ${f_1274} | ${f_1275}\n`;
+          result += `D110${f_1251}${f_1252}${f_1253}${f_1254}${f_1255}${f_1256}${f_1257}${f_1258}${f_1259}${f_1260}${f_1261}${f_1262}${f_1263}${f_1264}${f_1265}${f_1266}${f_1267}${f_1268}${f_1270}${f_1272}${f_1273}${f_1274}${f_1275}\n`;
+
         });
       }
     
@@ -698,7 +691,7 @@ export class ReportsService {
         docLines.forEach((line) => {
           const f_1301 = this.getFormattedRecordCounter(); // Running counter (9 digits)
           const f_1302 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-          const f_1303 = this.formatField(this.getDocumentTypeCode(doc.docType), 3, '0');
+          const f_1303 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1304 = this.formatField(doc.docNumber, 20, '0');
           const f_1305 = this.formatField(line.lineNumber, 4, '0');
           const f_1306 = this.formatField(line.paymentMethod, 1, '0');
@@ -716,9 +709,8 @@ export class ReportsService {
           const f_1323 = this.formatField(line.generalDocIndex, 7, '0');
           const f_1324 = this.formatField("!", 60, '!');
 
-          result += `D120 | ${f_1301} | ${f_1302} | ${f_1303} | ${f_1304} | ${f_1305} | ${f_1306} | ${f_1307} 
-                          | ${f_1308} | ${f_1309} | ${f_1310} | ${f_1311} | ${f_1312} | ${f_1313} | ${f_1314} 
-                          | ${f_1315} | ${f_1320} | ${f_1322} | ${f_1323} | ${f_1324}\n`;
+          result += `D120${f_1301}${f_1302}${f_1303}${f_1304}${f_1305}${f_1306}${f_1307}${f_1308}${f_1309}${f_1310}${f_1311}${f_1312}${f_1313}${f_1314}${f_1315}${f_1320}${f_1322}${f_1323}${f_1324}\n`;
+
         });
       }
     
@@ -743,35 +735,33 @@ export class ReportsService {
         docLines.forEach((line) => {
           const f_1351 = this.getFormattedRecordCounter();
           const f_1352 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-          const f_1353 = this.formatField("!", 10, '!');
-          const f_1354 = this.formatField("!", 5, '!');
+          const f_1353 = this.formatField("0", 10, '0');
+          const f_1354 = this.formatField("0", 5, '0');
           const f_1355 = this.formatField("!", 8, '!');
           const f_1356 = this.formatField("!", 15, '!');
-          const f_1357 = this.formatField("!", 20, '!');
-          const f_1358 = this.formatField("!", 3, '!');
-          const f_1359 = this.formatField("!", 20, '!');
-          const f_1360 = this.formatField("!", 3, '!');
+          const f_1357 = this.formatField("0", 20, '0');
+          const f_1358 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
+          const f_1359 = this.formatField("0", 20, '0');
+          const f_1360 = this.formatField("0", 3, '0');
           const f_1361 = this.formatField("!", 50, '!');
-          const f_1362 = this.formatField("!", 8, '!');
-          const f_1363 = this.formatField("!", 8, '!');
+          const f_1362 = this.formatField("0", 8, '0');
+          const f_1363 = this.formatField("0", 8, '0');
           const f_1364 = this.formatField("!", 15, '!');
           const f_1365 = this.formatField("!", 15, '!');
           const f_1367 = this.formatField("!", 1, '!');
           const f_1366 = this.formatField("!", 3, '!');
-          const f_1368 = this.formatField("!", 15, '!');
-          const f_1369 = this.formatField("!", 15, '!');
-          const f_1370 = this.formatField("!", 12, '!');
+          const f_1368 = this.formatField("0", 15, '0');
+          const f_1369 = this.formatField("0", 15, '0');
+          const f_1370 = this.formatField("0", 12, '0');
           const f_1371 = this.formatField("!", 10, '!');
           const f_1372 = this.formatField("!", 10, '!');
           const f_1374 = this.formatField("!", 7, '!');
-          const f_1375 = this.formatField("!", 8, '!');
+          const f_1375 = this.formatField("0", 8, '0');
           const f_1376 = this.formatField("!", 9, '!');
           const f_1377 = this.formatField("!", 25, '!');
 
-          result += `B100 | ${f_1351} | ${f_1352} | ${f_1353} | ${f_1354} | ${f_1355} | ${f_1356} | ${f_1357} 
-                          | ${f_1358} | ${f_1359} | ${f_1360} | ${f_1361} | ${f_1362} | ${f_1363} | ${f_1364} 
-                          | ${f_1365} | ${f_1366} | ${f_1367} | ${f_1368} | ${f_1369} | ${f_1370} | ${f_1371}
-                          | ${f_1372} | ${f_1374} | ${f_1375} | ${f_1376} | ${f_1377}\n`;
+          result += `B100${f_1351}${f_1352}${f_1353}${f_1354}${f_1355}${f_1356}${f_1357}${f_1358}${f_1359}${f_1360}${f_1361}${f_1362}${f_1363}${f_1364}${f_1365}${f_1366}${f_1367}${f_1368}${f_1369}${f_1370}${f_1371}${f_1372}${f_1374}${f_1375}${f_1376}${f_1377}\n`;
+
         });
       }
     
@@ -807,20 +797,18 @@ export class ReportsService {
           const f_1411 = this.formatField("!", 30, '!');
           const f_1412 = this.formatField("!", 2, '!');
           const f_1413 = this.formatField("!", 15, '!');
-          const f_1414 = this.formatField("!", 15, '!');
-          const f_1415 = this.formatField("!", 15, '!');
-          const f_1416 = this.formatField("!", 15, '!');
-          const f_1417 = this.formatField("!", 4, '!');
+          const f_1414 = this.formatField("0", 15, '0');
+          const f_1415 = this.formatField("0", 15, '0');
+          const f_1416 = this.formatField("0", 15, '0');
+          const f_1417 = this.formatField("0", 4, '0');
           const f_1419 = this.formatField("!", 9, '!');
           const f_1421 = this.formatField("!", 7, '!');
-          const f_1422 = this.formatField("!", 15, '!');
+          const f_1422 = this.formatField("0", 15, '0');
           const f_1423 = this.formatField("!", 3, '!');
           const f_1424 = this.formatField("!", 16, '!');
 
-          result += `B110 | ${f_1401} | ${f_1402} | ${f_1403} | ${f_1404} | ${f_1405} | ${f_1406} | ${f_1407} 
-                          | ${f_1408} | ${f_1409} | ${f_1410} | ${f_1411} | ${f_1412} | ${f_1413} | ${f_1414} 
-                          | ${f_1415} | ${f_1416} | ${f_1417} | ${f_1419} | ${f_1421} | ${f_1422} | ${f_1423}
-                          | ${f_1424}\n`;
+          result += `B110${f_1401}${f_1402}${f_1403}${f_1404}${f_1405}${f_1406}${f_1407}${f_1408}${f_1409}${f_1410}${f_1411}${f_1412}${f_1413}${f_1414}${f_1415}${f_1416}${f_1417}${f_1419}${f_1421}${f_1422}${f_1423}${f_1424}\n`;
+
         });
       }
     
@@ -859,9 +847,7 @@ export class ReportsService {
           const f_1464 = this.formatField("!", 10, '!');
           const f_1465 = this.formatField("!", 50, '!');
 
-          result += `M100 | ${f_1451} | ${f_1452} | ${f_1453} | ${f_1454} | ${f_1455} | ${f_1456} | ${f_1457} 
-                          | ${f_1458} | ${f_1459} | ${f_1460} | ${f_1461} | ${f_1462} | ${f_1463} | ${f_1464} 
-                          | ${f_1465}\n`;
+          result += `M100${f_1451}${f_1452}${f_1453}${f_1454}${f_1455}${f_1456}${f_1457}${f_1458}${f_1459}${f_1460}${f_1461}${f_1462}${f_1463}${f_1464}${f_1465}\n`;
         });
       }
     
@@ -870,9 +856,16 @@ export class ReportsService {
     
 
     private generateZ900Section(businessNumber: string, uniqueId: string): string {
-      return `Z900 | ${this.getFormattedRecordCounter()} | ${businessNumber} | ${uniqueId} | &OF1.31& | "TODO: add number of all lists" | ${'?'.repeat(50)}\n`;
+      return `Z900${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${this.formatField(this.totalLists, 15, '0')}${'?'.repeat(50)}\n`;
     }
 
+
+    private wrapFieldsLTR(fields: (string | number)[]): string {
+      const LRM = '\u200E';
+      const wrappedFields = fields.map(f => LRM + f);
+      return `${wrappedFields.join("")}`;
+    }
+    
 
     private getRecordDescription(code: string): string {
       const descriptions: Record<string, string> = {
@@ -896,7 +889,7 @@ export class ReportsService {
       let strValue: string;
 
       if (value === null || value === undefined) {
-        return '!'.repeat(length);
+        return padChar.repeat(length);
       }
   
       // Convert Date to YYYYMMDD format before processing
@@ -922,30 +915,41 @@ export class ReportsService {
     }
 
 
-    private formatAmount(value: number, totalLength: number, decimalPlaces: number): string {
-      const sign = value < 0 ? '-' : '+'; // Add "+" for positive and "-" for negative
-      let formattedValue = Math.abs(value)
-          .toFixed(decimalPlaces) // Convert to string with 2 decimal places
-          .replace('.', '') // Remove decimal point
-          .padStart(totalLength - 1, '0'); // Pad to ensure correct length (excluding sign)
-  
-      return sign + formattedValue; // Prefix the sign
+    private formatAmount(value: number, intLength: number, decimalPlaces: number, withSign: boolean = true): string {
+      const sign = value < 0 ? '-' : withSign ? '+' : '';
+      const absValue = Math.abs(value);
+    
+      const [intPart, decPart] = absValue.toFixed(decimalPlaces).split('.');
+    
+      const paddedIntPart = intPart.padStart(intLength, '0');
+      const paddedDecPart = decPart.padEnd(decimalPlaces, '0');
+    
+      return sign + paddedIntPart + paddedDecPart;
     }
-  
+    
 
-    private getDocumentTypeCode(documentType: DocumentType): number {
+    private getDocumentTypeCode(documentType: DocumentType | null, allowNull: boolean): number | null {
+      if (documentType === null) {
+        if (allowNull) {
+          return null;
+        } else {
+          throw new Error("Null document type is not allowed.");
+        }
+      }
+    
+      console.log("documentType is: ", documentType);
+    
       if (!(documentType in DocumentTypeCodeMap)) {
         throw new Error(`Invalid document type: ${documentType}`);
       }
+    
       return DocumentTypeCodeMap[documentType];
     }
+    
 
 
     // Format date to YYYYMMDD
     private formatDateYYYYMMDD(dateInput: Date | string): string {
-      //console.log("formatDateYYYYMMDD: date is ", date);
-      //console.log(typeof date);
-      
       const date = (dateInput instanceof Date) ? dateInput : new Date(dateInput);
       return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
     }
@@ -953,10 +957,6 @@ export class ReportsService {
 
     // Fetch documents by userId, businessNumber, startDate, and endDate
     async fetchDocuments(userId: string, businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
-      console.log("fetchDocuments: startDate is ", startDate);
-      console.log("fetchDocuments: endDate is ", endDate);
-      console.log("fetchDocuments: businessNumber is ", businessNumber);
-      
       return this.documentsRepo.find({
         where: {
           issuerbusinessNumber: businessNumber, // Only fetch documents issued by this business
@@ -965,7 +965,6 @@ export class ReportsService {
         order: { docDate: 'ASC' },
       });
     }
-
 
 
     async parseAndSaveDebugFile(fileName: string): Promise<string> {
@@ -1016,104 +1015,6 @@ export class ReportsService {
       this.logger.log(`✅ Debug file created: ${debugFilePath}`);
       return debugFilePath;
     }
-
-    // async parseAndSaveDebugFile(fileName: string): Promise<string> {
-    //   const inputFilePath = path.join(this.generatedFolder, fileName);
-    //   const debugFilePath = path.join(this.debugFolder, fileName.replace('.TXT', '_DEBUG.TXT'));
-  
-    //   if (!fs.existsSync(inputFilePath)) {
-    //     this.logger.error(`File not found: ${inputFilePath}`);
-    //     throw new Error(`File not found: ${fileName}`);
-    //   }
-  
-    //   const fileStream = fs.createReadStream(inputFilePath);
-    //   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-  
-    //   const outputStream = fs.createWriteStream(debugFilePath);
-    //   outputStream.write("====================================\n");
-    //   outputStream.write("       DEBUG PARSED OUTPUT\n");
-    //   outputStream.write("====================================\n\n");
-  
-    //   for await (const line of rl) {
-    //     const listName = line.substring(0, 4).trim(); // Extract list type (A100, C100, etc.)
-  
-    //     if (!FIELD_MAP[listName]) {
-    //       this.logger.warn(`⚠ Unknown list type: ${listName}`);
-    //       continue;
-    //     }
-  
-    //     const fields = FIELD_MAP[listName];
-    //     let currentPosition = 4; // Start after the first 4 characters (list name)
-  
-    //     // Write section header
-    //     outputStream.write(`==== ${listName} ====\n`);
-  
-    //     fields.forEach(({ field, length, description }) => {
-    //       const fieldValue = line.substring(currentPosition, currentPosition + length).trim();
-    //       currentPosition += length;
-    //       outputStream.write(`f_${field} = ${fieldValue}      | ${description}\n`);
-    //     });
-  
-    //     outputStream.write("\n"); // Add empty line between sections
-    //   }
-  
-    //   outputStream.end();
-    //   this.logger.log(`✅ Debug file created: ${debugFilePath}`);
-    //   return debugFilePath;
-    // }
-
-
-  // async parseAndSaveDebugFile(fileName: string): Promise<string> {
-
-  //   const inputFilePath = path.join(this.generatedFolder, fileName);
-  //   const debugFilePath = path.join(this.debugFolder, fileName.replace('.TXT', '_DEBUG.TXT'));
-
-  //   if (!fs.existsSync(inputFilePath)) {
-  //     this.logger.error(`❌ File not found: ${inputFilePath}`);
-  //     throw new Error(`File not found: ${fileName}`);
-  //   }
-
-  //   const fileStream = fs.createReadStream(inputFilePath);
-  //   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-  //   const outputStream = fs.createWriteStream(debugFilePath);
-  //   outputStream.write("List Name | Field | Value\n");
-  //   outputStream.write("---------------------------------\n");
-
-  //   for await (const line of rl) {
-  //     const listName = line.substring(0, 4).trim();
-
-  //     console.log("line is ", line);
-      
-
-  //     if (!FIELD_MAP[listName]) {
-  //       this.logger.warn(`⚠ Unknown list type: ${listName}`);
-  //       continue;
-  //     }
-
-  //     const fields = FIELD_MAP[listName];
-  //     let currentPosition = 4; // Start reading after the first 4 characters (list name)
-
-  //     outputStream.write(`\n=== ${listName} ===\n`);
-
-  //     fields.forEach(({ field, length, description }) => {
-  //       const fieldValue = line.substring(currentPosition, currentPosition + length).trim();
-  //       currentPosition += length;
-  //       outputStream.write(`${listName} | ${field} (${description}) | ${fieldValue}\n`);
-  //     });
-  //   }
-
-  //   outputStream.end();
-  //   this.logger.log(`✅ Debug file created: ${debugFilePath}`);
-  //   return debugFilePath;
-  // }
-
-
-
-
-
-
-
 
     
 }
