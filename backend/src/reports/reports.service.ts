@@ -522,8 +522,6 @@ export class ReportsService {
 
       // Add Z900 section first
       content += this.generateZ900Section(businessNumber, uniqueId);
-
-      //console.log("content is: ", content);
       
       return { 
         content, 
