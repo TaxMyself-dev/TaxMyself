@@ -522,6 +522,8 @@ export class ReportsService {
 
       // Add Z900 section first
       content += this.generateZ900Section(businessNumber, uniqueId);
+
+      //console.log("content is: ", content);
       
       return { 
         content, 
@@ -885,6 +887,7 @@ export class ReportsService {
 
     // Format a field to a fixed length
     private formatField(value: string | number | Date, length: number, padChar: string = ' ', alignLeft: boolean = false): string {
+
 
       let strValue: string;
 

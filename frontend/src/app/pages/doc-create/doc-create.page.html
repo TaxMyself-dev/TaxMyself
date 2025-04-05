@@ -110,6 +110,13 @@
                   [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
                   [inputType]="field.type"></app-generic-input>
 
+                <!-- <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
+                  [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
+                  [inputType]="field.type"></app-generic-input>
+
+                <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
+                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input> -->
+
                 <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
                   [parentForm]="getPaymentFormByIndex(i)" (selectionChanged)="onSelectionChanged(field.value, $event, i)"
                   [items]="getDropdownItems(field.value)"></app-generic-select>
