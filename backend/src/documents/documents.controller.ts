@@ -17,23 +17,42 @@ export class DocumentsController {
     // private userService: UsersService,
   ) { }
 
+  // @Get('get-setting-doc-by-type/:typeDoc')
+  // @UseGuards(FirebaseAuthGuard)
+  // async getSettingDocByType(@Param('typeDoc') typeDoc: DocumentType, @Req() request: AuthenticatedRequest) {
+  //   const userId = request.user?.firebaseId;
+  //   try {
+  //     const { docIndex, generalIndex } = await this.documentsService.getCurrentIndexes(userId, typeDoc);
+
+  //     const docDetails = await this.documentsService.getSettingDocByType(userId, typeDoc);
+  //     //console.log("docDetails: ", docDetails);
+  //     return docDetails;
+  //   }
+  //   catch (error) {
+  //     throw error;
+  //   }
+    
+  // }
+
+
   @Get('get-setting-doc-by-type/:typeDoc')
   @UseGuards(FirebaseAuthGuard)
-  async getSettingDocByType(@Param('typeDoc') typeDoc: DocumentType, @Req() request: AuthenticatedRequest) {
-    //console.log("typeDoc: ", typeDoc);
+  async getSettingDocByType(
+    @Param('typeDoc') typeDoc: DocumentType,
+    @Req() request: AuthenticatedRequest
+  ) {
     const userId = request.user?.firebaseId;
-    //console.log("🚀 ~ DocumentsController ~ getSettingDocByType ~ userId:", userId)
+
     try {
-      const docDetails = await this.documentsService.getSettingDocByType(userId, typeDoc);
-      //console.log("docDetails: ", docDetails);
-      return docDetails;
-    }
-    catch (error) {
+      const { docIndex, generalIndex } = await this.documentsService.getCurrentIndexes(userId, typeDoc);
+      return { docIndex, generalIndex };
+    } catch (error) {
       throw error;
     }
-    
   }
+
   
+
   @Post('setting-initial-index/:typeDoc')
   @UseGuards(FirebaseAuthGuard)
   async setInitialDocDetails(@Param('typeDoc') typeDoc: DocumentType, @Body() data: any, @Req() request: AuthenticatedRequest) {
@@ -51,31 +70,17 @@ export class DocumentsController {
     }
   }
 
-  // @Patch('update-cerrunt-index/:typeDoc')
-  // async updateCurrentIndex(@Headers('token') token: string, @Param('typeDoc') typeDoc: DocumentType) {
-  //   // const userId = await this.userService.getFirbsaeIdByToken(token);
-  //   const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
-  //   try {
-  //     const docDetails = await this.documentsService.incrementCurrentIndex(userId, typeDoc);
-  //     console.log("docDetails: ", docDetails);
-  //     return docDetails
-  //   }
-  //   catch (error) {
-  //     throw error;
-  //   }
-  // }
   
   @Post('create-doc')
   @UseGuards(FirebaseAuthGuard)
   async createPDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    //console.log("🚀 ~ DocumentsController ~ createPDF ~ body:", body)
     const pdfBuffer = await this.documentsService.createDoc(body, userId);
-    //console.log("pdfBuffer: ", pdfBuffer);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }
   
+
   @UseGuards(FirebaseAuthGuard)
   @Post('generate-pdf')
   async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
@@ -85,10 +90,13 @@ export class DocumentsController {
     return res.send(pdfBuffer);
   }
 
+
   // @Post('add-doc')
   // async addDoc(@Headers('token') token: string, @Body() body: any) {
   //   //const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
   //   const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
   //   return this.documentsService.addDoc(userId, body);
   // }
+
+
 }

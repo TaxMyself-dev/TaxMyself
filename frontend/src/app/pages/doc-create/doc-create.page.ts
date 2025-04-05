@@ -3,7 +3,7 @@ import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@ang
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
+import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -37,7 +37,8 @@ export class DocCreatePage implements OnInit {
   fileSelected: string;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
-  docDetails: ISettingDoc;
+  //docDetails: ISettingDoc;
+  docIndexes: IDocIndexes | null = null;
   createPDFIsLoading: boolean = false;
   createPreviewPDFIsLoading: boolean = false;
   addPDFIsLoading: boolean = false;
@@ -196,6 +197,7 @@ export class DocCreatePage implements OnInit {
       )
       .subscribe((res) => {
         console.log("res in set initial index: ", res);
+        this.getDocDetails();
         this.isInitial = false;
       })
 
@@ -210,6 +212,33 @@ export class DocCreatePage implements OnInit {
     return this.DocCreateTypeList.find((doc) => doc.value === typeDoc)?.name;
   }
 
+  // getDocDetails(): void {
+  //   this.docCreateService.getDetailsDoc(this.fileSelected)
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("err in get doc details: ", err);
+  //         if (err.status === 404) {
+  //           this.isInitial = true;
+  //         }
+  //         else {
+  //           //TODO: handle error screen
+  //         }
+  //         return EMPTY;
+  //       }),
+  //       tap((data) => {
+  //         if (!data.initialIndex) this.isInitial = true;
+  //         else this.isInitial = false;
+  //         console.log("this.isInitial: ", this.isInitial);
+
+  //       })
+  //     )
+  //     .subscribe((res) => {
+  //       console.log("res in get doc details: ", res);
+  //       this.docDetails = res;
+  //     })
+  // }
+
+
   getDocDetails(): void {
     this.docCreateService.getDetailsDoc(this.fileSelected)
       .pipe(
@@ -217,24 +246,23 @@ export class DocCreatePage implements OnInit {
           console.log("err in get doc details: ", err);
           if (err.status === 404) {
             this.isInitial = true;
-          }
-          else {
-            //TODO: handle error screen
+          } else {
+            // TODO: handle error screen
           }
           return EMPTY;
         }),
         tap((data) => {
-          if (!data.initialIndex) this.isInitial = true;
-          else this.isInitial = false;
+          // If docIndex is 0, treat it as "initial"
+          this.isInitial = data.docIndex === 0;
           console.log("this.isInitial: ", this.isInitial);
-
         })
       )
       .subscribe((res) => {
         console.log("res in get doc details: ", res);
-        this.docDetails = res;
-      })
+        this.docIndexes = res; // Store the indexes
+      });
   }
+  
 
   openSelectClients() {
 
@@ -361,7 +389,7 @@ export class DocCreatePage implements OnInit {
   
       return {
         issuerbusinessNumber: this.userDetails?.businessNumber,
-        generalDocIndex: this.docDetails?.currentIndex,
+        generalDocIndex: this.docIndexes?.generalIndex.toString(),
         description: payment?.description || null,
         unitAmount: payment?.unitAmount ?? 1,
         sumBefVat: sumAftDisBefVatPerLine,
@@ -410,9 +438,9 @@ export class DocCreatePage implements OnInit {
         recipientPhone: userFormData?.recipientPhone || null,
         recipientEmail: userFormData?.recipientEmail || null,
         docType: this.fileSelected,
-        generalDocIndex: this.docDetails?.currentIndex,
+        generalDocIndex: this.docIndexes?.generalIndex.toString(),
         docDescription: generalFormData?.docDescription,
-        docNumber: this.docDetails?.currentIndex,
+        docNumber: this.docIndexes?.docIndex.toString(),
         docVatRate: 18,
         transType: 3,
         amountForeign: this.totalAmount,

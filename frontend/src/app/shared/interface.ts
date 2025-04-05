@@ -80,6 +80,11 @@ export interface ISettingDoc {
     updatedAt: Date;
 }
 
+export interface IDocIndexes {
+    docIndex: number;
+    generalIndex: number;
+}  
+
 export interface ISuppliers {
     id: number,
     name: string,
