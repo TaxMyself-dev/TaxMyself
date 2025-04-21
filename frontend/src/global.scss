@@ -127,7 +127,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
   }
 }
-
+// ======================== primeNG
 .p-button {
   &.big {
     width: 200px;
@@ -195,4 +195,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 }
 
+.p-button-text.p-button-info:hover { // for avoid the shadow of button text
+  background-color: transparent !important;
+}
  

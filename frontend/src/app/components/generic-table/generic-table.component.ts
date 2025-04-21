@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal, WritableSignal } from '@angular/core';
-// import { ButtonModule } from 'primeng/button';
+import { ButtonModule } from 'primeng/button';
+import { ButtonGroupModule } from 'primeng/buttongroup';
+
 // import { IconFieldModule } from 'primeng/iconfield';
 // import { InputIconModule } from 'primeng/inputicon';
 import { InputIcon } from 'primeng/inputicon';
@@ -16,13 +18,22 @@ import { TruncatePointerDirective } from '../../directives/truncate-pointer.dire
 import { FilterDialogComponent } from "../filter-dialog/filter-dialog.component"; // For add cursor pointer only to long text.
 import { TreeNode } from 'primeng/api';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
+import { animate, state, style, transition, trigger } from '@angular/animations';
 
 @Component({
   selector: 'app-generic-table',
   standalone: true,
+  animations: [
+    trigger('slideIn', [
+      state('void', style({ transform: 'translateX(-100%)', opacity: 0})),
+      state('visible', style({ transform: 'translateX(0)', opacity: 1 })),
+      transition('void => visible', animate('300ms ease-out')),
+      transition('visible => void', animate('200ms ease-in')),
+    ])
+  ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent, HighlightPipe],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent, HighlightPipe, ButtonModule, ButtonGroupModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
 })
@@ -36,6 +47,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visible = signal(false);
   searchTerm: WritableSignal<string> = signal('');
+  isHovering: WritableSignal<boolean> = signal(false);
+  hovered: number | null;
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
@@ -267,7 +280,23 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   constructor() { }
 
-  ngOnInit() {}
+  ngOnInit() {
+    console.log("this.columnsTitle:", this.columnsTitle());
+    
+  }
+
+  onMouseEnter(i: number) {
+    // console.log('enter', i);
+    // console.log('enter');
+    this.hovered = i;
+    // console.log(this.hovered);
+  }
+
+  onMouseLeave(i: number) {
+    // console.log('leave', i);
+    this.hovered = null;
+    // console.log(this.hovered);
+  }
 
   isExpanded(rowData: any): boolean {
     return this.expandedRows.has(rowData.id);

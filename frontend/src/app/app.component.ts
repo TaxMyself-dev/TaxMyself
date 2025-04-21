@@ -63,6 +63,10 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    console.log("🚀 ~ AppComponent ~ ngOnInit ~ this.userData:", this.userData)
+    if (this.userData?.role[0] === 'ADMIN') {
+      this.menuItems.push({label: 'פאנל מנהלים', routerLink: '/admin-panel'});
+    }
     this.getRoute();
     this.getRoleUser();
     //this.authService.startTokenRefresh(); // Start refreshing the token

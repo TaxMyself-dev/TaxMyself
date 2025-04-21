@@ -334,19 +334,24 @@ export class TransactionsPage implements OnInit {
     this.isOpen = event
   }
 
-  getTransactions() {
+  getTransactions(periodType?: ReportingPeriodType, year?: number, month?: number, startDate1?: string, endDate1?: string, accounts?: string): void {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
+    periodType = formData.reportingPeriodType || ReportingPeriodType.ANNUAL;
+    year = year || formData.year || new Date().getFullYear();
+    month = month || formData.month || null;
+    startDate1 = startDate1 || formData.startDate || null;
+    endDate1 = endDate1 || formData.endDate || null;
+    accounts =  accounts || formData.accounts || "ALL_BILLS"
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(periodType, year, month, startDate1, endDate1);
+    this.dateForUpdate.startDate = startDate;
+    this.dateForUpdate.endDate = endDate;
 
-    // const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    // this.dateForUpdate.startDate = startDate;
-    // this.dateForUpdate.endDate = endDate;
+    // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accounts);
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-    // const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, "31/03/2025", formData.accounts);
-
-    const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-    // const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
+    // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accounts);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -376,7 +381,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData( startDate, endDate, formData.accounts).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }
