@@ -26,7 +26,8 @@
 
 .table-input-search {
     width: 200px;
-    :focus{
+
+    :focus {
         border-color: black;
     }
 }
@@ -41,8 +42,11 @@
     // border: 1px solid red;
 }
 
+.table-row:hover {
+    background-color: rgb(248, 243, 243);
+}
+
 .columns-header {
-    // border: 1px solid blue;
     min-width: 170px;
 }
 
@@ -51,12 +55,13 @@
 }
 
 .truncate {
-    display: inline-block; /* or block */
-    max-width: 200px;      /* or any desired width */
+    display: inline-block;
+    /* or block */
+    max-width: 200px;
+    /* or any desired width */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    // cursor: pointer;
 }
 
 .data-text {
@@ -66,4 +71,22 @@
 .red-text {
     color: red;
 }
-  
+
+.buttons-cell {
+    border-right: 3px solid;
+    display: flex; 
+    // width: 600px; 
+    position: absolute; 
+    left: 0; 
+    background-color: white; 
+    height: 76px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.buttons-container {
+    width: 100%; 
+    display: flex; 
+    justify-content: end; 
+    align-items: center;
+}
