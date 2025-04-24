@@ -83,12 +83,7 @@ export class TransactionsService implements OnInit{
 
   updateAccountList(newData: any): void {
     const accounts = this.accountsList$.value
-    const updatedTransactions = [newData];
-    // const updatedTransactions = [...accounts, ...newData];
-    // Emit the updated transactions
     this.accountsList$.next([...[{ value: 'ALL_BILLS', name: 'כל החשבונות' }],...newData]);
-    // this.accountsList$.next(updatedTransactions);
-    // console.log(this.accountsList$.value);
   }
 
 

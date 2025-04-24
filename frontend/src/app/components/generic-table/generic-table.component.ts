@@ -1,10 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ButtonGroupModule } from 'primeng/buttongroup';
-
-// import { IconFieldModule } from 'primeng/iconfield';
-// import { InputIconModule } from 'primeng/inputicon';
 import { InputIcon } from 'primeng/inputicon';
 import { IconField } from 'primeng/iconfield';
 import { TableModule } from 'primeng/table';
@@ -16,9 +13,9 @@ import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { IColumnDataTable, IRowDataTable, IFilterItems } from 'src/app/shared/interface';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { FilterDialogComponent } from "../filter-dialog/filter-dialog.component"; // For add cursor pointer only to long text.
-import { TreeNode } from 'primeng/api';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
+import { AccountAssociationDialogComponent } from "../account-association-dialog/account-association-dialog.component";
 
 @Component({
   selector: 'app-generic-table',
@@ -27,13 +24,13 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
     trigger('slideIn', [
       state('void', style({ transform: 'translateX(-100%)', opacity: 0})),
       state('visible', style({ transform: 'translateX(0)', opacity: 1 })),
-      transition('void => visible', animate('300ms ease-out')),
+      transition('void => visible', animate('500ms ease-out')),
       transition('visible => void', animate('200ms ease-in')),
     ])
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent, HighlightPipe, ButtonModule, ButtonGroupModule],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent, HighlightPipe, ButtonModule, ButtonGroupModule, AccountAssociationDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
 })
@@ -45,7 +42,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
-  visible = signal(false);
+  visibleAccountAssociationClicked = output<boolean>();
+  visibleFilterDialog = signal(false);
+  visibleAccountAssociationDialog = signal(false);
   searchTerm: WritableSignal<string> = signal('');
   isHovering: WritableSignal<boolean> = signal(false);
   hovered: number | null;
@@ -286,16 +285,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   onMouseEnter(i: number) {
-    // console.log('enter', i);
-    // console.log('enter');
     this.hovered = i;
-    // console.log(this.hovered);
   }
 
   onMouseLeave(i: number) {
-    // console.log('leave', i);
     this.hovered = null;
-    // console.log(this.hovered);
   }
 
   isExpanded(rowData: any): boolean {
@@ -311,7 +305,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   openFilterDialod(): void {
-    this.visible.set(!this.visible());
+    this.visibleFilterDialog.set(!this.visibleFilterDialog());
   }
 
   updateSearchTerm(event: Event): void {
@@ -319,5 +313,20 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.searchTerm.set(input.value);
   }
 
+  // openAccountAssociation(): void {
+  //   console.log('openAccountAssociation');
+  //   this.visibleAccountAssociationDialog.set(true);
+  // }
 
+  close(): void {
+    console.log('close');
+    this.visibleAccountAssociationDialog.set(false);
+    
+  }
+
+  onVisibleAccountAssociationClicked(): void {
+    console.log('onVisibleAccountAssociationClicked');
+    this.visibleAccountAssociationClicked.emit(true);
+  }
+  
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, Signal, WritableSignal, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
@@ -126,7 +126,8 @@ export class TransactionsPage implements OnInit {
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
-
+  visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
+  // VisibleLeftPanel: WritableSignal<boolean> = signal<boolean>(false); // For close all left panels
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
   tableActionsIncomes: ITableRowAction[];
@@ -870,6 +871,20 @@ export class TransactionsPage implements OnInit {
   filterByIncomes(event: string): void {
     this.filterByIncome = event;
     this.filterIncomes()
+  }
+
+  openAccountAssociation(event: boolean): void {
+    this.visibleAccountAssociationDialog.set(event);
+  }
+  
+  PaymentMethodAssociation(event: any): void {
+    
+  }
+  
+  onVisibleLeftPanelChange(event: boolean): void {
+    //this.VisibleLeftPanel.set(event);
+    //TODO - how to know which panel to close.368
+    this.visibleAccountAssociationDialog.set(event);
   }
 
 }

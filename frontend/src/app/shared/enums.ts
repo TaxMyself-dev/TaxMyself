@@ -442,3 +442,10 @@ export enum bunnerImagePosition {
   BOTTOM_LEFT = 'bottom-left',
   BOTTOM_RIGHT = 'bottom-right'
 }
+
+export enum inputsSize {
+  SMALL = 'narrow',
+  MEDIUM = 'normal',
+  LARGE = 'wide',
+  AUTO = 'auto'
+}

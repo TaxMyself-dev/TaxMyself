@@ -142,7 +142,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.icon {
-    width: 25px;
+    width: 35px;
     height: 25px;
   }
 
@@ -193,9 +193,35 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       color: black;
     }
   }
+
+  &.disabled {
+    background-color: #e0e0e0;
+    border-color: #e0e0e0;
+    color: #9e9e9e;
+    cursor: not-allowed;
+    &.disabled:hover {
+      background-color: #e0e0e0;
+      border-color: #e0e0e0;
+      color: #9e9e9e;
+    }
+  }
 }
 
 .p-button-text.p-button-info:hover { // for avoid the shadow of button text
   background-color: transparent !important;
+}
+
+.p-drawer-footer { // for footer of left panel
+  box-shadow: 0 -4px 8px -4px rgba(0, 0, 0, 0.2);
+}
+
+.p-select { //For select input
+  border-radius: 20px !important;
+  &.wide {
+    width: 420px !important;
+  }
+  &.auto {
+    width: auto;
+  }
 }
  
