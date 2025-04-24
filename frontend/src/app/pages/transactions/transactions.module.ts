@@ -9,6 +9,7 @@ import { SharedModule } from '../../shared/shared.module';
 import { TopNavComponent } from "../../components/topNav/topNav.component";
 import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner.component";
 import { GenericTableComponent } from "../../components/generic-table/generic-table.component";
+import { AccountAssociationDialogComponent } from "../../components/account-association-dialog/account-association-dialog.component";
 
 @NgModule({
   imports: [
@@ -20,7 +21,8 @@ import { GenericTableComponent } from "../../components/generic-table/generic-ta
     TransactionsPageRoutingModule,
     TopNavComponent,
     ImageBunnerComponent,
-    GenericTableComponent
+    GenericTableComponent,
+    AccountAssociationDialogComponent
 ],
   declarations: [TransactionsPage]
 })

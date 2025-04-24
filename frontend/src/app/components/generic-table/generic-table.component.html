@@ -12,7 +12,7 @@
       <app-p-button (onButtonClicked)="openFilterDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'"
         variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
         [buttonSize]="buttonSize.ICON"></app-p-button>
-      <app-filter-dialog [visible]="visible()" [filterFields]="filterItems"></app-filter-dialog>
+      <app-filter-dialog [visible]="visibleFilterDialog()" [filterFields]="filterItems"></app-filter-dialog>
     </div>
   </div>
   <div class="table">
@@ -50,7 +50,7 @@
         <td colspan="3" class="buttons-cell"  >
           <!-- <div class="buttons-container" style="width: 100%; display: flex; justify-content: end"> -->
           <div class="buttons-container" [@slideIn]="hovered === rowIndex ? 'visible' : 'void'">
-            <app-p-button [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
+            <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked()" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
             <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'"></app-p-button>
             <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'"></app-p-button>
           </div>

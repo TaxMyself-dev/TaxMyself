@@ -1,9 +1,18 @@
 <!-- <app-p-topNav [menuItems]="menuItems"></app-p-topNav> -->
-<app-image-bunner [alt]="'תמונת רקע'" [imageUrl]="'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXUGwt9dENEeO6NILWcXhb6Qg21fvbE3rgyQ&s'" [imageHeight]="'101px'" imageWidth="100%" [buttonLabel]="'הפקת דוח'" [buttonPosition]="bunnerImagePosition.CENTER_LEFT" [textPosition]="bunnerImagePosition.CENTER_RGHIT" [title]="'הפקת דוחות'"  [content]="'מהיום להפיק דוחות זה קל ופשוט! כאן תוכלו להפיק דוח למע״מ, דוח רווח והפסד, דוח שנתי, דוח מקדמות למס הכנסה ומבנה קבצים אחיד'" [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.WHITE">
+<app-image-bunner [alt]="'תמונת רקע'" [imageUrl]="'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXUGwt9dENEeO6NILWcXhb6Qg21fvbE3rgyQ&s'" [imageHeight]="'101px'" imageWidth="100%" [buttonLabel]="'הפקת דוח'" [buttonPosition]="bunnerImagePosition.CENTER_LEFT" [textPosition]="bunnerImagePosition.CENTER_RGHIT" [title]="'הפקת דוחות'"  [content]="'מהיום להפיק דוחות זה קל ופשוט! כאן תוכלו להפיק דוח למע״מ, דוח רווח והפסד, דוח שנתי, דוח מקדמות למס הכנסה ומבנה קבצים אחיד'" [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.WHITE"></app-image-bunner>
 
-></app-image-bunner>
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
-<app-generic-table [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses" [dataTable]="expensesData" [tableHeight]="'500px'"></app-generic-table>
+<app-generic-table [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses" [dataTable]="expensesData" [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)"></app-generic-table>
+
+<app-account-association-dialog (visibleChange)="onVisibleLeftPanelChange($event)" (AccountAssociationButtonClicked)="PaymentMethodAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList"></app-account-association-dialog>
+
+
+
+
+
+
+
+
+<!-- =================== ionic ========================= -->
 <ion-content>
   <div class="transaction-screen">
 

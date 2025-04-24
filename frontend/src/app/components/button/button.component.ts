@@ -1,4 +1,4 @@
-import { Component, EventEmitter, input, OnInit, Output } from '@angular/core';
+import { Component, computed, EventEmitter, input, OnInit, Output, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { ButtonModule } from 'primeng/button';
@@ -24,6 +24,17 @@ export class ButtonComponent  implements OnInit {
   isLoading = input<boolean>(false);
   disabled = input<boolean>(false);
 
+  buttonClasses: Signal<string> = computed(() => {
+    return [
+      this.buttonSize(),                                 
+      this.buttonColor(),                                
+      this.variant() === 'outlined' ? 'outlined' : '',   // include 'outlined' if set
+      this.disabled() ? 'disabled' : ''                  // include 'disabled' if set
+    ]
+    .filter(c => !!c)                                    // drop empty strings
+    .join(' ');
+  });
+
   @Output() onButtonClicked = new EventEmitter<Event>();
 
   
@@ -39,20 +50,5 @@ export class ButtonComponent  implements OnInit {
   onClick(event: Event): void {
     this.onButtonClicked.emit(event);
   }
-
-  getButtonClasses(): string {
-    const classes = {
-      'x_small': this.buttonSize() === ButtonSize.X_SMALL,
-      'small': this.buttonSize() === ButtonSize.SMALL,
-      'big': this.buttonSize() === ButtonSize.BIG,
-      'yellow': this.buttonColor() === ButtonColor.YELLOW,
-      'black': this.buttonColor() === ButtonColor.BLACK,
-      'white': this.buttonColor() === ButtonColor.WHITE,
-      'outlined': this.variant() === 'outlined',
-    };
-  
-    return Object.keys(classes).filter(className => classes[className]).join(' ');
-  }
-  
 
 }
