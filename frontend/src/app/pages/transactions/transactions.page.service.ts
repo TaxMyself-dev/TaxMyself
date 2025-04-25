@@ -95,7 +95,7 @@ export class TransactionsService implements OnInit{
   }
   
 
-  addSource(billId: string, source: string, type: string): Observable<any> {
+  addSource(billId: number, source: string, type: string): Observable<any> {
     //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
     // const headers = {

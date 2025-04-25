@@ -3,7 +3,7 @@
 
 <app-generic-table [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses" [dataTable]="expensesData" [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)"></app-generic-table>
 
-<app-account-association-dialog (visibleChange)="onVisibleLeftPanelChange($event)" (AccountAssociationButtonClicked)="PaymentMethodAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList"></app-account-association-dialog>
+<app-account-association-dialog (visibleChange)="onVisibleLeftPanelChange($event)" (AccountAssociationButtonClicked)="onPaymentMethodAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList" [rowData]="leftPanelData()"></app-account-association-dialog>
 
 
 

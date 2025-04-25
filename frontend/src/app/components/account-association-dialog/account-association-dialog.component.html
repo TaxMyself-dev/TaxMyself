@@ -1,11 +1,11 @@
-<app-left-panel headerText="שיוך אמצעי תשלום לחשבון" subHeaderText="תהליך השיוך חד פעמי aaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaa aaaaaaa aaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaabbb bbbbbbbbbbbbb bbbb bbbbbbbbbbbbbb ccccccccccccccccc ccccc cc ccccc cccccc ccccc cccccccccccc dddddddd ddddddd ddddddddd dddddddd ddddddddddd sssssssssssss rrrrrrrrr" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="false">
-  >
+<app-left-panel [headerText]="`שיוך אמצעי תשלום ${rowData()?.paymentIdentifier} לחשבון`" subHeaderText="תהליך השיוך חד פעמי aaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaa" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="false">
+
   <div class="content" content>
     <app-input-select [placeholder]="'בחר את החשבון אליו תרצה לשייך את אמצעי התשלום'" [parentForm]="myForm" [controlName]="'account'" [items]="accounts()" [size]="inputsSize.LARGE"></app-input-select>
     <app-p-button [buttonText]="'הוסף חשבון חדש'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"></app-p-button>
   </div>
 
   <div class="footer" footer>
-    <app-p-button [buttonText]="'שייך את אמצעי התשלום'" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked($event)" ></app-p-button>
+    <app-p-button [buttonText]="'שייך את אמצעי התשלום'" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked(myForm.get('account').value)" ></app-p-button>
   </div>
 </app-left-panel>

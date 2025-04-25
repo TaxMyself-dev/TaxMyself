@@ -25,59 +25,88 @@
           </th>
         </tr>
       </ng-template>
-      <ng-template pTemplate="body" let-rows let-columns="columns" let-rowIndex="rowIndex">
-        <tr [style.height]="isExpanded(rows) ? 'auto' : '76px'" class="table-row" (mouseenter)="onMouseEnter(rowIndex)" (mouseleave)="onMouseLeave(rowIndex)">
-          @for(col of columns.slice(0, columns.length - 3); track col.name) {
-            <td>
-              <span #tp="truncatePointer" [class.truncate]="!isExpanded(rows)" class="data-text" (click)="tp.isTruncated && toggleRow(rows)" appTruncatePointer [class.red-text]="col.name === 'category' && rows[col.name] === 'טרם סווג'">
+      <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
+        <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row" (mouseenter)="onMouseEnter(rowIndex)" (mouseleave)="onMouseLeave(rowIndex)">
+          <!-- @for(col of columns.slice(0, columns.length - 3); track col.name) { -->
+            @for(col of columns; track col.name; let i = $index) {
+              @if( i === columns.length - 1) {
+                <td class="action-cell">
+                <div  class="buttons-cell" [@slideIn]="isHovering() === rowIndex ? 'visible' : 'void'" >
+                  <div class="buttons-container" >
+                    <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+                    <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+                    <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+                  </div>
+                </div>
+                </td>
+              }
+              @else {
+                <td>
+              <span #tp="truncatePointer" [class.truncate]="!isExpanded(row)" class="data-text" (click)="tp.isTruncated && toggleRow(row)" appTruncatePointer [class.red-text]="col.name === 'category' && row[col.name] === 'טרם סווג'">
                 <!-- category column -->
-                @if(col.name === 'category' && rows[col.name] === 'טרם סווג') {
-                  <i class="pi pi-clock" style="color: red"></i> {{ rows[col.name] }}
+                @if(col.name === 'category' && row[col.name] === 'טרם סווג') {
+                  <i class="pi pi-clock" style="color: red"></i> {{ row[col.name] }}
                 }
                 <!-- For mark the search result in yellow -->
                 @else if (col.name === columnSearch()) {
-                <span [innerHTML]="rows[columnSearch()] | highlight: searchTerm()"></span>
+                <span [innerHTML]="row[columnSearch()] | highlight: searchTerm()"></span>
                 }
-                <!-- Default rows -->
+                <!-- Default row -->
                 @else {
-                {{ rows[col.name] }}
+                {{ row[col.name] }}
                 }
               </span>
             </td>
+            }
           }
           <!-- Either show last 3 columns or buttons depending on hover state -->
-      @if(hovered === rowIndex) {
-        <td colspan="3" class="buttons-cell"  >
-          <!-- <div class="buttons-container" style="width: 100%; display: flex; justify-content: end"> -->
-          <div class="buttons-container" [@slideIn]="hovered === rowIndex ? 'visible' : 'void'">
-            <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked()" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
+      <!-- @if(hovered === rowIndex) {
+        <td  class="buttons-cell"  >
+          <div class="buttons-container" >
+            <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
             <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'"></app-p-button>
             <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'"></app-p-button>
           </div>
         </td>
-      } @else {
-        @for(col of columns.slice(columns.length - 3); track col.name) {
-          <td>
+      } @else { -->
+        <!-- @for(col of columns.slice(columns.length - 3); track col.name; let i = $index) {
+          <td >
+          @if( i === 0 && hovered === rowIndex) {
+            <div class="buttons-cell" >
+            <div class="buttons-container" >
+              <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+              <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+              <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+            </div>
+          </div>
+          }
             <span #tp="truncatePointer" 
-                  [class.truncate]="!isExpanded(rows)" 
+                  [class.truncate]="!isExpanded(row)" 
                   class="data-text" 
-                  (click)="tp.isTruncated && toggleRow(rows)" 
+                  (click)="tp.isTruncated && toggleRow(row)" 
                   appTruncatePointer 
-                  [class.red-text]="col.name === 'category' && rows[col.name] === 'טרם סווג'">
+                  [class.red-text]="col.name === 'category' && row[col.name] === 'טרם סווג'">
               
-              @if(col.name === 'category' && rows[col.name] === 'טרם סווג') {
-                <i class="pi pi-clock" style="color: red"></i> {{ rows[col.name] }}
+              @if(col.name === 'category' && row[col.name] === 'טרם סווג') {
+                <i class="pi pi-clock" style="color: red"></i> {{ row[col.name] }}
               } @else if (col.name === columnSearch()) {
-                <span [innerHTML]="rows[columnSearch()] | highlight: searchTerm()"></span>
+                <span [innerHTML]="row[columnSearch()] | highlight: searchTerm()"></span>
               } @else {
-                {{ rows[col.name] }}
+                {{ row[col.name] }}
               }
             </span>
           </td>
-        }
-      }
-        </tr>
-
+        } -->
+      <!-- } -->
+      <!-- <td *ngFor="let i of [0,1,2]; let j = index" class="action-cell">
+        <div class="buttons-container" *ngIf="(hovered === rowIndex && j==0)">
+          <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
+          <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'"></app-p-button>
+          <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'"></app-p-button>
+        </div>
+      </td> -->
+      
+    </tr>
       </ng-template>
       <!-- Empty Data -->
       <ng-template pTemplate="emptymessage">
