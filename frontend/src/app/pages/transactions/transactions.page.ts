@@ -127,7 +127,7 @@ export class TransactionsPage implements OnInit {
   readonly ButtonClass = ButtonClass;
 
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
-  // VisibleLeftPanel: WritableSignal<boolean> = signal<boolean>(false); // For close all left panels
+  leftPanelData: WritableSignal<IRowDataTable> = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
   tableActionsIncomes: ITableRowAction[];
@@ -447,6 +447,7 @@ export class TransactionsPage implements OnInit {
 
   openAddBill(data: IRowDataTable): void {
     this.selectBill = data.paymentIdentifier as string;
+    console.log("🚀 ~ TransactionsPage ~ openAddBill ~ this.selectBill:", this.selectBill)
     this.openPopupAddBill()
   }
 
@@ -873,18 +874,42 @@ export class TransactionsPage implements OnInit {
     this.filterIncomes()
   }
 
-  openAccountAssociation(event: boolean): void {
-    this.visibleAccountAssociationDialog.set(event);
+  openAccountAssociation(event: {state: boolean, data: IRowDataTable}): void {
+    this.visibleAccountAssociationDialog.set(event.state);
+    this.leftPanelData.set(event.data);
   }
   
-  PaymentMethodAssociation(event: any): void {
-    
+  onPaymentMethodAssociation(event: any): void {
+    const len = this.leftPanelData().paymentIdentifier.toString().length;
+    const paymentMethodType = len === 6 ? 'BANK_ACCOUNT' : len === 4 ? 'CREDIT_CARD' : undefined; // Setting paymentMethodType based on the length of paymentIdentifier
+    console.log("🚀 ~ onPaymentMethodAssociation ~ len:", len)
+    console.log("event in payment method association: ", event);
+    this.addSource(event, this.leftPanelData().paymentIdentifier as string, paymentMethodType);
   }
   
   onVisibleLeftPanelChange(event: boolean): void {
     //this.VisibleLeftPanel.set(event);
-    //TODO - how to know which panel to close.368
+    //TODO - how to know which panel to close.
     this.visibleAccountAssociationDialog.set(event);
+  }
+
+  addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
+    // console.log("🚀 ~ addSource ~ paymentMethodType:", paymentMethodType)
+    // console.log("🚀 ~ addSource ~ paymentIdentifier:", paymentIdentifier)
+    // console.log("🚀 ~ addSource ~ bill:", bill)
+    // this.genericService.getLoader().subscribe();
+    this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType)
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          console.log('err in add source: ', err);
+          return EMPTY;
+        })
+      )
+      .subscribe(() => {
+        this.visibleAccountAssociationDialog.set(false);
+        this.getTransactions();
+      })
   }
 
 }

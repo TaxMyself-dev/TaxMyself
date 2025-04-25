@@ -148,6 +148,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
   &.auto {
     width: auto;
+    min-width: max-content;
   }
 
   &.yellow {
@@ -197,12 +198,12 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.disabled {
     background-color: #e0e0e0;
     border-color: #e0e0e0;
-    color: #9e9e9e;
+    color: white;
     cursor: not-allowed;
     &.disabled:hover {
       background-color: #e0e0e0;
       border-color: #e0e0e0;
-      color: #9e9e9e;
+      color: 'white';
     }
   }
 }

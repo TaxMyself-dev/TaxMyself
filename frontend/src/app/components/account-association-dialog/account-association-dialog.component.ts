@@ -3,7 +3,7 @@ import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { ButtonComponent } from "../button/button.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { ISelectItem } from 'src/app/shared/interface';
+import { IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonSize } from '../button/button.enum';
 import { vi } from 'date-fns/locale';
@@ -20,6 +20,7 @@ export class AccountAssociationDialogComponent implements OnInit {
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);
   accounts = input<ISelectItem[]>([]);
+  rowData = input<IRowDataTable>(null);
   AccountAssociationButtonClicked = output<string>();
   visibleChange = output<boolean>();
   // visibleState: WritableSignal<boolean> = signal(this.isVisible());
@@ -29,7 +30,7 @@ export class AccountAssociationDialogComponent implements OnInit {
   // return this.isVisible()
   // });
   buttonSize = ButtonSize;
-  inputsSize = inputsSize
+  inputsSize = inputsSize;
   // @Output() onShow = new EventEmitter<void>();
   // @Output() onHide = new EventEmitter<void>();
   // @Input() modal = true;
@@ -54,10 +55,10 @@ export class AccountAssociationDialogComponent implements OnInit {
 
   onVisibleChange(visible: boolean) {
     this.visibleChange.emit(visible);
-    // this.visibleState.set(visible);
   }
 
   onButtonClicked(event: any): void {
+    console.log("🚀 ~ event in AccountAssociationDialogComponent :", event)
     this.AccountAssociationButtonClicked.emit(event);
   }
 

@@ -22,9 +22,9 @@ import { AccountAssociationDialogComponent } from "../account-association-dialog
   standalone: true,
   animations: [
     trigger('slideIn', [
-      state('void', style({ transform: 'translateX(-100%)', opacity: 0})),
+      state('void', style({ transform: 'translateX(-10%)', opacity: 0 })),
       state('visible', style({ transform: 'translateX(0)', opacity: 1 })),
-      transition('void => visible', animate('500ms ease-out')),
+      transition('void => visible', animate('600ms ease-out')),
       transition('visible => void', animate('200ms ease-in')),
     ])
   ],
@@ -42,11 +42,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
-  visibleAccountAssociationClicked = output<boolean>();
+  visibleAccountAssociationClicked = output<{state: boolean, data: IRowDataTable}>();
   visibleFilterDialog = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm: WritableSignal<string> = signal('');
-  isHovering: WritableSignal<boolean> = signal(false);
+  isHovering: WritableSignal<number> = signal(null);
   hovered: number | null;
 
   readonly buttonSize = ButtonSize;
@@ -285,7 +285,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   onMouseEnter(i: number) {
-    this.hovered = i;
+    this.isHovering.set(i);
   }
 
   onMouseLeave(i: number) {
@@ -324,9 +324,12 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     
   }
 
-  onVisibleAccountAssociationClicked(): void {
+  onVisibleAccountAssociationClicked(row:IRowDataTable): void {
+    console.log('row in onVisibleAccountAssociationClicked:', row);
+    console.log('event in onVisibleAccountAssociationClicked:', true);
+    
     console.log('onVisibleAccountAssociationClicked');
-    this.visibleAccountAssociationClicked.emit(true);
+    this.visibleAccountAssociationClicked.emit({state: true, data: row});
   }
   
 }

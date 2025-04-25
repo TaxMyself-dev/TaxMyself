@@ -22,7 +22,7 @@ export class AddBillComponent implements OnInit {
   sourceTypes: ISelectItem[] = [{ value: paymentIdentifierType.CREDIT_CARD, name: "כרטיס אשראי" }, { value: paymentIdentifierType.BANK_ACCOUNT, name: "חשבון בנק" }]
   existBill: boolean = true;
   onChangeRadio: boolean = true;
-  billSelected: string;
+  billSelected: number;
   typeSelected: string;
   addBillForm: FormGroup;
   businessNames: ISelectItem[] = [];
