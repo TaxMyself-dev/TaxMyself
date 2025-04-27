@@ -93,14 +93,39 @@ export enum DocumentType {
   TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT', // חשבונית מס קבלה
   TRANSACTION_INVOICE = 'TRANSACTION_INVOICE', // חשבונית עסקה
   CREDIT_INVOICE = 'CREDIT_INVOICE', // חשבונית זיכוי
+  JOURNAL_ENTRY = 'JOURNAL_ENTRY', //  פקודת יומן
 }
 
-export const DocumentTypeCodeMap: Partial<Record<DocumentType, number>> = {
-  [DocumentType.TRANSACTION_INVOICE]: 300,
-  [DocumentType.TAX_INVOICE]: 305,
-  [DocumentType.TAX_INVOICE_RECEIPT]: 320,
-  [DocumentType.CREDIT_INVOICE]: 330,
-  [DocumentType.RECEIPT]: 400,
+export enum JournalReferenceType {
+  RECEIPT = 'RECEIPT',
+  TAX_INVOICE = 'TAX_INVOICE',
+  TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT',
+  TRANSACTION_INVOICE = 'TRANSACTION_INVOICE',
+  CREDIT_INVOICE = 'CREDIT_INVOICE',
+  EXPENSE = 'EXPENSE',
+  PAYMENT = 'PAYMENT',
+  MANUAL = 'MANUAL',
+  VAT_PAYMENT = 'VAT_PAYMENT',
+  ADJUSTMENT = 'ADJUSTMENT'
+}
+
+export const UniformFileTypeCodeMap: Partial<Record<DocumentType | JournalReferenceType, number>> = {
+
+  // DocumentType mappings
+  [DocumentType.TRANSACTION_INVOICE as string]: 300,
+  [DocumentType.TAX_INVOICE as string]: 305,
+  [DocumentType.TAX_INVOICE_RECEIPT as string]: 320,
+  [DocumentType.CREDIT_INVOICE as string]: 330,
+  [DocumentType.RECEIPT as string]: 400,
+
+  // JournalReferenceType mappings (some overlap, some unique)
+  [JournalReferenceType.RECEIPT as string]: 400,
+  [JournalReferenceType.TAX_INVOICE as string]: 305,
+  [JournalReferenceType.TAX_INVOICE_RECEIPT as string]: 320,
+  [JournalReferenceType.TRANSACTION_INVOICE as string]: 300,
+  [JournalReferenceType.CREDIT_INVOICE as string]: 330,
+  [JournalReferenceType.EXPENSE as string]: 410,
+  
 };
 
 export enum PaymentMethodType {

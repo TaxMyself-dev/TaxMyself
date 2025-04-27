@@ -10,3 +10,11 @@ content-type: application/json
         "initialIndex": 1,
         "docType": 1
 }
+
+###
+POST http://localhost:3000/documents/generate-multiple
+Content-Type: application/json
+
+{
+  "userId": "bLLbGN2fjvXe1wOuRe3cclYxx6l1"
+}

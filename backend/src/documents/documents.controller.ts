@@ -17,23 +17,6 @@ export class DocumentsController {
     // private userService: UsersService,
   ) { }
 
-  // @Get('get-setting-doc-by-type/:typeDoc')
-  // @UseGuards(FirebaseAuthGuard)
-  // async getSettingDocByType(@Param('typeDoc') typeDoc: DocumentType, @Req() request: AuthenticatedRequest) {
-  //   const userId = request.user?.firebaseId;
-  //   try {
-  //     const { docIndex, generalIndex } = await this.documentsService.getCurrentIndexes(userId, typeDoc);
-
-  //     const docDetails = await this.documentsService.getSettingDocByType(userId, typeDoc);
-  //     //console.log("docDetails: ", docDetails);
-  //     return docDetails;
-  //   }
-  //   catch (error) {
-  //     throw error;
-  //   }
-    
-  // }
-
 
   @Get('get-setting-doc-by-type/:typeDoc')
   @UseGuards(FirebaseAuthGuard)
@@ -51,7 +34,6 @@ export class DocumentsController {
     }
   }
 
-  
 
   @Post('setting-initial-index/:typeDoc')
   @UseGuards(FirebaseAuthGuard)
@@ -90,13 +72,11 @@ export class DocumentsController {
     return res.send(pdfBuffer);
   }
 
-
-  // @Post('add-doc')
-  // async addDoc(@Headers('token') token: string, @Body() body: any) {
-  //   //const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-  //   const userId = "OJq1GyANgwgf6Pokz3LtXRc5hNg2";
-  //   return this.documentsService.addDoc(userId, body);
-  // }
+  
+  @Post('generate-multiple')
+  async generateMultipleDocuments(@Body() body: { userId: string }) {
+    return this.documentsService.generateMultipleDocs(body.userId);
+  }
 
 
 }

@@ -336,10 +336,11 @@ export interface ICreateLineDoc {
     description: string;
     unitAmount: number;
     sumBefVat: number;
+    sumAftDisWithVat: number;
     vatOptions: string;
     vatRate: number;
     paymentMethod: string;
-    discount: number;
+    disBefVat: number;
     lineNumber: string;
     unitType: string;
     payDate: Date;

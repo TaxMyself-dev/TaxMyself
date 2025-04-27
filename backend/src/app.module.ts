@@ -13,6 +13,7 @@ import { CloudModule } from './cloud/cloud.module';
 import { SharedModule } from './shared/shared.module';
 import { FinsiteModule } from './finsite/finsite.module';
 import { DelegationModule } from './delegation/delegation.module';
+import { BookkeepingModule } from './bookkeeping/bookkeeping.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -44,6 +45,10 @@ import { SettingDocuments } from './documents/settingDocuments.entity';
 import { DocumentsModule } from './documents/documents.module';
 import { DocumentsService } from './documents/documents.service';
 import { ClientsService } from './clients/clients.service';
+import { JournalEntry } from './bookkeeping/jouranl-entry.entity';
+import { JournalLine } from './bookkeeping/jouranl-line.entity';
+import { DefaultBookingAccount } from './bookkeeping/account.entity';
+import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 
 let serviceAccount: any;
 
@@ -73,7 +78,7 @@ serviceAccount = {
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
                  DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, 
-                 Clients, Documents, DocLines],
+                 Clients, Documents, DocLines, JournalEntry, JournalLine, DefaultBookingAccount],
       synchronize: true, //TODO: uncomment after the database is stable: // process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -94,12 +99,15 @@ serviceAccount = {
       SettingDocuments,
       Clients,
       Documents,
-      DocLines
+      DocLines,
+      JournalEntry,
+      JournalLine,
+      DefaultBookingAccount
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
     controllers: [AppController],
-  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService],
+  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
 })
 export class AppModule {
 

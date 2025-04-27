@@ -27,11 +27,15 @@ import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { FinsiteService } from 'src/finsite/finsite.service';
+import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
+import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
+import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Transactions, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, ClassifiedTransactions, 
-                                      Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, Delegation]),
+  imports: [TypeOrmModule.forFeature([Transactions, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
+                                      ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, 
+                                      Delegation, JournalEntry, JournalLine, DefaultBookingAccount]),
             SharedModule],
   controllers: [ReportsController],
   providers: [ReportsService, ExpensesService, UsersService, TransactionsService, FinsiteService]

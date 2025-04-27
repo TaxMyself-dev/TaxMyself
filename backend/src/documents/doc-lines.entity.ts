@@ -23,6 +23,12 @@ export class DocLines {
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: false })
   sumBefVat: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  disBefVat: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  sumAftDisWithVat: number;
+
   @Column({ type: 'enum', enum: VatOptions, default: VatOptions.INCLUDE })
   vatOpts: VatOptions;
 
@@ -31,9 +37,6 @@ export class DocLines {
 
   @Column({ type: 'enum', enum: PaymentMethodType })
   paymentMethod: PaymentMethodType;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
-  discount: number;
 
   @Column({ type: 'varchar', length: 4, nullable: true })
   lineNumber: string;

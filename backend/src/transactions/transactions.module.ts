@@ -21,10 +21,11 @@ import { UserCategory } from '../expenses/user-categories.entity';
 import { FinsiteService } from 'src/finsite/finsite.service';
 import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
+import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
-            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation])],
+            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation, SettingDocuments])],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,

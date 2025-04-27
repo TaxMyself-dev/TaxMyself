@@ -5,9 +5,13 @@ import { Repository } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
+import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
+import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
+import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
 import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
+import { SharedService } from 'src/shared/shared.service';
+import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
-
 
 
 @Injectable()
@@ -17,12 +21,20 @@ export class DocumentsService {
   sessionID: string;
 
   constructor(
+    private readonly sharedService: SharedService,
+    private readonly bookkeepingService: BookkeepingService,
     @InjectRepository(SettingDocuments)
     private settingDocuments: Repository<SettingDocuments>,
     @InjectRepository(Documents)
     private documentsRepo: Repository<Documents>,
     @InjectRepository(DocLines)
     private docLinesRepo: Repository<DocLines>,
+    @InjectRepository(JournalEntry)
+    private journalEntryRepo: Repository<JournalEntry>,
+    @InjectRepository(JournalLine)
+    private journalLineRepo: Repository<JournalLine>,
+    @InjectRepository(DefaultBookingAccount)
+    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
   ) { }
 
   isIncrement: boolean = false;
@@ -103,6 +115,9 @@ export class DocumentsService {
   async incrementGeneralIndex(userId: string) {
     console.log("incrementGeneralIndex - in service");
     let generalIndex: any;
+
+    console.log("userId is ", userId);
+    
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
       if (!generalIndex) {
@@ -250,11 +265,19 @@ export class DocumentsService {
   }
 
 
-  async createDoc(data: any, userId: string): Promise<any> {
-    console.log("DocumentsService ~ createDoc ~ data:", data)
+  async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
+
+    //console.log("DocumentsService ~ createDoc ~ data:", data)
+
     try {
+
       // Generate the PDF
-      const pdfBlob = await this.generatePDF(data, userId);
+      let pdfBlob = null;
+      if (generatePdf) {
+        // Only generate the PDF if requested
+        pdfBlob = await this.generatePDF(data, userId);
+      }
+
       // Increment the general index
       await this.incrementGeneralIndex(userId);
 
@@ -275,18 +298,38 @@ export class DocumentsService {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
-       // Add the lines to the database
-       await this.saveLinesInfo(userId, data.linesData);
+      // Add the lines to the database
+      await this.saveLinesInfo(userId, data.linesData);
+
+      // Add the jouranl entry to the database
+      await this.bookkeepingService.createJournalEntry({
+        businessNumber: data.docData.issuerbusinessNumber,
+        date: data.docData.docDate,
+        referenceType: data.docData.docType,
+        referenceId: parseInt(data.docData.docNumber),
+        description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
+        lines: [
+          { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
+          { accountCode: '2400', credit: data.docData.vatSum },
+        ]
+      });
 
       return pdfBlob;
     }
+
     catch (error) {
+
+      console.error('❌ Error in createDoc:', error);
+    
       // Cancel the increment general index
       await this.decrementGeneralIndex(userId);
+
       // Cancel the increment current index
       await this.decrementCurrentIndex(userId, data.docData.documentType);
+    
       throw error;
     }
+
   }
 
   convertPaymentMethod(paymentMethod: string): string {
@@ -416,6 +459,181 @@ export class DocumentsService {
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+
+  async generateMultipleDocs(userId: string): Promise<any[]> {
+
+    const docs = [];
+
+    // Ensure settings exist before starting
+    await this.ensureDocumentSettingsExist(userId);
   
+    const docCounters: Record<string, number> = {
+      RECEIPT: 1000,
+      TAX_INVOICE: 2000,
+      TAX_INVOICE_RECEIPT: 3000,
+      TRANSACTION_INVOICE: 4000,
+      CREDIT_INVOICE: 5000,
+    };
+  
+    for (let i = 0; i < 250; i++) {
+      const data = this.generateDocData(i, docCounters);
+      try {
+        const pdfBlob = await this.createDoc(data, userId, false);
+        docs.push(pdfBlob);
+      } catch (error) {
+        console.error(`Error generating document ${i + 1}`, error);
+      }
+    }
+  
+    return docs;
+  }
+
+
+  async ensureDocumentSettingsExist(userId: string): Promise<void> {
+
+    const docTypes: DocumentType[] = [
+      DocumentType.RECEIPT,
+      DocumentType.TAX_INVOICE,
+      DocumentType.TAX_INVOICE_RECEIPT,
+      DocumentType.TRANSACTION_INVOICE,
+      DocumentType.CREDIT_INVOICE,
+      DocumentType.GENERAL,
+      DocumentType.JOURNAL_ENTRY,
+    ];
+  
+    const defaultInitialValues: Record<DocumentType, number> = {
+      [DocumentType.RECEIPT]: 10000,
+      [DocumentType.TAX_INVOICE]: 20000,
+      [DocumentType.TAX_INVOICE_RECEIPT]: 30000,
+      [DocumentType.TRANSACTION_INVOICE]: 40000,
+      [DocumentType.CREDIT_INVOICE]: 50000,
+      [DocumentType.GENERAL]: 1000000,
+      [DocumentType.JOURNAL_ENTRY]: 10000000,
+    };
+  
+    for (const docType of docTypes) {
+      const existing = await this.settingDocuments.findOne({
+        where: { userId, docType },
+      });
+  
+      if (!existing) {
+        await this.settingDocuments.save({
+          userId,
+          docType,
+          initialIndex: defaultInitialValues[docType],
+          currentIndex: defaultInitialValues[docType],
+        });
+        console.log(`✅ Created initial setting for ${docType} for user ${userId}`);
+      }
+    }
+  }
+  
+  
+  generateDocData(index: number, docCounters: Record<string, number>): any {
+
+    const docTypes: DocumentType[] = [
+      DocumentType.RECEIPT,
+      DocumentType.TAX_INVOICE,
+      DocumentType.TAX_INVOICE_RECEIPT,
+      DocumentType.TRANSACTION_INVOICE,
+      DocumentType.CREDIT_INVOICE,
+    ];
+  
+    // Randomly select a docType
+    const docType = docTypes[Math.floor(Math.random() * docTypes.length)];
+  
+    // Increment the counter for the specific docType
+    const docNumber = (docCounters[docType]++).toString();
+  
+    // General document index (always incrementing by all docs)
+    const generalDocIndex = (1000010 + index).toString();
+  
+    // Random description
+    const descriptions = ['בדיקה אוטומטית', 'מסמך בדיקה', 'בדיקה מספרית', 'בדיקה מהירה', 'בדיקה אקראית'];
+    const randomDescription = descriptions[Math.floor(Math.random() * descriptions.length)];
+  
+    const docDate = new Date(2025, 3, 18).toISOString().split('T')[0]; // 2025-04-18
+  
+    return {
+      fileData: {
+        issuerName: 'אוריה הראל אדריכלות',
+        issuerAddress: 'נוב',
+        issuerPhone: '0545401296',
+        issuerEmail: 'harelazar@gmail.com',
+        hebrewNameDoc: 'קבלה'
+      },
+      docData: {
+        issuerbusinessNumber: '204245724',
+        recipientName: 'אבי אוחיון',
+        recipientId: null,
+        recipientStreet: null,
+        recipientHomeNumber: null,
+        recipientCity: null,
+        recipientPostalCode: null,
+        recipientState: null,
+        recipientStateCode: null,
+        recipientPhone: null,
+        recipientEmail: null,
+        docType: docType,
+        generalDocIndex: generalDocIndex,
+        docDescription: randomDescription,
+        docNumber: docNumber,
+        docVatRate: 18,
+        transType: 3,
+        amountForeign: 0,
+        currency: 'ILS',
+        sumBefDisBefVat: 1000,
+        disSum: 0,
+        sumAftDisBefVAT: 1000,
+        vatSum: 180,
+        sumAftDisWithVAT: 1180,
+        withholdingTaxAmount: 0,
+        docDate: docDate,
+        issueDate: docDate,
+        customerKey: null,
+        matchField: null,
+        isCancelled: false,
+        branchCode: null,
+        operationPerformer: null,
+        parentDocType: null,
+        parentDocNumber: null,
+        parentBranchCode: null
+      },
+      linesData: [
+        {
+          issuerbusinessNumber: '204245724',
+          generalDocIndex: generalDocIndex,
+          description: 'דוגמה',
+          unitAmount: 1,
+          sumBefVat: 1000,
+          sumAftDisWithVat: 1180,
+          vatOpts: 'EXCLUDE',
+          vatRate: 18,
+          paymentMethod: 'CASH',
+          disBefVat: 0,
+          lineNumber: '1',
+          unitType: 1,
+          payDate: docDate,
+          bankNumber: null,
+          branchNumber: null,
+          accountNumber: null,
+          checkNumber: null,
+          paymentCheckDate: null,
+          cardCompany: null,
+          card4Number: null,
+          creditCardName: null,
+          creditTransType: null,
+          creditPayNumber: null,
+          manufacturerName: null,
+          productSerialNumber: null,
+          internalNumber: null,
+          journalEntryMainId: null
+        }
+      ]
+    };
+  }
+  
+
 
 }

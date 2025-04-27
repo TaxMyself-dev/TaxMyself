@@ -212,32 +212,6 @@ export class DocCreatePage implements OnInit {
     return this.DocCreateTypeList.find((doc) => doc.value === typeDoc)?.name;
   }
 
-  // getDocDetails(): void {
-  //   this.docCreateService.getDetailsDoc(this.fileSelected)
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.log("err in get doc details: ", err);
-  //         if (err.status === 404) {
-  //           this.isInitial = true;
-  //         }
-  //         else {
-  //           //TODO: handle error screen
-  //         }
-  //         return EMPTY;
-  //       }),
-  //       tap((data) => {
-  //         if (!data.initialIndex) this.isInitial = true;
-  //         else this.isInitial = false;
-  //         console.log("this.isInitial: ", this.isInitial);
-
-  //       })
-  //     )
-  //     .subscribe((res) => {
-  //       console.log("res in get doc details: ", res);
-  //       this.docDetails = res;
-  //     })
-  // }
-
 
   getDocDetails(): void {
     this.docCreateService.getDetailsDoc(this.fileSelected)
@@ -356,7 +330,8 @@ export class DocCreatePage implements OnInit {
       let sumBefDisBefVatPerLine = 0;
       let disBefVatPerLine = 0;
       let sumAftDisBefVatPerLine = 0; 
-      let sumAftDisWithVat = 0;
+      let sumAftDisWithVatPerLine = 0; 
+      //let sumAftDisWithVat = 0;
       let vatPerLine = 0;
       const sum = Number(payment?.sum) * Number(payment?.unitAmount ?? 1);
       const discount = Number(payment?.discount ?? 0);
@@ -364,9 +339,11 @@ export class DocCreatePage implements OnInit {
       if (payment?.vatOptions === 'INCLUDE') {
         sumBefDisBefVatPerLine = sum / (1 + Number(payment?.vatRate ?? 18) / 100);
         disBefVatPerLine = discount / (1 + Number(payment?.vatRate ?? 18) / 100);
+        vatPerLine = (sumBefDisBefVatPerLine - disBefVatPerLine) * (Number(payment?.vatRate ?? 18) / 100);
       } else if (payment?.vatOptions === 'EXCLUDE') {
         sumBefDisBefVatPerLine = sum;
         disBefVatPerLine = discount;
+        vatPerLine = (sum - discount) * (Number(payment?.vatRate ?? 18) / 100);
       } else if (payment?.vatOptions === 'WITHOUT') {
         sumBefDisBefVatPerLine = sum;
         disBefVatPerLine = discount;
@@ -376,14 +353,13 @@ export class DocCreatePage implements OnInit {
       }
       
       sumAftDisBefVatPerLine = sumBefDisBefVatPerLine - disBefVatPerLine;
-      vatPerLine = sumAftDisBefVatPerLine * (Number(payment?.vatRate ?? 18) / 100);
-      sumAftDisWithVat = sumAftDisBefVatPerLine + vatPerLine;
+      sumAftDisWithVatPerLine = sumAftDisBefVatPerLine + vatPerLine;
 
       totalBefDisBefVat += sumBefDisBefVatPerLine;
       totalDisBefVat += disBefVatPerLine;
       totalAftDisBefVat += sumAftDisBefVatPerLine;
       totalVat += vatPerLine;
-      totalAfterVat += sumAftDisWithVat;
+      totalAfterVat += sumAftDisWithVatPerLine;
 
       lineNumber++;
   
@@ -393,10 +369,11 @@ export class DocCreatePage implements OnInit {
         description: payment?.description || null,
         unitAmount: payment?.unitAmount ?? 1,
         sumBefVat: sumAftDisBefVatPerLine,
+        sumAftDisWithVat: sumAftDisWithVatPerLine,
         vatOpts: payment?.vatOptions,
         vatRate: payment?.vatRate ?? 18,
         paymentMethod: payment?.paymentMethod,
-        discount: payment?.discount ?? 0,
+        disBefVat: payment?.discount ?? 0,
         lineNumber: lineNumber.toString(),
         unitType: payment?.unitType ?? 1,
         payDate: generalFormData.documentDate,

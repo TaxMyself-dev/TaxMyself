@@ -8,10 +8,9 @@ import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
-import { VAT_RATE_2023 } from '../constants';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DocumentType, DocumentTypeCodeMap, FIELD_MAP} from 'src/enum';
+import { BusinessType, DocumentType, FIELD_MAP, JournalReferenceType, UniformFileTypeCodeMap} from 'src/enum';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
@@ -24,6 +23,9 @@ import * as archiver from 'archiver';
 import * as stream from 'stream';
 import * as readline from 'readline';
 import * as iconv from 'iconv-lite';
+import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
+import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
+import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 
 
 @Injectable()
@@ -38,6 +40,9 @@ export class ReportsService {
   private totalLists = 0;
 
   constructor(
+    private expensesService: ExpensesService,
+    private transactionsService: TransactionsService,
+    private sharedService: SharedService,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
     @InjectRepository(Transactions)
@@ -46,10 +51,14 @@ export class ReportsService {
     private documentsRepo: Repository<Documents>,
     @InjectRepository(DocLines)
     private docLinesRepo: Repository<DocLines>,
-    @InjectRepository(User) private userRepo: Repository<User>,
-    private expensesService: ExpensesService,
-    private transactionsService: TransactionsService,
-    private sharedService: SharedService
+    @InjectRepository(User) 
+    private userRepo: Repository<User>,
+    @InjectRepository(JournalEntry) 
+    private JournalEntryRepo: Repository<JournalEntry>,
+    @InjectRepository(JournalLine) 
+    private JournalLineRepo: Repository<JournalLine>,
+    @InjectRepository(DefaultBookingAccount) 
+    private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
@@ -413,7 +422,7 @@ export class ReportsService {
       const f_1003 = this.formatField(businessNumber, 9, '0');
       const f_1004 = this.formatField(uniqueId, 15, '0');
       const f_1005 = this.formatField("&OF1.31&", 8, '');
-      const f_1006 = this.formatField("0", 8, '0'); // מספר רישום התוכנה ברשות המיסים
+      const f_1006 = this.formatField("1", 8, '0'); // מספר רישום התוכנה ברשות המיסים
       const f_1007 = this.formatField("KEEPINTAX", 20, '-');
       const f_1008 = this.formatField("version-001", 20, '-');
       const f_1009 = this.formatField("517134789", 9, "0"); // KEEPINTAX מספר עוסק של
@@ -460,20 +469,6 @@ export class ReportsService {
     }
 
 
-    // Function to get current date in YYYYMMDD format
-    private getCurrentDate(): string {
-      const now = new Date();
-      return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    }
-
-
-    // Function to get current time in HHMM format
-    private getCurrentTime(): string {
-      const now = new Date();
-      return `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-    }
-
-
     // Function to get current timestamp for folder naming (MMDDhhmm)
     private getCurrentTimestamp(): string {
       const now = new Date();
@@ -484,10 +479,10 @@ export class ReportsService {
     private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
 
       let content = "";
-      //let recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
-      const documents = await this.fetchDocuments(userId, businessNumber, startDate, endDate);
-
-      console.log("documents are: ", documents);
+      const documents = await this.fetchDocuments(businessNumber, startDate, endDate);
+      console.log(`📄 Total documents fetched: ${documents.length}`);
+      const journalEntries = await this.fetchJournalEntries(userId, businessNumber, startDate, endDate);
+      console.log(`📄 Total journalEntries fetched: ${journalEntries.length}`);
     
       // Add A100 section first
       content += this.generateA100Section(businessNumber, uniqueId);
@@ -508,14 +503,19 @@ export class ReportsService {
       content += d120;
 
       // Add B100 section
-      const b100 = await this.generateB100Section(documents);
+      const b100 = await this.generateB100Section(journalEntries);
       this.recordSummary.B100 += (b100.match(/\n/g) || []).length;
       content += b100;
 
       // Add B110 section
-      const b110 = await this.generateB110Section(documents);
+      const b110 = await this.generateB110Section(businessNumber);
       this.recordSummary.B110 += (b110.match(/\n/g) || []).length;
       content += b110;
+
+       // Add M100 section
+       const m100 = await this.generateM100Section(businessNumber);
+       this.recordSummary.M100 += (m100.match(/\n/g) || []).length;
+       content += m100;
 
       //Calculate total lists
       this.totalLists = Object.values(this.recordSummary).reduce((sum, val) => sum + val, 0);
@@ -541,6 +541,9 @@ export class ReportsService {
 
 
     private async generateC100Section(documents: Documents[]): Promise<string> {
+
+      console.log("generateC100Section - start");
+
       let result = '';
       documents.forEach((doc) => {
         const f_1201 = this.getFormattedRecordCounter();
@@ -573,7 +576,7 @@ export class ReportsService {
         const f_1230 = this.formatField(this.formatDateYYYYMMDD(doc.docDate), 8, '0');
         const f_1231 = this.formatField(doc.branchCode, 7, '!');
         const f_1233 = this.formatField(doc.operationPerformer, 9, '!');
-        const f_1234 = this.formatField(doc.generalDocIndex, 7, '!');
+        const f_1234 = this.formatField(doc.generalDocIndex, 7, '0');
         const f_1235 = this.formatField("!", 13, '!');
 
         const debugMode = false; // Change to false for mission mode
@@ -648,21 +651,21 @@ export class ReportsService {
           const f_1256 = this.formatField(this.getDocumentTypeCode(doc.parentDocType, true), 3, '0');
           const f_1257 = this.formatField(doc.parentDocNumber, 20, '0');
           const f_1258 = this.formatField(doc.transType, 1, '0');
-          const f_1259 = this.formatField(line.internalNumber, 20, '0');
+          const f_1259 = this.formatField("175790433", 20, '0');
           const f_1260 = this.formatField(line.description, 30, '!');
           const f_1261 = this.formatField(line.manufacturerName, 50, '!');
           const f_1262 = this.formatField(line.productSerialNumber, 30, '!');
           const f_1263 = this.formatField(line.unitType, 20, '!');
           const f_1264 = this.formatAmount(line.unitAmount, 12, 4);
           const f_1265 = this.formatAmount(line.sumBefVat/line.unitAmount, 12, 2);
-          const f_1266 = this.formatAmount(line.discount, 12, 2);
+          const f_1266 = this.formatAmount(line.disBefVat, 12, 2);
           const f_1267 = this.formatAmount(line.sumBefVat, 12, 2);
           const f_1268 = this.formatAmount(line.vatRate, 2, 2, false);
           const f_1270 = this.formatField(doc.branchCode, 7, '0');
           const f_1272 = this.formatField(this.formatDateYYYYMMDD(doc.docDate), 8, '0');
           const f_1273 = this.formatField(line.generalDocIndex, 7, '0');
-          const f_1274 = this.formatField(doc.parentBranchCode, 7, '0');
-          const f_1275 = this.formatField("!", 13, '!');
+          const f_1274 = this.formatField("!", 7, '!');
+          const f_1275 = this.formatField("!", 21, '!');
 
           result += `D110${f_1251}${f_1252}${f_1253}${f_1254}${f_1255}${f_1256}${f_1257}${f_1258}${f_1259}${f_1260}${f_1261}${f_1262}${f_1263}${f_1264}${f_1265}${f_1266}${f_1267}${f_1268}${f_1270}${f_1272}${f_1273}${f_1274}${f_1275}\n`;
 
@@ -700,7 +703,7 @@ export class ReportsService {
           const f_1309 = this.formatField(line.accountNumber, 15, '0');
           const f_1310 = this.formatField(line.checkNumber, 10, '0');
           const f_1311 = this.formatField(this.formatDateYYYYMMDD(line.paymentCheckDate), 8, '0');;
-          const f_1312 = this.formatAmount(line.sumBefVat, 12, 2);
+          const f_1312 = this.formatAmount(line.sumAftDisWithVat, 12, 2);
           const f_1313 = this.formatField(line.cardCompany, 1, '0');
           const f_1314 = this.formatField(line.card4Number, 20, '0');
           const f_1315 = this.formatField(line.creditTransType, 1, '0');
@@ -718,45 +721,44 @@ export class ReportsService {
     }
 
 
-    private async generateB100Section(documents: Documents[]): Promise<string> {
+    private async generateB100Section(entries: JournalEntry[]): Promise<string> {
 
       let result = '';
-    
-      for (const doc of documents) {
 
-        // Fetch all matching lines for the current document
-        const docLines = await this.docLinesRepo.find({
+      for (const entry of entries) {
+
+        const lines = await this.JournalLineRepo.find({
           where: {
-            issuerbusinessNumber: doc.issuerbusinessNumber,
-            generalDocIndex: doc.generalDocIndex,
-          },
+            journalEntryId: entry.id,
+            businessNumber: entry.businessNumber,
+          }
         });
-    
-        docLines.forEach((line) => {
+  
+        lines.forEach((line) => {
           const f_1351 = this.getFormattedRecordCounter();
-          const f_1352 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-          const f_1353 = this.formatField("0", 10, '0');
-          const f_1354 = this.formatField("0", 5, '0');
-          const f_1355 = this.formatField("!", 8, '!');
+          const f_1352 = this.formatField(entry.businessNumber, 9, '0');
+          const f_1353 = this.formatField(entry.id, 10, '0');
+          const f_1354 = this.formatField(line.lineInEntry, 5, '0');
+          const f_1355 = this.formatField(entry.id, 8, '0');
           const f_1356 = this.formatField("!", 15, '!');
-          const f_1357 = this.formatField("0", 20, '0');
-          const f_1358 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
+          const f_1357 = this.formatField(entry.referenceId, 20, '0');
+          const f_1358 = this.formatField(this.getDocumentTypeCode(entry.referenceType, false), 3, '0');
           const f_1359 = this.formatField("0", 20, '0');
           const f_1360 = this.formatField("0", 3, '0');
           const f_1361 = this.formatField("!", 50, '!');
-          const f_1362 = this.formatField("0", 8, '0');
-          const f_1363 = this.formatField("0", 8, '0');
-          const f_1364 = this.formatField("!", 15, '!');
+          const f_1362 = this.formatField(this.formatDateYYYYMMDD(entry.date), 8, '0');;
+          const f_1363 = this.formatField(this.formatDateYYYYMMDD(entry.date), 8, '0');;
+          const f_1364 = this.formatField(line.accountCode, 15, '!');
           const f_1365 = this.formatField("!", 15, '!');
-          const f_1367 = this.formatField("!", 1, '!');
-          const f_1366 = this.formatField("!", 3, '!');
-          const f_1368 = this.formatField("0", 15, '0');
-          const f_1369 = this.formatField("0", 15, '0');
-          const f_1370 = this.formatField("0", 12, '0');
+          const f_1366 = this.formatField(line.debit > 0 ? '1' : '2', 1, '0');
+          const f_1367 = this.formatField("!", 3, '!');
+          const f_1368 = this.formatAmount(line.debit > 0 ? line.debit : line.credit, 12, 2);
+          const f_1369 = this.formatAmount(0, 12, 2);
+          const f_1370 = this.formatAmount(0, 9, 2);
           const f_1371 = this.formatField("!", 10, '!');
           const f_1372 = this.formatField("!", 10, '!');
           const f_1374 = this.formatField("!", 7, '!');
-          const f_1375 = this.formatField("0", 8, '0');
+          const f_1375 = this.formatField(this.formatDateYYYYMMDD(entry.createdAt), 8, '0');
           const f_1376 = this.formatField("!", 9, '!');
           const f_1377 = this.formatField("!", 25, '!');
 
@@ -769,87 +771,66 @@ export class ReportsService {
     }
 
 
-    private async generateB110Section(documents: Documents[]): Promise<string> {
+    private async generateB110Section(businessNumber: string): Promise<string> {
 
       let result = '';
-    
-      for (const doc of documents) {
 
-        // Fetch all matching lines for the current document
-        const docLines = await this.docLinesRepo.find({
-          where: {
-            issuerbusinessNumber: doc.issuerbusinessNumber,
-            generalDocIndex: doc.generalDocIndex,
-          },
-        });
-    
-        docLines.forEach((line) => {
-          const f_1401 = this.getFormattedRecordCounter();
-          const f_1402 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-          const f_1403 = this.formatField("!", 15, '!');
-          const f_1404 = this.formatField("!", 50, '!');
-          const f_1405 = this.formatField("!", 15, '!');
-          const f_1406 = this.formatField("!", 30, '!');
-          const f_1407 = this.formatField("!", 50, '!');
-          const f_1408 = this.formatField("!", 10, '!');
-          const f_1409 = this.formatField("!", 30, '!');
-          const f_1410 = this.formatField("!", 8, '!');
-          const f_1411 = this.formatField("!", 30, '!');
-          const f_1412 = this.formatField("!", 2, '!');
-          const f_1413 = this.formatField("!", 15, '!');
-          const f_1414 = this.formatField("0", 15, '0');
-          const f_1415 = this.formatField("0", 15, '0');
-          const f_1416 = this.formatField("0", 15, '0');
-          const f_1417 = this.formatField("0", 4, '0');
-          const f_1419 = this.formatField("!", 9, '!');
-          const f_1421 = this.formatField("!", 7, '!');
-          const f_1422 = this.formatField("0", 15, '0');
-          const f_1423 = this.formatField("!", 3, '!');
-          const f_1424 = this.formatField("!", 16, '!');
+      const accounts = await this.defaultBookingAccountRepo.find();
 
-          result += `B110${f_1401}${f_1402}${f_1403}${f_1404}${f_1405}${f_1406}${f_1407}${f_1408}${f_1409}${f_1410}${f_1411}${f_1412}${f_1413}${f_1414}${f_1415}${f_1416}${f_1417}${f_1419}${f_1421}${f_1422}${f_1423}${f_1424}\n`;
+      for (const account of accounts) {
+  
+        const f_1401 = this.getFormattedRecordCounter();
+        const f_1402 = this.formatField(businessNumber, 9, '0');
+        const f_1403 = this.formatField(account.code, 15, '!');
+        const f_1404 = this.formatField(account.name, 50, '!');
+        const f_1405 = this.formatField("!", 15, '!');
+        const f_1406 = this.formatField("!", 30, '!');
+        const f_1407 = this.formatField("!", 50, '!');
+        const f_1408 = this.formatField("!", 10, '!');
+        const f_1409 = this.formatField("!", 30, '!');
+        const f_1410 = this.formatField("!", 8, '!');
+        const f_1411 = this.formatField("!", 30, '!');
+        const f_1412 = this.formatField("!", 2, '!');
+        const f_1413 = this.formatField("!", 15, '!');
+        const f_1414 = this.formatAmount(0, 12, 2);
+        const f_1415 = this.formatAmount(0, 12, 2);
+        const f_1416 = this.formatAmount(0, 12, 2);
+        const f_1417 = this.formatField("0", 4, '0');
+        const f_1419 = this.formatField("!", 9, '!');
+        const f_1421 = this.formatField("!", 7, '!');
+        const f_1422 = this.formatAmount(0, 12, 2);
+        const f_1423 = this.formatField("!", 3, '!');
+        const f_1424 = this.formatField("!", 16, '!');
 
-        });
+        result += `B110${f_1401}${f_1402}${f_1403}${f_1404}${f_1405}${f_1406}${f_1407}${f_1408}${f_1409}${f_1410}${f_1411}${f_1412}${f_1413}${f_1414}${f_1415}${f_1416}${f_1417}${f_1419}${f_1421}${f_1422}${f_1423}${f_1424}\n`;
+
       }
     
       return result;
     }
 
 
-    private async generateM100Section(documents: Documents[]): Promise<string> {
+    private async generateM100Section(businessNumber: string): Promise<string> {
 
       let result = '';
     
-      for (const doc of documents) {
+      const f_1451 = this.getFormattedRecordCounter();
+      const f_1452 = this.formatField(businessNumber, 9, '0');
+      const f_1453 = this.formatField("0", 20, '0');
+      const f_1454 = this.formatField("0", 20, '0');
+      const f_1455 = this.formatField("175790433", 20, '0');
+      const f_1456 = this.formatField("!", 50, '!');
+      const f_1457 = this.formatField("!", 10, '!');
+      const f_1458 = this.formatField("!", 30, '!'); 
+      const f_1459 = this.formatField("!", 20, '!');
+      const f_1460 = this.formatAmount(0, 9, 2);
+      const f_1461 = this.formatAmount(0, 9, 2);
+      const f_1462 = this.formatAmount(0, 9, 2);
+      const f_1463 = this.formatField("0", 10, '0');
+      const f_1464 = this.formatField("0", 10, '0');
+      const f_1465 = this.formatField("!", 50, '!');
 
-        // Fetch all matching lines for the current document
-        const docLines = await this.docLinesRepo.find({
-          where: {
-            issuerbusinessNumber: doc.issuerbusinessNumber,
-            generalDocIndex: doc.generalDocIndex,
-          },
-        });
-    
-        docLines.forEach((line) => {
-          const f_1451 = this.getFormattedRecordCounter();
-          const f_1452 = this.formatField(doc.issuerbusinessNumber, 9, '0');
-          const f_1453 = this.formatField("!", 20, '!');
-          const f_1454 = this.formatField("!", 20, '!');
-          const f_1455 = this.formatField("!", 20, '!');
-          const f_1456 = this.formatField("!", 50, '!');
-          const f_1457 = this.formatField("!", 10, '!');
-          const f_1458 = this.formatField("!", 30, '!');
-          const f_1459 = this.formatField("!", 20, '!');
-          const f_1460 = this.formatField("!", 12, '!');
-          const f_1461 = this.formatField("!", 12, '!');
-          const f_1462 = this.formatField("!", 12, '!');
-          const f_1463 = this.formatField("!", 10, '!');
-          const f_1464 = this.formatField("!", 10, '!');
-          const f_1465 = this.formatField("!", 50, '!');
-
-          result += `M100${f_1451}${f_1452}${f_1453}${f_1454}${f_1455}${f_1456}${f_1457}${f_1458}${f_1459}${f_1460}${f_1461}${f_1462}${f_1463}${f_1464}${f_1465}\n`;
-        });
-      }
+      result += `M100${f_1451}${f_1452}${f_1453}${f_1454}${f_1455}${f_1456}${f_1457}${f_1458}${f_1459}${f_1460}${f_1461}${f_1462}${f_1463}${f_1464}${f_1465}\n`;
     
       return result;
     }
@@ -929,7 +910,8 @@ export class ReportsService {
     }
     
 
-    private getDocumentTypeCode(documentType: DocumentType | null, allowNull: boolean): number | null {
+    private getDocumentTypeCode(documentType: DocumentType | JournalReferenceType | null, allowNull: boolean): number | null {
+
       if (documentType === null) {
         if (allowNull) {
           return null;
@@ -937,14 +919,12 @@ export class ReportsService {
           throw new Error("Null document type is not allowed.");
         }
       }
-    
-      console.log("documentType is: ", documentType);
-    
-      if (!(documentType in DocumentTypeCodeMap)) {
+        
+      if (!(documentType in UniformFileTypeCodeMap)) {
         throw new Error(`Invalid document type: ${documentType}`);
       }
     
-      return DocumentTypeCodeMap[documentType];
+      return UniformFileTypeCodeMap[documentType];
     }
     
 
@@ -957,7 +937,7 @@ export class ReportsService {
 
 
     // Fetch documents by userId, businessNumber, startDate, and endDate
-    async fetchDocuments(userId: string, businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
+    async fetchDocuments(businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
       return this.documentsRepo.find({
         where: {
           issuerbusinessNumber: businessNumber, // Only fetch documents issued by this business
@@ -966,6 +946,25 @@ export class ReportsService {
         order: { docDate: 'ASC' },
       });
     }
+
+    
+    async fetchJournalEntries(
+      userId: string,
+      businessNumber: string,
+      startDate: string,
+      endDate: string
+    ): Promise<JournalEntry[]> {
+      return await this.JournalEntryRepo.find({
+        where: {
+          businessNumber,
+          date: Between(startDate, endDate),
+        },
+        order: {
+          id: 'ASC',
+        },
+      });
+    }
+    
 
 
     async parseAndSaveDebugFile(fileName: string): Promise<string> {
