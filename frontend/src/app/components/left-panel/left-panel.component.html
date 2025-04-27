@@ -4,7 +4,7 @@
   <ng-template #header>
     <div class="wrap-header">
       @if(backEnabled()) {
-        <app-p-button buttonText="חזור לשיוך אמצעי תשלום לחשבון"></app-p-button>
+        <app-p-button [buttonText]="backEnabledText()" [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.AUTO" [icon]="'pi pi-angle-right'" [iconPosition]="iconPos.RIGHT" (onButtonClicked)="onBackEnabled()"></app-p-button>
       }
       <p class="header-text">{{headerText()}}</p>
       <p class="sub-header-text">{{subHeaderText()}}</p>

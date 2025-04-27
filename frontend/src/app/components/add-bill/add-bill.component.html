@@ -1,12 +1,11 @@
-<app-left-panel headerText="הוספת חשבון" subHeaderText="הוספה של חשבון לרשימת החשבונות שלך אליהם תוכל לשייך אמצעי צשלום" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="false">
+<app-left-panel [backEnabledText]="'חזור לשיוך אמצעי תשלום לחשבון'" (backEnabledClicked)="onBackEnabled($event)" headerText="הוספת חשבון" subHeaderText="הוספה של חשבון לרשימת החשבונות שלך אליהם תוכל לשייך אמצעי צשלום" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true">
 
   <div class="content" content>
-    <!-- <app-input-select [placeholder]="'בחר את החשבון אליו תרצה לשייך את אמצעי התשלום'" [parentForm]="myForm" [controlName]="'account'" [items]="accounts()" [size]="inputsSize.LARGE"></app-input-select> -->
-   
+   <app-input-text [placeholder]="'בחר שם לחשבון'" [parentForm]="myForm" [controlName]="'accountName'" [size]="inputsSize.LARGE"></app-input-text>
   </div>
 
   <div class="footer" footer>
-    <app-p-button [buttonText]="'צור חשבון'" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked(myForm.get('account').value)" ></app-p-button>
     <app-p-button [buttonText]="'נקה הכל'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+    <app-p-button [buttonText]="'צור חשבון'" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
   </div>
 </app-left-panel>

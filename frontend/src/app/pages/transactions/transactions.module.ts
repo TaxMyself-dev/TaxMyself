@@ -10,6 +10,7 @@ import { TopNavComponent } from "../../components/topNav/topNav.component";
 import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner.component";
 import { GenericTableComponent } from "../../components/generic-table/generic-table.component";
 import { AccountAssociationDialogComponent } from "../../components/account-association-dialog/account-association-dialog.component";
+import { AddBillComponent } from "../../components/add-bill/add-bill.component";
 
 @NgModule({
   imports: [
@@ -22,7 +23,8 @@ import { AccountAssociationDialogComponent } from "../../components/account-asso
     TopNavComponent,
     ImageBunnerComponent,
     GenericTableComponent,
-    AccountAssociationDialogComponent
+    AccountAssociationDialogComponent,
+    AddBillComponent
 ],
   declarations: [TransactionsPage]
 })

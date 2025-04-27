@@ -23,6 +23,7 @@ export class AccountAssociationDialogComponent implements OnInit {
   rowData = input<IRowDataTable>(null);
   AccountAssociationButtonClicked = output<string>();
   visibleChange = output<boolean>();
+  openAddBillClicked = output<boolean>();
   // visibleState: WritableSignal<boolean> = signal(this.isVisible());
 
   // visibleState = signal<boolean>(false);
@@ -57,9 +58,13 @@ export class AccountAssociationDialogComponent implements OnInit {
     this.visibleChange.emit(visible);
   }
 
-  onButtonClicked(event: any): void {
+  associationPaymentMethod(event: any): void {
     console.log("🚀 ~ event in AccountAssociationDialogComponent :", event)
     this.AccountAssociationButtonClicked.emit(event);
+  }
+
+  openAddBill(): void {
+    this.openAddBillClicked.emit(true)
   }
 
 }

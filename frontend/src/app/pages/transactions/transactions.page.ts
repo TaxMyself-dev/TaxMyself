@@ -4,7 +4,8 @@ import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Sub
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
+// import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
+import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
 import { Router } from '@angular/router';
@@ -127,6 +128,7 @@ export class TransactionsPage implements OnInit {
   readonly ButtonClass = ButtonClass;
 
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
+  visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData: WritableSignal<IRowDataTable> = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
@@ -445,11 +447,11 @@ export class TransactionsPage implements OnInit {
     ];
   }
 
-  openAddBill(data: IRowDataTable): void {
-    this.selectBill = data.paymentIdentifier as string;
-    console.log("🚀 ~ TransactionsPage ~ openAddBill ~ this.selectBill:", this.selectBill)
-    this.openPopupAddBill()
-  }
+  // openAddBill(data: IRowDataTable): void {
+  //   this.selectBill = data.paymentIdentifier as string;
+  //   console.log("🚀 ~ TransactionsPage ~ openAddBill ~ this.selectBill:", this.selectBill)
+  //   this.openPopupAddBill()
+  // }
 
   openPopupAddBill(data?: IRowDataTable): void {
     from(this.modalController.create({
@@ -803,7 +805,7 @@ export class TransactionsPage implements OnInit {
 
   onClickedCell(event: { str: string, data: IRowDataTable }, isExpense: boolean = true): void {
     if (event.str === "bill") {
-      this.openAddBill(event.data);
+      // this.openAddBill(event.data);
     }
     else {
       event.data.billName === "לא שוייך" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
@@ -878,6 +880,10 @@ export class TransactionsPage implements OnInit {
     this.visibleAccountAssociationDialog.set(event.state);
     this.leftPanelData.set(event.data);
   }
+
+  openAddBill(event: any): void {
+    this.visibleAddBill.set(event);
+  }
   
   onPaymentMethodAssociation(event: any): void {
     const len = this.leftPanelData().paymentIdentifier.toString().length;
@@ -887,10 +893,13 @@ export class TransactionsPage implements OnInit {
     this.addSource(event, this.leftPanelData().paymentIdentifier as string, paymentMethodType);
   }
   
-  onVisibleLeftPanelChange(event: boolean): void {
-    //this.VisibleLeftPanel.set(event);
-    //TODO - how to know which panel to close.
+  closeAccountAssociation(event: boolean): void {
     this.visibleAccountAssociationDialog.set(event);
+    // this.visibleAddBill.set(event);
+  }
+
+  closeAddBill(event: boolean): void {
+    this.visibleAddBill.set(event);
   }
 
   addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
@@ -910,6 +919,29 @@ export class TransactionsPage implements OnInit {
         this.visibleAccountAssociationDialog.set(false);
         this.getTransactions();
       })
+  }
+
+  onAddBill(event: FormGroup): void {
+    console.log("🚀 ~ onAddBill ~ event:", event);
+    const accountName = event.controls?.['accountName']?.value;
+    const businessNumber = event.controls?.['businessNumber']?.value;
+    console.log("businessbillNameNumber: ", accountName);
+    console.log("businessNumber: ", businessNumber);
+    
+      this.transactionService.addBill(accountName, businessNumber)
+        .pipe(
+          finalize(() => this.genericService.dismissLoader()),
+          catchError((err) => {
+            console.log('err in add bill: ', err);
+            return EMPTY;
+          })
+        )
+        .subscribe(() => {
+          this.transactionService.getAllBills();
+          this.closeAddBill(false);
+        });
+    
+    
   }
 
 }

@@ -1,0 +1,6 @@
+<form [formGroup]="parentForm()">
+  @if(errorText()) {
+    <span>{{errorText()}}</span>
+  }
+  <input type="text" pInputText formControlName="text" [formControlName]="controlName()" [placeholder]="placeholder()" [class]="getinputClasses()" [disabled]="disabled()"/>
+</form>

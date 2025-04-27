@@ -2,7 +2,7 @@ import { Component, computed, EventEmitter, input, OnInit, Output, Signal } from
 import { CommonModule } from '@angular/common';
 
 import { ButtonModule } from 'primeng/button';
-import { ButtonColor, ButtonSize } from './button.enum';
+import { ButtonColor, ButtonSize, iconPosition } from './button.enum';
 
 @Component({
   selector: 'app-p-button',
@@ -13,7 +13,7 @@ import { ButtonColor, ButtonSize } from './button.enum';
 })
 export class ButtonComponent  implements OnInit {
   icon = input<string>();
-  iconPosition = input<string>();
+  iconPosition = input<iconPosition>(iconPosition.LEFT);
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   buttonText = input<string>('Button');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
