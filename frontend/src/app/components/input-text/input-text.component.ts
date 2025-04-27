@@ -1,32 +1,26 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, input, OnInit, output } from '@angular/core';
 import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { tr } from 'date-fns/locale';
-import { SelectModule } from 'primeng/select';
+import { InputTextModule } from 'primeng/inputtext';
 import { inputsSize } from 'src/app/shared/enums';
-import { ISelectItem } from 'src/app/shared/interface';
 @Component({
-  selector: 'app-input-select',
-  templateUrl: './input-select.component.html',
-  styleUrls: ['./input-select.component.scss'],
-  imports: [SelectModule, FormsModule,
-    ReactiveFormsModule],
+  selector: 'app-input-text',
+  templateUrl: './input-text.component.html',
+  styleUrls: ['./input-text.component.scss'],
+  imports: [FormsModule, ReactiveFormsModule, InputTextModule],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InputSelectComponent  implements OnInit {
+export class InputTextComponent  implements OnInit {
 
   inputsSize = inputsSize;
 
   parentForm = input<FormGroup>(null);
-  items = input<ISelectItem[]>([]);
   controlName = input<string>("");
   placeholder = input<string>("");
   errorText = input<string>("");
-  size = input<string>("");
-  filter = input<boolean>(true);
-  disabled = input<boolean>(false);
-  virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
+  size = input<string>("");
+  disabled = input<boolean>(false);
 
   constructor() { }
 

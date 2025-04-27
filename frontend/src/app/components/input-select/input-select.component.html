@@ -2,5 +2,5 @@
   @if(errorText()) {
     <span>{{errorText()}}</span>
   }
-  <p-select [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" />
+  <p-select [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" />
 </form>
