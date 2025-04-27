@@ -214,6 +214,8 @@ export interface ITransactionData {
     billName: string;
     vatReportingDate: string;
     businessNumber: string;
+    note: string;
+    note2: string;
 }
 
 export interface ITableRowAction {
@@ -369,4 +371,20 @@ export interface ICreateDocField<TFieldsHebrew, TFields> {
     errorText?: string;
     expandable?: boolean;
     onChange?: (event?: any, parent?: any) => void;
+}
+
+export interface IFilterItems {
+    defaultValue: string;
+    name: string;
+    value: string;
+    fields: ISubFilterList[];
+}
+
+export interface ISubFilterList {
+    name: string;
+    value: string;
+    checkbox: boolean;
+    checked?: boolean;
+    multiple: boolean;
+    children?: ISubFilterList[];
 }

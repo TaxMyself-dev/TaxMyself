@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, Signal, WritableSignal, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
+// import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
+import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
 import { Router } from '@angular/router';
@@ -116,14 +117,6 @@ export class TransactionsPage implements OnInit {
     [TransactionsOutcomesColumns.NOTE, 1],
   ]);
 
-  readonly menuItems = [
-    {label: 'דף הבית'},
-    {label: 'פרופיל אישי'},
-    {label: 'תזרים'},
-    {label: 'דוחות'},
-    {label: 'הגדרות'},
-    {label: 'צור קשר'},
-  ]
 
   readonly bunnerImagePosition = bunnerImagePosition;
 
@@ -134,7 +127,9 @@ export class TransactionsPage implements OnInit {
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
-
+  visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
+  visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
+  leftPanelData: WritableSignal<IRowDataTable> = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
   tableActionsIncomes: ITableRowAction[];
@@ -159,8 +154,6 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: IGetSubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
-  // isToastOpen: boolean = false;
-  // messageToast: string = "";
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserData;
@@ -238,6 +231,7 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
+    this.getTransactions();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
     this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -245,7 +239,7 @@ export class TransactionsPage implements OnInit {
 
     if (this.userData.isTwoBusinessOwner) {
       //------------ expenses -------------
-      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
+      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT });
       //this.editFieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
       const expenseIndex = this.COLUMNS_TO_IGNORE_EXPENSES.indexOf('businessNumber');
       if (expenseIndex > -1) {
@@ -343,17 +337,24 @@ export class TransactionsPage implements OnInit {
     this.isOpen = event
   }
 
-  getTransactions() {
+  getTransactions(periodType?: ReportingPeriodType, year?: number, month?: number, startDate1?: string, endDate1?: string, accounts?: string): void {
     this.isOpen = true;
     const formData = this.transactionsForm.value;
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+    periodType = formData.reportingPeriodType || ReportingPeriodType.ANNUAL;
+    year = year || formData.year || new Date().getFullYear();
+    month = month || formData.month || null;
+    startDate1 = startDate1 || formData.startDate || null;
+    endDate1 = endDate1 || formData.endDate || null;
+    accounts =  accounts || formData.accounts || "ALL_BILLS"
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(periodType, year, month, startDate1, endDate1);
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, formData.accounts);
+    // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accounts);
 
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts);
+    // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accounts);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -383,7 +384,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData( startDate, endDate, formData.accounts).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }
@@ -446,10 +447,11 @@ export class TransactionsPage implements OnInit {
     ];
   }
 
-  openAddBill(data: IRowDataTable): void {
-    this.selectBill = data.paymentIdentifier as string;
-    this.openPopupAddBill()
-  }
+  // openAddBill(data: IRowDataTable): void {
+  //   this.selectBill = data.paymentIdentifier as string;
+  //   console.log("🚀 ~ TransactionsPage ~ openAddBill ~ this.selectBill:", this.selectBill)
+  //   this.openPopupAddBill()
+  // }
 
   openPopupAddBill(data?: IRowDataTable): void {
     from(this.modalController.create({
@@ -567,11 +569,11 @@ export class TransactionsPage implements OnInit {
   handleTableData(data: ITransactionData[]) {
     const rows = [];
     if (data.length) {
-      console.log("data in hnadle data in transaction: ", data);
+      console.log("data in handle data in transaction: ", data);
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
-        data.billName ? null : (data.billName = "זמני", this.checkClassifyBill = false);
+        data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
@@ -579,6 +581,7 @@ export class TransactionsPage implements OnInit {
         data.sum = String(Math.abs(Number(data.sum)));
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
+        data.note2 ? null : data.note2 = "--";
         //console.log(data);
         
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
@@ -802,10 +805,10 @@ export class TransactionsPage implements OnInit {
 
   onClickedCell(event: { str: string, data: IRowDataTable }, isExpense: boolean = true): void {
     if (event.str === "bill") {
-      this.openAddBill(event.data);
+      // this.openAddBill(event.data);
     }
     else {
-      event.data.billName === "זמני" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
+      event.data.billName === "לא שוייך" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
     }
   }
 
@@ -863,10 +866,6 @@ export class TransactionsPage implements OnInit {
     })
   }
 
-  // setOpenToast(): void {
-  //   this.isToastOpen = false;
-  // }
-
   filterByExpenses(event: string): void {
     this.filterByExpense = event;
     this.filterExpenses()
@@ -875,6 +874,74 @@ export class TransactionsPage implements OnInit {
   filterByIncomes(event: string): void {
     this.filterByIncome = event;
     this.filterIncomes()
+  }
+
+  openAccountAssociation(event: {state: boolean, data: IRowDataTable}): void {
+    this.visibleAccountAssociationDialog.set(event.state);
+    this.leftPanelData.set(event.data);
+  }
+
+  openAddBill(event: any): void {
+    this.visibleAddBill.set(event);
+  }
+  
+  onPaymentMethodAssociation(event: any): void {
+    const len = this.leftPanelData().paymentIdentifier.toString().length;
+    const paymentMethodType = len === 6 ? 'BANK_ACCOUNT' : len === 4 ? 'CREDIT_CARD' : undefined; // Setting paymentMethodType based on the length of paymentIdentifier
+    console.log("🚀 ~ onPaymentMethodAssociation ~ len:", len)
+    console.log("event in payment method association: ", event);
+    this.addSource(event, this.leftPanelData().paymentIdentifier as string, paymentMethodType);
+  }
+  
+  closeAccountAssociation(event: boolean): void {
+    this.visibleAccountAssociationDialog.set(event);
+    // this.visibleAddBill.set(event);
+  }
+
+  closeAddBill(event: boolean): void {
+    this.visibleAddBill.set(event);
+  }
+
+  addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
+    // console.log("🚀 ~ addSource ~ paymentMethodType:", paymentMethodType)
+    // console.log("🚀 ~ addSource ~ paymentIdentifier:", paymentIdentifier)
+    // console.log("🚀 ~ addSource ~ bill:", bill)
+    // this.genericService.getLoader().subscribe();
+    this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType)
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          console.log('err in add source: ', err);
+          return EMPTY;
+        })
+      )
+      .subscribe(() => {
+        this.visibleAccountAssociationDialog.set(false);
+        this.getTransactions();
+      })
+  }
+
+  onAddBill(event: FormGroup): void {
+    console.log("🚀 ~ onAddBill ~ event:", event);
+    const accountName = event.controls?.['accountName']?.value;
+    const businessNumber = event.controls?.['businessNumber']?.value;
+    console.log("businessbillNameNumber: ", accountName);
+    console.log("businessNumber: ", businessNumber);
+    
+      this.transactionService.addBill(accountName, businessNumber)
+        .pipe(
+          finalize(() => this.genericService.dismissLoader()),
+          catchError((err) => {
+            console.log('err in add bill: ', err);
+            return EMPTY;
+          })
+        )
+        .subscribe(() => {
+          this.transactionService.getAllBills();
+          this.closeAddBill(false);
+        });
+    
+    
   }
 
 }

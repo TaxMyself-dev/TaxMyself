@@ -39,6 +39,17 @@ export class AppComponent implements OnInit {
 
   ];
 
+
+  menuItems = [
+    {label: 'דף הבית', routerLink: '/my-account'},
+    {label: 'פרופיל אישי'},
+    {label: 'תזרים', routerLink: '/transactions'},
+    {label: 'דוחות', routerLink: '/reports'},
+    {label: 'הגדרות', routerLink: '/my-status'},
+    {label: 'צור קשר'},
+    {label: 'כניסה', routerLink: '/login'},
+  ]
+
   fromLoginPage = false; // Flag to check if entry was from login page
   isPopoverOpen: boolean = false;
   showMenu: boolean = false;
@@ -52,6 +63,10 @@ export class AppComponent implements OnInit {
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    console.log("🚀 ~ AppComponent ~ ngOnInit ~ this.userData:", this.userData)
+    if (this.userData?.role[0] === 'ADMIN') {
+      this.menuItems.push({label: 'פאנל מנהלים', routerLink: '/admin-panel'});
+    }
     this.getRoute();
     this.getRoleUser();
     //this.authService.startTokenRefresh(); // Start refreshing the token

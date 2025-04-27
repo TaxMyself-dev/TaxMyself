@@ -93,7 +93,7 @@ export enum TransactionsOutcomesColumns {
   SUM = 'sum',
   CATEGORY = 'category',
   SUBCATEGORY = 'subCategory',
-  MONTH_REPORT = 'monthReport',
+  MONTH_REPORT = 'vatReportingDate',
   CHECKBOX = 'checkbox',
   ACTIONS = 'actions',
   NOTE = 'note2'
@@ -441,4 +441,11 @@ export enum bunnerImagePosition {
   CENTER_RGHIT = 'right-center',
   BOTTOM_LEFT = 'bottom-left',
   BOTTOM_RIGHT = 'bottom-right'
+}
+
+export enum inputsSize {
+  SMALL = 'narrow',
+  MEDIUM = 'normal',
+  LARGE = 'wide',
+  AUTO = 'auto'
 }

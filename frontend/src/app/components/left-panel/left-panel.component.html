@@ -1,0 +1,32 @@
+
+
+<p-drawer [style]="{top: 'auto', bottom: 0, height: 'calc(100% - 90px)', width: '512px'}"[showCloseIcon]="false" [visible]="visible()" position="left" [modal]="true" (visibleChange)="onVisibleChange($event)">
+  <ng-template #header>
+    <div class="wrap-header">
+      @if(backEnabled()) {
+        <app-p-button [buttonText]="backEnabledText()" [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.AUTO" [icon]="'pi pi-angle-right'" [iconPosition]="iconPos.RIGHT" (onButtonClicked)="onBackEnabled()"></app-p-button>
+      }
+      <p class="header-text">{{headerText()}}</p>
+      <p class="sub-header-text">{{subHeaderText()}}</p>
+    </div>
+    </ng-template>
+
+  <ng-template #content>
+    <ng-content select="[content]"></ng-content>
+  </ng-template>
+
+  <ng-template #footer class="custom-footer">
+    <ng-content select="[footer]"></ng-content>
+  </ng-template>
+
+</p-drawer>
+
+
+
+
+
+
+<!-- (onShow)="onShow.emit()" -->
+<!-- (onHide)="onHide.emit()" -->
+<!-- [style]="style" -->
+<!-- [styleClass]="styleClass" -->

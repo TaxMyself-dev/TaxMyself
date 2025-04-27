@@ -83,12 +83,7 @@ export class TransactionsService implements OnInit{
 
   updateAccountList(newData: any): void {
     const accounts = this.accountsList$.value
-    const updatedTransactions = [newData];
-    // const updatedTransactions = [...accounts, ...newData];
-    // Emit the updated transactions
     this.accountsList$.next([...[{ value: 'ALL_BILLS', name: 'כל החשבונות' }],...newData]);
-    // this.accountsList$.next(updatedTransactions);
-    // console.log(this.accountsList$.value);
   }
 
 
@@ -100,7 +95,7 @@ export class TransactionsService implements OnInit{
   }
   
 
-  addSource(billId: string, source: string, type: string): Observable<any> {
+  addSource(billId: number, source: string, type: string): Observable<any> {
     //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
     // const headers = {

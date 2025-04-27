@@ -1,8 +1,8 @@
-import { Component, input, OnInit } from '@angular/core';
+import { Component, computed, EventEmitter, input, OnInit, Output, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { ButtonModule } from 'primeng/button';
-import { ButtonColor, ButtonSize } from './button.enum';
+import { ButtonColor, ButtonSize, iconPosition } from './button.enum';
 
 @Component({
   selector: 'app-p-button',
@@ -13,16 +13,30 @@ import { ButtonColor, ButtonSize } from './button.enum';
 })
 export class ButtonComponent  implements OnInit {
   icon = input<string>();
-  iconPosition = input<string>();
+  iconPosition = input<iconPosition>(iconPosition.LEFT);
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   buttonText = input<string>('Button');
-  // buttonSize = input<"small" | "big" | 'x_small'>('big');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
   buttonColor = input<ButtonColor>(ButtonColor.BLACK);
+  severity = input<"success" | "info" | "warn" | "danger" | "help" | "primary" | "secondary" | "contrast">();
   badge = input<string>(); // Number for notifications TODO: check if need pass string or number
   variant = input<"outlined" | "text">(null);
   isLoading = input<boolean>(false);
   disabled = input<boolean>(false);
+
+  buttonClasses: Signal<string> = computed(() => {
+    return [
+      this.buttonSize(),                                 
+      this.buttonColor(),                                
+      this.variant() === 'outlined' ? 'outlined' : '',   // include 'outlined' if set
+      this.disabled() ? 'disabled' : ''                  // include 'disabled' if set
+    ]
+    .filter(c => !!c)                                    // drop empty strings
+    .join(' ');
+  });
+
+  @Output() onButtonClicked = new EventEmitter<Event>();
+
   
   readonly ButtonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
@@ -33,23 +47,8 @@ export class ButtonComponent  implements OnInit {
   ngOnInit() {
   }
   
-  onClick(): void {
-
+  onClick(event: Event): void {
+    this.onButtonClicked.emit(event);
   }
-
-  getButtonClasses(): string {
-    const classes = {
-      'x_small': this.buttonSize() === ButtonSize.X_SMALL,
-      'small': this.buttonSize() === ButtonSize.SMALL,
-      'big': this.buttonSize() === ButtonSize.BIG,
-      'yellow': this.buttonColor() === ButtonColor.YELLOW,
-      'black': this.buttonColor() === ButtonColor.BLACK,
-      'white': this.buttonColor() === ButtonColor.WHITE,
-      'outlined': this.variant() === 'outlined',
-    };
-  
-    return Object.keys(classes).filter(className => classes[className]).join(' ');
-  }
-  
 
 }
