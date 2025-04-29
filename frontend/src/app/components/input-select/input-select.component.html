@@ -2,5 +2,11 @@
   @if(errorText()) {
     <span>{{errorText()}}</span>
   }
-  <p-select [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" />
+  <div class="input-select-wrapper">
+
+    @if (labelText()) {
+      <label class="input-label" [for]="controlName()">{{labelText()}}</label>
+    }
+    <p-select [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" />
+  </div>
 </form>

@@ -3,9 +3,9 @@
 
 <app-generic-table [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses" [dataTable]="expensesData" [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)"></app-generic-table>
 
-<app-account-association-dialog (visibleChange)="closeAccountAssociation($event)" (AccountAssociationButtonClicked)="onPaymentMethodAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList" [rowData]="leftPanelData()" (openAddBillClicked)="openAddBill($event)"></app-account-association-dialog>
+<app-account-association-dialog (visibleChange)="closeAccountAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList" [rowData]="leftPanelData()" (openAddBillClicked)="openAddBill($event)"></app-account-association-dialog>
 
-<app-add-bill2 [isVisible]="visibleAddBill()"  (visibleChange)="closeAddBill($event)" (addBillButtonClicked)="onAddBill($event)"></app-add-bill2>
+<app-add-bill2 [isVisible]="visibleAddBill()"  (visibleChange)="closeAddBill($event)" [bussinesesList]="bussinesesList"></app-add-bill2>
 
 
 

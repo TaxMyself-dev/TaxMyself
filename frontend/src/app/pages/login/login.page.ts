@@ -63,7 +63,7 @@ export class LoginPage implements OnInit {
     this.login2();
   }
 
-  login2(): void {
+    login2(): void {
     this.isLoading = true;
     this.authService.error$.next(null);
     const formData = this.loginForm.value;

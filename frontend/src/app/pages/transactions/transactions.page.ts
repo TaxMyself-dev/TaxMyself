@@ -885,40 +885,13 @@ export class TransactionsPage implements OnInit {
     this.visibleAddBill.set(event);
   }
   
-  onPaymentMethodAssociation(event: any): void {
-    const len = this.leftPanelData().paymentIdentifier.toString().length;
-    const paymentMethodType = len === 6 ? 'BANK_ACCOUNT' : len === 4 ? 'CREDIT_CARD' : undefined; // Setting paymentMethodType based on the length of paymentIdentifier
-    console.log("🚀 ~ onPaymentMethodAssociation ~ len:", len)
-    console.log("event in payment method association: ", event);
-    this.addSource(event, this.leftPanelData().paymentIdentifier as string, paymentMethodType);
-  }
-  
-  closeAccountAssociation(event: boolean): void {
-    this.visibleAccountAssociationDialog.set(event);
-    // this.visibleAddBill.set(event);
+  closeAccountAssociation(event: {visible: boolean, data: boolean}): void {
+    this.visibleAccountAssociationDialog.set(event.visible);
+    event.data ? this.getTransactions() : null;
   }
 
   closeAddBill(event: boolean): void {
     this.visibleAddBill.set(event);
-  }
-
-  addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
-    // console.log("🚀 ~ addSource ~ paymentMethodType:", paymentMethodType)
-    // console.log("🚀 ~ addSource ~ paymentIdentifier:", paymentIdentifier)
-    // console.log("🚀 ~ addSource ~ bill:", bill)
-    // this.genericService.getLoader().subscribe();
-    this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType)
-      .pipe(
-        finalize(() => this.genericService.dismissLoader()),
-        catchError((err) => {
-          console.log('err in add source: ', err);
-          return EMPTY;
-        })
-      )
-      .subscribe(() => {
-        this.visibleAccountAssociationDialog.set(false);
-        this.getTransactions();
-      })
   }
 
   onAddBill(event: FormGroup): void {

@@ -1,11 +1,15 @@
 <app-left-panel [backEnabledText]="'חזור לשיוך אמצעי תשלום לחשבון'" (backEnabledClicked)="onBackEnabled($event)" headerText="הוספת חשבון" subHeaderText="הוספה של חשבון לרשימת החשבונות שלך אליהם תוכל לשייך אמצעי צשלום" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true">
 
   <div class="content" content>
-   <app-input-text [placeholder]="'בחר שם לחשבון'" [parentForm]="myForm" [controlName]="'accountName'" [size]="inputsSize.LARGE"></app-input-text>
+   <app-input-text [labelText]="'שם החשבון'" [placeholder]="'בחר שם לחשבון'" [parentForm]="myForm" [controlName]="'accountName'" [size]="inputsSize.MEDIUM"></app-input-text>
+   @if (userData?.isTwoBusinessOwner) {
+   <app-input-select [labelText]="'שייך לעסק'" [ariaLabel]="'בחר מרשימת העסקים'" [placeholder]="'בחר מרשימת העסקים'" [controlName]="'businessNumber'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="bussinesesList()"></app-input-select>
+  }
   </div>
 
   <div class="footer" footer>
-    <app-p-button [buttonText]="'נקה הכל'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-    <app-p-button [buttonText]="'צור חשבון'" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
+    <!-- <app-p-button [buttonText]="'נקה הכל'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"></app-p-button> -->
+    <app-p-button [buttonText]="'צור חשבון'" [isLoading]="isLoading()" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
+    <p-toast [position]="'bottom-right'" [key]="'br'" />
   </div>
 </app-left-panel>

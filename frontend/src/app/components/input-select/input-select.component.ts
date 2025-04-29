@@ -21,6 +21,7 @@ export class InputSelectComponent  implements OnInit {
   items = input<ISelectItem[]>([]);
   controlName = input<string>("");
   placeholder = input<string>("");
+  labelText = input<string>("");
   errorText = input<string>("");
   size = input<string>("");
   filter = input<boolean>(true);

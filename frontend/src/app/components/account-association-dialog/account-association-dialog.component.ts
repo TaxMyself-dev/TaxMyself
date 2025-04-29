@@ -7,6 +7,8 @@ import { IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonSize } from '../button/button.enum';
 import { vi } from 'date-fns/locale';
+import { catchError, EMPTY, finalize } from 'rxjs';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 
 @Component({
   selector: 'app-account-association-dialog',
@@ -18,28 +20,16 @@ import { vi } from 'date-fns/locale';
 
 export class AccountAssociationDialogComponent implements OnInit {
   formBuilder = inject(FormBuilder);
+  transactionService = inject(TransactionsService);
   isVisible = input<boolean>(false);
   accounts = input<ISelectItem[]>([]);
   rowData = input<IRowDataTable>(null);
-  AccountAssociationButtonClicked = output<string>();
-  visibleChange = output<boolean>();
+  visibleChange = output<{visible: boolean, data: boolean}>();
   openAddBillClicked = output<boolean>();
-  // visibleState: WritableSignal<boolean> = signal(this.isVisible());
+  isLoading: WritableSignal<boolean> = signal(false);
 
-  // visibleState = signal<boolean>(false);
-  // visibleState: Signal<boolean> = computed(() => {
-  // return this.isVisible()
-  // });
   buttonSize = ButtonSize;
   inputsSize = inputsSize;
-  // @Output() onShow = new EventEmitter<void>();
-  // @Output() onHide = new EventEmitter<void>();
-  // @Input() modal = true;
-  // @Input() closable = true;
-  // @Input() dismissableMask = false;
-  // @Input() style = { width: '50vw' };
-  // @Input() styleClass?: string;
-  // @Input() appendTo?: any;
 
   myForm: FormGroup;
 
@@ -54,14 +44,30 @@ export class AccountAssociationDialogComponent implements OnInit {
   ngOnInit() {
   }
 
-  onVisibleChange(visible: boolean) {
-    this.visibleChange.emit(visible);
+  onVisibleChange(visible: boolean, data = false): void {
+    this.visibleChange.emit({visible: visible, data: data});
   }
 
   associationPaymentMethod(event: any): void {
-    console.log("🚀 ~ event in AccountAssociationDialogComponent :", event)
-    this.AccountAssociationButtonClicked.emit(event);
+    this.isLoading.set(true);
+    const len = this.rowData()?.paymentIdentifier.toString().length;
+    const paymentMethodType = len === 6 ? 'BANK_ACCOUNT' : len === 4 ? 'CREDIT_CARD' : undefined; // Setting paymentMethodType based on the length of paymentIdentifier
+    this.addSource(this.myForm.get('account').value, this.rowData()?.paymentIdentifier.toString(), paymentMethodType);
   }
+
+  addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
+      this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType)
+        .pipe(
+          finalize(() => this.isLoading.set(false)),
+          catchError((err) => {
+            console.log('err in add source: ', err);
+            return EMPTY;
+          })
+        )
+        .subscribe(() => {
+          this.onVisibleChange(false, true);
+        })
+    }
 
   openAddBill(): void {
     this.openAddBillClicked.emit(true)

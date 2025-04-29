@@ -1,6 +1,13 @@
 <form [formGroup]="parentForm()">
   @if(errorText()) {
-    <span>{{errorText()}}</span>
+  <span>{{errorText()}}</span>
   }
-  <input type="text" pInputText formControlName="text" [formControlName]="controlName()" [placeholder]="placeholder()" [class]="getinputClasses()" [disabled]="disabled()"/>
+  <div class="input-text-wrapper">
+
+    @if (labelText()) {
+    <label class="input-label" [for]="controlName()">{{labelText()}}</label>
+    }
+    <input type="text" pInputText formControlName="text" [formControlName]="controlName()" [placeholder]="placeholder()"
+      [class]="getinputClasses()" [disabled]="disabled()" />
+  </div>
 </form>

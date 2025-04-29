@@ -227,8 +227,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   box-shadow: 0 -4px 8px -4px rgba(0, 0, 0, 0.2);
 }
 
-.p-select,
-.p-inputtext { //For select input
+.p-select { //For select input
   border-radius: 20px !important;
   border-color: rgb(245 242 242) !important;
   &.wide {
@@ -237,5 +236,30 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.auto {
     width: auto;
   }
+  &.normal {
+    width: 215px;
+  }
 }
+
+.p-inputtext { //For text input
+  border-color: rgb(245 242 242) !important;
+  border: none !important;
+  padding-inline: 0 !important;
+  border-bottom: 1px solid gray !important;
+  border-radius: 0px !important;
+  &.wide {
+    width: 420px !important;
+  }
+  &.auto {
+    width: auto;
+  }
+  &.normal {
+    width: 215px;
+  }
+  
+}
+  input.p-inputtext::placeholder {
+    color: gray !important;       /* your desired color */
+    opacity: 1;           /* ensure full opacity if needed */
+  }
  

@@ -6,6 +6,6 @@
   </div>
 
   <div class="footer" footer>
-    <app-p-button [buttonText]="'שייך את אמצעי התשלום'" [disabled]="myForm.invalid" (onButtonClicked)="associationPaymentMethod(myForm.get('account').value)" ></app-p-button>
+    <app-p-button [buttonText]="'שייך את אמצעי התשלום'" [disabled]="myForm.invalid" (onButtonClicked)="associationPaymentMethod(myForm.get('account').value)" [isLoading]="isLoading()" ></app-p-button>
   </div>
 </app-left-panel>
