@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, input, OnInit, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, input, OnInit, output, signal, WritableSignal } from '@angular/core';
 import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { tr } from 'date-fns/locale';
 import { SelectModule } from 'primeng/select';
@@ -18,7 +18,7 @@ export class InputSelectComponent  implements OnInit {
   inputsSize = inputsSize;
 
   parentForm = input<FormGroup>(null);
-  items = input<ISelectItem[]>([]);
+  items = input<ISelectItem[] | { label: string; items: ISelectItem[]; }[]>([]);
   controlName = input<string>("");
   placeholder = input<string>("");
   labelText = input<string>("");
@@ -26,10 +26,16 @@ export class InputSelectComponent  implements OnInit {
   size = input<string>("");
   filter = input<boolean>(true);
   disabled = input<boolean>(false);
+  group = input<boolean>(false);
   virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
+  onChangeInputSelect = output<string>();
 
-  constructor() { }
+
+
+
+
+  constructor() {}
 
   ngOnInit() {}
 
@@ -39,6 +45,11 @@ export class InputSelectComponent  implements OnInit {
     ]
       .filter(c => !!c)                // remove empty strings
       .join(' ');
+  }
+
+  onChange(event: any): void {
+    console.log("🚀 ~ InputSelectComponent ~ onChange ~ event:", event)
+    this.onChangeInputSelect.emit(event.value);
   }
 
  

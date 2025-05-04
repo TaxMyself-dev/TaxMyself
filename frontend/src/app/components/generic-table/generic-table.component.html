@@ -35,7 +35,7 @@
                   <div class="buttons-container" >
                     <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
                     <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-                    <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
+                    <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(row)" [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
                   </div>
                 </div>
                 </td>

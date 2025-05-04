@@ -239,6 +239,10 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.normal {
     width: 215px;
   }
+
+  &.narrow {
+    width: 120px;
+  }
 }
 
 .p-inputtext { //For text input
@@ -258,8 +262,9 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
   
 }
-  input.p-inputtext::placeholder {
-    color: gray !important;       /* your desired color */
-    opacity: 1;           /* ensure full opacity if needed */
-  }
+
+input.p-inputtext::placeholder {
+  color: gray !important;       /* your desired color */
+  opacity: 1;           /* ensure full opacity if needed */
+}
  

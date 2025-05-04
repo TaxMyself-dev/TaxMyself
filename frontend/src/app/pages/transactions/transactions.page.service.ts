@@ -1,9 +1,10 @@
-import { Injectable, OnInit } from '@angular/core';
-import { BehaviorSubject, EMPTY, Observable, catchError, map } from 'rxjs';
+import { Injectable, OnInit, signal } from '@angular/core';
+import { BehaviorSubject, EMPTY, Observable, catchError, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { IClassifyTrans, ITransactionData } from 'src/app/shared/interface';
+import { IClassifyTrans, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
+import { ca } from 'date-fns/locale';
 
 
 @Injectable({
@@ -13,7 +14,8 @@ export class TransactionsService implements OnInit{
 
   token:string;
   accountsList$ = new BehaviorSubject<any[]>([{ value: 'ALL_BILLS', name: 'כל החשבונות' }]);
-  businessList: [{businessName: string, businessNumber: string}]
+  businessList: [{businessName: string, businessNumber: string}];
+  categories = signal<ISelectItem[]>([]);
 
   constructor(private http: HttpClient) { 
     console.log("in transaction service");
@@ -48,8 +50,7 @@ export class TransactionsService implements OnInit{
     .set('startDate', startDate)
     .set('endDate', endDate)
     return this.http.get<ITransactionData[]>(url, {params: param})
-  }
-    
+  } 
 
   getAllBills(): void {
     const url = `${environment.apiUrl}transactions/get-bills`;
@@ -80,12 +81,10 @@ export class TransactionsService implements OnInit{
     return this.http.get<any[]>(url)
   }
 
-
   updateAccountList(newData: any): void {
     const accounts = this.accountsList$.value
     this.accountsList$.next([...[{ value: 'ALL_BILLS', name: 'כל החשבונות' }],...newData]);
   }
-
 
   renameFields(obj: any): any {
     return {
@@ -94,7 +93,6 @@ export class TransactionsService implements OnInit{
     };
   }
   
-
   addSource(billId: number, source: string, type: string): Observable<any> {
     //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
@@ -104,7 +102,6 @@ export class TransactionsService implements OnInit{
     //return this.http.post<any[]>(url,{sourceName: source, sourceType: type},{headers:headers});
     return this.http.post<any[]>(url,{sourceName: source, sourceType: type});
   }
-
 
   addBill(billName: string, businessNumber: string): Observable<any> {
     //const token = localStorage.getItem('token');
@@ -116,7 +113,6 @@ export class TransactionsService implements OnInit{
     return this.http.post<any[]>(url,{billName, businessNumber});
   }
   
-
   uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
     console.log("file buffer in service: ", fileBuffer);
     //const token = localStorage.getItem('token');
@@ -133,7 +129,6 @@ export class TransactionsService implements OnInit{
     return this.http.post<any>(url, formData);
   }
  
-
   addClassifiction(formData: IClassifyTrans, date: any): Observable<any> {
     console.log("in add classificaion");
     console.log("form data of classify trans: ",formData);
@@ -150,7 +145,6 @@ export class TransactionsService implements OnInit{
     return this.http.post<any>(url,formData,{params:params});
   }
 
-
   updateRow(formData: any): Observable<any> {
     // updateRow(formData: IClassifyTrans): Observable<any> {
     console.log("in update row service");
@@ -163,12 +157,40 @@ export class TransactionsService implements OnInit{
     return this.http.patch<any>(url, formData)
   }
 
-
   removeMinus(sum: string): string {
     const withoutSign = sum.replace('-', '');
     const withoutDecimal = withoutSign.split('.')[0];
     return withoutDecimal
   }
 
-  
+  getCategories(isDefault?: boolean, isExpense: boolean = true): Observable<ISelectItem[]> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}expenses/get-categories`;
+    const headers = {
+      'token': token
+    }
+    const param = new HttpParams()
+      .set('isDefault', isDefault)
+      .set('isExpense', isExpense)
+    return this.http.get<ISelectItem[]>(url, { params: param, headers: headers })
+    .pipe(
+      // takeUntil(this.destroy$),
+      catchError((err) => {
+        console.log("error in get category", err);
+        return EMPTY;
+      }),
+      map((res) => {
+        return res.map((item: any) => ({
+          name: item.categoryName,
+          value: item.categoryName
+        })
+        )
+      }),
+      tap((res: ISelectItem[]) => {
+        console.log("category", res);
+        this.categories.set(res);
+        console.log("categories", this.categories());
+      })
+    )
+  }
 }

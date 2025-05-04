@@ -7,6 +7,13 @@
     @if (labelText()) {
       <label class="input-label" [for]="controlName()">{{labelText()}}</label>
     }
-    <p-select [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" />
+
+    <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" (onChange)="onChange($event)" >
+      @if (group()) {
+        <ng-template let-group #group>
+              <span style="color: black; font-size: large;">{{group.label}}</span>
+      </ng-template>
+      }
+    </p-select>
   </div>
 </form>

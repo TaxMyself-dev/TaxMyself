@@ -27,11 +27,12 @@ export class AddBillComponent implements OnInit {
 
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);
-  bussinesesList = input<ISelectItem[]>([]);
+  // bussinesesList = input<ISelectItem[]>([]);
   visibleChange = output<boolean>();
   addBillButtonClicked = output<any>();
   isLoading: WritableSignal<boolean> = signal(false);
 
+  bussinesesList: ISelectItem[] = [];
   userData: IUserData;
 
   buttonSize = ButtonSize;
@@ -52,7 +53,14 @@ export class AddBillComponent implements OnInit {
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
+      this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
+      this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
       this.myForm.get('businessNumber')?.setValidators([Validators.required]);
+    }
+    else {
+      this.myForm.patchValue({
+        businessNumber: this.userData.businessNumber,
+      });
     }
   }
 

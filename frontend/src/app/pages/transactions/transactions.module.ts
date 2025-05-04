@@ -11,6 +11,8 @@ import { ImageBunnerComponent } from "../../components/image-bunner/image-bunner
 import { GenericTableComponent } from "../../components/generic-table/generic-table.component";
 import { AccountAssociationDialogComponent } from "../../components/account-association-dialog/account-association-dialog.component";
 import { AddBillComponent } from "../../components/add-bill/add-bill.component";
+import { ClassifyTranComponent } from "../../components/classify-tran/classify-tran.component";
+import { AddCategoryComponent } from "../../components/add-category/add-category.component";
 
 @NgModule({
   imports: [
@@ -24,7 +26,9 @@ import { AddBillComponent } from "../../components/add-bill/add-bill.component";
     ImageBunnerComponent,
     GenericTableComponent,
     AccountAssociationDialogComponent,
-    AddBillComponent
+    AddBillComponent,
+    ClassifyTranComponent,
+    AddCategoryComponent
 ],
   declarations: [TransactionsPage]
 })

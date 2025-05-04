@@ -43,6 +43,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visibleAccountAssociationClicked = output<{state: boolean, data: IRowDataTable}>();
+  visibleClassifyTranClicked = output<{state: boolean, data: IRowDataTable}>();
   visibleFilterDialog = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm: WritableSignal<string> = signal('');
@@ -330,6 +331,14 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     
     console.log('onVisibleAccountAssociationClicked');
     this.visibleAccountAssociationClicked.emit({state: true, data: row});
+  }
+
+  onVisibleClassifyTranClicked(row:IRowDataTable): void {
+    console.log('row in onVisibleAccountAssociationClicked:', row);
+    console.log('event in onVisibleAccountAssociationClicked:', true);
+    
+    console.log('onVisibleAccountAssociationClicked');
+    this.visibleClassifyTranClicked.emit({state: true, data: row});
   }
   
 }
