@@ -8,6 +8,7 @@ import { ReportsPageRoutingModule } from './reports-routing.module';
 
 import { ReportsPage } from './reports.page';
 import { SharedModule } from '../../shared/shared.module';
+import { CardNavigateComponent } from "../../components/card-navigate/card-navigate.component";
 
 @NgModule({
   imports: [
@@ -15,8 +16,9 @@ import { SharedModule } from '../../shared/shared.module';
     FormsModule,
     IonicModule,
     ReportsPageRoutingModule,
-    SharedModule
-  ],
+    SharedModule,
+    CardNavigateComponent
+],
   declarations: [ReportsPage]
 })
 export class ReportsPageModule {}

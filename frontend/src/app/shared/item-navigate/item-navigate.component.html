@@ -8,7 +8,7 @@
     [disabled]="item.disable" 
     (click)="onButtonClicked(item)">
     <div class="button-content">
-      <ion-icon class="icon-nav" size="large" *ngIf="item.icon" [name]="item.icon"></ion-icon>
+      <ion-icon class="icon-nav" size="large" *ngIf="item.image" [name]="item.image"></ion-icon>
       <ion-label class="label-item">{{item.name}}</ion-label>
     </div>
   </ion-button>

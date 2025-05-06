@@ -1,5 +1,9 @@
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
+  <div class="cards-container">
+    @for (item of itemsNavigate; track $index) {
+      <app-card-navigate [cardItem]="item"></app-card-navigate>
+    }
+  </div>
 
-<div class="flex-center">
+<!-- <div class="flex-center">
   <app-item-navigate [navigationItems]="itemsNavigate"></app-item-navigate>
-</div>
+</div> -->
