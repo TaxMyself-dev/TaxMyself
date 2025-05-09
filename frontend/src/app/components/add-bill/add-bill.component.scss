@@ -1,4 +1,11 @@
 .footer {
     display: flex;
-    justify-content: space-between;
+    justify-content: end;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    height: 50%;
 }

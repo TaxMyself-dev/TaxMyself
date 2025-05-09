@@ -1,0 +1,29 @@
+<app-left-panel [headerText]="editMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'" [subHeaderText]="editMode ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true" [backEnabledText]="'חזור למיפוי עסקה'" (backEnabledClicked)="onBackEnabled($event)">
+
+  <div class="content" content>
+    <div>
+      @if (editMode()) {
+        <app-input-select [ariaLabel]="'בחר קטגוריה '" [placeholder]="'בחר קטגוריה'" [controlName]="'category'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="categoryList()" [items]="categoryList()" ></app-input-select>
+      }
+      @else() {
+        <app-input-text [ariaLabel]="'שם קטגוריה'" [placeholder]="'שם קטגוריה'" [controlName]="'category'" [parentForm]="myForm" [size]="inputsSize.MEDIUM"></app-input-text>
+      }
+
+      <app-p-button [buttonText]="'הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="AddSubCategory()" [icon]="'pi pi-plus'" [iconPosition]="iconPos.RIGHT"></app-p-button>
+      <!-- <app-input-select [ariaLabel]="'בחר האם הקטגוריה היא רכוש קבוע'" [placeholder]="'בחר כאן'"></app-input-select>
+      <app-input-text></app-input-text> -->
+      
+    </div>
+    <div>
+      <!-- <app-p-button [buttonText]="'הוסף קטגוריה חדשה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openAddCategory()"></app-p-button>
+      <app-p-button [buttonText]="'הוסף תת קטגוריה חדשה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openAddSubCategory()"></app-p-button> -->
+
+    </div>
+  </div>
+
+  <div class="footer" footer>
+   
+    <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()" [disabled]="myForm?.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
+    <!-- <p-toast [position]="'bottom-right'" [key]="'br'" /> -->
+  </div>
+</app-left-panel>

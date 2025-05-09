@@ -18,6 +18,7 @@ export class InputTextComponent  implements OnInit {
   controlName = input<string>("");
   placeholder = input<string>("");
   errorText = input<string>("");
+  labelText = input<string>("");
   ariaLabel = input<string>("");
   size = input<string>("");
   disabled = input<boolean>(false);

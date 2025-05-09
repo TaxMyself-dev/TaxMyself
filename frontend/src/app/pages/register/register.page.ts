@@ -37,7 +37,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   employmentTypeOptionsList = employmentTypeOptionsList;
   listBusinessField = [{ value: "build", name: "בניין" }, { value: "electric", name: "חשמל" }, { value: "photo", name: "צילום" }, { value: "architecture", name: "אדריכלות" }]
   businessTypeOptionsList = businessTypeOptionsList;
-  itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", icon: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", icon: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", icon: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", icon: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", icon: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
+  itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", image: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", image: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", image: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", image: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", image: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;

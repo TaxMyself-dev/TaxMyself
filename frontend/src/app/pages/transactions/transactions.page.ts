@@ -129,6 +129,10 @@ export class TransactionsPage implements OnInit {
 
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
   visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
+  visibleClassifyTran = signal<boolean>(false);
+  visibleAddCategory: WritableSignal<boolean> = signal<boolean>(false);
+  isEditModeAddCategory: WritableSignal<boolean> = signal<boolean>(false);
+  // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData: WritableSignal<IRowDataTable> = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
@@ -885,41 +889,36 @@ export class TransactionsPage implements OnInit {
     this.visibleAddBill.set(event);
   }
   
-  onPaymentMethodAssociation(event: any): void {
-    const len = this.leftPanelData().paymentIdentifier.toString().length;
-    const paymentMethodType = len === 6 ? 'BANK_ACCOUNT' : len === 4 ? 'CREDIT_CARD' : undefined; // Setting paymentMethodType based on the length of paymentIdentifier
-    console.log("🚀 ~ onPaymentMethodAssociation ~ len:", len)
-    console.log("event in payment method association: ", event);
-    this.addSource(event, this.leftPanelData().paymentIdentifier as string, paymentMethodType);
+  openClassifyTran(event: any): void {
+    this.visibleClassifyTran.set(event);
+  }
+
+  openAddCategory(event: {state: boolean, editMode: boolean}): void {
+    this.visibleAddCategory.set(event.state);
+    this.isEditModeAddCategory.set(event.editMode);
+    console.log("🚀 ~ openAddCategory ~ event.editMode:", event.editMode)
   }
   
-  closeAccountAssociation(event: boolean): void {
-    this.visibleAccountAssociationDialog.set(event);
-    // this.visibleAddBill.set(event);
+  closeAccountAssociation(event: {visible: boolean, data: boolean}): void {
+    this.visibleAccountAssociationDialog.set(event.visible);
+    event.data ? this.getTransactions() : null;
   }
 
   closeAddBill(event: boolean): void {
     this.visibleAddBill.set(event);
   }
 
-  addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
-    // console.log("🚀 ~ addSource ~ paymentMethodType:", paymentMethodType)
-    // console.log("🚀 ~ addSource ~ paymentIdentifier:", paymentIdentifier)
-    // console.log("🚀 ~ addSource ~ bill:", bill)
-    // this.genericService.getLoader().subscribe();
-    this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType)
-      .pipe(
-        finalize(() => this.genericService.dismissLoader()),
-        catchError((err) => {
-          console.log('err in add source: ', err);
-          return EMPTY;
-        })
-      )
-      .subscribe(() => {
-        this.visibleAccountAssociationDialog.set(false);
-        this.getTransactions();
-      })
+  closeClassyfyTran(event: boolean): void {
+    this.visibleClassifyTran.set(event);
   }
+
+  closeAddCategory(event: boolean): void {
+    this.visibleAddCategory.set(event);
+  }
+
+  // closeAddSubCategory(event: boolean): void {
+  //   this.visibleAddSubCategory.set(event);
+  // }
 
   onAddBill(event: FormGroup): void {
     console.log("🚀 ~ onAddBill ~ event:", event);

@@ -99,12 +99,13 @@ export interface IChildren {
 
 export interface IItemNavigate {
     name: string,
-    icon: string,
+    image: string,
     index: string,
     link?: string,
     selected?: boolean,
     id?: string,
-    disable?: boolean
+    disable?: boolean,
+    content?: string,
 };
 
 export interface IVatReportTableData {

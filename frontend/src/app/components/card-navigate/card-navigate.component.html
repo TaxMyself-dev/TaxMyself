@@ -1,0 +1,9 @@
+<div (click)="onButtonClicked(cardItem())" class="main-container">
+  <div class="header-card">
+    <img alt="Card" class="image-card" [src]="cardItem().image" />
+    <span class="title-card">{{cardItem().name}}</span>
+  </div>
+  <div class="footer-card">
+    <span class="text-card">{{cardItem().content}}</span>
+  </div>
+</div>

@@ -1,6 +1,5 @@
 import { Component, computed, EventEmitter, input, OnInit, Output, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
 import { ButtonModule } from 'primeng/button';
 import { ButtonColor, ButtonSize, iconPosition } from './button.enum';
 
