@@ -3,7 +3,7 @@ import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@ang
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
+import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -12,6 +12,9 @@ import { FilesService } from 'src/app/services/files.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
+import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
+import { is } from 'date-fns/locale';
+import { log } from 'console';
 
 
 @Component({
@@ -22,11 +25,8 @@ import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 })
 export class DocCreatePage implements OnInit {
 
-  // docCreateForm: FormGroup;
   paymentsDetailsForm: FormGroup;
-  // generalDetailsForm: FormGroup;
   myForm: FormGroup;
-  // userDetailsForm: FormGroup;
   initialDetailsForm: FormGroup;
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   paymentDetailsFields: ICreateDocField<FieldsCreateDocName | fieldLineDocName, FieldsCreateDocValue | fieldLineDocValue>[] = [];
@@ -37,7 +37,8 @@ export class DocCreatePage implements OnInit {
   fileSelected: string;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
-  docDetails: ISettingDoc;
+  //docDetails: ISettingDoc;
+  docIndexes: IDocIndexes | null = null;
   createPDFIsLoading: boolean = false;
   createPreviewPDFIsLoading: boolean = false;
   addPDFIsLoading: boolean = false;
@@ -70,7 +71,7 @@ export class DocCreatePage implements OnInit {
   ];
 
   readonly paymentMethodList = [
-    { value: PaymentMethodValue.TRANSFER, name: PaymentMethodName.TRANSFER },
+    { value: PaymentMethodValue.BANK_TRANSFER, name: PaymentMethodName.BANK_TRANSFER },
     { value: PaymentMethodValue.CASH, name: PaymentMethodName.CASH },
     { value: PaymentMethodValue.BIT, name: PaymentMethodName.BIT },
     { value: PaymentMethodValue.PAYBOX, name: PaymentMethodName.PAYBOX },
@@ -79,9 +80,9 @@ export class DocCreatePage implements OnInit {
   ];
 
   readonly vatOptionList = [
-    { value: VatOptionsValue.WITH_OUT, name: 'ללא מע"מ' },
-    { value: VatOptionsValue.BEFORE, name: 'לא כולל מע"מ' },
-    { value: VatOptionsValue.AFTER, name: ' כולל מע"מ' },
+    { value: VatOptionsValue.INCLUDE, name: 'כולל מע"מ' },
+    { value: VatOptionsValue.EXCLUDE, name: 'לא כולל מע"מ' },
+    { value: VatOptionsValue.WITHOUT, name: 'ללא מע"מ' },
   ];
 
   readonly UnitOfMeasureList = [
@@ -125,80 +126,6 @@ export class DocCreatePage implements OnInit {
         '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
     });
-
-    //Subscribe to value changes
-    // this.paymentsFormArray.valueChanges.subscribe((forms: any[]) => {
-    //   // valueChanges subscribe
-    //   //console.log("in values changes");
-
-    //   // Initialize overall totals
-    //   let totals = {
-    //     sumBefDisBefVat: 0,
-    //     sumAftDisBefVAT: 0,
-    //     vatSum: 0,
-    //     sumAftDisWithVAT: 0,
-    //   };
-
-    //   forms.forEach((item, index) => {
-    //     const sum = Number(item.sum) || 0;
-    //     const discount = Number(item.discount) || 0;
-    //     const vatOption = item.vatOptions;
-    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatOption:", vatOption)
-    //     let sumBefDisBefVat = 0;
-    //     let sumAfterDisBefVat = 0;
-    //     let vatAmount = 0;
-    //     let sumAftDisWithVAT = 0;
-    //     let sumBeforeVat = 0;
-    //     // let sumWithVat = 0;
-    //     // let sumAfterDis = 0;
-
-    //     if (vatOption === 'BEFORE') {
-    //       // Discount applied before VAT calculation
-    //       sumBefDisBefVat = sum;
-    //       sumAfterDisBefVat = sum - discount; // For discount in number
-    //       //sumAfterDisBefVat = sum - (sum  * discount / 100); // For discount in percentage
-    //       vatAmount = sum * this.vatRate;
-    //       sumAftDisWithVAT = sumAfterDisBefVat + vatAmount;
-    //       // sumWithVat = sum + vatAmount;
-    //       sumAfterDisBefVat = sum;
-    //     }
-    //     else if (vatOption === 'AFTER') {
-    //       // Discount applied after VAT calculation
-    //       vatAmount = sum / (1 + this.vatRate);
-    //       sumBefDisBefVat = sum / (1 + this.vatRate) + discount;
-    //       sumAfterDisBefVat = sumBefDisBefVat - discount; // For discount in number
-    //       //sumAfterDisBefVat = sumBefDisBefVat - (sumBefDisBefVat  * discount / 100); // For discount in percentage
-    //       sumAftDisWithVAT = sum;
-    //     }
-    //     else if (vatOption === 'WITH_OUT') {
-    //       // No VAT is applied
-    //       vatAmount = 0;
-    //       sumBeforeVat = sum;
-    //       sumAfterDisBefVat = sum - discount;
-    //       sumAftDisWithVAT = sumAfterDisBefVat;
-    //     }
-
-    //     // Optionally, update the FormGroup with calculated values:
-    //     const formGroup = this.getPaymentsForm['controls'][index];
-    //     formGroup.patchValue({
-    //       sumAfterDisBefVat: sumAfterDisBefVat,
-    //       vatSum: vatAmount,
-    //       sumAftDisWithVAT: sumAftDisWithVAT
-    //     }, { emitEvent: false });
-    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAftDisWithVAT:", sumAftDisWithVAT)
-    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ vatAmount:", vatAmount)
-    //     // console.log("🚀 ~ DocCreatePage ~ forms.forEach ~ sumAfterDisBefVat:", sumAfterDisBefVat)
-
-    //     // Accumulate totals
-    //     totals.sumBefDisBefVat += sum;
-    //     totals.sumAftDisBefVAT += sumAfterDisBefVat;
-    //     totals.vatSum += vatAmount;
-    //     totals.sumAftDisWithVAT += sumAftDisWithVAT;
-    //   });
-
-    //   // Here you can assign totals to a property if you need to display overall values
-    //   this.overallTotals = totals;
-    // });
   }
 
 
@@ -223,7 +150,6 @@ export class DocCreatePage implements OnInit {
     console.log(this.myForm);
     this.paymentsArray[this.paymentsArray.length] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
     console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentsArray:", this.paymentsArray)
-
   }
 
   removePayment(index: number): void {
@@ -238,19 +164,16 @@ export class DocCreatePage implements OnInit {
   onSelectedDoc(event: any): void {
     this.fileSelected = event.value;
     console.log("🚀 ~ DocCreatePage ~ onSelectedFile ~ fileSelected:", this.fileSelected);
-    this.getHebrewNameDoc(event.value);
+    //this.getHebrewNameDoc(event.value);
+    this.HebrewNameFileSelected = this.ggetHebrewNameDoc(event.value);
     switch (event.value) {
-      case 'RECEIPT': // Receipt
-        // this.showUserDetailsCard = true;
-        // this.showPatmentDetailsCard = true;
+      case 'RECEIPT':
         this.paymentSectionName = 'ReceiptPaymentDetails';
         break;
-        case 2:
-          this.paymentSectionName = 'ReceiptPaymentDetails';
-          // this.showUserDetailsCard = false;
-          // this.showPatmentDetailsCard = true;
-          break;
-        }
+      case 'TAX_INVOICE':
+        this.paymentSectionName = 'TaxInvoicePaymentDetails';
+        break;
+      }
     this.getDocDetails()
     this.createForms();
 
@@ -258,7 +181,6 @@ export class DocCreatePage implements OnInit {
 
   createForms(): void {
     this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails', this.paymentSectionName]);
-    console.log("🚀 ~ DocCreatePage ~ createForms ~ this.myForm:", this.myForm)
     this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
     this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
     this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
@@ -275,6 +197,7 @@ export class DocCreatePage implements OnInit {
       )
       .subscribe((res) => {
         console.log("res in set initial index: ", res);
+        this.getDocDetails();
         this.isInitial = false;
       })
 
@@ -285,6 +208,11 @@ export class DocCreatePage implements OnInit {
     if (temp) this.HebrewNameFileSelected = temp.name;
   }
 
+  ggetHebrewNameDoc(typeDoc: string): string {
+    return this.DocCreateTypeList.find((doc) => doc.value === typeDoc)?.name;
+  }
+
+
   getDocDetails(): void {
     this.docCreateService.getDetailsDoc(this.fileSelected)
       .pipe(
@@ -292,24 +220,23 @@ export class DocCreatePage implements OnInit {
           console.log("err in get doc details: ", err);
           if (err.status === 404) {
             this.isInitial = true;
-          }
-          else {
-            //TODO: handle error screen
+          } else {
+            // TODO: handle error screen
           }
           return EMPTY;
         }),
         tap((data) => {
-          if (!data.initialIndex) this.isInitial = true;
-          else this.isInitial = false;
+          // If docIndex is 0, treat it as "initial"
+          this.isInitial = data.docIndex === 0;
           console.log("this.isInitial: ", this.isInitial);
-
         })
       )
       .subscribe((res) => {
         console.log("res in get doc details: ", res);
-        this.docDetails = res;
-      })
+        this.docIndexes = res; // Store the indexes
+      });
   }
+  
 
   openSelectClients() {
 
@@ -384,13 +311,6 @@ export class DocCreatePage implements OnInit {
       })
   }
 
-  getPaymentMethodHebrew(paymentMethod: string): string {
-    console.log("🚀 ~ DocCreatePage ~ getPaymentMethodHebrew ~ paymentMethod:", paymentMethod)
-    const temp = this.paymentMethodList.find((payment) => payment.value === paymentMethod);
-    console.log("🚀 ~ DocCreatePage ~ getPaymentMethodHebrew ~ temp:", temp)
-    if (temp) return temp.name;
-    return null;
-  }
 
   getDocData(): IDataDocFormat {
 
@@ -398,45 +318,91 @@ export class DocCreatePage implements OnInit {
     const userFormData = this.userDetailsForm.value;
     const payments = this.paymentsFormArray.value;
 
-    console.log("🚀 ~ DocCreatePage ~ getDocData ~ this.paymentsFormArray:", this.paymentsFormArray)
-    console.log("🚀 ~ DocCreatePage ~ getDocDatas ~ payment:", payments);
+    let totalBefDisBefVat = 0;
+    let totalDisBefVat = 0;
+    let totalAftDisBefVat = 0;
+    let totalVat = 0;
+    let totalAfterVat = 0;
+    let lineNumber = 0; 
+  
+    const createLinesDoc: ICreateLineDoc[] = payments.map((payment: any) => {
 
-    const createLinesDoc: ICreateLineDoc[] = payments.map((payment: ICreateLineDoc) => ({
-      issuerbusinessNumber: this.userDetails?.businessNumber,
-      description: payment?.description || null,
-      unitAmount: payment?.unitAmount || null,
-      sumBefVat: payment?.sumBefVat || null,
-      vatOpts: payment?.vatOptions,
-      vatRate: payment?.vatRate || null,
-      paymentMethod: this.getPaymentMethodHebrew(payments.paymentMethod),
-      discount: payment?.discount || null,
-      unitType: payment?.unitType || null,
-      bankNumber: payment?.bankNumber || null,
-      branchNumber: payment?.branchNumber || null,
-      accountNumber: payment?.accountNumber || null,
-      checkNumber: payment?.checkNumber || null,
-      paymentCheckDate: payment?.paymentCheckDate || null,
-      cardCompany: payment.cardCompany || null,
-      card4Number: payment?.card4Number || null,
-      creditCardName: payment?.creditCardName || null,
-      creditTransType: payment?.creditTransType || null,
-      creditPayNumber: payment?.creditPayNumber || null,
-      manufacturerName: payment?.manufacturerName || null,
-      productSerialNumber: payment?.productSerialNumber || null,
-      internalNumber: payment?.internalNumber || null,
-      journalEntryMainId: payment?.journalEntryMainId || null,
-    }));
-    console.log("🚀 ~ DocCreatePage ~ getDocData ~ createLineDocs:", createLinesDoc)
+      let sumBefDisBefVatPerLine = 0;
+      let disBefVatPerLine = 0;
+      let sumAftDisBefVatPerLine = 0; 
+      let sumAftDisWithVatPerLine = 0; 
+      //let sumAftDisWithVat = 0;
+      let vatPerLine = 0;
+      const sum = Number(payment?.sum) * Number(payment?.unitAmount ?? 1);
+      const discount = Number(payment?.discount ?? 0);
+  
+      if (payment?.vatOptions === 'INCLUDE') {
+        sumBefDisBefVatPerLine = sum / (1 + Number(payment?.vatRate ?? 18) / 100);
+        disBefVatPerLine = discount / (1 + Number(payment?.vatRate ?? 18) / 100);
+        vatPerLine = (sumBefDisBefVatPerLine - disBefVatPerLine) * (Number(payment?.vatRate ?? 18) / 100);
+      } else if (payment?.vatOptions === 'EXCLUDE') {
+        sumBefDisBefVatPerLine = sum;
+        disBefVatPerLine = discount;
+        vatPerLine = (sum - discount) * (Number(payment?.vatRate ?? 18) / 100);
+      } else if (payment?.vatOptions === 'WITHOUT') {
+        sumBefDisBefVatPerLine = sum;
+        disBefVatPerLine = discount;
+        vatPerLine = 0;
+      } else {
+        sumBefDisBefVatPerLine = 0;
+      }
+      
+      sumAftDisBefVatPerLine = sumBefDisBefVatPerLine - disBefVatPerLine;
+      sumAftDisWithVatPerLine = sumAftDisBefVatPerLine + vatPerLine;
 
-    // Use the transformed table in your fileData
-    const fileData = {
-      //fid: this.getFid(),
-      generalData: {
-        //table: table, // Use the transformed table here
+      totalBefDisBefVat += sumBefDisBefVatPerLine;
+      totalDisBefVat += disBefVatPerLine;
+      totalAftDisBefVat += sumAftDisBefVatPerLine;
+      totalVat += vatPerLine;
+      totalAfterVat += sumAftDisWithVatPerLine;
+
+      lineNumber++;
+  
+      return {
+        issuerbusinessNumber: this.userDetails?.businessNumber,
+        generalDocIndex: this.docIndexes?.generalIndex.toString(),
+        description: payment?.description || null,
+        unitAmount: payment?.unitAmount ?? 1,
+        sumBefVat: sumAftDisBefVatPerLine,
+        sumAftDisWithVat: sumAftDisWithVatPerLine,
+        vatOpts: payment?.vatOptions,
+        vatRate: payment?.vatRate ?? 18,
+        paymentMethod: payment?.paymentMethod,
+        disBefVat: payment?.discount ?? 0,
+        lineNumber: lineNumber.toString(),
+        unitType: payment?.unitType ?? 1,
+        payDate: generalFormData.documentDate,
+        bankNumber: payment?.bankNumber || null,
+        branchNumber: payment?.branchNumber || null,
+        accountNumber: payment?.accountNumber || null,
+        checkNumber: payment?.checkNumber || null,
+        paymentCheckDate: payment?.paymentCheckDate || null,
+        cardCompany: payment.cardCompany || null,
+        card4Number: payment?.card4Number || null,
+        creditCardName: payment?.creditCardName || null,
+        creditTransType: payment?.creditTransType || null,
+        creditPayNumber: payment?.creditPayNumber || null,
+        manufacturerName: payment?.manufacturerName || null,
+        productSerialNumber: payment?.productSerialNumber || null,
+        internalNumber: payment?.internalNumber || null,
+        journalEntryMainId: payment?.journalEntryMainId || null,
+      };
+    });
+  
+    const data = {
+      fileData: {
         issuerName: this.userDetails?.businessName,
         issuerAddress: this.userDetails?.city,
         issuerPhone: this.userDetails?.phone,
         issuerEmail: this.userDetails?.email,
+        hebrewNameDoc: this.ggetHebrewNameDoc(this.fileSelected)
+      },
+      docData: {
         issuerbusinessNumber: this.userDetails?.businessNumber,
         recipientName: userFormData?.recipientName,
         recipientId: userFormData?.recipientId || null,
@@ -449,19 +415,24 @@ export class DocCreatePage implements OnInit {
         recipientPhone: userFormData?.recipientPhone || null,
         recipientEmail: userFormData?.recipientEmail || null,
         docType: this.fileSelected,
+        generalDocIndex: this.docIndexes?.generalIndex.toString(),
         docDescription: generalFormData?.docDescription,
-        docNumber: this.docDetails?.currentIndex,
-        docVatRate: this.fileSelected === 'RECEIPT' ? 0 : 18,
+        docNumber: this.docIndexes?.docIndex.toString(),
+        docVatRate: 18,
         transType: 3,
         amountForeign: this.totalAmount,
         currency: generalFormData?.currency || 'ILS',
-        sumBefDisBefVat: 0,
+        sumBefDisBefVat: totalBefDisBefVat,
         disSum: 0,
-        sumAftDisBefVAT: 450,
-        vatSum: this.vatAmount ?? 0,
-        sumAftDisWithVAT: 450,
+        sumAftDisBefVAT: totalAftDisBefVat,
+        vatSum: totalVat,
+        sumAftDisWithVAT: totalAfterVat,
         withholdingTaxAmount: 0,
         docDate: generalFormData.documentDate,
+        issueDate: generalFormData.documentDate,
+        issueHour: generalFormData.documentHour,
+        customerKey: null,
+        matchField: null,
         isCancelled: false,
         branchCode: null,
         operationPerformer: null,
@@ -469,14 +440,12 @@ export class DocCreatePage implements OnInit {
         parentDocNumber: null,
         parentBranchCode: null,
       },
-      lines: createLinesDoc,
-      //digitallySign: true,
+      linesData: createLinesDoc,
     };
-    console.log("🚀 ~ DocCreatePage ~ getDocData ~ fileData:", fileData);
-
-    //return null
-    return fileData;
+  
+    return data;
   }
+  
 
   // Function for previewing the doc
   previewtDoc(): void {
@@ -521,54 +490,6 @@ export class DocCreatePage implements OnInit {
       });
   }
 
-  // addDoc(): void {
-  //   this.addPDFIsLoading = true;
-  //   const data = this.getDocData();
-  //   console.log("🚀 ~ DocCreatePage ~ addDoc ~ data:", data)
-
-  //   this.docCreateService.addDoc(data)
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.error("Error in addDoc:", err);
-  //         return EMPTY;
-  //       }),
-  //       finalize(() => {
-  //         this.addPDFIsLoading = false;
-  //       }),
-  //     )
-  //     .subscribe((res) => {
-  //       console.log("addDoc result:", res);
-  //     });
-  // }
-
-  // getDocData(): any {
-  //   const formData = this.docCreateForm.value;
-  //   const data = {
-  //     documentType: this.fileSelected,
-  //     issuerName: this.userDetails?.businessName,
-  //     issuerId: this.userDetails?.businessNumber,
-  //     issuerAddress: this.userDetails?.city,
-  //     issuerPhone: this.userDetails?.phone,
-  //     issuerEmail: this.userDetails?.email,
-  //     recipientName: formData?.recipientName,
-  //     recipientId: formData?.recipientId || null,
-  //     recipientAddress: formData?.recipientAddress || null,
-  //     recipientPhone: formData?.recipientPhone || null,
-  //     recipientEmail: formData?.recipientEmail || null,
-  //     amountBeforeTax: formData?.amountBeforeTax ?? formData.sum,
-  //     vatRate: this.fileSelected === 1 ? 0 : 18, // VAT rate is 0 for receipts and 18 for invoices
-  //     vatAmount: formData.vatAmount ?? 0,
-  //     totalAmount: formData.amountBeforeTax ? formData.amountBeforeTax  + formData.vatAmount : formData.sum,
-  //     paymentDescription: formData?.reasonPayment,
-  //     paymentMethod: formData.paymentMethod,
-  //     documentDate: formData.documentDate, // Check with elazar
-  //     referenceNumber: formData?.referenceNumber || null,
-  //     notes: formData?.note || null,
-  //     isCancelled: false, // TODO: Change to dinamic value
-  //     cancellationReason: formData?.cancellationReason || null,
-  //   };
-  //   return data;
-  // }
 
   getFid(): string {
     switch (this.fileSelected) {
@@ -587,11 +508,8 @@ export class DocCreatePage implements OnInit {
   }
 
   onBlur(field: string, i: number): void {
-    // console.log("🚀 ~ DocCreatePage ~ onBlur ~ event:", event);
     const vatOptionControl = this.paymentsFormArray.controls[i]?.get(fieldLineDocValue.VAT_OPTIONS);
-    // console.log("🚀 ~ DocCreatePage ~ onBlur ~ paymentMethodControl:", vatOptionControl)
     if (!vatOptionControl.value) return; // If don't choosen vat option
-
     if (field !== "sum") return; // If it is not "sum" field
     this.onVatOptionChange(vatOptionControl, i)
     console.log("on blur");
@@ -616,13 +534,9 @@ export class DocCreatePage implements OnInit {
   onVatOptionChange(event: any, formIndex: number): void {
     console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
     const sumControl = this.paymentsFormArray.controls[formIndex]?.get(fieldLineDocValue.SUM);
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex].get(FieldsCreateDocValue.SUM):", this.paymentsFormArray.controls[formIndex]?.get(FieldsCreateDocValue.SUM))
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ this.paymentsFormArray[formIndex]:", this.paymentsFormArray)
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sumControl:", sumControl)
     if (!sumControl) return;
 
     const sum = parseFloat(sumControl.value);
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ sum:", sum)
     if (isNaN(sum)) return;
 
     this.amountBeforeVat = 0;
@@ -646,16 +560,6 @@ export class DocCreatePage implements OnInit {
         this.totalAmount = sum;
         break;
     }
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ vatAmount:", this.vatAmount)
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ totalAmount:", this.totalAmount)
-    // console.log("after calc");
-    // console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ amountBeforeVat:", this.amountBeforeVat)
-
-    // this.paymentsFormArray.controls[formIndex].patchValue({
-    //   amountBeforeVat,
-    //   vatAmount,
-    //   totalAmount
-    // });
   }
 
   calculateSumAfterVat(sum: number): number { // Calculate the original cost 

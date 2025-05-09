@@ -11,7 +11,7 @@ export class SettingDocuments {
   userId: string;
 
   @Column({ type: 'enum', enum: DocumentType })
-  documentType: DocumentType;
+  docType: DocumentType;
 
   @Column({ type: 'int', nullable: true, default: null })
   initialIndex: number | null;

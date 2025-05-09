@@ -80,6 +80,11 @@ export interface ISettingDoc {
     updatedAt: Date;
 }
 
+export interface IDocIndexes {
+    docIndex: number;
+    generalIndex: number;
+}  
+
 export interface ISuppliers {
     id: number,
     name: string,
@@ -278,58 +283,92 @@ export interface ITotals  {
 }
 
 export interface IDataDocFormat {
-    generalData: {
+    fileData: {
         [key: string]: number | string | boolean; // Global fields
     };
-    lines: {
-        [key: string]: number | string | boolean; // Dynamic fields per line
-    }[];
+    docData: {
+        [key: string]: number | string | boolean; // Global fields
+    };
+    linesData: ICreateLineDoc[];
 }
 
-// export interface ICreateDataDoc {
-//     [key: string]: number | string | boolean | (string | number)[][],
-//     //table?: (string | number)[][];
-// }
+
+export interface ICreateDoc {
+    issuerbusinessNumber: string;
+    recipientName: string;
+    recipientId: string;
+    recipientStreet: string;
+    recipientHomeNumber: string;
+    recipientCity: string;
+    recipientPostalCode: string;
+    recipientState: string;
+    recipientStateCode: string;
+    recipientPhone: string;
+    recipientEmail: string;
+    docType: string;
+    generalDocIndex: string;
+    docDescription: string;
+    docNumber: string;
+    docVatRate: number;
+    transType: string;
+    accountForeing: number;
+    currency: string;
+    sumBefDisBefVat: number;
+    disSum: number;  
+    sumAftDisBefVAT: number;
+    vatSum: number; 
+    sumAftDisWithVAT: number;
+    withholdingTaxAmount: number;
+    docDate: Date;
+    issueDate: Date; 
+    issueHour: string; 
+    customerKey: string;
+    matchField: string;
+    isCancelled: boolean;
+    branchCode: string; 
+    operationPerformer: string;
+    parentDocType: string;
+    parentDocNumber: string;
+    parentBranchCode: string;
+}
+  
 
 export interface ICreateLineDoc {
-    [key: string]: string | number | boolean; 
+    issuerbusinessNumber: string;
+    generalDocIndex: string;
+    description: string;
+    unitAmount: number;
+    sumBefVat: number;
+    sumAftDisWithVat: number;
+    vatOptions: string;
+    vatRate: number;
+    paymentMethod: string;
+    disBefVat: number;
+    lineNumber: string;
+    unitType: string;
+    payDate: Date;
+    bankNumber: string;
+    branchNumber: string;
+    accountNumber: string;
+    checkNumber: string;
+    paymentCheckDate: Date;
+    cardCompany: string;
+    card4Number: string;
+    creditCardName: string;
+    creditTransType: string;
+    creditPayNumber: string;
+    manufacturerName: string;
+    productSerialNumber: string;
+    internalNumber: string;
+    journalEntryMainId: string;
 }
 
-
-// export interface ICreateLineDoc {
-//     issuerbusinessNumber: string;
-//     generalDocIndex?: string;
-//     description: string;
-//     unitAmount: number;
-//     sumBefVat: number;
-//     vatOptions: string;
-//     vatRate: number;
-//     paymentMethod: string;
-//     discount?: number;
-//     lineNumber?: string;
-//     unitType: string;
-//     bankNumber?: string;
-//     branchNumber?: string;
-//     accountNumber?: string;
-//     checkNumber?: string;
-//     paymentCheckDate?: Date;
-//     cardCompany?: number;
-//     card4Number?: string;
-//     creditCardName?: string;
-//     creditTransType?: number;
-//     creditPayNumber?: string;
-//     manufacturerName?: string;
-//     productSerialNumber?: string;
-//     internalNumber?: string;
-//     journalEntryMainId?: string;
-//   }
 
 export interface ICreateDocField<TFieldsHebrew, TFields> {
     name: TFieldsHebrew;
     value: TFields;
     type: FormTypes;
     listItems?: ISelectItem[];
-    //cellRenderer?: ICellRenderer;
     errorText?: string;
     expandable?: boolean;
     onChange?: (event?: any, parent?: any) => void;

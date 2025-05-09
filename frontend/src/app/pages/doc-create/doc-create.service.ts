@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { ICreateDataDoc, IDataDocFormat, ISettingDoc } from 'src/app/shared/interface';
+import { ICreateDataDoc, IDataDocFormat, IDocIndexes, ISettingDoc } from 'src/app/shared/interface';
 
 @Injectable({
   providedIn: 'root'
@@ -16,10 +16,16 @@ export class DocCreateService {
   constructor(private http: HttpClient) {};
 
 
-  getDetailsDoc(docType: string): Observable<ISettingDoc> {
+  // getDetailsDoc(docType: string): Observable<ISettingDoc> {
+  //   const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
+  //   return this.http.get<ISettingDoc>(url);
+  // }
+
+  getDetailsDoc(docType: string): Observable<IDocIndexes> {
     const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
-    return this.http.get<ISettingDoc>(url);
+    return this.http.get<IDocIndexes>(url);
   }
+  
 
   setInitialDocDetails(data,docType: string): Observable<any> {
     const url = `${environment.apiUrl}documents/setting-initial-index/${docType}`;
@@ -43,10 +49,7 @@ export class DocCreateService {
   }
 
   createDoc(dataFile: IDataDocFormat): Observable<Blob> {
-    //console.log("🚀 ~ DocCreateService ~ createDoc ~ dataFile:", dataFile)
-    //console.log("cerate in service");
     const url = `${environment.apiUrl}documents/create-doc`;
-   
     return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
   }
 

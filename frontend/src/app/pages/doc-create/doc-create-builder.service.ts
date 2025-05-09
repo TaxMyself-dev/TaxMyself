@@ -40,7 +40,7 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.DOC_VAT_RATE]: {
             name: FieldsCreateDocName.docVatRate,
             value: FieldsCreateDocValue.DOC_VAT_RATE,
-            type: FormTypes.NUMBER,
+            type: FormTypes.TEXT,
             initialValue: 18,
             enumValues: [],
             editFormBasedOnValue: {},
@@ -193,7 +193,7 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.SUM]: {
-            name: fieldLineDocName.sum,
+            name: fieldLineDocName.sumBefVat,
             value: fieldLineDocValue.SUM,
             type: FormTypes.NUMBER,
             initialValue: '',
@@ -214,7 +214,7 @@ export class DocCreateBuilderService {
             name: fieldLineDocName.unitAmount,
             value: fieldLineDocValue.UNIT_AMOUNT,
             type: FormTypes.NUMBER,
-            initialValue: '',
+            initialValue: 1,
             enumValues: [],
             editFormBasedOnValue: {},
             validators: []
@@ -241,7 +241,7 @@ export class DocCreateBuilderService {
             name: fieldLineDocName.discount,
             value: fieldLineDocValue.DISCOUNT,
             type: FormTypes.NUMBER,
-            initialValue: '',
+            initialValue: 0,
             enumValues: [],
             editFormBasedOnValue: {},
             validators: []
@@ -413,17 +413,23 @@ export class DocCreateBuilderService {
             expandable: true,
             expandedFields: [FieldsCreateDocValue.DOC_VAT_RATE, FieldsCreateDocValue.CURRENCY]
         },
+        'UserDetails': {
+            key: 'UserDetails',
+            baseFields: [FieldsCreateDocValue.RECIPIENT_NAME, FieldsCreateDocValue.RECIPIENT_ID, FieldsCreateDocValue.RECIPIENT_PHONE, FieldsCreateDocValue.RECIPIENT_EMAIL],
+            expandable: true,
+            expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE, FieldsCreateDocValue.RECIPIENT_STATE, FieldsCreateDocValue.RECIPIENT_STATE_CODE]
+        },
         'ReceiptPaymentDetails': {
             key: 'ReceiptPaymentDetails',
             baseFields: [fieldLineDocValue.SUM, fieldLineDocValue.LINE_DESCRIPTION, fieldLineDocValue.VAT_OPTIONS, fieldLineDocValue.PAYMENT_METHOD],
             expandable: true,
             expandedFields: [fieldLineDocValue.DISCOUNT, fieldLineDocValue.UNIT_AMOUNT, fieldLineDocValue.VAT_RATE, fieldLineDocValue.UNIT_TYPE]
         },
-        'UserDetails': {
-            key: 'UserDetails',
-            baseFields: [FieldsCreateDocValue.RECIPIENT_NAME, FieldsCreateDocValue.RECIPIENT_ID, FieldsCreateDocValue.RECIPIENT_PHONE, FieldsCreateDocValue.RECIPIENT_EMAIL],
+        'TaxInvoicePaymentDetails': {
+            key: 'TaxInvoicePaymentDetails',
+            baseFields: [fieldLineDocValue.SUM, fieldLineDocValue.LINE_DESCRIPTION, fieldLineDocValue.VAT_OPTIONS, fieldLineDocValue.PAYMENT_METHOD],
             expandable: true,
-            expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE, FieldsCreateDocValue.RECIPIENT_STATE, FieldsCreateDocValue.RECIPIENT_STATE_CODE]
+            expandedFields: [fieldLineDocValue.DISCOUNT, fieldLineDocValue.UNIT_AMOUNT, fieldLineDocValue.VAT_RATE, fieldLineDocValue.UNIT_TYPE]
         },
     };
 
@@ -431,13 +437,13 @@ export class DocCreateBuilderService {
         const form = new FormGroup({});
 
         sections.forEach((section) => {
-            if (section === 'ReceiptPaymentDetails') { // TODO: update for all Payments details sections
+            if (section === 'ReceiptPaymentDetails' || section === 'TaxInvoicePaymentDetails') { // TODO: update for all Payments details sections
                 // Create a FormArray for payment details.
                 const paymentFormArray = new FormArray([]);
                 // Create an initial FormGroup for a payment detail entry.
                 const paymentGroup = new FormGroup({});
                 this.docCreateBuilderSectionsData[section].baseFields.forEach((field: string) => {
-                    paymentGroup.addControl(field, new FormControl('', this.docCreateBuilderData[field]?.validators));
+                    paymentGroup.addControl(field, new FormControl(this.docCreateBuilderData[field]?.initialValue, this.docCreateBuilderData[field]?.validators));
                 });
                 paymentFormArray.push(paymentGroup);
                 // Add the FormArray to the main form.
@@ -447,7 +453,7 @@ export class DocCreateBuilderService {
                 // For other sections, create a FormGroup.
                 const sectionForm = new FormGroup({});
                 this.docCreateBuilderSectionsData[section].baseFields.forEach((field: string) => {
-                    sectionForm.addControl(field, new FormControl('', this.docCreateBuilderData[field]?.validators));
+                    sectionForm.addControl(field, new FormControl(this.docCreateBuilderData[field]?.initialValue, this.docCreateBuilderData[field]?.validators));
                 });
                 form.addControl(section, sectionForm);
             }
@@ -471,8 +477,10 @@ export class DocCreateBuilderService {
     addFormControlsByExpandedSection(sectionForm: FormGroup, section: SectionKeysEnum) {
         const expandedFields = this.docCreateBuilderSectionsData[section].expandedFields;
         expandedFields.forEach((field) => {
+            console.log("field is ", field);
+            console.log(this.docCreateBuilderData[field]?.initialValue);
             sectionForm.addControl(field, new FormControl(
-                '', this.docCreateBuilderData[field].validators
+                this.docCreateBuilderData[field]?.initialValue, this.docCreateBuilderData[field].validators
             ));
         });
 
@@ -509,6 +517,8 @@ export class DocCreateBuilderService {
     }
 
     getBaseFieldsBySection(section: SectionKeysEnum): IDocCreateFieldData[] {
+        console.log("🚀 ~ DocCreateBuilderService ~ getBaseFieldsBySection ~ section:", section);
+        
         const sectionData = this.docCreateBuilderSectionsData[section];
         if (!sectionData) {
             return [];
