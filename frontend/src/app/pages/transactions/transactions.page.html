@@ -9,7 +9,7 @@
 
 <app-classify-tran (openAddCategoryClicked)="openAddCategory($event)" (openAddSubCategoryClicked)="openAddCategory($event)" [isVisible]="visibleClassifyTran()" (visibleChange)="closeClassyfyTran($event)"> </app-classify-tran> 
 
-<app-add-category [isVisible]="visibleAddCategory()" (visibleChange)="closeAddCategory($event)" [editMode]="isEditModeAddCategory()" ></app-add-category>
+<app-add-category [isVisible]="visibleAddCategory()" (visibleChange)="closeAddCategory($event)" [subCategoryMode]="subCategoryMode()" [categoryName]="categoryName()"></app-add-category>
 
 
 

@@ -1,6 +1,6 @@
 
 
-<p-drawer [style]="{top: 'auto', bottom: 0, height: 'calc(100% - 90px)', width: '512px'}"[showCloseIcon]="false" [visible]="visible()" position="left" [modal]="true" (visibleChange)="onVisibleChange($event)">
+<p-drawer [style]="{width: '512px'}"[showCloseIcon]="false" [visible]="visible()" position="left" [modal]="true" (visibleChange)="onVisibleChange($event)">
   <ng-template #header>
     <div class="wrap-header">
       @if(backEnabled()) {

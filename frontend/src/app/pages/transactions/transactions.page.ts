@@ -131,7 +131,8 @@ export class TransactionsPage implements OnInit {
   visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
   visibleClassifyTran = signal<boolean>(false);
   visibleAddCategory: WritableSignal<boolean> = signal<boolean>(false);
-  isEditModeAddCategory: WritableSignal<boolean> = signal<boolean>(false);
+  subCategoryMode = signal<boolean>(false);
+  categoryName = signal<string>("");
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData: WritableSignal<IRowDataTable> = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
@@ -893,10 +894,11 @@ export class TransactionsPage implements OnInit {
     this.visibleClassifyTran.set(event);
   }
 
-  openAddCategory(event: {state: boolean, editMode: boolean}): void {
+  openAddCategory(event: {state: boolean, subCategoryMode: boolean, category?: string}): void {
     this.visibleAddCategory.set(event.state);
-    this.isEditModeAddCategory.set(event.editMode);
-    console.log("🚀 ~ openAddCategory ~ event.editMode:", event.editMode)
+    this.subCategoryMode.set(event.subCategoryMode);
+    this.categoryName.set(event.category);
+    console.log("🚀 ~ openAddCategory ~ event.subCategoryMode:", event.subCategoryMode)
   }
   
   closeAccountAssociation(event: {visible: boolean, data: boolean}): void {

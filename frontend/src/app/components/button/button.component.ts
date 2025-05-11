@@ -28,6 +28,7 @@ export class ButtonComponent  implements OnInit {
       this.buttonSize(),                                 
       this.buttonColor(),                                
       this.variant() === 'outlined' ? 'outlined' : '',   // include 'outlined' if set
+      this.variant() === 'text' ? 'text' : '',   // include 'text' if set
       this.disabled() ? 'disabled' : ''                  // include 'disabled' if set
     ]
     .filter(c => !!c)                                    // drop empty strings
