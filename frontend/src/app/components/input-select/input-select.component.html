@@ -5,14 +5,28 @@
   <div class="input-select-wrapper">
 
     @if (labelText()) {
-      <label class="input-label" [for]="controlName()">{{labelText()}}</label>
+      <label class="input-label" [for]="controlName()">{{labelText()}}
+        @if (isRequired) {
+          <span class="required">*</span>
+        }
+      </label>
     }
 
-    <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="placeholder()" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" (onChange)="onChange($event)" >
+    <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()" optionValue="value" optionLabel="name" [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()" [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()" (onChange)="onChange($event)" >
       @if (group()) {
         <ng-template let-group #group>
               <span style="color: black; font-size: large;">{{group.label}}</span>
       </ng-template>
+      }
+      @if (isSubCategory()) {
+        <ng-template pTemplate="footer">
+          <div>
+        <app-p-button [buttonText]="' + הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" 
+          (onButtonClicked)="onAddSubCategoryClicked()" 
+          [disabled]="!parentForm().get('category').value">
+        </app-p-button>
+          </div>
+        </ng-template>
       }
     </p-select>
   </div>

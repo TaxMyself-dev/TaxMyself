@@ -57,7 +57,7 @@ export class AddTransactionComponent implements OnInit {
   listSubCategory: ISelectItem[];
   originalSubCategoryList: IGetSubCategory[] = [];
   subCategorySelected: boolean = false;
-  categoryDetails: IGetSubCategory = { id: 0, categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: "" };;
+  categoryDetails: IGetSubCategory = { id: 0, categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: "" };
   equipmentType = 0;
   isRecognize: boolean = false;
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];

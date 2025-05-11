@@ -1,29 +1,79 @@
-<app-left-panel [headerText]="editMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'" [subHeaderText]="editMode ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true" [backEnabledText]="'חזור למיפוי עסקה'" (backEnabledClicked)="onBackEnabled($event)">
+<app-left-panel [headerText]="subCategoryMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'"
+  [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true"
+  (backEnabledClicked)="onBackEnabled($event)">
 
   <div class="content" content>
     <div>
-      @if (editMode()) {
-        <app-input-select [ariaLabel]="'בחר קטגוריה '" [placeholder]="'בחר קטגוריה'" [controlName]="'category'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="categoryList()" [items]="categoryList()" ></app-input-select>
-      }
-      @else() {
-        <app-input-text [ariaLabel]="'שם קטגוריה'" [placeholder]="'שם קטגוריה'" [controlName]="'category'" [parentForm]="myForm" [size]="inputsSize.MEDIUM"></app-input-text>
-      }
-
-      <app-p-button [buttonText]="'הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="AddSubCategory()" [icon]="'pi pi-plus'" [iconPosition]="iconPos.RIGHT"></app-p-button>
-      <!-- <app-input-select [ariaLabel]="'בחר האם הקטגוריה היא רכוש קבוע'" [placeholder]="'בחר כאן'"></app-input-select>
-      <app-input-text></app-input-text> -->
-      
+      <div class="checkbox-container">
+        <p-checkbox [size]="'small'" inputId="ny" [binary]="true" (onChange)="onCheckboxClicked($event)"
+          [style]="{color: 'red'}" />
+        <label for="ny" class="ml-2">האם ההוצאה מוכרת למע"מ?</label>
+      </div>
     </div>
-    <div>
-      <!-- <app-p-button [buttonText]="'הוסף קטגוריה חדשה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openAddCategory()"></app-p-button>
-      <app-p-button [buttonText]="'הוסף תת קטגוריה חדשה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openAddSubCategory()"></app-p-button> -->
 
+    @if (!isRecognized()) {
+    <!-- category input -->
+    <div [formGroup]="notRecognizedForm" class="not-recognized-form">
+       <app-input-text [ariaLabel]="'קטגוריה'" [labelText]="'קטגוריה'" [controlName]="'category'" [parentForm]="notRecognizedForm" [size]="inputsSize.MEDIUM">
+      </app-input-text>
+      <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategory'"
+        [parentForm]="notRecognizedForm" [size]="inputsSize.MEDIUM">
+      </app-input-text>
     </div>
+    <!-- </div> -->
+    }
+    @else {
+    <div [formGroup]="isRecognizedForm" class="is-recognized-form">
+      <!-- category input -->
+      <ng-container>
+        <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : 'שם קטגוריה'"
+          [labelText]="'קטגוריה'" [controlName]="'category'" [parentForm]="isRecognizedForm" [size]="inputsSize.MEDIUM">
+        </app-input-text>
+      </ng-container>
+
+
+      <!-- Sub-categories FormArray -->
+      <div class="subCategories-container" formArrayName="subCategories">
+        @for (group of subCategories.controls; let i = $index; track i) {
+        <div [formGroupName]="i" class="wrap-subcat-block">
+          <div class="subcat-block">
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'subCategoryName'"
+              [labelText]="'תת-קטגוריה'" [size]="inputsSize.MEDIUM"></app-input-text>
+
+            <app-input-select [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'isEquipment'"
+              [labelText]="'רכוש קבוע?'" [items]="isEquipmentValues" [placeholder]="'בחר'" [size]="inputsSize.SMALL">
+            </app-input-select>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'taxPercent'"
+              [labelText]="'% מס'" [size]="inputsSize.SMALL" [errorText]="'מספרים בלבד'"></app-input-text>
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'vatPercent'"
+              [labelText]="'% מעמ'" [size]="inputsSize.SMALL"></app-input-text>
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'reductionPercent'"
+              [labelText]="'% פחת'" [size]="inputsSize.SMALL"></app-input-text>
+          </div>
+
+          @if (subCategories.length > 1) {
+          <div>
+            <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON" [icon]="'pi pi-times-circle'"
+              [iconOnly]="true" [buttonText]="'התראות'" (onButtonClicked)="removeSubCategory(i)"></app-p-button>
+
+          </div>
+          }
+        </div>
+        }
+
+        <app-p-button [buttonText]="' + הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO" (onButtonClicked)="AddSubCategory()">
+        </app-p-button>
+      </div>
+    </div>
+    }
   </div>
-
   <div class="footer" footer>
-   
-    <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()" [disabled]="myForm?.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
-    <!-- <p-toast [position]="'bottom-right'" [key]="'br'" /> -->
+    <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()"
+      [disabled]="isRecognized()? isRecognizedForm.invalid : notRecognizedForm.invalid"
+      (onButtonClicked)="onButtonClicked()">
+    </app-p-button>
   </div>
 </app-left-panel>

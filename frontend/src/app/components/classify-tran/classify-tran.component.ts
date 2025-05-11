@@ -1,24 +1,28 @@
-import { Component, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { ButtonComponent } from "../button/button.component";
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ISelectItem } from 'src/app/shared/interface';
+import { IGetSubCategory, ISelectItem } from 'src/app/shared/interface';
 import { ButtonSize } from '../button/button.enum';
-import { inputsSize } from 'src/app/shared/enums';
+import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { map, takeUntil, zip } from 'rxjs';
+import { map, takeUntil, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { CheckboxModule } from 'primeng/checkbox';
+import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-classify-tran',
   templateUrl: './classify-tran.component.html',
   styleUrls: ['./classify-tran.component.scss'],
-  imports: [LeftPanelComponent, InputSelectComponent, ButtonComponent, ToastModule],
+  imports: [LeftPanelComponent, InputSelectComponent, ButtonComponent, ToastModule, CheckboxModule, CommonModule],
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [MessageService],
 })
-export class ClassifyTranComponent  implements OnInit {
+export class ClassifyTranComponent implements OnInit {
 
   messageService = inject(MessageService);
   transactionService = inject(TransactionsService);
@@ -28,19 +32,54 @@ export class ClassifyTranComponent  implements OnInit {
   isVisible = input<boolean>(false);
   visibleChange = output<boolean>();
   classifyTranButtonClicked = output<any>();
-  openAddCategoryClicked = output<{state: boolean; editMode: boolean }>();
-  openAddSubCategoryClicked = output<{state: boolean; editMode: boolean }>();
+  openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean }>();
+  openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean, category: string }>();
 
   isLoading: WritableSignal<boolean> = signal(false);
   categoryList = signal<ISelectItem[]>([]);
-  groupedSubCategory: WritableSignal<{ label: string; items: any; }[]> = signal([{ label: "", items: [] }]);
-
-
+  groupedSubCategory = signal([{ label: "", items: [] }]);
+  originalSubCategoryList = signal<IGetSubCategory[]>([]);
+  selectedSubCategory = signal<IGetSubCategory | null>(null);
+  // selectedSubCategoryEntries: any
   // userData: IUserData;
 
   buttonSize = ButtonSize;
   inputsSize = inputsSize;
   myForm: FormGroup;
+
+    readonly displayHebrew = displayColumnsExpense;
+    orderedKeys: string[] = [
+      'categoryName',
+      'subCategoryName',
+      'isRecognized',
+      'isEquipment',
+      'taxPercent',
+      'vatPercent',
+      'reductionPercent'
+
+    ];
+
+    selectedSubCategoryEntries = computed(() => {
+      const subCat = this.selectedSubCategory();
+      if (!subCat) return [];
+    
+      const isExpense = subCat.isRecognized;
+    
+      return this.orderedKeys
+        .filter((key) => key in subCat)
+        .filter((key) => {
+          // if not an expense, only show name keys
+          if (isExpense === false) {
+            return key === 'categoryName' || key === 'subCategoryName';
+          }
+          return true; // if it's an expense, show all keys
+        })
+        .map((key) => ({
+          key,
+          value: subCat[key as keyof IGetSubCategory],
+        }));
+    });
+  
 
   constructor() {
     this.myForm = this.formBuilder.group({
@@ -49,6 +88,9 @@ export class ClassifyTranComponent  implements OnInit {
       ),
       subCategory: new FormControl(
         '', [Validators.required]
+      ),
+      isSingleUpdate: new FormControl(
+        '', []
       ),
     });
   }
@@ -61,7 +103,7 @@ export class ClassifyTranComponent  implements OnInit {
     this.getCategories();
     this.categoryList = this.transactionService.categories;
     console.log("category list", this.categoryList());
-    
+
     this.getSubCategory('דיור');
   }
 
@@ -76,19 +118,9 @@ export class ClassifyTranComponent  implements OnInit {
   }
 
   getCategories(): void {
-    this.transactionService.getCategories(null)
-      // .pipe(
-      //   // takeUntil(this.destroy$),
-      //   map((res) => {
-      //     return res.map((item: any) => ({
-      //       name: item.categoryName,
-      //       value: item.categoryName
-      //     })
-      //     )
-      //   }))
+    this.transactionService.getCategories(null, true)
       .subscribe((res) => {
         console.log("category", res);
-        // this.categoryList.set(res);
       })
   }
 
@@ -98,35 +130,34 @@ export class ClassifyTranComponent  implements OnInit {
   }
 
   getSubCategory(event: string): void {
-      // this.subCategorySelected = false;
-      // this.combinedListSubCategory = [];
-      console.log(event);
-  
-      // const isEquipmentSubCategory = this.expenseDataService.getSubCategory(event.value, true, !this.incomeMode);
-      // const notEquipmentSubCategory = this.expenseDataService.getSubCategory(event.value, false, !this.incomeMode);
-      const isEquipmentSubCategory = this.expenseDataService.getSubCategory(event, true);
-      const notEquipmentSubCategory = this.expenseDataService.getSubCategory(event, false);
-  
-      zip(isEquipmentSubCategory, notEquipmentSubCategory)
-        .pipe(
-          map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
-            console.log(isEquipmentSubCategory, notEquipmentSubCategory);
-      
-            const isEquipmentSubCategoryList = 
+    this.myForm.patchValue({'subCategory': ''}); // reset subcategory when category changes for the change form to invlaid.
+    this.selectedSubCategory.set(null); // For hidden the details subCategory section.
+    const isEquipmentSubCategory = this.expenseDataService.getSubCategory(event, true);
+    const notEquipmentSubCategory = this.expenseDataService.getSubCategory(event, false);
+
+    zip(isEquipmentSubCategory, notEquipmentSubCategory)
+      .pipe(
+        tap(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
+          this.originalSubCategoryList.set([...isEquipmentSubCategory, ...notEquipmentSubCategory]);
+          console.log("originalSubCategoryList", this.originalSubCategoryList());
+        }),
+        map(([isEquipmentSubCategory, notEquipmentSubCategory]) => {
+          console.log(isEquipmentSubCategory, notEquipmentSubCategory);
+
+          const isEquipmentSubCategoryList =
             isEquipmentSubCategory?.map((item: any) => ({
               name: item.subCategoryName,
               value: item.subCategoryName
             })
             )
 
-            const notEquipmentSubCategoryList =  
+          const notEquipmentSubCategoryList =
             notEquipmentSubCategory?.map((item: any) => ({
               name: item.subCategoryName,
               value: item.subCategoryName
             })
             )
-
-            this.groupedSubCategory.set([
+            const group = [
               {
                 label: "הוצאות שוטפות",
                 items: notEquipmentSubCategoryList
@@ -135,26 +166,40 @@ export class ClassifyTranComponent  implements OnInit {
                 label: "רכוש קבוע",
                 items: isEquipmentSubCategoryList
               } : null,
-              
-            ].filter(Boolean)) // to remove null values
+  
+            ].filter(Boolean); // To remove null values
+            
+            this.groupedSubCategory.set(group);
 
-            return this.groupedSubCategory;
-          })
-        )
-        .subscribe((res) => {
-          console.log("combine sub category :", res);
-          console.log(this.groupedSubCategory());
-          
+          return this.groupedSubCategory;
         })
+      )
+      .subscribe((res) => {
+        console.log("combine sub category :", res());
+        console.log(this.groupedSubCategory());
+
+      })
   }
 
   openAddCategory(): void {
-    this.openAddCategoryClicked.emit({state: true, editMode: false})
+    this.openAddCategoryClicked.emit({ state: true, subCategoryMode: false })
   }
 
-  openAddSubCategory(): void {
-    this.openAddSubCategoryClicked.emit({state: true, editMode: true})
+  openAddSubCategory(event: { state: true, subCategoryMode: true }): void {
+    this.openAddSubCategoryClicked.emit({state: event.state, subCategoryMode: event.subCategoryMode, category:  this.myForm.get('category')?.value})
   }
-  
+
+  onCheckboxClicked(event: any): void {
+    console.log(event);
+    this.myForm.get('isSingleUpdate')?.setValue(event.checked);
+  }
+
+  subCategorySelected(event: string): void {
+    console.log("subCategorySelected", event);
+    this.selectedSubCategory.set(this.originalSubCategoryList().find((item) => item.subCategoryName === event));
+    console.log("selectedSubCategory", this.selectedSubCategory());
+  //  this.selectedSubCategoryEntries =  Object.entries(this.selectedSubCategory()).map(([key, value]) => ({ key, value }))
+  }
+
 
 }

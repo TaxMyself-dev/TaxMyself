@@ -219,8 +219,14 @@ export class ExpensesService {
             });
             // Convert the map back to an array
             let categories = Array.from(categoryMap.values());
+
+            if (isExpense === null) {
+                return categories;
+            }
             // Filter by isExpense if the flag is provided
             categories = categories.filter(category => category.isExpense === isExpense);
+            console.log("🚀 ~ ExpensesService ~ getCategories ~ categories:", categories)
+            
             return categories;
         } 
         
