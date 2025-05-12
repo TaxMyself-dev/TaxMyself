@@ -8,8 +8,6 @@
   </div>
 
   <div class="footer" footer>
-    <!-- <app-p-button [buttonText]="'נקה הכל'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"></app-p-button> -->
-    <app-p-button [buttonText]="'צור חשבון'" [isLoading]="isLoading()" [disabled]="myForm.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
-    <p-toast [position]="'bottom-right'" [key]="'br'" />
+    <app-p-button [buttonText]="'צור חשבון'" [isLoading]="isLoading()" [disabled]="myForm.invalid" (onButtonClicked)="addBill(myForm)" ></app-p-button>
   </div>
 </app-left-panel>

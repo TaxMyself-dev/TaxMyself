@@ -154,7 +154,7 @@ export class ExpensesService {
         let category = await this.userCategoryRepo.findOne({
             where: {
                 categoryName: createUserCategoryDto.categoryName,
-                firebaseId: createUserCategoryDto.firebaseId,
+                firebaseId: firebaseId,
                 isExpense: createUserCategoryDto.isExpense
             }
         });
@@ -172,7 +172,7 @@ export class ExpensesService {
         const existingSubCategory = await this.userSubCategoryRepo.findOne({
             where: {
                 subCategoryName: createUserCategoryDto.subCategoryName,
-                firebaseId: createUserCategoryDto.firebaseId,
+                firebaseId: firebaseId,
                 isExpense: createUserCategoryDto.isExpense
             },
         });
@@ -189,7 +189,7 @@ export class ExpensesService {
         userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
         userSubCategory.isEquipment = createUserCategoryDto.isEquipment;
         userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
-        userSubCategory.firebaseId = createUserCategoryDto.firebaseId;
+        userSubCategory.firebaseId = firebaseId;
         userSubCategory.categoryName = createUserCategoryDto.categoryName;
         userSubCategory.isExpense = createUserCategoryDto.isExpense;
     
@@ -225,7 +225,7 @@ export class ExpensesService {
             }
             // Filter by isExpense if the flag is provided
             categories = categories.filter(category => category.isExpense === isExpense);
-            console.log("🚀 ~ ExpensesService ~ getCategories ~ categories:", categories)
+            // console.log("🚀 ~ ExpensesService ~ getCategories ~ categories:", categories)
             
             return categories;
         } 

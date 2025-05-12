@@ -14,6 +14,8 @@ import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 //Guards
 import { AdminGuard } from '../guards/admin.guard';
 import { GetExpensesDto } from './dtos/get-expenses.dto';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 
 
 @Controller('expenses')
@@ -93,11 +95,15 @@ export class ExpensesController {
 
 
   @Post('add-user-category')
+    @UseGuards(FirebaseAuthGuard)
   async addUserCategory(
   @Headers('token') token: string,
+  @Req() request: AuthenticatedRequest,
   @Body() createUserCategoryDto: CreateUserCategoryDto) {
     console.log("controller: add-user-category");
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    // const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    const firebaseId = request.user?.firebaseId;
+
     return this.expensesService.addUserCategory(firebaseId, createUserCategoryDto);
   }
 

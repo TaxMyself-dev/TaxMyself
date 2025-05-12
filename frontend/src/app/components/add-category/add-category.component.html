@@ -13,11 +13,11 @@
 
     @if (!isRecognized()) {
     <!-- category input -->
-    <div [formGroup]="notRecognizedForm" class="not-recognized-form">
-       <app-input-text [ariaLabel]="'קטגוריה'" [labelText]="'קטגוריה'" [controlName]="'category'" [parentForm]="notRecognizedForm" [size]="inputsSize.MEDIUM">
+    <div [formGroup]="unRecognizedForm" class="not-recognized-form">
+       <app-input-text [ariaLabel]="'קטגוריה'" [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM">
       </app-input-text>
-      <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategory'"
-        [parentForm]="notRecognizedForm" [size]="inputsSize.MEDIUM">
+      <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
+        [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM">
       </app-input-text>
     </div>
     <!-- </div> -->
@@ -27,7 +27,7 @@
       <!-- category input -->
       <ng-container>
         <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : 'שם קטגוריה'"
-          [labelText]="'קטגוריה'" [controlName]="'category'" [parentForm]="isRecognizedForm" [size]="inputsSize.MEDIUM">
+          [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="isRecognizedForm" [size]="inputsSize.MEDIUM">
         </app-input-text>
       </ng-container>
 
@@ -72,8 +72,8 @@
   </div>
   <div class="footer" footer>
     <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()"
-      [disabled]="isRecognized()? isRecognizedForm.invalid : notRecognizedForm.invalid"
-      (onButtonClicked)="onButtonClicked()">
+      [disabled]="isRecognized()? isRecognizedForm.invalid : unRecognizedForm.invalid"
+      (onButtonClicked)="addCategory()">
     </app-p-button>
   </div>
 </app-left-panel>

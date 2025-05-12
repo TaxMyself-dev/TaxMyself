@@ -3,9 +3,9 @@
   <div class="content" content>
     <div class="sub-content-container">
     <div class="inputs">
-      <app-input-select [ariaLabel]="'בחר קטגוריה '" [placeholder]="'בחר קטגוריה'" [controlName]="'category'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="categoryList()" (onChangeInputSelect)="getSubCategory($event)"></app-input-select>
+      <app-input-select [ariaLabel]="'בחר קטגוריה '" [placeholder]="'בחר קטגוריה'" [controlName]="'categoryName'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="categoryList()" (onChangeInputSelect)="getSubCategory($event)"></app-input-select>
 
-      <app-input-select [group]="true " [ariaLabel]="'בחר תת קטגוריה'" [isSubCategory]="true" [placeholder]="'בחר תת קטגוריה'" [controlName]="'subCategory'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="myForm.get('category')?.value ? groupedSubCategory() : null" (addSubCategoryClicked)="openAddSubCategory($event)" (onChangeInputSelect)="subCategorySelected($event)"></app-input-select>
+      <app-input-select [group]="true " [ariaLabel]="'בחר תת קטגוריה'" [isSubCategory]="true" [placeholder]="'בחר תת קטגוריה'" [controlName]="'subCategoryName'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="myForm.get('categoryName')?.value ? groupedSubCategory() : null" (addSubCategoryClicked)="openAddSubCategory($event)" (onChangeInputSelect)="subCategorySelected($event)"></app-input-select>
     </div>
     
     <div class="buttons">
@@ -38,7 +38,6 @@
   </div>
 
   <div class="footer" footer>
-    <app-p-button [buttonText]="'סווג תנועה'" [isLoading]="isLoading()" [disabled]="myForm?.invalid" (onButtonClicked)="onButtonClicked(myForm)" ></app-p-button>
-    <!-- <p-toast [position]="'bottom-right'" [key]="'br'" /> -->
+    <app-p-button [buttonText]="'סווג תנועה'" [isLoading]="isLoading()" [disabled]="myForm?.invalid" (onButtonClicked)="classifyTransaction(myForm)" ></app-p-button>
   </div>
 </app-left-panel>

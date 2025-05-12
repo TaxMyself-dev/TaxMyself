@@ -46,9 +46,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   visibleClassifyTranClicked = output<{state: boolean, data: IRowDataTable}>();
   visibleFilterDialog = signal(false);
   visibleAccountAssociationDialog = signal(false);
-  searchTerm: WritableSignal<string> = signal('');
-  isHovering: WritableSignal<number> = signal(null);
-  hovered: number | null;
+  searchTerm = signal<string>('');
+  isHovering = signal<number>(null);
+  // hovered: number | null;
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
@@ -290,7 +290,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   onMouseLeave(i: number) {
-    this.hovered = null;
+    this.isHovering.set(null);
   }
 
   isExpanded(rowData: any): boolean {

@@ -7,7 +7,7 @@
 
 <app-add-bill2 [isVisible]="visibleAddBill()"  (visibleChange)="closeAddBill($event)"></app-add-bill2>
 
-<app-classify-tran (openAddCategoryClicked)="openAddCategory($event)" (openAddSubCategoryClicked)="openAddCategory($event)" [isVisible]="visibleClassifyTran()" (visibleChange)="closeClassyfyTran($event)"> </app-classify-tran> 
+<app-classify-tran (openAddCategoryClicked)="openAddCategory($event)" (openAddSubCategoryClicked)="openAddCategory($event)" [isVisible]="visibleClassifyTran()" (visibleChange)="closeClassyfyTran($event)" [rowData]="leftPanelData()"> </app-classify-tran> 
 
 <app-add-category [isVisible]="visibleAddCategory()" (visibleChange)="closeAddCategory($event)" [subCategoryMode]="subCategoryMode()" [categoryName]="categoryName()"></app-add-category>
 

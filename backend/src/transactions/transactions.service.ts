@@ -28,6 +28,7 @@ import { User } from 'src/users/user.entity';
 import { UserCategory } from 'src/expenses/user-categories.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
+import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
 
 
 @Injectable()
@@ -52,10 +53,12 @@ export class TransactionsService {
     private expenseRepo: Repository<Expense>,
     @InjectRepository(DefaultCategory)
     private categoryRepo: Repository<DefaultCategory>,
+    @InjectRepository(DefaultSubCategory)
+    private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
     @InjectRepository(UserCategory)
     private userCategoryRepo: Repository<UserCategory>,
-    @InjectRepository(DefaultSubCategory)
-    private defaultSubCategoryRepo: Repository<DefaultSubCategory>
+    @InjectRepository(UserSubCategory)
+    private userSubCategoryRepo: Repository<UserSubCategory>
   ) {}
 
 
@@ -459,34 +462,34 @@ export class TransactionsService {
   }
 
 
-  async classifyTransaction(classifyDto: ClassifyTransactionDto, userId: string, startDate: Date, endDate: Date): Promise<void> {
+  async classifyTransaction(classifyDto: ClassifyTransactionDto, userId: string, startDate?: Date, endDate?: Date): Promise<void> {
 
-    const {isExpense, id, isSingleUpdate, isNewCategory, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
+    const {id, isSingleUpdate, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
     let transactions: Transactions[];    
     // Add new user category if isNewCategory is true
-    if (isNewCategory) {
-      try {
-         // Align to CreateUserCategoryDto
-         const categoryData: CreateUserCategoryDto = {
-          categoryName: category,
-          subCategoryName: subCategory,
-          firebaseId: userId,
-          taxPercent,
-          vatPercent,
-          reductionPercent,
-          isEquipment,
-          isRecognized,
-          isExpense
-        };
-        await this.expenseService.addUserCategory(userId, categoryData);
-      } catch (error) {
-        if (error instanceof ConflictException) {
-          console.log('Category already exists:', error.message);
-        } else {
-          throw error; // Re-throw other unexpected errors
-        }
-      }
-    }
+    // if (isNewCategory) {
+    //   try {
+    //      // Align to CreateUserCategoryDto
+    //      const categoryData: CreateUserCategoryDto = {
+    //       categoryName: category,
+    //       subCategoryName: subCategory,
+    //       firebaseId: userId,
+    //       taxPercent,
+    //       vatPercent,
+    //       reductionPercent,
+    //       isEquipment,
+    //       isRecognized,
+    //       isExpense
+    //     };
+    //     await this.expenseService.addUserCategory(userId, categoryData);
+    //   } catch (error) {
+    //     if (error instanceof ConflictException) {
+    //       console.log('Category already exists:', error.message);
+    //     } else {
+    //       throw error; // Re-throw other unexpected errors
+    //     }
+    //   }
+    // }
   
     if (!isSingleUpdate) {
       transactions = await this.transactionsRepo.find({

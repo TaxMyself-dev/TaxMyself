@@ -8,8 +8,8 @@ export class ClassifyTransactionDto {
   @IsBoolean()
   isSingleUpdate: boolean;
 
-  @IsBoolean()
-  isNewCategory: boolean;
+  // @IsBoolean()
+  // isNewCategory?: boolean;
 
   @IsString()
   name: string;

@@ -9,6 +9,7 @@ import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.compon
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
 import { catchError, EMPTY, finalize, from, map, Observable, Subject, switchMap } from 'rxjs';
 import { filter, pairwise, takeUntil } from 'rxjs/operators';
+import { MessageService } from 'primeng/api';
 
 
 
@@ -16,9 +17,10 @@ import { filter, pairwise, takeUntil } from 'rxjs/operators';
     selector: 'app-root',
     templateUrl: 'app.component.html',
     styleUrls: ['app.component.scss'],
-    standalone: false
-})
-export class AppComponent implements OnInit {
+    standalone: false,
+    
+  })
+  export class AppComponent implements OnInit {
 
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
@@ -59,7 +61,7 @@ export class AppComponent implements OnInit {
   isAccountant: boolean = false; 
   destroy$ = new Subject<void>();
 
-  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService) { };
+  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) { };
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
@@ -157,6 +159,16 @@ export class AppComponent implements OnInit {
 
   toggleMenu() {
     this.showMenu = !this.showMenu;
+  }
+
+  showMessage(severity: string, summary: string, detail: string, life: number) {
+    this.messageService.add({
+      severity,
+      summary,
+      detail,
+      key: 'br',
+      life
+    });
   }
 
 }

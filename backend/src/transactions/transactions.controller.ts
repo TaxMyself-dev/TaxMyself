@@ -122,13 +122,14 @@ export class TransactionsController {
   async classifyTransaction(
     @Req() request: AuthenticatedRequest,
     @Body() classifyDto: ClassifyTransactionDto,
-    @Query('startDate') startDate: string | Date,
-    @Query('endDate') endDate: string | Date,
+    // @Query('startDate') startDate: string | Date,
+    // @Query('endDate') endDate: string | Date,
   ): Promise<void> {
-    startDate = this.sharedService.convertStringToDateObject(startDate);
-    endDate = this.sharedService.convertStringToDateObject(endDate);
+    // startDate = this.sharedService.convertStringToDateObject(startDate);
+    // endDate = this.sharedService.convertStringToDateObject(endDate);
+    
     const userId = request.user?.firebaseId;
-    return this.transactionsService.classifyTransaction(classifyDto, userId, startDate, endDate);
+    return this.transactionsService.classifyTransaction(classifyDto, userId);
   }
 
 

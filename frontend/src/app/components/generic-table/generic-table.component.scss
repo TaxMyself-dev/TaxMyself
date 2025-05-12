@@ -73,37 +73,14 @@
     color: red;
 }
 
-// .buttons-cell {
-//     position: relative;
-//     width: 316px;
-//     height: 76px;
-//     overflow: hidden;
-//     background-color: white;
-//   }
-  
-//   .buttons-container {
-//     position: absolute;
-//     top: 0;
-//     bottom: 0;
-//     right: 0;
-//     height: 100%;
-//     display: flex;
-//     align-items: center;
-//     width: 100%;
-//     gap: 0.5rem;
-//   }
 .action-cell {
-    // border: 1px solid blue;
-    // background-color: yellow;
     display: flex;
     height: 76px;
     align-items: center;
 }
 .buttons-cell {
-
     position: fixed;
     width: 316px;
-    // top: 0px;
     height: 76px;
     left: 0px;
     border-right: 1px solid;

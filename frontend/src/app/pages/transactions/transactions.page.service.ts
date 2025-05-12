@@ -129,20 +129,21 @@ export class TransactionsService implements OnInit{
     return this.http.post<any>(url, formData);
   }
  
-  addClassifiction(formData: IClassifyTrans, date: any): Observable<any> {
+  addClassifiction(formData: IClassifyTrans, date?: any): Observable<any> {
     console.log("in add classificaion");
     console.log("form data of classify trans: ",formData);
-    //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/classify-trans`;
-    // const headers = {
-    //   'token':
-    //    token
-    // }
-    const params = new HttpParams()
-    .set('startDate', date.startDate)
-    .set('endDate', date.endDate)
-    //return this.http.post<any>(url,formData,{params:params,headers: headers});
-    return this.http.post<any>(url,formData,{params:params});
+    // const params = new HttpParams()
+    // .set('startDate', date.startDate)
+    // .set('endDate', date.endDate)
+    return this.http.post<any>(url,formData);
+  }
+
+  addCategory(formData: any): Observable<any> {
+    console.log("in add category");
+    console.log("🚀 ~ addCategory ~ formData:", formData)
+    const url = `${environment.apiUrl}expenses/add-user-category`;
+    return this.http.post<any>(url, formData)
   }
 
   updateRow(formData: any): Observable<any> {

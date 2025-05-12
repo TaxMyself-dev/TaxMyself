@@ -18,7 +18,7 @@ import { MessageService } from 'primeng/api';
   templateUrl: './add-bill.component.html',
   styleUrls: ['./add-bill.component.scss'],
   imports: [LeftPanelComponent, InputSelectComponent, ButtonComponent, InputTextComponent, ToastModule],
-  providers: [MessageService],
+  providers: [],
 })
 export class AddBillComponent implements OnInit {
   authService = inject(AuthService);
@@ -68,7 +68,7 @@ export class AddBillComponent implements OnInit {
     this.visibleChange.emit(visible);
   }
 
-  onButtonClicked(event: any): void {
+  addBill(event: any): void {
     this.isLoading.set(true);
     const accountName = event.controls?.['accountName']?.value;
     const businessNumber = event.controls?.['businessNumber']?.value;
@@ -83,6 +83,7 @@ export class AddBillComponent implements OnInit {
       )
       .subscribe(() => {
         this.transactionService.getAllBills();
+        this.visibleChange.emit(false);
         this.messageService.add({
           severity: 'success',
           summary: 'Success',

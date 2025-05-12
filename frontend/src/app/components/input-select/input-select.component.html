@@ -23,7 +23,7 @@
           <div>
         <app-p-button [buttonText]="' + הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" 
           (onButtonClicked)="onAddSubCategoryClicked()" 
-          [disabled]="!parentForm().get('category').value">
+          [disabled]="!parentForm().get('categoryName').value">
         </app-p-button>
           </div>
         </ng-template>

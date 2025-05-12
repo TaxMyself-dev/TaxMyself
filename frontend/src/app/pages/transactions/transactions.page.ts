@@ -134,7 +134,7 @@ export class TransactionsPage implements OnInit {
   subCategoryMode = signal<boolean>(false);
   categoryName = signal<string>("");
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
-  leftPanelData: WritableSignal<IRowDataTable> = signal<IRowDataTable>(null); // Data for all version of left panels
+  leftPanelData = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
   tableActionsIncomes: ITableRowAction[];
@@ -890,15 +890,15 @@ export class TransactionsPage implements OnInit {
     this.visibleAddBill.set(event);
   }
   
-  openClassifyTran(event: any): void {
-    this.visibleClassifyTran.set(event);
+  openClassifyTran(event: {state: boolean, data: IRowDataTable}): void {
+    this.visibleClassifyTran.set(event.state);
+    this.leftPanelData.set(event.data);
   }
 
   openAddCategory(event: {state: boolean, subCategoryMode: boolean, category?: string}): void {
     this.visibleAddCategory.set(event.state);
     this.subCategoryMode.set(event.subCategoryMode);
     this.categoryName.set(event.category);
-    console.log("🚀 ~ openAddCategory ~ event.subCategoryMode:", event.subCategoryMode)
   }
   
   closeAccountAssociation(event: {visible: boolean, data: boolean}): void {
@@ -910,17 +910,14 @@ export class TransactionsPage implements OnInit {
     this.visibleAddBill.set(event);
   }
 
-  closeClassyfyTran(event: boolean): void {
-    this.visibleClassifyTran.set(event);
+  closeClassyfyTran(event: {visible: boolean, data: boolean}): void {
+    this.visibleClassifyTran.set(event.visible);
+    event.data ? this.getTransactions() : null;
   }
 
   closeAddCategory(event: boolean): void {
     this.visibleAddCategory.set(event);
   }
-
-  // closeAddSubCategory(event: boolean): void {
-  //   this.visibleAddSubCategory.set(event);
-  // }
 
   onAddBill(event: FormGroup): void {
     console.log("🚀 ~ onAddBill ~ event:", event);

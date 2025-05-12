@@ -238,7 +238,7 @@ export interface IButtons {
 export interface IClassifyTrans {
     id: number;
     isSingleUpdate: boolean | number;
-    isNewCategory: boolean;
+    isNewCategory?: boolean; // todo: delete beabause the flow changed
     name: string;
     billName: string;
     category: string;

@@ -21,6 +21,8 @@ import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeng/themes/aura';
 import { TopNavComponent } from "./components/topNav/topNav.component";
 import { ButtonComponent } from "./components/button/button.component";
+import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
 
 
 @NgModule({
@@ -40,13 +42,15 @@ import { ButtonComponent } from "./components/button/button.component";
     NgArrayPipesModule,
     SharedModule,
     TopNavComponent,
-    ButtonComponent
+    ButtonComponent,
+    ToastModule
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     provideHttpClient(withInterceptorsFromDi()),
+    MessageService,
   ],
 })
 export class AppModule {}

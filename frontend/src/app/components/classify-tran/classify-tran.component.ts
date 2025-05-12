@@ -5,11 +5,11 @@ import { ButtonComponent } from "../button/button.component";
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { IGetSubCategory, ISelectItem } from 'src/app/shared/interface';
+import { IClassifyTrans, IGetSubCategory, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { ButtonSize } from '../button/button.enum';
 import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { map, takeUntil, tap, zip } from 'rxjs';
+import { catchError, EMPTY, finalize, map, takeUntil, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { CheckboxModule } from 'primeng/checkbox';
 import { CommonModule } from '@angular/common';
@@ -20,7 +20,7 @@ import { CommonModule } from '@angular/common';
   imports: [LeftPanelComponent, InputSelectComponent, ButtonComponent, ToastModule, CheckboxModule, CommonModule],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [MessageService],
+  // providers: [MessageService],
 })
 export class ClassifyTranComponent implements OnInit {
 
@@ -30,11 +30,11 @@ export class ClassifyTranComponent implements OnInit {
 
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);
-  visibleChange = output<boolean>();
+  visibleChange = output<{visible: boolean, data: boolean}>();
   classifyTranButtonClicked = output<any>();
   openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean }>();
   openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean, category: string }>();
-
+  rowData = input<IRowDataTable>();
   isLoading: WritableSignal<boolean> = signal(false);
   categoryList = signal<ISelectItem[]>([]);
   groupedSubCategory = signal([{ label: "", items: [] }]);
@@ -47,50 +47,51 @@ export class ClassifyTranComponent implements OnInit {
   inputsSize = inputsSize;
   myForm: FormGroup;
 
-    readonly displayHebrew = displayColumnsExpense;
-    orderedKeys: string[] = [
-      'categoryName',
-      'subCategoryName',
-      'isRecognized',
-      'isEquipment',
-      'taxPercent',
-      'vatPercent',
-      'reductionPercent'
+  readonly displayHebrew = displayColumnsExpense;
 
-    ];
+  orderedKeys: string[] = [
+    'categoryName',
+    'subCategoryName',
+    'isRecognized',
+    'isEquipment',
+    'taxPercent',
+    'vatPercent',
+    'reductionPercent'
 
-    selectedSubCategoryEntries = computed(() => {
-      const subCat = this.selectedSubCategory();
-      if (!subCat) return [];
-    
-      const isExpense = subCat.isRecognized;
-    
-      return this.orderedKeys
-        .filter((key) => key in subCat)
-        .filter((key) => {
-          // if not an expense, only show name keys
-          if (isExpense === false) {
-            return key === 'categoryName' || key === 'subCategoryName';
-          }
-          return true; // if it's an expense, show all keys
-        })
-        .map((key) => ({
-          key,
-          value: subCat[key as keyof IGetSubCategory],
-        }));
-    });
-  
+  ];
+
+  selectedSubCategoryEntries = computed(() => {
+    const subCat = this.selectedSubCategory();
+    if (!subCat) return [];
+
+    const isExpense = subCat.isRecognized;
+
+    return this.orderedKeys
+      .filter((key) => key in subCat)
+      .filter((key) => {
+        // if not an expense, only show name keys
+        if (isExpense === false) {
+          return key === 'categoryName' || key === 'subCategoryName';
+        }
+        return true; // if it's an expense, show all keys
+      })
+      .map((key) => ({
+        key,
+        value: subCat[key as keyof IGetSubCategory],
+      }));
+  });
+
 
   constructor() {
     this.myForm = this.formBuilder.group({
-      category: new FormControl(
+      categoryName: new FormControl(
         '', [Validators.required]
       ),
-      subCategory: new FormControl(
+      subCategoryName: new FormControl(
         '', [Validators.required]
       ),
       isSingleUpdate: new FormControl(
-        '', []
+        false, []
       ),
     });
   }
@@ -100,22 +101,67 @@ export class ClassifyTranComponent implements OnInit {
     // if (this.userData.isTwoBusinessOwner) {
     //   this.myForm.get('businessNumber')?.setValidators([Validators.required]);
     // }
+    console.log("rowData", this.rowData);
+    
     this.getCategories();
     this.categoryList = this.transactionService.categories;
     console.log("category list", this.categoryList());
 
-    this.getSubCategory('דיור');
+    //this.getSubCategory('דיור');
   }
 
   onVisibleChange(visible: boolean) {
-    this.visibleChange.emit(visible);
+    this.visibleChange.emit({visible: visible, data: false});
   }
 
-  onButtonClicked(event: any): void {
+  classifyTransaction(event: any): void {
     this.isLoading.set(true);
-    const category = event.controls?.['category']?.value;
-    const subCategory = event.controls?.['subCategory']?.value;
+    const category = event.controls?.['categoryName']?.value;
+    const subCategory = event.controls?.['subCategoryName']?.value;
+    let formData: IClassifyTrans = {
+      id: this.rowData().id as number,
+      isSingleUpdate: event.controls?.['isSingleUpdate']?.value,
+      // isNewCategory: false,
+      name: this.rowData().name as string,
+      billName: this.rowData().billName as string,
+      category: event.controls?.['categoryName']?.value,
+      subCategory: event.controls?.['subCategoryName']?.value,
+      isRecognized: this.rowData().isRecognized === "כן" ? true : false,
+      vatPercent: this.rowData().vatPercent as number,
+      taxPercent: this.rowData().taxPercent as number,
+      isEquipment: this.rowData().isEquipment === "כן" ? true : false,
+      reductionPercent: this.rowData().reductionPercent as number,
+      isExpense: this.rowData().isExpense as boolean,
+    }
+    console.log("🚀 ~ ClassifyTranComponent ~ classifyTransaction ~ formData:", formData)
+
+    this.transactionService.addClassifiction(formData)
+    .pipe(
+      catchError((err) => {
+        console.log("error in classify transaction", err);
+        // this.isLoading.set(false);
+        return EMPTY;
+      }),
+      finalize(() => {
+        this.isLoading.set(false);
+      }),
+    )
+    .subscribe((res) => {
+      console.log("res in classify transaction", res);
+     this.visibleChange.emit({visible: false, data: true} );
+      this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Transaction classified successfully', key: 'br' });
+      this.messageService.add({
+        severity: 'success',
+        summary: 'Success',
+        detail:"מיפוי התנועה בוצע בהצלחה",
+        life: 3000,
+        key: 'br'
+      })
+    
+    }
+    )
   }
+  
 
   getCategories(): void {
     this.transactionService.getCategories(null, true)
@@ -130,7 +176,8 @@ export class ClassifyTranComponent implements OnInit {
   }
 
   getSubCategory(event: string): void {
-    this.myForm.patchValue({'subCategory': ''}); // reset subcategory when category changes for the change form to invlaid.
+    console.log("🚀 ~ ClassifyTranComponent ~ getSubCategory ~ event:", event)
+    this.myForm.patchValue({ 'subCategoryName': '' }); // reset subcategory when category changes for the change form to invlaid.
     this.selectedSubCategory.set(null); // For hidden the details subCategory section.
     const isEquipmentSubCategory = this.expenseDataService.getSubCategory(event, true);
     const notEquipmentSubCategory = this.expenseDataService.getSubCategory(event, false);
@@ -157,20 +204,21 @@ export class ClassifyTranComponent implements OnInit {
               value: item.subCategoryName
             })
             )
-            const group = [
-              {
-                label: "הוצאות שוטפות",
-                items: notEquipmentSubCategoryList
-              },
-              isEquipmentSubCategoryList.length > 0 ? {
-                label: "רכוש קבוע",
-                items: isEquipmentSubCategoryList
-              } : null,
-  
-            ].filter(Boolean); // To remove null values
-            
-            this.groupedSubCategory.set(group);
+          const group = [
+            {
+              label: "הוצאות שוטפות",
+              items: notEquipmentSubCategoryList
+            },
+            isEquipmentSubCategoryList.length > 0 ? {
+              label: "רכוש קבוע",
+              items: isEquipmentSubCategoryList
+            } : null,
 
+          ].filter(Boolean); // To remove null values
+
+          this.groupedSubCategory.set(group);
+          console.log("groupedSubCategory", this.groupedSubCategory());
+          
           return this.groupedSubCategory;
         })
       )
@@ -186,19 +234,15 @@ export class ClassifyTranComponent implements OnInit {
   }
 
   openAddSubCategory(event: { state: true, subCategoryMode: true }): void {
-    this.openAddSubCategoryClicked.emit({state: event.state, subCategoryMode: event.subCategoryMode, category:  this.myForm.get('category')?.value})
+    this.openAddSubCategoryClicked.emit({ state: event.state, subCategoryMode: event.subCategoryMode, category: this.myForm.get('categoryName')?.value })
   }
 
   onCheckboxClicked(event: any): void {
-    console.log(event);
-    this.myForm.get('isSingleUpdate')?.setValue(event.checked);
+    this.myForm.patchValue({'isSingleUpdate': event.checked});
   }
 
   subCategorySelected(event: string): void {
-    console.log("subCategorySelected", event);
     this.selectedSubCategory.set(this.originalSubCategoryList().find((item) => item.subCategoryName === event));
-    console.log("selectedSubCategory", this.selectedSubCategory());
-  //  this.selectedSubCategoryEntries =  Object.entries(this.selectedSubCategory()).map(([key, value]) => ({ key, value }))
   }
 
 
