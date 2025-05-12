@@ -19,7 +19,7 @@ import { ToastModule } from 'primeng/toast';
   templateUrl: './add-category.component.html',
   styleUrls: ['./add-category.component.scss'],
   imports: [ToastModule, CheckboxModule, CommonModule, ReactiveFormsModule, FormsModule,ButtonComponent, InputSelectComponent, LeftPanelComponent, InputTextComponent],
-  providers: [MessageService],
+  providers: [],
 })
 export class AddCategoryComponent  implements OnInit {
   transactionService = inject(TransactionsService);
@@ -33,7 +33,7 @@ export class AddCategoryComponent  implements OnInit {
   categoryList = signal<ISelectItem[]>([]);
   isRecognized = signal<boolean>(false);
 
-  visibleChange = output<boolean>();
+  visibleChange = output<{visible: boolean, data?: boolean}>();
   // classifyTranButtonClicked = output<any>();
   openAddCategoryClicked = output<{state: boolean; subCategoryMode: boolean }>();
   openAddSubCategoryClicked = output<{state: boolean; subCategoryMode: boolean }>();
@@ -145,7 +145,7 @@ export class AddCategoryComponent  implements OnInit {
   }
 
   onVisibleChange(visible: boolean) {
-    this.visibleChange.emit(visible);
+    this.visibleChange.emit({visible});
   }
 
   addCategory(): void {
@@ -157,8 +157,9 @@ export class AddCategoryComponent  implements OnInit {
         console.log("error in add category", err);
         this.isLoading.set(false);
         this.messageService.add({
-          severity: 'danger',
+          severity: 'error',
           summary: 'Error',
+          sticky: true,
           detail:"הוספת הקטגוריה נכשלה",
           life: 3000,
           key: 'br'
@@ -171,7 +172,7 @@ export class AddCategoryComponent  implements OnInit {
     )
     .subscribe((res) => {
       console.log("add category response", res);
-      this.visibleChange.emit(false);
+      this.visibleChange.emit({visible: false, data: true});
       this.messageService.add({
         severity: 'success',
         summary: 'Success',
@@ -183,7 +184,7 @@ export class AddCategoryComponent  implements OnInit {
   }
 
   onBackEnabled(visible: boolean): void {
-    this.visibleChange.emit(visible);
+    this.visibleChange.emit({visible});
   }
 
   onCheckboxClicked(event: any): void {

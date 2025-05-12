@@ -143,6 +143,7 @@ export interface IGetSubCategory {
     } | string;
     isEquipment: boolean | string;
     isRecognized: boolean | string;
+    isExpense: boolean;
 }
 
 export interface IGetSupplier {

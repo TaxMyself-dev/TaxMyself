@@ -126,12 +126,12 @@ export class ClassifyTranComponent implements OnInit {
       billName: this.rowData().billName as string,
       category: event.controls?.['categoryName']?.value,
       subCategory: event.controls?.['subCategoryName']?.value,
-      isRecognized: this.rowData().isRecognized === "כן" ? true : false,
-      vatPercent: this.rowData().vatPercent as number,
-      taxPercent: this.rowData().taxPercent as number,
-      isEquipment: this.rowData().isEquipment === "כן" ? true : false,
-      reductionPercent: this.rowData().reductionPercent as number,
-      isExpense: this.rowData().isExpense as boolean,
+      isRecognized: this.selectedSubCategory().isRecognized as boolean,
+      vatPercent: +this.selectedSubCategory().vatPercent,
+      taxPercent: +this.selectedSubCategory().taxPercent,
+      isEquipment: this.selectedSubCategory().isEquipment as boolean,
+      reductionPercent: +this.selectedSubCategory().reductionPercent,
+      isExpense: this.selectedSubCategory().isExpense as boolean,
     }
     console.log("🚀 ~ ClassifyTranComponent ~ classifyTransaction ~ formData:", formData)
 
@@ -140,6 +140,14 @@ export class ClassifyTranComponent implements OnInit {
       catchError((err) => {
         console.log("error in classify transaction", err);
         // this.isLoading.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          sticky: true, 
+          detail:"מיפוי התנועה בוצע בהצלחה",
+          life: 3000,
+          key: 'br'
+        })
         return EMPTY;
       }),
       finalize(() => {
@@ -149,7 +157,7 @@ export class ClassifyTranComponent implements OnInit {
     .subscribe((res) => {
       console.log("res in classify transaction", res);
      this.visibleChange.emit({visible: false, data: true} );
-      this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Transaction classified successfully', key: 'br' });
+      // this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Transaction classified successfully', key: 'br' });
       this.messageService.add({
         severity: 'success',
         summary: 'Success',

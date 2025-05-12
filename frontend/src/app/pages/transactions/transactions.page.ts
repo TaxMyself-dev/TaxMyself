@@ -906,8 +906,8 @@ export class TransactionsPage implements OnInit {
     event.data ? this.getTransactions() : null;
   }
 
-  closeAddBill(event: boolean): void {
-    this.visibleAddBill.set(event);
+  closeAddBill(event: {visible: boolean, data?: boolean}): void {
+    this.visibleAddBill.set(event.visible);
   }
 
   closeClassyfyTran(event: {visible: boolean, data: boolean}): void {
@@ -915,8 +915,9 @@ export class TransactionsPage implements OnInit {
     event.data ? this.getTransactions() : null;
   }
 
-  closeAddCategory(event: boolean): void {
-    this.visibleAddCategory.set(event);
+  closeAddCategory(event: {visible: boolean, data?: boolean}): void {
+    this.visibleAddCategory.set(event.visible);
+    event.data ? this.transactionService.getCategories().subscribe() : null;
   }
 
   onAddBill(event: FormGroup): void {
@@ -936,7 +937,7 @@ export class TransactionsPage implements OnInit {
         )
         .subscribe(() => {
           this.transactionService.getAllBills();
-          this.closeAddBill(false);
+          this.closeAddBill({visible: false});
         });
     
     

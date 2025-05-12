@@ -28,7 +28,7 @@ export class AddBillComponent implements OnInit {
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);
   // bussinesesList = input<ISelectItem[]>([]);
-  visibleChange = output<boolean>();
+  visibleChange = output<{visible: boolean, data?: boolean}>();
   addBillButtonClicked = output<any>();
   isLoading: WritableSignal<boolean> = signal(false);
 
@@ -65,7 +65,7 @@ export class AddBillComponent implements OnInit {
   }
 
   onVisibleChange(visible: boolean) {
-    this.visibleChange.emit(visible);
+    this.visibleChange.emit({visible: visible});
   }
 
   addBill(event: any): void {
@@ -83,7 +83,7 @@ export class AddBillComponent implements OnInit {
       )
       .subscribe(() => {
         this.transactionService.getAllBills();
-        this.visibleChange.emit(false);
+        this.visibleChange.emit({visible: false, data: true});
         this.messageService.add({
           severity: 'success',
           summary: 'Success',
@@ -96,6 +96,6 @@ export class AddBillComponent implements OnInit {
   }
 
   onBackEnabled(visible: boolean): void {
-    this.visibleChange.emit(visible);
+    this.visibleChange.emit({visible});
   }
 }
