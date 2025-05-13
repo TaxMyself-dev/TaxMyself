@@ -4,7 +4,6 @@ import subprocess
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
 
 
 def print_message(message):
@@ -12,10 +11,8 @@ def print_message(message):
 
 
 def run_cmd(cmd, cwd=None):
-    """Run a shell command and return output, error, and exit code."""
+    """Run a shell command and return stdout, stderr, and exit code."""
     result = subprocess.run(cmd, cwd=cwd, shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        sys.exit(1)
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
@@ -29,35 +26,14 @@ def get_branch_name(repo_path):
 
 
 def deliver_branch(repo_path, main_branch='main'):
-    # Check if there are any changes to commit
+    
+    # Check for changes before asking for a commit message
     print_message("🔎 Checking for changes...")
     out, err, code = run_cmd("git status --porcelain", cwd=repo_path)
     if not out.strip():
         print_message("✅ No changes to commit. Skipping commit step.")
         return
-        print_message("✅ No changes to commit. Skipping commit step.")
-    else:
-        # Ask for a commit message
-        commit_message = input("📝 Enter a commit message: ").strip()
-        if not commit_message:
-            print_message("❌ Commit message cannot be empty. Aborting.")
-            sys.exit(1)
 
-        # Stage all changes
-        print_message("🗂️ Staging all changes...")
-        out, err, code = run_cmd("git add .", cwd=repo_path)
-        if code != 0:
-            print_message(f"❌ Failed to stage changes. Aborting. Error: {err}")
-            sys.exit(1)
-
-        # Commit the changes
-        print_message("📦 Committing changes...")
-        out, err, code = run_cmd(f"git commit -m \"{commit_message}\"", cwd=repo_path)
-        if code != 0:
-            print_message(f"❌ Failed to commit changes. Aborting. Error: {err}")
-            sys.exit(1)
-
-        print_message("✅ Changes committed successfully.")
     # Ask for a commit message
     commit_message = input("📝 Enter a commit message: ").strip()
     if not commit_message:
@@ -68,65 +44,36 @@ def deliver_branch(repo_path, main_branch='main'):
     print_message("🗂️ Staging all changes...")
     out, err, code = run_cmd("git add .", cwd=repo_path)
     if code != 0:
-        print_message(f"❌ Failed to stage changes. Aborting. Error: {err}")
+        print_message(f"❌ Failed to stage changes. Aborting.\n       Error: {err}")
         sys.exit(1)
 
     # Commit the changes
     print_message("📦 Committing changes...")
     out, err, code = run_cmd(f"git commit -m \"{commit_message}\"", cwd=repo_path)
     if code != 0:
-        print_message(f"❌ Failed to commit changes. Aborting. Error: {err}")
+        print_message(f"❌ Failed to commit changes. Aborting.\n       Error: {err}")
         sys.exit(1)
 
     print_message("✅ Changes committed successfully.")
+
     # Step 1: Push the local branch to the remote branch
     print_message("🔄 Pushing local branch to remote branch...")
     branch_name = get_branch_name(repo_path)
     out, err, code = run_cmd(f"git push origin {branch_name}", cwd=repo_path)
-    if code != 0:
-        print_message("❌ Failed to push local branch to remote branch. Aborting.")
-        sys.exit(1)
-    print_message("✅ Local branch pushed to remote branch successfully.")
 
-    # Step 2: Pull the latest remote main to the local main
-    print_message("📥 Pulling the latest remote main to the local main...")
-    main_path = Path(repo_path).parent / 'taxmyself-dev'
-    out, err, code = run_cmd(f"git pull origin {main_branch}", cwd=main_path)
-    if code != 0:
-        print_message("❌ Failed to pull remote main to local main. Aborting.")
-        sys.exit(1)
-    print_message("✅ Remote main pulled to local main successfully.")
+    # Check if the branch is already up to date
+    if "Everything up-to-date" in err or "Everything up-to-date" in out:
+        print_message(f"✅ Local branch '{branch_name}' is already up-to-date.")
+        return
 
-    # Step 3: Merge the local main into the local branch
-    print_message("🔀 Merging the local main into the local branch...")
-    out, err, code = run_cmd(f"git merge {main_branch}", cwd=repo_path)
+    # Check if the push failed
     if code != 0:
-        print_message("❌ Failed to merge local main into local branch. Aborting.")
-        sys.exit(1)
-    print_message("✅ Local main merged into local branch successfully.")
-
-    # Step 4: Merge the local branch into the local main (prepare for final push)
-    print_message("🔄 Merging the local branch into the local main...")
-    out, err, code = run_cmd(f"git checkout {main_branch}", cwd=main_path)
-    if code != 0:
-        print_message("❌ Failed to switch to local main. Aborting.")
+        print_message(f"❌ Failed to push local branch '{branch_name}' to remote branch. Aborting.")
+        print_message(f"       Error: {err}")
         sys.exit(1)
 
-    out, err, code = run_cmd(f"git merge {branch_name}", cwd=main_path)
-    if code != 0:
-        print_message("❌ Failed to merge local branch into local main. Aborting.")
-        sys.exit(1)
-    print_message("✅ Local branch merged into local main successfully.")
-
-    # Switch back to the original branch
-    print_message(f"🔄 Switching back to local branch '{branch_name}'...")
-    out, err, code = run_cmd(f"git checkout {branch_name}", cwd=repo_path)
-    if code != 0:
-        print_message("❌ Failed to switch back to local branch. Aborting.")
-        sys.exit(1)
-    print_message(f"✅ Switched back to local branch '{branch_name}' successfully.")
-
-    print_message("✅ All steps completed successfully.")
+    # Print success message if push was successful
+    print_message(f"✅ Local branch '{branch_name}' pushed to remote branch successfully.")
 
 
 if __name__ == "__main__":
