@@ -34,6 +34,8 @@ def deliver_branch(repo_path, main_branch='main'):
     out, err, code = run_cmd("git status --porcelain", cwd=repo_path)
     if not out.strip():
         print_message("✅ No changes to commit. Skipping commit step.")
+        return
+        print_message("✅ No changes to commit. Skipping commit step.")
     else:
         # Ask for a commit message
         commit_message = input("📝 Enter a commit message: ").strip()
