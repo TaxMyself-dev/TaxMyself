@@ -1,0 +1,26 @@
+// .period-selector {
+//   display: grid;
+//   gap: 1rem;
+//   grid-template-columns: 1fr;
+//   margin-bottom: 2rem;
+  
+//   @media (min-width: 768px) {
+//     grid-template-columns: 1fr 1fr;
+//   }
+
+//   .submit-button {
+//     grid-column: span 2;
+//     align-self: center;
+//     justify-self: center;
+//     margin-top: 1rem;
+//   }
+// }
+
+
+.period-selector {
+    //border: 1px solid red;
+    width: 800px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}

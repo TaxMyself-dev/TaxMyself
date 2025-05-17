@@ -3,7 +3,7 @@ import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
+import { BusinessMode, FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
@@ -14,6 +14,8 @@ import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confir
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
+import { log } from 'console';
+import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 
 
 
@@ -63,6 +65,8 @@ export class VatReportPage implements OnInit {
   isSkip: boolean = false;
   userData: IUserData;
   businessNamesList: ISelectItem[] = [];
+  BusinessMode = BusinessMode;
+  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
                       { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
 
@@ -127,15 +131,17 @@ export class VatReportPage implements OnInit {
     this.setTableActions()
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
+      console.log("two business owner");
+      this.businessMode = BusinessMode.TWO_BUSINESS;
       this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
       this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
-      this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
-      //this.vatReportForm.get('businessNumber')?.patchValue("");
+      //this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
     }
-    else {      
-      this.vatReportForm.get('businessNumber')?.patchValue(this.userData.id);
-      console.log(this.vatReportForm.get('businessNumber')?.value);
-      
+    else {
+      console.log("one business owner");
+      this.businessMode = BusinessMode.ONE_BUSINESS;
+      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      //this.vatReportForm.get('businessNumber')?.patchValue(this.userData.id);      
     }
   }
 
@@ -253,16 +259,35 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  onSubmit() {
-    const formData = this.vatReportForm.value;
-    console.log("form data in vat report to send: ", formData);
+  onSubmit(event: any): void {
+
+    const year = event.year;
+    const month = event.month;
+    const reportingPeriodType = event.periodType;
+    const localStartDate = "";
+    const localEndDate = "";
+    //const businessNumber = "204245724";
+    const businessNumber = event.businessNumber;
+
+    console.log("year in vat report: ", year);
+    console.log("month in vat report: ", month); 
+    console.log("reportingPeriodType in vat report: ", reportingPeriodType);
+    
+
+    //const formData = this.vatReportForm.value;
+    //console.log("form data in vat report to send: ", formData);
     
     this.reportClick = false;
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    this.getVatReportData(startDate, endDate, formData.businessNumber);
-    this.setRowsData();
+    //const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
+    console.log("start date in vat report: ", startDate);
+    console.log("end date in vat report: ", endDate);
+    //this.getVatReportData(startDate, endDate, formData.businessNumber);
+    this.getVatReportData(startDate, endDate, businessNumber);
+    //this.setRowsData();
 
   }
+
 
   getVatReportData(startDate: string, endDate: string, businessNumber: string) {
     this.genericService.getLoader().subscribe();

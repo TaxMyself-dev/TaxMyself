@@ -77,7 +77,7 @@ export class UniformFilePage implements OnInit {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `OPENFORMAT.zip`;
+        a.download = `OPENFRMT.zip`;
   
         // Trigger file download
         document.body.appendChild(a);

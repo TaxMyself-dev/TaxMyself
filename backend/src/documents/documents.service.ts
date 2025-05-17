@@ -476,7 +476,7 @@ export class DocumentsService {
       CREDIT_INVOICE: 5000,
     };
   
-    for (let i = 0; i < 250; i++) {
+    for (let i = 0; i < 1; i++) {
       const data = this.generateDocData(i, docCounters);
       try {
         const pdfBlob = await this.createDoc(data, userId, false);
