@@ -8,6 +8,8 @@ import { VatReportPageRoutingModule } from './vat-report-routing.module';
 
 import { VatReportPage } from './vat-report.page';
 import { SharedModule } from '../../shared/shared.module';
+import { InputSelectComponent } from "../../components/input-select/input-select.component";
+import { PeriodSelectComponent } from "../../components/period-select/period-select.component";
 
 @NgModule({
   imports: [
@@ -16,8 +18,10 @@ import { SharedModule } from '../../shared/shared.module';
     IonicModule,
     VatReportPageRoutingModule,
     ReactiveFormsModule,
-    SharedModule
-  ],
+    SharedModule,
+    InputSelectComponent,
+    PeriodSelectComponent
+],
   declarations: [VatReportPage]
 })
 export class VatReportPageModule {}

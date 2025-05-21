@@ -389,10 +389,10 @@ export class ReportsService {
         const chunks: Buffer[] = [];
 
         const iniBuffer = iconv.encode(iniContent, 'windows-1255');
-        archive.append(iniBuffer, { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
+        archive.append(iniBuffer, { name: `OPENFRMT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
 
         const dataBuffer = iconv.encode(dataContent, 'windows-1255');
-        archive.append(dataBuffer, { name: `OPENFORMAT/${businessFolder}/${MMDDhhmm}/BKMVDATA.TXT` });
+        archive.append(dataBuffer, { name: `OPENFRMT/${businessFolder}/${MMDDhhmm}/BKMVDATA.TXT` });
 
         // Finalize ZIP file
         archive.finalize();
@@ -536,7 +536,7 @@ export class ReportsService {
 
 
     private generateA100Section(businessNumber: string, uniqueId: string): string {
-      return `A100${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${'!'.repeat(50)}\n`;
+      return `A100${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${'!'.repeat(50)}\r\n`;
     }
 
 
@@ -617,8 +617,7 @@ export class ReportsService {
           f_1235=${f_1235}\n`;
         } else {
 
-          result += `C100${f_1201}${f_1202}${f_1203}${f_1204}${f_1205}${f_1206}${f_1207}${f_1208}${f_1209}${f_1210}${f_1211}${f_1212}${f_1213}${f_1214}${f_1215}${f_1216}${f_1217}${f_1218}${f_1219}${f_1220}${f_1221}${f_1222}${f_1223}${f_1224}${f_1225}${f_1226}${f_1228}${f_1230}${f_1231}${f_1233}${f_1234}${f_1235}\n`;
-          // console.log("result is: ", result);         
+          result += `C100${f_1201}${f_1202}${f_1203}${f_1204}${f_1205}${f_1206}${f_1207}${f_1208}${f_1209}${f_1210}${f_1211}${f_1212}${f_1213}${f_1214}${f_1215}${f_1216}${f_1217}${f_1218}${f_1219}${f_1220}${f_1221}${f_1222}${f_1223}${f_1224}${f_1225}${f_1226}${f_1228}${f_1230}${f_1231}${f_1233}${f_1234}${f_1235}\r\n`;
           
         }
 
@@ -667,7 +666,7 @@ export class ReportsService {
           const f_1274 = this.formatField("!", 7, '!');
           const f_1275 = this.formatField("!", 21, '!');
 
-          result += `D110${f_1251}${f_1252}${f_1253}${f_1254}${f_1255}${f_1256}${f_1257}${f_1258}${f_1259}${f_1260}${f_1261}${f_1262}${f_1263}${f_1264}${f_1265}${f_1266}${f_1267}${f_1268}${f_1270}${f_1272}${f_1273}${f_1274}${f_1275}\n`;
+          result += `D110${f_1251}${f_1252}${f_1253}${f_1254}${f_1255}${f_1256}${f_1257}${f_1258}${f_1259}${f_1260}${f_1261}${f_1262}${f_1263}${f_1264}${f_1265}${f_1266}${f_1267}${f_1268}${f_1270}${f_1272}${f_1273}${f_1274}${f_1275}\r\n`;
 
         });
       }
@@ -712,7 +711,7 @@ export class ReportsService {
           const f_1323 = this.formatField(line.generalDocIndex, 7, '0');
           const f_1324 = this.formatField("!", 60, '!');
 
-          result += `D120${f_1301}${f_1302}${f_1303}${f_1304}${f_1305}${f_1306}${f_1307}${f_1308}${f_1309}${f_1310}${f_1311}${f_1312}${f_1313}${f_1314}${f_1315}${f_1320}${f_1322}${f_1323}${f_1324}\n`;
+          result += `D120${f_1301}${f_1302}${f_1303}${f_1304}${f_1305}${f_1306}${f_1307}${f_1308}${f_1309}${f_1310}${f_1311}${f_1312}${f_1313}${f_1314}${f_1315}${f_1320}${f_1322}${f_1323}${f_1324}\r\n`;
 
         });
       }
@@ -762,7 +761,7 @@ export class ReportsService {
           const f_1376 = this.formatField("!", 9, '!');
           const f_1377 = this.formatField("!", 25, '!');
 
-          result += `B100${f_1351}${f_1352}${f_1353}${f_1354}${f_1355}${f_1356}${f_1357}${f_1358}${f_1359}${f_1360}${f_1361}${f_1362}${f_1363}${f_1364}${f_1365}${f_1366}${f_1367}${f_1368}${f_1369}${f_1370}${f_1371}${f_1372}${f_1374}${f_1375}${f_1376}${f_1377}\n`;
+          result += `B100${f_1351}${f_1352}${f_1353}${f_1354}${f_1355}${f_1356}${f_1357}${f_1358}${f_1359}${f_1360}${f_1361}${f_1362}${f_1363}${f_1364}${f_1365}${f_1366}${f_1367}${f_1368}${f_1369}${f_1370}${f_1371}${f_1372}${f_1374}${f_1375}${f_1376}${f_1377}\r\n`;
 
         });
       }
@@ -802,7 +801,7 @@ export class ReportsService {
         const f_1423 = this.formatField("!", 3, '!');
         const f_1424 = this.formatField("!", 16, '!');
 
-        result += `B110${f_1401}${f_1402}${f_1403}${f_1404}${f_1405}${f_1406}${f_1407}${f_1408}${f_1409}${f_1410}${f_1411}${f_1412}${f_1413}${f_1414}${f_1415}${f_1416}${f_1417}${f_1419}${f_1421}${f_1422}${f_1423}${f_1424}\n`;
+        result += `B110${f_1401}${f_1402}${f_1403}${f_1404}${f_1405}${f_1406}${f_1407}${f_1408}${f_1409}${f_1410}${f_1411}${f_1412}${f_1413}${f_1414}${f_1415}${f_1416}${f_1417}${f_1419}${f_1421}${f_1422}${f_1423}${f_1424}\r\n`;
 
       }
     
@@ -830,14 +829,14 @@ export class ReportsService {
       const f_1464 = this.formatField("0", 10, '0');
       const f_1465 = this.formatField("!", 50, '!');
 
-      result += `M100${f_1451}${f_1452}${f_1453}${f_1454}${f_1455}${f_1456}${f_1457}${f_1458}${f_1459}${f_1460}${f_1461}${f_1462}${f_1463}${f_1464}${f_1465}\n`;
+      result += `M100${f_1451}${f_1452}${f_1453}${f_1454}${f_1455}${f_1456}${f_1457}${f_1458}${f_1459}${f_1460}${f_1461}${f_1462}${f_1463}${f_1464}${f_1465}\r\n`;
     
       return result;
     }
     
 
     private generateZ900Section(businessNumber: string, uniqueId: string): string {
-      return `Z900${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${this.formatField(this.totalLists, 15, '0')}${'?'.repeat(50)}\n`;
+      return `Z900${this.getFormattedRecordCounter()}${businessNumber}${uniqueId}&OF1.31&${this.formatField(this.totalLists, 15, '0')}${'?'.repeat(50)}\r\n`;
     }
 
 

@@ -1,3 +1,5 @@
+import { ISelectItem } from "./interface";
+
 export enum paymentIdentifierType {
   CREDIT_CARD = 'CREDIT_CARD',
   BANK_ACCOUNT = 'BANK_ACCOUNT'
@@ -419,6 +421,30 @@ export enum ReportingPeriodType {
   DATE_RANGE = 'DATE_RANGE'
 }
 
+export const doubleMonthsList: ISelectItem[] = [
+  { value: '1', name: 'ינואר - פברואר' },
+  { value: '3', name: 'מרץ - אפריל' },
+  { value: '5', name: 'מאי - יוני' },
+  { value: '7', name: 'יולי - אוגוסט' },
+  { value: '9', name: 'ספטמבר - אוקטובר' },
+  { value: '11', name: 'נובמבר - דצמבר' }
+];
+
+export const singleMonthsList: ISelectItem[] = [
+  { value: '1', name: 'ינואר' },
+  { value: '2', name: 'פברואר' },
+  { value: '3', name: 'מרץ' },
+  { value: '4', name: 'אפריל' },
+  { value: '5', name: 'מאי' },
+  { value: '6', name: 'יוני' },
+  { value: '7', name: 'יולי' },
+  { value: '8', name: 'אוגוסט' },
+  { value: '9', name: 'ספטמבר' },
+  { value: '10', name: 'אוקטובר' },
+  { value: '11', name: 'נובמבר' },
+  { value: '12', name: 'דצמבר' }
+];
+
 export const ReportingPeriodTypeLabels = {
   [ReportingPeriodType.MONTHLY]: 'חודשי',
   [ReportingPeriodType.BIMONTHLY]: 'דו-חודשי',
@@ -431,6 +457,11 @@ export const reportingPeriodTypeOptionsList = [
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] },
   { value: ReportingPeriodType.ANNUAL, name: ReportingPeriodTypeLabels[ReportingPeriodType.ANNUAL] },
   { value: ReportingPeriodType.DATE_RANGE, name: ReportingPeriodTypeLabels[ReportingPeriodType.DATE_RANGE] }
+];
+
+export const reportingVatPeriodTypeOptionsList = [
+  { value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
+  { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] },
 ];
 
 export enum bunnerImagePosition {
@@ -449,4 +480,9 @@ export enum inputsSize {
   MEDIUM = 'normal',
   LARGE = 'wide',
   AUTO = 'auto'
+}
+
+export enum BusinessMode {
+  ONE_BUSINESS = 'oneBusiness',
+  TWO_BUSINESS = 'twoBusiness',
 }

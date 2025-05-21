@@ -1,11 +1,13 @@
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
+<div class="wrap-screen">
 
 
-
-<!-- <ion-content [fullscreen]="true"> -->
-  <div class="wrap-screen">
-    <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"
-      [isDisabled]="vatReportForm.invalid"></app-search-bar>
+ 
+    <!-- <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="vatReportTemplate"
+      [isDisabled]="vatReportForm.invalid">
+    </app-search-bar> -->
+    <app-period-select 
+      [parentPage]="'vatReport'"  [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)">
+    </app-period-select> 
     <ng-container *ngIf="!vatReport">
       <p class="text-before-report">
         אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח
