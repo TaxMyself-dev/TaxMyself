@@ -50,6 +50,7 @@ import { MessageService } from 'primeng/api';
     {label: 'הגדרות', routerLink: '/my-status'},
     {label: 'צור קשר'},
     {label: 'כניסה', routerLink: '/login'},
+    {label: 'פאנל ניהול', routerLink: '/admin-panel'},
   ]
 
   fromLoginPage = false; // Flag to check if entry was from login page

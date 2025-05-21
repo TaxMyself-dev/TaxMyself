@@ -141,6 +141,10 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     width: 100px;
   }
 
+  &.between {
+    width: 175px;
+  }
+
   &.icon {
     width: 35px;
     height: 25px;
@@ -228,6 +232,11 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       color: rgb(150, 150, 225) !important;
     }
   }
+
+  &.filter {
+  display: flex;
+  justify-content: space-between;
+}
 }
 
 .p-button-text.p-button-info:hover { // for avoid the shadow of button text
@@ -238,9 +247,10 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   box-shadow: 0 -4px 8px -4px rgba(0, 0, 0, 0.2);
 }
 
-.p-select { //For select input
+.p-select, .p-multiselect { //For select input
   border-radius: 20px !important;
-  border-color: rgb(245 242 242) !important;
+  // border-color: rgb(245 242 242) !important;
+  border-color: rgb(186, 183, 183)  !important;
   &.wide {
     width: 420px !important;
   }
@@ -250,9 +260,29 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.normal {
     width: 215px;
   }
+  &.between {
+    width: 175px;
+  }
   &.narrow {
     width: 120px;
   }
+}
+
+.p-select-label, .p-multiselect-label {
+  font-size: smaller;
+  overflow: visible !important;
+}
+
+.p-multiselect-option, .p-select-option {
+  font-size: smaller;
+}
+
+.p-multiselect-label.p-placeholder {
+  color: black !important;
+}
+
+.p-multiselect-dropdown {
+  color: black !important;
 }
 
 .p-inputtext { //For text input
@@ -280,9 +310,4 @@ input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
 }
-
-// .p-checkbox-input {
-//   color: blue !important;
-//   border: 1px solid red
-// }
  

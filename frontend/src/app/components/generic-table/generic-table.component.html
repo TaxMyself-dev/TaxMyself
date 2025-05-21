@@ -12,9 +12,11 @@
       <app-p-button (onButtonClicked)="openFilterDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'"
         variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
         [buttonSize]="buttonSize.ICON"></app-p-button>
-      <app-filter-dialog [visible]="visibleFilterDialog()" [filterFields]="filterItems"></app-filter-dialog>
     </div>
   </div>
+    @if (visibleFilterPannel()) {
+      <app-filter-panel (applyFilters)="applyFilters($event)"></app-filter-panel>
+    }
   <div class="table">
     <p-table [columns]="columnsTitle()" [value]="filteredDataTable()" [tableStyle]="{ 'width': '100%' }"
       [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true" [virtualScrollItemSize]="76">

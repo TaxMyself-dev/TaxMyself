@@ -1,0 +1,76 @@
+<div class="filter-panel">
+
+  <div class="header">
+    <h3>פילטרים</h3>
+    <app-p-button [buttonText]="'נקה הכל'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="clear()"></app-p-button>
+  </div>
+
+  <!-- Select Time -->
+  <div class="header">
+    <span class="title">זמן</span>
+    <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.BETWEEN" [buttonText]="'בחר'"
+      [icon]="'pi pi-sort-down-fill'" [class]="'filter'" [variant]="'outlined'"
+      (onButtonClicked)="visibleTimesOptions()"></app-p-button>
+  </div>
+  <div class="time-options-container" #menu [class.open]="isOpen">
+    <div #content class="time-options-content">
+      @for (timeType of timeTypes; track timeType.name) {
+      <div>
+        <p-checkbox [binary]="true" [inputId]="timeType.value + ''" [value]="timeType.value"
+          [ngModel]="selectedType() === timeType.value" (onChange)="onSelectType(timeType.value + '')"
+          [ngModelOptions]="{standalone: true}">
+        </p-checkbox>
+        <label class="lable-checkbox" [for]="timeType.value">{{timeType.name}}</label>
+        @if (selectedType() && timeType.value === selectedType()) {
+        @if (selectedType() === 'range') {
+        <div>
+          <form [formGroup]="form" class="wrap-inner-inputs">
+
+            <p-datepicker [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)'}" placeholder="תאריך התחלה"
+              formControlName="startDate" [iconDisplay]="'input'" [showIcon]="true" inputId="startDate" />
+            <p-datepicker [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)'}" placeholder="תאריך סוף"
+              formControlName="endDate" [iconDisplay]="'input'" [showIcon]="true" inputId="endDate" />
+          </form>
+
+        </div>
+        }
+        @else if (selectedType() === 'yearly') {
+        <div class="wrap-inner-inputs">
+          <app-input-select [size]="inputsSize.AUTO" placeholder="בחר שנה" [parentForm]="form" controlName="year"
+            [items]="years"></app-input-select>
+        </div>
+        }
+        @else {
+        <div class="wrap-inner-inputs">
+          <app-input-select [size]="inputsSize.AUTO" [parentForm]="form" [controlName]="this.form?.get('periodType').value === 'MONTHLY' ? 'month' : 'bimonth'"
+            [placeholder]="this.form?.get('periodType').value === 'MONTHLY' ? 'בחר חודש' : 'בחר חודשים'"
+            [items]="getOptions()"></app-input-select>
+          <app-input-select [size]="inputsSize.AUTO" [parentForm]="form" placeholder="בחר שנה" controlName="year"
+            [items]="years"></app-input-select>
+        </div>
+        }
+        }
+      </div>
+      }
+    </div>
+  </div>
+  <!-- Select account -->
+  <div class="header">
+    <span class="title">חשבון</span>
+    <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="accountsList()"
+      (onChangeInputSelect)="onChangeInputSelect($event)" [parentForm]="form"
+      [size]="inputsSize.BETWEEN"></app-input-select>
+  </div>
+  <!-- Select Category -->
+  <div class="header">
+    <span class="title">קטגוריה</span>
+    <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
+      [parentForm]="form" [size]="inputsSize.BETWEEN">
+    </app-input-select>
+  </div>
+  <div style="width: 98%">
+    <app-p-button [buttonText]="'סנן'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="onFilterButtonClicked()"></app-p-button>
+  </div>
+  </div>

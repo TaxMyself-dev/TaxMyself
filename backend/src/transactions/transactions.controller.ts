@@ -98,7 +98,18 @@ export class TransactionsController {
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
-    return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, query.billId);
+
+         // Handle billId
+  let billIds: string[] | null = null;
+  if (query.billId && query.billId !== 'null' && query.billId.trim() !== '') {
+    billIds = query.billId.split(',');
+  }
+
+  let categories: string[] | null = null;
+  if (query.categories && query.categories !== 'null' && query.categories.trim() !== '') {
+    categories = query.categories.split(',');
+  }
+    return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, billIds, categories);
   }
 
 
@@ -109,11 +120,23 @@ export class TransactionsController {
     @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
   ): Promise<Transactions[]> {
-    query.billId === 'null' ? null : parseInt(query.billId, 10);
+ 
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
-    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, query.billId);
+
+  // Handle billId
+  let billIds: string[] | null = null;
+  if (query.billId && query.billId !== 'null' && query.billId.trim() !== '') {
+    billIds = query.billId.split(',');
+  }
+
+  let categories: string[] | null = null;
+  if (query.categories && query.categories !== 'null' && query.categories.trim() !== '') {
+    categories = query.categories.split(',');
+  }
+
+    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, billIds, categories);
   }
   
 

@@ -19,6 +19,10 @@ export class GetTransactionsDto {
     @IsString()
     @IsNotEmpty()
     billId: string;
+
+    @IsString()
+    @IsNotEmpty()
+    categories: string;
     
     @IsString()
     @IsOptional()

@@ -12,10 +12,11 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { IColumnDataTable, IRowDataTable, IFilterItems } from 'src/app/shared/interface';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
-import { FilterDialogComponent } from "../filter-dialog/filter-dialog.component"; // For add cursor pointer only to long text.
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import { AccountAssociationDialogComponent } from "../account-association-dialog/account-association-dialog.component";
+import { FilterPanelComponent } from "../filter-dialog/filter-panell.component";
+import { FormGroup } from '@angular/forms';
 
 @Component({
   selector: 'app-generic-table',
@@ -30,7 +31,7 @@ import { AccountAssociationDialogComponent } from "../account-association-dialog
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, FilterDialogComponent, HighlightPipe, ButtonModule, ButtonGroupModule, AccountAssociationDialogComponent],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, AccountAssociationDialogComponent, FilterPanelComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
 })
@@ -44,11 +45,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visibleAccountAssociationClicked = output<{state: boolean, data: IRowDataTable}>();
   visibleClassifyTranClicked = output<{state: boolean, data: IRowDataTable}>();
-  visibleFilterDialog = signal(false);
+  filters = output<FormGroup>();
+  visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
   isHovering = signal<number>(null);
-  // hovered: number | null;
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
@@ -306,7 +307,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   openFilterDialod(): void {
-    this.visibleFilterDialog.set(!this.visibleFilterDialog());
+    this.visibleFilterPannel.set(!this.visibleFilterPannel());
   }
 
   updateSearchTerm(event: Event): void {
@@ -339,6 +340,12 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     
     console.log('onVisibleAccountAssociationClicked');
     this.visibleClassifyTranClicked.emit({state: true, data: row});
+  }
+
+  applyFilters(filters: FormGroup): void {
+    console.log('applyFilters', filters);
+    this.visibleFilterPannel.set(false);
+    this.filters.emit(filters);
   }
   
 }
