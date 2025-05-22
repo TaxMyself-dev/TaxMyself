@@ -1,9 +1,9 @@
 <!-- <app-p-topNav [menuItems]="menuItems"></app-p-topNav> -->
 <app-image-bunner [alt]="'תמונת רקע'" [imageUrl]="'../../assets/bunner-image.svg'" [imageHeight]="'101px'" imageWidth="100%" [buttonLabel]="'הפקת דוח'" [buttonPosition]="bunnerImagePosition.CENTER_LEFT" [textPosition]="bunnerImagePosition.CENTER_RGHIT" [title]="'הפקת דוחות'"  [content]="'מהיום להפיק דוחות זה קל ופשוט! כאן תוכלו להפיק דוח למע״מ, דוח רווח והפסד, דוח שנתי, דוח מקדמות למס הכנסה ומבנה קבצים אחיד'" [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.WHITE"></app-image-bunner>
 
-<app-generic-table [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses" [dataTable]="expensesData" [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)" (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
+<app-generic-table (filters)="applyFilters($event)" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses" [dataTable]="expensesData" [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)" (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
 
-<app-account-association-dialog (visibleChange)="closeAccountAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList" [rowData]="leftPanelData()" (openAddBillClicked)="openAddBill($event)"></app-account-association-dialog>
+<app-account-association-dialog (visibleChange)="closeAccountAssociation($event)" [isVisible]="visibleAccountAssociationDialog()" [accounts]="accountsList()" [rowData]="leftPanelData()" (openAddBillClicked)="openAddBill($event)"></app-account-association-dialog>
 
 <app-add-bill2 [isVisible]="visibleAddBill()"  (visibleChange)="closeAddBill($event)"></app-add-bill2>
 
@@ -23,7 +23,7 @@
     <div class="header-transaction">
       <div class="bars-header">
       <app-search-bar class="generic-searchbar-wrapper" [customTemplate]="searchBarContent"
-        [isDisabled]="transactionsForm.invalid" (onSearchClick)="getTransactions()"></app-search-bar>
+        [isDisabled]="transactionsForm.invalid" (onSearchClick)="getTransactions(null)"></app-search-bar>
       <!-- <app-load-file [relativeUrl]="'load-file'"></app-load-file> -->
     </div>
       <div *ngIf="!expensesData">אנא בחר חשבון וחודשי דיווח על מנת להציג נתונים</div>
@@ -77,7 +77,7 @@
     </app-select-month>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="transactionsForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
     <app-sort-date *ngIf="this.transactionsForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [minDate]="this.transactionsForm.get('startDate').value" [parentForm]="transactionsForm" class="input-search-bar" [inputLabel]="'עד תאריך'"></app-sort-date>
-    <app-generic-select [controlName]="'accounts'" [items]="accountsList" [title]="'בחר חשבון'"
+    <app-generic-select [controlName]="'accounts'" [items]="accountsList()" [title]="'בחר חשבון'"
       [parentForm]="transactionsForm" class="input-search-bar"></app-generic-select>
   </form>
 </ng-template>

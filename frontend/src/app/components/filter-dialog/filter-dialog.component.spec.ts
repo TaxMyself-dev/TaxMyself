@@ -1,19 +1,19 @@
 import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
 import { IonicModule } from '@ionic/angular';
 
-import { SortDialogComponent } from './filter-dialog.component';
+import { FilterPanelComponent } from './filter-panell.component';
 
 describe('SortDialogComponent', () => {
-  let component: SortDialogComponent;
-  let fixture: ComponentFixture<SortDialogComponent>;
+  let component: FilterPanelComponent;
+  let fixture: ComponentFixture<FilterPanelComponent>;
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SortDialogComponent ],
+      declarations: [ FilterPanelComponent ],
       imports: [IonicModule.forRoot()]
     }).compileComponents();
 
-    fixture = TestBed.createComponent(SortDialogComponent);
+    fixture = TestBed.createComponent(FilterPanelComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   }));

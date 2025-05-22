@@ -29,10 +29,6 @@ export class ImageBunnerComponent  implements OnInit {
   buttonColor = input<ButtonColor>();  
   constructor() { }
   
-  ngOnInit() {
-    
-    console.log("🚀 ~ ImageBunnerComponent ~ buttonColor:", this.buttonColor())
-    console.log("🚀 ~ ImageBunnerComponent ~ buttonColor:", this.buttonSize())
-  }
+  ngOnInit() {}
 
 }

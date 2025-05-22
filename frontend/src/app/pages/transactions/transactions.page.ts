@@ -18,12 +18,13 @@ import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
+import ca from 'date-fns/locale/ca';
 
 @Component({
-    selector: 'app-transactions',
-    templateUrl: './transactions.page.html',
-    styleUrls: ['./transactions.page.scss', '../../shared/shared-styling.scss'],
-    standalone: false
+  selector: 'app-transactions',
+  templateUrl: './transactions.page.html',
+  styleUrls: ['./transactions.page.scss', '../../shared/shared-styling.scss'],
+  standalone: false
 })
 
 export class TransactionsPage implements OnInit {
@@ -122,7 +123,7 @@ export class TransactionsPage implements OnInit {
 
   public COLUMNS_TO_IGNORE_EXPENSES = ['necessity', 'finsiteId', 'businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   // public COLUMNS_TO_SHOW_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
-  public COLUMNS_TO_IGNORE_INCOMES = ['necessity','finsiteId', 'businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
+  public COLUMNS_TO_IGNORE_INCOMES = ['necessity', 'finsiteId', 'businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
@@ -149,7 +150,7 @@ export class TransactionsPage implements OnInit {
   expensesData: IRowDataTable[];
   addPayment: boolean = false;
   selectBill: string;
-  accountsList: any[] = [];
+  accountsList = signal<ISelectItem[]>([]);
   sourcesList: string[] = [];
   selectedFile: File = null;
   dateForUpdate = { 'startDate': "", 'endDate': "" };
@@ -236,7 +237,7 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
-    this.getTransactions();
+    this.getTransactions(null);
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
     this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -275,11 +276,12 @@ export class TransactionsPage implements OnInit {
 
     this.setTableActions();
     this.transactionService.getAllBills();
-    this.transactionService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
-      (accountsList) => {
-        this.accountsList = accountsList;
-      }
-    );
+    // this.transactionService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
+    //   (accountsList) => {
+    //     this.accountsList = accountsList;
+    //   }
+    // );
+    this.accountsList = this.transactionService.accountsList;
     this.getCategory();
   }
 
@@ -342,24 +344,95 @@ export class TransactionsPage implements OnInit {
     this.isOpen = event
   }
 
-  getTransactions(periodType?: ReportingPeriodType, year?: number, month?: number, startDate1?: string, endDate1?: string, accounts?: string): void {
-    this.isOpen = true;
-    const formData = this.transactionsForm.value;
-    periodType = formData.reportingPeriodType || ReportingPeriodType.ANNUAL;
-    year = year || formData.year || new Date().getFullYear();
-    month = month || formData.month || null;
-    startDate1 = startDate1 || formData.startDate || null;
-    endDate1 = endDate1 || formData.endDate || null;
-    accounts =  accounts || formData.accounts || "ALL_BILLS"
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(periodType, year, month, startDate1, endDate1);
-    this.dateForUpdate.startDate = startDate;
-    this.dateForUpdate.endDate = endDate;
+  // getTransactions(periodType?: ReportingPeriodType, year?: number, month?: number, startDate1?: string, endDate1?: string, accounts?: string): void {
+  //   this.isOpen = true;
+  //   const formData = this.transactionsForm.value;
+  //   periodType = formData.reportingPeriodType || ReportingPeriodType.ANNUAL;
+  //   year = year || formData.year || new Date().getFullYear();
+  //   month = month || formData.month || null;
+  //   startDate1 = startDate1 || formData.startDate || null;
+  //   endDate1 = endDate1 || formData.endDate || null;
+  //   accounts =  accounts || formData.accounts || "ALL_BILLS"
+  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(periodType, year, month, startDate1, endDate1);
+  //   this.dateForUpdate.startDate = startDate;
+  //   this.dateForUpdate.endDate = endDate;
 
-    // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accounts);
+  //   // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+  //   const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accounts);
 
-    // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accounts);
+  //   // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
+  //   const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accounts);
+
+  //   zip(incomeData$, expensesData$)
+  //     .pipe(
+  //       map(([incomeData, expenseData]) => {
+  //         const incomeDataRows = this.handleTableData(incomeData);
+  //         const expenseeDataRows = this.handleTableData(expenseData);
+  //         return { incomes: incomeDataRows, expenses: expenseeDataRows };
+  //       }
+  //       )
+  //     )
+  //     .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
+  //       this.incomesData = data.incomes;
+  //       console.log("income: ", this.incomesData);
+
+  //       this.expensesData = data.expenses;
+  //       console.log("expense: ", this.expensesData);
+  //       this.incomesData$.next(this.incomesData);
+  //       this.filterIncomes(); // for after update table the table will stay filtered according to the search-bar
+  //       this.expensesData$.next(data.expenses);
+  //       this.filterExpenses(); // for after update table the table will stay filtered according to the search-bar
+  //     });
+  // }
+
+  getTransactions(filters: FormGroup | null): void {
+    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ filters:", filters)
+    const periodType = filters?.get('periodType')?.value;
+    let accounts = filters?.get('account')?.value;
+    let categories = filters?.get('category')?.value;
+    let startDate: string;
+    let endDate: string;
+
+    let accountsNames = accounts?.map((account: ISelectItem) => account.value);
+    let categoriesName = categories?.map((category: ISelectItem) => category.value);
+    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ accountsNames:", accountsNames);
+    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ category:", categoriesName);
+    
+    if (!filters) { // For default table.
+      const currentYear = new Date().getFullYear();
+      const month = new Date().getMonth() + 1;
+      ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
+      accountsNames = null;
+      categoriesName = null;
+    }
+    else {
+      switch (periodType) {
+        case this.reportingPeriodType.MONTHLY:
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, filters?.get('year')?.value, filters?.get('month')?.value, null, null));
+          break;
+        case this.reportingPeriodType.BIMONTHLY:
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.BIMONTHLY, filters?.get('year')?.value, filters?.get('bimonth')?.value, null, null));
+          break;
+        case this.reportingPeriodType.ANNUAL:
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.ANNUAL, filters?.get('year')?.value, null, null, null));
+          break;
+        case this.reportingPeriodType.DATE_RANGE:
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.DATE_RANGE, null, null, filters?.get('startDate')?.value, filters?.get('endDate')?.value));
+          break;
+        default:
+          const currentYear = new Date().getFullYear();
+          const month = new Date().getMonth() + 1;
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
+          console.log("startDate: ", startDate, "endDate: ", endDate);
+          break;
+      }
+    }
+    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ startDate:", startDate);
+    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ Date:end", endDate);
+
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
+
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -383,13 +456,14 @@ export class TransactionsPage implements OnInit {
       });
   }
 
+
   getExpensesData(): void {
     const formData = this.transactionsForm.value;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, null, null);
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData( startDate, endDate, formData.accounts).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }
@@ -483,7 +557,7 @@ export class TransactionsPage implements OnInit {
       }))
       .subscribe(({ data, role }) => {
         if (role === 'success') {
-          this.getTransactions()
+          // this.getTransactions()
         }
       });
   }
@@ -588,9 +662,9 @@ export class TransactionsPage implements OnInit {
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
         //console.log(data);
-        
+
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
-        
+
 
         rows.push(data);
       }
@@ -625,12 +699,12 @@ export class TransactionsPage implements OnInit {
     let editFieldsNamesIncomes: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = []; // For does changes in fieldsNamesIncomes array before open update row.
     let disabledFields: TransactionsOutcomesColumns[];
     console.log("data.businessNumber: ", data.businessNumber);
-    console.log(" this.userData.businessNumber: ",  this.userData.businessNumber);
-    
+    console.log(" this.userData.businessNumber: ", this.userData.businessNumber);
+
     const businessNumber = data.businessNumber === this.userData.businessNumber || this.userData.businessName ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
     console.log("data in open edit row: ", data);
     console.log("businessNumber: ", businessNumber);
-    
+
 
     if (isExpense) {
       if (!this.userData.isTwoBusinessOwner) {
@@ -640,9 +714,9 @@ export class TransactionsPage implements OnInit {
       const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
       const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
       disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
+      this.editRowExpenseForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
+      this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
+      this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
         this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
         this.editRowExpenseForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
         this.editRowExpenseForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent === 0 ? 0 : ""),
@@ -652,7 +726,7 @@ export class TransactionsPage implements OnInit {
         this.editRowExpenseForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
         this.editRowExpenseForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
         this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
+      this.editRowExpenseForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
 
     }
     else {
@@ -668,10 +742,10 @@ export class TransactionsPage implements OnInit {
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
       this.editRowIncomeForm.get(TransactionsOutcomesColumns.MONTH_REPORT).patchValue(data.vatReportingDate || '');
 
@@ -706,7 +780,7 @@ export class TransactionsPage implements OnInit {
                   takeUntil(this.destroy$),
                   tap((data) => {
                     if (data.role != 'backdrop' && data.role != 'cancel') {
-                      this.getTransactions()
+                      // this.getTransactions()
                     }
                   })
                 )
@@ -743,22 +817,22 @@ export class TransactionsPage implements OnInit {
     formData.reductionPercent = +formData.reductionPercent;
 
     this.transactionService.updateRow(formData)
-    .pipe(
-      // finalize(() => this.genericService.dismissLoader()),
-      catchError((err) => {
-        alert("עדכון שורה נכשל");
+      .pipe(
+        // finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          alert("עדכון שורה נכשל");
+          this.genericService.dismissLoader();
+          return EMPTY;
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((res) => {
         this.genericService.dismissLoader();
-        return EMPTY;
-      }),
-      takeUntil(this.destroy$)
-    )
-    .subscribe((res) => {
-      this.genericService.dismissLoader();
-      this.genericService.showToast( "עדכון שורה הצליח", "success");
-      // this.messageToast = "עדכון שורה הצליח"
-      // this.isToastOpen = true;
-      this.getExpensesData()
-    });
+        this.genericService.showToast("עדכון שורה הצליח", "success");
+        // this.messageToast = "עדכון שורה הצליח"
+        // this.isToastOpen = true;
+        this.getExpensesData()
+      });
   }
 
   openAddTransaction(event, isExpense: boolean): void {
@@ -782,7 +856,7 @@ export class TransactionsPage implements OnInit {
             switchMap(() => from(modal.onWillDismiss())
               .pipe(
                 tap((data) => {
-                  if(data.role === 'error') {
+                  if (data.role === 'error') {
                     setTimeout(() => {
                       this.genericService.dismissLoader()
                       alert("אירעה שגיאה התנועה לא סווגה אנא נסה מאוחר יותר")
@@ -792,7 +866,7 @@ export class TransactionsPage implements OnInit {
                     this.genericService.showToast("התנועה סווגה בהצלחה", "success");
                     // this.messageToast = "התנועה סווגה בהצלחה"
                     // this.isToastOpen = true;
-                    this.getTransactions()
+                    // this.getTransactions()
                   }
 
                 })
@@ -881,7 +955,7 @@ export class TransactionsPage implements OnInit {
     this.filterIncomes()
   }
 
-  openAccountAssociation(event: {state: boolean, data: IRowDataTable}): void {
+  openAccountAssociation(event: { state: boolean, data: IRowDataTable }): void {
     this.visibleAccountAssociationDialog.set(event.state);
     this.leftPanelData.set(event.data);
   }
@@ -889,33 +963,33 @@ export class TransactionsPage implements OnInit {
   openAddBill(event: any): void {
     this.visibleAddBill.set(event);
   }
-  
-  openClassifyTran(event: {state: boolean, data: IRowDataTable}): void {
+
+  openClassifyTran(event: { state: boolean, data: IRowDataTable }): void {
     this.visibleClassifyTran.set(event.state);
     this.leftPanelData.set(event.data);
   }
 
-  openAddCategory(event: {state: boolean, subCategoryMode: boolean, category?: string}): void {
+  openAddCategory(event: { state: boolean, subCategoryMode: boolean, category?: string }): void {
     this.visibleAddCategory.set(event.state);
     this.subCategoryMode.set(event.subCategoryMode);
     this.categoryName.set(event.category);
   }
-  
-  closeAccountAssociation(event: {visible: boolean, data: boolean}): void {
+
+  closeAccountAssociation(event: { visible: boolean, data: boolean }): void {
     this.visibleAccountAssociationDialog.set(event.visible);
-    event.data ? this.getTransactions() : null;
+    event.data ? this.getTransactions(null) : null; // TODO: get transactions by the filters!!
   }
 
-  closeAddBill(event: {visible: boolean, data?: boolean}): void {
+  closeAddBill(event: { visible: boolean, data?: boolean }): void {
     this.visibleAddBill.set(event.visible);
   }
 
-  closeClassyfyTran(event: {visible: boolean, data: boolean}): void {
+  closeClassyfyTran(event: { visible: boolean, data: boolean }): void {
     this.visibleClassifyTran.set(event.visible);
-    event.data ? this.getTransactions() : null;
+    event.data ? this.getTransactions(null) : null; // TODO: get transactions by the filters!!
   }
 
-  closeAddCategory(event: {visible: boolean, data?: boolean}): void {
+  closeAddCategory(event: { visible: boolean, data?: boolean }): void {
     this.visibleAddCategory.set(event.visible);
     event.data ? this.transactionService.getCategories().subscribe() : null;
   }
@@ -926,21 +1000,25 @@ export class TransactionsPage implements OnInit {
     const businessNumber = event.controls?.['businessNumber']?.value;
     console.log("businessbillNameNumber: ", accountName);
     console.log("businessNumber: ", businessNumber);
-    
-      this.transactionService.addBill(accountName, businessNumber)
-        .pipe(
-          finalize(() => this.genericService.dismissLoader()),
-          catchError((err) => {
-            console.log('err in add bill: ', err);
-            return EMPTY;
-          })
-        )
-        .subscribe(() => {
-          this.transactionService.getAllBills();
-          this.closeAddBill({visible: false});
-        });
-    
-    
+
+    this.transactionService.addBill(accountName, businessNumber)
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((err) => {
+          console.log('err in add bill: ', err);
+          return EMPTY;
+        })
+      )
+      .subscribe(() => {
+        this.transactionService.getAllBills();
+        this.closeAddBill({ visible: false });
+      });
+
+
+  }
+
+  applyFilters(filters: FormGroup): void {
+    this.getTransactions(filters);
   }
 
 }

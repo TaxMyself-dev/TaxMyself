@@ -2,8 +2,8 @@ import { Injectable, BadRequestException, NotFoundException, HttpException, Http
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan } from 'typeorm';
 import * as XLSX from 'xlsx';
-import { Express } from 'express'; 
-import { SourceType, VATReportingType} from 'src/enum';
+import { Express } from 'express';
+import { SourceType, VATReportingType } from 'src/enum';
 
 //Entities
 import { Transactions } from './transactions.entity';
@@ -59,7 +59,7 @@ export class TransactionsService {
     private userCategoryRepo: Repository<UserCategory>,
     @InjectRepository(UserSubCategory)
     private userSubCategoryRepo: Repository<UserSubCategory>
-  ) {}
+  ) { }
 
 
   async getTransactionsFromFinsite(
@@ -67,28 +67,28 @@ export class TransactionsService {
     endDate: string,
     companyId?: string // Optional company ID
   ): Promise<{ companyName: string; transactions: { name: string; date: string; sum: number }[] }[]> {
-    
+
     console.log("getTransactionsFromFinsite - start");
-  
+
     const sessionId = await this.finsiteService.getFinsiteToken(
       process.env.FINSITE_ID,
       process.env.FINSITE_KEY
     );
-  
+
     // Step 1: Load Finsite data from the database
     const query = companyId
       ? { finsiteId: companyId }
       : {}; // Filter by companyId if provided
-  
+
     const finsiteData = await this.finsiteRepo.find({
       where: query,
     });
-  
+
     console.log("Finsite data loaded:", finsiteData);
-  
+
     // Step 2: Group Finsite data by company
     const companiesData: Record<string, any> = {};
-  
+
     finsiteData.forEach(record => {
       if (!companiesData[record.finsiteId]) {
         companiesData[record.finsiteId] = {
@@ -100,27 +100,27 @@ export class TransactionsService {
       }
       companiesData[record.finsiteId].paymentMethods.push(record);
     });
-  
+
     const filteredCompanies = Object.values(companiesData);
-  
+
     console.log("Filtered companies:", filteredCompanies);
-  
+
     for (const company of filteredCompanies) {
       console.log("###### company is ", company.name);
-  
+
       // Step 3: Fetch Firebase ID for the company
       const user = await this.userRepo.findOne({
         where: { finsiteId: company.id },
       });
-  
+
       if (!user) {
         console.warn(`User with finsiteId ${company.id} not found. Skipping.`);
         continue;
       }
-  
+
       const firebaseId = user.firebaseId;
       console.log("###### firebaseId is ", firebaseId);
-  
+
       // Step 4: Iterate over payment methods
       for (const method of company.paymentMethods) {
         if (method.paymentMethodType === SourceType.CREDIT_CARD || method.paymentMethodType === SourceType.BANK_ACCOUNT) {
@@ -139,19 +139,19 @@ export class TransactionsService {
               method.getTransFid,
               startDate,
             );
-            
+
             // Step 6: Save transactions to the database
             for (const transaction of transactions) {
 
               const existingTransaction = await this.transactionsRepo.findOne({
                 where: { finsiteId: transaction.EntryID }, // Adjust field name if different
               });
-  
+
               if ((!existingTransaction) && !((transaction.Notes1 == 'חיוב כרטיס בעו"ש') && (transaction.Credit))) {
 
                 const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
-  
+
                 const classifiedTransaction = await this.classifiedTransactionsRepo.findOne({
                   where: {
                     userId: firebaseId,
@@ -159,7 +159,7 @@ export class TransactionsService {
                     billName: billName,
                   },
                 });
-  
+
                 const newTransaction: Partial<Transactions> = {
                   userId: firebaseId,
                   finsiteId: transaction.EntryID,
@@ -172,7 +172,7 @@ export class TransactionsService {
                   payDate: null,
                   sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
                 };
-  
+
                 // Merge fields if classifiedTransaction exists
                 if (classifiedTransaction) {
                   newTransaction.category = classifiedTransaction.category;
@@ -183,7 +183,7 @@ export class TransactionsService {
                   newTransaction.isEquipment = classifiedTransaction.isEquipment;
                   newTransaction.reductionPercent = classifiedTransaction.reductionPercent;
                 }
-  
+
                 await this.transactionsRepo.save(newTransaction);
 
                 // Add to the company's transactions summary
@@ -218,9 +218,9 @@ export class TransactionsService {
     console.log("All transactions processed and saved.");
 
     return result; // Return the summarized result
-  
+
   }
-  
+
 
   async saveTransactions(file: Express.Multer.File, userId: string): Promise<{ message: string }> {
 
@@ -234,14 +234,14 @@ export class TransactionsService {
     const worksheet = workbook.Sheets[sheetName];
 
     const rows: any[][] = XLSX.utils
-    .sheet_to_json(worksheet, { header: 1, raw: false }) as any[][];
+      .sheet_to_json(worksheet, { header: 1, raw: false }) as any[][];
 
-     // Filter out rows that are entirely empty
-     const filteredRows = rows.filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ""));
+    // Filter out rows that are entirely empty
+    const filteredRows = rows.filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ""));
 
     // Assuming the first row contains headers
-    const headers = filteredRows.shift();  
-    
+    const headers = filteredRows.shift();
+
     const skipConditions = [
       (row: any[]) => row[headers.findIndex(h => h === 'הערות 1')] === 'חיוב כרטיס בעו"ש'      // Add more conditions here as needed
     ];
@@ -258,7 +258,7 @@ export class TransactionsService {
     const creditIndex = headers.findIndex(header => header === 'זכות');
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
-    
+
     // Fetch user's bills and create a mapping from paymentIdentifier to billName
     const userBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
     const paymentIdentifierToBillName = new Map<string, string>();
@@ -270,12 +270,12 @@ export class TransactionsService {
     });
 
     const transactionsToSave: Transactions[] = [];
-    let skippedTransactions = 0;    
+    let skippedTransactions = 0;
 
-    for (const row of filteredRows) {  
-      
-       // Check if any skip condition is met
-       if (skipConditions.some(condition => condition(row))) {
+    for (const row of filteredRows) {
+
+      // Check if any skip condition is met
+      if (skipConditions.some(condition => condition(row))) {
         skippedTransactions++;
         continue;
       }
@@ -283,8 +283,8 @@ export class TransactionsService {
       const transaction = new Transactions();
       transaction.name = row[nameIndex];
       transaction.paymentIdentifier = row[paymentIdentifierIndex];
-      
-      try {                
+
+      try {
         transaction.billDate = this.sharedService.convertStringToDateObject(row[billDateIndex]);
       } catch (error) {
         console.error(`Failed to parse date for row: ${row}, error: ${error.message}`);
@@ -327,13 +327,13 @@ export class TransactionsService {
         transaction.billName = billName;
         transaction.businessNumber = await this.getBusinessNumberByBillName(transaction.userId, billName);
       }
-  
+
       // Check if there's a matching classified transaction
       const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.billName);
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         console.log("matchingClassifiedTransaction is ", matchingClassifiedTransaction);
-        
+
         transaction.category = matchingClassifiedTransaction.category;
         transaction.subCategory = matchingClassifiedTransaction.subCategory;
         transaction.isRecognized = matchingClassifiedTransaction.isRecognized;
@@ -363,14 +363,14 @@ export class TransactionsService {
 
   async getBusinessNumberByBillName(userId: string, billName: string): Promise<string | null> {
     const bill = await this.billRepo.findOne({
-        where: {
-            userId,
-            billName,
-        },
-        select: ['businessNumber'], // Only fetch the businessNumber for optimization
+      where: {
+        userId,
+        billName,
+      },
+      select: ['businessNumber'], // Only fetch the businessNumber for optimization
     });
     return bill ? bill.businessNumber : null; // Return the businessNumber if found, otherwise null
-  } 
+  }
 
 
   async getBillNameBySourceName(userId: string, sourceName: string): Promise<string | null> {
@@ -378,17 +378,17 @@ export class TransactionsService {
       where: { sourceName, userId },
       relations: ['bill'],
     });
-  
+
     if (!source || !source.bill || source.bill.userId !== userId) {
       return null;
     }
-  
+
     return source.bill.billName;
   }
 
 
   async loadDefaultCategories(file: Express.Multer.File): Promise<{ message: string }> {
-    
+
     if (!file) {
       throw new BadRequestException('No file uploaded.');
     }
@@ -412,60 +412,60 @@ export class TransactionsService {
     const isExpenseIndex = headers.findIndex(header => header === 'isExpense');
 
 
-  for (const row of rows) {
-    const categoryName = row[categoryIndex];
-    const subCategoryName = row[subCategoryIndex];
-    const taxPercent = parseFloat(row[taxPercentIndex]);
-    const vatPercent = parseFloat(row[vatPercentIndex]);
-    const reductionPercent = parseFloat(row[reductionPercentIndex]);
-    const isEquipment = row[isEquipmentIndex] == '1' || row[isEquipmentIndex] == 'true';  // Boolean conversion
-    const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
-    const isExpense = row[isExpenseIndex] == '1' || row[isExpenseIndex] == 'true'; // Boolean conversion
+    for (const row of rows) {
+      const categoryName = row[categoryIndex];
+      const subCategoryName = row[subCategoryIndex];
+      const taxPercent = parseFloat(row[taxPercentIndex]);
+      const vatPercent = parseFloat(row[vatPercentIndex]);
+      const reductionPercent = parseFloat(row[reductionPercentIndex]);
+      const isEquipment = row[isEquipmentIndex] == '1' || row[isEquipmentIndex] == 'true';  // Boolean conversion
+      const isRecognized = row[isRecognizedIndex] == '1' || row[isRecognizedIndex] == 'true'; // Boolean conversion
+      const isExpense = row[isExpenseIndex] == '1' || row[isExpenseIndex] == 'true'; // Boolean conversion
 
-    // Check if the category already exists
-    let category = await this.categoryRepo.findOne({ where: { categoryName: categoryName} });
-    if (!category) {
-      // Create a new category if it doesn't exist
-      category = this.categoryRepo.create({
-        categoryName: categoryName,
-        isExpense: isExpense
-      });
-      await this.categoryRepo.save(category);
+      // Check if the category already exists
+      let category = await this.categoryRepo.findOne({ where: { categoryName: categoryName } });
+      if (!category) {
+        // Create a new category if it doesn't exist
+        category = this.categoryRepo.create({
+          categoryName: categoryName,
+          isExpense: isExpense
+        });
+        await this.categoryRepo.save(category);
+      }
+
+      // Check if the sub-category already exists
+      let subCategory = await this.defaultSubCategoryRepo.findOne({ where: { subCategoryName: subCategoryName } });
+      if (!subCategory) {
+        // Create a new sub-category if it doesn't exist
+        subCategory = this.defaultSubCategoryRepo.create({
+          subCategoryName: subCategoryName,
+          taxPercent: taxPercent,
+          vatPercent: vatPercent,
+          reductionPercent: reductionPercent,
+          isEquipment: isEquipment,
+          isRecognized: isRecognized,
+          isExpense: isExpense,
+          categoryName: categoryName
+        });
+        await this.defaultSubCategoryRepo.save(subCategory);
+      }
+
     }
 
-    // Check if the sub-category already exists
-    let subCategory = await this.defaultSubCategoryRepo.findOne({ where: { subCategoryName: subCategoryName}});
-    if (!subCategory) {
-      // Create a new sub-category if it doesn't exist
-      subCategory = this.defaultSubCategoryRepo.create({
-        subCategoryName: subCategoryName,
-        taxPercent: taxPercent,
-        vatPercent: vatPercent,
-        reductionPercent: reductionPercent,
-        isEquipment: isEquipment,
-        isRecognized: isRecognized,
-        isExpense: isExpense,
-        categoryName: categoryName
-      });
-      await this.defaultSubCategoryRepo.save(subCategory);
-    }
+    return { message: `Successfully saved categories and sub-categories.` };
 
   }
 
-  return { message: `Successfully saved categories and sub-categories.` };
 
-  }
-
-
-  async getTransactionsByUserID (userId: string) {
+  async getTransactionsByUserID(userId: string) {
     return await this.transactionsRepo.find({ where: { userId: userId } });
   }
 
 
   async classifyTransaction(classifyDto: ClassifyTransactionDto, userId: string, startDate?: Date, endDate?: Date): Promise<void> {
 
-    const {id, isSingleUpdate, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized} = classifyDto;
-    let transactions: Transactions[];    
+    const { id, isSingleUpdate, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized } = classifyDto;
+    let transactions: Transactions[];
     // Add new user category if isNewCategory is true
     // if (isNewCategory) {
     //   try {
@@ -490,7 +490,7 @@ export class TransactionsService {
     //     }
     //   }
     // }
-  
+
     if (!isSingleUpdate) {
       transactions = await this.transactionsRepo.find({
         where: {
@@ -508,7 +508,7 @@ export class TransactionsService {
         },
       });
     }
-  
+
     transactions.forEach(transaction => {
       transaction.category = category;
       transaction.subCategory = subCategory;
@@ -518,13 +518,13 @@ export class TransactionsService {
       transaction.isEquipment = isEquipment;
       transaction.isRecognized = isRecognized;
     });
-  
+
     await this.transactionsRepo.save(transactions);
-  
+
     // Update ClassifiedTransactions only if it's not a single update
     if (!isSingleUpdate) {
       let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
-  
+
       if (!classifiedTransaction) {
         classifiedTransaction = this.classifiedTransactionsRepo.create({
           userId,
@@ -547,7 +547,7 @@ export class TransactionsService {
         classifiedTransaction.isEquipment = isEquipment;
         classifiedTransaction.isRecognized = isRecognized;
       }
-  
+
       await this.classifiedTransactionsRepo.save(classifiedTransaction);
     }
   }
@@ -566,9 +566,9 @@ export class TransactionsService {
       reductionPercent,
       businessNumber
     } = updateDto;
-  
+
     let transactions: Transactions[];
-  
+
     // Fetch the relevant transactions based on isSingleUpdate flag
     if (isSingleUpdate) {
       // Update only the specific transaction
@@ -589,7 +589,7 @@ export class TransactionsService {
         },
       });
     }
-  
+
     // Update the specified fields in each transaction
     transactions.forEach(transaction => {
       transaction.category = category;
@@ -601,29 +601,30 @@ export class TransactionsService {
       transaction.reductionPercent = reductionPercent;
       transaction.businessNumber = businessNumber;
     });
-  
+
     // Save the updated transactions
     await this.transactionsRepo.save(transactions);
-  }  
+  }
 
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////               Bills                 /////////////////////////////
   ///////////////////////////////////////////////////////////////////////////////////////////////
 
-  async addBill(userId: string, createBillDto: CreateBillDto){
-    const isAlreadyExist = await this.billRepo.findOne({ where: {userId: userId, billName: createBillDto.billName} });
+  async addBill(userId: string, createBillDto: CreateBillDto) {
+    const isAlreadyExist = await this.billRepo.findOne({ where: { userId: userId, billName: createBillDto.billName } });
     if (isAlreadyExist) {
-        throw new HttpException({
-            status: HttpStatus.CONFLICT,
-            error: `Bill with this name: "${createBillDto.billName}" already exists`
-        }, HttpStatus.CONFLICT);
+      throw new HttpException({
+        status: HttpStatus.CONFLICT,
+        error: `Bill with this name: "${createBillDto.billName}" already exists`
+      }, HttpStatus.CONFLICT);
     }
 
     const bill = this.billRepo.create({
-      userId: userId, 
+      userId: userId,
       billName: createBillDto.billName,
-      businessNumber: createBillDto.businessNumber });
+      businessNumber: createBillDto.businessNumber
+    });
     return this.billRepo.save(bill);
   }
 
@@ -647,14 +648,14 @@ export class TransactionsService {
 
 
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
-    
+
     const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
     if (!bill) {
       throw new Error('Bill not found');
     }
 
     console.log("bill is ", bill);
-    
+
     // Create and save the new source
     const newSource = this.sourceRepo.create({
       userId,
@@ -683,7 +684,7 @@ export class TransactionsService {
   async getBillsByUserId(userId: string): Promise<Bill[]> {
 
     const bills = await this.billRepo.find({
-      where: { userId: userId}
+      where: { userId: userId }
     });
     if (!bills || bills.length === 0) {
       return [];
@@ -691,86 +692,173 @@ export class TransactionsService {
     return bills;
 
   }
-  
+
 
   async getSources(userId: string): Promise<string[]> {
     let sources: string[] = [];
 
-      // Get all bills for the user
-      const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-      if (!bills || bills.length === 0) {
-        return [];
-      }
-      
-      if (bills.length > 0) {
-        bills.forEach(bill => {
-          sources.push(...bill.sources.map(source => source.sourceName));
-        });
-      }
+    // Get all bills for the user
+    const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+    if (!bills || bills.length === 0) {
+      return [];
+    }
+
+    if (bills.length > 0) {
+      bills.forEach(bill => {
+        sources.push(...bill.sources.map(source => source.sourceName));
+      });
+    }
 
     return sources;
   }
-  
 
-  async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Transactions[]> {
+
+  // New function to get transactions by string[].
+  async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billIds: string[] | null, categories: string[] | null): Promise<Transactions[]> {
 
     let sources: string[] = [];
     let allIdentifiers: string[] = [];
 
-    if (billId === "ALL_BILLS") {  
-      const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+    // Step 1: Handle the 'ALL_BILLS' case (billIds is null)
+    const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+
+    if (!billIds) {
       // Collect all sources from the user's bills
-      if (bills.length > 0)  {
-        bills.forEach(bill => {
-          if (bill.sources) {
-            bill.sources.forEach(source => {
-              sources.push(source.sourceName);
-            });
-          }
-        });
-      }
+      allBills.forEach(bill => {
+        if (bill.sources) {
+          bill.sources.forEach(source => {
+            sources.push(source.sourceName);
+          });
+        }
+      });
     } else {
-      // Get the specific bill for the user
-      const billIdNum = parseInt(billId, 10);
-      const bill = await this.billRepo.findOne({ where: { id: billIdNum, userId }, relations: ['sources'] });
-      if (!bill) {
-        throw new Error('Bill not found');
-      }
-      sources = bill.sources.map(source => source.sourceName);
+      // Step 2: Handle specific billIds
+      const billIdNums = billIds.map(id => parseInt(id, 10));
+      const selectedBills = allBills.filter(bill => billIdNums.includes(bill.id));
+      selectedBills.forEach(bill => {
+        if (bill.sources) {
+          sources.push(...bill.sources.map(source => source.sourceName));
+        }
+      });
     }
 
-    // Get all paymentIdentifiers for all bills
-    const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+    // Step 3: Collect all identifiers from all bills (used in NOT IN clause)
     allBills.forEach(bill => {
       allIdentifiers.push(...bill.sources.map(source => source.sourceName));
     });
 
+
+    // Step 4: Build the transaction query
     const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
     queryBuilder.where('transaction.userId = :userId', { userId });
+
     if (sources.length > 0 || allIdentifiers.length > 0) {
       queryBuilder.andWhere(
-        `(transaction.paymentIdentifier IN (:...sources) OR transaction.paymentIdentifier NOT IN (:...allIdentifiers))`,
-        { sources: sources.length > 0 ? sources : [], allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : [] }
+        new Brackets(qb => {
+          qb.where(`transaction.paymentIdentifier IN (:...sources)`)
+            .orWhere(`transaction.paymentIdentifier NOT IN (:...allIdentifiers)`)
+            .orWhere(`transaction.paymentIdentifier IS NULL`);
+        }),
+        {
+          sources: sources.length > 0 ? sources : [],
+          allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : []
+        }
       );
     }
+
+    const defaultCategories = await this.categoryRepo.find();
+    const userCategories = await this.userCategoryRepo.find({ where: { firebaseId: userId } });
+
+    const allCategoriesName: string[] = [
+      ...defaultCategories.map(c => c.categoryName),
+      ...userCategories.map(c => c.categoryName),
+    ];
+
+    // Add category filter
+    if (categories && categories.length > 0 && allCategoriesName.length > 0) {
+      queryBuilder.andWhere(
+        new Brackets(qb => {
+          qb.where(`transaction.category IN (:...categories)`)
+            .orWhere(`transaction.category NOT IN (:...allCategoriesName)`)
+            .orWhere(`transaction.category IS NULL`);
+        }),
+        {
+          categories,
+          allCategoriesName,
+        }
+      );
+    }
+
     queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
       startDate: startDate,
       endDate: endDate,
     });
 
-    // Add ordering by billDate (ascending)
     queryBuilder.orderBy('transaction.billDate', 'DESC');
 
     const transactions = await queryBuilder.getMany();
-  
     return transactions;
-
   }
 
+  // async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billIds: string[]): Promise<Transactions[]> {
+  //   let sources: string[] = [];
+  //   let allIdentifiers: string[] = [];
 
-  async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Transactions[]> {
+  //   if (billId === null) {  // TODO: I changed this to null from "ALL_BILLS", for allow all bills in vatReport
+  //     const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+  //     // Collect all sources from the user's bills
+  //     if (bills.length > 0)  {
+  //       bills.forEach(bill => {
+  //         if (bill.sources) {
+  //           bill.sources.forEach(source => {
+  //             sources.push(source.sourceName);
+  //           });
+  //         }
+  //       });
+  //     }
+  //   }
+  //    else {
+  //     // Get the specific bill for the user
+  //     const billIdNum = parseInt(billId[0], 10);
+  //     const bill = await this.billRepo.findOne({ where: { id: billIdNum, userId }, relations: ['sources'] });
+  //     if (!bill) {
+  //       throw new Error('Bill not found');
+  //     }
+  //     sources = bill.sources.map(source => source.sourceName);
+  //   }
 
-    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId);
+  //   // Get all paymentIdentifiers for all bills
+  //   const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+  //   allBills.forEach(bill => {
+  //     allIdentifiers.push(...bill.sources.map(source => source.sourceName));
+  //   });
+
+  //   const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
+  //   queryBuilder.where('transaction.userId = :userId', { userId });
+  //   if (sources.length > 0 || allIdentifiers.length > 0) {
+  //     queryBuilder.andWhere(
+  //       `(transaction.paymentIdentifier IN (:...sources) OR transaction.paymentIdentifier NOT IN (:...allIdentifiers))`,
+  //       { sources: sources.length > 0 ? sources : [], allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : [] }
+  //     );
+  //   }
+  //   queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
+  //     startDate: startDate,
+  //     endDate: endDate,
+  //   });
+
+  //   // Add ordering by billDate (ascending)
+  //   queryBuilder.orderBy('transaction.billDate', 'DESC');
+
+  //   const transactions = await queryBuilder.getMany();
+
+  //   return transactions;
+
+  // }
+
+
+  async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null): Promise<Transactions[]> {
+
+    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
     //console.log("incomeTransactions:\n", incomeTransactions)
@@ -779,9 +867,10 @@ export class TransactionsService {
   }
 
 
-  async getExpensesTransactions(userId: string, startDate: Date, endDate: Date, billId: string): Promise<Transactions[]> {
-    
-    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId);
+  async getExpensesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null): Promise<Transactions[]> {
+    console.log("🚀 ~ TransactionsService ~ getExpensesTransactions ~ billId:", billId)
+
+    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories);
     //console.log("Transactions:\n", transactions)
     const expenseTransactions = transactions.filter(transaction => transaction.sum < 0);
     //console.log("expenseTransactions:\n", expenseTransactions)
@@ -791,47 +880,47 @@ export class TransactionsService {
 
 
   async getTaxableIncomefromTransactions(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<number> {
-  
-    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, "ALL_BILLS");
+
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null);
 
     // Filter incomeTransactions by isRecognized = true and businessNumber = businessNumber
     const businessIncomeTransactions = incomeTransactions.filter(transaction =>
       transaction.isRecognized === true && transaction.businessNumber === businessNumber
     );
-  
+
     // Calculate the total income
     let totalIncome = 0;
     for (const transaction of businessIncomeTransactions) {
       totalIncome += Number(transaction.sum); // Convert sum to a number
     }
-  
+
     return totalIncome;
   }
 
 
   async getTaxableIncomefromTransactionsForVatReport(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<{ vatableIncome: number; noneVatableIncome: number }> {
-  
+
     // Get all incomes from all bills
-    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, "ALL_BILLS");
-    
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null);
+
     // Get the VAT rate per year
     const year = startDate.getFullYear();
     const vatRate = this.sharedService.getVatPercent(year);
 
     // Filter transactions classified as "הכנסה מעסק"
-    const businessIncomeTransactions = incomeTransactions.filter(transaction => 
+    const businessIncomeTransactions = incomeTransactions.filter(transaction =>
       transaction.businessNumber === businessNumber
     );
-  
+
     // Filter transactions classified as "הכנסה מעסק"
-    const vatableIncomeTransactions = businessIncomeTransactions.filter(transaction => 
+    const vatableIncomeTransactions = businessIncomeTransactions.filter(transaction =>
       transaction.category === "הכנסה מעסק" && transaction.subCategory === 'הכנסה חייבת במע"מ'
     );
-  
-    const noneVatableIncomeTransactions = businessIncomeTransactions.filter(transaction => 
+
+    const noneVatableIncomeTransactions = businessIncomeTransactions.filter(transaction =>
       transaction.category === "הכנסה מעסק" && transaction.subCategory === 'הכנסה פטורה ממע"מ'
     );
-  
+
     // Calculate the total vatable income
     let vatableIncome = 0;
     for (const transaction of vatableIncomeTransactions) {
@@ -839,7 +928,7 @@ export class TransactionsService {
     }
     // Calculate net income (excluding VAT)
     vatableIncome = Math.round(vatableIncome / (1 + vatRate));
-  
+
     // Calculate the total non-vatable income
     let noneVatableIncome = 0;
     for (const transaction of noneVatableIncomeTransactions) {
@@ -848,11 +937,11 @@ export class TransactionsService {
 
     console.log("vatableIncome is ", vatableIncome);
     console.log("noneVatableIncome is ", noneVatableIncome);
-    
-  
+
+
     return { vatableIncome, noneVatableIncome };
   }
-  
+
 
 
   async getExpensesToBuildReport(
@@ -864,7 +953,7 @@ export class TransactionsService {
 
     console.log("userId is ", userId);
     console.log("businessNumber is ", businessNumber);
-    
+
     const expenses = await this.transactionsRepo.find({
       where: [
         {
@@ -878,7 +967,7 @@ export class TransactionsService {
     });
 
     console.log("expenses are ", expenses);
-    
+
 
     return expenses;
 
@@ -922,7 +1011,7 @@ export class TransactionsService {
       id: In(transactionIds),
       userId: userId  // Ensuring that only transactions belonging to the user are fetched
     });
-  
+
     if (!transactions || transactions.length === 0) {
       throw new Error('No transactions found with the provided IDs.');
     }
@@ -950,12 +1039,12 @@ export class TransactionsService {
       });
 
       console.log("existingExpense is ", existingExpense);
-  
+
       if (existingExpense) {
         skippedTransactions++;
         continue;
-      }      
-      
+      }
+
       const expense = new Expense();
       expense.supplier = transaction.name;
       expense.supplierID = '';
@@ -995,18 +1084,18 @@ export class TransactionsService {
 
       // Save the updated transaction
       transaction.vatReportingDate = expense.vatReportingDate;
-      await this.transactionsRepo.save(transaction);      
-      
+      await this.transactionsRepo.save(transaction);
+
       expenses.push(expense);
     }
-  
+
     // Save new expenses to the database
     if (expenses.length > 0) {
       await this.expenseRepo.save(expenses);
     }
-  
+
     const message = `Successfully converted ${expenses.length} transactions to expenses. ${skippedTransactions} transactions were skipped because they already exist as expenses.`;
-  
+
     return { message };
 
   }

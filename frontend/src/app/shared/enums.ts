@@ -476,6 +476,7 @@ export enum bunnerImagePosition {
 
 export enum inputsSize {
   SMALL = 'narrow',
+  BETWEEN = 'between',
   MEDIUM = 'normal',
   LARGE = 'wide',
   AUTO = 'auto'

@@ -50,18 +50,18 @@ export class AddBillComponent implements OnInit {
       this.addBillForm.get('businessNumber')?.patchValue(this.userData.businessNumber);
       console.log(this.addBillForm.get('businessNumber')?.value);
     }
-    this.transactionsService.accountsList$
-      .pipe(
-        map((data) => {
-          const modifiedData = data.slice(1);
-          return modifiedData
-        })
-      )
-      .subscribe(
-        (accountsList) => {
-          this.accountsList = accountsList;
-        }
-      );
+    // this.transactionsService.accountsList$
+    //   .pipe(
+    //     map((data) => {
+    //       const modifiedData = data().slice(1);
+    //       return modifiedData
+    //     })
+    //   )
+    //   .subscribe(
+    //     (accountsList) => {
+    //       this.accountsList = accountsList;
+    //     }
+    //   );
   }
 
   //   ngOnDestroy(): void {

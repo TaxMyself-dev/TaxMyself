@@ -15,6 +15,7 @@ export class ButtonComponent  implements OnInit {
   iconPosition = input<iconPosition>(iconPosition.LEFT);
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   buttonText = input<string>('Button');
+  class = input<string>('');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
   buttonColor = input<ButtonColor>(ButtonColor.BLACK);
   severity = input<"success" | "info" | "warn" | "danger" | "help" | "primary" | "secondary" | "contrast">();
@@ -26,6 +27,7 @@ export class ButtonComponent  implements OnInit {
 
   buttonClasses: Signal<string> = computed(() => {
     return [
+      this.class(),                                      // custom class
       this.buttonSize(),                                 
       this.buttonColor(),                                
       this.variant() === 'outlined' ? 'outlined' : '',   // include 'outlined' if set

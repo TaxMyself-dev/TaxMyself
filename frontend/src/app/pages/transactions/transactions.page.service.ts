@@ -13,7 +13,7 @@ import { ca } from 'date-fns/locale';
 export class TransactionsService implements OnInit{
 
   token:string;
-  accountsList$ = new BehaviorSubject<any[]>([{ value: 'ALL_BILLS', name: 'כל החשבונות' }]);
+  accountsList = signal<ISelectItem[]>([]);
   businessList: [{businessName: string, businessNumber: string}];
   categories = signal<ISelectItem[]>([]);
 
@@ -26,6 +26,10 @@ export class TransactionsService implements OnInit{
     this.setUserId();
   }
 
+  //   ngOnDestroy(): void {
+  //     this.transactionsService.accountsList$.unsubscribe();
+  // }
+
 
   setUserId(): void {
     console.log("in set token");
@@ -33,20 +37,22 @@ export class TransactionsService implements OnInit{
   }
 
 
-  getIncomeTransactionsData(startDate: string, endDate: string, billId: any): Observable<ITransactionData[]> {
+  getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
-    .set('billId', billId)
+    .set('billId', billId?.length ? billId.join(',') : 'null' )
+    .set('categories', categories?.length ? categories.join(',') : 'null' )
     .set('startDate', startDate)
     .set('endDate', endDate)
     return this.http.get<ITransactionData[]>(url, {params: param})
   }
   
 
-  getExpenseTransactionsData(startDate: string, endDate: string, billId: any): Observable<ITransactionData[]> {
+  getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
-    .set('billId', billId)
+    .set('billId', billId?.length ? billId.join(',') : 'null' )
+    .set('categories', categories?.length ? categories.join(',') : 'null' )
     .set('startDate', startDate)
     .set('endDate', endDate)
     return this.http.get<ITransactionData[]>(url, {params: param})
@@ -58,9 +64,9 @@ export class TransactionsService implements OnInit{
     .pipe(
       catchError((err) => {        
         if (err.error.status === 404) {
-          this.accountsList$.next([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
+          this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
         }
-        this.accountsList$.next([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
+        this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
         return EMPTY;
       }),
       map((data) => {
@@ -82,8 +88,7 @@ export class TransactionsService implements OnInit{
   }
 
   updateAccountList(newData: any): void {
-    const accounts = this.accountsList$.value
-    this.accountsList$.next([...[{ value: 'ALL_BILLS', name: 'כל החשבונות' }],...newData]);
+    this.accountsList.set([...newData]);
   }
 
   renameFields(obj: any): any {
