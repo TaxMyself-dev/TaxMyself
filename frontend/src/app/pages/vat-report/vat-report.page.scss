@@ -1,26 +1,71 @@
-.wrap-screen {
+.vat-report-wrap-screen {
   width: 100%;
   height: 95%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
+  align-items: left;
+  padding-right: 50px;
+  //justify-content: space-between;
 }
+
+/* vat-report-header.component.scss */
+.vat-report-header {
+  display: flex;
+  flex-direction: column;
+  //align-items: flex-start;
+  text-align: right; /* For RTL languages */
+  margin-top: 100px
+  //gap: 0.5rem;
+  //padding-left: 20px; /* Adjust the left padding */
+  //margin-bottom: 1rem;
+}
+
+.icon-title {
+  display: flex;
+  //flex-direction: row-reverse; /* RTL direction */
+  //align-items: center;
+  gap: 0.5rem;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.text-header {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+// .vat-report-search-bar-input {
+//   //margin-top: 50px;
+// }
+
+.expenses-table {
+  width: 100%;
+}
+
+
 
 .table-wrapper {
   width: 100%;
 }
 
 .wrap-output-report {
-  width: 80%;
+  width: 50%;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
-  border: 2px solid rgb(79, 171, 79);
+  align-items: left;
+  border: 2px solid #666;// rgb(79, 171, 79);
   border-radius: 15px;
-  padding: 10px;
-  margin: 10px;
+  margin-top: 15px;
 }
 
 .output-vat-report {
@@ -28,119 +73,119 @@
   justify-content: space-between;
   border-bottom: 1px solid;
   margin: 10px;
-  width: 50%;
-}
-
-.value-field-report {
-  border: 1px solid black;
-  color: gray;
-  border-radius: 5px;
- // padding-bottom: 1px;
-  //padding-top: 1px;
-  //padding-left: 5px;
-  //padding-right: 5px;
-  margin-bottom: 5px;
-  width: 20%;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.field-report {
-  color: gray;
-}
-
-.wrap-buttons {
-  width: 75%;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.report-title {
-  display: none;
-}
-
-.input-container {
-  border: 1px solid;
-  width: 20%;
-  border-radius: 5px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 5px;
-  text-align: center;
-}
-
-.input-container ion-input {
-  height: 100%;
   width: 100%;
 }
 
-.vat-report-search-bar-input {
-  width: 172px;
-}
+// .value-field-report {
+//   border: 1px solid black;
+//   color: gray;
+//   border-radius: 5px;
+//  // padding-bottom: 1px;
+//   //padding-top: 1px;
+//   //padding-left: 5px;
+//   //padding-right: 5px;
+//   margin-bottom: 5px;
+//   width: 20%;
+//   height: 30px;
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+// }
+
+// .field-report {
+//   color: gray;
+// }
+
+// .wrap-buttons {
+//   width: 75%;
+//   display: flex;
+//   justify-content: center;
+//   margin-bottom: 10px;
+//   flex-wrap: wrap;
+// }
+
+// .report-title {
+//   display: none;
+// }
+
+// .input-container {
+//   border: 1px solid;
+//   width: 20%;
+//   border-radius: 5px;
+//   height: 30px;
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+//   margin-bottom: 5px;
+//   text-align: center;
+// }
+
+// .input-container ion-input {
+//   height: 100%;
+//   width: 100%;
+// }
+
+// .vat-report-search-bar-input {
+//   width: 172px;
+// }
 
 
-@media only screen and (max-width:640px) {
-  .wrap-screen {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-  }
+// @media only screen and (max-width:640px) {
+//   .wrap-screen {
+//     width: 100%;
+//     height: 100%;
+//     display: flex;
+//     flex-direction: column;
+//     align-items: center;
+//     justify-content: space-between;
+//   }
 
-  .flex-form {
-    width: 95%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    border: 2px solid rgb(79, 171, 79);
-    border-radius: 15px;
-    padding: 10px;
-    margin-top: 10px;
-  }
+//   .flex-form {
+//     width: 95%;
+//     display: flex;
+//     flex-direction: column;
+//     justify-content: center;
+//     align-items: center;
+//     border: 2px solid rgb(79, 171, 79);
+//     border-radius: 15px;
+//     padding: 10px;
+//     margin-top: 10px;
+//   }
 
-  .input-vat-report {
-    flex: 1;
-    --border-radius: 15px;
-    margin-top: 10px;
-    font-size: 90%;
-    box-sizing: border-box;
-  }
+//   .input-vat-report {
+//     flex: 1;
+//     --border-radius: 15px;
+//     margin-top: 10px;
+//     font-size: 90%;
+//     box-sizing: border-box;
+//   }
 
-  .text-before-report {
-    text-align: center;
-  }
+//   .text-before-report {
+//     text-align: center;
+//   }
 
-  .wrap-output-report {
-    width: 95%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    border: 2px solid rgb(79, 171, 79);
-    border-radius: 15px;
-    padding: 10px;
-    margin: 10px;
-  }
+  // .wrap-output-report {
+  //   width: 95%;
+  //   display: flex;
+  //   flex-direction: column;
+  //   justify-content: center;
+  //   align-items: center;
+  //   border: 2px solid rgb(79, 171, 79);
+  //   border-radius: 15px;
+  //   padding: 10px;
+  //   margin: 10px;
+  // }
 
-  .output-vat-report {
-    display: flex;
-    justify-content: space-between;
-    border-bottom: 1px solid;
-    margin: 10px;
-    width: 95%;
-  }
+  // .output-vat-report {
+  //   display: flex;
+  //   justify-content: space-between;
+  //   border-bottom: 1px solid;
+  //   margin: 10px;
+  //   width: 95%;
+  // }
 
-  .report-title {
-    display: block;
-    font-weight: 800;
-  }
-}
+  // .report-title {
+  //   display: block;
+  //   font-weight: 800;
+  // }
+//}

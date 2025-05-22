@@ -10,6 +10,9 @@ import { VatReportPage } from './vat-report.page';
 import { SharedModule } from '../../shared/shared.module';
 import { InputSelectComponent } from "../../components/input-select/input-select.component";
 import { PeriodSelectComponent } from "../../components/period-select/period-select.component";
+import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
+import { ButtonComponent } from 'src/app/components/button/button.component';
+import { InputTextModule } from 'primeng/inputtext';
 
 @NgModule({
   imports: [
@@ -20,7 +23,10 @@ import { PeriodSelectComponent } from "../../components/period-select/period-sel
     ReactiveFormsModule,
     SharedModule,
     InputSelectComponent,
-    PeriodSelectComponent
+    PeriodSelectComponent,
+    ButtonComponent,
+    GenericTableComponent,
+    InputTextModule
 ],
   declarations: [VatReportPage]
 })

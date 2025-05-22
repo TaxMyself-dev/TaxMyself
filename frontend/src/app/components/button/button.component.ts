@@ -20,6 +20,7 @@ export class ButtonComponent  implements OnInit {
   severity = input<"success" | "info" | "warn" | "danger" | "help" | "primary" | "secondary" | "contrast">();
   badge = input<string>(); // Number for notifications TODO: check if need pass string or number
   variant = input<"outlined" | "text">(null);
+  href = input<string>(null);
   isLoading = input<boolean>(false);
   disabled = input<boolean>(false);
 
@@ -48,7 +49,12 @@ export class ButtonComponent  implements OnInit {
   }
   
   onClick(event: Event): void {
-    this.onButtonClicked.emit(event);
+    if (this.href()) {
+      window.open(this.href(), '_blank'); // Handle navigation if href is provided
+    } else {
+      this.onButtonClicked.emit(event);
+    }
+    //this.onButtonClicked.emit(event);
   }
 
 }

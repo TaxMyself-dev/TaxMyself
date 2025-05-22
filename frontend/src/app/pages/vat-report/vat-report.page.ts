@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -16,8 +16,7 @@ import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { log } from 'console';
 import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
-
-
+import { ButtonColor } from 'src/app/components/button/button.enum';
 
 
 interface FieldTitles {
@@ -69,6 +68,7 @@ export class VatReportPage implements OnInit {
   businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
                       { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
+  dataTable = signal<IRowDataTable[]>([]);
 
   readonly fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
@@ -101,6 +101,9 @@ export class VatReportPage implements OnInit {
     vatRefundOnExpenses: 'תשומות אחרות',
     vatPayment: 'סה"כ לתשלום'
   };
+
+  buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
 
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
@@ -280,6 +283,9 @@ export class VatReportPage implements OnInit {
     this.reportClick = false;
     //const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
+
+    this.getDataTable(startDate, endDate, businessNumber);  
+
     console.log("start date in vat report: ", startDate);
     console.log("end date in vat report: ", endDate);
     //this.getVatReportData(startDate, endDate, formData.businessNumber);
@@ -329,6 +335,39 @@ export class VatReportPage implements OnInit {
       Object.keys(this.vatReport).forEach((field) => { //convert all to type string for display with comma
         this.vatReport[field] = this.genericService.addComma(this.vatReport[field]);
       });
+  }
+
+
+  getDataTable(startDate: string, endDate: string, businessNumber: string): void {
+
+    this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
+      .pipe(
+        map((data) => {
+          const rows = [];
+          console.log("data of table in vat report: ", data);
+          
+          data.forEach(row => {
+            const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
+            if (row.file != undefined && row.file != null && row.file != "" ) {
+              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
+            }
+            tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
+            tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
+            tableData.sum = this.genericService.addComma(tableData.sum as string);
+            rows.push(tableData);
+          })          
+          this.rows = rows;
+          return rows
+        })
+      ).subscribe((res) => {
+        this.dataTable.set(res);
+        console.log("data table in vat report: ", this.dataTable());
+        
+      })
+
+     //= this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
+
+
   }
 
   // Get the data from server and update items
