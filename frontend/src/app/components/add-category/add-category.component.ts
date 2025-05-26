@@ -58,10 +58,7 @@ export class AddCategoryComponent  implements OnInit {
     categoryName: new FormControl(
       { value: '', disabled: this.subCategoryMode() },Validators.required
     ),
-    subCategories: this.formBuilder.array([ this.createSubCatGroup() ]
-    ),
-    isRecognized: new FormControl(
-      true, Validators.required
+    subCategories: this.formBuilder.array([ this.createSubCatIsRecognizedGroup() ]
     ),
     isExpense: new FormControl(
       !this.incomeMode(), Validators.required
@@ -73,36 +70,51 @@ export class AddCategoryComponent  implements OnInit {
       categoryName: new FormControl(
         { value: '', disabled: this.subCategoryMode() },Validators.required
       ),
-      subCategoryName: new FormControl(
-        '', Validators.required
-      ),
-      isRecognized: new FormControl(
-        false, Validators.required
-      ),
-      isExpense: new FormControl(
-        !this.incomeMode(), Validators.required
-      ),
-      isEquipment: new FormControl(
-        false, Validators.required
-      ),
-      taxPercent: new FormControl(
-        0, [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
-      vatPercent: new FormControl(
-        0, [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
-      reductionPercent: new FormControl(
-        0, [Validators.required, Validators.pattern(/^\d+$/)]
-      ),
+      subCategories: this.formBuilder.array([ this.createSubCatUnRecognizedGroup() ]
+    ),
+      // subCategoryName: new FormControl(
+      //   '', Validators.required
+      // ),
+      // isRecognized: new FormControl(
+      //   false, Validators.required
+      // ),
+      // isExpense: new FormControl(
+      //   !this.incomeMode(), Validators.required
+      // ),
+      // isEquipment: new FormControl(
+      //   false, Validators.required
+      // ),
+      // taxPercent: new FormControl(
+      //   0, [Validators.required, Validators.pattern(/^\d+$/)]
+      // ),
+      // vatPercent: new FormControl(
+      //   0, [Validators.required, Validators.pattern(/^\d+$/)]
+      // ),
+      // reductionPercent: new FormControl(
+      //   0, [Validators.required, Validators.pattern(/^\d+$/)]
+      // ),
 
     });
     
-    // whenever subCategoryMode() flips, enable/disable the category control:
-    effect(() => {
-      const subMode = this.subCategoryMode();
-      const catCtrl = this.isRecognizedForm.get('categoryName')!;
-      subMode ? catCtrl.disable({ emitEvent: false }) : catCtrl.enable({ emitEvent: false });
-    });
+  
+  // whenever subCategoryMode() flips, enable/disable the category control:   
+  effect(() => {
+    const subMode = this.subCategoryMode();
+    const recCtrl   = this.isRecognizedForm.get('categoryName')!;
+    const unRecCtrl = this.unRecognizedForm.get('categoryName')!;
+    
+    if (subMode) {
+      recCtrl.disable({ emitEvent: false });
+      unRecCtrl.disable({ emitEvent: false });
+     
+    // patch the latest categoryName() into both controls
+    recCtrl.patchValue(this.categoryName(),    { emitEvent: false });
+    unRecCtrl.patchValue(this.categoryName(),  { emitEvent: false });
+    } else {
+      recCtrl.enable({ emitEvent: false });
+      unRecCtrl.enable({ emitEvent: false });
+    }
+  });
   }
 
   ngOnInit() {
@@ -112,27 +124,42 @@ export class AddCategoryComponent  implements OnInit {
 
    /** getter to access subCategories FormArray */
    get subCategories(): FormArray {
-    return this.isRecognizedForm?.get('subCategories') as FormArray;
+    return this.isRecognized() ?  this.isRecognizedForm?.get('subCategories') as FormArray :this.unRecognizedForm?.get('subCategories') as FormArray;
   }
 
   getSubCategoryFormByIndex(index: number): FormGroup {
     return this.subCategories?.at(index) as FormGroup;
   }
 
-  /** factory for each sub-category FormGroup */
-  private createSubCatGroup(): FormGroup {
+  /** factory for each sub-category isRecognized FormGroup */
+  private createSubCatIsRecognizedGroup(): FormGroup {
     return this.formBuilder.group({
-      subCategoryName:   ['', Validators.required],
+      subCategoryName:    ['', Validators.required],
       isEquipment:       [null, Validators.required],
-      taxPercent:        ['', [Validators.required, Validators.pattern(/^\d+$/)]],
-      vatPercent:        ['', [Validators.required, Validators.pattern(/^\d+$/)]],
-      reductionPercent:  ['', [Validators.required, Validators.pattern(/^\d+$/)]],
+      isRecognized:       [true, Validators.required],
+      isExpense:       [true, Validators.required],
+      taxPercent:        [Number, [Validators.required, Validators.pattern(/^\d+$/)]],
+      vatPercent:        [Number, [Validators.required, Validators.pattern(/^\d+$/)]],
+      reductionPercent:  [Number, [Validators.required, Validators.pattern(/^\d+$/)]],
     });
   }
 
+    /** factory for each sub-category unRecognized FormGroup */
+    private createSubCatUnRecognizedGroup(): FormGroup {
+      return this.formBuilder.group({
+        subCategoryName:    ['', Validators.required],
+        isEquipment:       [false, ],
+        isRecognized:       [false, ],
+        isExpense:       [!this.incomeMode(), ],
+        taxPercent:        [0, [, Validators.pattern(/^\d+$/)]],
+        vatPercent:        [0, [, Validators.pattern(/^\d+$/)]],
+        reductionPercent:  [0, [, Validators.pattern(/^\d+$/)]],
+      });
+    }
+
   /** add new sub-category group */
   AddSubCategory(): void {
-    this.subCategories.push(this.createSubCatGroup());
+    this.subCategories.push(this.createSubCatIsRecognizedGroup());
     console.log("subCategories", this.subCategories);
     
   }
@@ -147,11 +174,29 @@ export class AddCategoryComponent  implements OnInit {
   onVisibleChange(visible: boolean) {
     this.visibleChange.emit({visible});
   }
+  convertSubCategoriesToNumbers(): void {
+    const formData = this.isRecognized() ? this.isRecognizedForm : this.unRecognizedForm;
+    const subCategoriesArray = formData.get('subCategories') as FormArray;
+    subCategoriesArray.controls.forEach(group => {
+      const formGroup = group as FormGroup;
+  
+      ['taxPercent', 'vatPercent', 'reductionPercent'].forEach(controlName => {
+        const value = formGroup.get(controlName)?.value;
+  
+        if (value !== null && value !== undefined) {
+          formGroup.get(controlName)?.setValue(Number(value), { emitEvent: false });
+        }
+      });
+    });
+  }
 
   addCategory(): void {
-    console.log("🚀 ~ AddCategoryComponent ~ addCategory ~ this.unRecognizedForm.value:", this.unRecognizedForm.value)
     this.isLoading.set(true);
-    this.transactionService.addCategory(this.isRecognized() ? this.isRecognizedForm.value : this.unRecognizedForm.value)
+    this.convertSubCategoriesToNumbers();
+    const formValue = this.isRecognized() ? this.isRecognizedForm.getRawValue() : this.unRecognizedForm.getRawValue();
+    console.log("🚀 ~ AddCategoryComponent ~ addCategory ~ formValue:", formValue)
+  
+    this.transactionService.addCategory(formValue)
     .pipe(
       catchError((err) => {
         console.log("error in add category", err);

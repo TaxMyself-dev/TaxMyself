@@ -23,7 +23,7 @@
         </p-checkbox>
         <label class="lable-checkbox" [for]="timeType.value">{{timeType.name}}</label>
         @if (selectedType() && timeType.value === selectedType()) {
-        @if (selectedType() === 'range') {
+        @if (selectedType() === 'DATE_RANGE') {
         <div>
           <form [formGroup]="form" class="wrap-inner-inputs">
 
@@ -35,7 +35,7 @@
 
         </div>
         }
-        @else if (selectedType() === 'yearly') {
+        @else if (selectedType() === 'ANNUAL') {
         <div class="wrap-inner-inputs">
           <app-input-select [size]="inputsSize.AUTO" placeholder="בחר שנה" [parentForm]="form" controlName="year"
             [items]="years"></app-input-select>

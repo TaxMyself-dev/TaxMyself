@@ -160,12 +160,12 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   getCategories(): void {
     this.transactionService.getCategories(null, true)
       .subscribe((res) => {
-        console.log("category", res);
+        // console.log("category", res);
       })
   }
 
   onSelectCategory(): void {
-    console.log("form: ", this.form.value);
+    // console.log("form: ", this.form.value);
     this.visibleCategoriesOptions()
 
   }
@@ -193,7 +193,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   onSelectType(value: string) {
     this.selectedType.set(this.selectedType() === value ? null : value);
     this.form.patchValue({ periodType: value });
-    console.log("🚀 ~ FilterPanelComponent ~ onSelectType ~ this.form:", this.form)
+    // console.log("🚀 ~ FilterPanelComponent ~ onSelectType ~ this.form:", this.form)
     this.updateFormByPeryodType()
   }
 
@@ -217,7 +217,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
         this.form.addControl('bimonth', new FormControl('', [Validators.required]));
         this.form.addControl('year', new FormControl('', [Validators.required]));
         break;
-      case 'yeaANNUALrly':
+      case 'ANNUAL':
         this.form.removeControl('month');
         this.form.removeControl('bimonth');
         this.form.removeControl('startDate');

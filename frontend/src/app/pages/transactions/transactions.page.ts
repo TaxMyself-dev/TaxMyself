@@ -77,6 +77,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
+    // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
@@ -134,6 +135,7 @@ export class TransactionsPage implements OnInit {
   visibleAddCategory: WritableSignal<boolean> = signal<boolean>(false);
   subCategoryMode = signal<boolean>(false);
   categoryName = signal<string>("");
+  isLoadingStateTable = signal<boolean>(false);
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData = signal<IRowDataTable>(null); // Data for all version of left panels
   rows: IRowDataTable[];
@@ -244,9 +246,10 @@ export class TransactionsPage implements OnInit {
     console.log(this.userData);
 
     if (this.userData.isTwoBusinessOwner) {
+      console.log("in this.userData.isTwoBusinessOwner: ", this.userData.isTwoBusinessOwner);
+      
       //------------ expenses -------------
-      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT });
-      //this.editFieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
+      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT });
       const expenseIndex = this.COLUMNS_TO_IGNORE_EXPENSES.indexOf('businessNumber');
       if (expenseIndex > -1) {
         this.COLUMNS_TO_IGNORE_EXPENSES.splice(expenseIndex, 1);
@@ -344,49 +347,9 @@ export class TransactionsPage implements OnInit {
     this.isOpen = event
   }
 
-  // getTransactions(periodType?: ReportingPeriodType, year?: number, month?: number, startDate1?: string, endDate1?: string, accounts?: string): void {
-  //   this.isOpen = true;
-  //   const formData = this.transactionsForm.value;
-  //   periodType = formData.reportingPeriodType || ReportingPeriodType.ANNUAL;
-  //   year = year || formData.year || new Date().getFullYear();
-  //   month = month || formData.month || null;
-  //   startDate1 = startDate1 || formData.startDate || null;
-  //   endDate1 = endDate1 || formData.endDate || null;
-  //   accounts =  accounts || formData.accounts || "ALL_BILLS"
-  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(periodType, year, month, startDate1, endDate1);
-  //   this.dateForUpdate.startDate = startDate;
-  //   this.dateForUpdate.endDate = endDate;
-
-  //   // const incomeData$ = this.transactionService.getIncomeTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-  //   const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accounts);
-
-  //   // const expensesData$ = this.transactionService.getExpenseTransactionsData("01/03/2025", "31/03/2025", "ALL_BILLS");
-  //   const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accounts);
-
-  //   zip(incomeData$, expensesData$)
-  //     .pipe(
-  //       map(([incomeData, expenseData]) => {
-  //         const incomeDataRows = this.handleTableData(incomeData);
-  //         const expenseeDataRows = this.handleTableData(expenseData);
-  //         return { incomes: incomeDataRows, expenses: expenseeDataRows };
-  //       }
-  //       )
-  //     )
-  //     .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
-  //       this.incomesData = data.incomes;
-  //       console.log("income: ", this.incomesData);
-
-  //       this.expensesData = data.expenses;
-  //       console.log("expense: ", this.expensesData);
-  //       this.incomesData$.next(this.incomesData);
-  //       this.filterIncomes(); // for after update table the table will stay filtered according to the search-bar
-  //       this.expensesData$.next(data.expenses);
-  //       this.filterExpenses(); // for after update table the table will stay filtered according to the search-bar
-  //     });
-  // }
-
   getTransactions(filters: FormGroup | null): void {
-    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ filters:", filters)
+    this.isLoadingStateTable.set(true);
+    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ filters:", filters)
     const periodType = filters?.get('periodType')?.value;
     let accounts = filters?.get('account')?.value;
     let categories = filters?.get('category')?.value;
@@ -395,8 +358,8 @@ export class TransactionsPage implements OnInit {
 
     let accountsNames = accounts?.map((account: ISelectItem) => account.value);
     let categoriesName = categories?.map((category: ISelectItem) => category.value);
-    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ accountsNames:", accountsNames);
-    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ category:", categoriesName);
+    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ accountsNames:", accountsNames);
+    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ category:", categoriesName);
     
     if (!filters) { // For default table.
       const currentYear = new Date().getFullYear();
@@ -427,8 +390,8 @@ export class TransactionsPage implements OnInit {
           break;
       }
     }
-    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ startDate:", startDate);
-    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ Date:end", endDate);
+    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ startDate:", startDate);
+    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ Date:end", endDate);
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
@@ -436,7 +399,8 @@ export class TransactionsPage implements OnInit {
 
     zip(incomeData$, expensesData$)
       .pipe(
-        map(([incomeData, expenseData]) => {
+        finalize(() => this.isLoadingStateTable.set(false))
+,        map(([incomeData, expenseData]) => {
           const incomeDataRows = this.handleTableData(incomeData);
           const expenseeDataRows = this.handleTableData(expenseData);
           return { incomes: incomeDataRows, expenses: expenseeDataRows };
@@ -481,7 +445,7 @@ export class TransactionsPage implements OnInit {
       'isRecognized',
       'vatReportingDate',
       'note2',
-      'businessName',
+      // 'businessName',
     ];
 
     const indexA = columnsOrder.indexOf(a.key);
@@ -661,7 +625,6 @@ export class TransactionsPage implements OnInit {
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
-        //console.log(data);
 
         data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
 
@@ -970,9 +933,13 @@ export class TransactionsPage implements OnInit {
   }
 
   openAddCategory(event: { state: boolean, subCategoryMode: boolean, category?: string }): void {
+    // console.log("🚀 ~ openAddCategory ~ subCategoryMode:", event.subCategoryMode)
+    // console.log("🚀 ~ openAddCategory ~ category:", event.category)
     this.visibleAddCategory.set(event.state);
     this.subCategoryMode.set(event.subCategoryMode);
     this.categoryName.set(event.category);
+    // console.log("🚀 ~ openAddCategory ~ this.categoryName:", this.categoryName())
+    // console.log("🚀 ~ openAddCategory ~ this.subCategoryMode:", this.subCategoryMode())
   }
 
   closeAccountAssociation(event: { visible: boolean, data: boolean }): void {
@@ -995,11 +962,11 @@ export class TransactionsPage implements OnInit {
   }
 
   onAddBill(event: FormGroup): void {
-    console.log("🚀 ~ onAddBill ~ event:", event);
+    // console.log("🚀 ~ onAddBill ~ event:", event);
     const accountName = event.controls?.['accountName']?.value;
     const businessNumber = event.controls?.['businessNumber']?.value;
-    console.log("businessbillNameNumber: ", accountName);
-    console.log("businessNumber: ", businessNumber);
+    // console.log("businessbillNameNumber: ", accountName);
+    // console.log("businessNumber: ", businessNumber);
 
     this.transactionService.addBill(accountName, businessNumber)
       .pipe(

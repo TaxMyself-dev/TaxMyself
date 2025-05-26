@@ -138,63 +138,125 @@ export class ExpensesService {
     /////////////////////////////               Categories            /////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-
     async addUserCategory(
         firebaseId: string,
         createUserCategoryDto: CreateUserCategoryDto
-      ): Promise<UserSubCategory> {
-        
-        // Step 1: Validate that the user exists using the userId
+      ): Promise<UserSubCategory[]> {
+      
+        // Step 1: Validate that the user exists
         const user = await this.userRepo.findOne({ where: { firebaseId } });
         if (!user) {
           throw new NotFoundException(`User with ID ${firebaseId} not found`);
         }
-    
+      
         // Step 2: Check if the category exists; if not, create it
         let category = await this.userCategoryRepo.findOne({
-            where: {
-                categoryName: createUserCategoryDto.categoryName,
-                firebaseId: firebaseId,
-                isExpense: createUserCategoryDto.isExpense
-            }
+          where: {
+            categoryName: createUserCategoryDto.categoryName,
+            firebaseId,
+          },
         });
+      
         if (!category) {
-          category = new UserCategory();
-          category.categoryName = createUserCategoryDto.categoryName;
-          category.firebaseId = firebaseId;
-          category.isExpense = createUserCategoryDto.isExpense;
+          category = this.userCategoryRepo.create({
+            categoryName: createUserCategoryDto.categoryName,
+            firebaseId,
+            isExpense: createUserCategoryDto.isExpense ?? true,
+          });
           category = await this.userCategoryRepo.save(category);
         }
-
-        console.log("new category is ", category.categoryName);
-
-        // Step 3: Check if the sub-category already exists for this user and category
-        const existingSubCategory = await this.userSubCategoryRepo.findOne({
+      
+        // Step 3: Iterate and create subcategories
+        const savedSubCategories: UserSubCategory[] = [];
+      
+        for (const subDto of createUserCategoryDto.subCategories) {
+          const exists = await this.userSubCategoryRepo.findOne({
             where: {
-                subCategoryName: createUserCategoryDto.subCategoryName,
-                firebaseId: firebaseId,
-                isExpense: createUserCategoryDto.isExpense
+              firebaseId,
+              subCategoryName: subDto.subCategoryName,
+              categoryName: createUserCategoryDto.categoryName,
             },
-        });
-        if (existingSubCategory) {
-          throw new ConflictException(`Sub-category with name ${createUserCategoryDto.subCategoryName} already exists for this user and category`);
+          });
+      
+          if (!exists) {
+            const newSubCat = this.userSubCategoryRepo.create({
+              subCategoryName: subDto.subCategoryName,
+              taxPercent: subDto.taxPercent ?? 0,
+              vatPercent: subDto.vatPercent ?? 0,
+              reductionPercent: subDto.reductionPercent ?? 0,
+              isEquipment: subDto.isEquipment ?? false,
+              isRecognized: subDto.isRecognized ?? false,
+              firebaseId,
+              categoryName: createUserCategoryDto.categoryName,
+              isExpense: subDto.isExpense ?? createUserCategoryDto.isExpense ?? true,
+            });
+      
+            const saved = await this.userSubCategoryRepo.save(newSubCat);
+            savedSubCategories.push(saved);
+          }
         }
-    
-        // Step 4: Create and save the new user sub-category
-        const userSubCategory = new UserSubCategory();
+      
+        return savedSubCategories;
+      }
+      
 
-        userSubCategory.subCategoryName = createUserCategoryDto.subCategoryName;
-        userSubCategory.taxPercent = createUserCategoryDto.taxPercent;
-        userSubCategory.vatPercent = createUserCategoryDto.vatPercent;
-        userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
-        userSubCategory.isEquipment = createUserCategoryDto.isEquipment;
-        userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
-        userSubCategory.firebaseId = firebaseId;
-        userSubCategory.categoryName = createUserCategoryDto.categoryName;
-        userSubCategory.isExpense = createUserCategoryDto.isExpense;
+
+    // async addUserCategory(
+    //     firebaseId: string,
+    //     createUserCategoryDto: CreateUserCategoryDto
+    //   ): Promise<UserSubCategory> {
+        
+    //     // Step 1: Validate that the user exists using the userId
+    //     const user = await this.userRepo.findOne({ where: { firebaseId } });
+    //     if (!user) {
+    //       throw new NotFoundException(`User with ID ${firebaseId} not found`);
+    //     }
     
-        return await this.userSubCategoryRepo.save(userSubCategory);
-    }
+    //     // Step 2: Check if the category exists; if not, create it
+    //     let category = await this.userCategoryRepo.findOne({
+    //         where: {
+    //             categoryName: createUserCategoryDto.categoryName,
+    //             firebaseId: firebaseId,
+    //             // isExpense: createUserCategoryDto.isExpense
+    //         }
+    //     });
+    //     if (!category) {
+    //       category = new UserCategory();
+    //       category.categoryName = createUserCategoryDto.categoryName;
+    //       category.firebaseId = firebaseId;
+    //     //   category.isExpense = createUserCategoryDto.isExpense;
+    //       category = await this.userCategoryRepo.save(category);
+    //     }
+
+    //     console.log("new category is ", category.categoryName);
+
+    //     // Step 3: Check if the sub-category already exists for this user and category
+    //     const existingSubCategory = await this.userSubCategoryRepo.findOne({
+    //         where: {
+    //             // subCategoryName: createUserCategoryDto.subCategoryName,
+    //             firebaseId: firebaseId,
+    //             // isExpense: createUserCategoryDto.isExpense
+    //         },
+    //     });
+    //     // if (existingSubCategory) {
+    //     //   throw new ConflictException(`Sub-category with name ${createUserCategoryDto.subCategoryName} already exists for this user and category`);
+    //     // }
+    
+    //     // Step 4: Create and save the new user sub-category
+    //     const userSubCategory = new UserSubCategory();
+
+    //     // userSubCategory.subCategoryName = createUserCategoryDto.subCategoryName;
+    //     // userSubCategory.taxPercent = createUserCategoryDto.taxPercent;
+    //     // userSubCategory.vatPercent = createUserCategoryDto.vatPercent;
+    //     // userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
+    //     // userSubCategory.isEquipment = createUserCategoryDto.isEquipment;
+    //     // userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
+    //     // userSubCategory.firebaseId = firebaseId;
+    //     // userSubCategory.categoryName = createUserCategoryDto.categoryName;
+    //     // userSubCategory.isExpense = createUserCategoryDto.isExpense;
+    
+    //     return await this.userSubCategoryRepo.save(userSubCategory);
+    // }
 
 
     async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null): Promise<(UserCategory | DefaultCategory)[]> {
