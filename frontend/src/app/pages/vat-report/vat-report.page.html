@@ -14,16 +14,20 @@
     [parentPage]="'vatReport'"  [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)">
   </app-period-select> 
 
-  @if (dataTable().length > 0) {
+  <!-- @if (dataTable().length > 0) { -->
+  @if (vatReportData()) {
     <div class="wrap-output-report">
       <div class="output-report" *ngFor="let key of reportOrder">
         <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
         <ng-container *ngIf="vatReportFieldTitles[key] === 'עסקאות חייבות'; else rest">
-          <div> <input class="" type="text" dir="ltr" pInputText [(ngModel)]="vatReport.vatableTurnover" /> </div>
-          <!-- <app-input-text class="vat-report-input-text" [(ngModel)]="vatReport.vatableTurnover"> </app-input-text> -->
+          <!-- <div>   -->
+            <app-input-text class="vat-report-input-text" [size]="inputSize.AUTO" [value]="vatReportData()?.vatableTurnover.toString()" (onInputText)="onChange($event)"> </app-input-text>
+           <!-- </div> -->
+          <!-- <div> <input class="" type="text" dir="ltr" pInputText [(ngModel)]="vatReport.vatableTurnover" /> </div> -->
+         
         </ng-container>
         <ng-template #rest>
-          <div dir="ltr">{{ vatReport[key] }}</div>
+          <div dir="ltr">{{ vatReportData()[key] }}</div>
         </ng-template>
       </div>
     </div>
@@ -35,6 +39,7 @@
       [href]="'https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true'">
     </app-p-button>
 
+  <!-- } -->
   }
 
   @if (dataTable().length > 0) {

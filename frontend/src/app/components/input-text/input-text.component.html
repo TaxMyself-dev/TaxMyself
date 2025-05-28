@@ -1,3 +1,4 @@
+@if (parentForm()) {
 <form [formGroup]="parentForm()">
   @let ctrl = parentForm().get(controlName())!;
 
@@ -11,7 +12,7 @@
     </label>
     }
     <input [type]="type()" pInputText [formControlName]="controlName()"  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
-      [class]="getinputClasses()" (change)="onChange($event)" />
+      [class]="getinputClasses()" (input)="onInput($event)" />
   </div>
 
   @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
@@ -26,3 +27,9 @@
     </span>
   }
 </form>
+}
+@else {
+  <input [type]="type()" pInputText  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
+  [class]="getinputClasses()" (input)="onInput($event)" [value]="value()"   [attr.size]="value()?.length || 1">
+  
+}

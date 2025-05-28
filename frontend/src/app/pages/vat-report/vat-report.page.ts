@@ -1,9 +1,9 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, Input, OnInit, signal } from '@angular/core';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { BusinessMode, FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
+import { BusinessMode, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
@@ -25,10 +25,10 @@ import { ButtonColor } from 'src/app/components/button/button.enum';
 // }
 
 @Component({
-    selector: 'app-vat-report',
-    templateUrl: './vat-report.page.html',
-    styleUrls: ['./vat-report.page.scss', '../../shared/shared-styling.scss'],
-    standalone: false
+  selector: 'app-vat-report',
+  templateUrl: './vat-report.page.html',
+  styleUrls: ['./vat-report.page.scss', '../../shared/shared-styling.scss'],
+  standalone: false
 })
 export class VatReportPage implements OnInit {
 
@@ -38,7 +38,7 @@ export class VatReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
-  
+
   // readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
   //   [ExpenseFormColumns.CATEGORY, 1.3],
   //   [ExpenseFormColumns.SUB_CATEGORY, 1.4],
@@ -51,7 +51,15 @@ export class VatReportPage implements OnInit {
   // ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
-  vatReport: IVatReportData;
+  vatReportData = signal<IVatReportData>(null);
+  // vatReportData = signal<IVatReportData>({
+  //   vatableTurnover: 500,
+  //   nonVatableTurnover: 0,
+  //   vatRefundOnAssets: 0,
+  //   vatRefundOnExpenses: 0,
+  //   vatPayment: 0,
+  //   vatRate: 0,
+  // });
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
   //reportClick: boolean = true;
@@ -68,7 +76,7 @@ export class VatReportPage implements OnInit {
   BusinessMode = BusinessMode;
   businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
-                      { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
+  { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
   dataTable = signal<IRowDataTable[]>([]);
 
   readonly fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
@@ -104,6 +112,7 @@ export class VatReportPage implements OnInit {
   };
 
   buttonSize = ButtonSize;
+  inputSize = inputsSize;
   buttonColor = ButtonColor;
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
@@ -136,14 +145,14 @@ export class VatReportPage implements OnInit {
     if (this.userData.isTwoBusinessOwner) {
       console.log("two business owner");
       this.businessMode = BusinessMode.TWO_BUSINESS;
-      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
-      this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+      this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
+      this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
       //this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
     }
     else {
       console.log("one business owner");
       this.businessMode = BusinessMode.ONE_BUSINESS;
-      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       //this.vatReportForm.get('businessNumber')?.patchValue(this.userData.id);      
     }
   }
@@ -174,63 +183,63 @@ export class VatReportPage implements OnInit {
   beforeSelectFile(event): void {
     console.log("in beforeSelectFile");
     console.log("skip: ", this.isSkip);
-    
-    
+
+
     if (!this.isSkip && event.data.file != "") {
       console.log("in if beforeSelectFile");
       this.isSkip = true;
       event.event.preventDefault()
-        from(this.modalController.create({
-          component: PopupConfirmComponent,
-          componentProps: {
-            message: "להוצאה זו כבר שמור קובץ, אתה בטוח שברצונך להחליפו?",
-            buttonTextConfirm: "כן",
-            buttonTextCancel: "לא"
-          },
-          cssClass: 'vatReport-modal'
-        }))
-          .pipe(
-            catchError((err) => {
-              alert("openPopupMessage error");
-              return EMPTY;
-            }),
-            switchMap((modal) => from(modal.present())
-              .pipe(
-                catchError((err) => {
-                  alert("openPopupMessage switchMap error");
-                  console.log(err);
-                  return EMPTY;
-                }),
-                switchMap(() => from(modal.onWillDismiss())
-                  .pipe(
-                    catchError((err) => {
-                      console.log("err in close popover get vat report: ", err);
-                      return EMPTY;
-                    })
-                  ))
-              )))
-          .subscribe((res) => {
-            console.log("res in close popover: ", res);
-            if (res.data) {
-              event.event.target.click();
-            }
-            this.isSkip = false
-          });
+      from(this.modalController.create({
+        component: PopupConfirmComponent,
+        componentProps: {
+          message: "להוצאה זו כבר שמור קובץ, אתה בטוח שברצונך להחליפו?",
+          buttonTextConfirm: "כן",
+          buttonTextCancel: "לא"
+        },
+        cssClass: 'vatReport-modal'
+      }))
+        .pipe(
+          catchError((err) => {
+            alert("openPopupMessage error");
+            return EMPTY;
+          }),
+          switchMap((modal) => from(modal.present())
+            .pipe(
+              catchError((err) => {
+                alert("openPopupMessage switchMap error");
+                console.log(err);
+                return EMPTY;
+              }),
+              switchMap(() => from(modal.onWillDismiss())
+                .pipe(
+                  catchError((err) => {
+                    console.log("err in close popover get vat report: ", err);
+                    return EMPTY;
+                  })
+                ))
+            )))
+        .subscribe((res) => {
+          console.log("res in close popover: ", res);
+          if (res.data) {
+            event.event.target.click();
+          }
+          this.isSkip = false
+        });
     }
   }
 
 
   addFile(event: any, row: IRowDataTable): void {
     console.log("in add file");
-    
+
     if ((row.firebaseFile !== "" && row.firebaseFile !== undefined && row.firebaseFile !== null)) { // if already exist file
       if (event.target.files[0]) { // choose another file
         console.log("in if add file");
-        
+
         row[this.UPLOAD_FILE_FIELD_FIREBASE] = event.target.files[0]; // chnage file in row
         row[this.UPLOAD_FILE_FIELD_NAME] = event.target.files[0]?.name;
-        console.log("array file: ",  this.arrayFile);
-        
+        console.log("array file: ", this.arrayFile);
+
         this.arrayFile.map((expense) => { // change file in array
           if (expense.id === row.id) {
             expense.file = event.target.files[0];
@@ -255,7 +264,7 @@ export class VatReportPage implements OnInit {
   onPreviewFileClicked(expense: IRowDataTable): void {
     if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
       this.filesService.previewFile(expense.file as string).subscribe();
-    
+
     }
     else {
       alert("לא נשמר קובץ עבור הוצאה זו")
@@ -268,57 +277,135 @@ export class VatReportPage implements OnInit {
     const month = event.month;
     const reportingPeriodType = event.periodType;
     const businessNumber = event.businessNumber;
-    
+
     //this.reportClick = false;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
 
     this.getVatReportData(startDate, endDate, businessNumber);
-    this.getDataTable(startDate, endDate, businessNumber);  
+    this.getDataTable(startDate, endDate, businessNumber);
 
   }
 
 
   getVatReportData(startDate: string, endDate: string, businessNumber: string) {
+    console.log("in get vat report data");
+    
     this.genericService.getLoader().subscribe();
     this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
-    .pipe(
-      finalize(() => this.genericService.dismissLoader()),
-      catchError((error) => {
-        console.log("error in get vat report data: ", error);
-        return EMPTY;
-      }),
-      map((data) => {
-        Object.keys(data).forEach((field) => { //convert all to type string for display with comma
-          data[field] = this.genericService.addComma(data[field]);
-        });
-        console.log(data);
-        return data;
-      })
-    )
+      .pipe(
+        finalize(() => this.genericService.dismissLoader()),
+        catchError((error) => {
+          console.log("error in get vat report data: ", error);
+          return EMPTY;
+        }),
+        map((data) => {
+          Object.keys(data).forEach((field) => { //convert all to type string for display with comma
+            data[field] = this.genericService.addComma(data[field]);
+          });
+          console.log(data);
+          return data;
+        })
+      )
       .subscribe((res) => {
-        this.vatReport = {...res};
+        console.log("🚀 ~ VatReportPage ~ getVatReportData ~ res:", res);
+        
+        this.vatReportData.set(res);
+        console.log("🚀 ~ VatReportPage ~ .subscribe ~ this.vatReportData in subscribe:", this.vatReportData())
       });
 
   }
 
   updateIncome(event: any) {
-    if (event.detail.value === "") {
-      event.detail.value = '0';
-      this.vatReport.vatableTurnover = '0';
+    console.log("updateIncome event: ", event);
+
+    if (event === "") {
+      console.log("event is empty string, setting to 0");
+      event = '0';
     }
-      Object.keys(this.vatReport).forEach((field) => { // convert all to type number for math manipulation
-        this.vatReport[field] = this.genericService.convertStringToNumber(this.vatReport[field]);
+
+      // Step 1: Update vatableTurnover
+      this.vatReportData.update((prev) => ({
+        ...prev,
+        vatableTurnover: event, // Update vatableTurnover with the new value
+      }));
+    // }
+    // else {
+
+    
+      // Step 2: Convert all fields to number for calculation
+      // const numericData = Object.fromEntries(
+      //   Object.entries(this.vatReportData()).map(([key, value]) => [
+      //     key,
+      //     this.genericService.convertStringToNumber(value),
+      //   ])
+      // ) as IVatReportData;
+
+      const numericData = {} as IVatReportData;
+      Object.entries(this.vatReportData()).forEach(([key, value]) => {
+        // numericData[key as keyof IVatReportData] = 15;
+        numericData[key as keyof IVatReportData] = this.genericService.convertStringToNumber(value);
       });
-      this.vatReport.vatPayment = (
-        Number(this.vatReport.vatableTurnover) * Number(this.vatReport.vatRate) - 
-        Number(this.vatReport.vatRefundOnAssets) - 
-        Number(this.vatReport.vatRefundOnExpenses)
+      console.log("🚀 ~ VatReportPage ~ updateIncome ~ numericData:", numericData)
+
+      // Step 3: Recalculate vatPayment
+      const vatPayment = (
+        Number(numericData.vatableTurnover) * Number(numericData.vatRate) -
+        Number(numericData.vatRefundOnAssets) -
+        Number(numericData.vatRefundOnExpenses)
       ).toFixed(2);
-      //this.vatReport.vatPayment = Number(this.vatReport.vatableTurnover)*Number(this.vatReport.vatRate) - Number(this.vatReport.vatRefundOnAssets) - Number(this.vatReport.vatRefundOnExpenses);
-      Object.keys(this.vatReport).forEach((field) => { //convert all to type string for display with comma
-        this.vatReport[field] = this.genericService.addComma(this.vatReport[field]);
+
+      // Step 4: Update vatPayment
+      this.vatReportData.update((prev) => ({
+        ...numericData,
+        vatPayment,
+      }));
+
+      // Step 5: Convert all values back to display strings
+      // const stringFormatted = Object.fromEntries(
+      //   Object.entries(this.vatReportData()).map(([key, value]) => [
+      //     key,
+      //     this.genericService.addComma(value),
+      //   ])
+      // ) as IVatReportData;
+      const stringFormatted = {} as IVatReportData;
+      Object.entries(this.vatReportData()).forEach(([key, value]) => {
+        stringFormatted[key as keyof IVatReportData] = this.genericService.addComma(value);
       });
-  }
+
+
+      this.vatReportData.set(stringFormatted);
+    // }
+    }
+  
+
+
+  // updateIncome(event: any) {
+  //   console.log("updateIncome event: ", event);
+
+  //   if (event === "") {
+  //     event = '0';
+  //     this.vatReportData.update((prevData) => ({
+  //       ...prevData,
+  //       vatableTurnover: '0',
+  //     }));
+  //     Object.keys(this.vatReportData()).forEach((field) => { // convert all to type number for math manipulation
+  //       this.vatReportData[field] = this.genericService.convertStringToNumber(this.vatReportData[field]);
+  //       console.log("🚀 ~ VatReportPage ~ Object.keys ~ this.vatReport[field]:", this.vatReportData[field])
+
+  //     });
+  //     this.vatReportData.update((prevData) => ({
+  //       ...prevData,
+  //       vatPayment: (
+  //         Number(this.vatReportData().vatableTurnover) * Number(this.vatReportData().vatRate) -
+  //         Number(this.vatReportData().vatRefundOnAssets) -
+  //         Number(this.vatReportData().vatRefundOnExpenses)
+  //       ).toFixed(2)
+  //     }));
+  //     Object.keys(this.vatReportData()).map((field) => { //convert all to type string for display with comma
+  //       this.vatReportData()[field] = this.genericService.addComma(this.vatReportData()[field]);
+  //     });
+  //   }
+  // }
 
 
   getDataTable(startDate: string, endDate: string, businessNumber: string): void {
@@ -328,27 +415,27 @@ export class VatReportPage implements OnInit {
         map((data) => {
           const rows = [];
           console.log("data of table in vat report: ", data);
-          
+
           data.forEach(row => {
             const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-            if (row.file != undefined && row.file != null && row.file != "" ) {
+            if (row.file != undefined && row.file != null && row.file != "") {
               tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
             }
             tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
             tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
             tableData.sum = this.genericService.addComma(tableData.sum as string);
             rows.push(tableData);
-          })          
+          })
           this.rows = rows;
           return rows
         })
       ).subscribe((res) => {
         this.dataTable.set(res);
         console.log("data table in vat report: ", this.dataTable());
-        
+
       })
 
-     //= this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
+    //= this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
 
 
   }
@@ -364,17 +451,17 @@ export class VatReportPage implements OnInit {
         map((data) => {
           const rows = [];
           console.log("data of table in vat report: ", data);
-          
+
           data.forEach(row => {
             const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-            if (row.file != undefined && row.file != null && row.file != "" ) {
+            if (row.file != undefined && row.file != null && row.file != "") {
               tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
             }
             tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
             tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
             tableData.sum = this.genericService.addComma(tableData.sum as string);
             rows.push(tableData);
-          })          
+          })
           this.rows = rows;
           return rows
         })
@@ -469,7 +556,7 @@ export class VatReportPage implements OnInit {
               this.filesService.deleteFile(tran.file as string);
             }
           })
-          this.genericService.showToast( "אירעה שגיאה העלאת קבצים נכשלה", "error");
+          this.genericService.showToast("אירעה שגיאה העלאת קבצים נכשלה", "error");
           // this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
           // this.isToastOpen = true;
           return EMPTY
@@ -480,12 +567,17 @@ export class VatReportPage implements OnInit {
           // this.messageToast = `הועלו ${totalTransactions} קבצים `
           // this.isToastOpen = true;
         }),
-       
+
       )
       .subscribe(() => {
         this.arrayFile = [];
         this.setRowsData();
       });
+  }
+
+  onChange(event: string): void {
+    console.log("onChange event: ", event);
+    this.updateIncome(event);
   }
 
 }
