@@ -40,7 +40,7 @@ export class PeriodSelectComponent implements OnInit {
   // Order of fields for each form type
   fieldsOrder: { [key: string]: string[] } = {
     vatReport: ['periodType', 'year', 'month', 'businessNumber'],
-    pnlReport: ['periodType', 'orderDate'],
+    pnlReport: ['periodType', 'year', 'month', 'businessNumber'],
     uniformFile: ['startDate', 'endDate'],
   };
 
@@ -96,7 +96,10 @@ export class PeriodSelectComponent implements OnInit {
       case 'pnlReport':
         this.form = this.fb.group({
           periodType: ['', Validators.required],
-          orderDate: [new Date(), Validators.required],
+          year: ['', Validators.required],
+          month: ['', Validators.required],
+          businessNumber: ['', Validators.required],
+          //orderDate: [new Date(), Validators.required],
         });
         break;
       case 'uniformFile':

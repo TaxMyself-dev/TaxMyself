@@ -13,6 +13,7 @@ import { PeriodSelectComponent } from "../../components/period-select/period-sel
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { InputTextModule } from 'primeng/inputtext';
+import { InputTextComponent } from "../../components/input-text/input-text.component";
 
 @NgModule({
   imports: [
@@ -26,7 +27,8 @@ import { InputTextModule } from 'primeng/inputtext';
     PeriodSelectComponent,
     ButtonComponent,
     GenericTableComponent,
-    InputTextModule
+    InputTextModule,
+    InputTextComponent
 ],
   declarations: [VatReportPage]
 })

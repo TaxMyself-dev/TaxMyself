@@ -4,7 +4,8 @@ import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms'
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { BusinessMode, FormTypes, ICellRenderer, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
-import { ButtonSize } from 'src/app/shared/button/button.enum';
+//import { ButtonSize } from 'src/app/shared/button/button.enum';
+import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
@@ -19,9 +20,9 @@ import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 
 
-interface FieldTitles {
-  [key: string]: string;
-}
+// interface FieldTitles {
+//   [key: string]: string;
+// }
 
 @Component({
     selector: 'app-vat-report',
@@ -38,22 +39,22 @@ export class VatReportPage implements OnInit {
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
   
-  readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-    [ExpenseFormColumns.CATEGORY, 1.3],
-    [ExpenseFormColumns.SUB_CATEGORY, 1.4],
-    [ExpenseFormColumns.DATE, 1.4],
-    [ExpenseFormColumns.TAX_PERCENT, 1],
-    [ExpenseFormColumns.VAT_PERCENT, 1],
-    [ExpenseFormColumns.TOTAL_TAX, 1.4],
-    [ExpenseFormColumns.TOTAL_VAT, 1.5],
-    [ExpenseFormColumns.ACTIONS, 1],
-  ]);
+  // readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
+  //   [ExpenseFormColumns.CATEGORY, 1.3],
+  //   [ExpenseFormColumns.SUB_CATEGORY, 1.4],
+  //   [ExpenseFormColumns.DATE, 1.4],
+  //   [ExpenseFormColumns.TAX_PERCENT, 1],
+  //   [ExpenseFormColumns.VAT_PERCENT, 1],
+  //   [ExpenseFormColumns.TOTAL_TAX, 1.4],
+  //   [ExpenseFormColumns.TOTAL_VAT, 1.5],
+  //   [ExpenseFormColumns.ACTIONS, 1],
+  // ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReport: IVatReportData;
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
-  reportClick: boolean = true;
+  //reportClick: boolean = true;
   tableActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
   previousFile: string;
@@ -104,7 +105,6 @@ export class VatReportPage implements OnInit {
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
-
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
     this.vatReportForm = this.formBuilder.group({
@@ -267,30 +267,13 @@ export class VatReportPage implements OnInit {
     const year = event.year;
     const month = event.month;
     const reportingPeriodType = event.periodType;
-    const localStartDate = "";
-    const localEndDate = "";
-    //const businessNumber = "204245724";
     const businessNumber = event.businessNumber;
-
-    console.log("year in vat report: ", year);
-    console.log("month in vat report: ", month); 
-    console.log("reportingPeriodType in vat report: ", reportingPeriodType);
     
+    //this.reportClick = false;
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
 
-    //const formData = this.vatReportForm.value;
-    //console.log("form data in vat report to send: ", formData);
-    
-    this.reportClick = false;
-    //const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
-
-    this.getDataTable(startDate, endDate, businessNumber);  
-
-    console.log("start date in vat report: ", startDate);
-    console.log("end date in vat report: ", endDate);
-    //this.getVatReportData(startDate, endDate, formData.businessNumber);
     this.getVatReportData(startDate, endDate, businessNumber);
-    //this.setRowsData();
+    this.getDataTable(startDate, endDate, businessNumber);  
 
   }
 

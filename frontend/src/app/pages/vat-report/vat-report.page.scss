@@ -5,25 +5,17 @@
   flex-direction: column;
   align-items: left;
   padding-right: 50px;
-  //justify-content: space-between;
 }
 
-/* vat-report-header.component.scss */
 .vat-report-header {
   display: flex;
   flex-direction: column;
-  //align-items: flex-start;
-  text-align: right; /* For RTL languages */
+  text-align: right;
   margin-top: 100px
-  //gap: 0.5rem;
-  //padding-left: 20px; /* Adjust the left padding */
-  //margin-bottom: 1rem;
 }
 
 .icon-title {
   display: flex;
-  //flex-direction: row-reverse; /* RTL direction */
-  //align-items: center;
   gap: 0.5rem;
 }
 
@@ -33,8 +25,9 @@
 }
 
 .title {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 2rem;
+  font-weight: 500;
+  position: relative;
 }
 
 .text-header {
@@ -43,15 +36,19 @@
   margin-top: 0.5rem;
 }
 
-// .vat-report-search-bar-input {
-//   //margin-top: 50px;
-// }
+vat-report-search-bar-input {
+  margin-top: 10px;
+}
+
+.vat-report-payment-button {
+  margin-top: 15px;
+}
 
 .expenses-table {
   width: 100%;
+  margin-top: 15px;
+  margin-bottom: 15px;
 }
-
-
 
 .table-wrapper {
   width: 100%;
@@ -62,130 +59,19 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: left;
-  border: 2px solid #666;// rgb(79, 171, 79);
+  border: 1px solid;
+  border-color: #f8e7e7;
   border-radius: 15px;
   margin-top: 15px;
 }
 
-.output-vat-report {
+.output-report {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid;
-  margin: 10px;
-  width: 100%;
+  border-bottom: #f8e7e7 1px solid;
+  padding: 10px;
+  margin-left: 15px;
+  margin-right: 15px;
 }
 
-// .value-field-report {
-//   border: 1px solid black;
-//   color: gray;
-//   border-radius: 5px;
-//  // padding-bottom: 1px;
-//   //padding-top: 1px;
-//   //padding-left: 5px;
-//   //padding-right: 5px;
-//   margin-bottom: 5px;
-//   width: 20%;
-//   height: 30px;
-//   display: flex;
-//   align-items: center;
-//   justify-content: center;
-// }
 
-// .field-report {
-//   color: gray;
-// }
-
-// .wrap-buttons {
-//   width: 75%;
-//   display: flex;
-//   justify-content: center;
-//   margin-bottom: 10px;
-//   flex-wrap: wrap;
-// }
-
-// .report-title {
-//   display: none;
-// }
-
-// .input-container {
-//   border: 1px solid;
-//   width: 20%;
-//   border-radius: 5px;
-//   height: 30px;
-//   display: flex;
-//   align-items: center;
-//   justify-content: center;
-//   margin-bottom: 5px;
-//   text-align: center;
-// }
-
-// .input-container ion-input {
-//   height: 100%;
-//   width: 100%;
-// }
-
-// .vat-report-search-bar-input {
-//   width: 172px;
-// }
-
-
-// @media only screen and (max-width:640px) {
-//   .wrap-screen {
-//     width: 100%;
-//     height: 100%;
-//     display: flex;
-//     flex-direction: column;
-//     align-items: center;
-//     justify-content: space-between;
-//   }
-
-//   .flex-form {
-//     width: 95%;
-//     display: flex;
-//     flex-direction: column;
-//     justify-content: center;
-//     align-items: center;
-//     border: 2px solid rgb(79, 171, 79);
-//     border-radius: 15px;
-//     padding: 10px;
-//     margin-top: 10px;
-//   }
-
-//   .input-vat-report {
-//     flex: 1;
-//     --border-radius: 15px;
-//     margin-top: 10px;
-//     font-size: 90%;
-//     box-sizing: border-box;
-//   }
-
-//   .text-before-report {
-//     text-align: center;
-//   }
-
-  // .wrap-output-report {
-  //   width: 95%;
-  //   display: flex;
-  //   flex-direction: column;
-  //   justify-content: center;
-  //   align-items: center;
-  //   border: 2px solid rgb(79, 171, 79);
-  //   border-radius: 15px;
-  //   padding: 10px;
-  //   margin: 10px;
-  // }
-
-  // .output-vat-report {
-  //   display: flex;
-  //   justify-content: space-between;
-  //   border-bottom: 1px solid;
-  //   margin: 10px;
-  //   width: 95%;
-  // }
-
-  // .report-title {
-  //   display: block;
-  //   font-weight: 800;
-  // }
-//}

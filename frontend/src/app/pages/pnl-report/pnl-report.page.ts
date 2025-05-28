@@ -7,7 +7,7 @@ import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
-import { ReportingPeriodType } from 'src/app/shared/enums';
+import { BusinessMode, ReportingPeriodType } from 'src/app/shared/enums';
 import { DocCreateService } from '../doc-create/doc-create.service';
 
 
@@ -29,6 +29,9 @@ export class PnLReportPage implements OnInit {
   endDate: string;
   totalExpense: number = 0;
   businessNames: ISelectItem[] = [];
+  businessNamesList: ISelectItem[] = [];
+  BusinessMode = BusinessMode;
+  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
 
   reportingPeriodType = ReportingPeriodType;
 
@@ -56,17 +59,32 @@ export class PnLReportPage implements OnInit {
   }
 
 
+  // ngOnInit() {
+  //   this.userData = this.authService.getUserDataFromLocalStorage();
+  //   if (this.userData.isTwoBusinessOwner) {
+  //     this.businessNames.push({ name: this.userData.businessName, value: this.userData.businessNumber });
+  //     this.businessNames.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
+  //     this.pnlReportForm.get('businessNumber')?.setValidators([Validators.required]);
+  //   }
+  //   else {
+  //     this.pnlReportForm.get('businessNumber')?.patchValue(this.userData.id);
+  //   }
+  // }
+
+
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
-      this.businessNames.push({ name: this.userData.businessName, value: this.userData.businessNumber });
-      this.businessNames.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-      this.pnlReportForm.get('businessNumber')?.setValidators([Validators.required]);
+      this.businessMode = BusinessMode.TWO_BUSINESS;
+      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
+      this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
     }
     else {
-      this.pnlReportForm.get('businessNumber')?.patchValue(this.userData.id);
+      this.businessMode = BusinessMode.ONE_BUSINESS;
+      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
     }
   }
+
 
   setFormValidators(event): void {
     console.log("event in perid type transaction: ", event.value);
@@ -110,14 +128,32 @@ export class PnLReportPage implements OnInit {
 
   }
 
-  onSubmit() {
-    const formData = this.pnlReportForm.value;
+  // onSubmit() {
+  //   const formData = this.pnlReportForm.value;
+  //   this.reportClick = false;
+  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+  //   this.startDate = startDate;
+  //   this.endDate = endDate;
+  //   this.getPnLReportData(startDate, endDate, formData.businessNumber);
+  // }
+
+
+  onSubmit(event: any): void {
+
+    const year = event.year;
+    const month = event.month;
+    const reportingPeriodType = event.periodType;
+    const localStartDate = "";
+    const localEndDate = "";
+    const businessNumber = event.businessNumber;
+    
     this.reportClick = false;
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-    this.startDate = startDate;
-    this.endDate = endDate;
-    this.getPnLReportData(startDate, endDate, formData.businessNumber);
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
+
+    this.getPnLReportData(startDate, endDate, businessNumber);
+
   }
+
 
   getPnLReportData(startDate: string, endDate: string, businessNumber: string) {
     this.genericService.getLoader().subscribe();
@@ -163,12 +199,10 @@ export class PnLReportPage implements OnInit {
 
   createPDF(): void {
     this.isLoading = true;
-    //console.log("in cerate");
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
       dataTable.push([String(expense.total), expense.category]);
     })
-     //console.log("dataTable: ", dataTable);
      
     const data: ICreateDataDoc = {
       fid: "ydAEQsvSbC",
