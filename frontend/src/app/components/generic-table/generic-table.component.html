@@ -14,12 +14,13 @@
         [buttonSize]="buttonSize.ICON"></app-p-button>
     </div>
   </div>
-    @if (visibleFilterPannel()) {
-      <app-filter-panel (applyFilters)="applyFilters($event)"></app-filter-panel>
-    }
+  <!-- @if (visibleFilterPannel()) { -->
+  <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
+  <!-- } -->
   <div class="table">
-    <p-table [columns]="columnsTitle()" [value]="filteredDataTable()" [tableStyle]="{ 'width': '100%' }"
-      [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true" [virtualScrollItemSize]="76">
+    <p-table [loading]="isLoadingState()" [columns]="columnsTitle()" [value]="filteredDataTable()"
+      [tableStyle]="{ 'width': '100%' }" [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true"
+      [virtualScrollItemSize]="76">
       <ng-template pTemplate="header" let-columns>
         <tr>
           <th *ngFor="let col of columns" class="columns-header">
@@ -28,11 +29,10 @@
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
-        <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row" (mouseenter)="onMouseEnter(rowIndex)"
-          (mouseleave)="onMouseLeave(rowIndex)">
-          <!-- @for(col of columns.slice(0, columns.length - 3); track col.name) { -->
+        <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
+          (mouseenter)="onRowEnter(rowIndex, row, $event)" (mouseleave)="onRowLeave()">
           @for(col of columns; track col.name; let i = $index) {
-          @if( i === columns.length - 1) {
+          <!-- @if( i === columns.length - 1 && showButtons()) {
           <td class="action-cell">
             <div class="buttons-cell" [@slideIn]="isHovering() === rowIndex ? 'visible' : 'void'">
               <div class="buttons-container">
@@ -47,8 +47,8 @@
               </div>
             </div>
           </td>
-          }
-          @else {
+          } -->
+          <!-- @else { -->
           <td>
             <span #tp="truncatePointer" [class.truncate]="!isExpanded(row)" class="data-text"
               (click)="tp.isTruncated && toggleRow(row)" appTruncatePointer
@@ -68,54 +68,7 @@
             </span>
           </td>
           }
-          }
-          <!-- Either show last 3 columns or buttons depending on hover state -->
-          <!-- @if(hovered === rowIndex) {
-        <td  class="buttons-cell"  >
-          <div class="buttons-container" >
-            <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
-            <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'"></app-p-button>
-            <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'"></app-p-button>
-          </div>
-        </td>
-      } @else { -->
-          <!-- @for(col of columns.slice(columns.length - 3); track col.name; let i = $index) {
-          <td >
-          @if( i === 0 && hovered === rowIndex) {
-            <div class="buttons-cell" >
-            <div class="buttons-container" >
-              <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-              <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-              <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-            </div>
-          </div>
-          }
-            <span #tp="truncatePointer" 
-                  [class.truncate]="!isExpanded(row)" 
-                  class="data-text" 
-                  (click)="tp.isTruncated && toggleRow(row)" 
-                  appTruncatePointer 
-                  [class.red-text]="col.name === 'category' && row[col.name] === 'טרם סווג'">
-              
-              @if(col.name === 'category' && row[col.name] === 'טרם סווג') {
-                <i class="pi pi-clock" style="color: red"></i> {{ row[col.name] }}
-              } @else if (col.name === columnSearch()) {
-                <span [innerHTML]="row[columnSearch()] | highlight: searchTerm()"></span>
-              } @else {
-                {{ row[col.name] }}
-              }
-            </span>
-          </td>
-        } -->
           <!-- } -->
-          <!-- <td *ngFor="let i of [0,1,2]; let j = index" class="action-cell">
-        <div class="buttons-container" *ngIf="(hovered === rowIndex && j==0)">
-          <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'"></app-p-button>
-          <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'"></app-p-button>
-          <app-p-button [buttonText]="'סיווג הוצאה'" [severity]="'info'" [variant]="'text'"></app-p-button>
-        </div>
-      </td> -->
-
         </tr>
       </ng-template>
       <!-- Empty Data -->
@@ -128,5 +81,24 @@
         </tr>
       </ng-template>
     </p-table>
+
+    @if (hoveredRowInfo() && showButtons()) {
+    <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
+      [style.top.px]="hoveredRowInfo()?.top" [@slideInFromLeft]="'visible'" (mouseenter)="onFloatingEnter()"
+      (mouseleave)="onFloatingLeave()">
+      <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(hoveredRowInfo()?.row)"
+        [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+
+      <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+
+      <app-p-button *ngIf="hoveredRowInfo()?.row?.billName !== 'לא שוייך'"
+        (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג הוצאה'"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+    </div>
+    }
+
   </div>
 </div>
