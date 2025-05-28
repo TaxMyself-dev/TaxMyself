@@ -14,9 +14,9 @@
         [buttonSize]="buttonSize.ICON"></app-p-button>
     </div>
   </div>
-  @if (visibleFilterPannel()) {
-  <app-filter-panel (applyFilters)="applyFilters($event)"></app-filter-panel>
-  }
+  <!-- @if (visibleFilterPannel()) { -->
+  <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
+  <!-- } -->
   <div class="table">
     <p-table [loading]="isLoadingState()" [columns]="columnsTitle()" [value]="filteredDataTable()"
       [tableStyle]="{ 'width': '100%' }" [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true"

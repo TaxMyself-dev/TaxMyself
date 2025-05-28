@@ -153,6 +153,7 @@ export class TransactionsPage implements OnInit {
   addPayment: boolean = false;
   selectBill: string;
   accountsList = signal<ISelectItem[]>([]);
+  filterData = signal<any>(null);
   sourcesList: string[] = [];
   selectedFile: File = null;
   dateForUpdate = { 'startDate': "", 'endDate': "" };
@@ -239,6 +240,7 @@ export class TransactionsPage implements OnInit {
 
 
   ngOnInit(): void {
+    this.filterData = this.transactionService.filterData;
     this.getTransactions(null);
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
@@ -347,12 +349,11 @@ export class TransactionsPage implements OnInit {
     this.isOpen = event
   }
 
-  getTransactions(filters: FormGroup | null): void {
+  getTransactions(filters: any | null): void {
     this.isLoadingStateTable.set(true);
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ filters:", filters)
-    const periodType = filters?.get('periodType')?.value;
-    let accounts = filters?.get('account')?.value;
-    let categories = filters?.get('category')?.value;
+    const periodType = filters?.periodType;
+    let accounts = filters?.account;
+    let categories = filters?.category;
     let startDate: string;
     let endDate: string;
 
@@ -371,22 +372,21 @@ export class TransactionsPage implements OnInit {
     else {
       switch (periodType) {
         case this.reportingPeriodType.MONTHLY:
-          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, filters?.get('year')?.value, filters?.get('month')?.value, null, null));
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, filters?.year, filters?.month, null, null));
           break;
         case this.reportingPeriodType.BIMONTHLY:
-          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.BIMONTHLY, filters?.get('year')?.value, filters?.get('bimonth')?.value, null, null));
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.BIMONTHLY, filters?.year, filters?.bimonth, null, null));
           break;
         case this.reportingPeriodType.ANNUAL:
-          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.ANNUAL, filters?.get('year')?.value, null, null, null));
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.ANNUAL, filters?.year, null, null, null));
           break;
         case this.reportingPeriodType.DATE_RANGE:
-          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.DATE_RANGE, null, null, filters?.get('startDate')?.value, filters?.get('endDate')?.value));
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.DATE_RANGE, null, null, filters?.startDate, filters?.endDate));
           break;
         default:
           const currentYear = new Date().getFullYear();
           const month = new Date().getMonth() + 1;
           ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
-          console.log("startDate: ", startDate, "endDate: ", endDate);
           break;
       }
     }
@@ -944,7 +944,7 @@ export class TransactionsPage implements OnInit {
 
   closeAccountAssociation(event: { visible: boolean, data: boolean }): void {
     this.visibleAccountAssociationDialog.set(event.visible);
-    event.data ? this.getTransactions(null) : null; // TODO: get transactions by the filters!!
+    event.data ? this.getTransactions(this.filterData()) : null; // TODO: get transactions by the filters!!
   }
 
   closeAddBill(event: { visible: boolean, data?: boolean }): void {
@@ -953,7 +953,7 @@ export class TransactionsPage implements OnInit {
 
   closeClassyfyTran(event: { visible: boolean, data: boolean }): void {
     this.visibleClassifyTran.set(event.visible);
-    event.data ? this.getTransactions(null) : null; // TODO: get transactions by the filters!!
+    event.data ? this.getTransactions(this.filterData()) : null; // TODO: get transactions by the filters!!
   }
 
   closeAddCategory(event: { visible: boolean, data?: boolean }): void {

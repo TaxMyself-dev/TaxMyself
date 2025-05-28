@@ -15,7 +15,7 @@ import { TruncatePointerDirective } from '../../directives/truncate-pointer.dire
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import { AccountAssociationDialogComponent } from "../account-association-dialog/account-association-dialog.component";
-import { FilterPanelComponent } from "../filter-dialog/filter-panell.component";
+import { FilterPanelComponent } from "../filter-panel/filter-panell.component";
 import { FormGroup } from '@angular/forms';
 import { is } from 'date-fns/locale';
 import { set } from 'date-fns';

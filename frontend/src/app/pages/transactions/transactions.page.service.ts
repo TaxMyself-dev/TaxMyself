@@ -14,6 +14,8 @@ export class TransactionsService implements OnInit{
 
   token:string;
   accountsList = signal<ISelectItem[]>([]);
+  filterData = signal<any>(null);
+  
   businessList: [{businessName: string, businessNumber: string}];
   categories = signal<ISelectItem[]>([]);
 
