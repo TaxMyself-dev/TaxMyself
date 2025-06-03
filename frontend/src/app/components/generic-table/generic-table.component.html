@@ -8,11 +8,13 @@
         <p-inputicon styleClass="pi pi-search" />
       </p-iconfield>
     </div>
-    <div class="sort-button">
-      <app-p-button (onButtonClicked)="openFilterDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'"
+    @if (filterButtonDisplay()) {
+      <div class="sort-button">
+        <app-p-button (onButtonClicked)="openFilterDialod()" [iconOnly]="true" [icon]="'pi pi-filter-fill'"
         variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
         [buttonSize]="buttonSize.ICON"></app-p-button>
-    </div>
+      </div>
+    }
   </div>
   <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
   <div class="table">
@@ -68,9 +70,6 @@
       (mouseleave)="onFloatingLeave()">
       <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(hoveredRowInfo()?.row)"
         [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
-      </app-p-button>
-
-      <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
 
       <app-p-button *ngIf="hoveredRowInfo()?.row?.billName !== 'לא שוייך'"

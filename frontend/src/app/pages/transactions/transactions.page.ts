@@ -154,6 +154,7 @@ export class TransactionsPage implements OnInit {
   selectBill: string;
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
+  incomeMode = signal<boolean>(false);
   sourcesList: string[] = [];
   selectedFile: File = null;
   dateForUpdate = { 'startDate': "", 'endDate': "" };
@@ -927,12 +928,14 @@ export class TransactionsPage implements OnInit {
     this.visibleAddBill.set(event);
   }
 
-  openClassifyTran(event: { state: boolean, data: IRowDataTable }): void {
+  openClassifyTran(event: { state: boolean, data: IRowDataTable, incomeMode: boolean }): void {
     this.visibleClassifyTran.set(event.state);
     this.leftPanelData.set(event.data);
+    this.incomeMode.set(event.incomeMode);
   }
 
   openAddCategory(event: { state: boolean, subCategoryMode: boolean, category?: string }): void {
+    
     // console.log("🚀 ~ openAddCategory ~ subCategoryMode:", event.subCategoryMode)
     // console.log("🚀 ~ openAddCategory ~ category:", event.category)
     this.visibleAddCategory.set(event.state);

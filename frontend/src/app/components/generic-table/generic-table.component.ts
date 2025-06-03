@@ -41,6 +41,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   title = input<string>();
   isLoadingState = input<boolean>(false);
+  incomeMode = input<boolean>(false);
+  filterButtonDisplay = input<boolean>(false);
   showButtons = input<boolean>(false);
   columnSearch = input<string>('name');
   tableHeight = input<string>('500px');
@@ -48,7 +50,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
-  visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable }>();
+  visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
   filters = output<FormGroup>();
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
@@ -173,11 +175,7 @@ onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
   }
 
   onVisibleClassifyTranClicked(row: IRowDataTable): void {
-    console.log('row in onVisibleAccountAssociationClicked:', row);
-    console.log('event in onVisibleAccountAssociationClicked:', true);
-
-    console.log('onVisibleAccountAssociationClicked');
-    this.visibleClassifyTranClicked.emit({ state: true, data: row });
+    this.visibleClassifyTranClicked.emit({ state: true, data: row, incomeMode: this.incomeMode() });
   }
 
   applyFilters(filters: FormGroup): void {

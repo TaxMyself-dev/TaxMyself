@@ -191,7 +191,7 @@ export class addSupplierComponent implements OnInit {
     console.log("category in get sub", category);
     const subList = this.subCategoriesListDataMap.get(category);
     return subList ? of(subList) :
-      this.expenseDataService.getSubCategory(category, this.isEquipment)
+      this.expenseDataService.getSubCategory(category, this.isEquipment, true)
         .pipe(
           finalize(() => this.doneLoadingSubCategoryList$.next(true)),
           map((res) => {

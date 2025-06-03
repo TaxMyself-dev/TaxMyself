@@ -1,101 +1,112 @@
 :host {
-    overflow: scroll;
-}
+    display: block;
+    height: 100vh;
+  }
 
-.transaction-screen {
+  
+  .transaction-screen {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+}
+
+/* this wrapper grows and scrolls */
+.transaction-screen .content-wrapper {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-}
+    gap: 30px;
+    flex: 1 1 auto;     /* take remaining space */
+    overflow-y: auto;   /* vertical scroll when needed */
+    padding-bottom: 75px;
+  }
+  
+// ============================== ionic components ==============================
+// .header-transaction {
+//     display: flex;
+//     flex-direction: column;
+//     justify-content: space-between;
+//     align-items: center;
+//     width: 99.5%;
+// }
 
-.header-transaction {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
-    width: 99.5%;
-}
+// .bars-header {
+//     display: flex;
+//     align-items: center;
+//     justify-content: space-between;
+//     width: 99.5%;
+// }
 
-.bars-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 99.5%;
-}
+// .wrap-collapse {
+//     display: flex;
+//     flex-direction: column;
+//     align-self: baseline;
+//     width: 100%;
+// }
 
-.wrap-collapse {
-    display: flex;
-    flex-direction: column;
-    align-self: baseline;
-    width: 100%;
-}
+// .content-wrapper {
+//     display: flex;
+//     flex-direction: column;
+//     width: 99.5%;
+// }
 
-.content-wrapper {
-    display: flex;
-    flex-direction: column;
-    width: 99.5%;
-}
+// .input-wrapper {
+//     width: 200px;
 
-.input-wrapper {
-    width: 200px;
+//     &.month-pick {
+//         width: 280px;
+//     }
+// }
 
-    &.month-pick {
-        width: 280px;
-    }
-}
-
-@keyframes slide-in {
-    100% {
-        transform: translateY(0%)
-    }
-}
-
-
-
-.label-file-transaction {
-    width: 55%;
-    height: 50px;
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-}
-
-.label-file-transaction ion-icon:hover   {
-    cursor: pointer;
-}
-
-.label-file-transaction ion-icon {
-    width: 30%;
-    height: 60%;
-}
-
-.label-file-transaction ion-input[type="file"] {
-    display: none;
-}
+// @keyframes slide-in {
+//     100% {
+//         transform: translateY(0%)
+//     }
+// }
 
 
 
-.wrap-upload-and-name {
-    display: flex;
-    flex-direction: column;
-    border: 2px solid rgb(79, 171, 79);
-    border-radius: 15px;
-    align-items: center;
-}
+// .label-file-transaction {
+//     width: 55%;
+//     height: 50px;
+//     display: flex;
+//     justify-content: flex-start;
+//     align-items: center;
+// }
 
-.wrap-upload {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    width: 200px;
-}
+// .label-file-transaction ion-icon:hover {
+//     cursor: pointer;
+// }
 
-.string-label:hover {
-    cursor: pointer;
-}
+// .label-file-transaction ion-icon {
+//     width: 30%;
+//     height: 60%;
+// }
 
-.input-search-bar {
-    width: 172px;
-}
+// .label-file-transaction ion-input[type="file"] {
+//     display: none;
+// }
+
+
+
+// .wrap-upload-and-name {
+//     display: flex;
+//     flex-direction: column;
+//     border: 2px solid rgb(79, 171, 79);
+//     border-radius: 15px;
+//     align-items: center;
+// }
+
+// .wrap-upload {
+//     display: flex;
+//     justify-content: space-around;
+//     align-items: center;
+//     width: 200px;
+// }
+
+// .string-label:hover {
+//     cursor: pointer;
+// }
+
+// .input-search-bar {
+//     width: 172px;
+// }

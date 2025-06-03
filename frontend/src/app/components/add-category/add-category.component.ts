@@ -54,45 +54,52 @@ export class AddCategoryComponent  implements OnInit {
   unRecognizedForm: FormGroup;
 
   constructor() {
-    this.isRecognizedForm = this.formBuilder.group({
-    categoryName: new FormControl(
-      { value: '', disabled: this.subCategoryMode() },Validators.required
-    ),
-    subCategories: this.formBuilder.array([ this.createSubCatIsRecognizedGroup() ]
-    ),
-    isExpense: new FormControl(
-      !this.incomeMode(), Validators.required
-    ),
 
-    });
+    this.initForms();
 
-    this.unRecognizedForm = this.formBuilder.group({
-      categoryName: new FormControl(
-        { value: '', disabled: this.subCategoryMode() },Validators.required
-      ),
-      subCategories: this.formBuilder.array([ this.createSubCatUnRecognizedGroup() ]
-    ),
-    });
-    
-  
-  // whenever subCategoryMode() flips, enable/disable the category control:   
   effect(() => {
-    const subMode = this.subCategoryMode();
-    const recCtrl   = this.isRecognizedForm.get('categoryName')!;
-    const unRecCtrl = this.unRecognizedForm.get('categoryName')!;
+    console.log("effect incomeMode", this.incomeMode());
     
-    if (subMode) {
-      recCtrl.disable({ emitEvent: false });
-      unRecCtrl.disable({ emitEvent: false });
-     
-    // patch the latest categoryName() into both controls
-    recCtrl.patchValue(this.categoryName(),    { emitEvent: false });
-    unRecCtrl.patchValue(this.categoryName(),  { emitEvent: false });
-    } else {
-      recCtrl.enable({ emitEvent: false });
-      unRecCtrl.enable({ emitEvent: false });
-    }
+    const isIncome = this.incomeMode(); // reactive access to signal
+    const isExpense = !isIncome;
+
+    // Update isRecognizedForm main field
+    this.isRecognizedForm.patchValue({ isExpense });
+    this.unRecognizedForm.patchValue({ isExpense });
+
+    // Update subCategories in isRecognizedForm
+    const recognizedArray = this.isRecognizedForm.get('subCategories') as FormArray;
+    recognizedArray.controls.forEach(group => {
+      group.patchValue({ isExpense });
+    });
+
+    // Update subCategories in unRecognizedForm
+    const unrecognizedArray = this.unRecognizedForm.get('subCategories') as FormArray;
+    unrecognizedArray.controls.forEach(group => {
+      group.patchValue({ isExpense });
+    });
   });
+  
+    // whenever subCategoryMode() flips, enable/disable the category control:   
+    
+    effect(() => {
+      const subMode = this.subCategoryMode();
+      const recCtrl   = this.isRecognizedForm.get('categoryName')!;
+      const unRecCtrl = this.unRecognizedForm.get('categoryName')!;
+      
+      if (subMode) {
+        recCtrl.disable({ emitEvent: false });
+        unRecCtrl.disable({ emitEvent: false });
+      
+      // patch the latest categoryName() into both controls
+      recCtrl.patchValue(this.categoryName(),    { emitEvent: false });
+      unRecCtrl.patchValue(this.categoryName(),  { emitEvent: false });
+      } else {
+        recCtrl.enable({ emitEvent: false });
+        unRecCtrl.enable({ emitEvent: false });
+      }
+    });
+
   }
 
   ngOnInit() {
@@ -104,6 +111,28 @@ export class AddCategoryComponent  implements OnInit {
    get subCategories(): FormArray {
     return this.isRecognized() ?  this.isRecognizedForm?.get('subCategories') as FormArray :this.unRecognizedForm?.get('subCategories') as FormArray;
   }
+
+  private initForms() {
+    this.isRecognizedForm = this.formBuilder.group({
+      categoryName: new FormControl(
+        { value: '', disabled: this.subCategoryMode() },
+        Validators.required
+      ),
+      subCategories: this.formBuilder.array([this.createSubCatIsRecognizedGroup()]),
+      isExpense: new FormControl(!this.incomeMode(), Validators.required)
+    });
+  
+    this.unRecognizedForm = this.formBuilder.group({
+      categoryName: new FormControl(
+        { value: '', disabled: this.subCategoryMode() },
+        Validators.required
+      ),
+      subCategories: this.formBuilder.array([this.createSubCatUnRecognizedGroup()]),
+      isExpense: new FormControl(!this.incomeMode(), Validators.required)
+
+    });
+  }
+  
 
   getSubCategoryFormByIndex(index: number): FormGroup {
     return this.subCategories?.at(index) as FormGroup;

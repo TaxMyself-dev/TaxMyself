@@ -30,6 +30,7 @@ export class ClassifyTranComponent implements OnInit {
 
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);
+  incomeMode = input<boolean>(false);
   visibleChange = output<{visible: boolean, data: boolean}>();
   classifyTranButtonClicked = output<any>();
   openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean }>();
@@ -172,7 +173,7 @@ export class ClassifyTranComponent implements OnInit {
   
 
   getCategories(): void {
-    this.transactionService.getCategories(null, true)
+    this.transactionService.getCategories(null, !this.incomeMode())
       .subscribe((res) => {
         console.log("category", res);
       })
@@ -187,8 +188,8 @@ export class ClassifyTranComponent implements OnInit {
     console.log("🚀 ~ ClassifyTranComponent ~ getSubCategory ~ event:", event)
     this.myForm.patchValue({ 'subCategoryName': '' }); // reset subcategory when category changes for the change form to invlaid.
     this.selectedSubCategory.set(null); // For hidden the details subCategory section.
-    const isEquipmentSubCategory = this.expenseDataService.getSubCategory(event, true);
-    const notEquipmentSubCategory = this.expenseDataService.getSubCategory(event, false);
+    const isEquipmentSubCategory = this.expenseDataService.getSubCategory(event, true, !this.incomeMode());
+    const notEquipmentSubCategory = this.expenseDataService.getSubCategory(event, false, !this.incomeMode());
 
     zip(isEquipmentSubCategory, notEquipmentSubCategory)
       .pipe(
