@@ -222,6 +222,7 @@ export class FilterPanelComponent implements OnInit {
     this.form.patchValue({ periodType: value });
     // console.log("🚀 ~ FilterPanelComponent ~ onSelectType ~ this.form:", this.form)
     this.updateFormByPeryodType()
+    this.getButtonText(); // For update button text when type changes
   }
 
   updateFormByPeryodType(): void {
@@ -256,7 +257,22 @@ export class FilterPanelComponent implements OnInit {
         this.form.removeControl('bimonth');
         this.form.removeControl('year');
         this.form.addControl('startDate', new FormControl(null, [Validators.required]));
-        this.form.addControl('endDate', new FormControl(null, [Validators.required]));
+        this.form.addControl('endDate', new FormControl({value: null, disabled: !(this.form.get('startDate')?.value)}, [Validators.required]));
+        this.form.get('startDate')?.valueChanges.subscribe(start => {
+          const endDateControl = this.form.get('endDate');
+        
+          if (start) {
+            endDateControl?.enable(); // enable if startDate is selected
+            endDateControl?.setValidators([Validators.required]); // ensure validation is active
+          } else {
+            endDateControl?.disable(); // disable if startDate is cleared
+            endDateControl?.setValue(null); // optionally reset
+            endDateControl?.clearValidators();
+          }
+        
+          endDateControl?.updateValueAndValidity();
+        });
+        
         break;
       default:
         const controlsToRemove = ['month', 'bimonth', 'year', 'startDate', 'endDate'];
@@ -288,45 +304,63 @@ export class FilterPanelComponent implements OnInit {
 
   }
 
-  // getButtonText(): void {
-  //   console.log("in getButtonText");
-    
-  //   let month = "";
-  //   let bimonth = "";
-  //   let year = "";
-  //   let startDate = "";
-  //   let endDate = "";
-   
-  //   if (month || bimonth || year || startDate || endDate) {
-  //     console.log("in if");
-      
-  //     this.buttonText.set(`${month}, ${bimonth}, ${year}, ${startDate}, ${endDate}`);
-  //   }
-  //   else {
-  //     this.buttonText.set('בחר')
-  //   }
-  // }
-
   getButtonText(): void {
-    const parts: string[] = [];
-  
+    console.log("!form.get('startDate')?.value:", !(this.form.get('startDate')?.value));
+    
+    const periodType = this.form.get('periodType')?.value;
+    const year = this.form.get('year')?.value;
     const month = this.form.get('month')?.value;
     const bimonth = this.form.get('bimonth')?.value;
-    const year = this.form.get('year')?.value;
     const startDate = this.form.get('startDate')?.value;
     const endDate = this.form.get('endDate')?.value;
   
-    if (month) parts.push(month);
-    if (bimonth) parts.push(bimonth);
-    if (year) parts.push(year);
-    if (startDate) parts.push(this.dateService.formatDate(startDate));
-    if (endDate) parts.push(this.dateService.formatDate(endDate));
+    let from: string | null = null;
+    let to: string | null = null;
+
+    if (!year && !month && !bimonth && !startDate && !endDate) {
+      this.buttonText.set('בחר');
+      return; // No selection → reset button text
+    }
   
-    if (parts.length > 0) {
-      this.buttonText.set(parts.join(', '));
+    if (periodType === 'MONTHLY' && month && year) {
+      const first = new Date(year, month - 1, 1);
+      const last = new Date(year, month, 0); // last day of month
+      from = this.formatShortDate(first);
+      to = this.formatShortDate(last);
+    }
+    else if (periodType === 'BIMONTHLY' && bimonth && year) {
+      const startMonth = parseInt(bimonth);
+      const first = new Date(year, startMonth - 1, 1);
+      const last = new Date(year, startMonth + 1, 0); // end of second month
+      from = this.formatShortDate(first);
+      to = this.formatShortDate(last);
+    }
+    else if (periodType === 'ANNUAL' && year) {
+      const first = new Date(year, 0, 1);
+      const last = new Date(year, 11, 31);
+      from = this.formatShortDate(first);
+      to = this.formatShortDate(last);
+    }
+    else if (periodType === 'DATE_RANGE') {
+      if (startDate) from = this.formatShortDate(new Date(startDate));
+      if (endDate) to = this.formatShortDate(new Date(endDate));
+    }
+  
+    if (from && to) {
+      this.buttonText.set(`${from}-${to}`);
+    } else if (from) {
+      this.buttonText.set(`from ${from}`);
     } else {
       this.buttonText.set('בחר');
     }
+  }
+  
+  private formatShortDate(date: Date): string {
+    const d = new Date(date);
+    const day = d.getDate();
+    const month = d.getMonth() + 1;
+    const year = d.getFullYear() % 100; // last 2 digits
+    return `${day}/${month}/${year}`;
   }
   
 

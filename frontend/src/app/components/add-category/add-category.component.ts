@@ -72,28 +72,6 @@ export class AddCategoryComponent  implements OnInit {
       ),
       subCategories: this.formBuilder.array([ this.createSubCatUnRecognizedGroup() ]
     ),
-      // subCategoryName: new FormControl(
-      //   '', Validators.required
-      // ),
-      // isRecognized: new FormControl(
-      //   false, Validators.required
-      // ),
-      // isExpense: new FormControl(
-      //   !this.incomeMode(), Validators.required
-      // ),
-      // isEquipment: new FormControl(
-      //   false, Validators.required
-      // ),
-      // taxPercent: new FormControl(
-      //   0, [Validators.required, Validators.pattern(/^\d+$/)]
-      // ),
-      // vatPercent: new FormControl(
-      //   0, [Validators.required, Validators.pattern(/^\d+$/)]
-      // ),
-      // reductionPercent: new FormControl(
-      //   0, [Validators.required, Validators.pattern(/^\d+$/)]
-      // ),
-
     });
     
   
