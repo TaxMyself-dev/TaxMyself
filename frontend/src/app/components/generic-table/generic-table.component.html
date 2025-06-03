@@ -14,9 +14,7 @@
         [buttonSize]="buttonSize.ICON"></app-p-button>
     </div>
   </div>
-  <!-- @if (visibleFilterPannel()) { -->
   <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
-  <!-- } -->
   <div class="table">
     <p-table [loading]="isLoadingState()" [columns]="columnsTitle()" [value]="filteredDataTable()"
       [tableStyle]="{ 'width': '100%' }" [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true"
@@ -32,23 +30,6 @@
         <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
           (mouseenter)="onRowEnter(rowIndex, row, $event)" (mouseleave)="onRowLeave()">
           @for(col of columns; track col.name; let i = $index) {
-          <!-- @if( i === columns.length - 1 && showButtons()) {
-          <td class="action-cell">
-            <div class="buttons-cell" [@slideIn]="isHovering() === rowIndex ? 'visible' : 'void'">
-              <div class="buttons-container">
-                <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(row)" [buttonText]="'שייך לחשבון'"
-                  [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-                <app-p-button [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'"
-                  [buttonSize]="buttonSize.AUTO"></app-p-button>
-                @if (row.billName !== "לא שוייך") {
-                <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(row)" [buttonText]="'סיווג הוצאה'"
-                  [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"></app-p-button>
-                }
-              </div>
-            </div>
-          </td>
-          } -->
-          <!-- @else { -->
           <td>
             <span #tp="truncatePointer" [class.truncate]="!isExpanded(row)" class="data-text"
               (click)="tp.isTruncated && toggleRow(row)" appTruncatePointer
@@ -68,7 +49,6 @@
             </span>
           </td>
           }
-          <!-- } -->
         </tr>
       </ng-template>
       <!-- Empty Data -->

@@ -27,27 +27,52 @@
         @if (selectedType() === 'DATE_RANGE') {
         <div>
           <form [formGroup]="form" class="wrap-inner-inputs">
+            <p-datepicker
+              (onClose)="getButtonText()"
+              placeholder="תאריך התחלה"
+              formControlName="startDate"
+              [iconDisplay]="'input'"
+              [showIcon]="true"
+              inputId="startDate"
+              [dateFormat]="'dd/mm/yy'"
+              [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
+            ></p-datepicker>
+          
+            <p-datepicker
+              (onClose)="getButtonText()"
+              placeholder="תאריך סוף"
+              formControlName="endDate"
+              [iconDisplay]="'input'"
+              [showIcon]="true"
+              inputId="endDate"
+              [dateFormat]="'dd/mm/yy'"
+              [minDate]="form.get('startDate')?.value"
+              [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
+            ></p-datepicker>
+          </form>
+          
+          <!-- <form [formGroup]="form" class="wrap-inner-inputs">
 
             <p-datepicker (onClose)="getButtonText()" [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)'}" placeholder="תאריך התחלה"
               formControlName="startDate" [iconDisplay]="'input'" [showIcon]="true" inputId="startDate" />
             <p-datepicker (onClose)="getButtonText()" [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)'}" placeholder="תאריך סוף"
               formControlName="endDate" [iconDisplay]="'input'" [showIcon]="true" inputId="endDate" />
-          </form>
+          </form> -->
 
         </div>
         }
         @else if (selectedType() === 'ANNUAL') {
         <div class="wrap-inner-inputs">
-          <app-input-select [size]="inputsSize.AUTO" placeholder="בחר שנה" [parentForm]="form" controlName="year"
+          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" placeholder="בחר שנה" [parentForm]="form" controlName="year"
             [items]="years"></app-input-select>
         </div>
         }
         @else {
         <div class="wrap-inner-inputs">
-          <app-input-select [size]="inputsSize.AUTO" [parentForm]="form" [controlName]="this.form?.get('periodType').value === 'MONTHLY' ? 'month' : 'bimonth'"
+          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" [parentForm]="form" [controlName]="this.form?.get('periodType').value === 'MONTHLY' ? 'month' : 'bimonth'"
             [placeholder]="this.form?.get('periodType').value === 'MONTHLY' ? 'בחר חודש' : 'בחר חודשים'"
             [items]="getOptions()"></app-input-select>
-          <app-input-select [size]="inputsSize.AUTO" [parentForm]="form" placeholder="בחר שנה" controlName="year"
+          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" [parentForm]="form" placeholder="בחר שנה" controlName="year"
             [items]="years"></app-input-select>
         </div>
         }
