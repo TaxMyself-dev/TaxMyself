@@ -7,41 +7,74 @@
   padding-right: 50px;
 }
 
-// .vat-report-wrap-screen {
-//   width: 100%;
-//   height: 95%;
-//   display: flex;
-//   flex-direction: column;
-//   align-items: left;
-//   padding-right: 50px;
-// }
-
-.table-wrapper {
-  width: 100%;
+.pnl-report-header {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 100px
 }
 
-.wrap-output-report{
-  width: 80%;
+.icon-title {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.text-header {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+// vat-report-search-bar-input {
+//   margin-top: 10px;
+// }
+
+// .vat-report-payment-button {
+//   margin-top: 15px;
+// }
+
+.wrap-output-report {
+  width: 50%;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
-  border: 2px solid rgb(79, 171, 79);
+  border: 1px solid;
+  border-color: #f8e7e7;
   border-radius: 15px;
-  padding: 10px;
-  margin: 10px;
+  margin-top: 15px;
+}
+
+.pnl-report-title {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 25px;
+  font-size: 1.5rem; /* You can increase to 2rem or more if needed */
+  line-height: 0;
 }
 
 .output-pnl-report {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid;
-  margin: 10px;
-  width: 50%;
+  border-bottom: #f8e7e7 1px solid;
+  padding: 10px;
+  margin-left: 15px;
+  margin-right: 15px;
 }
 
 .value-field-report{
-  border: 1px solid black;
+  border: 1px solid #f8e7e7;
   color: gray;
   border-radius: 5px;
   padding-bottom: 1px;
@@ -53,8 +86,12 @@
   text-align: center;
 }
 
+.profit-field {
+  font-weight: bold;
+}
+
 .input-container {
-  border: 1px solid;
+  border: 1px solid #f8e7e7;
   width: 20%;
   border-radius: 5px;
   height: 30px;
@@ -65,10 +102,10 @@
   text-align: center;
 }
 
-.input-container ion-input {
-  height: 100%;
-  width: 100%;
-}
+// .input-container ion-input {
+//   height: 100%;
+//   width: 100%;
+// }
 
 .field-report{
   color: black;
@@ -90,67 +127,6 @@
   display: none;
 }
 
-.pnl-report-search-bar-input {
-  width: 172px;
-}
-
-
-@media only screen and (max-width:640px) {
-  .wrap-screen {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .flex-form {
-    width: 95%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    border: 2px solid rgb(79, 171, 79);
-    border-radius: 15px;
-    padding: 10px;
-    margin-top: 10px;
-  }
-
-  .input-pnl-report {
-    flex: 1;
-    --border-radius: 15px;
-    margin-top: 10px;
-    font-size: 90%;
-    box-sizing: border-box;
-  }
-
-  .text-before-report{
-    text-align: center;
-  }
-
-  .wrap-output-report{
-    width: 95%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    border: 2px solid rgb(79, 171, 79);
-    border-radius: 15px;
-    padding: 10px;
-    margin: 10px;
-  }
-
-  .output-pnl-report {
-    display: flex;
-    justify-content: space-between;
-    border-bottom: 1px solid;
-    margin: 10px;
-    width: 95%;
-  }
-
-  .report-title{
-    display: block;
-    font-weight: 800;
-  }
+.pnl-pdf-button {
+  margin-top: 15px;
 }

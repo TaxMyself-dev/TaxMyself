@@ -19,8 +19,7 @@
       <div class="output-report" *ngFor="let key of reportOrder">
         <div class="field-report">{{ vatReportFieldTitles[key] }}:</div>
         <ng-container *ngIf="vatReportFieldTitles[key] === 'עסקאות חייבות'; else rest">
-          <div> <input class="" type="text" dir="ltr" pInputText [(ngModel)]="vatReport.vatableTurnover" /> </div>
-          <!-- <app-input-text class="vat-report-input-text" [(ngModel)]="vatReport.vatableTurnover"> </app-input-text> -->
+          <div> <input class="" type="text" dir="ltr" pInputText [(ngModel)]="vatReport.vatableTurnover"/> </div>
         </ng-container>
         <ng-template #rest>
           <div dir="ltr">{{ vatReport[key] }}</div>

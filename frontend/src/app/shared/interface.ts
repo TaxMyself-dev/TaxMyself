@@ -253,7 +253,7 @@ export interface IClassifyTrans {
 }
 
 export interface ISelectItem {
-    value: string | number | boolean;
+    value: string | number | boolean | Date;
     name: string | number;
     disable?: boolean
 }

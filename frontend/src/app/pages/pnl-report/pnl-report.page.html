@@ -1,13 +1,13 @@
 
   <div class="pnl-report-wrap-screen">
 
-    <div class="vat-report-header">
+    <div class="pnl-report-header">
       <div class="icon-title">
         <img src="../../../assets/vat_report.svg" alt="VAT Report" class="icon" />
-        <span class="title">הפקת דוח מע"מ</span>
+        <span class="title">הפקת דו"ח רווח והפסד</span>
       </div>
       <p class="text-header">
-        הגשת דו"ח מע"מ בקלות ובמהירות   
+        צפייה בדו"ח רווח והפסד בקלות ובמהירות   
       </p>
     </div>
 
@@ -15,24 +15,16 @@
       [parentPage]="'pnlReport'" [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)">
     </app-period-select> 
 
-    <!-- <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="pnlReportTemplate"
-      [isDisabled]="pnlReportForm.invalid">
-    </app-search-bar> -->
-
-    <!-- <ng-container *ngIf="!pnlReport">
-      <p class="text-before-report">
-        אנא בחר חודשי דיווח ומלא הכנסות על מנת ליצור דו"ח
-      </p>
-    </ng-container> -->
-
     <ng-container *ngIf="pnlReport">
-      <div class="field-report">
-        <p>דו"ח רווח והפסד</p>
-        <p>עבור עסק: {{userData.businessName}}</p>
-        <p>לתאריך: {{endDate}} - {{startDate}}</p>
-      </div>
+      <div class="pnl-report-title">
+        <p>
+          דו"ח רווח והפסד לתקופה {{ endDate }} - {{ startDate }}
+        </p>
+        <p>
+          עבור: {{ userData.businessName }} מ.ע {{ userData.businessNumber }}
+        </p>
+    </div>
       <div class="wrap-output-report">
-        <p class="report-title">נתוני דו"ח רווח והפסד</p>
         <!-- Display Income -->
         <div class="output-pnl-report">
           <div class="field-report">סך הכל הכנסות לפני מע"מ:</div>
@@ -43,34 +35,22 @@
         <!-- Dynamically Display Expenses -->
         <ng-container *ngFor="let category of pnlReport.expenses">
           <div class="output-pnl-report">
-            <div class="field-report">{{ category.category }}:</div>
-            <div class="value-field-report">{{ category.total | number }}</div>
+            <div >{{ category.category }}:</div>
+            <div >{{ category.total | number }}</div>
           </div>
         </ng-container>
         <!-- Display Net Profit Before Tax -->
         <div class="output-pnl-report">
-          <div class="field-report">רווח נקי לפני מס:</div>
-          <div class="value-field-report" dir="ltr">{{ pnlReport.netProfitBeforeTax }}</div>
+          <div>רווח נקי לפני מס:</div>
+          <div class="profit-field" dir="ltr">{{ pnlReport.netProfitBeforeTax }}</div>
         </div>
       </div>
+      <app-p-button class="pnl-pdf-button" 
+        [buttonText]="'ייצא כ-PDF'" 
+        [buttonColor]="buttonColor.BLACK"
+        [buttonSize]="buttonSize.AUTO">
+    </app-p-button>
     </ng-container>
   </div>
 
   <app-button [disabled]="!pnlReport" buttonText="Create PDF" (onButtonClicked)="createPDF()" [isLoading]="isLoading"></app-button>
-
-  <ng-template #pnlReportTemplate>
-    <form class="generic-search-bar-content" [formGroup]="pnlReportForm">
-      <app-select-report-period class="pnl-report-search-bar-input" (onSelectionChange)="setFormValidators($event)" [parentForm]="pnlReportForm" [title]="'תקופת דיווח'"></app-select-report-period>
-      <app-select-year *ngIf="this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE" class="pnl-report-search-bar-input" [parentForm]="pnlReportForm"></app-select-year>
-
-      <app-select-month 
-      *ngIf="this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.DATE_RANGE && 
-            this.pnlReportForm.get('reportingPeriodType').value != reportingPeriodType.ANNUAL" [parentForm]="pnlReportForm" class="pnl-report-search-bar-input" [year]="this.pnlReportForm.get('year').value">
-      </app-select-month>
-      <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'startDate'" [parentForm]="pnlReportForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
-      <app-sort-date *ngIf="this.pnlReportForm.get('reportingPeriodType').value === reportingPeriodType.DATE_RANGE" [controlName]="'endDate'" [parentForm]="pnlReportForm" class="input-search-bar" [inputLabel]="'עד תאריך'" [minDate]="this.pnlReportForm.get('startDate').value"></app-sort-date>
-        <app-generic-select class="pnl-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="pnlReportForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
-
-    </form>
-  </ng-template>
-

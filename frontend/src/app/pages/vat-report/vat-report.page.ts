@@ -20,10 +20,6 @@ import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 
 
-// interface FieldTitles {
-//   [key: string]: string;
-// }
-
 @Component({
     selector: 'app-vat-report',
     templateUrl: './vat-report.page.html',
@@ -38,23 +34,11 @@ export class VatReportPage implements OnInit {
   readonly UPLOAD_FILE_FIELD_FIREBASE = 'firebaseFile';
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
-  
-  // readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-  //   [ExpenseFormColumns.CATEGORY, 1.3],
-  //   [ExpenseFormColumns.SUB_CATEGORY, 1.4],
-  //   [ExpenseFormColumns.DATE, 1.4],
-  //   [ExpenseFormColumns.TAX_PERCENT, 1],
-  //   [ExpenseFormColumns.VAT_PERCENT, 1],
-  //   [ExpenseFormColumns.TOTAL_TAX, 1.4],
-  //   [ExpenseFormColumns.TOTAL_VAT, 1.5],
-  //   [ExpenseFormColumns.ACTIONS, 1],
-  // ]);
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReport: IVatReportData;
   displayExpenses: boolean = false;
   vatReportForm: FormGroup;
-  //reportClick: boolean = true;
   tableActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
   previousFile: string;

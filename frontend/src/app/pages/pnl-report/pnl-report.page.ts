@@ -9,6 +9,7 @@ import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { BusinessMode, ReportingPeriodType } from 'src/app/shared/enums';
 import { DocCreateService } from '../doc-create/doc-create.service';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 
 @Component({
@@ -24,7 +25,6 @@ export class PnLReportPage implements OnInit {
   userData: IUserData;
   displayExpenses: boolean = false;
   isLoading: boolean = false;
-  reportClick: boolean = true;
   startDate: string;
   endDate: string;
   totalExpense: number = 0;
@@ -35,41 +35,11 @@ export class PnLReportPage implements OnInit {
 
   reportingPeriodType = ReportingPeriodType;
 
+  buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
+
   constructor(private docCreateService: DocCreateService, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
-    this.pnlReportForm = this.formBuilder.group({
-      month: new FormControl(
-        '', Validators.required,
-      ),
-      year: new FormControl(
-        '', Validators.required,
-      ),
-      reportingPeriodType: new FormControl(
-        '', Validators.required,
-      ),
-      startDate: new FormControl(
-        Date,
-      ),
-      endDate: new FormControl(
-        Date,
-      ),
-      businessNumber: new FormControl(
-        '',
-      ),
-    })
   }
-
-
-  // ngOnInit() {
-  //   this.userData = this.authService.getUserDataFromLocalStorage();
-  //   if (this.userData.isTwoBusinessOwner) {
-  //     this.businessNames.push({ name: this.userData.businessName, value: this.userData.businessNumber });
-  //     this.businessNames.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-  //     this.pnlReportForm.get('businessNumber')?.setValidators([Validators.required]);
-  //   }
-  //   else {
-  //     this.pnlReportForm.get('businessNumber')?.patchValue(this.userData.id);
-  //   }
-  // }
 
 
   ngOnInit() {
@@ -86,58 +56,6 @@ export class PnLReportPage implements OnInit {
   }
 
 
-  setFormValidators(event): void {
-    console.log("event in perid type transaction: ", event.value);
-    switch (event.value) {
-      case this.reportingPeriodType.ANNUAL:
-        this.pnlReportForm.controls['month']?.setValidators([]);// for reset month control
-        this.pnlReportForm.controls['startDate']?.setValidators([]);// for reset month control
-        this.pnlReportForm.controls['endDate']?.setValidators([]);// for reset month control
-        this.pnlReportForm.controls['year']?.setValidators([Validators.required]);
-        // this.pnlReportForm.controls['year']?.updateValueAndValidity();
-        Object.values(this.pnlReportForm.controls).forEach((control) => {
-          control.updateValueAndValidity();
-
-        });
-        console.log(this.pnlReportForm);
-        break;
-
-      case this.reportingPeriodType.DATE_RANGE:
-        this.pnlReportForm.controls['year']?.setValidators([]);// for reset year control
-        this.pnlReportForm.controls['month']?.setValidators([]);// for reset month control
-        this.pnlReportForm.controls['startDate']?.setValidators([Validators.required]);
-        this.pnlReportForm.controls['startDate']?.updateValueAndValidity();
-        this.pnlReportForm.controls['endDate']?.setValidators([Validators.required]);
-        Object.values(this.pnlReportForm.controls).forEach((control) => {
-          control.updateValueAndValidity();
-        });
-        console.log(this.pnlReportForm);
-        break;
-
-      case this.reportingPeriodType.BIMONTHLY:
-      case this.reportingPeriodType.MONTHLY:
-        this.pnlReportForm.controls['startDate']?.setValidators([]);
-        this.pnlReportForm.controls['endDate']?.setValidators([]);
-        this.pnlReportForm.controls['month']?.setValidators([Validators.required]);
-        this.pnlReportForm.controls['year']?.setValidators([Validators.required]);
-        Object.values(this.pnlReportForm.controls).forEach((control) => {
-          control.updateValueAndValidity();
-        });
-        console.log(this.pnlReportForm);
-    }
-
-  }
-
-  // onSubmit() {
-  //   const formData = this.pnlReportForm.value;
-  //   this.reportClick = false;
-  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-  //   this.startDate = startDate;
-  //   this.endDate = endDate;
-  //   this.getPnLReportData(startDate, endDate, formData.businessNumber);
-  // }
-
-
   onSubmit(event: any): void {
 
     const year = event.year;
@@ -146,9 +64,9 @@ export class PnLReportPage implements OnInit {
     const localStartDate = "";
     const localEndDate = "";
     const businessNumber = event.businessNumber;
-    
-    this.reportClick = false;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
+    this.startDate = startDate;
+    this.endDate = endDate;
 
     this.getPnLReportData(startDate, endDate, businessNumber);
 

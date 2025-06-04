@@ -4,7 +4,7 @@ import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } 
 import { InputSelectComponent } from '../input-select/input-select.component';
 import { ISelectItem, IUserData } from 'src/app/shared/interface';
 import { DatePickerModule } from 'primeng/datepicker';
-import { BusinessMode, BusinessType, doubleMonthsList, inputsSize, reportingVatPeriodTypeOptionsList, singleMonthsList } from 'src/app/shared/enums';
+import { BusinessMode, BusinessType, doubleMonthsList, inputsSize, reportingPnlPeriodTypeOptionsList, reportingVatPeriodTypeOptionsList, singleMonthsList } from 'src/app/shared/enums';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonSize } from '../button/button.enum';
 import { ButtonColor } from '../button/button.enum';
@@ -49,6 +49,8 @@ export class PeriodSelectComponent implements OnInit {
     year: 'שנה',
     month: 'חודש',
     businessNumber: 'מספר עוסק',
+    startDate: 'תאריך התחלה',  
+    endDate: 'תאריך סיום',
   };
 
   buttonSize = ButtonSize;
@@ -64,10 +66,34 @@ export class PeriodSelectComponent implements OnInit {
 
     // Watch for changes in the periodType control
     const periodTypeControl = this.form.get('periodType');
+    // if (periodTypeControl) {
+    //   periodTypeControl.valueChanges.subscribe(value => {
+    //     console.log("Period type changed to:", value);
+    //     this.periodType.set(value);
+    //   });
+    // }
+
+
     if (periodTypeControl) {
       periodTypeControl.valueChanges.subscribe(value => {
-        console.log("Period type changed to:", value);
         this.periodType.set(value);
+
+        const year = this.form.get('year');
+        const month = this.form.get('month');
+        const startDate = this.form.get('startDate');
+        const endDate = this.form.get('endDate');
+
+        if (value === 'DATE_RANGE') {
+          year?.disable();
+          month?.disable();
+          startDate?.enable();
+          endDate?.enable();
+        } else {
+          year?.enable();
+          month?.enable();
+          startDate?.disable();
+          endDate?.disable();
+        }
       });
     }
 
@@ -99,8 +125,10 @@ export class PeriodSelectComponent implements OnInit {
           year: ['', Validators.required],
           month: ['', Validators.required],
           businessNumber: ['', Validators.required],
-          //orderDate: [new Date(), Validators.required],
         });
+        if (this.businessMode() === BusinessMode.ONE_BUSINESS && this.businessOptions()[0]) {
+          this.form.get('businessNumber')?.setValue(this.businessOptions()[0].value);
+        } 
         break;
       case 'uniformFile':
         this.form = this.fb.group({
@@ -117,13 +145,25 @@ export class PeriodSelectComponent implements OnInit {
   getItems(list: string) {
     switch (list) {
       case 'periodType':
-        return reportingVatPeriodTypeOptionsList;
+        switch (this.parentPage()) {
+          case 'vatReport':
+            return reportingVatPeriodTypeOptionsList;
+          case 'pnlReport':
+            return reportingPnlPeriodTypeOptionsList;
+          default:
+            return [];
+        }
       case 'year':
         return this.generateYears();
       case 'month':
         return this.monthList();
       case 'businessNumber':
         return this.businessOptions();
+
+      case 'startDate':
+      case 'endDate':
+      return this.generateDateOptions();
+
       default:
         return [];
     }
@@ -140,24 +180,75 @@ export class PeriodSelectComponent implements OnInit {
   }
 
 
+  generateDateOptions(): ISelectItem[] {
+    const options: ISelectItem[] = [];
+    const now = new Date();
+
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1); // 1st of each month
+      const display = date.toLocaleDateString('he-IL'); // 'dd/MM/yyyy' in Hebrew
+      options.push({ name: display, value: date });
+    }
+
+    return options;
+  }
+
+
   getPlaceholder(key: string): string {
     return this.labels[key] || key;
   }
 
 
   // Return the ordered list of field keys
+  // getOrderedFields(): string[] {
+
+  //   let baseFields = this.fieldsOrder[this.parentPage()] || Object.keys(this.form.controls);
+
+  //   if (this.parentPage() !== 'uniformFile') {
+  //     if (this.periodType() === 'DATE_RANGE') {
+
+  //       baseFields = baseFields.reduce<string[]>((acc, field) => {
+  //         if (field === 'year') acc.push('startDate');
+  //         else if (field === 'month') acc.push('endDate');
+  //         else acc.push(field);
+  //         return acc;
+  //       }, []);
+
+  //     }
+
+  //     // Exclude businessNumber if the mode is ONE_BUSINESS
+  //     if (this.businessMode() === BusinessMode.ONE_BUSINESS) {
+  //       return baseFields.filter(field => field !== 'businessNumber');
+  //     }
+
+  //   return baseFields;
+  // }
+
+  // }
+
+
   getOrderedFields(): string[] {
+  let baseFields = this.fieldsOrder[this.parentPage()] || Object.keys(this.form.controls);
 
-    const baseFields = this.fieldsOrder[this.parentPage()] || Object.keys(this.form.controls);
-
-    // Exclude businessNumber if the mode is ONE_BUSINESS
-    if (this.businessMode() === BusinessMode.ONE_BUSINESS) {
-      return baseFields.filter(field => field !== 'businessNumber');
+  if (this.parentPage() !== 'uniformFile') {
+    if (this.periodType() === 'DATE_RANGE') {
+      // Replace 'year' with 'startDate' and 'month' with 'endDate'
+      baseFields = baseFields.reduce<string[]>((acc, field) => {
+        if (field === 'year') acc.push('startDate');
+        else if (field === 'month') acc.push('endDate');
+        else acc.push(field);
+        return acc;
+      }, []);
     }
-
-    return baseFields;
   }
+
+  // Remove 'businessNumber' if there's only one business
+  if (this.businessMode() === BusinessMode.ONE_BUSINESS) {
+    baseFields = baseFields.filter(field => field !== 'businessNumber');
+  }
+
+  return baseFields;
+}
 
 
 }
-

@@ -464,6 +464,13 @@ export const reportingVatPeriodTypeOptionsList = [
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] },
 ];
 
+export const reportingPnlPeriodTypeOptionsList = [
+  { value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
+  { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] },
+  { value: ReportingPeriodType.ANNUAL, name: ReportingPeriodTypeLabels[ReportingPeriodType.ANNUAL] },
+  { value: ReportingPeriodType.DATE_RANGE, name: ReportingPeriodTypeLabels[ReportingPeriodType.DATE_RANGE] }
+];
+
 export enum bunnerImagePosition {
   TOP_LEFT = 'top-left',
   TOP_RIGHT = 'top-right',

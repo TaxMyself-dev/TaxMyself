@@ -9,6 +9,7 @@ import { PnLReportPageRoutingModule } from './pnl-report-routing.module';
 import { PnLReportPage } from './pnl-report.page';
 import { SharedModule } from '../../shared/shared.module';
 import { PeriodSelectComponent } from 'src/app/components/period-select/period-select.component';
+import { ButtonComponent } from 'src/app/components/button/button.component';
 
 @NgModule({
   imports: [
@@ -19,6 +20,7 @@ import { PeriodSelectComponent } from 'src/app/components/period-select/period-s
     ReactiveFormsModule,
     SharedModule,
     PeriodSelectComponent,
+    ButtonComponent
   ],
   declarations: [PnLReportPage]
 })

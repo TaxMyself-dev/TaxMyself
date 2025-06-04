@@ -1,10 +1,10 @@
 <div>
   <form [formGroup]="form" class="period-selector">
     @for (field of getOrderedFields(); track field) {
-      @if (field.toLowerCase().includes('date')) {
-        <p-datepicker [formControlName]="field"></p-datepicker>
-      }
-      @else if (field === 'businessNumber' && businessMode() === BusinessMode.TWO_BUSINESS) {
+      <!-- @if (field.toLowerCase().includes('date')) {
+        <p-datepicker [formControlName]="field" [placeholder]="getPlaceholder(field)"></p-datepicker>
+      } -->
+      @if (field === 'businessNumber' && businessMode() === BusinessMode.TWO_BUSINESS) {
         <app-input-select
           [parentForm]="form"
           [placeholder]="getPlaceholder(field)"
