@@ -121,7 +121,7 @@ export class ExpenseDataService {
     return this.columnsAddExpense;
   }
 
-  getSubCategory(categoryName: string, isEquipment: boolean, isExpense: boolean = true): Observable<any> {
+  getSubCategory(categoryName: string, isEquipment: boolean, isExpense: boolean): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-sub-categories`;
     const headers = {

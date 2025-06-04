@@ -607,7 +607,7 @@ export class ModalExpensesComponent {
     console.log("isEquipment: ", this.isEquipment);
 
     //return subList ? of(subList) :
-    from(this.expenseDataServise.getSubCategory(category, this.isEquipment))
+    from(this.expenseDataServise.getSubCategory(category, this.isEquipment, true))
       .pipe(
         finalize(() => this.doneLoadingSubCategoryList$.next(true)),
         map((res) => {

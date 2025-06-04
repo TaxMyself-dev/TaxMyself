@@ -21,8 +21,10 @@ export class InputTextComponent  implements OnInit {
   labelText = input<string>("");
   ariaLabel = input<string>("");
   size = input<string>("");
+  value = input<string>("");
   disabled = input<boolean>(false);
-
+  type = input<'text' | 'number'>('text');
+  onInputText = output<string>();
   constructor() { }
 
   ngOnInit() {}
@@ -49,6 +51,14 @@ export class InputTextComponent  implements OnInit {
     ]
       .filter(c => !!c)                // remove empty strings
       .join(' ');
+  }
+
+  // onChange(event: any): void {
+  //   this.onChangeInputText.emit(event.value);
+  // }
+
+  onInput(event: any): void {
+    this.onInputText.emit(event.target.value);
   }
 
  

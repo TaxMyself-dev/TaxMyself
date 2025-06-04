@@ -11,23 +11,22 @@
       </div>
     </div>
 
-    @if (!isRecognized()) {
     <!-- category input -->
+    <!-- @if (!isRecognized()) {
     <div [formGroup]="unRecognizedForm" class="not-recognized-form">
-       <app-input-text [ariaLabel]="'קטגוריה'" [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM">
+       <app-input-text [ariaLabel]="'קטגוריה'" [labelText]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : 'שם קטגוריה'" [controlName]="'categoryName'" [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM" >
       </app-input-text>
       <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
         [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM">
       </app-input-text>
     </div>
-    <!-- </div> -->
     }
-    @else {
-    <div [formGroup]="isRecognizedForm" class="is-recognized-form">
+    @else { -->
+    <form [formGroup]="isRecognized() ? isRecognizedForm : unRecognizedForm" class="is-recognized-form">
       <!-- category input -->
       <ng-container>
         <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : 'שם קטגוריה'"
-          [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="isRecognizedForm" [size]="inputsSize.MEDIUM">
+          [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="isRecognized() ? isRecognizedForm : unRecognizedForm" [size]="inputsSize.MEDIUM">
         </app-input-text>
       </ng-container>
 
@@ -37,7 +36,7 @@
         @for (group of subCategories.controls; let i = $index; track i) {
         <div [formGroupName]="i" class="wrap-subcat-block">
           <div class="subcat-block">
-
+            @if (isRecognized()) {
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'subCategoryName'"
               [labelText]="'תת-קטגוריה'" [size]="inputsSize.MEDIUM"></app-input-text>
 
@@ -46,11 +45,17 @@
             </app-input-select>
 
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'taxPercent'"
-              [labelText]="'% מס'" [size]="inputsSize.SMALL" [errorText]="'מספרים בלבד'"></app-input-text>
+              [labelText]="'% מס'" [size]="inputsSize.SMALL" [type]="'number'" [errorText]="'מספרים בלבד'"></app-input-text>
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'vatPercent'"
-              [labelText]="'% מעמ'" [size]="inputsSize.SMALL"></app-input-text>
+              [labelText]="'% מעמ'" [size]="inputsSize.SMALL" [type]="'number'"></app-input-text>
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'reductionPercent'"
-              [labelText]="'% פחת'" [size]="inputsSize.SMALL"></app-input-text>
+              [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'"></app-input-text>
+          }
+          @else {
+            <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
+            [parentForm]="getSubCategoryFormByIndex(i)" [size]="inputsSize.MEDIUM" >
+          </app-input-text>
+          }
           </div>
 
           @if (subCategories.length > 1) {
@@ -67,8 +72,8 @@
           [buttonSize]="buttonSize.AUTO" (onButtonClicked)="AddSubCategory()">
         </app-p-button>
       </div>
-    </div>
-    }
+    </form>
+    <!-- } -->
   </div>
   <div class="footer" footer>
     <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()"
