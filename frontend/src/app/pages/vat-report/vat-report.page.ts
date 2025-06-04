@@ -35,29 +35,10 @@ export class VatReportPage implements OnInit {
   readonly COLUMNS_TO_IGNORE = ['businessNumber', 'id', 'file', 'transId', 'vatReportingDate', 'firebaseFile', 'fileName'];
   readonly ACTIONS_TO_IGNORE = ['preview']
 
-  // readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
-  //   [ExpenseFormColumns.CATEGORY, 1.3],
-  //   [ExpenseFormColumns.SUB_CATEGORY, 1.4],
-  //   [ExpenseFormColumns.DATE, 1.4],
-  //   [ExpenseFormColumns.TAX_PERCENT, 1],
-  //   [ExpenseFormColumns.VAT_PERCENT, 1],
-  //   [ExpenseFormColumns.TOTAL_TAX, 1.4],
-  //   [ExpenseFormColumns.TOTAL_VAT, 1.5],
-  //   [ExpenseFormColumns.ACTIONS, 1],
-  // ]);
-
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReportData = signal<IVatReportData>(null);
-  // vatReportData = signal<IVatReportData>({
-  //   vatableTurnover: 500,
-  //   nonVatableTurnover: 0,
-  //   vatRefundOnAssets: 0,
-  //   vatRefundOnExpenses: 0,
-  //   vatPayment: 0,
-  //   vatRate: 0,
-  // });
   displayExpenses: boolean = false;
-  vatReportForm: FormGroup;
+  //vatReportForm: FormGroup;
   tableActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
   previousFile: string;
@@ -111,26 +92,26 @@ export class VatReportPage implements OnInit {
   buttonColor = ButtonColor;
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
-    this.vatReportForm = this.formBuilder.group({
-      month: new FormControl(
-        '', Validators.required,
-      ),
-      year: new FormControl(
-        '', Validators.required,
-      ),
-      reportingPeriodType: new FormControl(
-        '', Validators.required,
-      ),
-      startDate: new FormControl(
-        Date,
-      ),
-      endDate: new FormControl(
-        Date,
-      ),
-      businessNumber: new FormControl(
-        '',
-      ),
-    })
+    // this.vatReportForm = this.formBuilder.group({
+    //   month: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    //   year: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    //   reportingPeriodType: new FormControl(
+    //     '', Validators.required,
+    //   ),
+    //   startDate: new FormControl(
+    //     Date,
+    //   ),
+    //   endDate: new FormControl(
+    //     Date,
+    //   ),
+    //   businessNumber: new FormControl(
+    //     '',
+    //   ),
+    // })
   }
 
 
@@ -142,13 +123,11 @@ export class VatReportPage implements OnInit {
       this.businessMode = BusinessMode.TWO_BUSINESS;
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-      //this.vatReportForm.get('businessNumber')?.setValidators([Validators.required]);
     }
     else {
       console.log("one business owner");
       this.businessMode = BusinessMode.ONE_BUSINESS;
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
-      //this.vatReportForm.get('businessNumber')?.patchValue(this.userData.id);      
     }
   }
 
@@ -272,8 +251,6 @@ export class VatReportPage implements OnInit {
     const month = event.month;
     const reportingPeriodType = event.periodType;
     const businessNumber = event.businessNumber;
-
-    //this.reportClick = false;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
 
     this.getVatReportData(startDate, endDate, businessNumber);
@@ -435,33 +412,33 @@ export class VatReportPage implements OnInit {
 
   }
 
-  // Get the data from server and update items
-  setRowsData(): void {
-    const formData = this.vatReportForm.value;
+  // // Get the data from server and update items
+  // setRowsData(): void {
+  //   //const formData = this.vatReportForm.value;
 
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
+  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
 
-    this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate, formData.businessNumber)
-      .pipe(
-        map((data) => {
-          const rows = [];
-          console.log("data of table in vat report: ", data);
+  //   this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate, formData.businessNumber)
+  //     .pipe(
+  //       map((data) => {
+  //         const rows = [];
+  //         console.log("data of table in vat report: ", data);
 
-          data.forEach(row => {
-            const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-            if (row.file != undefined && row.file != null && row.file != "") {
-              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
-            }
-            tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
-            tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
-            tableData.sum = this.genericService.addComma(tableData.sum as string);
-            rows.push(tableData);
-          })
-          this.rows = rows;
-          return rows
-        })
-      )
-  }
+  //         data.forEach(row => {
+  //           const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
+  //           if (row.file != undefined && row.file != null && row.file != "") {
+  //             tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
+  //           }
+  //           tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
+  //           tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
+  //           tableData.sum = this.genericService.addComma(tableData.sum as string);
+  //           rows.push(tableData);
+  //         })
+  //         this.rows = rows;
+  //         return rows
+  //       })
+  //     )
+  // }
 
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
@@ -500,75 +477,75 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  addFileToExpense(): void {
-    const totalTransactions = this.arrayFile.length;
-    let filesUploaded = 0;
-    this.genericService.getLoader().subscribe();
-    this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
+  // addFileToExpense(): void {
+  //   const totalTransactions = this.arrayFile.length;
+  //   let filesUploaded = 0;
+  //   this.genericService.getLoader().subscribe();
+  //   this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
 
-    // Create an array of observables for each file upload
-    const fileUploadObservables = this.arrayFile.map((tran) => {
-      if (tran.file) {
-        return this.filesService.uploadFileViaFront(tran.file as File).pipe(
-          finalize(() => {
-            this.genericService.dismissLoader();
-          }),
-          catchError((error) => {
-            console.log("Error in get vat report uploading file: ", error);
-            alert("Error uploading file");
-            return EMPTY;
-          }),
-          tap((res) => {
-            tran.file = res.metadata.fullPath;  // Update the file path after upload
-            filesUploaded++;
-            const progress = Math.round((filesUploaded / totalTransactions) * 100);
-            this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
-            this.genericService.dismissLoader();
-          }
-          )
-        );
-      } else {
-        return of(null);  // Return an observable that emits null for transactions without files
-      }
-    });
+  //   // Create an array of observables for each file upload
+  //   const fileUploadObservables = this.arrayFile.map((tran) => {
+  //     if (tran.file) {
+  //       return this.filesService.uploadFileViaFront(tran.file as File).pipe(
+  //         finalize(() => {
+  //           this.genericService.dismissLoader();
+  //         }),
+  //         catchError((error) => {
+  //           console.log("Error in get vat report uploading file: ", error);
+  //           alert("Error uploading file");
+  //           return EMPTY;
+  //         }),
+  //         tap((res) => {
+  //           tran.file = res.metadata.fullPath;  // Update the file path after upload
+  //           filesUploaded++;
+  //           const progress = Math.round((filesUploaded / totalTransactions) * 100);
+  //           this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
+  //           this.genericService.dismissLoader();
+  //         }
+  //         )
+  //       );
+  //     } else {
+  //       return of(null);  // Return an observable that emits null for transactions without files
+  //     }
+  //   });
 
-    // Use forkJoin to wait for all file uploads to finish
-    forkJoin(fileUploadObservables)
-      .pipe(
-        finalize(() => {
-          this.genericService.dismissLoader();
-        }),
-        catchError((err) => {
-          console.log("Error in get vat report forkJoin: ", err);
-          this.genericService.dismissLoader();
-          return EMPTY;
-        }),
-        switchMap(() => this.vatReportService.addFileToExpenses(this.arrayFile)),
-        catchError((err) => {
-          console.log("err in send files to server: ", err);
-          this.arrayFile.forEach((tran) => {
-            if (tran.file) {
-              this.filesService.deleteFile(tran.file as string);
-            }
-          })
-          this.genericService.showToast("אירעה שגיאה העלאת קבצים נכשלה", "error");
-          // this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
-          // this.isToastOpen = true;
-          return EMPTY
-        }),
-        tap(() => {
-          console.log("All file uploads complete.");
-          this.genericService.showToast(`הועלו ${totalTransactions} קבצים `, "success");
-          // this.messageToast = `הועלו ${totalTransactions} קבצים `
-          // this.isToastOpen = true;
-        }),
+  //   // Use forkJoin to wait for all file uploads to finish
+  //   forkJoin(fileUploadObservables)
+  //     .pipe(
+  //       finalize(() => {
+  //         this.genericService.dismissLoader();
+  //       }),
+  //       catchError((err) => {
+  //         console.log("Error in get vat report forkJoin: ", err);
+  //         this.genericService.dismissLoader();
+  //         return EMPTY;
+  //       }),
+  //       switchMap(() => this.vatReportService.addFileToExpenses(this.arrayFile)),
+  //       catchError((err) => {
+  //         console.log("err in send files to server: ", err);
+  //         this.arrayFile.forEach((tran) => {
+  //           if (tran.file) {
+  //             this.filesService.deleteFile(tran.file as string);
+  //           }
+  //         })
+  //         this.genericService.showToast("אירעה שגיאה העלאת קבצים נכשלה", "error");
+  //         // this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
+  //         // this.isToastOpen = true;
+  //         return EMPTY
+  //       }),
+  //       tap(() => {
+  //         console.log("All file uploads complete.");
+  //         this.genericService.showToast(`הועלו ${totalTransactions} קבצים `, "success");
+  //         // this.messageToast = `הועלו ${totalTransactions} קבצים `
+  //         // this.isToastOpen = true;
+  //       }),
 
-      )
-      .subscribe(() => {
-        this.arrayFile = [];
-        this.setRowsData();
-      });
-  }
+  //     )
+  //     .subscribe(() => {
+  //       this.arrayFile = [];
+  //       this.setRowsData();
+  //     });
+  // }
 
   onChange(event: string): void {
     console.log("onChange event: ", event);
