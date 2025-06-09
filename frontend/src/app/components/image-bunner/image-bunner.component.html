@@ -6,6 +6,6 @@
     <p class="content" >{{content()}}</p>
   </div>
   <div [ngClass]="buttonPosition()"  class="overlay-button" >
-    <app-p-button [buttonText]="buttonLabel()" [buttonColor]="buttonColor()" [buttonSize]="buttonSize()"></app-p-button>
+    <app-p-button [buttonText]="buttonLabel()" [buttonColor]="buttonColor()" [buttonSize]="buttonSize()" (onButtonClicked)="onButtonClick()"></app-p-button>
   </div>
 </div>

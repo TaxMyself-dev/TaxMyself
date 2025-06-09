@@ -1,4 +1,4 @@
-import { Component, input, OnInit } from '@angular/core';
+import { Component, input, OnInit, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ButtonComponent } from "../button/button.component";
@@ -27,8 +27,15 @@ export class ImageBunnerComponent  implements OnInit {
   buttonLabel = input<string>();  
   buttonSize = input<ButtonSize>();  
   buttonColor = input<ButtonColor>();  
+  onButtonClicked = output<any>();
   constructor() { }
   
   ngOnInit() {}
+
+  onButtonClick() {
+    if (this.onButtonClicked) {
+      this.onButtonClicked.emit("");
+    }
+  }
 
 }
