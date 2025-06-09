@@ -12,7 +12,7 @@
     </label>
     }
     <input [type]="type()" pInputText [formControlName]="controlName()"  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
-      [class]="getinputClasses()" (input)="onInput($event)" />
+      [class]="inputClasses()" (input)="onInput($event)" />
   </div>
 
   @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
