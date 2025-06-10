@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from 'src/app/shared/enums';
@@ -15,6 +15,9 @@ import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { is } from 'date-fns/locale';
 import { log } from 'console';
+import { inputsSize } from 'src/app/shared/enums';
+import { ButtonSize } from 'src/app/components/button/button.enum';
+
 
 
 @Component({
@@ -57,6 +60,17 @@ export class DocCreatePage implements OnInit {
   paymentsArray: IDocCreateFieldData[][] = [];
   paymentSectionName: SectionKeysEnum;
 
+  inputsSize = inputsSize;
+  buttonSize = ButtonSize;
+  //accountsList = signal<ISelectItem[]>([]);
+  form: FormGroup;
+
+  accountsList: ISelectItem[] = [
+    { name: 'חודשי', value: 'MONTHLY' },
+    { name: 'דו-חודשי', value: 'BIMONTHLY' },
+    { name: 'שנתי', value: 'ANNUAL' },
+    { name: 'טווח תאריכים', value: 'DATE_RANGE' }
+  ];
 
   readonly DocCreateTypeList = [
     { value: 'RECEIPT', name: 'קבלה' },
@@ -131,6 +145,7 @@ export class DocCreatePage implements OnInit {
 
   ngOnInit() {
     this.userDetails = this.authService.getUserDataFromLocalStorage();
+    this.createForms();
   }
 
   get paymentsFormArray(): FormArray {
@@ -162,9 +177,11 @@ export class DocCreatePage implements OnInit {
   }
 
   onSelectedDoc(event: any): void {
-    this.fileSelected = event.value;
-    console.log("🚀 ~ DocCreatePage ~ onSelectedFile ~ fileSelected:", this.fileSelected);
-    //this.getHebrewNameDoc(event.value);
+    this.fileSelected = event;
+    console.log("event is ", event);
+    console.log("event.value is ", event.value);
+    
+    console.log("onSelectedDoc: fileSelected is ", this.fileSelected);
     this.HebrewNameFileSelected = this.ggetHebrewNameDoc(event.value);
     switch (event.value) {
       case 'RECEIPT':
@@ -175,13 +192,19 @@ export class DocCreatePage implements OnInit {
         break;
       }
     this.getDocDetails()
-    this.createForms();
+    //this.createForms();
 
   }
 
+  // createForms(): void {
+  //   this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails', this.paymentSectionName]);
+  //   this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+  //   this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
+  //   this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
+  // }
+
   createForms(): void {
-    this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails', this.paymentSectionName]);
-    this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails']);
     this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
     this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
   }

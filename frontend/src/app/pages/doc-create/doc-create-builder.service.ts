@@ -10,18 +10,22 @@ export class DocCreateBuilderService {
 
     readonly docCreateBuilderData: Record<CreateDocFields, IDocCreateFieldData> = {
         // General Details 
-        [FieldsCreateDocValue.TYPE_FILE]: {
-            name: FieldsCreateDocName.typeFile,
-            value: FieldsCreateDocValue.TYPE_FILE,
-            type: FormTypes.TEXT,
+        [FieldsCreateDocValue.DOC_TYPE]: {
+            //name: FieldsCreateDocName.typeFile,
+            value: FieldsCreateDocValue.DOC_TYPE,
+            labelText: '',
+            placeHolder: '',
+            type: FormTypes.DDL,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
             validators: []
         },
         [FieldsCreateDocValue.DOC_DESCRIPTION]: {
-            name: FieldsCreateDocName.docDescription,
+            //name: FieldsCreateDocName.docDescription,
             value: FieldsCreateDocValue.DOC_DESCRIPTION,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -29,8 +33,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [FieldsCreateDocValue.DOCUMENT_DATE]: {
-            name: FieldsCreateDocName.documentDate,
+            //name: FieldsCreateDocName.documentDate,
             value: FieldsCreateDocValue.DOCUMENT_DATE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DATE,
             initialValue: new Date(),
             enumValues: [],
@@ -38,8 +44,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [FieldsCreateDocValue.DOC_VAT_RATE]: {
-            name: FieldsCreateDocName.docVatRate,
+            //name: FieldsCreateDocName.docVatRate,
             value: FieldsCreateDocValue.DOC_VAT_RATE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: 18,
             enumValues: [],
@@ -47,8 +55,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [FieldsCreateDocValue.CURRENCY]: {
-            name: FieldsCreateDocName.currency,
+            //name: FieldsCreateDocName.currency,
             value: FieldsCreateDocValue.CURRENCY,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DDL,
             initialValue: 'ILS',
             enumValues: [Currency],
@@ -57,8 +67,10 @@ export class DocCreateBuilderService {
         },
         // User Details
         [FieldsCreateDocValue.RECIPIENT_NAME]: {
-            name: FieldsCreateDocName.recipientName,
+            //name: FieldsCreateDocName.recipientName,
             value: FieldsCreateDocValue.RECIPIENT_NAME,
+            labelText: 'שם הלקוח',
+            placeHolder: 'לדוגמה: ישראל ישראלי',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -66,8 +78,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [FieldsCreateDocValue.RECIPIENT_ID]: {
-            name: FieldsCreateDocName.recipientId,
+            //name: FieldsCreateDocName.recipientId,
             value: FieldsCreateDocValue.RECIPIENT_ID,
+            labelText: 'תעודת זהות או ח.פ',
+            placeHolder: 'הקלד 9 ספרות',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -75,8 +89,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.RECIPIENT_PHONE]: {
-            name: FieldsCreateDocName.recipientPhone,
+            //name: FieldsCreateDocName.recipientPhone,
             value: FieldsCreateDocValue.RECIPIENT_PHONE,
+            labelText: 'טלפון נייד',
+            placeHolder: 'הקלד 10 ספרות',
             type: FormTypes.TELEPHONE,
             initialValue: '',
             enumValues: [],
@@ -84,8 +100,10 @@ export class DocCreateBuilderService {
             validators: [Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)]
         },
         [FieldsCreateDocValue.RECIPIENT_EMAIL]: {
-            name: FieldsCreateDocName.recipientEmail,
+            //name: FieldsCreateDocName.recipientEmail,
             value: FieldsCreateDocValue.RECIPIENT_EMAIL,
+            labelText: 'כתובת אימייל',
+            placeHolder: 'name@gamil.com',
             type: FormTypes.EMAIL,
             initialValue: '',
             enumValues: [],
@@ -93,8 +111,10 @@ export class DocCreateBuilderService {
             validators: [Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
         },
         [FieldsCreateDocValue.RECIPIENT_CITY]: {
-            name: FieldsCreateDocName.recipientCity,
+            //name: FieldsCreateDocName.recipientCity,
             value: FieldsCreateDocValue.RECIPIENT_CITY,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -102,8 +122,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.RECIPIENT_STREET]: {
-            name: FieldsCreateDocName.recipientStreet,
+            //name: FieldsCreateDocName.recipientStreet,
             value: FieldsCreateDocValue.RECIPIENT_STREET,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -111,8 +133,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: {
-            name: FieldsCreateDocName.recipientHomeNumber,
+            //name: FieldsCreateDocName.recipientHomeNumber,
             value: FieldsCreateDocValue.RECIPIENT_HOME_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -120,8 +144,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: {
-            name: FieldsCreateDocName.recipientPostalCode,
+            //name: FieldsCreateDocName.recipientPostalCode,
             value: FieldsCreateDocValue.RECIPIENT_POSTAL_CODE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -129,8 +155,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.RECIPIENT_STATE]: {
-            name: FieldsCreateDocName.recipientState,
+            //name: FieldsCreateDocName.recipientState,
             value: FieldsCreateDocValue.RECIPIENT_STATE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -138,8 +166,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: {
-            name: FieldsCreateDocName.recipientStateCode,
+            //name: FieldsCreateDocName.recipientStateCode,
             value: FieldsCreateDocValue.RECIPIENT_STATE_CODE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -147,8 +177,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.SUM_AFTER_DIS_BEF_VAT]: {
-            name: FieldsCreateDocName.sumAfterDisBefVat,
+            //name: FieldsCreateDocName.sumAfterDisBefVat,
             value: FieldsCreateDocValue.RECIPIENT_STATE_CODE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -156,8 +188,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.SUM_AFTER_DIS_WITH_VAT]: {
-            name: FieldsCreateDocName.sumAfterDisWithVat,
+            //name: FieldsCreateDocName.sumAfterDisWithVat,
             value: FieldsCreateDocValue.SUM_AFTER_DIS_WITH_VAT,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -165,8 +199,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.SUM_BEF_DIS_BEF_VAT]: {
-            name: FieldsCreateDocName.sumBefDisBefVat,
+            //name: FieldsCreateDocName.sumBefDisBefVat,
             value: FieldsCreateDocValue.SUM_BEF_DIS_BEF_VAT,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -174,8 +210,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [FieldsCreateDocValue.VAT_SUM]: {
-            name: FieldsCreateDocName.vatSum,
+            //name: FieldsCreateDocName.vatSum,
             value: FieldsCreateDocValue.VAT_SUM,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -184,8 +222,10 @@ export class DocCreateBuilderService {
         },
         // Payment Details
         [fieldLineDocValue.SUM_BEF_VAT]: {
-            name: fieldLineDocName.sumBefVat,
+            //name: fieldLineDocName.sumBefVat,
             value: fieldLineDocValue.SUM_BEF_VAT,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -193,8 +233,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.SUM]: {
-            name: fieldLineDocName.sumBefVat,
+            //name: fieldLineDocName.sumBefVat,
             value: fieldLineDocValue.SUM,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -202,8 +244,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
-            name: fieldLineDocName.line_description,
+            //name: fieldLineDocName.line_description,
             value: fieldLineDocValue.LINE_DESCRIPTION,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -211,8 +255,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [fieldLineDocValue.UNIT_AMOUNT]: {
-            name: fieldLineDocName.unitAmount,
+            //name: fieldLineDocName.unitAmount,
             value: fieldLineDocValue.UNIT_AMOUNT,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: 1,
             enumValues: [],
@@ -220,8 +266,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.VAT_RATE]: {
-            name: fieldLineDocName.vatRate,
+            //name: fieldLineDocName.vatRate,
             value: fieldLineDocValue.VAT_RATE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: 18,
             enumValues: [],
@@ -229,8 +277,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.VAT_OPTIONS]: {
-            name: fieldLineDocName.vatOptions,
+            //name: fieldLineDocName.vatOptions,
             value: fieldLineDocValue.VAT_OPTIONS,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
             enumValues: [VatOptionsValue],
@@ -238,8 +288,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [fieldLineDocValue.DISCOUNT]: {
-            name: fieldLineDocName.discount,
+            //name: fieldLineDocName.discount,
             value: fieldLineDocValue.DISCOUNT,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: 0,
             enumValues: [],
@@ -247,8 +299,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.LINE_NUMBER]: {
-            name: fieldLineDocName.lineNumber,
+            //name: fieldLineDocName.lineNumber,
             value: fieldLineDocValue.LINE_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -256,8 +310,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.UNIT_TYPE]: {
-            name: fieldLineDocName.unitType,
+            //name: fieldLineDocName.unitType,
             value: fieldLineDocValue.UNIT_TYPE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
             enumValues: [UnitOfMeasure],
@@ -265,8 +321,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.PAYMENT_METHOD]: {
-            name: fieldLineDocName.paymentMethod,
+            //name: fieldLineDocName.paymentMethod,
             value: fieldLineDocValue.PAYMENT_METHOD,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
             enumValues: [PaymentMethodValue],
@@ -278,8 +336,10 @@ export class DocCreateBuilderService {
             validators: [Validators.required]
         },
         [fieldLineDocValue.BANK_NUMBER]: {
-            name: fieldLineDocName.bankNumber,
+            //name: fieldLineDocName.bankNumber,
             value: fieldLineDocValue.BANK_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -287,8 +347,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.BRANCH_NUMBER]: {
-            name: fieldLineDocName.branchNumber,
+            //name: fieldLineDocName.branchNumber,
             value: fieldLineDocValue.BRANCH_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -296,8 +358,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.ACCOUNT_NUMBER]: {
-            name: fieldLineDocName.accountNumber,
+            //name: fieldLineDocName.accountNumber,
             value: fieldLineDocValue.ACCOUNT_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -305,8 +369,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.CHECK_NUMBER]: {
-            name: fieldLineDocName.checkNumber,
+            //name: fieldLineDocName.checkNumber,
             value: fieldLineDocValue.CHECK_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -314,8 +380,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.PAYMENT_CHECK_DATE]: {
-            name: fieldLineDocName.paymentCheckDate,
+            //name: fieldLineDocName.paymentCheckDate,
             value: fieldLineDocValue.PAYMENT_CHECK_DATE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DATE,
             initialValue: new Date(),
             enumValues: [],
@@ -323,8 +391,10 @@ export class DocCreateBuilderService {
             validators: [],
         },
         [fieldLineDocValue.CARD_COMPANY]: {
-            name: fieldLineDocName.cardCompany,
+            //name: fieldLineDocName.cardCompany,
             value: fieldLineDocValue.CARD_COMPANY,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
             enumValues: [CardCompany],
@@ -332,8 +402,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.CARD_4_NUMBER]: {
-            name: fieldLineDocName.card4Number,
+            //name: fieldLineDocName.card4Number,
             value: fieldLineDocValue.CARD_4_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -341,8 +413,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.CREDIT_CARD_NAME]: {
-            name: fieldLineDocName.creditCardName,
+            //name: fieldLineDocName.creditCardName,
             value: fieldLineDocValue.CREDIT_CARD_NAME,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -350,8 +424,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.CREDIT_TRANS_TYPE]: {
-            name: fieldLineDocName.creditTransType,
+            //name: fieldLineDocName.creditTransType,
             value: fieldLineDocValue.CREDIT_TRANS_TYPE,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
             enumValues: [CreditTransactionType],
@@ -359,8 +435,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.CREDIT_PAY_NUMBER]: {
-            name: fieldLineDocName.creditPayNumber,
+            //name: fieldLineDocName.creditPayNumber,
             value: fieldLineDocValue.CREDIT_PAY_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -368,8 +446,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.MANUFACTURER_NAME]: {
-            name: fieldLineDocName.manufacturerName,
+            //name: fieldLineDocName.manufacturerName,
             value: fieldLineDocValue.MANUFACTURER_NAME,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -377,8 +457,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.PRODUCT_SERIAL_NUMBER]: {
-            name: fieldLineDocName.productSerialNumber,
+            //name: fieldLineDocName.productSerialNumber,
             value: fieldLineDocValue.PRODUCT_SERIAL_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -386,8 +468,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.INTERNAL_NUMBER]: {
-            name: fieldLineDocName.internalNumber,
+            //name: fieldLineDocName.internalNumber,
             value: fieldLineDocValue.INTERNAL_NUMBER,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -395,8 +479,10 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.JOURNAL_ENTRY_MAIN_ID]: {
-            name: fieldLineDocName.journalEntryMainId,
+            //name: fieldLineDocName.journalEntryMainId,
             value: fieldLineDocValue.JOURNAL_ENTRY_MAIN_ID,
+            labelText: '',
+            placeHolder: '',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -409,7 +495,7 @@ export class DocCreateBuilderService {
     readonly docCreateBuilderSectionsData: Partial<Record<SectionKeysEnum, ICreateDocSectionData>> = {
         'GeneralDetails': {
             key: 'GeneralDetails',
-            baseFields: [FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOCUMENT_DATE,],
+            baseFields: [FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOCUMENT_DATE,],
             expandable: true,
             expandedFields: [FieldsCreateDocValue.DOC_VAT_RATE, FieldsCreateDocValue.CURRENCY]
         },

@@ -11,8 +11,10 @@ export interface ICreateDocSectionData {
 export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' ;
 
 export interface IDocCreateFieldData {
-    name: FieldsCreateDocName | fieldLineDocName;
+    //name: FieldsCreateDocName | fieldLineDocName;
     value: string;
+    labelText: string;
+    placeHolder: string;
     type: FormTypes; 
     enumValues: { [key: string]: string }[];
     editFormBasedOnValue: { [key: string]: FieldsCreateDocName[] | fieldLineDocValue[]};  
