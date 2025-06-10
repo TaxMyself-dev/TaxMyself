@@ -303,6 +303,18 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.narrow {
     width: 120px;
   }
+
+  &.fill-border {
+    border: 1px solid #ebe8e8 !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+    border-radius: 26px !important;
+    background-color: #e0e0e054;
+    
+    &.valid {
+      border: 1px solid rgb(27, 45, 27) !important;
+      background-color: white;
+    }
+  }
   
 }
 

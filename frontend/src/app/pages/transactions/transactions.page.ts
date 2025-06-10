@@ -18,7 +18,6 @@ import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
-import ca from 'date-fns/locale/ca';
 
 @Component({
   selector: 'app-transactions',
@@ -989,6 +988,10 @@ export class TransactionsPage implements OnInit {
 
   applyFilters(filters: FormGroup): void {
     this.getTransactions(filters);
+  }
+
+  imageBunnerButtonClicked(event: any): void {
+    this.router.navigate(['/reports'])
   }
 
 }

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, input, OnInit, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, input, OnInit, output, signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { inputsSize } from 'src/app/shared/enums';
@@ -21,13 +21,18 @@ export class InputTextComponent  implements OnInit {
   labelText = input<string>("");
   ariaLabel = input<string>("");
   size = input<string>("");
+  customStyle = input<string>("");
   value = input<string>("");
   disabled = input<boolean>(false);
   type = input<'text' | 'number'>('text');
   onInputText = output<string>();
+
+  inputClasses = signal<string>("");
   constructor() { }
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.getinputClasses();
+  }
 
    /** true if this control was built with Validators.required */
    get isRequired(): boolean {
@@ -45,12 +50,15 @@ export class InputTextComponent  implements OnInit {
     return false;
   }
 
-  getinputClasses(): string {
-    return [
-      this.size(),             
+  getinputClasses(): void {
+    const classes =  [
+      this.size(),   
+      this.customStyle()          
     ]
       .filter(c => !!c)                // remove empty strings
       .join(' ');
+            
+      this.inputClasses.set(classes);
   }
 
   // onChange(event: any): void {
@@ -58,6 +66,13 @@ export class InputTextComponent  implements OnInit {
   // }
 
   onInput(event: any): void {
+    const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
+    if (ctrl.valid) {
+      this.inputClasses.update(current => current + ' valid');
+    }
+    else {
+      this.inputClasses.update(current => current.replace('valid', ''));
+    }
     this.onInputText.emit(event.target.value);
   }
 
