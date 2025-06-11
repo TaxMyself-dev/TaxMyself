@@ -1,28 +1,154 @@
+.login-wrap-screen {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+}
+
+.login-screen {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+}
+
+.login-card {
+  width: 40%;
+  border:3px solid rgb(79, 171, 79);
+  height: 80%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.login-picture {
+  width: 60%;
+  height: 80%;
+  border: solid 1px red;
+}
+
+.login-image {
+  width: 100%;
+  height: 100%;
+}
+
+:host ::ng-deep .social-btn .p-button {
+  color: black;
+}
+
+:host ::ng-deep .fb-btn .pi-facebook {
+  color: #1877f2; /* Facebook blue */
+}
+
+:host ::ng-deep .google-btn .pi-google {
+  color: #db4437; /* Google red */
+}
+
+.google-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.line-with-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: #57BC97;
+  font-size: 14px;
+  gap: 10px;
+  padding: 0 150px
+}
+
+.line-with-text .line {
+  flex: 1;
+  height: 1px;
+  opacity: 0.4;
+  color: #57BC97;
+}
+
+.line-with-text .text {
+  white-space: nowrap;
+  padding: 0 10px;
+  color: #57BC97;
+}
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #204F56;
+}
+
+.welcome-title {
+  font-size: 35px;
+  font-weight: 400;
+  color: #204F56;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  // width: 100%;
+  gap: 10px;
+  border: solid 1px red;
+  height: 30%;
+}
+
+.forgot-password {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  // border: solid 1px red;
+  margin-right: auto;
+}
+
+.input-wrap {
+    width: 300px;
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    border: solid 1px #EBEBEB;
+    border-radius: 30px;
+}
+
+.input-text {
+  width: 89%;
+  display: flex;
+  justify-content: space-between;
+  border: none;
+  border-radius: 30px;
+  height: 35px;
+
+}
+
+.input-icon
+{
+  top: 55%;
+}
+
+.input-text:focus {
+    border: solid transparent;
+}
+
 .login-header{
   display: flex;
   justify-content: center;
 }
+
 .flex-center{
     display: flex;
     flex-direction: column;
     margin-top: 10vh;
     height: 100%;
 }
-
-.login-card{
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-content: center;
-    border:3px solid rgb(79, 171, 79);
-    border-radius: 20px;
-    margin: auto;
-    margin-top: 10px;
-    max-width: 360px;
-    ion-input{
-      margin-top: 10px;
-    }
-  }
 
 .login-card-content{
   display: flex;

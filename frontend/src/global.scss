@@ -156,12 +156,12 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.yellow {
-    background-color: rgba(246, 255, 172, 0.8);
-    border-color: rgba(246, 255, 172, 0.8);
+    background-color: #EBFD71;
+    border-color: #EBFD71;
     color: gray;
     &.yellow:hover {
-      background-color: rgba(246, 255, 172, 1);
-      border-color: rgba(246, 255, 172, 1);
+      background-color: #EBFD71;
+      border-color: #EBFD71;
       color: gray
     }
   }
@@ -310,4 +310,20 @@ input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
 }
+
+// .p-iconfield { //For icon input
+//   background-color: violet;
+// }
  
+// .p-inputicon {
+//   &.input-wrap {
+//     background-color: greenyellow;
+//     position: fixed !important;
+//     margin-top: none !important;
+//   }
+// }
+
+// input.p-inputtext:focus {
+//   border: solid transparent !important;
+//   background-color: #333
+// }

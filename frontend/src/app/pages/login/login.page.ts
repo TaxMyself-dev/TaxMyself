@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
+import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 // import { UserCredential } from '@firebase/auth-types';
@@ -7,8 +8,9 @@ import { LoadingController } from '@ionic/angular';
 import { EMPTY, catchError, filter, finalize, from, switchMap, tap } from 'rxjs';
 import { ButtonSize } from '../../components/button/button.enum';
 import { ButtonColor } from '../../components/button/button.enum';
-import { FormTypes } from 'src/app/shared/enums';
+import { bunnerImagePosition, FormTypes } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
+import { ButtonClass } from 'src/app/shared/button/button.enum';
 
 @Component({
     selector: 'app-login',
@@ -17,8 +19,11 @@ import { GenericService } from 'src/app/services/generic.service';
     standalone: false
 })
 export class LoginPage implements OnInit {
-  readonly ButtonSize = ButtonSize;
-  readonly ButtonColor = ButtonColor;
+
+  readonly bunnerImagePosition = bunnerImagePosition;
+  readonly buttonSize = ButtonSize;
+  readonly buttonColor = ButtonColor;
+  readonly ButtonClass = ButtonClass;
   readonly formTypes = FormTypes;
 
   // emailVerify: boolean = true;
