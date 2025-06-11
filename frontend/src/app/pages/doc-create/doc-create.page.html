@@ -1,16 +1,116 @@
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
+<div class="create-doc-wrap-screen">
 
-<ion-content [fullscreen]="true">
+  <div class="create-doc-header">
+    <div class="icon-title">
+      <span class="title">הפקת מסמך</span>
+    </div>
+    <p class="text-header">
+      בחר איזה מסמך ברצונך להפיק   
+    </p>
+  </div>
+
+  <div class="general-details">
+    @for(field of generalArray; track field.value) {
+      <!-- <p>{{field.value}}</p> -->
+      @switch (field.type) {
+        @case (formTypes.TEXT) {
+          <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDetailsForm"
+      [size]="inputsSize.BETWEEN"></app-input-text>
+        }
+        <!-- @case (formTypes.DATE) {
+            <p-datepicker
+                placeholder="תאריך"
+                name="תאריך המסמך"
+                formControlName="docDate"
+                [iconDisplay]="'input'"
+                [showIcon]="true"
+                inputId="docDate"
+                [dateFormat]="'dd/mm/yy'"
+                [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
+              ></p-datepicker>
+        } -->
+        @case (formTypes.DDL) {
+          <app-input-select [controlName]="'docType'" labelText="סוג המסמך" [placeholder]="'בחר את סוג המסמך'" [items]="DocCreateTypeList" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onSelectedDoc($event)"></app-input-select>
+        }
+      }
+    }
+  </div>
+
+  <div class="create-doc-header">
+    <div class="icon-title">
+      <span class="title">פרטי הלקוח</span>
+    </div>
+  </div>
+
+  <div class="general-details">
+    @for(field of userArray; track field.value) {
+      @switch (field.type) {
+        @case (formTypes.TEXT) {
+          <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
+      [size]="inputsSize.BETWEEN"></app-input-text>
+        }
+        @case (formTypes.TELEPHONE) {
+          <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
+      [size]="inputsSize.BETWEEN"></app-input-text>
+        }
+        @case (formTypes.EMAIL) {
+          <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
+      [size]="inputsSize.BETWEEN"></app-input-text>
+        }
+      }
+    }
+  </div>
+
+  <div class="create-doc-header">
+    <div class="icon-title">
+      <span class="title">פירוט</span>
+    </div>
+  </div>
+
+  <div class="create-doc-header">
+    <div class="icon-title">
+      <span class="title">פרטי התשלום</span>
+    </div>
+  </div>
+
+</div>
+
+    <!-- <ng-container *ngFor="let field of generalArray">
+    <ng-container [ngSwitch]="field.type">
+
+      <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
+        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
+
+      <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
+        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
+
+      <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name" [controlName]="field.value"
+        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
+
+      <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
+        [controlName]="field.value" [parentForm]="generalDetailsForm"
+        [inputType]="field.type"></app-generic-input>
+
+      <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
+        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
+
+      <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
+        [parentForm]="generalDetailsForm"
+        [items]="getDropdownItems(field.value)"></app-generic-select>
+    </ng-container>
+  </ng-container> -->
+
+<!-- <ion-content [fullscreen]="true">
   <div class="wrap-screen">
     <app-generic-select class="default-input-doc" title="בחר מסמך" [items]="DocCreateTypeList"
       (selectionChanged)="onSelectedDoc($event)">
     </app-generic-select>
   </div>
   <div *ngIf="fileSelected && !isInitial; else initialTemplate">
-    <p>{{HebrewNameFileSelected}} מספר: {{docIndexes?.docIndex}}</p>
+    <p>{{HebrewNameFileSelected}} מספר: {{docIndexes?.docIndex}}</p> -->
 
     <!-- General details card -->
-    <ion-card>
+    <!-- <ion-card>
       <ion-card-header>
         <ion-card-title>נתוני מסמך כלליים</ion-card-title>
         <app-button [buttonText]="isGeneralExpanded ? 'צמצם' : 'הרחב'"
@@ -44,10 +144,10 @@
           </ng-container>
         </ion-list>
       </ion-card-content>
-    </ion-card>
+    </ion-card> -->
 
     <!-- User details card -->
-    <ion-card *ngIf="myForm">
+    <!-- <ion-card *ngIf="myForm">
       <ion-card-header>
         <ion-card-title>פרטי לקוח</ion-card-title>
         <app-button [buttonText]="isUserExpanded ? 'צמצם' : 'הרחב'"
@@ -84,10 +184,10 @@
           </ng-container>
         </ion-list>
       </ion-card-content>
-    </ion-card>
+    </ion-card> -->
 
     <!-- Payment details card -->
-    <ion-card>
+    <!-- <ion-card>
       <ion-card-header>
         <ion-card-title>פרטי תשלום</ion-card-title>
       </ion-card-header>
@@ -118,9 +218,9 @@
           </ng-container>
         </ion-list>
       </ion-card-content>
-    </ion-card>
+    </ion-card> -->
 
-    <ion-card>
+    <!-- <ion-card>
       <ion-card-header>
         <ion-card-title>סה"כ לתשלום</ion-card-title>
       </ion-card-header>
@@ -134,9 +234,9 @@
   <app-button [buttonText]="'Create'" (onButtonClicked)="createDoc()" [isLoading]="createPDFIsLoading"></app-button>
   <app-button [buttonText]="'Preview'" (onButtonClicked)="previewtDoc()"
     [isLoading]="createPreviewPDFIsLoading"></app-button>
-</ion-content>
+</ion-content> -->
 
-<ng-template #initialTemplate>
+<!-- <ng-template #initialTemplate>
   <ng-container *ngIf="fileSelected">
 
     <p>
@@ -151,4 +251,4 @@
     <app-button buttonText="Save" (onButtonClicked)="onClickInitialIndex()"
       [disabled]="initialDetailsForm.invalid"></app-button>
   </ng-container>
-</ng-template>
+</ng-template> -->

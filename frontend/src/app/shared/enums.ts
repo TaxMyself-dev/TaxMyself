@@ -194,7 +194,7 @@ export enum Currency {
 }
 
 export enum FieldsCreateDocValue {
-  TYPE_FILE = 'typeFile',
+  DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
   DOCUMENT_DATE = 'documentDate',
   DOC_VAT_RATE = 'docVatRate',
@@ -216,7 +216,7 @@ export enum FieldsCreateDocValue {
 }
 
 export enum FieldsCreateDocName {
-  typeFile = "באיזה מסמך אתה מעוניין?",
+//typeFile = "באיזה מסמך אתה מעוניין?",
   currency = "מטבע",
   docVatRate = "שיעור מעמ",
   date = "תאריך ביצוע התשלום",

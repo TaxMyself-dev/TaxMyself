@@ -1,3 +1,41 @@
+
+.create-doc-wrap-screen {
+  width: 100%;
+  height: 95%;
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  padding-right: 50px;
+}
+
+.create-doc-header {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  margin-top: 100px
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 500;
+  position: relative;
+}
+
+.text-header {
+  font-size: 1.2rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.general-details {
+  width: 30%;
+  height: 95%;
+  display: flex;
+  flex-direction: row;
+//   align-items: left;
+  justify-content: space-around;
+}
+
 .default-input-doc {
     width: 200px;
 }

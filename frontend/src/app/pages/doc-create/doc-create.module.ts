@@ -8,6 +8,11 @@ import { DocCreatePageRoutingModule } from './doc_create-routing.module';
 
 import { DocCreatePage } from './doc-create.page';
 import { SharedModule } from '../../shared/shared.module';
+import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
+import { Button } from 'primeng/button';
+import { ButtonComponent } from 'src/app/components/button/button.component';
+import { DatePickerModule } from 'primeng/datepicker';
+import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 
 @NgModule({
   imports: [
@@ -16,7 +21,11 @@ import { SharedModule } from '../../shared/shared.module';
     IonicModule,
     DocCreatePageRoutingModule,
     ReactiveFormsModule,
-    SharedModule
+    SharedModule,
+    InputSelectComponent,
+    InputTextComponent,
+    ButtonComponent,
+    DatePickerModule
   ],
   declarations: [DocCreatePage]
 })
