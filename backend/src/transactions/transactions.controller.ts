@@ -173,18 +173,19 @@ export class TransactionsController {
   }
 
 
-  @Get('get-expenses-to-build-report')
+  @Get('get-transaction-to-confirm-and-add-to-expenses')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getExpensesToBuildReport(
     @Req() request: AuthenticatedRequest,
-    @Query() query: GetTransactionsDto,
+    @Query() query: any,
+    // @Query() query: GetTransactionsDto,
   ): Promise<Transactions[]> {
     console.log("query is: ", query);
     const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    return this.transactionsService.getExpensesToBuildReport(userId, query.businessNumber, startDate, endDate);
+    return this.transactionsService.getTransactionToConfirmAndAddToExpenses(userId, query.businessNumber, startDate, endDate);
 
   }
 

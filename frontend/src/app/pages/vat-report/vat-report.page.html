@@ -1,5 +1,8 @@
 <div class="vat-report-wrap-screen">
+  <div style="border: 5px solid; background-color: aqua; width: 200px;">
 
+    <app-p-button [buttonText]="'show'" (onButtonClicked)="show()"></app-p-button>
+  </div>
   <div class="vat-report-header">
     <div class="icon-title">
       <img src="../../../assets/vat_report.svg" alt="VAT Report" class="icon" />
@@ -43,3 +46,8 @@
   }
 
 </div>
+
+@if (visibleConfirmTransDialog()) {
+  <app-confirm-trans-dialog   (isVisibleChange)="visibleConfirmTransDialog.set($event)"
+  [isVisible]="visibleConfirmTransDialog()" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()"></app-confirm-trans-dialog>
+}
