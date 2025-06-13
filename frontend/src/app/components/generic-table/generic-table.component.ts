@@ -46,6 +46,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   showButtons = input<boolean>(false);
   columnSearch = input<string>('name');
   tableHeight = input<string>('500px');
+  selectionModeCheckBox = input<null | 'single' | 'multiple'>(null);
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
@@ -56,6 +57,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
   isHovering = signal<number>(null);
+  selectedTrans: IRowDataTable[] = [];
+
+  
 
 
   readonly buttonSize = ButtonSize;
@@ -81,8 +85,24 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   constructor() { }
 
   ngOnInit() {}
-  
 
+  selectionchange() {
+    console.log("select in row chang");
+    
+  }
+  
+  onSelectionChange(event: any) {
+    console.log('Selection Changed:', event);
+    console.log('Selected Rows:', this.selectedTrans);
+    
+  }
+  
+  onAllSelect($event: any) {
+    console.log('onAllSelect');
+    console.log('$event:', $event);
+    console.log('Selected Rows:', this.selectedTrans);
+    
+  }
 
   get isHoveringAnywhere() {
     return this.isRowHovered() || this.isFloatingHovered();

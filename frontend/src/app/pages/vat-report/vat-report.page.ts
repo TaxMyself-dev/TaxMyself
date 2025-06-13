@@ -28,6 +28,8 @@ import { ButtonColor } from 'src/app/components/button/button.enum';
 })
 export class VatReportPage implements OnInit {
 
+  visibleConfirmTransDialog = signal<boolean>(false);
+
   readonly ButtonSize = ButtonSize;
   readonly reportingPeriodType = ReportingPeriodType;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
@@ -37,6 +39,9 @@ export class VatReportPage implements OnInit {
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReportData = signal<IVatReportData>(null);
+  startDate = signal<string>("");
+  endDate = signal<string>("");
+  businessNumber = signal<string>("");
   displayExpenses: boolean = false;
   //vatReportForm: FormGroup;
   tableActions: ITableRowAction[];
@@ -67,9 +72,9 @@ export class VatReportPage implements OnInit {
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
   ];
 
-  readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
-    [ExpenseFormColumns.DATE, ICellRenderer.DATE],
-  ]);
+  // readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
+  //   [ExpenseFormColumns.DATE, ICellRenderer.DATE],
+  // ]);
 
   reportOrder: string[] = [
     'vatableTurnover',
@@ -116,7 +121,7 @@ export class VatReportPage implements OnInit {
 
 
   ngOnInit() {
-    this.setTableActions()
+    // this.setTableActions()
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
       console.log("two business owner");
@@ -132,27 +137,27 @@ export class VatReportPage implements OnInit {
   }
 
 
-  private setTableActions(): void {
-    this.tableActions = [
-      {
-        name: 'upload',
-        icon: 'attach-outline',
-        title: 'בחר קובץ',
-        fieldName: this.UPLOAD_FILE_FIELD_NAME,
-        action: (event: any, row: IRowDataTable) => {
-          this.addFile(event, row);
-        }
-      },
-      {
-        name: 'preview',
-        icon: 'glasses-outline',
-        title: 'הצג קובץ',
-        action: (row: IRowDataTable) => {
-          this.onPreviewFileClicked(row);
-        }
-      }
-    ]
-  }
+  // private setTableActions(): void {
+  //   this.tableActions = [
+  //     {
+  //       name: 'upload',
+  //       icon: 'attach-outline',
+  //       title: 'בחר קובץ',
+  //       fieldName: this.UPLOAD_FILE_FIELD_NAME,
+  //       action: (event: any, row: IRowDataTable) => {
+  //         this.addFile(event, row);
+  //       }
+  //     },
+  //     {
+  //       name: 'preview',
+  //       icon: 'glasses-outline',
+  //       title: 'הצג קובץ',
+  //       action: (row: IRowDataTable) => {
+  //         this.onPreviewFileClicked(row);
+  //       }
+  //     }
+  //   ]
+  // }
 
   beforeSelectFile(event): void {
     console.log("in beforeSelectFile");
@@ -250,11 +255,14 @@ export class VatReportPage implements OnInit {
     const year = event.year;
     const month = event.month;
     const reportingPeriodType = event.periodType;
-    const businessNumber = event.businessNumber;
+    this.businessNumber.set(event.businessNumber);
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
+    this.startDate.set(startDate);
+    this.endDate.set(endDate);
+    this.visibleConfirmTransDialog.set(true);
 
-    this.getVatReportData(startDate, endDate, businessNumber);
-    this.getDataTable(startDate, endDate, businessNumber);
+    // this.getVatReportData(startDate, endDate, this.businessNumber());
+    // this.getDataTable(startDate, endDate, this.businessNumber());
 
   }
 
@@ -550,6 +558,12 @@ export class VatReportPage implements OnInit {
   onChange(event: string): void {
     console.log("onChange event: ", event);
     this.updateIncome(event);
+  }
+
+  show(): void {
+    console.log("in show");
+    
+    this.visibleConfirmTransDialog.set(true);
   }
 
 }
