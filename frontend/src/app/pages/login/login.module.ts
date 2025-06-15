@@ -30,7 +30,7 @@ import { PasswordModule } from 'primeng/password';
     IconField,
     InputIcon,
     InputTextComponent,
-    PasswordModule
+    PasswordModule,
 ],
   declarations: [LoginPage]
 })

@@ -45,7 +45,7 @@ export class LoginPage implements OnInit {
       ),
       password: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
-      )
+      ),
     });
 
     this.resetForm = this.formBuilder.group({
