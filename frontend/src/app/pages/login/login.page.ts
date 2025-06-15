@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, FormControl } from '@angular/forms';
+import { Component, OnInit, signal } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, FormControl, AbstractControl } from '@angular/forms';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
@@ -26,6 +26,7 @@ export class LoginPage implements OnInit {
   readonly ButtonClass = ButtonClass;
   readonly formTypes = FormTypes;
 
+  isLoading = signal(false);
   // emailVerify: boolean = true;
   userEmailForReset: string = "";
   //userCredential: UserCredential;
@@ -34,7 +35,7 @@ export class LoginPage implements OnInit {
   displayError: string;
   showPassword: boolean = false;
   resetMode = false;
-  isLoading = false;
+  // isLoading = false;
 
   constructor(private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
@@ -64,12 +65,19 @@ export class LoginPage implements OnInit {
     });
   }
 
+
+
+
+  togglePassword() {
+    this.showPassword = !this.showPassword;
+  }
+
   onEnterKeyPressed(): void {
     this.login2();
   }
 
     login2(): void {
-    this.isLoading = true;
+    this.isLoading.set(true);
     this.authService.error$.next(null);
     const formData = this.loginForm.value;
     // this.genericService.getLoader()
@@ -97,12 +105,12 @@ export class LoginPage implements OnInit {
           localStorage.setItem('userData', JSON.stringify(res));
           console.log('Sign-in response:', res);
           this.router.navigate(['my-account']);
-          this.isLoading = false;
+          // this.isLoadingfalse;
           // this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded
         }),
         finalize(() => {
           console.log("Finalize called - Dismissing loader");
-          this.isLoading = false;
+          this.isLoading.set(false);
           // this.genericService.dismissLoader();
         })
        

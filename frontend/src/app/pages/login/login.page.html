@@ -6,54 +6,85 @@
       <div class="logo-title-row">
         <img class="top-nav-logo" src="../../../assets/login_logo.svg" alt="Logo" height="40">
       </div>
-      <div class="welcome">
-        <span class="welcome-title">ברוכים הבאים</span>
-        <span>בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</span>
-      </div>
+      <div class="login-content">
+        <div class="wellcome-and-socisal-buttons">
+          <div class="welcome">
+            <p class="welcome-title">ברוכים הבאים</p>
+            <p>בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</p>
+          </div>
 
-      <div class="social-login-buttons">
-        <p-button label="התחברו עם פייסבוק" icon="pi pi-facebook" iconPos="right" class="social-btn fb-btn" severity="secondary" [rounded]="true" variant="outlined"></p-button>
-        <p-button iconPos="right" class="social-btn google-btn" severity="secondary" [rounded]="true" variant="outlined">
-          <ng-template pTemplate="content"><img src="../../../assets/icon/google-icon.png" class="google-icon" alt="Google" />התחברו עם גוגל</ng-template>
-        </p-button>
-      </div>
-
-      <div class="line-with-text">
-        <span class="line"></span>
-        <span class="text">התחברות עם חשבון קיים</span>
-        <span class="line"></span>
-      </div>
-
-      <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login2()">
-
-        <p-iconfield class="input-wrap" iconPosition="right">
-          <p-inputicon class="input-icon" styleClass="pi pi-envelope" />
-          <input class="input-text" type="text" pInputText pSize="large" placeholder="אימייל" formControlName="userName"/>
-        </p-iconfield>
-
-        <p-iconfield class="input-wrap" iconPosition="right">
-          <p-inputicon class="input-icon" styleClass="pi pi-lock" />
-          <input class="input-text" type="text" pInputText placeholder="סיסמה" formControlName="password"/>
-        </p-iconfield>
-
-        <div class="forgot-password">
-          <span>שכחת את הסיסמה?</span>
-          <app-p-button [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="sendVerficaitonEmail()"></app-p-button>
+          <div class="social-login-buttons">
+            <p-button label="התחברו עם פייסבוק" icon="pi pi-facebook" iconPos="right" class="social-btn fb-btn"
+              severity="secondary" [rounded]="true" variant="outlined"></p-button>
+            <p-button iconPos="right" class="social-btn google-btn" severity="secondary" [rounded]="true"
+              variant="outlined">
+              <ng-template pTemplate="content"><img src="../../../assets/icon/google-icon.png" class="google-icon"
+                  alt="Google" />התחברו עם גוגל</ng-template>
+            </p-button>
+          </div>
         </div>
 
-        <app-p-button [buttonText]="'היכנסו עכשיו'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="loginForm.invalid" (onButtonClicked)="login2()"></app-p-button>
+        <div class="wrap-register-with-exist-account">
+          <div class="register-with-exist-account">
+            <div class="line-with-text">
+              <hr class="line" />
+              <p class="text">התחברות עם חשבון קיים</p>
+              <hr class="line" />
+            </div>
 
-      </form>
+            <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login2()">
+              <div class="inputs-wrap">
+                <p-iconfield iconPosition="right">
+                  <p-inputicon styleClass="pi pi-envelope" />
+                  <input class="input-field" type="text" pInputText pSize="large" placeholder="אימייל"
+                    formControlName="userName"
+                    />
+                </p-iconfield>
+
+                <p-iconfield iconPosition="right">
+                  <p-inputicon styleClass="pi pi-lock" />
+                  <input
+                  class="input-field"
+                  pInputText
+                  [type]="showPassword ? 'text' : 'password'"
+                  formControlName="password"
+                  placeholder="סיסמה"
+                  />
+                  <p-inputicon
+                  [styleClass]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"
+                  (click)="togglePassword()"
+                  style="cursor: pointer;"
+                ></p-inputicon>
+                </p-iconfield>
+              </div>
+
+              <div class="forgot-password">
+                <span>שכחת את הסיסמה?</span>
+                <app-p-button [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
+                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="sendVerficaitonEmail()"></app-p-button>
+              </div>
+
+              <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"
+                [buttonColor]="buttonColor.YELLOW" [disabled]="loginForm.invalid" [buttonSize]="buttonSize.BIG"
+                (onButtonClicked)="login2()" [isLoading]="isLoading()"></app-p-button>
+
+            </form>
+          </div>
+        </div>
+      </div>
 
       <div class="register-link">
         <span>אין לכם חשבון?</span><br />
-        <app-p-button [buttonText]="'הרשמו בקלות'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="navigateToRegister()"></app-p-button>
+        <app-p-button [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="navigateToRegister()"></app-p-button>
       </div>
+
+
 
     </div>
 
     <div class="login-picture">
-      <img src="../../../assets/temp_pic.jpeg" alt="Login Image" class="login-image">
+      <img src="../../../assets/login_picture.png" alt="Login Image" class="login-image">
     </div>
 
   </div>

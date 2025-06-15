@@ -211,10 +211,14 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.disabled {
-      background-color: #e0e0e0 !important;
-      border-color: #e0e0e0 !important;
-      color: white !important;
-      cursor: default !important;
+    background-color: #e0e0e0 !important;
+    border-color: #e0e0e0 !important;
+    color: white !important;
+    cursor: default !important;
+    &.yellow {
+      background-color: #EBFD71 !important;
+      color: gray !important;
+    }
     &.text {
       background-color: white !important;
       border-color: white !important;
@@ -225,7 +229,15 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       background-color: #e0e0e0 !important;
       border-color: #e0e0e0 !important;
       color: 'white' !important;
+
+      &.yellow:hover {
+        background-color: #EBFD71 !important;
+        border-color: #EBFD71 !important;
+        color: gray !important;
+        font-weight: bolder !important;
+      }
     }
+    
     &.disabled.text:hover {
       background-color: white !important;
       border-color: white !important;
@@ -241,6 +253,11 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
 .p-button-text.p-button-info:hover { // for avoid the shadow of button text
   background-color: transparent !important;
+}
+
+.p-button-text.p-button-info {
+  padding-inline: 0 !important;
+  padding-block: 0 !important;
 }
 
 .p-drawer-footer { // for footer of left panel

@@ -62,7 +62,9 @@
   
 </ion-app> -->
 <p-toast [position]="'bottom-right'" [key]="'br'" />
-<app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
+@if (showTopNav()) {
+  <app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
+}
 <router-outlet id="main-content">
 </router-outlet>
 <!-- 

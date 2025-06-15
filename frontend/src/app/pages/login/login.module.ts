@@ -14,6 +14,7 @@ import { IconField } from 'primeng/iconfield';
 import { InputIcon } from 'primeng/inputicon';
 import { InputTextComponent } from "../../components/input-text/input-text.component";
 import { ButtonModule } from 'primeng/button';
+import { PasswordModule } from 'primeng/password';
 
 @NgModule({
   imports: [
@@ -29,7 +30,7 @@ import { ButtonModule } from 'primeng/button';
     IconField,
     InputIcon,
     InputTextComponent,
-    
+    PasswordModule
 ],
   declarations: [LoginPage]
 })
