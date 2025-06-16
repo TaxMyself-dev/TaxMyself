@@ -6,17 +6,27 @@ import { RegisterPageRoutingModule } from './register-routing.module';
 import { RegisterPage } from './register.page';
 import { SharedModule } from "../../shared/shared.module";
 import { IonicSelectableComponent } from 'ionic-selectable';
+import { InputTextComponent } from "../../components/input-text/input-text.component";
+import { InputSelectComponent } from "../../components/input-select/input-select.component";
+import { ButtonComponent } from "../../components/button/button.component";
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 @NgModule({
     declarations: [RegisterPage],
     imports: [
-        CommonModule,
-        FormsModule,
-        ReactiveFormsModule,
-        IonicModule,
-        RegisterPageRoutingModule,
-        SharedModule,
-        IonicSelectableComponent
-    ]
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    IonicModule,
+    RegisterPageRoutingModule,
+    SharedModule,
+    IonicSelectableComponent,
+    InputTextComponent,
+    InputSelectComponent,
+    ButtonComponent,
+    RadioButtonModule,
+    ToggleSwitchModule,
+]
 })
 export class RegisterPageModule {}

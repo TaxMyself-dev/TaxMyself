@@ -6,10 +6,12 @@ import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { map, startWith, Subject, takeUntil, tap } from 'rxjs';
-import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
+import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
+import { inputsSize } from 'src/app/shared/enums';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 @Component({
     selector: 'app-register',
@@ -18,6 +20,13 @@ import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
     standalone: false
 })
 export class RegisterPage implements OnInit, OnDestroy {
+
+
+  inputsSize = inputsSize;
+  buttonSize = ButtonSize;
+  readonly buttonColor = ButtonColor;
+  selectedGender: string = '';
+
   readonly registerFormModules = RegisterFormModules;
   readonly registerFormControls = RegisterFormControls;
   readonly ButtonClass = ButtonClass;
@@ -32,6 +41,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   selectedOption!: string;
   registerMode: boolean = true;
   passwordValid = true;
+  hasChildren: boolean = false;
   displayError: string = "disabled";
   passwordValidInput!: string;
   employmentTypeOptionsList = employmentTypeOptionsList;
@@ -40,7 +50,8 @@ export class RegisterPage implements OnInit, OnDestroy {
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", image: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", image: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", image: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", image: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", image: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
-  requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
+  //requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
+  requierdField: boolean = true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;    
@@ -73,7 +84,16 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.FAMILYSTATUS]: new FormControl(
         null, Validators.required,
       ),
-    })
+      [RegisterFormControls.GENDER]: new FormControl(
+        '', this.requierdField ? Validators.required : null
+      ),
+      [RegisterFormControls.PASSWORD]: new FormControl(
+        '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
+      ),
+      [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
+        '', [Validators.required]
+      ),
+    }, { validators: this.matchPasswords })
 
     const spouseForm = this.formBuilder.group({
       [RegisterFormControls.SPOUSEFIRSTNAME]: new FormControl(
@@ -94,9 +114,15 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.SPOUSEPHONE]: new FormControl(
         null, this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
+      [RegisterFormControls.SPOUSEEMAIL]: new FormControl(
+        '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
+      ),
     })
 
     const childrenForm = this.formBuilder.group({
+       ["hasChildren"]: new FormControl(
+        false, this.requierdField ? Validators.required : null
+      ),
       [RegisterFormControls.CHILDREN]: this.formBuilder.array([]),
     })
 
@@ -107,40 +133,40 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
         null, this.requierdField && this.isIndependent() ? Validators.required : null,
       ),
-      [RegisterFormControls.BUSINESSDATE]: new FormControl(
-        null, this.requierdField && this.isIndependent() ? Validators.required : null,
-      ),
+      // [RegisterFormControls.BUSINESSDATE]: new FormControl(
+      //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
+      // ),
       [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
         null, this.requierdField && this.isIndependent() ? [Validators.required,  Validators.pattern(/^\d+$/)] : null,
       ),
-      [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
-        null, this.requierdField && this.isIndependent() ? Validators.required : null,
-      ),
+      // [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
+      //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
+      // ),
       [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
         null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
       [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
         null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
-      [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
-        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      ),
+      // [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
+      //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+      // ),
       [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
         null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
       ),
-      [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
-        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      ),
+      // [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
+      //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+      // ),
     })
 
-    const validationForm = this.formBuilder.group({
-      [RegisterFormControls.PASSWORD]: new FormControl(
-        '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
-      ),
-      [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
-        '', [Validators.required]
-      ),
-    }, { validators: this.matchPasswords })
+    // const validationForm = this.formBuilder.group({
+    //   [RegisterFormControls.PASSWORD]: new FormControl(
+    //     '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
+    //   ),
+    //   [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
+    //     '', [Validators.required]
+    //   ),
+    // }, { validators: this.matchPasswords })
 
     // Subscribe to PASSWORD field changes to revalidate CONFIRM_PASSWORD
     this.validationForm?.get(RegisterFormControls.PASSWORD)?.valueChanges.subscribe(() => {
@@ -152,7 +178,7 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormModules.SPOUSE]: spouseForm,
       [RegisterFormModules.CHILDREN]: childrenForm,
       [RegisterFormModules.BUSINESS]: businessForm,
-      [RegisterFormModules.VALIDATION]: validationForm,
+      //[RegisterFormModules.VALIDATION]: validationForm,
     });
   }
 
@@ -166,7 +192,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         this.registerMode = false;
       }
     })
-    this.gelAllCities();
+    //this.gelAllCities();
   }
 
   doRefresh(event: any) {
@@ -241,6 +267,18 @@ export class RegisterPage implements OnInit, OnDestroy {
     return this.childrenArray.at(index) as FormGroup;
   }
 
+  handleHasChildrenChange(checked: boolean): void {
+  if (checked) {
+    // switch turned ON
+    console.log('User has children – add child or show fields');
+    this.addChild(); // for example
+  } else {
+    // switch turned OFF
+    console.log('User disabled children section');
+    this.childrenArray.clear(); // or any cleanup
+  }
+}
+
   addChild() {
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
     items.push(
@@ -251,12 +289,12 @@ export class RegisterPage implements OnInit, OnDestroy {
         [RegisterFormControls.CHILD_LAST_NAME]: new FormControl(
           '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
         ),
-        [RegisterFormControls.CHILD_ID]: new FormControl(
-          '', [Validators.required, Validators.pattern(/^\d{9}$/)]
-        ),
-        [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
-          '', Validators.required,
-        )
+        // [RegisterFormControls.CHILD_ID]: new FormControl(
+        //   '', [Validators.required, Validators.pattern(/^\d{9}$/)]
+        // ),
+        // [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
+        //   '', Validators.required,
+        // )
       })
     );
   }
@@ -266,15 +304,41 @@ export class RegisterPage implements OnInit, OnDestroy {
     items.removeAt(index);
   }
 
+
   handleFormRegister() {
     this.authService.error$.next(null);
     const formData = cloneDeep(this.myForm.value);
-    formData.validation = { password: formData?.validation?.password };
+    formData.validation = { password: formData?.personal?.password };
+    console.log("formData: ", formData);
+    console.log("formData validation: ", formData.validation);
     const data = { fromReg: false, email: formData.email };
     this.authService.SignUp(formData).subscribe(() => {
       this.router.navigate(['login'], { queryParams: { from: 'register' } })
     })
   }
+
+
+  // isBusinessSectionValid(): boolean {
+  //   if (!this.businessForm) return false;
+
+  //   const form = this.businessForm;
+
+  //   const userValid =
+  //     form.get(this.registerFormControls.BUSINESSNAME)?.valid &&
+  //     form.get(this.registerFormControls.BUSINESSNUMBER)?.valid &&
+  //     form.get(this.registerFormControls.BUSINESSTYPE)?.valid;
+
+  //   const spouseValid =
+  //     form.get(this.registerFormControls.SPOUSEBUSINESSNAME)?.valid &&
+  //     form.get(this.registerFormControls.SPOUSEBUSINESSNUMBER)?.valid &&
+  //     form.get(this.registerFormControls.SPOUSEBUSINESSTYPE)?.valid;
+
+  //   if (this.isSpouseIndependent()) {
+  //     return userValid && spouseValid;
+  //   }
+
+  //   return userValid;
+  // }
 
   onBackBtnClicked(): void {
     switch (this.selectedFormModule) {
@@ -312,10 +376,12 @@ export class RegisterPage implements OnInit, OnDestroy {
     }
   }
 
-  onNextBtnClicked(): void {
+    onNextBtnClicked(): void {
+    console.log("previous form is ", this.selectedFormModule);
     switch (this.selectedFormModule) {
-      case RegisterFormModules.VALIDATION:
+      case RegisterFormModules.BUSINESS:
         this.handleFormRegister();
+        console.log("currnet form is ", this.selectedFormModule);
         break;
       case RegisterFormModules.PERSONAL:
         if (this.isMarried()) {
@@ -325,12 +391,14 @@ export class RegisterPage implements OnInit, OnDestroy {
           this.selectedFormModule = RegisterFormModules.BUSINESS;
           this.setSelectedNavItem(RegisterFormModules.BUSINESS);
         } else if (this.isSingle() && !this.isIndependent()) {
-          this.selectedFormModule = RegisterFormModules.VALIDATION;
-          this.setSelectedNavItem(RegisterFormModules.VALIDATION)
+          this.handleFormRegister();
+          // this.selectedFormModule = RegisterFormModules.VALIDATION;
+          // this.setSelectedNavItem(RegisterFormModules.VALIDATION)
         } else {
           this.selectedFormModule = RegisterFormModules.CHILDREN;
           this.setSelectedNavItem(RegisterFormModules.CHILDREN);
         }
+        console.log("currnet form is ", this.selectedFormModule);
         break;
       case RegisterFormModules.CHILDREN:
         if (this.isIndependent() || this.isSpouseIndependent()) {
@@ -340,17 +408,61 @@ export class RegisterPage implements OnInit, OnDestroy {
           this.selectedFormModule = RegisterFormModules.VALIDATION;
           this.setSelectedNavItem(RegisterFormModules.VALIDATION);
         }
+        console.log("currnet form is ", this.selectedFormModule);
         break;
       case RegisterFormModules.SPOUSE:
         this.selectedFormModule = RegisterFormModules.CHILDREN;
         this.setSelectedNavItem(RegisterFormModules.CHILDREN)
+        console.log("currnet form is ", this.selectedFormModule);
         break;
-      case RegisterFormModules.BUSINESS:
-        this.selectedFormModule = RegisterFormModules.VALIDATION;
-        this.setSelectedNavItem(RegisterFormModules.VALIDATION)
-        break;
+      // case RegisterFormModules.BUSINESS:
+      //   this.selectedFormModule = RegisterFormModules.VALIDATION;
+      //   this.setSelectedNavItem(RegisterFormModules.VALIDATION)
+      //   break;
     }
   }
+
+  // onNextBtnClicked(): void {
+  //   console.log("selectedFormModule 1: ", this.selectedFormModule);
+  //   switch (this.selectedFormModule) {
+  //     case RegisterFormModules.VALIDATION:
+  //       this.handleFormRegister();
+  //       break;
+  //     case RegisterFormModules.PERSONAL:
+  //       if (this.isMarried()) {
+  //         this.selectedFormModule = RegisterFormModules.SPOUSE;
+  //         this.setSelectedNavItem(RegisterFormModules.SPOUSE);
+  //         console.log("selectedFormModule 2: ", this.selectedFormModule);
+  //       } else if (this.isSingle() && this.isIndependent()) {
+  //         this.selectedFormModule = RegisterFormModules.BUSINESS;
+  //         this.setSelectedNavItem(RegisterFormModules.BUSINESS);
+  //       } else if (this.isSingle() && !this.isIndependent()) {
+  //         this.selectedFormModule = RegisterFormModules.VALIDATION;
+  //         this.setSelectedNavItem(RegisterFormModules.VALIDATION)
+  //       } else {
+  //         this.selectedFormModule = RegisterFormModules.CHILDREN;
+  //         this.setSelectedNavItem(RegisterFormModules.CHILDREN);
+  //       }
+  //       break;
+  //     case RegisterFormModules.CHILDREN:
+  //       if (this.isIndependent() || this.isSpouseIndependent()) {
+  //         this.selectedFormModule = RegisterFormModules.BUSINESS;
+  //         this.setSelectedNavItem(RegisterFormModules.BUSINESS);
+  //       } else {
+  //         this.selectedFormModule = RegisterFormModules.VALIDATION;
+  //         this.setSelectedNavItem(RegisterFormModules.VALIDATION);
+  //       }
+  //       break;
+  //     case RegisterFormModules.SPOUSE:
+  //       this.selectedFormModule = RegisterFormModules.CHILDREN;
+  //       this.setSelectedNavItem(RegisterFormModules.CHILDREN)
+  //       break;
+  //     case RegisterFormModules.BUSINESS:
+  //       this.selectedFormModule = RegisterFormModules.VALIDATION;
+  //       this.setSelectedNavItem(RegisterFormModules.VALIDATION)
+  //       break;
+  //   }
+  // }
 
   // checkPassword(event: string) {
   //   const realPass = this.myForm.get(RegisterFormModules.VALIDATION)?.get(RegisterFormControls.PASSWORD)?.value;
@@ -412,6 +524,14 @@ export class RegisterPage implements OnInit, OnDestroy {
 
   private isCurrentFormValid(): boolean {
     switch (this.selectedFormModule) {
+      case RegisterFormModules.PERSONAL:
+        return this.personalForm.valid;
+      case RegisterFormModules.CHILDREN:
+        return this.childrenForm.valid;
+      case RegisterFormModules.SPOUSE:
+        return this.spouseForm.valid;
+      case RegisterFormModules.BUSINESS:
+        return this.businessForm.valid;
       case RegisterFormModules.VALIDATION:
         const baseFormValidation = this.personalForm.valid && this.businessForm.valid && this.validationForm.valid;
         if (this.isSingle()) {
@@ -421,14 +541,6 @@ export class RegisterPage implements OnInit, OnDestroy {
         } else {
           return baseFormValidation && this.childrenForm.valid;
         }
-      case RegisterFormModules.PERSONAL:
-        return this.personalForm.valid;
-      case RegisterFormModules.CHILDREN:
-        return this.childrenForm.valid;
-      case RegisterFormModules.SPOUSE:
-        return this.spouseForm.valid;
-      case RegisterFormModules.BUSINESS:
-        return this.businessForm.valid;
     }
   }
 
