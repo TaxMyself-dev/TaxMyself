@@ -32,8 +32,7 @@
               <!-----email ---->
               <app-input-text [controlName]="registerFormControls.EMAIL" labelText="כתובת אימייל" [placeholder]="'example@gmail.com'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-----date of birth----->
-              <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
-                [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
+              <app-input-date  [controlName]="registerFormControls.DATEOFBIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="personalForm"></app-input-date>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון" [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
             </div>
@@ -70,16 +69,20 @@
               <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית ומספרים</span>
             </div>
 
-            <div>
+            <div class="personal-buttons">
               <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="personalForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
-              <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
+              <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="navigateToLogin()"></app-p-button>
+              <div class="login-link">
+                <span>יש לכם כבר חשבון?</span>
+                <app-p-button [buttonText]="'כניסה לחשבון'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="navigateToLogin()"></app-p-button>
+              </div>
             </div>
 
           </form>
         </div>
 
         <!-------------- SPOUSE MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.SPOUSE">
+        <div class="module" *ngSwitchCase="registerFormModules.SPOUSE">
 
           <ng-container
             *ngTemplateOutlet="headerTemplate; context: {
@@ -103,8 +106,8 @@
               <!-----email ---->
               <app-input-text [controlName]="registerFormControls.SPOUSEEMAIL" labelText="כתובת אימייל" [placeholder]="'example@gmail.com'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-----date of birth----->
-              <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
-                [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
+              <app-input-date  [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="spouseForm"></app-input-date>
+              <!-- <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input> -->
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון" [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
             </div>
@@ -119,10 +122,10 @@
             </div>
 
           </form>
-        </ng-container>
+        </div>
 
         <!-------------- CHILDREN MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.CHILDREN">
+        <div class="module" *ngSwitchCase="registerFormModules.CHILDREN">
 
           <ng-container
             *ngTemplateOutlet="headerTemplate; context: {
@@ -132,46 +135,43 @@
             }">
           </ng-container>
 
-          <!-- <div class="title">
-            <span class="main-title">ילדים</span>
-            <span>אנחנו כבר ממש בשלב הרציני, אהה?!</span>
-          </div> -->
-          
-          <form *ngIf="childrenForm" class="form-register" [formGroup]="childrenForm">
+          <div>
+            <p>יש לך ילדים?</p> 
+            <p-toggleswitch [(ngModel)]="hasChildren" (onChange)="handleHasChildrenChange($event.checked)" />
+          </div>
 
-            <div>
-              <p>יש לך ילדים?</p> 
-              <p-toggleswitch formControlName="hasChildren" (onChange)="handleHasChildrenChange($event.checked)" />
-            </div>
+          <div *ngIf="hasChildren" class="form-register">
+            <form *ngIf="childrenForm" [formGroup]="childrenForm">
+              <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
+                @for (child of childrenArray.controls; track $index) { 
+                  @let i = $index;
+                  <div [formGroupName]="i" class="child-row">
+                    <div class="child-row">
+                      <app-input-text [controlName]="registerFormControls.CHILD_FIRST_NAME" labelText="שם פרטי" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                      <app-input-text [controlName]="registerFormControls.CHILD_LAST_NAME" labelText="שם משפחה" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                      <app-input-date  [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)"></app-input-date>
 
-            <div *ngIf="childrenForm.get('hasChildren')?.value">
-                <form *ngIf="childrenForm" class="form-register" [formGroup]="childrenForm">
-                  <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
-                    <div *ngFor="let child of childrenArray.controls; let i = index" [formGroupName]="i" class="child-row">
-                      <div class="child-row">
-                        <!---------first name----->
-                        <app-input-text [controlName]="registerFormControls.CHILD_FIRST_NAME" labelText="שם פרטי" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
-                        <!--------last name------->
-                        <app-input-text [controlName]="registerFormControls.CHILD_LAST_NAME" labelText="שם משפחה" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
-                        <div class="wrap-add-remove-child-button">
+                      <div class="wrap-add-remove-child-button">
+                        @if (i > 0) {
                           <app-p-button [buttonText]="'-'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="removeChild(i)"></app-p-button>
-                          <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="addChild()"></app-p-button>
-                        </div>
+                        }
+                        <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="addChild()"></app-p-button>
                       </div>
                     </div>
                   </div>
-                </form>
-            </div>
-            <div>
-              <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="childrenForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
-              <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
-            </div>
+                }
+              </div>
+            </form>
+          </div>
 
-          </form>
-        </ng-container>
+          <div>
+            <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="childrenForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
+            <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
+          </div>
+        </div>
 
         <!-------------- BUSINESS MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.BUSINESS">
+        <div class="module" *ngSwitchCase="registerFormModules.BUSINESS">
 
           <ng-container
             *ngTemplateOutlet="headerTemplate; context: {
@@ -182,9 +182,9 @@
           </ng-container>
 
           <!-------Business 1 ------>
-          <div class="wrap-two-detial-business">
-            <div class="wrap-one-detial-business">
-              <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש/ת ראשי/ת</div>
+          <!-- <div class="wrap-two-detial-business"> -->
+            <!-- <div class="wrap-one-detial-business"> -->
+              <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק  משתמש/ת  ראשי/ת</div>
               <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
                 <div class="section-one">
                   <!-------Business name------>
@@ -195,10 +195,10 @@
                   <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק" [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"></app-input-select>
                 </div>
               </form>
-            </div>
+            <!-- </div> -->
             <!-------Business 2 ------>
-            <div class="wrap-one-detial-business">
-              <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן/בת הזוג</div>
+            <!-- <div class="wrap-one-detial-business"> -->
+              <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק  בן/בת  הזוג</div>
               <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
                 <div class="section-one">
                   <!-------Business name------>
@@ -209,15 +209,14 @@
                   <app-input-select [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" labelText="סוג העסק" [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"></app-input-select>
                 </div>
               </form>
-            </div>
+            <!-- </div> -->
 
             <div>
-              <!-- <app-p-button [buttonText]="'סיום'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="isNextButtonDisabled" (onButtonClicked)="onNextBtnClicked()"></app-p-button> -->
               <app-p-button [buttonText]="'סיום'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="!businessForm.valid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
               <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"></app-p-button>
             </div>
           </div>
-        </ng-container>
+        <!-- </div> -->
 
       </ng-container>
 

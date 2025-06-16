@@ -50,8 +50,8 @@ export class RegisterPage implements OnInit, OnDestroy {
   itemsNavigate: IItemNavigate[] = [{ name: "פרטים אישיים", link: "", image: "person-circle-outline", id: RegisterFormModules.PERSONAL, index: 'zero' }, { name: "פרטי בן/בת זוג", link: "", image: "people-circle-outline", id: RegisterFormModules.SPOUSE, index: 'one' }, { name: "פרטי ילדים", link: "", image: "accessibility-sharp", id: RegisterFormModules.CHILDREN, index: 'two' }, { name: "פרטי עסק", link: "", image: "business-sharp", id: RegisterFormModules.BUSINESS, index: 'three' }, { name: "סיסמא ואימות", link: "", image: "ban-sharp", id: RegisterFormModules.VALIDATION, index: 'four' }]
   employeeList = [{ value: true, name: "כן" }, { value: false, name: "לא" }];
   familyStatusOptionsList = familyStatusOptionsList;
-  //requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
-  requierdField: boolean = true;
+  requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
+  //requierdField: boolean = true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     this.itemsNavigate[0].selected = true;    
@@ -120,9 +120,6 @@ export class RegisterPage implements OnInit, OnDestroy {
     })
 
     const childrenForm = this.formBuilder.group({
-       ["hasChildren"]: new FormControl(
-        false, this.requierdField ? Validators.required : null
-      ),
       [RegisterFormControls.CHILDREN]: this.formBuilder.array([]),
     })
 
@@ -262,7 +259,6 @@ export class RegisterPage implements OnInit, OnDestroy {
       .subscribe();
   }
 
-
   getChildFormByIndex(index: number): FormGroup {
     return this.childrenArray.at(index) as FormGroup;
   }
@@ -271,10 +267,12 @@ export class RegisterPage implements OnInit, OnDestroy {
   if (checked) {
     // switch turned ON
     console.log('User has children – add child or show fields');
+    this.hasChildren = true;
     this.addChild(); // for example
   } else {
     // switch turned OFF
     console.log('User disabled children section');
+    this.hasChildren = false
     this.childrenArray.clear(); // or any cleanup
   }
 }
@@ -292,9 +290,9 @@ export class RegisterPage implements OnInit, OnDestroy {
         // [RegisterFormControls.CHILD_ID]: new FormControl(
         //   '', [Validators.required, Validators.pattern(/^\d{9}$/)]
         // ),
-        // [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
-        //   '', Validators.required,
-        // )
+        [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
+          '', Validators.required,
+        )
       })
     );
   }
@@ -316,29 +314,6 @@ export class RegisterPage implements OnInit, OnDestroy {
       this.router.navigate(['login'], { queryParams: { from: 'register' } })
     })
   }
-
-
-  // isBusinessSectionValid(): boolean {
-  //   if (!this.businessForm) return false;
-
-  //   const form = this.businessForm;
-
-  //   const userValid =
-  //     form.get(this.registerFormControls.BUSINESSNAME)?.valid &&
-  //     form.get(this.registerFormControls.BUSINESSNUMBER)?.valid &&
-  //     form.get(this.registerFormControls.BUSINESSTYPE)?.valid;
-
-  //   const spouseValid =
-  //     form.get(this.registerFormControls.SPOUSEBUSINESSNAME)?.valid &&
-  //     form.get(this.registerFormControls.SPOUSEBUSINESSNUMBER)?.valid &&
-  //     form.get(this.registerFormControls.SPOUSEBUSINESSTYPE)?.valid;
-
-  //   if (this.isSpouseIndependent()) {
-  //     return userValid && spouseValid;
-  //   }
-
-  //   return userValid;
-  // }
 
   onBackBtnClicked(): void {
     switch (this.selectedFormModule) {

@@ -16,7 +16,6 @@
 
 .register-wrap-module {
   width: 75%;
-  // border:3px solid rgb(79, 171, 79);
   height: 95%;
   display: flex;
   flex-direction: column;
@@ -28,15 +27,15 @@
 .module {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: flex-start;
   gap: 25px;
+  width: 100%;
+  margin-right: 100px;
 }
 
 .register-wrap-image {
   width: 60%;
   height: 95%;
-  // border: solid 1px red;
 }
 
 .register-image {
@@ -85,16 +84,25 @@
   flex-direction: column;
   flex-wrap: wrap;
   justify-content: space-around;
-  // border: 3px solid rgb(79, 171, 79);
   border-radius: 15px;
   width: 100%;
-  gap: 15px;
+  gap: 30px;
 }
 
 .section-one  {
   display: flex;
   flex-direction: row;
-  justify-content: space-around;
+  justify-content: flex-start;
+  gap: 20px;
+}
+
+.gender-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
 }
 
 .gender-options {
@@ -103,6 +111,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  gap: 20px;
 }
 
 .password-instracions {
@@ -111,178 +120,44 @@
   margin-left: 50px;
 }
 
-
-
-//---------------------------------------------------------------------
-
-
-.child-row-wrap {
-  width: 74%;
-}
-
-.child-row {
+.personal-buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-start;
   align-items: center;
-  margin-bottom: 10px;
-  justify-content: space-around;
-
-  &:not(:last-of-type) {
-    border-bottom: 1px solid lightgray;
-  }
+  width: 100%;
+  margin-top: 20px;
+  gap: 10px;
 }
 
-//----------------
-.register-content {
+.login-link {
   display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  align-items: center;
-  height: 100%;
-
-  @media only screen and (max-width:495px) {
-    justify-content: normal;
-  }
+  flex-direction: row;
+  gap: 5px;
+  font-size: large;
+  margin: 15px;
+  color: #204F56;
 }
 
-.wrap-register-modulse {
+.business-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #204F56;
   margin-top: 30px;
-  margin-bottom: 15px;
-  width: 345px;
-  display: flex;
-  justify-content: center;
 }
-
-// .form-register {
-//   display: flex;
-//   flex-direction: column;
-//   flex-wrap: wrap;
-//   justify-content: space-around;
-//   border: 3px solid rgb(79, 171, 79);
-//   border-radius: 15px;
-//   width: 100%;
-//   padding-top: 26px;
-// }
-
-// .wrap-two-detial-business {
-//   display: flex;
-//   width: 100%;
-//   flex-direction: column;
-//   margin: 10px
-// }
-
-// .wrap-one-detial-business {
-//   margin-bottom: 15px;
-// }
-
-// .business-title {
-//   margin-bottom: 5px;
-// }
-
-.validation-form-register {
-  display: flex;
-  border: 3px solid rgb(79, 171, 79);
-  border-radius: 15px;
-  width: 90%;
-  padding: 26px 20px;
-  flex-direction: column;
-  align-items: center;
-}
-
-.form-register-validate {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-around;
-  border: 3px solid rgb(79, 171, 79);
-  border-radius: 15px;
-  width: 90%;
-}
-
-.input-register {
-  min-width: 200px;
-  display: flex;
-  width: 220px;
-  --border-radius: 15px;
-  flex-basis: calc(33.33% - 20px);
-  margin: 10px;
-}
-
-// .input-register-child {
-//   display: flex;
-//   --border-radius: 15px;
-//   flex-basis: calc(25% - 35px);
-//   margin: 10px;
-// }
 
 .child-row {
   display: flex;
   flex-direction: row;
-  justify-content: space-around;
+  justify-content: flex-start;
   gap: 15px;
 }
 
 .wrap-add-remove-child-button {
   display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
   margin-top: 30px;
-  gap: 10px;
-}
-
-.child-button {
-  margin-bottom: 30px;
-}
-
-.navigate-item-container {
-  display: flex;
-  justify-content: space-around;
-  background-color: transparent;
-  width: 100%;
-}
-
-.text-error {
-  border: 2px solid red;
-  border-radius: 15px;
-  width: 60%;
-  word-wrap: break-word;
-  text-align: justify;
-  text-align-last: center;
-  padding-left: 5px;
-  padding-right: 5px;
-  font-weight: bold;
-  margin: 10px 0;
-}
-
-.blue-link {
-  color: blue;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.default-input-register {
-  width: 250px;
-}
-
-.wide-input-register {
-  width: 250px;
-}
-
-.password-input-register {
-  width: 250px;
-}
-
-@media only screen and (max-width:600px) {
-  .input-register-child {
-    min-width: 200px;
-    display: flex;
-    --border-radius: 15px;
-    margin: 10px;
-  }
-
-  .default-input-register {
-    width: 95%;
-  }
-
-  .wide-input-register {
-    width: 95%;
-  }
 }

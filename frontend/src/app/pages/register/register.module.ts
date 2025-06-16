@@ -11,6 +11,7 @@ import { InputSelectComponent } from "../../components/input-select/input-select
 import { ButtonComponent } from "../../components/button/button.component";
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 
 @NgModule({
     declarations: [RegisterPage],
@@ -23,6 +24,7 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
     SharedModule,
     IonicSelectableComponent,
     InputTextComponent,
+    InputDateComponent,
     InputSelectComponent,
     ButtonComponent,
     RadioButtonModule,
