@@ -29,6 +29,8 @@ export class InputSelectComponent  implements OnInit {
   labelText = input<string>("");
   errorText = input<string>("");
   size = input<string>("");
+  customStyle = input<string>("");
+  icon = input<string>("pi pi-sort-down-fill");
   filter = input<boolean>(true);
   multiSelect = input<boolean>(false);
   isSubCategory = input<boolean>(false);
@@ -40,52 +42,54 @@ export class InputSelectComponent  implements OnInit {
   onClickInputSelect = output<string>();
   multiSelectButtonClicked = output<string>();
   addSubCategoryClicked = output<{ state: true, subCategoryMode: true }>();
-
+  inputClasses = signal<string>("");
 
 
 
 
   constructor() {}
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.getinputClasses()  }
 
   get isRequired(): boolean {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (!ctrl) return false;
-    // Angular 16+ supports hasValidator
     if (typeof (ctrl as any).hasValidator === 'function') {
       return (ctrl as any).hasValidator(Validators.required);
     }
-    // fallback: invoke validator() and look for a `required` key
-    // if (ctrl.validator) {
-    //   const errors = ctrl.validator(ctrl);
-    //   return !!errors?.['required'];
-    // }
     return false;
   }
 
 
-  getinputClasses(): string {
-    return [
-      this.size(),             
+  getinputClasses(): void {
+    const classes = [
+      this.size(),
+      this.customStyle()
     ]
       .filter(c => !!c)                // remove empty strings
       .join(' ');
+
+    this.inputClasses.set(classes);
   }
 
   onChange(event: any): void {
-    console.log("🚀 ~ InputSelectComponent ~ onChange ~ event:", event)
+      const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
+        if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
+          this.inputClasses.update(current => current + ' dirty');
+        }
+        else {
+          this.inputClasses.update(current => current.replace('dirty', ''));
+        }
     this.onChangeInputSelect.emit(event.value);
   }
 
   onClick(event: any): void {
-    console.log("🚀 ~ InputSelectComponent ~ onClick ~ event:", event)
     event.stopPropagation();
     this.onClickInputSelect.emit(event);
   }
+
   onAddSubCategoryClicked(): void {
-    console.log("🚀 ~ InputSelectComponent ~ onAddSubCategoryClicked ~ event:", this.isSubCategory());
-    
     this.addSubCategoryClicked.emit({ state: true, subCategoryMode: true, })
   }
 

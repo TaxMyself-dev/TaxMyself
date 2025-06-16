@@ -67,11 +67,11 @@ export class InputTextComponent  implements OnInit {
 
   onInput(event: any): void {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.valid) {
-      this.inputClasses.update(current => current + ' valid');
+    if (ctrl.dirty) {
+      this.inputClasses.update(current => current + ' dirty');
     }
     else {
-      this.inputClasses.update(current => current.replace('valid', ''));
+      this.inputClasses.update(current => current.replace('dirty', ''));
     }
     this.onInputText.emit(event.target.value);
   }

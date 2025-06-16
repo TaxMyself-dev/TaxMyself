@@ -1,18 +1,19 @@
+
+
 .input-select-wrapper {
     display: flex;
     flex-direction: column;
 }
 
 .input-label {
-    padding-bottom: 10px;
-}
-
-.multi-select-pannel {
-    width: auto;
-    min-width: 200px;
-    border: 1px solid green;
+    padding-bottom: 7px;
+    color: #204F56;
 }
 
 .required {
     color: red;
+}
+
+p {
+    margin: 0;
 }

@@ -14,6 +14,7 @@ import { GenericTableComponent } from 'src/app/components/generic-table/generic-
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextComponent } from "../../components/input-text/input-text.component";
+import { ConfirmTransDialogComponent } from "../../components/confirm-trans-dialog/confirm-trans-dialog.component";
 
 @NgModule({
   imports: [
@@ -28,7 +29,8 @@ import { InputTextComponent } from "../../components/input-text/input-text.compo
     ButtonComponent,
     GenericTableComponent,
     InputTextModule,
-    InputTextComponent
+    InputTextComponent,
+    ConfirmTransDialogComponent
 ],
   declarations: [VatReportPage]
 })

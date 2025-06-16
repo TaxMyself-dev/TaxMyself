@@ -2,7 +2,7 @@ import { Injectable, OnInit, signal } from '@angular/core';
 import { BehaviorSubject, EMPTY, Observable, catchError, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { IClassifyTrans, ISelectItem, ITransactionData } from 'src/app/shared/interface';
+import { IClassifyTrans, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
 
@@ -36,6 +36,26 @@ export class TransactionsService implements OnInit{
   setUserId(): void {
     console.log("in set token");
     this.token = localStorage.getItem('token');
+  }
+
+  getTransToConfirm(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
+    // const token = localStorage.getItem('token');
+    console.log("start date in service: ", startDate);
+    console.log("end date in service: ", endDate);
+    console.log("business number in service: ", businessNumber);
+    
+    const url = `${environment.apiUrl}transactions/get-transaction-to-confirm-and-add-to-expenses`;
+    // const headers = {
+    //   'token': token
+    // }
+    const params = new HttpParams()
+    // .set('billId', 'ALL_BILLS')
+    .set('startDate', startDate)
+    .set('endDate', endDate)
+    .set('businessNumber', businessNumber);
+    
+    return this.http.get<IRowDataTable[]>(url, {params:params});
+    // return this.http.get<any>(url, {params:params, headers: headers});
   }
 
 

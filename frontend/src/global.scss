@@ -211,10 +211,14 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.disabled {
-      background-color: #e0e0e0 !important;
-      border-color: #e0e0e0 !important;
-      color: white !important;
-      cursor: default !important;
+    background-color: #e0e0e0 !important;
+    border-color: #e0e0e0 !important;
+    color: white !important;
+    cursor: default !important;
+    &.yellow {
+      background-color: #EBFD71 !important;
+      color: gray !important;
+    }
     &.text {
       background-color: white !important;
       border-color: white !important;
@@ -225,7 +229,15 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       background-color: #e0e0e0 !important;
       border-color: #e0e0e0 !important;
       color: 'white' !important;
+
+      &.yellow:hover {
+        background-color: #EBFD71 !important;
+        border-color: #EBFD71 !important;
+        color: gray !important;
+        font-weight: bolder !important;
+      }
     }
+    
     &.disabled.text:hover {
       background-color: white !important;
       border-color: white !important;
@@ -241,6 +253,11 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
 .p-button-text.p-button-info:hover { // for avoid the shadow of button text
   background-color: transparent !important;
+}
+
+.p-button-text.p-button-info {
+  padding-inline: 0 !important;
+  padding-block: 0 !important;
 }
 
 .p-drawer-footer { // for footer of left panel
@@ -265,6 +282,18 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
   &.narrow {
     width: 120px;
+  }
+
+  &.register {
+    border: 1px solid #ebe8e8 !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+    border-radius: 26px !important;
+    background-color: #e0e0e054;
+    
+    &.dirty {
+      border: 1px solid #204F56 !important;
+      background-color: white !important;
+    }
   }
 }
 
@@ -310,9 +339,23 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     border-radius: 26px !important;
     background-color: #e0e0e054;
     
-    &.valid {
-      border: 1px solid rgb(27, 45, 27) !important;
-      background-color: white;
+    &.dirty {
+      border: 1px solid #204F56 !important;
+      background-color: white !important;
+    }
+  }
+
+  &.p-datepicker-input {
+    &.register {
+      padding-inline: var(--p-inputtext-padding-x) !important;
+      border-radius: 26px !important;
+      background-color: #e0e0e054   !important;
+      border: 1px solid #ebe8e8 !important;
+
+      &.dirty {
+        border: 1px solid #204F56 !important;
+        background-color: white !important;
+      }
     }
   }
   
@@ -322,20 +365,3 @@ input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
 }
-
-// .p-iconfield { //For icon input
-//   background-color: violet;
-// }
- 
-// .p-inputicon {
-//   &.input-wrap {
-//     background-color: greenyellow;
-//     position: fixed !important;
-//     margin-top: none !important;
-//   }
-// }
-
-// input.p-inputtext:focus {
-//   border: solid transparent !important;
-//   background-color: #333
-// }

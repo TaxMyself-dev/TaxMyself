@@ -944,7 +944,8 @@ export class TransactionsService {
 
 
 
-  async getExpensesToBuildReport(
+  // async getExpensesToBuildReport(
+    async getTransactionToConfirmAndAddToExpenses(
     userId: string,
     businessNumber: string,
     startDate: Date,

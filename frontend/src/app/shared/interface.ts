@@ -63,7 +63,7 @@ export interface IVatReportData {
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     name: TFormColumns;
     value: TFormHebrewColumns;
-    type: FormTypes;
+    type?: FormTypes;
     listItems?: ISelectItem[];
     cellRenderer?: ICellRenderer;
     errorText?: string;
