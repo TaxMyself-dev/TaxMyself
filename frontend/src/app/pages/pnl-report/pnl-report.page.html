@@ -1,5 +1,4 @@
-
-  <div class="pnl-report-wrap-screen">
+<div class="pnl-report-wrap-screen">
 
     <div class="pnl-report-header">
       <div class="icon-title">
@@ -48,9 +47,8 @@
       <app-p-button class="pnl-pdf-button" 
         [buttonText]="'ייצא כ-PDF'" 
         [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.AUTO">
+        [buttonSize]="buttonSize.AUTO"
+        (onButtonClicked)="createPnlReportPDFfile()">
     </app-p-button>
     </ng-container>
   </div>
-
-  <app-button [disabled]="!pnlReport" buttonText="Create PDF" (onButtonClicked)="createPDF()" [isLoading]="isLoading"></app-button>

@@ -63,11 +63,13 @@ export class DocumentsController {
   }
   
 
-  @UseGuards(FirebaseAuthGuard)
   @Post('generate-pdf')
+  @UseGuards(FirebaseAuthGuard)
   async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
-    const userId = request.user?.firebaseId;
-    const pdfBuffer = await this.documentsService.generatePDF(body, userId);
+    // const userId = request.user?.firebaseId;
+    // console.log("body is ", body);
+    
+    const pdfBuffer = await this.documentsService.generatePDF(body, "pnlReport");
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }

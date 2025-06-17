@@ -44,7 +44,6 @@ export class ButtonComponent  implements OnInit {
   readonly ButtonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   
-  
   constructor() { }
   
   ngOnInit() {
@@ -56,7 +55,6 @@ export class ButtonComponent  implements OnInit {
     } else {
       this.onButtonClicked.emit(event);
     }
-    //this.onButtonClicked.emit(event);
   }
 
 }
