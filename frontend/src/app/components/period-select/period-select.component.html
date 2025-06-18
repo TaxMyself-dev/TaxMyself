@@ -1,36 +1,59 @@
-<div>
-  <form [formGroup]="form" class="period-selector">
-    @for (field of getOrderedFields(); track field) {
-      <!-- @if (field.toLowerCase().includes('date')) {
-        <p-datepicker [formControlName]="field" [placeholder]="getPlaceholder(field)"></p-datepicker>
-      } -->
-      @if (field === 'businessNumber' && businessMode() === BusinessMode.TWO_BUSINESS) {
-        <app-input-select
-          [parentForm]="form"
-          [placeholder]="getPlaceholder(field)"
-          [controlName]="field"
-          [items]="businessOptions()"
-          [size]="inputsSize.MEDIUM">
-        </app-input-select>
-      } 
-      @else {
-        <app-input-select
-          [parentForm]="form"
-          [placeholder]="getPlaceholder(field)"
-          [controlName]="field"
-          [items]="getItems(field)"
-          [size]="inputsSize.MEDIUM">
-        </app-input-select>
-      }
-    }
+<form [formGroup]="form" class="period-selector" (ngSubmit)="onSubmit()">
 
-    <app-p-button 
-      [buttonText]="'הצג'" 
+  <app-input-select
+    [parentForm]="form"
+    [controlName]="'periodMode'"
+    [placeholder]="'בחר תקופת דיווח'"
+    [items]="getPeriodModeOptions()"
+    [size]="inputsSize.MEDIUM">
+  </app-input-select>
+
+  <ng-container [ngSwitch]="mode">
+
+    <!-- === MONTHLY  === -->
+    <ng-container *ngSwitchCase="'MONTHLY'">
+      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'month'" [placeholder]="'בחר חודש'" [items]="monthList" [size]="inputsSize.MEDIUM"></app-input-select>
+    </ng-container>
+
+    <!-- === BIMONTHLY === -->
+    <ng-container *ngSwitchCase="'BIMONTHLY'">
+      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'month'" [placeholder]="'בחר חודש'" [items]="monthList" [size]="inputsSize.MEDIUM"></app-input-select>
+    </ng-container>
+
+    <!-- === ANNUAL === -->
+    <ng-container *ngSwitchCase="'ANNUAL'">
+      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.MEDIUM"></app-input-select>
+    </ng-container>
+
+    <!-- === DATE RANGE === -->
+    <ng-container *ngSwitchCase="'DATE_RANGE'">
+      <app-input-date [controlName]="'startDate'" placeholder="תאריך התחלה" [parentForm]="form"></app-input-date>
+      <app-input-date [controlName]="'endDate'" placeholder="תאריך סיום" [parentForm]="form"></app-input-date>
+    </ng-container>
+
+    <ng-container *ngSwitchDefault>
+      <app-input-select [parentForm]="form" controlName="year" [placeholder]="'בחר שנה'" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" controlName="month" [placeholder]="'בחר חודש'" [size]="inputsSize.MEDIUM"></app-input-select>
+    </ng-container>
+
+  </ng-container>
+
+  <app-input-select
+      *ngIf="businessMode === BusinessMode.TWO_BUSINESS"
+      [controlName]="'business'"
+      [placeholder]="'מספר עוסק'"
+      [items]="businessOptions"
+      [size]="inputsSize.MEDIUM">
+  </app-input-select>
+
+  <app-p-button
+      buttonText="הצג"
       [buttonColor]="buttonColor.BLACK"
-      [buttonSize]="buttonSize.X_SMALL" 
-      (onButtonClicked)="onSubmit()" 
+      [buttonSize]="buttonSize.X_SMALL"
+      (onButtonClicked)="onSubmit()"
       [disabled]="form.invalid">
-    </app-p-button>
+  </app-p-button>
 
-  </form>
-</div>
+</form>

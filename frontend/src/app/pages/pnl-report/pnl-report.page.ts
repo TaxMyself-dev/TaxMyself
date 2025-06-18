@@ -58,11 +58,13 @@ export class PnLReportPage implements OnInit {
 
   onSubmit(event: any): void {
 
+    console.log("event is ", event);
+
     const year = event.year;
     const month = event.month;
-    const reportingPeriodType = event.periodType;
-    const localStartDate = "";
-    const localEndDate = "";
+    const reportingPeriodType = event.periodMode;
+    const localStartDate = event.startDate;
+    const localEndDate = event.endDate;
     const businessNumber = event.businessNumber;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
     this.startDate = startDate;
