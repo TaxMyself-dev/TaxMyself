@@ -177,7 +177,7 @@ export class AuthService {
   SignUp(formData: any): Observable<any> {
         let uid: string = "";
     this.genericService.getLoader().subscribe();
-    return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.validation.password))
+    return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.personal.password))
       .pipe(
         finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {

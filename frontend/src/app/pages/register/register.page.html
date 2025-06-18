@@ -33,6 +33,7 @@
               <app-input-text [controlName]="registerFormControls.EMAIL" labelText="כתובת אימייל" [placeholder]="'example@gmail.com'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-----date of birth----->
               <app-input-date  [controlName]="registerFormControls.DATEOFBIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="personalForm"></app-input-date>
+              <!-- <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input> -->
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון" [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
             </div>
@@ -107,16 +108,29 @@
               <app-input-text [controlName]="registerFormControls.SPOUSEEMAIL" labelText="כתובת אימייל" [placeholder]="'example@gmail.com'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-----date of birth----->
               <app-input-date  [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="spouseForm"></app-input-date>
-              <!-- <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה" [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input> -->
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון" [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
             </div>
             <div class="section-one">
               <!--------------- employee ------------->
               <app-input-select [controlName]="registerFormControls.SPOUSEEMPLOYEMENTSTATUS" labelText="סטטוס תעסוקתי" [placeholder]="'בחר/י'" [items]="employmentTypeOptionsList" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"></app-input-select>
+              <!-- gender -->
+              <div class="gender-selection" >
+                <label class="gender-label">מגדר</label>
+                <div class="gender-options">
+                  <div class="male">
+                    <p-radiobutton formControlName="spouseGender" value="male" name="spouseGender" inputId="male" />
+                    <label for="male" class="ml-2">זכר</label>
+                  </div>
+                  <div class="female">
+                    <p-radiobutton formControlName="spouseGender" value="female" name="spouseGender" inputId="female" />
+                    <label for="female" class="ml-2">נקבה</label>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div>
+            <div class="personal-buttons">
               <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="spouseForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
               <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
             </div>
@@ -164,7 +178,7 @@
             </form>
           </div>
 
-          <div>
+          <div class="personal-buttons">
             <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="childrenForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
             <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
           </div>
@@ -211,7 +225,7 @@
               </form>
             <!-- </div> -->
 
-            <div>
+            <div class="personal-buttons">
               <app-p-button [buttonText]="'סיום'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="!businessForm.valid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
               <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"></app-p-button>
             </div>

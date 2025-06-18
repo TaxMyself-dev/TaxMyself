@@ -27,6 +27,8 @@ export class UsersService {
                               
 
     async signup({personal,spouse,children,business} : any) {
+
+        console.log("signup - start");
         
         const newChildren = children?.children;
 
@@ -41,7 +43,7 @@ export class UsersService {
             for (let i = 0; i < newChildren.length; i++){
                 const child: Child = newChildren[i];
                 const newChild =  this.child_repo.create(child);
-                newChild.fatherID = personal.firebaseId;
+                newChild.parentUserID = personal.firebaseId;
                 const addChild = await this.child_repo.save(newChild);
             }
         }
@@ -106,6 +108,8 @@ export class UsersService {
         newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
         newUser.payStatus = PayStatus.FREE;
         newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
+
+        console.log("signup - end");
 
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);

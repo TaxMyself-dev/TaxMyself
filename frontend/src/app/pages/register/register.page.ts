@@ -66,6 +66,9 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.ID]: new FormControl(
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\d{9}$/)] : null,
       ),
+      [RegisterFormControls.GENDER]: new FormControl(
+        '', this.requierdField ? [Validators.required] : null,
+      ),
       [RegisterFormControls.EMAIL]: new FormControl(
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
       ),
@@ -83,9 +86,6 @@ export class RegisterPage implements OnInit, OnDestroy {
       ),
       [RegisterFormControls.FAMILYSTATUS]: new FormControl(
         null, Validators.required,
-      ),
-      [RegisterFormControls.GENDER]: new FormControl(
-        '', this.requierdField ? Validators.required : null
       ),
       [RegisterFormControls.PASSWORD]: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
@@ -116,6 +116,9 @@ export class RegisterPage implements OnInit, OnDestroy {
       ),
       [RegisterFormControls.SPOUSEEMAIL]: new FormControl(
         '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
+      ),
+      [RegisterFormControls.SPOUSEGENDER]: new FormControl(
+        '', this.requierdField ? [Validators.required] : null,
       ),
     })
 
@@ -307,8 +310,9 @@ export class RegisterPage implements OnInit, OnDestroy {
     this.authService.error$.next(null);
     const formData = cloneDeep(this.myForm.value);
     formData.validation = { password: formData?.personal?.password };
-    console.log("formData: ", formData);
-    console.log("formData validation: ", formData.validation);
+    console.log("date is ", formData.personal.dateOfBirth);
+    
+    console.log("formData is :::: ", formData);
     const data = { fromReg: false, email: formData.email };
     this.authService.SignUp(formData).subscribe(() => {
       this.router.navigate(['login'], { queryParams: { from: 'register' } })
