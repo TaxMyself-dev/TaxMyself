@@ -18,6 +18,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { log } from 'console';
 //import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
+import { TransactionsService } from '../transactions/transactions.page.service';
 
 
 @Component({
@@ -40,7 +41,10 @@ export class VatReportPage implements OnInit {
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReportData = signal<IVatReportData>(null);
   startDate = signal<string>("");
+  arrayLength = signal<number>(0);
   endDate = signal<string>("");
+  isLoading = signal<boolean>(false);
+  isLoadingButtonConfirmDialog = signal<boolean>(false);
   businessNumber = signal<string>("");
   displayExpenses: boolean = false;
   //vatReportForm: FormGroup;
@@ -58,7 +62,10 @@ export class VatReportPage implements OnInit {
   businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
-  dataTable = signal<IRowDataTable[]>([]);
+  // dataTable = Observable<IRowDataTable[]>;
+  transToConfirm: Observable<IRowDataTable[]> ;
+  dataTable: Observable<IRowDataTable[]> ;
+  
 
   readonly fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
@@ -71,10 +78,6 @@ export class VatReportPage implements OnInit {
     { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
   ];
-
-  // readonly specialColumnsCellRendering = new Map<ExpenseFormColumns, ICellRenderer>([
-  //   [ExpenseFormColumns.DATE, ICellRenderer.DATE],
-  // ]);
 
   reportOrder: string[] = [
     'vatableTurnover',
@@ -96,32 +99,10 @@ export class VatReportPage implements OnInit {
   inputSize = inputsSize;
   buttonColor = ButtonColor;
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService) {
-    // this.vatReportForm = this.formBuilder.group({
-    //   month: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   year: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   reportingPeriodType: new FormControl(
-    //     '', Validators.required,
-    //   ),
-    //   startDate: new FormControl(
-    //     Date,
-    //   ),
-    //   endDate: new FormControl(
-    //     Date,
-    //   ),
-    //   businessNumber: new FormControl(
-    //     '',
-    //   ),
-    // })
-  }
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService) {}
 
 
   ngOnInit() {
-    // this.setTableActions()
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData.isTwoBusinessOwner) {
       console.log("two business owner");
@@ -137,27 +118,7 @@ export class VatReportPage implements OnInit {
   }
 
 
-  // private setTableActions(): void {
-  //   this.tableActions = [
-  //     {
-  //       name: 'upload',
-  //       icon: 'attach-outline',
-  //       title: 'בחר קובץ',
-  //       fieldName: this.UPLOAD_FILE_FIELD_NAME,
-  //       action: (event: any, row: IRowDataTable) => {
-  //         this.addFile(event, row);
-  //       }
-  //     },
-  //     {
-  //       name: 'preview',
-  //       icon: 'glasses-outline',
-  //       title: 'הצג קובץ',
-  //       action: (row: IRowDataTable) => {
-  //         this.onPreviewFileClicked(row);
-  //       }
-  //     }
-  //   ]
-  // }
+ 
 
   beforeSelectFile(event): void {
     console.log("in beforeSelectFile");
@@ -259,21 +220,62 @@ export class VatReportPage implements OnInit {
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
     this.startDate.set(startDate);
     this.endDate.set(endDate);
+    this.getTransToConfirm();
     this.visibleConfirmTransDialog.set(true);
 
-    // this.getVatReportData(startDate, endDate, this.businessNumber());
-    // this.getDataTable(startDate, endDate, this.businessNumber());
+    this.getVatReportData(startDate, endDate, this.businessNumber());
+    this.getDataTable(startDate, endDate, this.businessNumber());
 
+  }
+
+  getTransToConfirm(): void {
+    console.log("in getTransToConfirm");
+    console.log("startDate: ", this.startDate());
+    console.log("endDate: ", this.endDate());
+    console.log("businessNumber: ", this.businessNumber());
+    
+    this.transToConfirm = this.transactionService.getTransToConfirm(
+      this.startDate(),
+      this.endDate(),
+      this.businessNumber()
+    ).pipe(
+      catchError(err => {
+        console.error("Error in getTransToConfirm:", err);
+        return EMPTY;
+      }),
+      map(data =>{
+        console.log("🚀 ~ VatReportPage ~ getTransToConfirm ~ data:", data);
+        
+        return data
+          .filter(row => row.isRecognized) 
+          .map(row => ({
+            ...row,
+            sum: this.genericService.addComma(Math.abs(row.sum as number)),
+            businessNumber: row?.businessNumber === this.userData.businessNumber
+              ? this.userData.businessName
+              : this.userData.spouseBusinessName
+          }))
+                 }
+      ),
+       tap((data: IRowDataTable[]) => {
+        console.log("🚀 ~ tap ~ data:", data)
+        this.arrayLength.set(data.length);
+      })
+    )
+   
+    // .subscribe(res => {
+    //   console.log("Filtered & transformed transactions:", res);
+    // });
   }
 
 
   getVatReportData(startDate: string, endDate: string, businessNumber: string) {
     console.log("in get vat report data");
-    
-    this.genericService.getLoader().subscribe();
+    this.isLoading.set(true);
+    // this.genericService.getLoader().subscribe();
     this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
       .pipe(
-        finalize(() => this.genericService.dismissLoader()),
+        finalize(() => this.isLoading.set(false)),
         catchError((error) => {
           console.log("error in get vat report data: ", error);
           return EMPTY;
@@ -355,7 +357,25 @@ export class VatReportPage implements OnInit {
 
       this.vatReportData.set(stringFormatted);
     // }
-    }
+  }
+
+  confirmTrans(event: IRowDataTable[]): void {
+    this.isLoadingButtonConfirmDialog.set(true);
+    this.transactionService.addTransToExpense(event)
+      .pipe(
+        catchError((err) => {
+          console.log("Error in confirmTrans: ", err);
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.isLoadingButtonConfirmDialog.set(false);
+        }),
+      )
+      .subscribe((res) => {
+        console.log("🚀 ~ VatReportPage ~ confirmTrans ~ res:", res);
+        
+      })
+  }
   
 
 
@@ -390,7 +410,7 @@ export class VatReportPage implements OnInit {
 
   getDataTable(startDate: string, endDate: string, businessNumber: string): void {
 
-    this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
+    this.dataTable = this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
       .pipe(
         map((data) => {
           const rows = [];
@@ -409,11 +429,12 @@ export class VatReportPage implements OnInit {
           this.rows = rows;
           return rows
         })
-      ).subscribe((res) => {
-        this.dataTable.set(res);
-        console.log("data table in vat report: ", this.dataTable());
-
-      })
+      )
+      // .subscribe((res) => {
+        // this.dataTable.set(res);
+        // console.log("data table in vat report: ", this.dataTable());
+// 
+      // })
 
     //= this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
 

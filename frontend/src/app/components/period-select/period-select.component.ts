@@ -21,6 +21,7 @@ export class PeriodSelectComponent implements OnInit {
 
   form: FormGroup = this.fb.group({});
   parentPage = input<string>("");
+  isLoading = input<boolean>(false);
   businessMode = input<BusinessMode>(BusinessMode.ONE_BUSINESS);
   businessNumber = input<string | null>(null);
   businessOptions = input<ISelectItem[]>([]);

@@ -10,7 +10,7 @@
           [placeholder]="getPlaceholder(field)"
           [controlName]="field"
           [items]="businessOptions()"
-          [size]="inputsSize.MEDIUM">
+          [size]="inputsSize.BETWEEN">
         </app-input-select>
       } 
       @else {
@@ -19,7 +19,7 @@
           [placeholder]="getPlaceholder(field)"
           [controlName]="field"
           [items]="getItems(field)"
-          [size]="inputsSize.MEDIUM">
+          [size]="inputsSize.BETWEEN">
         </app-input-select>
       }
     }
@@ -29,7 +29,8 @@
       [buttonColor]="buttonColor.BLACK"
       [buttonSize]="buttonSize.X_SMALL" 
       (onButtonClicked)="onSubmit()" 
-      [disabled]="form.invalid">
+      [disabled]="form.invalid"
+      [isLoading]="isLoading()">
     </app-p-button>
 
   </form>

@@ -31,7 +31,7 @@ export class InputTextComponent  implements OnInit {
   constructor() { }
 
   ngOnInit() {
-    this.getinputClasses();
+    this.getInputClasses();
   }
 
    /** true if this control was built with Validators.required */
@@ -50,7 +50,7 @@ export class InputTextComponent  implements OnInit {
     return false;
   }
 
-  getinputClasses(): void {
+  getInputClasses(): void {
     const classes =  [
       this.size(),   
       this.customStyle()          

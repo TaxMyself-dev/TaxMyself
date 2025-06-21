@@ -1,3 +1,17 @@
-<p-dialog header="Edit Profile" [modal]="true" [(visible)]="dialogVisible" [style]="{ width: '90vw' }" (onHide)="hide()" >
-<app-generic-table [title]="'הוצאות מוכרות שלא אושרו'" [placeholderSearch]="'חפש לפי עסק'" [dataTable]="transToConfirm | async" [selectionModeCheckBox]="'multiple'" [columnsTitle]="fieldsNamesExpenses"></app-generic-table>
+<p-dialog header="הוצאות מוכרות שלא אושרו" [modal]="true" [(visible)]="dialogVisible" [style]="{ width: '90vw', height: '90%' }"  >
+    <div class="inner-dialog">
+
+        <p >רגע לפני שנעבור להפקת הדוח, מצאנו {{arrayLength()}} הוצאות שלא אושרו</p>
+        
+        <app-generic-table (isAllChecked)="onAllChecked($event)" (rowsChecked)="onChecked($event)" [dataTable]="data()" [selectionModeCheckBox]="'multiple'" [columnsTitle]="fieldsNamesExpenses" [showCheckbox]="true" [defaultSelectedValue]="true" [tableHeight]="'700px'"></app-generic-table>
+    </div>
+    <div class="footer">
+        <!-- @if (!isAllChecked()) { -->
+            <p style="color: red;" [ngStyle]="{visibility: !isAllChecked() ? 'visible' : 'hidden'}">שים לב שלא אישרת את כל ההוצאות!</p>
+        <!-- } -->
+        <div class="footer-buttons">
+        <app-p-button (onButtonClicked)="closeDialog()" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.BETWEEN" buttonText="ביטול"></app-p-button>
+        <app-p-button [buttonColor]="buttonColor.BLACK" (onButtonClicked)="sendArray()" [buttonSize]="buttonSize.BETWEEN" buttonText="אישור והמשך" [isLoading]="isLoadingButton()"></app-p-button>
+        </div>
+    </div>
 </p-dialog>

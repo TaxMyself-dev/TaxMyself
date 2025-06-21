@@ -179,6 +179,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
   &.white {
     background-color: white;
+    // border-color: black;
     border-color: white;
     color: black;
     &.white:hover {
@@ -187,6 +188,20 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       color: black;
     }
   }
+
+    &.white-border {
+      background-color: white;
+      border-color: black;
+      // border-color: white;
+      color: black;
+      &.white-border:hover {
+        background-color: white;
+        border-color: black;
+        // border-color: white;
+        color: black;
+      }
+    }
+  
 
   &.transparent {
     background-color: transparent;
@@ -364,4 +379,22 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
+}
+
+.p-dialog-header {
+  padding-bottom: 0 !important;
+}
+
+.p-datatable-tbody > tr.p-datatable-row-selected {
+  background: white !important;
+  color: black !important; 
+}
+
+.p-checkbox-checked .p-checkbox-icon {
+  color: green !important;
+}
+
+.p-checkbox-checked .p-checkbox-box {
+  border-color: gray !important;
+  background: white !important;
 }
