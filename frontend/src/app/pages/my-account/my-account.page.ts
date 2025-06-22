@@ -1,5 +1,7 @@
 import { Component, OnInit } from '@angular/core';
-import { IItemNavigate } from 'src/app/shared/interface';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { AuthService } from 'src/app/services/auth.service';
+import { IItemNavigate, IUserData } from 'src/app/shared/interface';
 
 @Component({
     selector: 'app-my-account',
@@ -9,18 +11,24 @@ import { IItemNavigate } from 'src/app/shared/interface';
 })
 export class MyAccountPage implements OnInit {
 
-  itemsNavigate: IItemNavigate[] = [//{ name: "הפקת מסמך", link: "/doc-create", icon: "document-outline", id: '0', index: 'zero' }, 
-                                    { name: "הוספת הוצאה", link: "/add-expenses", image: "cloud-upload-outline", id: '1', index: 'one' }, 
-                                    { name: "הענן שלי", link: "/my-storage", image: "cloud-outline", id:'2', index: 'two'}, 
-                                    { name: "תזרים", link: "/transactions", image: "swap-vertical-outline", id: '3', index: 'three' }, 
-                                    { name: "סטטוס", link: "/my-status", image: "information-outline", id: '4', index: 'four', disable: true, }, 
-                                    { name: "דוחות", link: "/reports", image: "receipt-outline", id: '5', index: 'five' },
-                                    { name: "יצירת מסמך", link: "/doc-create", image: "receipt-outline", id: '6', index: 'six' },
-                                  ];
-  constructor() { }
+  userData: IUserData;
 
-    ngOnInit() {
-      
-    }
+  buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
+  
+
+  itemsNavigate: IItemNavigate[] = [
+    { name: "הפקת מסמך", link: "/doc-create", image: "../../../assets/icon-doc-create.svg", content: 'מפיקים מסמך בקלי קלות', id: '0', index: 'zero' },
+    { name: "המסמכים שלי", link: "/my-storage", image: "../../../assets/icon-my-docs.svg", content: 'כל הקבצים במקום אחד', id:'1', index: 'one'}, 
+    // { name: "הוספת הוצאה", link: "/add-expenses", image: "cloud-upload-outline", id: '1', index: 'one' }, 
+    { name: "התזרים שלי", link: "/transactions", image: "../../../assets/icon-my-trans.svg", content: 'צפייה וסיווג תנועות בחשבון', id: '2', index: 'two' }, 
+    { name: "דוחות", link: "/reports", image: "../../../assets/icon-report-create.svg", content: 'דוחות לרשויות בקליק', id: '3', index: 'three' },
+  ];
+
+  constructor(private authService: AuthService) { }
+
+  ngOnInit() {
+    this.userData = this.authService.getUserDataFromLocalStorage();    
+  }
 
 }

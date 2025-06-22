@@ -1,10 +1,33 @@
-<!-- <ion-header>
-    <app-custom-toolbar ></app-custom-toolbar>
-</ion-header> -->
 
-<ion-content>
+<div class="page-wrapper">
+
+    <div class="user-info-block">
+        <div class="avatar-with-name">
+            <!-- <p-avatar icon="pi pi-user" [style]="{ backgroundColor: '#dee9fc', color: '#1a2551' }" shape="circle"></p-avatar> -->
+            <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
+            <span class="avatar-text">שלום {{ userData.fName }} {{ userData.lName }}</span>
+        </div>
+        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+      [href]="'/add-expenses'">
+    </app-p-button>
+    </div>
+
+    <div class="nevigation-block">
+        <div class="cards-container">
+            @for (item of itemsNavigate; track $index) {
+                <app-card-navigate [cardItem]="item"></app-card-navigate>
+            }
+        </div>
+    </div>
+
+    <div class="table-block">
+        <app-generic-table></app-generic-table>
+    </div>
+
+</div>
+
+<!-- <ion-content>
     <div class="my-account-screen">
-        <img class="logo" src="../../../assets/logo.png"/>
         <app-item-navigate [navigationItems]="itemsNavigate" navigationItemStyle="button-item-navigate-my-account"></app-item-navigate>
     </div>
-</ion-content>
+</ion-content> -->
