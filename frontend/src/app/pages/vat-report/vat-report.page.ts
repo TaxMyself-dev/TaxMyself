@@ -215,7 +215,7 @@ export class VatReportPage implements OnInit {
 
     const year = event.year;
     const month = event.month;
-    const reportingPeriodType = event.periodType;
+    const reportingPeriodType = event.periodMode;
     this.businessNumber.set(event.businessNumber);
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
     this.startDate.set(startDate);

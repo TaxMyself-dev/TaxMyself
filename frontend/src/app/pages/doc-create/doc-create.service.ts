@@ -48,11 +48,17 @@ export class DocCreateService {
     return this.http.delete<any>(url);
   }
 
-  createDoc(dataFile: IDataDocFormat): Observable<Blob> {
+  // createDoc(dataFile: IDataDocFormat): Observable<Blob> {
+  //   const url = `${environment.apiUrl}documents/create-doc`;
+  //   return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
+  // }
+
+  createDoc(dataFile: any): Observable<Blob> {
     const url = `${environment.apiUrl}documents/create-doc`;
     return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
   }
 
+  
   generatePDF(data: any): Observable<Blob> {
     const url = `${environment.apiUrl}documents/generate-pdf`;
     return this.http.post<Blob>(url, data, { responseType: 'blob' as 'json' });

@@ -30,6 +30,11 @@ export enum FamilyStatus {
   DIVORCED = 'DIVORCED'
 }
 
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE'
+}
+
 export enum EmploymentType {
   SELF_EMPLOYED = 'SELF_EMPLOYED',
   BOTH = 'BOTH',

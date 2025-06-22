@@ -5,7 +5,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName, Gender } from '../enum';
 
 
 @Entity()
@@ -26,6 +26,14 @@ export class User {
 
     @Column()
     id: string;
+
+    @Column({
+      type: 'enum',
+      enum: Gender,
+      enumName: 'Gender',
+      default: Gender.MALE
+    })
+    gender: Gender;
 
     @Column('date')
     dateOfBirth: Date;
@@ -107,6 +115,14 @@ export class User {
 
     @Column({ type: 'varchar', nullable: true, default: null })
     spouseId: string | null;
+
+    @Column({
+      type: 'enum',
+      enum: Gender,
+      enumName: 'Gender',
+      default: Gender.MALE
+    })
+    spouseGender: Gender;
 
     @Column({ type: 'date', nullable: true, default: null })
     spouseDateOfBirth: Date | null;

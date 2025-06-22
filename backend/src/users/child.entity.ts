@@ -17,14 +17,15 @@ export class Child {
     @Column()
     childLName: string;
 
-    @Column()
+    // @IsOptional()
+    @Column({ type: 'varchar', nullable: true, default: null })
     childID: string;
 
-    @IsOptional()
+    //@IsOptional()
     @Column('date')
     childDate: String;
 
     @Column()
-    fatherID: string;
+    parentUserID: string;
 
 }

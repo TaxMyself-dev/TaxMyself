@@ -58,11 +58,13 @@ export class PnLReportPage implements OnInit {
 
   onSubmit(event: any): void {
 
+    console.log("event is ", event);
+
     const year = event.year;
     const month = event.month;
-    const reportingPeriodType = event.periodType;
-    const localStartDate = "";
-    const localEndDate = "";
+    const reportingPeriodType = event.periodMode;
+    const localStartDate = event.startDate;
+    const localEndDate = event.endDate;
     const businessNumber = event.businessNumber;
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
     this.startDate = startDate;
@@ -111,11 +113,14 @@ export class PnLReportPage implements OnInit {
     this.pnlReport.income = this.genericService.addComma(this.pnlReport.income);
   }
 
+
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
 
-  createPDF(): void {
+
+  createPnlReportPDFfile(): void {
+
     this.isLoading = true;
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
@@ -125,15 +130,16 @@ export class PnLReportPage implements OnInit {
     const data: ICreateDataDoc = {
       fid: "ydAEQsvSbC",
       prefill_data: {
-      name: this.userData.fName + " " + this.userData.lName,
-      id: this.userData.businessNumber,
-      peryod: `${this.endDate} - ${this.startDate}`,
-      income: this.pnlReport.income as string,
-      profit: this.pnlReport.netProfitBeforeTax as string,
-      expenses: String(this.totalExpense),
-      table: dataTable,
-    },
-  }
+        name: this.userData.fName + " " + this.userData.lName,
+        id: this.userData.businessNumber,
+        period: `${this.startDate} - ${this.endDate}`,
+        income: this.pnlReport.income as string,
+        profit: this.pnlReport.netProfitBeforeTax as string,
+        expenses: String(this.totalExpense),
+        table: dataTable,
+      },
+    }
+
     this.docCreateService.generatePDF(data)
       .pipe(
         catchError((err) => {
@@ -150,4 +156,6 @@ export class PnLReportPage implements OnInit {
         this.fileService.downloadFile("my pdf", res)
       })
   }
+
+
 }

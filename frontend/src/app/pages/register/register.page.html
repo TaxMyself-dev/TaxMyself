@@ -1,5 +1,324 @@
 
-<ion-content [fullscreen]="true">
+<div class="register-wrap-screen">
+
+  <div class="register-screen">
+
+    <div class="register-wrap-module">
+    
+      <ng-container [ngSwitch]="selectedFormModule">
+
+        <!-------------- PRESONAL MODULE ------------->
+        <div class="module" *ngSwitchCase="registerFormModules.PERSONAL">
+
+          <ng-container
+            *ngTemplateOutlet="headerTemplate; context: {
+              level: 'שלב 1',
+              mainTitle: 'פרטים אישיים',
+              subtitle: 'היי, אז נתחיל בהיכרות ראשונית...'
+            }">
+          </ng-container>
+
+          <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm">
+
+            <div class="section-one">
+              <!---------first name----->
+              <app-input-text [controlName]="registerFormControls.FIRSTNAME" labelText="שם פרטי" [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!--------last name------->
+              <app-input-text [controlName]="registerFormControls.LASTNAME" labelText="שם משפחה" [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!-------id number------->
+              <app-input-text [controlName]="registerFormControls.ID" labelText="תעודת זהות" [placeholder]="'000000000'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+            </div>
+            <div class="section-one">
+              <!-----email ---->
+              <app-input-text [controlName]="registerFormControls.EMAIL" labelText="כתובת אימייל" [placeholder]="'example@gmail.com'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!-----date of birth----->
+              <app-input-date  [controlName]="registerFormControls.DATEOFBIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="personalForm"></app-input-date>
+              <!-- <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק" [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input> -->
+              <!----phone ----->
+              <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון" [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+            </div>
+            <div class="section-one">
+              <!-- city -->
+              <app-input-text [controlName]="registerFormControls.CITY" labelText="ישוב" [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!-- gender -->
+              <div class="gender-selection" >
+                <label class="gender-label">מגדר</label>
+                <div class="gender-options">
+                  <div class="male">
+                    <p-radiobutton formControlName="gender" value="male" name="gender" inputId="male" />
+                    <label for="male" class="ml-2">זכר</label>
+                  </div>
+                  <div class="female">
+                    <p-radiobutton formControlName="gender" value="female" name="gender" inputId="female" />
+                    <label for="female" class="ml-2">נקבה</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="section-one">
+              <!---------------- family status -------------->
+              <app-input-select [controlName]="registerFormControls.FAMILYSTATUS" labelText="מצב משפחתי" [placeholder]="'בחר/י'" [items]="familyStatusOptionsList" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"></app-input-select>
+              <!--------------- employee status ------------->
+              <app-input-select [controlName]="registerFormControls.EMPLOYEMENTSTATUS" labelText="סטטוס תעסוקתי" [placeholder]="'בחר/י'" [items]="employmentTypeOptionsList" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"></app-input-select>
+            </div>
+              <!-- <app-input-select [controlName]="registerFormControls.CITY" labelText="ישוב" [placeholder]="'בחר ישוב'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"></app-input-select> -->
+              <!-- <app-multi-input class="default-input-register" [controlName]="registerFormControls.CITY" [parentForm]="personalForm" [items]="cities" [title]="'עיר'"></app-multi-input> -->
+            
+            <div class="section-one">
+              <app-input-text [controlName]="registerFormControls.PASSWORD" labelText="סיסמה" [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'"></app-input-text>
+              <app-input-text [controlName]="registerFormControls.CONFIRM_PASSWORD" labelText="אימות סיסמה" [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'"></app-input-text>
+              <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית ומספרים</span>
+            </div>
+
+            <div class="personal-buttons">
+              <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="personalForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
+              <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="navigateToLogin()"></app-p-button>
+              <div class="login-link">
+                <span>יש לכם כבר חשבון?</span>
+                <app-p-button [buttonText]="'כניסה לחשבון'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="navigateToLogin()"></app-p-button>
+              </div>
+            </div>
+
+          </form>
+        </div>
+
+        <!-------------- SPOUSE MODULE ------------->
+        <div class="module" *ngSwitchCase="registerFormModules.SPOUSE">
+
+          <ng-container
+            *ngTemplateOutlet="headerTemplate; context: {
+              level: 'שלב 2',
+              mainTitle: 'פרטי בן או בת הזוג',
+              subtitle: 'טוב, אנחנו כבר מתחילים להכיר...'
+            }">
+          </ng-container>
+          
+          <form *ngIf="spouseForm" class="form-register" [formGroup]="spouseForm">
+
+            <div class="section-one">
+              <!---------first name----->
+              <app-input-text [controlName]="registerFormControls.SPOUSEFIRSTNAME" labelText="שם פרטי" [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!--------last name------->
+              <app-input-text [controlName]="registerFormControls.SPOUSELASTNAME" labelText="שם משפחה" [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!-------id number------->
+              <app-input-text [controlName]="registerFormControls.SPOUSEID" labelText="תעודת זהות" [placeholder]="'000000000'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+            </div>
+            <div class="section-one">
+              <!-----email ---->
+              <app-input-text [controlName]="registerFormControls.SPOUSEEMAIL" labelText="כתובת אימייל" [placeholder]="'example@gmail.com'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+              <!-----date of birth----->
+              <app-input-date  [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="spouseForm"></app-input-date>
+              <!----phone ----->
+              <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון" [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+            </div>
+            <div class="section-one">
+              <!--------------- employee ------------->
+              <app-input-select [controlName]="registerFormControls.SPOUSEEMPLOYEMENTSTATUS" labelText="סטטוס תעסוקתי" [placeholder]="'בחר/י'" [items]="employmentTypeOptionsList" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"></app-input-select>
+              <!-- gender -->
+              <div class="gender-selection" >
+                <label class="gender-label">מגדר</label>
+                <div class="gender-options">
+                  <div class="male">
+                    <p-radiobutton formControlName="spouseGender" value="male" name="spouseGender" inputId="male" />
+                    <label for="male" class="ml-2">זכר</label>
+                  </div>
+                  <div class="female">
+                    <p-radiobutton formControlName="spouseGender" value="female" name="spouseGender" inputId="female" />
+                    <label for="female" class="ml-2">נקבה</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="personal-buttons">
+              <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="spouseForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
+              <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
+            </div>
+
+          </form>
+        </div>
+
+        <!-------------- CHILDREN MODULE ------------->
+        <div class="module" *ngSwitchCase="registerFormModules.CHILDREN">
+
+          <ng-container
+            *ngTemplateOutlet="headerTemplate; context: {
+              level: 'שלב 3',
+              mainTitle: 'ילדים',
+              subtitle: 'אנחנו כבר ממש בשלב הרציני, אהה?!'
+            }">
+          </ng-container>
+
+          <div>
+            <p>יש לך ילדים?</p> 
+            <p-toggleswitch [(ngModel)]="hasChildren" (onChange)="handleHasChildrenChange($event.checked)" />
+          </div>
+
+          <div *ngIf="hasChildren" class="form-register">
+            <form *ngIf="childrenForm" [formGroup]="childrenForm">
+              <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
+                @for (child of childrenArray.controls; track $index) { 
+                  @let i = $index;
+                  <div [formGroupName]="i" class="child-row">
+                    <div class="child-row">
+                      <app-input-text [controlName]="registerFormControls.CHILD_FIRST_NAME" labelText="שם פרטי" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                      <app-input-text [controlName]="registerFormControls.CHILD_LAST_NAME" labelText="שם משפחה" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                      <app-input-date  [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" labelText="תאריך לידה" placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)"></app-input-date>
+
+                      <div class="wrap-add-remove-child-button">
+                        @if (i > 0) {
+                          <app-p-button [buttonText]="'-'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="removeChild(i)"></app-p-button>
+                        }
+                        <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="addChild()"></app-p-button>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            </form>
+          </div>
+
+          <div class="personal-buttons">
+            <app-p-button [buttonText]="'הבא'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="childrenForm.invalid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
+            <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"  [disabled]="selectedFormModule === registerFormModules.PERSONAL"></app-p-button>
+          </div>
+        </div>
+
+        <!-------------- BUSINESS MODULE ------------->
+        <div class="module" *ngSwitchCase="registerFormModules.BUSINESS">
+
+          <ng-container
+            *ngTemplateOutlet="headerTemplate; context: {
+              level: 'שלב 4',
+              mainTitle: 'פרטי העסק',
+              subtitle: 'רק עוד קצת וסיימנו'
+            }">
+          </ng-container>
+
+          <!-------Business 1 ------>
+          <!-- <div class="wrap-two-detial-business"> -->
+            <!-- <div class="wrap-one-detial-business"> -->
+              <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק  משתמש/ת  ראשי/ת</div>
+              <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
+                <div class="section-one">
+                  <!-------Business name------>
+                  <app-input-text [controlName]="registerFormControls.BUSINESSNAME" labelText="שם העסק" [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                  <!-------Business id------>
+                  <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText="מספר העסק" [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                  <!--------------- Business type ------------->
+                  <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק" [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"></app-input-select>
+                </div>
+              </form>
+            <!-- </div> -->
+            <!-------Business 2 ------>
+            <!-- <div class="wrap-one-detial-business"> -->
+              <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק  בן/בת  הזוג</div>
+              <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
+                <div class="section-one">
+                  <!-------Business name------>
+                  <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNAME" labelText="שם העסק" [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                  <!-------Business id------>
+                  <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER" labelText="מספר העסק" [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                  <!--------------- Business type ------------->
+                  <app-input-select [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" labelText="סוג העסק" [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"></app-input-select>
+                </div>
+              </form>
+            <!-- </div> -->
+
+            <div class="personal-buttons">
+              <app-p-button [buttonText]="'סיום'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" [disabled]="!businessForm.valid" (onButtonClicked)="onNextBtnClicked()"></app-p-button>
+              <app-p-button [buttonText]="'חזור'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onBackBtnClicked()"></app-p-button>
+            </div>
+          </div>
+        <!-- </div> -->
+
+      </ng-container>
+
+    </div>
+
+    <div class="register-wrap-image">
+      <img src="../../../assets/register-pic.svg" alt="Register Image" class="register-image">
+    </div>
+
+  </div>
+
+</div>
+
+<ng-template #headerTemplate let-level="level" let-mainTitle="mainTitle" let-subtitle="subtitle">
+  <div class="header">
+    <img class="logo" src="../../../assets/login_logo.svg" alt="Logo" height="20">
+    <span class="level">{{ level }}</span>
+    <div class="title">
+      <span class="main-title">{{ mainTitle }}</span>
+      <span class="title">{{ subtitle }}</span>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #children>
+  <form *ngIf="childrenForm" class="form-register" [formGroup]="childrenForm">
+    <!-- add ngIf childrenArray length  == 0 display button to add child else  -->
+    <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
+      <div *ngFor="let child of childrenArray.controls; let i = index" [formGroupName]="i" class="child-row">
+        <div class="section-one">
+          <!---------first name----->
+          <app-input-text [controlName]="registerFormControls.CHILD_FIRST_NAME" labelText="שם פרטי" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+          <!--------last name------->
+          <app-input-text [controlName]="registerFormControls.CHILD_LAST_NAME" labelText="שם משפחה" [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+          <!-------id number------->
+          <app-input-text [controlName]="registerFormControls.CHILD_ID" labelText="תעודת זהות" [placeholder]="'000000000'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+          <div>
+            <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="addChild()"></app-p-button>
+          </div>
+          <div class="wrap-add-remove-child-button">
+          <app-button class="child-button" aria-label="הוסף ילד" iconName="add-outline"
+          [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY"
+          (onButtonClicked)="addChild()"></app-button>
+          <app-button class="child-button" aria-label="הסר ילד" iconName="remove-outline"
+          [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY" [buttonStyle]="{}"
+          (onButtonClicked)="removeChild(i)"></app-button>
+        </div>
+        </div>
+        <!-------dateBirth of child----->
+        <!-- <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה של הילד/ה"
+          [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH"
+          [parentForm]="getChildFormByIndex(i)"></app-generic-input> -->
+        <!------- buttons add and remove child----->
+      </div>
+    </div>
+  </form>
+</ng-template>
+
+<!-- <app-generic-input class="default-input-register" inputLabel="שם עסק" [controlName]="registerFormControls.BUSINESSNAME"
+  [parentForm]="businessForm"></app-generic-input> -->
+<!-- <app-generic-select class="default-input-register" [controlName]="registerFormControls.BUSINESSTYPE" title="סוג העסק"
+  [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select> -->
+<!-- <app-generic-input class="default-input-register" inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSNUMBER"
+  [parentForm]="businessForm" [errorText]="'נא הכנס מספרים בלבד'"></app-generic-input> -->
+<!------- business date ----->
+<!-- <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק"
+  [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input> -->
+<!------- business inventory ----->
+<!-- <app-generic-select class="wide-input-register" [controlName]="registerFormControls.BUSINESSINVENTORY" title="האם העסק מנהל מלאי?"
+  [items]="employeeList" [parentForm]="businessForm"></app-generic-select> -->
+
+<!-- <app-generic-input class="default-input-register" inputLabel="שם עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNAME"
+  [parentForm]="businessForm"></app-generic-input> -->
+<!--------------- Business type ------------->
+<!-- <app-generic-select class="default-input-register" [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" title="סוג העסק"
+  [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select> -->
+<!-------Business id------>
+<!-- <app-generic-input class="default-input-register" inputLabel="מספר עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER"
+  [parentForm]="businessForm"></app-generic-input> -->
+<!------- business date ----->
+<!-- <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק"
+  [controlName]="registerFormControls.SPOUSEBUSINESSDATE"
+  [parentForm]="businessForm"></app-generic-input> -->
+<!------- business inventory ----->
+<!-- <app-generic-select class="wide-input-register" [controlName]="registerFormControls.SPOUSEBUSINESSINVENTORY"
+  title="האם העסק מנהל מלאי?" [items]="employeeList" [parentForm]="businessForm"></app-generic-select> -->
+
+<!-- <ion-content [fullscreen]="true">
   <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
     <ion-refresher-content pullingText="Pull to refresh"></ion-refresher-content>
   </ion-refresher>
@@ -43,159 +362,14 @@
 
     <app-item-navigate class="navigate-item-container" [navigationItems]="itemsNavigate" [disableClick]="true"
     navigationItemStyle="button-item-navigate-register" (onNavButtonClicked)="navigateclicked($event)">
-  </app-item-navigate>
-
-    <div class="wrap-register-modulse">
-      <!-------------- PRESONAL MODULE ------------->
-      <ng-container [ngSwitch]="selectedFormModule">
-        <ng-container *ngSwitchCase="registerFormModules.PERSONAL">
-          <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm">
-            <!---------first name----->
-            <app-generic-input class="default-input-register" inputLabel="שם פרטי" [controlName]="registerFormControls.FIRSTNAME"
-              [parentForm]="personalForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
-            <!--------last name------->
-            <app-generic-input  class="default-input-register" inputLabel="שם משפחה" [controlName]="registerFormControls.LASTNAME"
-              [parentForm]="personalForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
-            <!-------id number------->
-            <app-generic-input  class="default-input-register" inputLabel="תעודת זהות" [controlName]="registerFormControls.ID"
-              [parentForm]="personalForm" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-generic-input>
-            <!-----email ---->
-            <app-generic-input class="wide-input-register" [inputType]="formTypes.EMAIL" inputLabel="כתובת מייל"
-              [controlName]="registerFormControls.EMAIL" [parentForm]="personalForm" [errorText]="'כתובת המייל לא חוקית'"
-              ></app-generic-input>
-            <!----phone ----->
-            <app-generic-input  class="default-input-register" [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון"
-              [controlName]="registerFormControls.PHONE" [parentForm]="personalForm" [errorText]="'מספר הפלאפון לא חוקי'"></app-generic-input>
-            <!-----date of birth----->
-            <app-generic-input  class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
-              [controlName]="registerFormControls.DATEOFBIRTH" [parentForm]="personalForm"></app-generic-input>
-            <!-- city -->
-            <app-multi-input class="default-input-register" [controlName]="registerFormControls.CITY" [parentForm]="personalForm" [items]="cities" [title]="'עיר'"></app-multi-input>
-            <!--------------- employee ------------->
-            <app-generic-select class="default-input-register" [controlName]="registerFormControls.EMPLOYEMENTSTATUS" title="סטטוס תעסוקתי"
-              [items]="employmentTypeOptionsList" [parentForm]="personalForm" (selectionChanged)="resetBusinessDetails()"></app-generic-select>
-            <!--------- family status----->
-            <app-generic-select class="default-input-register" [controlName]="registerFormControls.FAMILYSTATUS" title="מצב משפחתי"
-              [items]="familyStatusOptionsList" [parentForm]="personalForm"></app-generic-select>
-          </form>
-        </ng-container>
-
-        <!-------------- SPOUSE MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.SPOUSE">
-          <form *ngIf="spouseForm" class="form-register" [formGroup]="spouseForm">
-            <!---------first name----->
-            <app-generic-input class="default-input-register" inputLabel="שם פרטי בן / בת הזוג" [controlName]="registerFormControls.SPOUSEFIRSTNAME"
-              [parentForm]="spouseForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
-            <!--------last name------->
-            <app-generic-input class="default-input-register" inputLabel="שם משפחה" [controlName]="registerFormControls.SPOUSELASTNAME"
-              [parentForm]="spouseForm" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
-            <!-------id number------->
-            <app-generic-input class="default-input-register" inputLabel="תעודת זהות" [controlName]="registerFormControls.SPOUSEID"
-              [parentForm]="spouseForm" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-generic-input>
-            <!----phone ----->
-            <app-generic-input class="default-input-register" [inputType]="formTypes.TELEPHONE" inputLabel="מספר פלאפון"
-              [controlName]="registerFormControls.SPOUSEPHONE" [parentForm]="spouseForm" [errorText]="'מספר הפלאפון לא חוקי'"></app-generic-input>
-            <!-----date of birth----->
-            <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה"
-              [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" [parentForm]="spouseForm"></app-generic-input>
-            <!--------------- employee ------------->
-            <app-generic-select class="default-input-register" [controlName]="registerFormControls.SPOUSEEMPLOYEMENTSTATUS" title="סטטוס תעסוקתי"
-              [items]="employmentTypeOptionsList" [parentForm]="spouseForm" (selectionChanged)="resetBusinessSpouseDetails()"></app-generic-select>
-          </form>
-        </ng-container>
-
-        <!-------------- CHILDREN MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.CHILDREN">
-          <ng-container *ngIf="childrenArray.controls.length == 0; else children">
-            <app-button buttonText="הוסף ילד" iconName="add-circle-outline" iconPosition="end"
-              [buttonClass]="ButtonClass.CLEAR" (onButtonClicked)="addChild()"></app-button>
-          </ng-container>
-          <ng-template #children>
-            <form *ngIf="childrenForm" class="form-register" [formGroup]="childrenForm">
-              <!-- add ngIf childrenArray length  == 0 display button to add child else  -->
-              <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
-                <div *ngFor="let child of childrenArray.controls; let i = index" [formGroupName]="i" class="child-row">
-                  <!-------Fname of child----->
-                  <app-generic-input class="default-input-register" inputLabel="שם פרטי של הילד/ה"
-                    [controlName]="registerFormControls.CHILD_FIRST_NAME"
-                    [parentForm]="getChildFormByIndex(i)" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
-                  <!-------Lname of child----->
-                  <app-generic-input class="default-input-register" inputLabel="שם משפחה של הילד/ה"
-                    [controlName]="registerFormControls.CHILD_LAST_NAME"
-                    [parentForm]="getChildFormByIndex(i)" [errorText]="'אנא הכנס תווים בלבד'"></app-generic-input>
-                  <!-------id of child----->
-                  <app-generic-input class="default-input-register" inputLabel="תעודת זהות של הילד/ה"
-                    [controlName]="registerFormControls.CHILD_ID"
-                    [parentForm]="getChildFormByIndex(i)" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-generic-input>
-                  <!-------dateBirth of child----->
-                  <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך לידה של הילד/ה"
-                    [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH"
-                    [parentForm]="getChildFormByIndex(i)"></app-generic-input>
-                  <!------- buttons add and remove child----->
-                  <div class="wrap-add-remove-child-button">
-                    <app-button class="child-button" aria-label="הוסף ילד" iconName="add-outline"
-                    [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY"
-                    (onButtonClicked)="addChild()"></app-button>
-                    <app-button class="child-button" aria-label="הסר ילד" iconName="remove-outline"
-                    [buttonSize]="ButtonSize.X_SMALL" [buttonClass]="ButtonClass.ICON_ONLY" [buttonStyle]="{}"
-                    (onButtonClicked)="removeChild(i)"></app-button>
-                  </div>
-                </div>
-              </div>
-            </form>
-          </ng-template>
-        </ng-container>
+  </app-item-navigate> -->
 
 
-        <!-------------- BUSINESS MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.BUSINESS">
-          <!-------Business name 1 ------>
-          <div class="wrap-two-detial-business">
-            <div class="wrap-one-detial-business">
-              <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש/ת ראשי/ת</div>
-              <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
-                <app-generic-input class="default-input-register" inputLabel="שם עסק" [controlName]="registerFormControls.BUSINESSNAME"
-                  [parentForm]="businessForm"></app-generic-input>
-                <!--------------- Business type ------------->
-                <app-generic-select class="default-input-register" [controlName]="registerFormControls.BUSINESSTYPE" title="סוג העסק"
-                  [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select>
-                <!-------Business id------>
-                <app-generic-input class="default-input-register" inputLabel="מספר עסק" [controlName]="registerFormControls.BUSINESSNUMBER"
-                  [parentForm]="businessForm" [errorText]="'נא הכנס מספרים בלבד'"></app-generic-input>
-                <!------- business date ----->
-                <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק"
-                  [controlName]="registerFormControls.BUSINESSDATE" [parentForm]="businessForm"></app-generic-input>
-                <!------- business inventory ----->
-                <app-generic-select class="wide-input-register" [controlName]="registerFormControls.BUSINESSINVENTORY" title="האם העסק מנהל מלאי?"
-                  [items]="employeeList" [parentForm]="businessForm"></app-generic-select>
-              </form>
-            </div>
-            <!-------Business name 2 ------>
-            <div class="wrap-one-detial-business">
-              <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן/בת הזוג</div>
-              <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
-                <app-generic-input class="default-input-register" inputLabel="שם עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNAME"
-                  [parentForm]="businessForm"></app-generic-input>
-                <!--------------- Business type ------------->
-                <app-generic-select class="default-input-register" [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" title="סוג העסק"
-                  [items]="businessTypeOptionsList" [parentForm]="businessForm"></app-generic-select>
-                <!-------Business id------>
-                <app-generic-input class="default-input-register" inputLabel="מספר עסק" [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER"
-                  [parentForm]="businessForm"></app-generic-input>
-                <!------- business date ----->
-                <app-generic-input class="default-input-register" [inputType]="formTypes.DATE" inputLabel="תאריך פתיחת עסק"
-                  [controlName]="registerFormControls.SPOUSEBUSINESSDATE"
-                  [parentForm]="businessForm"></app-generic-input>
-                <!------- business inventory ----->
-                <app-generic-select class="wide-input-register" [controlName]="registerFormControls.SPOUSEBUSINESSINVENTORY"
-                  title="האם העסק מנהל מלאי?" [items]="employeeList" [parentForm]="businessForm"></app-generic-select>
-              </form>
-            </div>
-          </div>
-        </ng-container>
+
+
 
         <!-------------- VALIDATION MODULE ------------->
-        <ng-container *ngSwitchCase="registerFormModules.VALIDATION">
+        <!-- <ng-container *ngSwitchCase="registerFormModules.VALIDATION">
           <form *ngIf="validationForm" class="form-register-validate" [formGroup]="validationForm"
             class="validation-form-register">
             <ion-label>סיסמא חייבת לכלול שני תווים באנגלית ומספרים ולהיות לפחות באורך של שמונה תווים</ion-label>
@@ -220,8 +394,8 @@
 
     <div>
       משתמש קיים? לחץ <span (click)="navigateToLogin()" class="blue-link">כאן</span> לכניסה.
-    </div>
-  </div>
+    </div> -->
+  <!-- </div>
   <p>
   </p>
-</ion-content>
+</ion-content> -->
