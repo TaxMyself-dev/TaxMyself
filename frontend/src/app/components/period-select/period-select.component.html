@@ -5,26 +5,26 @@
     [controlName]="'periodMode'"
     [placeholder]="'בחר תקופת דיווח'"
     [items]="getPeriodModeOptions()"
-    [size]="inputsSize.MEDIUM">
+    [size]="inputsSize.BETWEEN">
   </app-input-select>
 
   <ng-container [ngSwitch]="mode">
 
     <!-- === MONTHLY  === -->
     <ng-container *ngSwitchCase="'MONTHLY'">
-      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.MEDIUM"></app-input-select>
-      <app-input-select [parentForm]="form" [controlName]="'month'" [placeholder]="'בחר חודש'" [items]="monthList" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.BETWEEN"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'month'" [placeholder]="'בחר חודש'" [items]="monthList" [size]="inputsSize.BETWEEN"></app-input-select>
     </ng-container>
 
     <!-- === BIMONTHLY === -->
     <ng-container *ngSwitchCase="'BIMONTHLY'">
-      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.MEDIUM"></app-input-select>
-      <app-input-select [parentForm]="form" [controlName]="'month'" [placeholder]="'בחר חודש'" [items]="monthList" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.BETWEEN"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'month'" [placeholder]="'בחר חודש'" [items]="monthList" [size]="inputsSize.BETWEEN"></app-input-select>
     </ng-container>
 
     <!-- === ANNUAL === -->
     <ng-container *ngSwitchCase="'ANNUAL'">
-      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" [controlName]="'year'" [placeholder]="'בחר שנה'" [items]="generateYears()" [size]="inputsSize.BETWEEN"></app-input-select>
     </ng-container>
 
     <!-- === DATE RANGE === -->
@@ -34,8 +34,8 @@
     </ng-container>
 
     <ng-container *ngSwitchDefault>
-      <app-input-select [parentForm]="form" controlName="year" [placeholder]="'בחר שנה'" [size]="inputsSize.MEDIUM"></app-input-select>
-      <app-input-select [parentForm]="form" controlName="month" [placeholder]="'בחר חודש'" [size]="inputsSize.MEDIUM"></app-input-select>
+      <app-input-select [parentForm]="form" controlName="year" [placeholder]="'בחר שנה'" [size]="inputsSize.BETWEEN"></app-input-select>
+      <app-input-select [parentForm]="form" controlName="month" [placeholder]="'בחר חודש'" [size]="inputsSize.BETWEEN"></app-input-select>
     </ng-container>
 
   </ng-container>
@@ -46,7 +46,7 @@
       [controlName]="'business'"
       [placeholder]="'מספר עוסק'"
       [items]="businessOptions"
-      [size]="inputsSize.MEDIUM">
+      [size]="inputsSize.BETWEEN">
   </app-input-select>
 
   <app-p-button
@@ -54,7 +54,8 @@
       [buttonColor]="buttonColor.BLACK"
       [buttonSize]="buttonSize.X_SMALL"
       (onButtonClicked)="onSubmit()"
-      [disabled]="form.invalid">
+      [disabled]="form.invalid"
+      [isLoading]="isLoadingStateButton()">
   </app-p-button>
 
 </form>

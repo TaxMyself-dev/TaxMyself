@@ -145,7 +145,7 @@ export class ClassifyTranComponent implements OnInit {
           severity: 'error',
           summary: 'Error',
           sticky: true, 
-          detail:"מיפוי התנועה בוצע בהצלחה",
+          detail:"מיפוי התנועה נכשל",
           life: 3000,
           key: 'br'
         })

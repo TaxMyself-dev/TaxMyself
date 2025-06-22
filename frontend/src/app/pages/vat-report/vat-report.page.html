@@ -12,7 +12,7 @@
     </p>
   </div>
   <app-period-select class="vat-report-search-bar-input"
-    [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)">
+    [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)" [isLoadingStateButton]="isLoadingStatePeryodSelectButton()">
   </app-period-select> 
 
   @if (vatReportData()) {
@@ -47,7 +47,7 @@
 </div>
 
 @let transToConfirmData = transToConfirm | async;
-@if (transToConfirmData?.length > 0) {
+@if (transToConfirmData?.length > 0 && visibleConfirmTransDialog()) {
   <app-confirm-trans-dialog  (confirmArraySelected)="confirmTrans($event)" (isVisibleChange)="visibleConfirmTransDialog.set($event)" [isLoadingButton]="isLoadingButtonConfirmDialog()"
   [isVisible]="visibleConfirmTransDialog()" [data]="transToConfirmData" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()" [arrayLength]="arrayLength()"></app-confirm-trans-dialog>
 }

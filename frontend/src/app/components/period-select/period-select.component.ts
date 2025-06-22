@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, EventEmitter, Output, Input, ChangeDetectorRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, EventEmitter, Output, Input, ChangeDetectorRef, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators, FormControl } from '@angular/forms';
 import { ReportingPeriodType, BusinessMode, inputsSize, doubleMonthsList, singleMonthsList } from 'src/app/shared/enums';
@@ -33,6 +33,7 @@ export class PeriodSelectComponent {
     ReportingPeriodType.ANNUAL,
     ReportingPeriodType.DATE_RANGE
   ];
+  isLoadingStateButton = input<boolean>(false);
 
   /* ------------ Outputs ------------ */
   @Output() readonly formSubmit = new EventEmitter<Record<string, any>>();
