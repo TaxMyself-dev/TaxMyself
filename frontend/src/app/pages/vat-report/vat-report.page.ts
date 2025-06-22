@@ -19,6 +19,7 @@ import { log } from 'console';
 //import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
+import { MessageService } from 'primeng/api';
 
 
 @Component({
@@ -43,8 +44,8 @@ export class VatReportPage implements OnInit {
   startDate = signal<string>("");
   arrayLength = signal<number>(0);
   endDate = signal<string>("");
-  isLoading = signal<boolean>(false);
   isLoadingButtonConfirmDialog = signal<boolean>(false);
+  isLoadingStatePeryodSelectButton = signal<boolean>(false);
   businessNumber = signal<string>("");
   displayExpenses: boolean = false;
   //vatReportForm: FormGroup;
@@ -99,7 +100,8 @@ export class VatReportPage implements OnInit {
   inputSize = inputsSize;
   buttonColor = ButtonColor;
 
-  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService) {}
+  constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService, private messageService: MessageService
+) {}
 
 
   ngOnInit() {
@@ -116,9 +118,6 @@ export class VatReportPage implements OnInit {
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
     }
   }
-
-
- 
 
   beforeSelectFile(event): void {
     console.log("in beforeSelectFile");
@@ -168,7 +167,6 @@ export class VatReportPage implements OnInit {
     }
   }
 
-
   addFile(event: any, row: IRowDataTable): void {
     console.log("in add file");
 
@@ -212,23 +210,23 @@ export class VatReportPage implements OnInit {
   }
 
   onSubmit(event: any): void {
-
+    this.isLoadingStatePeryodSelectButton.set(true);
     const year = event.year;
     const month = event.month;
     const reportingPeriodType = event.periodMode;
-    this.businessNumber.set(event.businessNumber);
+    this.businessNumber.set(event.business);
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
-    this.visibleConfirmTransDialog.set(true);
-
+    
     this.getVatReportData(startDate, endDate, this.businessNumber());
     this.getDataTable(startDate, endDate, this.businessNumber());
-
+    
   }
-
+  
   getTransToConfirm(): void {
+    this.visibleConfirmTransDialog.set(true);
     console.log("in getTransToConfirm");
     console.log("startDate: ", this.startDate());
     console.log("endDate: ", this.endDate());
@@ -246,11 +244,11 @@ export class VatReportPage implements OnInit {
       map(data =>{
         console.log("🚀 ~ VatReportPage ~ getTransToConfirm ~ data:", data);
         
-        return data
-          .filter(row => row.isRecognized) 
+        return data.filter(row => !row.vatReportingDate || row.vatReportingDate === '0')
           .map(row => ({
             ...row,
             sum: this.genericService.addComma(Math.abs(row.sum as number)),
+            isRecognized: row.isRecognized ? 'כן' : 'לא',
             businessNumber: row?.businessNumber === this.userData.businessNumber
               ? this.userData.businessName
               : this.userData.spouseBusinessName
@@ -271,11 +269,11 @@ export class VatReportPage implements OnInit {
 
   getVatReportData(startDate: string, endDate: string, businessNumber: string) {
     console.log("in get vat report data");
-    this.isLoading.set(true);
+    // this.isLoading.set(true);
     // this.genericService.getLoader().subscribe();
     this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
       .pipe(
-        finalize(() => this.isLoading.set(false)),
+        finalize(() => this.isLoadingStatePeryodSelectButton.set(false)),
         catchError((error) => {
           console.log("error in get vat report data: ", error);
           return EMPTY;
@@ -365,14 +363,29 @@ export class VatReportPage implements OnInit {
       .pipe(
         catchError((err) => {
           console.log("Error in confirmTrans: ", err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            sticky: true,
+            detail:"אירעה שגיאה באישור התנועות, נא לנסות שוב מאוחר יותר",
+            life: 3000,
+            key: 'br'
+          })
           return EMPTY;
         }),
         finalize(() => {
           this.isLoadingButtonConfirmDialog.set(false);
+          this.visibleConfirmTransDialog.set(false);
         }),
       )
       .subscribe((res) => {
-        console.log("🚀 ~ VatReportPage ~ confirmTrans ~ res:", res);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail:"אישור התנועות בוצע בהצלחה",
+          life: 3000,
+          key: 'br'
+        })
         
       })
   }
