@@ -42,6 +42,7 @@
 
   <app-input-select
       *ngIf="businessMode === BusinessMode.TWO_BUSINESS"
+      [parentForm]="form"
       [controlName]="'business'"
       [placeholder]="'מספר עוסק'"
       [items]="businessOptions"

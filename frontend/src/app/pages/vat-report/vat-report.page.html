@@ -1,8 +1,7 @@
 <div class="vat-report-wrap-screen">
-  <!-- <div style="border: 5px solid; background-color: aqua; width: 200px;">
+   <div style="border: 5px solid; background-color: aqua; width: 200px;">
 
-    <app-p-button [buttonText]="'show'" (onButtonClicked)="show()"></app-p-button>
-  </div> -->
+  </div>
   <div class="vat-report-header">
     <div class="icon-title">
       <img src="../../../assets/vat_report.svg" alt="VAT Report" class="icon" />
@@ -12,7 +11,6 @@
       הגשת דו"ח מע"מ בקלות ובמהירות   
     </p>
   </div>
-
   <app-period-select class="vat-report-search-bar-input"
     [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)">
   </app-period-select> 
@@ -36,18 +34,20 @@
       [buttonSize]="buttonSize.AUTO"
       [href]="'https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true'">
     </app-p-button>
-
+    
   }
 
-  @if (dataTable().length > 0) {
+  @let vatReportDataTable = dataTable | async;
+  @if (vatReportDataTable?.length > 0) {
     <app-generic-table class="expenses-table"
-      [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesToShow" [dataTable]="dataTable()" columnSearch="supplier" [tableHeight]="'500px'" >
+      [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesToShow" [dataTable]="vatReportDataTable" columnSearch="supplier" [tableHeight]="'500px'" >
     </app-generic-table>
   }
 
 </div>
 
-@if (visibleConfirmTransDialog()) {
-  <app-confirm-trans-dialog   (isVisibleChange)="visibleConfirmTransDialog.set($event)"
-  [isVisible]="visibleConfirmTransDialog()" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()"></app-confirm-trans-dialog>
+@let transToConfirmData = transToConfirm | async;
+@if (transToConfirmData?.length > 0) {
+  <app-confirm-trans-dialog  (confirmArraySelected)="confirmTrans($event)" (isVisibleChange)="visibleConfirmTransDialog.set($event)" [isLoadingButton]="isLoadingButtonConfirmDialog()"
+  [isVisible]="visibleConfirmTransDialog()" [data]="transToConfirmData" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()" [arrayLength]="arrayLength()"></app-confirm-trans-dialog>
 }
