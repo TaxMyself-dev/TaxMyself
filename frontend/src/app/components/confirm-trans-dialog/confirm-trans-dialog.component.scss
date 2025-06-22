@@ -1,0 +1,16 @@
+p {
+    margin-top: 0;
+}
+
+.footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.footer-buttons {
+    display: flex;
+    justify-content: space-between;
+    width: 37%;
+}

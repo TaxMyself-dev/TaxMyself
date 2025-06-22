@@ -44,8 +44,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   incomeMode = input<boolean>(false);
   filterButtonDisplay = input<boolean>(false);
   showButtons = input<boolean>(false);
+  showCheckbox = input<boolean>(false);
+  defaultSelectedValue = input<boolean>(false);
   columnSearch = input<string>('name');
-  tableHeight = input<string>('500px');
+  tableHeight = input<string>('20px');
   selectionModeCheckBox = input<null | 'single' | 'multiple'>(null);
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
@@ -53,11 +55,14 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
   visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
   filters = output<FormGroup>();
+  isAllChecked = output<boolean>();
+  rowsChecked = output<IRowDataTable[]>();
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
   isHovering = signal<number>(null);
   selectedTrans: IRowDataTable[] = [];
+  // isAllChecked = signal<boolean>(false);
 
   
 
@@ -84,29 +89,29 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   constructor() { }
 
-  ngOnInit() {}
-
-  selectionchange() {
-    console.log("select in row chang");
-    
+  ngOnInit() {
+    if (this.defaultSelectedValue()) {
+      this.selectedTrans = [...this.dataTable()];
+      this.rowsChecked.emit(this.selectedTrans);
+    }
   }
   
   onSelectionChange(event: any) {
-    console.log('Selection Changed:', event);
-    console.log('Selected Rows:', this.selectedTrans);
-    
+    this.isAllChecked.emit(this.selectedTrans.length === this.dataTable().length);
+    this.rowsChecked.emit(this.selectedTrans);
   }
   
-  onAllSelect($event: any) {
-    console.log('onAllSelect');
-    console.log('$event:', $event);
-    console.log('Selected Rows:', this.selectedTrans);
+  // onAllSelect($event: any) {
+  //   console.log('onAllSelect');
+  //   console.log('$event:', $event);
+  //   // this.isAllChecked.emit($event.checked);
+  //   console.log('Selected Rows:', this.selectedTrans);
     
-  }
+  // }
 
-  get isHoveringAnywhere() {
-    return this.isRowHovered() || this.isFloatingHovered();
-  }
+  // get isHoveringAnywhere() {
+  //   return this.isRowHovered() || this.isFloatingHovered();
+  // }
 
   checkClearHover() {
     const notHovering = !this.isRowHovered() && !this.isFloatingHovered();
