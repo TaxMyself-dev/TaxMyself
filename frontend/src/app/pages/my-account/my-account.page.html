@@ -13,15 +13,18 @@
     </div>
 
     <div class="nevigation-block">
+        <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
             @for (item of itemsNavigate; track $index) {
-                <app-card-navigate [cardItem]="item"></app-card-navigate>
+                <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
+                <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
             }
         </div>
     </div>
 
     <div class="table-block">
-        <app-generic-table></app-generic-table>
+        <span class="block-title">תנועות לא מסווגות</span>
+        <app-generic-table class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null"></app-generic-table>
     </div>
 
 </div>

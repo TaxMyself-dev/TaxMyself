@@ -1,35 +1,42 @@
 .page-wrapper {
   min-height: 100vh; /* full viewport height */
-  padding: 30px;      /* space from edges */
+  padding: 50px;      /* space from edges */
   display: flex;
   flex-direction: column;
-  gap: 20px;           /* space between blocks */
-  border: solid 1px red;
+  gap: 60px;           /* space between blocks */
+  // border: solid 1px red;
 }
 
 .user-info-block {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: solid 1px green;
+    // border: solid 1px green;
 }
 
 .nevigation-block {
   display: flex;
-  border: solid 1px green;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  // border: solid 1px green;
 }
 
 .table-block {
   display: flex;
-  border: solid 1px green;
+  flex-direction: column;
+  gap: 10px;
+  // border: solid 1px green;
+}
+
+.table {
+  width: 100%;
 }
 
 .cards-container {
     display: flex;
     gap: 20px;
-    margin-top: 50px;
     border-color: #EBEBEB;
-    align-self: center;
 }
 
 .avatar-with-name {
@@ -49,27 +56,8 @@
     color: #363636;
 }
 
-// .my-account-screen {
-//     width: 100%;
-//     height: 100%;
-//     display: flex;
-//     flex-direction: column;
-//     justify-content: space-around;
-//     align-items: center ;
-// }
-
-// .logo {
-//     width: 300px;
-//     height: 300px;
-
-//     @media only screen and (max-width:400px) {
-//         width: 100px;
-//         height: 100px;
-//     }
-
-//     @media only screen and (max-width:1000px) {
-//         width: 200px;
-//         height: 200px;
-//     }
-// }
-
+.block-title {
+    font-size: 20px;
+    font-weight: 550;
+    color: #363636;
+}

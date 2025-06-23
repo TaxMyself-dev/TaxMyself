@@ -13,6 +13,7 @@ import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { ButtonComponent } from "../../components/button/button.component";
 import { GenericTableComponent } from "../../components/generic-table/generic-table.component";
+import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 
 @NgModule({
   imports: [
@@ -22,6 +23,7 @@ import { GenericTableComponent } from "../../components/generic-table/generic-ta
     MyAccountPageRoutingModule,
     SharedModule,
     CardNavigateComponent,
+    DashboardNavigateComponent,
     AvatarModule,
     AvatarGroupModule,
     ButtonComponent,
