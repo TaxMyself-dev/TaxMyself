@@ -11,6 +11,7 @@ export enum ButtonColor {
    YELLOW = 'yellow',
    BLACK = 'black',
    WHITE = 'white',
+   WHITE_BORDER = 'white-border',
    TRANSPARET = 'transparent'
 }
 
