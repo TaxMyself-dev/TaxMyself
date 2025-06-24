@@ -301,7 +301,7 @@ export class FilterPanelComponent implements OnInit {
     this.form.reset();
     this.selectedType.set(""); // Reset the checkbox
     console.log("🚀 ~ FilterPanelComponent ~ clear ~ this.form.value:", this.form.value);
-
+    this.getButtonText(); // Reset button text
   }
 
   getButtonText(): void {
@@ -327,6 +327,7 @@ export class FilterPanelComponent implements OnInit {
       const last = new Date(year, month, 0); // last day of month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      this.toggle();
     }
     else if (periodType === 'BIMONTHLY' && bimonth && year) {
       const startMonth = parseInt(bimonth);
@@ -334,16 +335,21 @@ export class FilterPanelComponent implements OnInit {
       const last = new Date(year, startMonth + 1, 0); // end of second month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      this.toggle();
     }
     else if (periodType === 'ANNUAL' && year) {
       const first = new Date(year, 0, 1);
       const last = new Date(year, 11, 31);
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      this.toggle();
     }
     else if (periodType === 'DATE_RANGE') {
       if (startDate) from = this.formatShortDate(new Date(startDate));
       if (endDate) to = this.formatShortDate(new Date(endDate));
+      if (startDate && endDate) {
+        this.toggle();
+      }
     }
   
     if (from && to) {

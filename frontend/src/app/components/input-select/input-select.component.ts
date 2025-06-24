@@ -40,7 +40,7 @@ export class InputSelectComponent  implements OnInit {
   ariaLabel = input<string>("");
   onChangeInputSelect = output<string>();
   onClickInputSelect = output<string>();
-  multiSelectButtonClicked = output<string>();
+  multiSelectButtonClicked = output<any>();
   addSubCategoryClicked = output<{ state: true, subCategoryMode: true }>();
   inputClasses = signal<string>("");
 
@@ -93,8 +93,9 @@ export class InputSelectComponent  implements OnInit {
     this.addSubCategoryClicked.emit({ state: true, subCategoryMode: true, })
   }
 
-  onMultiSelectButtonClicked(): void {
-    this.multiSelectButtonClicked.emit("");
+  onMultiSelectButtonClicked(event: any): void {
+    // this.multiSelectButtonClicked.emit(event);
+    event.hide();
   }
 
 

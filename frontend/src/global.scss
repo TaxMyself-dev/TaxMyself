@@ -145,9 +145,22 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     width: 175px;
   }
 
+  &.x_big {
+    width: 215px;
+  }
+
   &.icon {
-    width: 35px;
-    height: 25px;
+    width: 44px;
+    height: 44px !important;
+    &.clicked {
+      background-color: #E5E5E5 !important;
+    }
+   
+  }
+
+  &.big_icon {
+    width: 54px;
+    height: 54px !important;
   }
 
   &.auto {
@@ -271,8 +284,14 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 }
 
 .p-button-text.p-button-info {
-  padding-inline: 0 !important;
-  padding-block: 0 !important;
+  &.login {
+    padding-inline: 0 !important;
+    padding-block: 0 !important;  
+    &.login:hover {
+      border-bottom: 2px solid lightblue;
+      border-radius: 0 !important;
+    }
+  }
 }
 
 .p-drawer-footer { // for footer of left panel
@@ -397,4 +416,13 @@ input.p-inputtext::placeholder {
 .p-checkbox-checked .p-checkbox-box {
   border-color: gray !important;
   background: white !important;
+}
+
+.p-datatable .p-overlay-mask {
+  background: transparent !important;
+  pointer-events: none !important; /* allows interactions while loading */
+}
+
+.p-datatable-loading-icon {
+  color: black !important;
 }

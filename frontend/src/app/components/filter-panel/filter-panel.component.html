@@ -10,7 +10,7 @@
   <!-- Select Time -->
   <div class="header">
     <span class="title">זמן</span>
-    <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.BETWEEN" [buttonText]="buttonText()"
+    <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.X_BIG" [buttonText]="buttonText()"
       [icon]="'pi pi-sort-down-fill'" [class]="'filter'" [variant]="'outlined'"
       (onButtonClicked)="visibleTimesOptions()"></app-p-button>
   </div>
@@ -50,15 +50,6 @@
               [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
             ></p-datepicker>
           </form>
-          
-          <!-- <form [formGroup]="form" class="wrap-inner-inputs">
-
-            <p-datepicker (onClose)="getButtonText()" [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)'}" placeholder="תאריך התחלה"
-              formControlName="startDate" [iconDisplay]="'input'" [showIcon]="true" inputId="startDate" />
-            <p-datepicker (onClose)="getButtonText()" [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)'}" placeholder="תאריך סוף"
-              formControlName="endDate" [iconDisplay]="'input'" [showIcon]="true" inputId="endDate" />
-          </form> -->
-
         </div>
         }
         @else if (selectedType() === 'ANNUAL') {
@@ -85,16 +76,16 @@
   <div class="header">
     <span class="title">חשבון</span>
     <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="accountsList()" [parentForm]="form"
-      [size]="inputsSize.BETWEEN"></app-input-select>
+      [size]="inputsSize.MEDIUM"></app-input-select>
   </div>
   <!-- Select Category -->
   <div class="header">
     <span class="title">קטגוריה</span>
     <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
-      [parentForm]="form" [size]="inputsSize.BETWEEN">
+      [parentForm]="form" [size]="inputsSize.MEDIUM">
     </app-input-select>
   </div>
-  <div style="width: 98%">
+  <div class="apply-filters-button">
     <app-p-button [buttonText]="'סנן'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
       (onButtonClicked)="onFilterButtonClicked()"></app-p-button>
   </div>
