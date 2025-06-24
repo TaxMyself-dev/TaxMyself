@@ -50,6 +50,23 @@ export class TransactionsService implements OnInit{
   }
 
 
+  getTransToClassify(
+    startDate?: string,
+    endDate?: string,
+    businessNumber?: string
+  ): Observable<IRowDataTable[]> {
+
+    const url = `${environment.apiUrl}transactions/get-trans-to-classify`;
+
+    let params = new HttpParams();
+    if (startDate)      { params = params.set('startDate', startDate); }
+    if (endDate)        { params = params.set('endDate',   endDate);   }
+    if (businessNumber) { params = params.set('businessNumber', businessNumber); }
+
+    return this.http.get<IRowDataTable[]>(url, { params });
+  }
+
+
   getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()

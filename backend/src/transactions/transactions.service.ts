@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Between, Not, Brackets, LessThan, MoreThan } from 'typeorm';
+import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 import { SourceType, VATReportingType } from 'src/enum';
@@ -974,6 +974,42 @@ export class TransactionsService {
 
     //TODO: need to add here the expenses that were not reported yet but they in the range of the last half year.
   }
+
+
+  async getTransactionToClassify(
+  userId: string,
+  startDate?: Date,
+  endDate?: Date,
+  businessNumber?: string
+): Promise<Transactions[]> {
+  console.log("userId:", userId);
+  console.log("startDate:", startDate);
+  console.log("endDate:", endDate);
+  console.log("businessNumber:", businessNumber);
+
+  const where: FindOptionsWhere<Transactions> = {
+    userId,
+    category: null
+  };
+
+  if (startDate && endDate) {
+    where.billDate = Between(startDate, endDate);
+  } else if (startDate) {
+    where.billDate = MoreThanOrEqual(startDate);
+  } else if (endDate) {
+    where.billDate = LessThanOrEqual(endDate);
+  }
+
+  if (businessNumber) {
+    where.businessNumber = businessNumber;
+  }
+
+  const transactions = await this.transactionsRepo.find({ where });
+
+  console.log("Filtered uncategorized transactions:", transactions);
+
+  return transactions;
+}
 
 
   async getIncomesToBuildReport(
