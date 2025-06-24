@@ -64,10 +64,13 @@ export class FilterPanelComponent implements OnInit {
   showAccountsOptions = signal(false);
   showCategoriesOptions = signal(false);
   getOptions = signal<ISelectItem[]>([]);
-  categoryList = signal<ISelectItem[]>([]);
   buttonText = signal<string>('aaa');
   viewReady = signal(false);
-
+  categoryList = signal<ISelectItem[]>([]);
+  accountsList = signal<ISelectItem[]>([]);
+  filterData = signal<any>(null);
+  selected: any[] = [];
+  selectedType = signal<string>("");
 
   form: FormGroup
   private transactionService = inject(TransactionsService);
@@ -107,23 +110,16 @@ export class FilterPanelComponent implements OnInit {
   inputsSize = inputsSize;
   iconPos = iconPosition;
 
-  accountsList = signal<ISelectItem[]>([]);
-  filterData = signal<any>(null);
-  selected: any[] = [];
-  selectedType = signal<string>("");
-
-
-
   constructor() {
     this.form = this.fb.group({
       periodType: new FormControl(
         '', [Validators.required]
       ),
       account: new FormControl(
-        [], [Validators.required]
+        [this.accountsList()], [Validators.required]
       ),
       category: new FormControl(
-        [], [Validators.required]
+        [this.categoryList()], [Validators.required]
       ),
     });
 
@@ -156,15 +152,29 @@ export class FilterPanelComponent implements OnInit {
         });
       });
     });
+
+    effect(() => {
+      const accounts = this.accountsList();
+      const categories = this.categoryList();
+    
+      if (accounts.length > 0) {
+        this.form.get('account')?.setValue(accounts);
+      }
+    
+      if (categories.length > 0) {
+        this.form.get('category')?.setValue(categories);
+      }
+    });
   }
 
   ngOnInit(): void {
     this.getButtonText();
     this.generateYears();
     this.getCategories();
-    this.accountsList = this.transactionService.accountsList;
     this.filterData = this.transactionService.filterData;
+    this.accountsList = this.transactionService.accountsList;
     this.categoryList = this.transactionService.categories;
+
   }
   
 

@@ -22,7 +22,9 @@
       </div>
     }
   </div>
-  <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
+  <div class="filter-panel-container" #filterPanelRef>
+    <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
+  </div>
   <div class="table">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()" (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)" (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()" loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()" [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true"
       [virtualScrollItemSize]="76">
