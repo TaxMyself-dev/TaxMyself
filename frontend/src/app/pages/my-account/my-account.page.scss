@@ -1,9 +1,11 @@
 .page-wrapper {
-  min-height: 100vh; /* full viewport height */
+  min-height: 100vh;
+  width: 100vw;
   padding: 50px;      /* space from edges */
   display: flex;
   flex-direction: column;
-  gap: 60px;           /* space between blocks */
+  justify-content: space-between;
+  // gap: 60px;           /* space between blocks */
   // border: solid 1px red;
 }
 
@@ -17,7 +19,8 @@
 .nevigation-block {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  width: 100%;
+  justify-content: space-between;
   gap: 10px;
   // border: solid 1px green;
 }

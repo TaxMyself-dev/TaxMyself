@@ -78,7 +78,7 @@ export class User {
       type: 'enum',
       enum: PayStatus,
       enumName: 'PayStatus',
-      default: PayStatus.FREE
+      default: PayStatus.TRIAL
     })
     payStatus: PayStatus;
 
