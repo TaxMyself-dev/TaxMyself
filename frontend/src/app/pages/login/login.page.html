@@ -60,7 +60,7 @@
 
               <div class="forgot-password">
                 <span>שכחת את הסיסמה?</span>
-                <app-p-button [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
+                <app-p-button [class]="'login'" [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
                   [buttonSize]="buttonSize.AUTO" (onButtonClicked)="sendVerficaitonEmail()"></app-p-button>
               </div>
 
@@ -75,7 +75,7 @@
       
       <div class="register-link">
         <span>אין לכם חשבון?</span><br />
-        <app-p-button [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+        <app-p-button [class]="'login'" [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
           (onButtonClicked)="navigateToRegister()"></app-p-button>
       </div>
 

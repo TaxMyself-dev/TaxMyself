@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, HostListener, inject, input, OnInit, output, signal, ViewChild, WritableSignal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ButtonGroupModule } from 'primeng/buttongroup';
 import { InputIcon } from 'primeng/inputicon';
@@ -39,6 +39,18 @@ import { set } from 'date-fns';
 })
 export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
 
+  @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
+    const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
+  
+    if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
+      this.visibleFilterPannel.set(false); // 👈 close the panel
+    }
+  }
+  
+
   title = input<string>();
   isLoadingState = input<boolean>(false);
   incomeMode = input<boolean>(false);
@@ -47,7 +59,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
   columnSearch = input<string>('name');
-  tableHeight = input<string>('20px');
+  tableHeight = input<string>('500px');
   selectionModeCheckBox = input<null | 'single' | 'multiple'>(null);
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);

@@ -14,6 +14,7 @@ export class ButtonComponent  implements OnInit {
   icon = input<string>();
   iconPosition = input<iconPosition>(iconPosition.LEFT);
   iconOnly = input<boolean>(false); //For aria-label for accessibility
+  raised = input<boolean>(false); // For mark the button
   buttonText = input<string>('Button');
   class = input<string>('');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);

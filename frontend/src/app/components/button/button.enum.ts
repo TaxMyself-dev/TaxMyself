@@ -3,7 +3,9 @@ export enum ButtonSize {
     SMALL = 'small',
     BETWEEN = 'between',
     BIG = 'big',
+    X_BIG = 'x_big',
     ICON = 'icon',
+    BIG_ICON = 'big_icon',
     AUTO = 'auto',
 }
 

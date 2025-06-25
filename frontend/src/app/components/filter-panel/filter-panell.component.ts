@@ -64,10 +64,13 @@ export class FilterPanelComponent implements OnInit {
   showAccountsOptions = signal(false);
   showCategoriesOptions = signal(false);
   getOptions = signal<ISelectItem[]>([]);
-  categoryList = signal<ISelectItem[]>([]);
   buttonText = signal<string>('aaa');
   viewReady = signal(false);
-
+  categoryList = signal<ISelectItem[]>([]);
+  accountsList = signal<ISelectItem[]>([]);
+  filterData = signal<any>(null);
+  selected: any[] = [];
+  selectedType = signal<string>("");
 
   form: FormGroup
   private transactionService = inject(TransactionsService);
@@ -107,23 +110,16 @@ export class FilterPanelComponent implements OnInit {
   inputsSize = inputsSize;
   iconPos = iconPosition;
 
-  accountsList = signal<ISelectItem[]>([]);
-  filterData = signal<any>(null);
-  selected: any[] = [];
-  selectedType = signal<string>("");
-
-
-
   constructor() {
     this.form = this.fb.group({
       periodType: new FormControl(
         '', [Validators.required]
       ),
       account: new FormControl(
-        [], [Validators.required]
+        [this.accountsList()], [Validators.required]
       ),
       category: new FormControl(
-        [], [Validators.required]
+        [this.categoryList()], [Validators.required]
       ),
     });
 
@@ -156,15 +152,29 @@ export class FilterPanelComponent implements OnInit {
         });
       });
     });
+
+    effect(() => {
+      const accounts = this.accountsList();
+      const categories = this.categoryList();
+    
+      if (accounts.length > 0) {
+        this.form.get('account')?.setValue(accounts);
+      }
+    
+      if (categories.length > 0) {
+        this.form.get('category')?.setValue(categories);
+      }
+    });
   }
 
   ngOnInit(): void {
     this.getButtonText();
     this.generateYears();
     this.getCategories();
-    this.accountsList = this.transactionService.accountsList;
     this.filterData = this.transactionService.filterData;
+    this.accountsList = this.transactionService.accountsList;
     this.categoryList = this.transactionService.categories;
+
   }
   
 
@@ -301,7 +311,7 @@ export class FilterPanelComponent implements OnInit {
     this.form.reset();
     this.selectedType.set(""); // Reset the checkbox
     console.log("🚀 ~ FilterPanelComponent ~ clear ~ this.form.value:", this.form.value);
-
+    this.getButtonText(); // Reset button text
   }
 
   getButtonText(): void {
@@ -327,6 +337,7 @@ export class FilterPanelComponent implements OnInit {
       const last = new Date(year, month, 0); // last day of month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      this.toggle();
     }
     else if (periodType === 'BIMONTHLY' && bimonth && year) {
       const startMonth = parseInt(bimonth);
@@ -334,16 +345,21 @@ export class FilterPanelComponent implements OnInit {
       const last = new Date(year, startMonth + 1, 0); // end of second month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      this.toggle();
     }
     else if (periodType === 'ANNUAL' && year) {
       const first = new Date(year, 0, 1);
       const last = new Date(year, 11, 31);
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      this.toggle();
     }
     else if (periodType === 'DATE_RANGE') {
       if (startDate) from = this.formatShortDate(new Date(startDate));
       if (endDate) to = this.formatShortDate(new Date(endDate));
+      if (startDate && endDate) {
+        this.toggle();
+      }
     }
   
     if (from && to) {
