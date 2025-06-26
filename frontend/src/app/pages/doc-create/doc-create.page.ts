@@ -57,7 +57,7 @@ export class DocCreatePage implements OnInit {
   morePaymentDetails: boolean = false;
   generalArray: IDocCreateFieldData[] = [];
   userArray: IDocCreateFieldData[] = [];
-  paymentsArray: IDocCreateFieldData[][] = [];
+  paymentsArray: IDocCreateFieldData[] = [];
   paymentSectionName: SectionKeysEnum;
 
   inputsSize = inputsSize;
@@ -160,17 +160,17 @@ export class DocCreatePage implements OnInit {
     return this.myForm.get('UserDetails') as FormGroup;
   }
 
-  addPayment(): void {
-    this.docCreateBuilderService.addFormGroupToFormArray(this.paymentsFormArray, this.paymentSectionName);
-    console.log(this.myForm);
-    this.paymentsArray[this.paymentsArray.length] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
-    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentsArray:", this.paymentsArray)
-  }
+  // addPayment(): void {
+  //   this.docCreateBuilderService.addFormGroupToFormArray(this.paymentsFormArray, this.paymentSectionName);
+  //   console.log(this.myForm);
+  //   this.paymentsArray[this.paymentsArray.length] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+  //   console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentsArray:", this.paymentsArray)
+  // }
 
-  removePayment(index: number): void {
-    this.docCreateBuilderService.removeFormGroupFromFormArray(this.paymentsFormArray, index);
-    this.paymentsArray.splice(index, 1);
-  }
+  // removePayment(index: number): void {
+  //   this.docCreateBuilderService.removeFormGroupFromFormArray(this.paymentsFormArray, index);
+  //   this.paymentsArray.splice(index, 1);
+  // }
 
   getPaymentFormByIndex(index: number): FormGroup {
     return this.paymentsFormArray.at(index) as FormGroup;
@@ -207,6 +207,8 @@ export class DocCreatePage implements OnInit {
     this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails']);
     this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
     this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
+    this.paymentsArray = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
   }
 
   onClickInitialIndex(): void {
@@ -539,20 +541,20 @@ export class DocCreatePage implements OnInit {
 
   }
 
-  onSelectionChanged(field: string, event: any, i: number): void {
-    console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ event:", event)
-    console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ control:", field)
-    switch (field) {
-      case 'vatOptions':
-        this.onVatOptionChange(event, i);
-        break;
-      case 'paymentMethod':
-        this.expandPayentMethod(i, field, event.value);
-        break;
-      default:
-        break;
-    }
-  }
+  // onSelectionChanged(field: string, event: any, i: number): void {
+  //   console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ event:", event)
+  //   console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ control:", field)
+  //   switch (field) {
+  //     case 'vatOptions':
+  //       this.onVatOptionChange(event, i);
+  //       break;
+  //     case 'paymentMethod':
+  //       this.expandPayentMethod(i, field, event.value);
+  //       break;
+  //     default:
+  //       break;
+  //   }
+  // }
 
   onVatOptionChange(event: any, formIndex: number): void {
     console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
@@ -635,34 +637,34 @@ export class DocCreatePage implements OnInit {
     }
   }
 
-  expandPaymentDetails(formIndex: number): void {
-    console.log(this.paymentsArray[formIndex]);
-    console.log(this.paymentsFormArray.controls[formIndex]);
+  // expandPaymentDetails(formIndex: number): void {
+  //   console.log(this.paymentsArray[formIndex]);
+  //   console.log(this.paymentsFormArray.controls[formIndex]);
     
     
-    this.isPaymentExpanded = !this.isPaymentExpanded;
-    if (this.isPaymentExpanded) {
-      this.docCreateBuilderService.addFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
-      const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName);
-      this.paymentsArray[formIndex] = [...this.paymentsArray[formIndex], ...expandedFields];
-    }
-    else {
-      this.docCreateBuilderService.removeFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
-      const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName); // For remove only the expanded fields and not enumValues fields
-      this.paymentsArray[formIndex] = this.paymentsArray[formIndex].filter((paymentField: IDocCreateFieldData) => {
-        return !expandedFields.some((expandedField: IDocCreateFieldData) => expandedField.value === paymentField.value);
-      });
-    }
-  }
+  //   this.isPaymentExpanded = !this.isPaymentExpanded;
+  //   if (this.isPaymentExpanded) {
+  //     this.docCreateBuilderService.addFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
+  //     const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName);
+  //     this.paymentsArray[formIndex] = [...this.paymentsArray[formIndex], ...expandedFields];
+  //   }
+  //   else {
+  //     this.docCreateBuilderService.removeFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
+  //     const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName); // For remove only the expanded fields and not enumValues fields
+  //     this.paymentsArray[formIndex] = this.paymentsArray[formIndex].filter((paymentField: IDocCreateFieldData) => {
+  //       return !expandedFields.some((expandedField: IDocCreateFieldData) => expandedField.value === paymentField.value);
+  //     });
+  //   }
+  // }
 
-  expandPayentMethod(formIndex: number, field: string, paymentMethod: string): void {
-    this.docCreateBuilderService.addFormControlsByEnumValue(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
-    console.log("🚀 ~ DocCreatePage ~ expandPaymentDetails ~ this.paymentsFormArray.controls[formIndex]:", this.paymentsFormArray.controls[formIndex]);
-    console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
-    //this.paymentsArray[formIndex] = []; // Reset array for new values
-    this.paymentsArray[formIndex] = this.docCreateBuilderService.getFieldsBySectionAndEnumValue(this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
-    console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
-  }
+  // expandPayentMethod(formIndex: number, field: string, paymentMethod: string): void {
+  //   this.docCreateBuilderService.addFormControlsByEnumValue(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
+  //   console.log("🚀 ~ DocCreatePage ~ expandPaymentDetails ~ this.paymentsFormArray.controls[formIndex]:", this.paymentsFormArray.controls[formIndex]);
+  //   console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
+  //   //this.paymentsArray[formIndex] = []; // Reset array for new values
+  //   this.paymentsArray[formIndex] = this.docCreateBuilderService.getFieldsBySectionAndEnumValue(this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
+  //   console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
+  // }
 
   getDropdownItems(controlValue: string): ISelectItem[] {
     switch (controlValue) {
