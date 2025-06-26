@@ -18,6 +18,15 @@
     flex: 1 1 auto;     /* take remaining space */
     overflow-y: auto;   /* vertical scroll when needed */
     padding-bottom: 75px;
+    align-items: center;
+  }
+
+  .table-wrap {
+    width: 98%;
+  }
+
+  .image-bunner {
+    width: 100%;
   }
   
 // ============================== ionic components ==============================

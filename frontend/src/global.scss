@@ -426,3 +426,13 @@ input.p-inputtext::placeholder {
 .p-datatable-loading-icon {
   color: black !important;
 }
+
+.p-datatable-table-container {
+  scrollbar-width: none !important; /* Hide scrollbar in Firefox */
+  -ms-overflow-style: none !important; /* Hide scrollbar in IE and Edge */
+  overflow-y: scroll !important; /* Ensure scrolling still works */
+  &::-webkit-scrollbar {
+    display: none !important; /* Hide scrollbar in Chrome, Safari, and Opera */
+  }
+}
+

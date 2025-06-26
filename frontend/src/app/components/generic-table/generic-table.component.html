@@ -26,7 +26,7 @@
     <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
   </div>
   <div class="table">
-    <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()" (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)" (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()" loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()" [scrollable]="true" [scrollHeight]="tableHeight()" [virtualScroll]="true"
+    <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()" (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)" (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()" loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()" [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false"
       [virtualScrollItemSize]="76">
       <ng-template pTemplate="header" let-columns>
         <tr>
@@ -35,7 +35,7 @@
               <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
             </th>
           }
-          <th *ngFor="let col of columns" class="columns-header">
+          <th style="position: sticky; top: 0;" *ngFor="let col of columns" class="columns-header">
             {{ col.value }}
           </th>
         </tr>
@@ -85,14 +85,23 @@
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
       [style.top.px]="hoveredRowInfo()?.top" [@slideInFromLeft]="'visible'" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
+      @if (hoveredRowInfo()?.row?.billName === 'לא שוייך') {
       <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(hoveredRowInfo()?.row)"
         [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
-
-      <app-p-button *ngIf="hoveredRowInfo()?.row?.billName !== 'לא שוייך'"
+    }
+      @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
+        <app-p-button
         (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג הוצאה'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
+    }
+    @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
+    <app-p-button
+        (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+    }
     </div>
     }
 
