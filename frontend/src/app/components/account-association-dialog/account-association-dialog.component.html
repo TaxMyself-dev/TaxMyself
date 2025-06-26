@@ -1,4 +1,4 @@
-<app-left-panel [headerText]="`שיוך אמצעי תשלום ${rowData()?.paymentIdentifier} לחשבון`" subHeaderText="תהליך השיוך חד פעמי aaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaa" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="false">
+<app-left-panel [headerText]="`שיוך אמצעי תשלום ${rowData()?.paymentIdentifier} לחשבון`" subHeaderText="שייך את אמצעי התשלום לחשבון ספציפי כדי שנוכל לנתח את ההוצאות בצורה מדויקת ולהפיק עבורך דוחות מותאמים." [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="false">
 
   <div class="content" content>
     <app-input-select [ariaLabel]="'בחר את החשבון אליו תרצה לשייך את אמצעי התשלום'" [placeholder]="'בחר את החשבון אליו תרצה לשייך את אמצעי התשלום'" [parentForm]="myForm" [controlName]="'account'" [items]="accounts()" [size]="inputsSize.LARGE"></app-input-select>

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -14,13 +14,13 @@ import { MessageService } from 'primeng/api';
 
 
 @Component({
-    selector: 'app-root',
-    templateUrl: 'app.component.html',
-    styleUrls: ['app.component.scss'],
-    standalone: false,
-    
-  })
-  export class AppComponent implements OnInit {
+  selector: 'app-root',
+  templateUrl: 'app.component.html',
+  styleUrls: ['app.component.scss'],
+  standalone: false,
+
+})
+export class AppComponent implements OnInit {
 
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
@@ -43,14 +43,14 @@ import { MessageService } from 'primeng/api';
 
 
   menuItems = [
-    {label: 'דף הבית', routerLink: '/my-account'},
-    {label: 'פרופיל אישי'},
-    {label: 'תזרים', routerLink: '/transactions'},
-    {label: 'דוחות', routerLink: '/reports'},
-    {label: 'הגדרות', routerLink: '/my-status'},
-    {label: 'צור קשר'},
-    {label: 'כניסה', routerLink: '/login'},
-    {label: 'פאנל ניהול', routerLink: '/admin-panel'},
+    { label: 'דף הבית', routerLink: '/my-account' },
+    { label: 'פרופיל אישי' },
+    { label: 'תזרים', routerLink: '/transactions' },
+    { label: 'דוחות', routerLink: '/reports' },
+    { label: 'הגדרות', routerLink: '/my-status' },
+    { label: 'צור קשר' },
+    { label: 'כניסה', routerLink: '/login' },
+    { label: 'פאנל ניהול', routerLink: '/admin-panel' },
   ]
 
   fromLoginPage = false; // Flag to check if entry was from login page
@@ -58,21 +58,29 @@ import { MessageService } from 'primeng/api';
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserData;
-  isUserAdmin: boolean = false; 
-  isAccountant: boolean = false; 
+  isUserAdmin: boolean = false;
+  isAccountant: boolean = false;
   destroy$ = new Subject<void>();
 
-  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) { };
-
+  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) { 
+    // this.router.events.pipe(
+    //   filter(e => e instanceof NavigationEnd)
+    // ).subscribe((e: NavigationEnd) => {
+    //   const url = e.urlAfterRedirects;
+    //   // console.log("🚀 ~ AppComponent ~ ).subscribe ~ url:", url)
+    //   this.showTopNav.set(!(['/login', '/register'].includes(url)));
+    //   // console.log("🚀 ~ AppComponent ~ ).subscribe ~  this.showTopNav:",  this.showTopNav())
+    // });
+  };
+  showTopNav = signal(true);
   ngOnInit() {
+    this.hideTopNav();
     this.userData = this.authService.getUserDataFromLocalStorage();
-    console.log("🚀 ~ AppComponent ~ ngOnInit ~ this.userData:", this.userData)
     if (this.userData?.role[0] === 'ADMIN') {
-      this.menuItems.push({label: 'פאנל מנהלים', routerLink: '/admin-panel'});
+      this.menuItems.push({ label: 'פאנל מנהלים', routerLink: '/admin-panel' });
     }
     this.getRoute();
     this.getRoleUser();
-    //this.authService.startTokenRefresh(); // Start refreshing the token
   }
 
   ngOnDestroy(): void {
@@ -81,32 +89,50 @@ import { MessageService } from 'primeng/api';
     //this.authService.stopTokenRefresh(); // Clean up on app component destruction
   }
 
+  restartData(): void {
+    this.userData = this.authService.getUserDataFromLocalStorage();
+    if (this.userData?.role[0] === 'ADMIN') {
+      this.menuItems.push({ label: 'פאנל מנהלים', routerLink: '/admin-panel' });
+    }
+    this.getRoleUser();
+  }
+
+  hideTopNav(): void {
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd)
+    ).subscribe((e: NavigationEnd) => {
+      const url = e.urlAfterRedirects || e.url;
+      this.showTopNav.set(!(['/login', '/register'].includes(url)));
+    });
+  }
+
   getRoute(): void {
     this.router.events
-    .pipe(
-      filter(event => event instanceof NavigationEnd),
-      pairwise() // Gives an array [previous, current] NavigationEnd events
-    )
-    .subscribe(([previous, current]: [NavigationEnd, NavigationEnd]) => {
-      // Check if previous route was the login page
-      if (previous.urlAfterRedirects === '/login') {
-        this.fromLoginPage = true;
-        this.onAppEntryFromLogin();
-      } else {
-        this.fromLoginPage = false;
-      }
-    });
-    
+      .pipe(
+        filter(event => event instanceof NavigationEnd),
+        pairwise() // Gives an array [previous, current] NavigationEnd events
+      )
+      .subscribe(([previous, current]: [NavigationEnd, NavigationEnd]) => {
+        // Check if previous route was the login page
+        if (previous.urlAfterRedirects === '/login') {
+          this.fromLoginPage = true;
+          this.onAppEntryFromLogin();
+        } else {
+          this.fromLoginPage = false;
+        }
+      });
+
   }
 
   onAppEntryFromLogin() {
     if (this.fromLoginPage) {
-      this.ngOnInit();
+      // this.ngOnInit();
+      this.restartData();
     }
   }
 
   getRoleUser(): void {
-    
+
     this.isUserAdmin = this.userData?.role?.includes('ADMIN') || false;
     this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
 
@@ -123,7 +149,7 @@ import { MessageService } from 'primeng/api';
     // else {
     //   this.isAccountant = false
     // }
-    
+
   }
 
   openCloseLogOutPopup() {
@@ -135,10 +161,10 @@ import { MessageService } from 'primeng/api';
   openModalAddExpense() {
 
     this.expenseDataServise.openModalAddExpense()
-    .pipe(
-      takeUntil(this.destroy$)
-    )
-    .subscribe()
+      .pipe(
+        takeUntil(this.destroy$)
+      )
+      .subscribe()
     // const modal = await this.modalCtrl.create({
     //   component: ModalExpensesComponent,
     //   componentProps: {

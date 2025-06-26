@@ -1,62 +1,71 @@
 @if (multiSelect()) {
-  @if(errorText()) {
-    <span>{{errorText()}}</span>
-    }
-    <div class="input-select-wrapper">
+@if(errorText()) {
+<span>{{errorText()}}</span>
+}
+<div class="input-select-wrapper">
 
-      @if (labelText()) {
-      <label class="input-label" [for]="controlName()">{{labelText()}}
-        @if (isRequired) {
-        <span class="required">*</span>
-        }
-      </label>
-      }
+  @if (labelText()) {
+  <label class="input-label" [for]="controlName()">{{labelText()}}
+    @if (isRequired) {
+    <span class="required">*</span>
+    }
+  </label>
+  }
   <form [formGroup]="parentForm()">
-  <p-multiselect  (onChange)="onChange($event)" [dropdownIcon]="'pi pi-sort-down-fill'" selectedItemsLabel=" נבחרו {0}" [tooltip]="'good'" [panelStyle]="{ 'width': 'auto', 'min-width': '170px' }"
-  [options]="items()" [styleClass]="getinputClasses()" [filter]="true" optionLabel="name" [placeholder]="placeholder()" [maxSelectedLabels]="3" [formControlName]="controlName()" [showToggleAll]="true">
-     <ng-template #footer>
-      <app-p-button [buttonText]="'בחר'" [variant]="'text'" [severity]="'info'" (onButtonClicked)="onMultiSelectButtonClicked()"></app-p-button>
-    </ng-template>
-  </p-multiselect>
+    <p-multiselect #multi (onChange)="onChange($event)" [dropdownIcon]="icon()" [selectedItemsLabel]="stringMessage()"
+      [tooltip]="'good'" [panelStyle]="{ 'width': 'auto', 'min-width': '170px' }" [options]="items()"
+      [styleClass]="inputClasses()" [filter]="true" optionLabel="name" [placeholder]="placeholder()"
+      [maxSelectedLabels]="0" [formControlName]="controlName()" [showToggleAll]="true">
+      <ng-template #footer>
+      <div class="multiselect-footer">
+        
+          <app-p-button [buttonSize]="buttonSize.AUTO" [buttonText]="'בחר'" [variant]="'text'" [severity]="'info'"
+          (onButtonClicked)="onMultiSelectButtonClicked(multi)"></app-p-button>
+        </div>
+        </ng-template>
+      </p-multiselect>
   </form>
 </div>
 }
 @else {
-  <form [formGroup]="parentForm()">
-    @if(errorText()) {
-    <span>{{errorText()}}</span>
-    }
-    <div class="input-select-wrapper">
+<form [formGroup]="parentForm()">
+  @if(errorText()) {
+  <span>{{errorText()}}</span>
+  }
+  <div class="input-select-wrapper">
 
-      @if (labelText()) {
-      <label class="input-label" [for]="controlName()">{{labelText()}}
-        @if (isRequired) {
-        <span class="required">*</span>
-        }
-      </label>
+    @if (labelText()) {
+    <label class="input-label" [for]="controlName()">{{labelText()}}
+      @if (isRequired) {
+      <span class="required">*</span>
       }
+    </label>
+    }
 
-      <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()"
-        optionValue="value" optionLabel="name"
-        [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
-        [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="getinputClasses()"
-        (onChange)="onChange($event)" (onClick)="onClick($event)">
-        @if (group()) {
-        <ng-template let-group #group>
-          <span style="color: black; font-size: large;">{{group.label}}</span>
-        </ng-template>
-        }
-        @if (isSubCategory()) {
-        <ng-template pTemplate="footer">
-          <div>
-            <app-p-button [buttonText]="' + הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'"
-              [buttonSize]="buttonSize.AUTO" (onButtonClicked)="onAddSubCategoryClicked()"
-              [disabled]="!parentForm().get('categoryName').value">
-            </app-p-button>
-          </div>
-        </ng-template>
-        }
-      </p-select>
-    </div>
-  </form>
+    <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()"
+      optionValue="value" optionLabel="name"
+      [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
+      [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
+      (onChange)="onChange($event)" (onClick)="onClick($event)">
+      <ng-template #dropdownicon>
+        <i class="pi pi-sort-down-fill" style="font-size: 0.8rem"></i>
+      </ng-template>
+      @if (group()) {
+      <ng-template let-group #group>
+        <span style="color: black; font-size: large;">{{group.label}}</span>
+      </ng-template>
+      }
+      @if (isSubCategory()) {
+      <ng-template pTemplate="footer">
+        <div>
+          <app-p-button [buttonText]="' + הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'"
+            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="onAddSubCategoryClicked()"
+            [disabled]="!parentForm().get('categoryName').value">
+          </app-p-button>
+        </div>
+      </ng-template>
+      }
+    </p-select>
+  </div>
+</form>
 }

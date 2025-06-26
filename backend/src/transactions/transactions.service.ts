@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Between, Not, Brackets, LessThan, MoreThan } from 'typeorm';
+import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
 import { SourceType, VATReportingType } from 'src/enum';
@@ -466,6 +466,7 @@ export class TransactionsService {
 
     const { id, isSingleUpdate, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized } = classifyDto;
     let transactions: Transactions[];
+
     // Add new user category if isNewCategory is true
     // if (isNewCategory) {
     //   try {
@@ -550,6 +551,28 @@ export class TransactionsService {
 
       await this.classifiedTransactionsRepo.save(classifiedTransaction);
     }
+  }
+
+
+  async quickClassify(transactionId: number, userId: string): Promise<void> {
+
+    const transaction = await this.transactionsRepo.findOne({
+      where: { id: transactionId, userId },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${transactionId} not found`);
+    }
+
+    transaction.category = 'שונות';
+    transaction.subCategory = 'שונות';
+    transaction.taxPercent = 0;
+    transaction.vatPercent = 0;
+    transaction.reductionPercent = 0;
+    transaction.isEquipment = false;
+    transaction.isRecognized = false;
+
+    await this.transactionsRepo.save(transaction);
   }
 
 
@@ -944,7 +967,8 @@ export class TransactionsService {
 
 
 
-  async getExpensesToBuildReport(
+  // async getExpensesToBuildReport(
+    async getTransactionToConfirmAndAddToExpenses(
     userId: string,
     businessNumber: string,
     startDate: Date,
@@ -973,6 +997,42 @@ export class TransactionsService {
 
     //TODO: need to add here the expenses that were not reported yet but they in the range of the last half year.
   }
+
+
+  async getTransactionToClassify(
+  userId: string,
+  startDate?: Date,
+  endDate?: Date,
+  businessNumber?: string
+): Promise<Transactions[]> {
+  console.log("userId:", userId);
+  console.log("startDate:", startDate);
+  console.log("endDate:", endDate);
+  console.log("businessNumber:", businessNumber);
+
+  const where: FindOptionsWhere<Transactions> = {
+    userId,
+    category: null
+  };
+
+  if (startDate && endDate) {
+    where.billDate = Between(startDate, endDate);
+  } else if (startDate) {
+    where.billDate = MoreThanOrEqual(startDate);
+  } else if (endDate) {
+    where.billDate = LessThanOrEqual(endDate);
+  }
+
+  if (businessNumber) {
+    where.businessNumber = businessNumber;
+  }
+
+  const transactions = await this.transactionsRepo.find({ where });
+
+  console.log("Filtered uncategorized transactions:", transactions);
+
+  return transactions;
+}
 
 
   async getIncomesToBuildReport(

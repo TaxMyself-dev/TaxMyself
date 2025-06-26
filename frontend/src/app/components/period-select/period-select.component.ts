@@ -1,174 +1,245 @@
-import { ChangeDetectionStrategy, Component, OnInit, input, computed, signal, Output, EventEmitter } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, EventEmitter, Output, Input, ChangeDetectorRef, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, FormControl } from '@angular/forms';
+import { ReportingPeriodType, BusinessMode, inputsSize, doubleMonthsList, singleMonthsList } from 'src/app/shared/enums';
 import { InputSelectComponent } from '../input-select/input-select.component';
-import { ISelectItem, IUserData } from 'src/app/shared/interface';
 import { DatePickerModule } from 'primeng/datepicker';
-import { BusinessMode, BusinessType, doubleMonthsList, inputsSize, reportingPnlPeriodTypeOptionsList, reportingVatPeriodTypeOptionsList, singleMonthsList } from 'src/app/shared/enums';
-import { ButtonComponent } from "../button/button.component";
+import { ButtonComponent } from '../button/button.component';
+import { ISelectItem } from 'src/app/shared/interface';
 import { ButtonSize } from '../button/button.enum';
 import { ButtonColor } from '../button/button.enum';
+import { InputDateComponent } from '../input-date/input-date.component';
 
 @Component({
   selector: 'app-period-select',
   templateUrl: './period-select.component.html',
   styleUrls: ['./period-select.component.scss'],
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, InputSelectComponent, DatePickerModule, ButtonComponent],
   standalone: true,
+  imports: [
+    CommonModule, ReactiveFormsModule,
+    InputSelectComponent, DatePickerModule, ButtonComponent, InputDateComponent
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PeriodSelectComponent implements OnInit {
+export class PeriodSelectComponent {
 
-  form: FormGroup = this.fb.group({});
-  parentPage = input<string>("");
-  businessMode = input<BusinessMode>(BusinessMode.ONE_BUSINESS);
-  businessNumber = input<string | null>(null);
-  businessOptions = input<ISelectItem[]>([]);
-  periodType = signal<string>("");
-  @Output() formSubmit = new EventEmitter<Record<string, any>>();
+  /* ------------ Inputs ------------- */
+  // @Input() parentPage!: 'vatReport' | 'pnlReport' | 'uniformFile';
+  @Input() businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
+  @Input() businessOptions: ISelectItem[] = [];
+  @Input() allowedPeriodModes: ReportingPeriodType[] = [
+    ReportingPeriodType.MONTHLY,
+    ReportingPeriodType.BIMONTHLY,
+    ReportingPeriodType.ANNUAL,
+    ReportingPeriodType.DATE_RANGE
+  ];
+  isLoadingStateButton = input<boolean>(false);
 
-  // Expose the BusinessMode enum to the template
-  BusinessMode = BusinessMode;
+  /* ------------ Outputs ------------ */
+  @Output() readonly formSubmit = new EventEmitter<Record<string, any>>();
 
-  monthList = computed(() => {
-    if (this.periodType() === 'BIMONTHLY') {
-      return doubleMonthsList;
-    }
-    return singleMonthsList;
+  /* ------------ Form --------------- */
+  readonly fb   = inject(FormBuilder);
+
+//   readonly form = this.fb.group({
+//   // periodMode : new FormControl<ReportingPeriodType>(ReportingPeriodType.MONTHLY, Validators.required),
+//   periodMode : new FormControl<ReportingPeriodType>(null, Validators.required),
+//   year       : new FormControl<number | null>(null),
+//   month      : new FormControl<string | number | null>(null),
+//   startDate  : new FormControl<Date | null>(null),
+//   endDate    : new FormControl<Date | null>(null),
+//   business   : new FormControl<string | null>(null),
+// });
+
+  readonly form = this.fb.group({
+    periodMode : new FormControl<ReportingPeriodType | null>(null, Validators.required),
+    year       : new FormControl<number | null>(null),
+    month      : new FormControl<string | number | null>(null),
+    startDate  : new FormControl<Date | null>(null),
+    endDate    : new FormControl<Date | null>(null),
+    business   : new FormControl<string | null>(null),
   });
 
-  // Order of fields for each form type
-  fieldsOrder: { [key: string]: string[] } = {
-    vatReport: ['periodType', 'year', 'month', 'businessNumber'],
-    pnlReport: ['periodType', 'year', 'month', 'businessNumber'],
-    uniformFile: ['startDate', 'endDate'],
-  };
-
-  labels: { [key: string]: string } = {
-    periodType: 'תקופת דיווח',
-    year: 'שנה',
-    month: 'חודש',
-    businessNumber: 'מספר עוסק',
-    startDate: 'תאריך התחלה',  
-    endDate: 'תאריך סיום',
-  };
-
+  BusinessMode = BusinessMode;
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
   inputsSize = inputsSize;
 
-  constructor(private fb: FormBuilder) {}
-
-
-  ngOnInit(): void {
-
-    this.initializeForm();
-
-    // Watch for changes in the periodType control
-    const periodTypeControl = this.form.get('periodType');
-    // if (periodTypeControl) {
-    //   periodTypeControl.valueChanges.subscribe(value => {
-    //     console.log("Period type changed to:", value);
-    //     this.periodType.set(value);
-    //   });
-    // }
-
-
-    if (periodTypeControl) {
-      periodTypeControl.valueChanges.subscribe(value => {
-        this.periodType.set(value);
-
-        const year = this.form.get('year');
-        const month = this.form.get('month');
-        const startDate = this.form.get('startDate');
-        const endDate = this.form.get('endDate');
-
-        if (value === 'DATE_RANGE') {
-          year?.disable();
-          month?.disable();
-          startDate?.enable();
-          endDate?.enable();
-        } else {
-          year?.enable();
-          month?.enable();
-          startDate?.disable();
-          endDate?.disable();
-        }
-      });
-    }
-
+  get mode(): ReportingPeriodType | null {
+    return this.form.controls.periodMode.value as ReportingPeriodType | null;
   }
 
+  /* ------------ Constructor ---------- */
+  // constructor() {
+
+  //   const cdr = inject(ChangeDetectorRef);
+
+  //   // Subscribe to changes in periodMode and reconfigure controls
+  //   this.form.controls.periodMode.valueChanges.subscribe(val => {
+  //     this.configureControls(val as ReportingPeriodType);
+  //     cdr.markForCheck(); // triggers UI update for OnPush
+  //   });
+
+  //   // Apply default behavior for 'MONTHLY' at startup
+  //   this.configureControls(ReportingPeriodType.MONTHLY);
+  // }
+
+//   constructor() {
+//   const cdr = inject(ChangeDetectorRef);
+
+//   // Watch for user changes to periodMode
+//   this.form.controls.periodMode.valueChanges.subscribe(val => {
+//     this.configureControls(val as ReportingPeriodType);
+//     cdr.markForCheck();
+//   });
+
+//   // Force initial rendering of year + month controls (even if periodMode is empty)
+//   this.configureControls('PREVIEW_MONTHLY');
+//   // this.configureControls(ReportingPeriodType.MONTHLY);
+// }
+
+// constructor() {
+//   const cdr = inject(ChangeDetectorRef);
+
+//   // Show fields initially
+//   this.form.controls.year.enable();
+//   this.form.controls.month.enable();
+
+//   // Set validators manually for the visible fields
+//   this.form.controls.year.setValidators([Validators.required]);
+//   this.form.controls.month.setValidators([Validators.required]);
+
+//   this.form.controls.year.updateValueAndValidity();
+//   this.form.controls.month.updateValueAndValidity();
+
+//   // Watch for when the user actually selects a periodMode
+//   this.form.controls.periodMode.valueChanges.subscribe(val => {
+//     this.configureControls(val as ReportingPeriodType);
+//     cdr.markForCheck();
+//   });
+// }
+
+constructor() {
+  const cdr = inject(ChangeDetectorRef);
+
+  this.form.controls.year.enable();
+  this.form.controls.month.enable();
+  this.form.controls.year.setValidators([Validators.required]);
+  this.form.controls.month.setValidators([Validators.required]);
+  this.form.controls.year.updateValueAndValidity();
+  this.form.controls.month.updateValueAndValidity();
+
+  this.form.controls.periodMode.valueChanges.subscribe(val => {
+    this.configureControls(val as ReportingPeriodType);
+    cdr.markForCheck();
+  });
+}
+
+  ngOnInit(): void {
+    // Set business value if there's only one business and one option
+    if (
+      this.businessMode === BusinessMode.ONE_BUSINESS &&
+      this.businessOptions &&
+      this.businessOptions.length === 1
+    ) {
+      this.form.get('business')?.setValue(String(this.businessOptions[0].value));
+    }
+  }
 
   onSubmit(): void {
+    console.log("form vlaue is ", this.form.value);
     this.formSubmit.emit(this.form.value);
   }
 
+  /* -------------- Helpers ------------- */
 
-  initializeForm() {
-    switch (this.parentPage()) {
-      case 'vatReport':
-        this.form = this.fb.group({
-          periodType: ['', Validators.required],
-          year: ['', Validators.required],
-          month: ['', Validators.required],
-          businessNumber: ['', Validators.required],
-        });
-        // Set the default businessNumber if only one business is available
-        if (this.businessMode() === BusinessMode.ONE_BUSINESS && this.businessOptions()[0]) {
-          this.form.get('businessNumber')?.setValue(this.businessOptions()[0].value);
-        } 
-        break;
-      case 'pnlReport':
-        this.form = this.fb.group({
-          periodType: ['', Validators.required],
-          year: ['', Validators.required],
-          month: ['', Validators.required],
-          businessNumber: ['', Validators.required],
-        });
-        if (this.businessMode() === BusinessMode.ONE_BUSINESS && this.businessOptions()[0]) {
-          this.form.get('businessNumber')?.setValue(this.businessOptions()[0].value);
-        } 
-        break;
-      case 'uniformFile':
-        this.form = this.fb.group({
-          startDate: ['', Validators.required],
-          endDate: [new Date(), Validators.required],
-        });
-        break;
-      default:
-        this.form = this.fb.group({});
-    }
+  /** enable/disable & (re)set validators according to the chosen mode */
+  // private configureControls(mode: ReportingPeriodType) {
+  //   const { year, month, startDate, endDate } = this.form.controls;
+
+  //   // Reset control state first
+  //   [year, month, startDate, endDate].forEach(c => {
+  //     c.clearValidators();
+  //     c.reset();
+  //     c.disable();
+  //   });
+
+  //   switch (mode) {
+  //     case ReportingPeriodType.MONTHLY:
+  //     case ReportingPeriodType.BIMONTHLY:
+  //       year.setValidators([Validators.required]);
+  //       month.setValidators([Validators.required]);
+  //       year.enable();  month.enable();
+  //       break;
+
+  //     case ReportingPeriodType.ANNUAL:
+  //       year.setValidators([Validators.required]);
+  //       year.enable();
+  //       break;
+
+  //     case ReportingPeriodType.DATE_RANGE:
+  //       startDate.setValidators([Validators.required]);
+  //       endDate.setValidators([Validators.required]);
+  //       startDate.enable();  endDate.enable();
+  //       break;
+  //   }
+
+  //   year.updateValueAndValidity();
+  //   month.updateValueAndValidity();
+  //   startDate.updateValueAndValidity();
+  //   endDate.updateValueAndValidity();
+  // }
+
+  private configureControls(mode: ReportingPeriodType | 'PREVIEW_MONTHLY' | null) {
+  const { year, month, startDate, endDate } = this.form.controls;
+
+  // Reset all validators and disable everything
+  [year, month, startDate, endDate].forEach(c => {
+    c.clearValidators();
+    c.reset();
+    c.disable();
+  });
+
+  // 👇 Allow rendering fields even without setting the real value
+  switch (mode) {
+    case 'PREVIEW_MONTHLY':
+    case ReportingPeriodType.MONTHLY:
+    case ReportingPeriodType.BIMONTHLY:
+      year.enable();  month.enable();
+      year.setValidators([Validators.required]);
+      month.setValidators([Validators.required]);
+      break;
+
+    case ReportingPeriodType.ANNUAL:
+      year.enable();
+      year.setValidators([Validators.required]);
+      break;
+
+    case ReportingPeriodType.DATE_RANGE:
+      startDate.enable(); endDate.enable();
+      startDate.setValidators([Validators.required]);
+      endDate.setValidators([Validators.required]);
+      break;
   }
 
+  [year, month, startDate, endDate].forEach(c => c.updateValueAndValidity());
+}
 
-  getItems(list: string) {
-    switch (list) {
-      case 'periodType':
-        switch (this.parentPage()) {
-          case 'vatReport':
-            return reportingVatPeriodTypeOptionsList;
-          case 'pnlReport':
-            return reportingPnlPeriodTypeOptionsList;
-          default:
-            return [];
-        }
-      case 'year':
-        return this.generateYears();
-      case 'month':
-        return this.monthList();
-      case 'businessNumber':
-        return this.businessOptions();
 
-      case 'startDate':
-      case 'endDate':
-      return this.generateDateOptions();
+  /* ------------- Select lists ---------- */
 
-      default:
-        return [];
-    }
+  getPeriodModeOptions(): ISelectItem[] {
+    const all: Record<ReportingPeriodType, string> = {
+      [ReportingPeriodType.MONTHLY]: 'חודשי',
+      [ReportingPeriodType.BIMONTHLY]: 'דו-חודשי',
+      [ReportingPeriodType.ANNUAL]: 'שנתי',
+      [ReportingPeriodType.DATE_RANGE]: 'טווח תאריכים',
+    };
+    return this.allowedPeriodModes.map((mode) => ({
+      name: all[mode],
+      value: mode
+    }));
   }
-
 
   generateYears(): ISelectItem[] {
     const currentYear = new Date().getFullYear();
@@ -179,76 +250,29 @@ export class PeriodSelectComponent implements OnInit {
     return years;
   }
 
-
-  generateDateOptions(): ISelectItem[] {
-    const options: ISelectItem[] = [];
-    const now = new Date();
-
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1); // 1st of each month
-      const display = date.toLocaleDateString('he-IL'); // 'dd/MM/yyyy' in Hebrew
-      options.push({ name: display, value: date });
-    }
-
-    return options;
-  }
-
-
-  getPlaceholder(key: string): string {
-    return this.labels[key] || key;
-  }
-
-
-  // Return the ordered list of field keys
-  // getOrderedFields(): string[] {
-
-  //   let baseFields = this.fieldsOrder[this.parentPage()] || Object.keys(this.form.controls);
-
-  //   if (this.parentPage() !== 'uniformFile') {
-  //     if (this.periodType() === 'DATE_RANGE') {
-
-  //       baseFields = baseFields.reduce<string[]>((acc, field) => {
-  //         if (field === 'year') acc.push('startDate');
-  //         else if (field === 'month') acc.push('endDate');
-  //         else acc.push(field);
-  //         return acc;
-  //       }, []);
-
-  //     }
-
-  //     // Exclude businessNumber if the mode is ONE_BUSINESS
-  //     if (this.businessMode() === BusinessMode.ONE_BUSINESS) {
-  //       return baseFields.filter(field => field !== 'businessNumber');
-  //     }
-
-  //   return baseFields;
-  // }
-
-  // }
-
-
-  getOrderedFields(): string[] {
-  let baseFields = this.fieldsOrder[this.parentPage()] || Object.keys(this.form.controls);
-
-  if (this.parentPage() !== 'uniformFile') {
-    if (this.periodType() === 'DATE_RANGE') {
-      // Replace 'year' with 'startDate' and 'month' with 'endDate'
-      baseFields = baseFields.reduce<string[]>((acc, field) => {
-        if (field === 'year') acc.push('startDate');
-        else if (field === 'month') acc.push('endDate');
-        else acc.push(field);
-        return acc;
-      }, []);
-    }
-  }
-
-  // Remove 'businessNumber' if there's only one business
-  if (this.businessMode() === BusinessMode.ONE_BUSINESS) {
-    baseFields = baseFields.filter(field => field !== 'businessNumber');
-  }
-
-  return baseFields;
+  get monthList(): ISelectItem[] {
+  return this.form.controls.periodMode.value === ReportingPeriodType.BIMONTHLY
+    ? doubleMonthsList
+    : singleMonthsList;
 }
 
+  // monthList = computed(() => {
+  //   if (this.form.controls.periodMode.value === ReportingPeriodType.BIMONTHLY) {
+  //     return doubleMonthsList;
+  //   }
+  //   return singleMonthsList;
+  // });
+
+  // years: ISelectItem[] = (() => {
+  //   const y = new Date().getFullYear();
+  //   return Array.from({ length: 20 }, (_, i) => ({ name: y - i, value: y - i }));
+  // })();
+
+  // monthsSingle  = [{ name: 'ינואר', value: 1 }, /* … */];
+  // monthsBiMonth = [{ name: 'ינואר-פברואר', value: '01-02' }, /* … */];
+
+  // getMonthOptions() {
+  //   return this.mode === ReportingPeriodType.BIMONTHLY ? this.monthsBiMonth : this.monthsSingle;
+  // }
 
 }

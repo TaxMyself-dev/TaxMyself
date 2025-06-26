@@ -1,5 +1,97 @@
-<!-- <app-p-button [buttonSize]="ButtonSize.BIG" [buttonColor]='ButtonColor.YELLOW' ></app-p-button> -->
-<ion-header class="login-header" [translucent]="true">
+<div class="login-wrap-screen">
+
+  <div class="login-screen">
+
+    <div class="login-card">
+      <div class="logo-title-row">
+        <img class="top-nav-logo" src="../../../assets/login_logo.svg" alt="Logo" height="40">
+      </div>
+      <div class="login-content">
+        <div class="wellcome-and-socisal-buttons">
+          <div class="welcome">
+            <p class="welcome-title">ברוכים הבאים</p>
+            <p>בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</p>
+          </div>
+
+          <div class="social-login-buttons">
+            <p-button label="התחברו עם פייסבוק" icon="pi pi-facebook" iconPos="right" class="social-btn fb-btn"
+              severity="secondary" [rounded]="true" variant="outlined"></p-button>
+            <p-button iconPos="right" class="social-btn google-btn" severity="secondary" [rounded]="true"
+              variant="outlined">
+              <ng-template pTemplate="content"><img src="../../../assets/icon/google-icon.png" class="google-icon"
+                  alt="Google" />התחברו עם גוגל</ng-template>
+            </p-button>
+          </div>
+        </div>
+
+        <div class="wrap-register-with-exist-account">
+          <div class="register-with-exist-account">
+            <div class="line-with-text">
+              <hr class="line" />
+              <p class="text">התחברות עם חשבון קיים</p>
+              <hr class="line" />
+            </div>
+
+            <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login2()">
+              <div class="inputs-wrap">
+                <p-iconfield iconPosition="right">
+                  <p-inputicon styleClass="pi pi-envelope" />
+                  <input class="input-field" type="text" pInputText pSize="large" placeholder="אימייל"
+                    formControlName="userName"
+                    />
+                </p-iconfield>
+
+                <p-iconfield iconPosition="right">
+                  <p-inputicon styleClass="pi pi-lock" />
+                  <input
+                  class="input-field"
+                  pInputText
+                  [type]="showPassword ? 'text' : 'password'"
+                  formControlName="password"
+                  placeholder="סיסמה"
+                  />
+                  <p-inputicon
+                  [styleClass]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"
+                  (click)="togglePassword()"
+                  style="cursor: pointer;"
+                ></p-inputicon>
+                </p-iconfield>
+              </div>
+
+              <div class="forgot-password">
+                <span>שכחת את הסיסמה?</span>
+                <app-p-button [class]="'login'" [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
+                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="sendVerficaitonEmail()"></app-p-button>
+              </div>
+
+              <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"
+                [buttonColor]="buttonColor.YELLOW" [disabled]="loginForm.invalid" [buttonSize]="buttonSize.BIG"
+                (onButtonClicked)="login2()" [isLoading]="isLoading()"></app-p-button>
+
+            </form>
+          </div>
+        </div>
+      </div>
+      
+      <div class="register-link">
+        <span>אין לכם חשבון?</span><br />
+        <app-p-button [class]="'login'" [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="navigateToRegister()"></app-p-button>
+      </div>
+
+
+
+    </div>
+
+    <div class="login-picture">
+      <img src="../../../assets/login_picture.png" alt="Login Image" class="login-image">
+    </div>
+
+  </div>
+
+</div>
+
+<!-- <ion-header class="login-header" [translucent]="true">
   <ng-container *ngIf="authService.error$ | async as errorType">
     <ng-container [ngSwitch]="errorType">
       <ng-container *ngSwitchCase=" 'email' ">
@@ -14,13 +106,6 @@
         משתמש או סיסמא לא תקינים.
           <br>
           אנא ודא שהכנסת מייל תקין או הירשם למערכת
-        <!-- </p> -->
-      <!-- </ng-container> -->
-      <!-- <ng-container *ngSwitchCase=" 'password' "> -->
-        <!-- <p class="text-error"> -->
-          <!-- <br>
-          שכחת סיסמא? לחץ <span (click)="resetPassword()" class="blue-link">כאן</span> לאיפוס סיסמא
-        </p> -->
       </ng-container>
       <ng-container *ngSwitchCase=" 'error' ">
         <p class="text-error">
@@ -30,7 +115,6 @@
     </ng-container>
   </ng-container>
 </ion-header>
-<!-- </div> -->
 <ion-content>
   <form class="flex-center" [formGroup]="loginForm" (keyup.enter)="onEnterKeyPressed()">
     <ion-card class="login-card">
@@ -44,7 +128,6 @@
 
       <ion-card-content class="login-card-content">
         <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="login2()">
-          <!-- <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="signin()"> -->
           <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="אימייל" controlName="userName" className="wide"
             [parentForm]="loginForm" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
           <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="סיסמא" controlName="password"
@@ -72,5 +155,4 @@
       </ion-card-content>
     </ion-card>
   </form>
-</ion-content>
-<!-- <ion-toast [isOpen]="isToastOpen" [message]="messageToast" [duration]="3000" (didDismiss)="setOpenToast()"></ion-toast> -->
+</ion-content> -->

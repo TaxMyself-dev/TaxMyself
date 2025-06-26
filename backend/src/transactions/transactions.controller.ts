@@ -145,14 +145,30 @@ export class TransactionsController {
   async classifyTransaction(
     @Req() request: AuthenticatedRequest,
     @Body() classifyDto: ClassifyTransactionDto,
-    // @Query('startDate') startDate: string | Date,
-    // @Query('endDate') endDate: string | Date,
   ): Promise<void> {
-    // startDate = this.sharedService.convertStringToDateObject(startDate);
-    // endDate = this.sharedService.convertStringToDateObject(endDate);
-    
     const userId = request.user?.firebaseId;
     return this.transactionsService.classifyTransaction(classifyDto, userId);
+  }
+
+
+  @Post('quick-classify')
+  @UseGuards(FirebaseAuthGuard)
+  async quickClassifyTransaction(
+    @Req() request: AuthenticatedRequest,
+    @Body('transactionId') transactionId: string,
+  ): Promise<void> {
+    const userId = request.user?.firebaseId;
+
+    if (!transactionId) {
+      throw new BadRequestException('transactionId is required');
+    }
+
+    const numericTransId = Number(transactionId);
+    if (isNaN(numericTransId)) {
+      throw new BadRequestException('transactionId must be a valid number');
+    }
+
+    return this.transactionsService.quickClassify(numericTransId, userId);
   }
 
 
@@ -173,20 +189,37 @@ export class TransactionsController {
   }
 
 
-  @Get('get-expenses-to-build-report')
+  @Get('get-transaction-to-confirm-and-add-to-expenses')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
   async getExpensesToBuildReport(
     @Req() request: AuthenticatedRequest,
-    @Query() query: GetTransactionsDto,
+    @Query() query: any,
+    // @Query() query: GetTransactionsDto,
   ): Promise<Transactions[]> {
     console.log("query is: ", query);
     const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    return this.transactionsService.getExpensesToBuildReport(userId, query.businessNumber, startDate, endDate);
+    return this.transactionsService.getTransactionToConfirmAndAddToExpenses(userId, query.businessNumber, startDate, endDate);
 
   }
+
+
+  @Get('get-trans-to-classify')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getTransToClassify(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: any,
+  ): Promise<Transactions[]> {
+      console.log("get-trans-to-classify");
+      const userId = request.user?.firebaseId;
+      const startDate = query.startDate ? this.sharedService.convertStringToDateObject(query.startDate) : undefined;
+      const endDate = query.endDate ? this.sharedService.convertStringToDateObject(query.endDate) : undefined;
+      return this.transactionsService.getTransactionToClassify(userId, startDate, endDate, query.businessNumber);
+  }
+
 
   @Get('get-incomes-to-build-report')
   @UseGuards(FirebaseAuthGuard)

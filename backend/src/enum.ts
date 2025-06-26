@@ -6,16 +6,18 @@ export enum UserRole {
 
 export enum PayStatus {
   FREE = 'FREE',
+  TRIAL = 'TRIAL',
+  PAYMENT_REQUIRED = 'PAYMENT_REQUIRED',
   PAID = 'PAID',
-  PAYMENT_FAILED = 'PAYMENT_FAILED',
   CANCELED = 'CANCELED'
 }
 
 export enum ModuleName {
-  INVOICES = 1,
-  OPEN_BANKING = 2,
-  ACCOUNTANT = 3,
-  FINANCIAL_ADVISOR = 4
+  INVOICES = 'INVOICES',
+  OPEN_BANKING = 'OPEN_BANKING',
+  ACCOUNTANT = 'ACCOUNTANT',
+  FINANCIAL_ADVISOR = 'FINANCIAL_ADVISOR',
+  UNIFORM_FILE =  'UNIFORM_FILE',
 }
 
 export enum BusinessType {
@@ -28,6 +30,11 @@ export enum FamilyStatus {
   MARRIED = 'MARRIED',
   SINGLE = 'SINGLE',
   DIVORCED = 'DIVORCED'
+}
+
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE'
 }
 
 export enum EmploymentType {

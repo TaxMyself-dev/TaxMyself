@@ -1,89 +1,258 @@
-.login-header{
-  display: flex;
-  justify-content: center;
-}
-.flex-center{
-    display: flex;
-    flex-direction: column;
-    margin-top: 10vh;
-    height: 100%;
+input:-webkit-autofill {
+  box-shadow: 0 0 0px 1000px #FAFAFA inset !important;
+  -webkit-text-fill-color: #000 !important;
+  transition: background-color 5000s ease-in-out 0s;
+  /* workaround */
 }
 
-.login-card{
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-content: center;
-    border:3px solid rgb(79, 171, 79);
-    border-radius: 20px;
-    margin: auto;
-    margin-top: 10px;
-    max-width: 360px;
-    ion-input{
-      margin-top: 10px;
-    }
-  }
 
-.login-card-content{
+.login-wrap-screen {
   display: flex;
-  flex-direction: column;
-  justify-content: space-around;  
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+}
+
+.login-screen {
+  display: flex;
+  //flex-direction: row;
+  width: 100%;
+  height: 100%;
   align-items: center;
 }
 
-.login-submit-button{
-    display: flex;
-    width: 130px;
-    --background: rgb(71, 200, 157);
-    color:black;
-  }
-  
-.login-submit-button :hover{
-  cursor: pointer;
+.login-card {
+  width: 40%;
+  //border:1px solid rgb(79, 171, 79);
+  height: 870px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.login-picture {
+  width: 60%;
+  height: 100%;
+  //border: solid 1px red;
+}
+
+.login-image {
+  width: 100%;
+  height: 100%;
+}
+
+:host ::ng-deep .social-btn .p-button {
+  color: black;
+}
+
+:host ::ng-deep .fb-btn .pi-facebook {
+  color: #1877f2;
+  /* Facebook blue */
+}
+
+:host ::ng-deep .google-btn .pi-google {
+  color: #db4437;
+  /* Google red */
+}
+
+.google-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.login-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 585px;
+}
+
+.wellcome-and-socisal-buttons {
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.social-login-buttons {
+  width: 100%;
+  display: flex;
+  justify-content: space-evenly;
+  visibility: hidden;
+}
+
+.wrap-register-with-exist-account {
+  align-items: center;
+  height: 405px;
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+}
+
+.register-with-exist-account {
+  height: 287px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
 }
 
 .line {
-  border-top: 3px solid rgb(79, 171, 79); 
-  width: 80%;
-  margin: auto;
+  height: 1px;
+  background: #57BC97;
+  width: 83px;
 }
 
-.custom-title{
+.text {
+  color: #57BC97;
+  font-size: 14px;
+  font-weight: 500;
+
+}
+
+.line-with-text {
+  display: flex;
+  width: 460px;
+  align-items: center;
+  justify-content: space-between;
+  color: #57BC97;
+  font-size: 14px;
+  margin-bottom: 30px;
+}
+
+p {
+  margin: 0;
+}
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #204F56;
+}
+
+.welcome-title {
+  font-size: 35px;
+  font-weight: 600;
+  color: #204F56;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  width: 401px;
+  height: 241px;
+}
+
+.forgot-password {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: end;
+  // border: solid 1px red;
+  margin-right: auto;
+  margin-bottom: 44px;
+}
+
+.input-field {
+  padding-right: 36px;
+  border-radius: 30px;
+  border: 1px solid #EBEBEB;
+  width: 401px;
+  //background-color: #FAFAFA;
+  height: 39px;
+}
+
+
+.inputs-wrap {
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+//====================== ionic ==============
+
+
+.login-header {
+  display: flex;
+  justify-content: center;
+}
+
+.flex-center {
+  display: flex;
+  flex-direction: column;
+  margin-top: 10vh;
+  height: 100%;
+}
+
+.login-card-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.login-submit-button {
+  display: flex;
+  width: 130px;
+  --background: rgb(71, 200, 157);
+  color: black;
+}
+
+.login-submit-button :hover {
+  cursor: pointer;
+}
+
+// .line {
+//   border-top: 3px solid rgb(79, 171, 79); 
+//   width: 80%;
+//   margin: auto;
+// }
+
+.custom-title {
   margin: auto;
 }
 
 .blue-link {
   color: blue;
   text-decoration: underline;
-  cursor: pointer; 
+  cursor: pointer;
 }
 
-.login-input{
+.login-input {
   --border-radius: 15px;
   width: 220px;
 }
 
-.login-item-password{
+.login-item-password {
   width: 220px;
   height: 56px;
   border: 1px solid rgb(189, 185, 185);
   border-radius: 15px;
   --border-style: hidden;
-  margin: 5px ;
+  margin: 5px;
   padding: 2px;
 }
 
-  
-  
-.login-icon{
+
+
+.login-icon {
   cursor: pointer;
 }
 
-.login-input-password{
+.login-input-password {
   --border-style: hidden;
 }
 
-.text-error{
+.text-error {
   border: 2px solid red;
   border-radius: 15px;
   width: 60%;
@@ -100,4 +269,3 @@
   display: inline-flex;
   gap: 6px;
 }
-

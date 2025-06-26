@@ -31,7 +31,7 @@ export class InputTextComponent  implements OnInit {
   constructor() { }
 
   ngOnInit() {
-    this.getinputClasses();
+    this.getInputClasses();
   }
 
    /** true if this control was built with Validators.required */
@@ -50,7 +50,7 @@ export class InputTextComponent  implements OnInit {
     return false;
   }
 
-  getinputClasses(): void {
+  getInputClasses(): void {
     const classes =  [
       this.size(),   
       this.customStyle()          
@@ -67,11 +67,11 @@ export class InputTextComponent  implements OnInit {
 
   onInput(event: any): void {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.valid) {
-      this.inputClasses.update(current => current + ' valid');
+    if (ctrl.dirty) {
+      this.inputClasses.update(current => current + ' dirty');
     }
     else {
-      this.inputClasses.update(current => current.replace('valid', ''));
+      this.inputClasses.update(current => current.replace('dirty', ''));
     }
     this.onInputText.emit(event.target.value);
   }

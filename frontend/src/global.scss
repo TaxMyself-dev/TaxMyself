@@ -145,9 +145,22 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     width: 175px;
   }
 
+  &.x_big {
+    width: 215px;
+  }
+
   &.icon {
-    width: 35px;
-    height: 25px;
+    width: 44px;
+    height: 44px !important;
+    &.clicked {
+      background-color: #E5E5E5 !important;
+    }
+   
+  }
+
+  &.big_icon {
+    width: 54px;
+    height: 54px !important;
   }
 
   &.auto {
@@ -156,12 +169,12 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.yellow {
-    background-color: rgba(246, 255, 172, 0.8);
-    border-color: rgba(246, 255, 172, 0.8);
+    background-color: #EBFD71;
+    border-color: #EBFD71;
     color: gray;
     &.yellow:hover {
-      background-color: rgba(246, 255, 172, 1);
-      border-color: rgba(246, 255, 172, 1);
+      background-color: #EBFD71;
+      border-color: #EBFD71;
       color: gray
     }
   }
@@ -179,6 +192,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
   &.white {
     background-color: white;
+    // border-color: black;
     border-color: white;
     color: black;
     &.white:hover {
@@ -187,6 +201,20 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       color: black;
     }
   }
+
+    &.white-border {
+      background-color: white;
+      border-color: black;
+      // border-color: white;
+      color: black;
+      &.white-border:hover {
+        background-color: white;
+        border-color: black;
+        // border-color: white;
+        color: black;
+      }
+    }
+  
 
   &.transparent {
     background-color: transparent;
@@ -211,10 +239,14 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.disabled {
-      background-color: #e0e0e0 !important;
-      border-color: #e0e0e0 !important;
-      color: white !important;
-      cursor: default !important;
+    background-color: #e0e0e0 !important;
+    border-color: #e0e0e0 !important;
+    color: white !important;
+    cursor: default !important;
+    &.yellow {
+      background-color: #EBFD71 !important;
+      color: gray !important;
+    }
     &.text {
       background-color: white !important;
       border-color: white !important;
@@ -225,7 +257,15 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       background-color: #e0e0e0 !important;
       border-color: #e0e0e0 !important;
       color: 'white' !important;
+
+      &.yellow:hover {
+        background-color: #EBFD71 !important;
+        border-color: #EBFD71 !important;
+        color: gray !important;
+        font-weight: bolder !important;
+      }
     }
+    
     &.disabled.text:hover {
       background-color: white !important;
       border-color: white !important;
@@ -241,6 +281,17 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
 .p-button-text.p-button-info:hover { // for avoid the shadow of button text
   background-color: transparent !important;
+}
+
+.p-button-text.p-button-info {
+  &.login {
+    padding-inline: 0 !important;
+    padding-block: 0 !important;  
+    &.login:hover {
+      border-bottom: 2px solid lightblue;
+      border-radius: 0 !important;
+    }
+  }
 }
 
 .p-drawer-footer { // for footer of left panel
@@ -265,6 +316,18 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
   &.narrow {
     width: 120px;
+  }
+
+  &.register {
+    border: 1px solid #ebe8e8 !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+    border-radius: 26px !important;
+    background-color: #e0e0e054;
+    
+    &.dirty {
+      border: 1px solid #204F56 !important;
+      background-color: white !important;
+    }
   }
 }
 
@@ -310,9 +373,23 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     border-radius: 26px !important;
     background-color: #e0e0e054;
     
-    &.valid {
-      border: 1px solid rgb(27, 45, 27) !important;
-      background-color: white;
+    &.dirty {
+      border: 1px solid #204F56 !important;
+      background-color: white !important;
+    }
+  }
+
+  &.p-datepicker-input {
+    &.register {
+      padding-inline: var(--p-inputtext-padding-x) !important;
+      border-radius: 26px !important;
+      background-color: #e0e0e054   !important;
+      border: 1px solid #ebe8e8 !important;
+
+      &.dirty {
+        border: 1px solid #204F56 !important;
+        background-color: white !important;
+      }
     }
   }
   
@@ -322,4 +399,40 @@ input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
 }
- 
+
+.p-dialog-header {
+  padding-bottom: 0 !important;
+}
+
+.p-datatable-tbody > tr.p-datatable-row-selected {
+  background: white !important;
+  color: black !important; 
+}
+
+.p-checkbox-checked .p-checkbox-icon {
+  color: green !important;
+}
+
+.p-checkbox-checked .p-checkbox-box {
+  border-color: gray !important;
+  background: white !important;
+}
+
+.p-datatable .p-overlay-mask {
+  background: transparent !important;
+  pointer-events: none !important; /* allows interactions while loading */
+}
+
+.p-datatable-loading-icon {
+  color: black !important;
+}
+
+.p-datatable-table-container {
+  scrollbar-width: none !important; /* Hide scrollbar in Firefox */
+  -ms-overflow-style: none !important; /* Hide scrollbar in IE and Edge */
+  overflow-y: scroll !important; /* Ensure scrolling still works */
+  &::-webkit-scrollbar {
+    display: none !important; /* Hide scrollbar in Chrome, Safari, and Opera */
+  }
+}
+

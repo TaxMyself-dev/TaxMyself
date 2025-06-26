@@ -3,14 +3,17 @@ export enum ButtonSize {
     SMALL = 'small',
     BETWEEN = 'between',
     BIG = 'big',
+    X_BIG = 'x_big',
     ICON = 'icon',
+    BIG_ICON = 'big_icon',
     AUTO = 'auto',
 }
 
 export enum ButtonColor {
-   YELLOW = 'rgba(246, 255, 172, 0.8)',
+   YELLOW = 'yellow',
    BLACK = 'black',
    WHITE = 'white',
+   WHITE_BORDER = 'white-border',
    TRANSPARET = 'transparent'
 }
 

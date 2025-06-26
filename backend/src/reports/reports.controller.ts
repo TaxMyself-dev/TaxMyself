@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus} from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata} from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from '../shared/shared.service';
@@ -14,6 +14,8 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { SubscriptionGuard } from 'src/guards/subscription.guard';
+import { ModuleName } from 'src/enum';
 
 
 @Controller('reports')
@@ -60,8 +62,9 @@ export class ReportsController {
     }
 
 
+    @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
+    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @Post('create-uniform-file')
-    @UseGuards(FirebaseAuthGuard)
     async getHelloWorldZip(
         @Req() request: AuthenticatedRequest,
         @Body() body: any,

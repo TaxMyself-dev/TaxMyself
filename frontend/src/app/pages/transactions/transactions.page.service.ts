@@ -2,7 +2,7 @@ import { Injectable, OnInit, signal } from '@angular/core';
 import { BehaviorSubject, EMPTY, Observable, catchError, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { IClassifyTrans, ISelectItem, ITransactionData } from 'src/app/shared/interface';
+import { IClassifyTrans, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
 
@@ -36,6 +36,34 @@ export class TransactionsService implements OnInit{
   setUserId(): void {
     console.log("in set token");
     this.token = localStorage.getItem('token');
+  }
+
+  getTransToConfirm(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
+    const url = `${environment.apiUrl}transactions/get-transaction-to-confirm-and-add-to-expenses`;
+    const params = new HttpParams()
+    // .set('billId', 'ALL_BILLS')
+    .set('startDate', startDate)
+    .set('endDate', endDate)
+    .set('businessNumber', businessNumber);
+    
+    return this.http.get<IRowDataTable[]>(url, {params:params});
+  }
+
+
+  getTransToClassify(
+    startDate?: string,
+    endDate?: string,
+    businessNumber?: string
+  ): Observable<IRowDataTable[]> {
+
+    const url = `${environment.apiUrl}transactions/get-trans-to-classify`;
+
+    let params = new HttpParams();
+    if (startDate)      { params = params.set('startDate', startDate); }
+    if (endDate)        { params = params.set('endDate',   endDate);   }
+    if (businessNumber) { params = params.set('businessNumber', businessNumber); }
+
+    return this.http.get<IRowDataTable[]>(url, { params });
   }
 
 
@@ -200,5 +228,11 @@ export class TransactionsService implements OnInit{
         console.log("categories", this.categories());
       })
     )
+  }
+
+     
+  addTransToExpense(IDs: IRowDataTable[]): Observable<string> {
+      const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
+      return this.http.post<string>(url, IDs)
   }
 }

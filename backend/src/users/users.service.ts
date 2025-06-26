@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { Any, Repository } from 'typeorm';
+import { Any, LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
@@ -27,6 +27,8 @@ export class UsersService {
                               
 
     async signup({personal,spouse,children,business} : any) {
+
+        console.log("signup - start");
         
         const newChildren = children?.children;
 
@@ -41,7 +43,7 @@ export class UsersService {
             for (let i = 0; i < newChildren.length; i++){
                 const child: Child = newChildren[i];
                 const newChild =  this.child_repo.create(child);
-                newChild.fatherID = personal.firebaseId;
+                newChild.parentUserID = personal.firebaseId;
                 const addChild = await this.child_repo.save(newChild);
             }
         }
@@ -104,8 +106,10 @@ export class UsersService {
         newUser.createdAt = new Date();
         newUser.subscriptionEndDate = new Date(newUser.createdAt);
         newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
-        newUser.payStatus = PayStatus.FREE;
+        newUser.payStatus = PayStatus.TRIAL;
         newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
+
+        console.log("signup - end");
 
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
@@ -157,6 +161,11 @@ export class UsersService {
     }
 
 
+    async findByFirebaseId(firebaseId: string): Promise<User | null> {
+        return this.user_repo.findOne({ where: { firebaseId } });
+    }
+
+
     async getFirbsaeIdByToken(token: string): Promise<string> {
         let uid: string;
         try {
@@ -192,10 +201,26 @@ export class UsersService {
         return user?.role?.includes(UserRole.ADMIN) || false;
     }
 
-    // async isAdmin(userId: string): Promise<boolean> {
-    //     const user = await this.user_repo.findOneBy({firebaseId: userId});
-    //     return user?.role === UserRole.ADMIN;
-    // }
+
+    // users.service.ts
+
+    async updateExpiredTrials(): Promise<void> {
+        const today = new Date();
+
+        const expiredUsers = await this.user_repo.find({
+            where: {
+            payStatus: PayStatus.TRIAL,
+            subscriptionEndDate: LessThan(today),
+            },
+        });
+
+        for (const user of expiredUsers) {
+            user.payStatus = PayStatus.PAYMENT_REQUIRED;
+            await this.user_repo.save(user);
+            console.log(`Updated user ${user.id} from TRIAL to PAYMENT_REQUIRED`);
+        }
+    }
+
 
 
 }

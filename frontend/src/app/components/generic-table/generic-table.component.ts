@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, HostListener, inject, input, OnInit, output, signal, ViewChild, WritableSignal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ButtonGroupModule } from 'primeng/buttongroup';
 import { InputIcon } from 'primeng/inputicon';
@@ -39,23 +39,44 @@ import { set } from 'date-fns';
 })
 export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
 
+  @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
+    const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
+  
+    if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
+      this.visibleFilterPannel.set(false); // 👈 close the panel
+    }
+  }
+  
+
   title = input<string>();
   isLoadingState = input<boolean>(false);
   incomeMode = input<boolean>(false);
   filterButtonDisplay = input<boolean>(false);
   showButtons = input<boolean>(false);
+  showCheckbox = input<boolean>(false);
+  defaultSelectedValue = input<boolean>(false);
   columnSearch = input<string>('name');
   tableHeight = input<string>('500px');
+  selectionModeCheckBox = input<null | 'single' | 'multiple'>(null);
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
   visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
   filters = output<FormGroup>();
+  isAllChecked = output<boolean>();
+  rowsChecked = output<IRowDataTable[]>();
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
   isHovering = signal<number>(null);
+  selectedTrans: IRowDataTable[] = [];
+  // isAllChecked = signal<boolean>(false);
+
+  
 
 
   readonly buttonSize = ButtonSize;
@@ -80,13 +101,29 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   constructor() { }
 
-  ngOnInit() {}
-  
-
-
-  get isHoveringAnywhere() {
-    return this.isRowHovered() || this.isFloatingHovered();
+  ngOnInit() {
+    if (this.defaultSelectedValue()) {
+      this.selectedTrans = [...this.dataTable()];
+      this.rowsChecked.emit(this.selectedTrans);
+    }
   }
+  
+  onSelectionChange(event: any) {
+    this.isAllChecked.emit(this.selectedTrans.length === this.dataTable().length);
+    this.rowsChecked.emit(this.selectedTrans);
+  }
+  
+  // onAllSelect($event: any) {
+  //   console.log('onAllSelect');
+  //   console.log('$event:', $event);
+  //   // this.isAllChecked.emit($event.checked);
+  //   console.log('Selected Rows:', this.selectedTrans);
+    
+  // }
+
+  // get isHoveringAnywhere() {
+  //   return this.isRowHovered() || this.isFloatingHovered();
+  // }
 
   checkClearHover() {
     const notHovering = !this.isRowHovered() && !this.isFloatingHovered();

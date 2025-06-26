@@ -8,6 +8,12 @@ import { MyAccountPageRoutingModule } from './my-account-routing.module';
 
 import { MyAccountPage } from './my-account.page';
 import { SharedModule } from '../../shared/shared.module';
+import { CardNavigateComponent } from 'src/app/components/card-navigate/card-navigate.component';
+import { AvatarModule } from 'primeng/avatar';
+import { AvatarGroupModule } from 'primeng/avatargroup';
+import { ButtonComponent } from "../../components/button/button.component";
+import { GenericTableComponent } from "../../components/generic-table/generic-table.component";
+import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 
 @NgModule({
   imports: [
@@ -15,8 +21,14 @@ import { SharedModule } from '../../shared/shared.module';
     FormsModule,
     IonicModule,
     MyAccountPageRoutingModule,
-    SharedModule
-  ],
+    SharedModule,
+    CardNavigateComponent,
+    DashboardNavigateComponent,
+    AvatarModule,
+    AvatarGroupModule,
+    ButtonComponent,
+    GenericTableComponent
+],
   declarations: [MyAccountPage]
 })
 export class MyAccountPageModule {}

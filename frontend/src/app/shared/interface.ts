@@ -63,7 +63,7 @@ export interface IVatReportData {
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     name: TFormColumns;
     value: TFormHebrewColumns;
-    type: FormTypes;
+    type?: FormTypes;
     listItems?: ISelectItem[];
     cellRenderer?: ICellRenderer;
     errorText?: string;
@@ -273,14 +273,13 @@ export interface ITotals  {
     sumAftDisWithVAT: number,
   };
 
-  export interface ICreateDataDoc {
+export interface ICreateDataDoc {
     fid: string;
+    digitallySign?: boolean;
     prefill_data: {
         [key: string]: number | string | boolean | (string | number)[][],
         table?: (string | number)[][];
     },
-    // line_data: ICreateLineDoc[],
-    digitallySign?: boolean;
 }
 
 export interface IDataDocFormat {
@@ -292,7 +291,6 @@ export interface IDataDocFormat {
     };
     linesData: ICreateLineDoc[];
 }
-
 
 export interface ICreateDoc {
     issuerbusinessNumber: string;
@@ -333,7 +331,6 @@ export interface ICreateDoc {
     parentBranchCode: string;
 }
   
-
 export interface ICreateLineDoc {
     issuerbusinessNumber: string;
     generalDocIndex: string;

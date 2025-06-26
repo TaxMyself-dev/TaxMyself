@@ -150,61 +150,147 @@ export class DocumentsService {
     }
   }
 
-  async generatePDF(data: any, userId: string): Promise<Blob | undefined> {
-    console.log('in generate PDF function');
-    console.log("docData is ", data.docData);
-    console.log("line_0 is ", data.linesData[0].description);
-    //console.log("line_1 is ", data.lines[1].description);
+  // async generatePDF(data: any, userId: string): Promise<Blob | undefined> {
+  //   console.log('in generate PDF function');
+  //   // console.log("docData is ", data.docData);
+  //   // console.log("line_0 is ", data.linesData[0].description);
+  //   //console.log("line_1 is ", data.lines[1].description);
+    
+  //   const url = 'https://api.fillfaster.com/v1/generatePDF';
+  //   const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+
+  //   const headers = {
+  //     'Authorization': `Bearer ${token}`,
+  //     'Content-Type': 'application/json'
+  //   };
+
+  //   // const fileData =
+  //   // { "fid": "RVxpym2O68",
+  //   //   "digitallySign": true,
+  //   //   "prefill_data":
+  //   //   { 
+  //   //     "recipientName": data.docData.recipientName,
+  //   //     "recipientTaxNumber": data.docData.recipientId,
+  //   //     "docTitle": data.fileData.hebrewNameDoc  + " מספר " + data.docData.docNumber,
+  //   //     "docDescription": "",
+  //   //     "docDate": data.docData.docDate,
+  //   //     "issuerDetails": 
+  //   //       data.fileData.issuerName + '\n' +
+  //   //       data.fileData.issuerPhone + '\n' +
+  //   //       data.fileData.issuerEmail + '\n' +
+  //   //       data.fileData.issuerAddress,
+  //   //     "items_table": await this.transformLinesToItemsTable(data.linesData),
+  //   //     "payments_table": await this.transformLinesToPaymentsTable(data.linesData),
+  //   //     "subTotal": data.docData.sumAftDisBefVAT,
+  //   //     "totalTax": data.docData.vatSum,
+  //   //     "total": data.docData.sumAftDisWithVAT,
+  //   //     "documentType": "מקור",
+  //   //     "paymentMethod": data.docData.paymentMethod,
+  //   //   }
+  //   // };
+
+  //   const fileData =
+  //   { "fid": "ydAEQsvSbC",
+  //     "digitallySign": true,
+  //     "prefill_data":
+  //     { 
+  //       "name": "Elazar Harel",
+  //       "id": "123456789",
+  //     }
+  //   };
+
+
+
+  //   try {
+
+  //     // Generate the PDF
+  //     const response = await axios.post<Blob>(url, fileData, {
+  //       headers: headers,
+  //       responseType: 'arraybuffer', // ensures the response is treated as a Blob
+  //     });
+  //     // Check if the response is valid
+  //     if (!response.data) {
+  //       throw new HttpException('Error in create PDF', HttpStatus.INTERNAL_SERVER_ERROR);
+  //     };
+  //     return response.data;
+  //   }
+  //   catch (error) {
+  //     throw error;
+  //   }
+  // }
+
+
+  async generatePDF(data: any, templateType: string): Promise<Blob> {
+
+    console.log("templateType is ", templateType);
+    console.log("data is ", data);
+
+    let fid: string;
+    let prefill_data: any;
     
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
 
-    const headers = {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+    switch (templateType) {
+      case 'createDoc':
+        fid = 'RVxpym2O68';
+        prefill_data = {
+          recipientName: data.docData.recipientName,
+          recipientTaxNumber: data.docData.recipientId,
+          docTitle: `${data.fileData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
+          docDate: data.docData.docDate,
+          issuerDetails:
+            `${data.fileData.issuerName}\n${data.fileData.issuerPhone}\n${data.fileData.issuerEmail}\n${data.fileData.issuerAddress}`,
+          items_table: await this.transformLinesToItemsTable(data.linesData),
+          payments_table: await this.transformLinesToPaymentsTable(data.linesData),
+          subTotal: data.docData.sumAftDisBefVAT,
+          totalTax: data.docData.vatSum,
+          total: data.docData.sumAftDisWithVAT,
+          documentType: 'מקור',
+          paymentMethod: data.docData.paymentMethod,
+        };
+        break;
+
+      case 'pnlReport':
+        fid = 'ydAEQsvSbC';
+        prefill_data = {
+          name: data.prefill_data.name,
+          id: data.prefill_data.id,
+          period: data.prefill_data.period,
+          income: data.prefill_data.income,
+          profit: data.prefill_data.profit,
+          expenses: data.prefill_data.expenses,
+          table: data.prefill_data.table || [],
+        };
+        break;
+
+      default:
+        throw new Error(`Unknown template type: ${templateType}`);
+    }
+
+    const payload = {
+      fid,
+      digitallySign: true,
+      prefill_data,
     };
 
-    const fileData =
-    { "fid": "RVxpym2O68",
-      "digitallySign": true,
-      "prefill_data":
-    { 
-      "recipientName": data.docData.recipientName,
-      "recipientTaxNumber": data.docData.recipientId,
-      "docTitle": data.fileData.hebrewNameDoc  + " מספר " + data.docData.docNumber,
-      "docDescription": "",
-      "docDate": data.docData.docDate,
-      "issuerDetails": 
-        data.fileData.issuerName + '\n' +
-        data.fileData.issuerPhone + '\n' +
-        data.fileData.issuerEmail + '\n' +
-        data.fileData.issuerAddress,
-      "items_table": await this.transformLinesToItemsTable(data.linesData),
-      "payments_table": await this.transformLinesToPaymentsTable(data.linesData),
-      "subTotal": data.docData.sumAftDisBefVAT,
-      "totalTax": data.docData.vatSum,
-      "total": data.docData.sumAftDisWithVAT,
-      "documentType": "מקור"
-    }
-  };
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
 
-    try {
+    const response = await axios.post<Blob>(url, payload, {
+      headers,
+      responseType: 'arraybuffer',
+    });
 
-      // Generate the PDF
-      const response = await axios.post<Blob>(url, fileData, {
-        headers: headers,
-        responseType: 'arraybuffer', // ensures the response is treated as a Blob
-      });
-      // Check if the response is valid
-      if (!response.data) {
-        throw new HttpException('Error in create PDF', HttpStatus.INTERNAL_SERVER_ERROR);
-      };
-      return response.data;
+    if (!response.data) {
+      throw new Error('Failed to generate PDF');
     }
-    catch (error) {
-      throw error;
-    }
+
+    return response.data;
   }
+
 
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
@@ -275,7 +361,7 @@ export class DocumentsService {
       let pdfBlob = null;
       if (generatePdf) {
         // Only generate the PDF if requested
-        pdfBlob = await this.generatePDF(data, userId);
+        pdfBlob = await this.generatePDF(data, "createDoc");
       }
 
       // Increment the general index

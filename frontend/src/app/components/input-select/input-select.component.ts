@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, input, output, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, input, output, signal, WritableSignal, computed, Signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { tr } from 'date-fns/locale';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { SelectModule } from 'primeng/select';
 import { inputsSize } from 'src/app/shared/enums';
 import { ISelectItem } from 'src/app/shared/interface';
@@ -29,6 +29,8 @@ export class InputSelectComponent  implements OnInit {
   labelText = input<string>("");
   errorText = input<string>("");
   size = input<string>("");
+  customStyle = input<string>("");
+  icon = input<string>("pi pi-sort-down-fill");
   filter = input<boolean>(true);
   multiSelect = input<boolean>(false);
   isSubCategory = input<boolean>(false);
@@ -38,59 +40,107 @@ export class InputSelectComponent  implements OnInit {
   ariaLabel = input<string>("");
   onChangeInputSelect = output<string>();
   onClickInputSelect = output<string>();
-  multiSelectButtonClicked = output<string>();
+  multiSelectButtonClicked = output<any>();
   addSubCategoryClicked = output<{ state: true, subCategoryMode: true }>();
+  inputClasses = signal<string>("");
+  stringMessage = signal<string>("");
 
 
-
+  // selectedItemsLabel = coed(() => {
+  //   const selected = this.selectedItemsSignal();
+  //   console.log("🚀 ~ InputSelectComponent ~ selectedItemsLabel=computed ~ selected :", selected )
+  //   const allItems = this.items() || [];
+  
+  //   if (selected.length === allItems.length && allItems.length > 0) {
+  //     return 'כל האפשרויות נבחרו';
+  //   }
+  
+  //   return `נבחרו ${selected.length}`;
+  // });
 
 
   constructor() {}
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.getinputClasses();
+    this.getStringMessage();
+  }
 
   get isRequired(): boolean {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (!ctrl) return false;
-    // Angular 16+ supports hasValidator
     if (typeof (ctrl as any).hasValidator === 'function') {
       return (ctrl as any).hasValidator(Validators.required);
     }
-    // fallback: invoke validator() and look for a `required` key
-    // if (ctrl.validator) {
-    //   const errors = ctrl.validator(ctrl);
-    //   return !!errors?.['required'];
-    // }
     return false;
   }
 
+  // getStringMessage(): void {
+  //   const selectedItems = this.parentForm()?.get(this.controlName())?.value || [];
+  //   console.log("🚀 ~ InputSelectComponent ~ ngOnInit ~ selectedItems:", selectedItems)
+  //   const allItems = this.items() || [];
+  //   console.log("🚀 ~ InputSelectComponent ~ ngOnInit ~ allItems:", allItems)
+  
+  //   if (selectedItems.length === allItems.length && allItems.length > 0) {
+  //     this.stringMessage.set( 'כל האפשרויות נבחרו');
+  //   }
+  //   else {
+  //     this.stringMessage.set( `נבחרו ${selectedItems.length}`);
+  //   }
+  // }
 
-  getinputClasses(): string {
-    return [
-      this.size(),             
+  getStringMessage(): void {
+    const selectedItems: ISelectItem[] = this.parentForm()?.get(this.controlName())?.value || [];
+    const allItems = this.items() || [];
+  
+    if (selectedItems.length === allItems.length && allItems.length > 0) {
+      this.stringMessage.set('כל האפשרויות נבחרו');
+    }
+    else if (selectedItems.length <= 3) {
+      const names = selectedItems.map(item => item.name).join(', ');
+      this.stringMessage.set(names);
+    }
+    else {
+      this.stringMessage.set(`נבחרו ${selectedItems.length}`);
+    }
+  }
+  
+
+  getinputClasses(): void {
+    const classes = [
+      this.size(),
+      this.customStyle()
     ]
       .filter(c => !!c)                // remove empty strings
       .join(' ');
+
+    this.inputClasses.set(classes);
   }
 
   onChange(event: any): void {
-    console.log("🚀 ~ InputSelectComponent ~ onChange ~ event:", event)
+    this.getStringMessage();
+      const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
+        if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
+          this.inputClasses.update(current => current + ' dirty');
+        }
+        else {
+          this.inputClasses.update(current => current.replace('dirty', ''));
+        }
     this.onChangeInputSelect.emit(event.value);
   }
 
   onClick(event: any): void {
-    console.log("🚀 ~ InputSelectComponent ~ onClick ~ event:", event)
     event.stopPropagation();
     this.onClickInputSelect.emit(event);
   }
+
   onAddSubCategoryClicked(): void {
-    console.log("🚀 ~ InputSelectComponent ~ onAddSubCategoryClicked ~ event:", this.isSubCategory());
-    
     this.addSubCategoryClicked.emit({ state: true, subCategoryMode: true, })
   }
 
-  onMultiSelectButtonClicked(): void {
-    this.multiSelectButtonClicked.emit("");
+  onMultiSelectButtonClicked(event: any): void {
+    // this.multiSelectButtonClicked.emit(event);
+    event.hide();
   }
 
 

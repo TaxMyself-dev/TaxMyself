@@ -1,9 +1,19 @@
-  <div class="cards-container">
-    @for (item of itemsNavigate; track $index) {
-      <app-card-navigate [cardItem]="item"></app-card-navigate>
-    }
+<div class="report-wrap-screen">
+
+  <div class="report-screen">
+
+    <div class="title-wrap">
+      <span class="title-main">בחירת סוג הדו"ח</span>
+      <span class="title-explain">בחרו את הדו"ח שברצונכם והפיקו אותו בקלות</span>
+    </div>
+
+    <div class="cards-container">
+      @for (item of itemsNavigate; track $index) {
+        <app-card-navigate [cardItem]="item"></app-card-navigate>
+      }
+    </div>
+
   </div>
 
-<!-- <div class="flex-center">
-  <app-item-navigate [navigationItems]="itemsNavigate"></app-item-navigate>
-</div> -->
+</div>
+

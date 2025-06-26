@@ -12,3 +12,12 @@
     min-width: 200px;
     border: 1px solid green;
 }
+
+.required {
+    color: red;
+}
+
+.multiselect-footer {
+    display: flex;
+    justify-content: end;
+}
