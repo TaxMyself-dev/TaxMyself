@@ -160,6 +160,11 @@ export class UsersService {
         return this.user_repo.find({ where: {firebaseId} })
     }
 
+    
+    async findByFirebaseId(firebaseId: string): Promise<User | null> {
+        return this.user_repo.findOne({ where: { firebaseId } });
+    }
+
 
     async getFirbsaeIdByToken(token: string): Promise<string> {
         let uid: string;
