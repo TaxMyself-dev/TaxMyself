@@ -23,8 +23,8 @@
     </div>
 
     <div class="table-block">
-        <span class="block-title">תנועות לא מסווגות</span>
-        <app-generic-table class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+        <span class="block-title">התנועות הלא מסווגות שלי</span>
+        <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
     </div>
 
 </div>

@@ -1,4 +1,4 @@
-import { Injectable, NgZone } from '@angular/core';
+import { Injectable, NgZone, signal } from '@angular/core';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
@@ -36,7 +36,8 @@ export class AuthService {
   {}
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
-  public error$ = new BehaviorSubject<string>("");
+  // public error$ = new BehaviorSubject<string>("");
+  public error = signal<string>("");
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
@@ -124,7 +125,8 @@ export class AuthService {
   handleErrorLogin(err: string): void {
     console.log("err string: ", err);
     if (err === "auth/user-not-found" || err === "auth/invalid-email" || err === 'auth/invalid-login-credentials' || err === "auth/wrong-password") {
-      this.error$.next("user");
+      this.error.set("user");
+      // this.error$.next("user");
     }
   }
 
@@ -142,7 +144,8 @@ export class AuthService {
         } ),
         switchMap(() => this.http.post(url, {})),
         catchError((err) => {
-            this.error$.next("error");
+            this.error.set("error");
+            // this.error$.next("error");
           console.log("err in post request: ", err);
           return throwError(() => err);
         }),
@@ -154,21 +157,21 @@ export class AuthService {
     switch (err) {
       case "auth/email-already-in-use":
       
-        this.error$.next("user");
+        this.error.set("user");
         break;
       case "auth/invalid-email":
-        this.error$.next("email");
+        this.error.set("email");
         break;
       case "auth/network-request-failed":
-        this.error$.next("net");
+        this.error.set("net");
         break;
       case "auth/user-disabled":
       case "auth/user-not-found":
         case "auth/missing-email":
-        this.error$.next("disabled");
+        this.error.set("disabled");
         break;
       case "auth/too-many-requests":
-        this.error$.next("many");
+        this.error.set("many");
         break;
     }
   }
@@ -212,16 +215,35 @@ export class AuthService {
   }
 
 
+  // SendVerificationMail(): Observable<any> {
+  //   const user = this.afAuth.currentUser;
+    
+  //   console.log("🚀 ~ AuthService ~ SendVerificationMail ~ user:", user)
+  //   return from(this.afAuth.currentUser)
+  //   .pipe(
+  //       catchError((err) => {
+  //         console.log("err in send email verify", err);
+  //         return throwError(() => err);
+  //       }),
+  //       tap((res) => res.sendEmailVerification()),
+  //     )
+  // }
+
   SendVerificationMail(): Observable<any> {
-    return from(this.afAuth.currentUser)
-    .pipe(
-        catchError((err) => {
-          console.log("err in send email verify", err);
-          return EMPTY;
-        }),
-        tap((res) => res.sendEmailVerification()),
-      )
+    return from(this.afAuth.currentUser).pipe(
+      switchMap((user) => {
+        if (!user) {
+          return throwError(() => new Error('User not found'));
+        }
+        return from(user.sendEmailVerification());
+      }),
+      catchError((err) => {
+        console.log("err in send email verify", err);
+        return throwError(() => err);
+      })
+    );
   }
+  
 
 
   ForgotPassword(passwordResetEmail: string): Observable<any> {

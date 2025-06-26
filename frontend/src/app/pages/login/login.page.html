@@ -10,7 +10,7 @@
         <div class="wellcome-and-socisal-buttons">
           <div class="welcome">
             <p class="welcome-title">ברוכים הבאים</p>
-            <p>בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</p>
+            <p style="overflow-wrap: break-word; text-align: center;">בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</p>
           </div>
 
           <div class="social-login-buttons">
@@ -57,11 +57,38 @@
                 ></p-inputicon>
                 </p-iconfield>
               </div>
-
+              @if (authService.error()){
+                @switch (authService.error()) {
+                  @case ('email') {
+                    <p class="text-error">
+                      נשלח אליך בהרשמה מייל לאימות, אנא ודא שאישרת אותו
+                       <br>
+                       לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
+                     </p>
+                  }
+                  @case ('user') {
+                    <p class="text-error">
+                      משתמש או סיסמא לא תקינים.
+                        <br>
+                        אנא ודא שהכנסת מייל תקין או הירשם למערכת
+                      </p>
+                  }
+                  @case ('error') {
+                    <p class="text-error">
+                      השירות אינו זמין כעת אנא נסה מאוחר יותר
+                    </p>
+                  }
+                  @default {
+                    <p class="text-error">
+                      השירות אינו זמין כעת אנא נסה מאוחר יותר
+                    </p>
+                  }
+                }
+              }
               <div class="forgot-password">
                 <span>שכחת את הסיסמה?</span>
                 <app-p-button [class]="'login'" [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
-                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="sendVerficaitonEmail()"></app-p-button>
+                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="resetPassword()" [isLoading]="isLoadingStateResetPassword()" ></app-p-button>
               </div>
 
               <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"

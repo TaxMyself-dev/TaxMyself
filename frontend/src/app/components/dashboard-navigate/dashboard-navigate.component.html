@@ -1,4 +1,5 @@
-<div (click)="onButtonClicked(cardItem())" class="main-container">
+
+<a [routerLink]="cardItem().link" class="main-container">
   <div class="header-card">
     <img alt="Card" class="image-card" [src]="cardItem().image" />
   </div>
@@ -6,4 +7,4 @@
     <span class="title-card">{{cardItem().name}}</span>
     <span class="text-card">{{cardItem().content}}</span>
   </div>
-</div>
+</a>
