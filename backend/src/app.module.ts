@@ -49,6 +49,7 @@ import { JournalEntry } from './bookkeeping/jouranl-entry.entity';
 import { JournalLine } from './bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from './bookkeeping/account.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
+import { UsersService } from './users/users.service';
 
 let serviceAccount: any;
 
@@ -102,12 +103,13 @@ serviceAccount = {
       DocLines,
       JournalEntry,
       JournalLine,
-      DefaultBookingAccount
+      DefaultBookingAccount,
+      Child
     ]),
     ScheduleModule.forRoot(),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
     controllers: [AppController],
-  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
+  providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
 })
 export class AppModule {
 

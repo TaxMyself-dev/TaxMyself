@@ -151,6 +151,27 @@ export class TransactionsController {
   }
 
 
+  @Post('quick-classify')
+  @UseGuards(FirebaseAuthGuard)
+  async quickClassifyTransaction(
+    @Req() request: AuthenticatedRequest,
+    @Body('transactionId') transactionId: string,
+  ): Promise<void> {
+    const userId = request.user?.firebaseId;
+
+    if (!transactionId) {
+      throw new BadRequestException('transactionId is required');
+    }
+
+    const numericTransId = Number(transactionId);
+    if (isNaN(numericTransId)) {
+      throw new BadRequestException('transactionId must be a valid number');
+    }
+
+    return this.transactionsService.quickClassify(numericTransId, userId);
+  }
+
+
   @Patch('update-trans')
   @UseGuards(FirebaseAuthGuard)
   async updateTransaction(

@@ -47,8 +47,8 @@ export class Transactions {
   @Column({ type: 'varchar', nullable: true, default: null })
   subCategory: string | null;
 
-  @Column({ type: 'enum', enum: ExpenseNecessity, default: ExpenseNecessity.IMPORTANT })
-  necessity: ExpenseNecessity;
+  // @Column({ type: 'enum', enum: ExpenseNecessity, default: ExpenseNecessity.IMPORTANT })
+  // necessity: ExpenseNecessity;
   
   @Column({ type: 'boolean', nullable: true, default: false })
   isRecognized: boolean | null;

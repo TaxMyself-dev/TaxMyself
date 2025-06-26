@@ -1,3 +1,4 @@
+import { ExpenseNecessity } from 'src/enum';
 import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
 
 @Entity()
@@ -29,5 +30,8 @@ export class DefaultSubCategory {
 
   @Column('boolean')
   isExpense: boolean;
+
+  @Column({ type: 'enum', enum: ExpenseNecessity, default: ExpenseNecessity.IMPORTANT })
+  necessity: ExpenseNecessity;
 
 }

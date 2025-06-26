@@ -466,6 +466,7 @@ export class TransactionsService {
 
     const { id, isSingleUpdate, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized } = classifyDto;
     let transactions: Transactions[];
+
     // Add new user category if isNewCategory is true
     // if (isNewCategory) {
     //   try {
@@ -550,6 +551,28 @@ export class TransactionsService {
 
       await this.classifiedTransactionsRepo.save(classifiedTransaction);
     }
+  }
+
+
+  async quickClassify(transactionId: number, userId: string): Promise<void> {
+
+    const transaction = await this.transactionsRepo.findOne({
+      where: { id: transactionId, userId },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${transactionId} not found`);
+    }
+
+    transaction.category = 'שונות';
+    transaction.subCategory = 'שונות';
+    transaction.taxPercent = 0;
+    transaction.vatPercent = 0;
+    transaction.reductionPercent = 0;
+    transaction.isEquipment = false;
+    transaction.isRecognized = false;
+
+    await this.transactionsRepo.save(transaction);
   }
 
 

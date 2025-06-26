@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { Any, Repository } from 'typeorm';
+import { Any, LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
@@ -106,7 +106,7 @@ export class UsersService {
         newUser.createdAt = new Date();
         newUser.subscriptionEndDate = new Date(newUser.createdAt);
         newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
-        newUser.payStatus = PayStatus.FREE;
+        newUser.payStatus = PayStatus.TRIAL;
         newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
 
         console.log("signup - end");
@@ -160,7 +160,7 @@ export class UsersService {
         return this.user_repo.find({ where: {firebaseId} })
     }
 
-    
+
     async findByFirebaseId(firebaseId: string): Promise<User | null> {
         return this.user_repo.findOne({ where: { firebaseId } });
     }
@@ -201,10 +201,26 @@ export class UsersService {
         return user?.role?.includes(UserRole.ADMIN) || false;
     }
 
-    // async isAdmin(userId: string): Promise<boolean> {
-    //     const user = await this.user_repo.findOneBy({firebaseId: userId});
-    //     return user?.role === UserRole.ADMIN;
-    // }
+
+    // users.service.ts
+
+    async updateExpiredTrials(): Promise<void> {
+        const today = new Date();
+
+        const expiredUsers = await this.user_repo.find({
+            where: {
+            payStatus: PayStatus.TRIAL,
+            subscriptionEndDate: LessThan(today),
+            },
+        });
+
+        for (const user of expiredUsers) {
+            user.payStatus = PayStatus.PAYMENT_REQUIRED;
+            await this.user_repo.save(user);
+            console.log(`Updated user ${user.id} from TRIAL to PAYMENT_REQUIRED`);
+        }
+    }
+
 
 
 }
