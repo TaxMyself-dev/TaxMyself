@@ -1,3 +1,7 @@
+a {
+    text-decoration: none;
+}
+
 .main-container {
     border: 1px solid;
     border-color: #f8e7e7;
@@ -9,7 +13,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: space-around;
+    //justify-content: space-around;
     :hover {
         cursor: pointer;
     }
@@ -29,14 +33,15 @@
 
 .image-card {
     border-radius: 8px;
-    width: 35px;
+    width: 59px;
     //  xheight: 45px;
 }
 
 .title-card {
     margin-top: 9px;
-    font-size: x-large;
-    color: #524e4e;
+    font-size: 20px;
+    font-weight: 550;
+    color: #363636;
 }
 
 .footer-card {

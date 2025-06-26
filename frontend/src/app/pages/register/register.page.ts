@@ -307,7 +307,7 @@ export class RegisterPage implements OnInit, OnDestroy {
 
 
   handleFormRegister() {
-    this.authService.error$.next(null);
+    this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
     formData.validation = { password: formData?.personal?.password };
     console.log("date is ", formData.personal.dateOfBirth);

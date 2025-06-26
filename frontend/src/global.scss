@@ -434,5 +434,6 @@ input.p-inputtext::placeholder {
   &::-webkit-scrollbar {
     display: none !important; /* Hide scrollbar in Chrome, Safari, and Opera */
   }
+  height: 500px !important; /* Set a fixed height for the table container */
 }
 
