@@ -25,6 +25,7 @@ export class InputSelectComponent  implements OnInit {
   parentForm = input<FormGroup>(null);
   items = input<ISelectItem[] | { label: string; items: ISelectItem[]; }[]>([]);
   controlName = input<string>("");
+  virtualScrollItemSize = input<string>("38");
   placeholder = input<string>("");
   labelText = input<string>("");
   errorText = input<string>("");

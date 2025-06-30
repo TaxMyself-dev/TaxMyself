@@ -272,16 +272,10 @@ p {
 }
 
 .text-error {
-  // border: 2px solid red;
-  // border-radius: 15px;
-  // width: 60%;
+  align-self: baseline;
   word-wrap: break-word;
   text-align: justify;
   text-align-last: center;
-  // padding-left: 5px;
-  // padding-right: 5px;
-  // font-weight: bold;
-  // margin: 10px 0;
   color: red;
 }
 

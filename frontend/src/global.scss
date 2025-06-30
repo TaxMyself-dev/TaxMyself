@@ -392,12 +392,25 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       }
     }
   }
+
   
 }
 
 input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
+}
+
+.p-autocomplete-input {
+  padding-inline: var(--p-inputtext-padding-x) !important;
+  border-radius: 26px !important;
+  background-color: #e0e0e054   !important;
+  border: 1px solid #ebe8e8 !important;
+
+  &.dirty {
+    border: 1px solid #204F56 !important;
+    background-color: white !important;
+  }
 }
 
 .p-dialog-header {
