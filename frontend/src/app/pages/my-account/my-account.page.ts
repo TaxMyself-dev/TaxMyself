@@ -6,6 +6,7 @@ import { IColumnDataTable, IItemNavigate, IUserData } from 'src/app/shared/inter
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { catchError, EMPTY, finalize, map } from 'rxjs';
 import { GenericService } from 'src/app/services/generic.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 
 @Component({
     selector: 'app-my-account',
@@ -17,6 +18,7 @@ export class MyAccountPage implements OnInit {
 
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
+  expenseService = inject(ExpenseDataService);
 
   isLoadingDataTable = signal<boolean>(false);
 
@@ -86,4 +88,11 @@ export class MyAccountPage implements OnInit {
     
 }
 
+openAddExpensesPage(): void {
+
+}
+
+// openModalAddExpenses(): void {
+//   this.expenseService.openModalAddExpense().subscribe()
+// }
 }

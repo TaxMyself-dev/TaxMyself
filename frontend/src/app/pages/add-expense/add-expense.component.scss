@@ -1,0 +1,17 @@
+.form-register {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    border-radius: 15px;
+    width: 100%;
+    //gap: 30px;
+    height: 100%;
+  }
+  
+  .section-one {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 20px;
+  }
