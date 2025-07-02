@@ -13,7 +13,7 @@
       [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses"
       [dataTable]="expensesData" [tableHeight]="'500px'"
       (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-      (visibleClassifyTranClicked)="openClassifyTran($event)" [filterButtonDisplay]="true"></app-generic-table>
+      (visibleClassifyTranClicked)="openClassifyTran($event)" [filterButtonDisplay]="true" (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
     </div>
     <!-- incomes table -->
     <div class="table-wrap">

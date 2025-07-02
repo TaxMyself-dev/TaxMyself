@@ -363,11 +363,21 @@ export class TransactionsPage implements OnInit {
     // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ category:", categoriesName);
     
     if (!filters) { // For default table.
-      const currentYear = new Date().getFullYear();
-      const month = new Date().getMonth() + 1;
-      ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
+      const today = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
+      
+      ({ startDate, endDate } = this.dateService.getStartAndEndDates(
+        this.reportingPeriodType.DATE_RANGE,
+        null,
+        null,
+        thirtyDaysAgo.toISOString(),
+        today.toISOString()
+      ));
       accountsNames = null;
       categoriesName = null;
+       console.log("🚀 ~ TransactionsPage ~ getTransactions ~ startDate:", startDate);
+    console.log("🚀 ~ TransactionsPage ~ getTransactions ~ Date:end", endDate);
     }
     else {
       switch (periodType) {
@@ -384,14 +394,21 @@ export class TransactionsPage implements OnInit {
           ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.DATE_RANGE, null, null, filters?.startDate, filters?.endDate));
           break;
         default:
-          const currentYear = new Date().getFullYear();
-          const month = new Date().getMonth() + 1;
-          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
+          const today = new Date();
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
+          
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(
+            this.reportingPeriodType.DATE_RANGE,
+            null,
+            null,
+            thirtyDaysAgo.toISOString(),
+            today.toISOString()
+          ));
           break;
       }
     }
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ startDate:", startDate);
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ Date:end", endDate);
+   
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
@@ -413,7 +430,8 @@ export class TransactionsPage implements OnInit {
 
         this.expensesData = data.expenses;
         console.log("expense: ", this.expensesData);
-        this.incomesData$.next(this.incomesData);
+        // this.incomesData = this.incomesData;
+        // this.incomesData$.next(this.incomesData);
         this.filterIncomes(); // for after update table the table will stay filtered according to the search-bar
         this.expensesData$.next(data.expenses);
         this.filterExpenses(); // for after update table the table will stay filtered according to the search-bar
@@ -992,6 +1010,10 @@ export class TransactionsPage implements OnInit {
 
   imageBunnerButtonClicked(event: any): void {
     this.router.navigate(['/reports'])
+  }
+
+  onQuickClassifyClicked(event: boolean): void {
+    this.getTransactions(this.filterData());
   }
 
 }
