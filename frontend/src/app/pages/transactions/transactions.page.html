@@ -1,27 +1,42 @@
 <div class="transaction-screen">
   <div class="content-wrapper">
 
-    <app-image-bunner class="image-bunner" [alt]="'תמונת רקע'" [imageUrl]="'../../assets/bunner-image.svg'" [imageHeight]="'101px'"
-      imageWidth="100%" [buttonLabel]="'הפקת דוח'" [buttonPosition]="bunnerImagePosition.CENTER_LEFT"
-      [textPosition]="bunnerImagePosition.CENTER_RGHIT" [title]="'הפקת דוחות'"
+    <app-image-bunner class="image-bunner" [alt]="'תמונת רקע'" [imageUrl]="'../../assets/bunner-image.svg'"
+      [imageHeight]="'101px'" imageWidth="100%" [buttonLabel]="'הפקת דוח'"
+      [buttonPosition]="bunnerImagePosition.CENTER_LEFT" [textPosition]="bunnerImagePosition.CENTER_RGHIT"
+      [title]="'הפקת דוחות'"
       [content]="'מהיום להפיק דוחות זה קל ופשוט! כאן תוכלו להפיק דוח למע״מ, דוח רווח והפסד, דוח שנתי, דוח מקדמות למס הכנסה ומבנה קבצים אחיד'"
-      [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.WHITE" (onButtonClicked)="imageBunnerButtonClicked($event)" ></app-image-bunner>
+      [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.WHITE"
+      (onButtonClicked)="imageBunnerButtonClicked($event)"></app-image-bunner>
+    <p class="block-title">התזרים שלי</p>
+
 
     <!-- expenses table -->
     <div class="table-wrap">
-    <app-generic-table [isLoadingState]="isLoadingStateTable()" [showButtons]="true" (filters)="applyFilters($event)"
-      [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses"
-      [dataTable]="expensesData" [tableHeight]="'500px'"
-      (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-      (visibleClassifyTranClicked)="openClassifyTran($event)" [filterButtonDisplay]="true" (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
+        <div class="wrap-checkboxes">
+        @for(option of classifyDisplayOptions; track option.value) {
+        <div>
+          <p-checkbox [binary]="true" [inputId]="option.value" [ngModel]="selectedValue.includes(option.value)"
+            (onChange)="selectOption(option.value)">
+          </p-checkbox>
+          <label [for]="option.value"> {{ option.name }} </label>
+        </div>
+        }
+      </div>
+      <app-generic-table [isLoadingState]="isLoadingStateTable()" [showButtons]="true" (filters)="applyFilters($event)"
+        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses"
+        [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
+        (visibleAccountAssociationClicked)="openAccountAssociation($event)"
+        (visibleClassifyTranClicked)="openClassifyTran($event)" [filterButtonDisplay]="true"
+        (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
     </div>
     <!-- incomes table -->
     <div class="table-wrap">
-    <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()" [showButtons]="true" (filters)="applyFilters($event)"
-      [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'" [columnsTitle]="fieldsNamesExpenses"
-      [dataTable]="incomesData" [tableHeight]="'500px'"
-      (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-      (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
+      <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
+        (filters)="applyFilters($event)" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
+        [columnsTitle]="fieldsNamesExpenses" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
+        (visibleAccountAssociationClicked)="openAccountAssociation($event)"
+        (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
     </div>
     @if (visibleAccountAssociationDialog()){
     <app-account-association-dialog (visibleChange)="closeAccountAssociation($event)"
@@ -36,12 +51,14 @@
     @if (visibleClassifyTran()) {
     <app-classify-tran (openAddCategoryClicked)="openAddCategory($event)"
       (openAddSubCategoryClicked)="openAddCategory($event)" [isVisible]="visibleClassifyTran()"
-      (visibleChange)="closeClassyfyTran($event)" [rowData]="leftPanelData()" [incomeMode]="incomeMode()"> </app-classify-tran>
+      (visibleChange)="closeClassyfyTran($event)" [rowData]="leftPanelData()" [incomeMode]="incomeMode()">
+    </app-classify-tran>
     }
 
     @if (visibleAddCategory()) {
     <app-add-category [isVisible]="visibleAddCategory()" (visibleChange)="closeAddCategory($event)"
-      [subCategoryMode]="subCategoryMode()" [categoryName]="categoryName()" [incomeMode]="incomeMode()"></app-add-category>
+      [subCategoryMode]="subCategoryMode()" [categoryName]="categoryName()"
+      [incomeMode]="incomeMode()"></app-add-category>
     }
   </div>
 </div>

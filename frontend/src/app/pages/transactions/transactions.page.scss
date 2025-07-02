@@ -1,34 +1,52 @@
 :host {
-    display: block;
-    height: 100vh;
-  }
+  display: block;
+  height: 100vh;
+}
 
-  
-  .transaction-screen {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
+
+.transaction-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* this wrapper grows and scrolls */
 .transaction-screen .content-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 30px;
-    flex: 1 1 auto;     /* take remaining space */
-    overflow-y: auto;   /* vertical scroll when needed */
-    padding-bottom: 75px;
-    align-items: center;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  flex: 1 1 auto;
+  /* take remaining space */
+  overflow-y: auto;
+  /* vertical scroll when needed */
+  padding-bottom: 75px;
+  align-items: center;
+}
 
-  .table-wrap {
-    width: 98%;
-  }
+.block-title {
+  font-size: 20px;
+  font-weight: 550;
+  color: #363636;
+  margin: 0;
+  align-self: baseline;
+  margin-right: 16px;
+}
 
-  .image-bunner {
-    width: 100%;
-  }
-  
+.wrap-checkboxes {
+  display: flex;
+  margin-bottom: 10px;
+  width: 151px;
+  justify-content: space-between;
+}
+
+.table-wrap {
+  width: 98%;
+}
+
+.image-bunner {
+  width: 100%;
+}
+
 // ============================== ionic components ==============================
 // .header-transaction {
 //     display: flex;
