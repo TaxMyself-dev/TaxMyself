@@ -1,76 +1,123 @@
-<div class="create-doc-wrap-screen">
+<div class="page-wrapper">
 
-  <div class="create-doc-header">
-    <div class="icon-title">
-      <span class="title">הפקת מסמך</span>
+  <div class="section">
+
+    <div class="create-doc-header">
+      <div class="icon-title">
+        <span class="title">הפקת מסמך</span>
+      </div>
+      <p class="text-header">
+        בחר איזה מסמך ברצונך להפיק   
+      </p>
     </div>
-    <p class="text-header">
-      בחר איזה מסמך ברצונך להפיק   
-    </p>
-  </div>
 
-  <div class="general-details">
-    @for(field of generalArray; track field.value) {
-      <!-- <p>{{field.value}}</p> -->
-      @switch (field.type) {
-        @case (formTypes.TEXT) {
-          <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDetailsForm"
-      [size]="inputsSize.BETWEEN" customStyle="fill-border"></app-input-text>
-        }
-        <!-- @case (formTypes.DATE) {
-            <p-datepicker
-                placeholder="תאריך"
-                name="תאריך המסמך"
-                formControlName="docDate"
-                [iconDisplay]="'input'"
-                [showIcon]="true"
-                inputId="docDate"
-                [dateFormat]="'dd/mm/yy'"
-                [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
-              ></p-datepicker>
-        } -->
-        @case (formTypes.DDL) {
-          <app-input-select [controlName]="'docType'" labelText="סוג המסמך" [placeholder]="'בחר את סוג המסמך'" [items]="DocCreateTypeList" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onSelectedDoc($event)"></app-input-select>
+    <div class="general-fields">
+      @for(field of generalArray; track field.value) {
+        <!-- <p>{{field.value}}</p> -->
+        @switch (field.type) {
+          @case (formTypes.TEXT) {
+            <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDetailsForm"
+        [size]="inputsSize.BETWEEN"></app-input-text>
+          }
+          <!-- @case (formTypes.DATE) {
+              <p-datepicker
+                  placeholder="תאריך"
+                  name="תאריך המסמך"
+                  formControlName="docDate"
+                  [iconDisplay]="'input'"
+                  [showIcon]="true"
+                  inputId="docDate"
+                  [dateFormat]="'dd/mm/yy'"
+                  [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
+                ></p-datepicker>
+          } -->
+          @case (formTypes.DDL) {
+            <app-input-select [controlName]="'docType'" labelText="סוג המסמך" [placeholder]="'בחר את סוג המסמך'" [items]="DocCreateTypeList" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onSelectedDoc($event)"></app-input-select>
+          }
         }
       }
-    }
-  </div>
-
-  <div class="create-doc-header">
-    <div class="icon-title">
-      <span class="title">פרטי הלקוח</span>
     </div>
+
   </div>
 
-  <div class="general-details">
-    @for(field of userArray; track field.value) {
-      @switch (field.type) {
-        @case (formTypes.TEXT) {
-          <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
-      [size]="inputsSize.BETWEEN"></app-input-text>
-        }
-        @case (formTypes.TELEPHONE) {
-          <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
-      [size]="inputsSize.BETWEEN"></app-input-text>
-        }
-        @case (formTypes.EMAIL) {
-          <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
-      [size]="inputsSize.BETWEEN"></app-input-text>
+  <div class="section">
+
+    <div class="create-doc-header">
+      <div class="icon-title">
+        <span class="title">פרטי הלקוח</span>
+      </div>
+    </div>
+
+    <div class="general-fields">
+      @for(field of userArray; track field.value) {
+        @switch (field.type) {
+          @case (formTypes.TEXT) {
+            <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
+        [size]="inputsSize.BETWEEN"></app-input-text>
+          }
+          @case (formTypes.TELEPHONE) {
+            <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
+        [size]="inputsSize.BETWEEN"></app-input-text>
+          }
+          @case (formTypes.EMAIL) {
+            <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
+        [size]="inputsSize.BETWEEN"></app-input-text>
+          }
         }
       }
-    }
+    </div>
+
   </div>
 
-  <div class="create-doc-header">
-    <div class="icon-title">
-      <span class="title">פירוט</span>
+  <div class="section">
+
+    <div class="create-doc-header">
+      <div class="icon-title">
+        <span class="title">פירוט</span>
+      </div>
     </div>
+
+    <div class="line-item-row">
+
+      <!-- תיאור -->
+      <input pInputText type="text" placeholder="אנא מלא את התיאור" class="field description" />
+
+      <!-- כמות -->
+      <!-- <p-inputNumber [(ngModel)]="quantity" inputId="quantity" class="field quantity" [showButtons]="false" /> -->
+
+      <!-- מע"מ -->
+      <!-- <div class="field vat-options">
+        <p-checkbox name="vat" value="notIncluded" label="לא כולל מע״מ" [(ngModel)]="vatSelection"></p-checkbox>
+        <p-checkbox name="vat" value="before" label="לפני מע״מ" [(ngModel)]="vatSelection"></p-checkbox>
+        <p-checkbox name="vat" value="included" label="כולל מע״מ" [(ngModel)]="vatSelection"></p-checkbox>
+      </div> -->
+
+      <!-- סכום -->
+      <!-- <p-inputNumber [(ngModel)]="amount" class="field amount" [mode]="'decimal'" [minFractionDigits]="0" /> -->
+
+      <!-- הנחה -->
+      <!-- <div class="field discount">
+        <p-inputGroup>
+          <p-suffix>%</p-suffix>
+          <input pInputText type="text" [(ngModel)]="discount" />
+        </p-inputGroup>
+      </div> -->
+
+      <!-- פעולה -->
+      <!-- <a class="add-action" (click)="addRow()">הוסף</a> -->
+
+    </div>
+
   </div>
 
-  <div class="create-doc-header">
-    <div class="icon-title">
-      <span class="title">פרטי התשלום</span>
+  <div class="section">
+
+    <div class="create-doc-header">
+      <div class="icon-title">
+        <span class="title">פרטי התשלום</span>
+      </div>
     </div>
+
   </div>
 
 </div>

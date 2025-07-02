@@ -67,8 +67,14 @@ export class InputTextComponent  implements OnInit {
 
   onInput(event: any): void {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.dirty) {
-      this.inputClasses.update(current => current + ' dirty');
+    if (ctrl.dirty && ctrl.value !="") {
+      this.inputClasses.update(current => {
+        if (!current.includes('dirty')) {
+          return current + ' dirty';
+        }
+        return current;
+      });
+      
     }
     else {
       this.inputClasses.update(current => current.replace('dirty', ''));

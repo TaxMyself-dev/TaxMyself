@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { IChildren, ICityData } from 'src/app/shared/interface';
 import { HttpClient } from '@angular/common/http';
+import { environment } from 'src/environments/environment';
 
 
 
@@ -14,7 +15,8 @@ export class RegisterService {
   constructor(private http: HttpClient) { }
 
   getCities(): Observable<ICityData[]> {
-    const url = "https://raw.githubusercontent.com/royts/israel-cities/master/israel-cities.json";
+    console.log("in get cities");
+    const url = `${environment.apiUrl}auth/get-cities`;
     return this.http.get<ICityData[]>(url)
   }
 }

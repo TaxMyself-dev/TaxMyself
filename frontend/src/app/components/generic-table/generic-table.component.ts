@@ -10,15 +10,18 @@ import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { IColumnDataTable, IRowDataTable, IFilterItems } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import { AccountAssociationDialogComponent } from "../account-association-dialog/account-association-dialog.component";
 import { FilterPanelComponent } from "../filter-panel/filter-panell.component";
 import { FormGroup } from '@angular/forms';
-import { is } from 'date-fns/locale';
-import { set } from 'date-fns';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { catchError, EMPTY, finalize } from 'rxjs';
+import { MessageService } from 'primeng/api';
+import { fi } from 'date-fns/locale';
+
 
 @Component({
   selector: 'app-generic-table',
@@ -39,17 +42,20 @@ import { set } from 'date-fns';
 })
 export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
 
+  
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-  
+    
     if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
   }
   
+  messageService = inject(MessageService);
+  transactionService = inject(TransactionsService);
 
   title = input<string>();
   isLoadingState = input<boolean>(false);
@@ -87,9 +93,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   hoverTimeout: any;
   hoveredRowInfo = signal<{ row: any, top: number } | null>(null);
   isRowHovered = signal<boolean>(false);
+  isLoadingQuickClassify = signal<boolean>(false);
   isFloatingHovered = signal<boolean>(false);
   isSlideIn = signal<boolean>(false);
 
+  onQuickClassifyClicked = output<boolean>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -219,6 +227,38 @@ onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
     console.log('applyFilters', filters);
     this.visibleFilterPannel.set(false);
     this.filters.emit(filters);
+  }
+
+  quickClassify(row: IRowDataTable): void {
+    this.isLoadingQuickClassify.set(true);
+    this.transactionService.quickClassify(row.id as number)
+    .pipe(
+      catchError((err) => {
+        console.log("error in quick classify", err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail:"סיווג ההוצאה נכשל אנא נסה/י שנית",
+          sticky: true,
+          life: 3000,
+          key: 'br'
+        })
+        return EMPTY;
+      }),
+      finalize(() => {
+        this.isLoadingQuickClassify.set(false);
+      })
+    )
+    .subscribe(() => {
+      this.onQuickClassifyClicked.emit(true);
+      this.messageService.add({
+        severity: 'success',
+        summary: 'Success',
+        detail:"סיווג מהיר הצליח",
+        life: 3000,
+        key: 'br'
+      })
+    });
   }
 
 }
