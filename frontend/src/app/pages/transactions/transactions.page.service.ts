@@ -235,4 +235,9 @@ export class TransactionsService implements OnInit{
       const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
       return this.http.post<string>(url, IDs)
   }
+
+  quickClassify(transactionId: number): Observable<any> {
+    const url = `${environment.apiUrl}transactions/quick-classify`;
+    return this.http.post<any>(url, { transactionId });
+  }
 }

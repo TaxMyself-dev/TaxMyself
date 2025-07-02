@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component, inject, input, OnInit } from '@angu
 import { Router } from '@angular/router';
 import { CardModule } from 'primeng/card';
 import { IItemNavigate } from 'src/app/shared/interface';
+import { RouterModule } from '@angular/router';
 
 
 @Component({
   selector: 'app-dashboard-navigate',
   templateUrl: './dashboard-navigate.component.html',
   styleUrls: ['./dashboard-navigate.component.scss'],
-  imports: [CardModule],
+  imports: [CardModule, RouterModule],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -20,11 +21,11 @@ export class DashboardNavigateComponent  implements OnInit {
 
   ngOnInit() {}
 
-  onButtonClicked(selectedItem: IItemNavigate): void {
-    if (selectedItem.link != "" ){
-      this.router.navigate([selectedItem.link])
-    }
+  // onButtonClicked(selectedItem: IItemNavigate): void {
+  //   if (selectedItem.link != "" ){
+  //     this.router.navigate([selectedItem.link])
+  //   }
 
-  }
+  // }
 
 }

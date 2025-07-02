@@ -7,7 +7,7 @@ import { ButtonClass, ButtonSize } from './button.enum';
     styleUrls: ['./button.component.scss'],
     standalone: false
 })
-export class ButtonComponent {
+export class ButtonComponentIonic {
 
   @Input() buttonText: string = '';
   @Input() disabled: boolean = false;

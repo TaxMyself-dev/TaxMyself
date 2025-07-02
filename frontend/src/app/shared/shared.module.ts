@@ -15,7 +15,7 @@ import { selectSupplierComponent } from './select-supplier/popover-select-suppli
 import { NgArrayPipesModule } from 'ngx-pipes';
 import { addSupplierComponent } from './add-supplier/add-supplier.component';
 import { ItemNavigateComponent } from './item-navigate/item-navigate.component';
-import { ButtonComponent } from './button/button.component';
+import { ButtonComponentIonic } from './button/button.component';
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { GenericSelectComponent } from './generic-select/generic-select.component';
 import { SelectMonthFormatComponent } from './select-report-period/select-report-period.component';
@@ -38,18 +38,25 @@ import { TransManagementComponent } from './trans-management/trans-management.co
 import { ToastComponent } from './toast/toast.component';
 import { PopupMessageComponent } from './popup-message/popup-message.component';
 import { SelectClientComponent } from './select-client/select-client.component';
-
+import { ButtonComponent } from '../components/button/button.component';
+import { InputSelectComponent } from '../components/input-select/input-select.component';
+// import { ButtonComponentIonic } from '../shared/button/button.component';
+import {InputTextComponent} from '../components/input-text/input-text.component';
 
 @NgModule({
-  declarations: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent,ToastComponent, PopupMessageComponent, SelectClientComponent],
+  declarations: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent,ToastComponent, PopupMessageComponent, SelectClientComponent, ButtonComponentIonic],
   imports: [
     CommonModule,
     IonicModule,
     FormsModule,
     ReactiveFormsModule,
     NgArrayPipesModule,
-    ScrollingModule
-    ],
-  exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, ButtonComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent, ToastComponent, PopupMessageComponent, SelectClientComponent]
+    ScrollingModule,
+    ButtonComponent,
+    InputSelectComponent,
+    InputTextComponent
+    // ButtonComponentIonic
+],
+  exports: [DateFormatPipe, CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent,AddBillComponent, AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent, ToastComponent, PopupMessageComponent, SelectClientComponent, ButtonComponentIonic]
 })
-export class SharedModule { }
+export class SharedModule {}

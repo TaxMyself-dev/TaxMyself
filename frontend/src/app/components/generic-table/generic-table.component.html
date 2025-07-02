@@ -98,8 +98,8 @@
     }
     @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
     <app-p-button
-        (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+        (onButtonClicked)="quickClassify(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
       </app-p-button>
     }
     </div>

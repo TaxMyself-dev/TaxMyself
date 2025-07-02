@@ -12,7 +12,6 @@ import { ButtonComponent } from "../../components/button/button.component";
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
-
 @NgModule({
     declarations: [RegisterPage],
     imports: [
