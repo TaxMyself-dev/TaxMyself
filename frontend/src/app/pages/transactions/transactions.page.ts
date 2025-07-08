@@ -1,4 +1,4 @@
-import { Component, OnInit, WritableSignal, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, ViewChild, WritableSignal, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
@@ -28,6 +28,17 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 })
 
 export class TransactionsPage implements OnInit {
+
+  @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
+    const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
+    
+    if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
+      this.visibleFilterPannel.set(false); // 👈 close the panel
+    }
+  }
 
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
   incomesData$ = new BehaviorSubject<IRowDataTable[]>(null);
@@ -82,13 +93,13 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
-  readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
-    [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
-    [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
-    [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
-    [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
-    [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
-  ]);
+  // readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
+  //   [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
+  //   [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
+  //   [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
+  //   [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
+  //   [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
+  // ]);
 
   readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.NAME, 1.3],
@@ -129,6 +140,8 @@ export class TransactionsPage implements OnInit {
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
+  
+
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
   visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
   visibleClassifyTran = signal<boolean>(false);
@@ -138,6 +151,8 @@ export class TransactionsPage implements OnInit {
   isLoadingStateTable = signal<boolean>(false);
   filteredExpensesData = signal<IRowDataTable[]>(null);
   filteredIncomesData = signal<IRowDataTable[]>(null);
+  visibleFilterPannel = signal(false);
+
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData = signal<IRowDataTable>(null); // Data for all version of left panels
   selectedValue: string[] = ['classification', 'notClassification'];
@@ -353,6 +368,10 @@ export class TransactionsPage implements OnInit {
 
   onOpenClicked(event: boolean): void {
     this.isOpen = event
+  }
+
+  openFilterDialod(): void {
+    this.visibleFilterPannel.set(!this.visibleFilterPannel());
   }
 
   getTransactions(filters: any | null): void {
@@ -1001,6 +1020,7 @@ export class TransactionsPage implements OnInit {
 
   applyFilters(filters: FormGroup): void {
     this.getTransactions(filters);
+    this.visibleFilterPannel.set(false);
   }
 
   imageBunnerButtonClicked(event: any): void {

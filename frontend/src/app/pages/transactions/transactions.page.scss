@@ -47,6 +47,23 @@
   width: 100%;
 }
 
+.filter-table {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sort-button {
+  padding-bottom: 10px;
+  position: relative;
+}
+
+.filter-panel-container {
+  position: absolute;
+  left: 400px;
+  top: 54px;
+}
+
 // ============================== ionic components ==============================
 // .header-transaction {
 //     display: flex;
