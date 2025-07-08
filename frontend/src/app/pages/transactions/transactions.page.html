@@ -13,28 +13,41 @@
 
     <!-- expenses table -->
     <div class="table-wrap">
+      <div class="filter-table">
         <div class="wrap-checkboxes">
-        @for(option of classifyDisplayOptions; track option.value) {
-        <div>
-          <p-checkbox [binary]="true" [inputId]="option.value" [ngModel]="selectedValue.includes(option.value)"
-            (onChange)="selectOption(option.value)">
-          </p-checkbox>
-          <label [for]="option.value"> {{ option.name }} </label>
+          @for(option of classifyDisplayOptions; track option.value) {
+          <div>
+            <p-checkbox [binary]="true" [inputId]="option.value" [ngModel]="selectedValue.includes(option.value)"
+              (onChange)="selectOption(option.value)">
+            </p-checkbox>
+            <label [for]="option.value"> {{ option.name }} </label>
+          </div>
+          }
         </div>
-        }
+        <div class="sort-button">
+          <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
+            [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'סינון טבלה'"
+            [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button>
+          <div class="filter-panel-container" #filterPanelRef>
+            <app-filter-panel (applyFilters)="applyFilters($event)"
+              [isVisible]="visibleFilterPannel()"></app-filter-panel>
+          </div>
+        </div>
+        <!-- <app-filter-panel></app-filter-panel> -->
       </div>
-      <app-generic-table [isLoadingState]="isLoadingStateTable()" [showButtons]="true" (filters)="applyFilters($event)"
+
+      <app-generic-table [arrayFilters]="filterData()" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
         [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses"
         [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
         (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-        (visibleClassifyTranClicked)="openClassifyTran($event)" [filterButtonDisplay]="true"
+        (visibleClassifyTranClicked)="openClassifyTran($event)"
         (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
     </div>
     <!-- incomes table -->
     <div class="table-wrap">
       <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
-        (filters)="applyFilters($event)" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
-        [columnsTitle]="fieldsNamesExpenses" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
+        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'" [columnsTitle]="fieldsNamesExpenses"
+        [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
         (visibleAccountAssociationClicked)="openAccountAssociation($event)"
         (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
     </div>

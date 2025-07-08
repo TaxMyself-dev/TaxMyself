@@ -13,18 +13,18 @@
         </p-iconfield>
       }
     </div>
-    @if (filterButtonDisplay()) {
+    <!-- @if (filterButtonDisplay()) {
       <div class="sort-button">
         <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
         [iconOnly]="true" [icon]="'pi pi-filter-fill'"
         variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
         [buttonSize]="buttonSize.ICON" ></app-p-button>
       </div>
-    }
+    } -->
   </div>
-  <div class="filter-panel-container" #filterPanelRef>
+  <!-- <div class="filter-panel-container" #filterPanelRef>
     <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
-  </div>
+  </div> -->
   <div class="table">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()" (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)" (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()" loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()" [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false"
       [virtualScrollItemSize]="76">
