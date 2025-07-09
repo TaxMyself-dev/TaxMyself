@@ -41,8 +41,8 @@ export class RegisterPage implements OnInit, OnDestroy {
   employmentTypeOptionsList = employmentTypeOptionsList;
   businessTypeOptionsList = businessTypeOptionsList;
   familyStatusOptionsList = familyStatusOptionsList;
-  requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
-  // requierdField: boolean = true;
+  //requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
+  requierdField: boolean = true;
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
     effect(() => {
@@ -105,11 +105,6 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormControls.PASSWORD]: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
       ),
-      //   [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
-      //     '', [Validators.required]
-      //   ),
-      // }, { validators: this.confirmPasswordValidator() })
-
       [RegisterFormControls.CONFIRM_PASSWORD]: new FormControl(
         '', [Validators.required, this.confirmPasswordValidator()])
     });
@@ -134,10 +129,10 @@ export class RegisterPage implements OnInit, OnDestroy {
         null, this.requierdField && !this.isSingle() ? [Validators.required, Validators.pattern(/^(050|051|052|053|054|055|058|059)\d{7}$/)] : null,
       ),
       [RegisterFormControls.SPOUSEEMAIL]: new FormControl(
-        '', this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
+        null, this.requierdField ? [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)] : null,
       ),
       [RegisterFormControls.SPOUSEGENDER]: new FormControl(
-        '', this.requierdField ? [Validators.required] : null,
+        null, this.requierdField ? [Validators.required] : null,
       ),
     })
 
@@ -184,7 +179,6 @@ export class RegisterPage implements OnInit, OnDestroy {
       [RegisterFormModules.SPOUSE]: spouseForm,
       [RegisterFormModules.CHILDREN]: childrenForm,
       [RegisterFormModules.BUSINESS]: businessForm,
-      //[RegisterFormModules.VALIDATION]: validationForm,
     });
   }
 

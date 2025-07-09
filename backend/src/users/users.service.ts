@@ -113,6 +113,8 @@ export class UsersService {
 
         console.log("signup - end");
 
+        // console.log("newUser is: ", newUser);
+
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
     }
