@@ -63,7 +63,7 @@ export class FilterPanelComponent implements OnInit {
   showTimeOptions = signal(false);
   showAccountsOptions = signal(false);
   showCategoriesOptions = signal(false);
-  getOptions = signal<ISelectItem[]>([]);
+  // getOptions = signal<ISelectItem[]>([]);
   buttonText = signal<string>('aaa');
   viewReady = signal(false);
   categoryList = signal<ISelectItem[]>([]);
@@ -72,6 +72,7 @@ export class FilterPanelComponent implements OnInit {
   selected: any[] = [];
   selectedType = signal<string>("");
 
+  filteredMonth: ISelectItem[] = [];
   form: FormGroup
   private transactionService = inject(TransactionsService);
   private fb = inject(FormBuilder);
@@ -94,12 +95,12 @@ export class FilterPanelComponent implements OnInit {
   ];
 
   bimonthOptions: ISelectItem[] = [
-    { name: 'ינואר-פברואר', value: '1' },
-    { name: 'מרץ-אפריל', value: '3' },
-    { name: 'מאי-יוני', value: '5' },
-    { name: 'יולי-אוגוסט', value: '7' },
-    { name: 'ספטמבר-אוקטובר', value: '9' },
-    { name: 'נובמבר-דצמבר', value: '11' }
+    { name: 'ינואר-פברואר', value: 1 },
+    { name: 'מרץ-אפריל', value: 3 },
+    { name: 'מאי-יוני', value: 5 },
+    { name: 'יולי-אוגוסט', value: 7 },
+    { name: 'ספטמבר-אוקטובר', value: 9 },
+    { name: 'נובמבר-דצמבר', value: 11 }
   ];
 
   years: ISelectItem[] = [];
@@ -201,6 +202,39 @@ export class FilterPanelComponent implements OnInit {
       })
   }
 
+  updateMonthOptions(): void {
+    const selectedYear = this.form?.get('year')?.value;
+    const periodType = this.form?.get('periodType')?.value;
+  
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+  
+    if (!selectedYear || !periodType) {
+      this.filteredMonth = []; // או אפס את מה שצריך
+      return;
+    }
+  
+    if (periodType === 'MONTHLY') {
+      this.filteredMonth = this.monthOptions.filter(month => {
+        if (selectedYear < currentYear) return true;
+        if (selectedYear === currentYear) return Number(month.value) < currentMonth;
+        return false;
+      });
+    } else if (periodType === 'BIMONTHLY') {
+      this.filteredMonth = this.bimonthOptions.filter(option => {
+        const monthStart = Number(option.value);
+        const monthEnd = monthStart + 1;
+  
+        if (selectedYear < currentYear) return true;
+        if (selectedYear === currentYear) return monthEnd < currentMonth;
+        return false;
+      });
+    }
+  }
+  
+  
+
   onSelectCategory(): void {
     // console.log("form: ", this.form.value);
     this.visibleCategoriesOptions()
@@ -228,6 +262,7 @@ export class FilterPanelComponent implements OnInit {
   }
 
   onSelectType(value: string) {
+    this.filteredMonth = [];
     this.selectedType.set(this.selectedType() === value ? null : value);
     this.form.patchValue({ periodType: value });
     // console.log("🚀 ~ FilterPanelComponent ~ onSelectType ~ this.form:", this.form)
@@ -239,7 +274,8 @@ export class FilterPanelComponent implements OnInit {
 
     switch (this.selectedType()) {
       case 'MONTHLY':
-        this.getOptions.set(this.monthOptions);
+        // this.getOptions.set(this.monthOptions);
+        // this.getOptions.set(this.getMonth());
         this.form.removeControl('bimonth');
         this.form.removeControl('startDate');
         this.form.removeControl('endDate');
@@ -248,7 +284,8 @@ export class FilterPanelComponent implements OnInit {
         this.form.addControl('year', new FormControl('', [Validators.required]));
         break;
       case 'BIMONTHLY':
-        this.getOptions.set(this.bimonthOptions);
+        // this.getOptions.set(this.bimonthOptions);
+        // this.getOptions.set(this.getMonth());
         this.form.removeControl('month');
         this.form.removeControl('startDate');
         this.form.removeControl('endDate');
@@ -312,6 +349,13 @@ export class FilterPanelComponent implements OnInit {
     this.selectedType.set(""); // Reset the checkbox
     console.log("🚀 ~ FilterPanelComponent ~ clear ~ this.form.value:", this.form.value);
     this.getButtonText(); // Reset button text
+  }
+
+  onSelectedYear(): void {
+    this.filteredMonth = [];
+    this.updateMonthOptions();
+    this.form.patchValue({ month: null, bimonth: null });
+    this.getButtonText();
   }
 
   getButtonText(): void {

@@ -58,9 +58,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   transactionService = inject(TransactionsService);
 
   title = input<string>();
+  arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   incomeMode = input<boolean>(false);
-  filterButtonDisplay = input<boolean>(false);
+  // filterButtonDisplay = input<boolean>(false);
   showButtons = input<boolean>(false);
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
@@ -72,7 +73,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
   visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
-  filters = output<FormGroup>();
+  // filters = output<FormGroup>();
   isAllChecked = output<boolean>();
   rowsChecked = output<IRowDataTable[]>();
   visibleFilterPannel = signal(false);
@@ -223,11 +224,11 @@ onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
     this.visibleClassifyTranClicked.emit({ state: true, data: row, incomeMode: this.incomeMode() });
   }
 
-  applyFilters(filters: FormGroup): void {
-    console.log('applyFilters', filters);
-    this.visibleFilterPannel.set(false);
-    this.filters.emit(filters);
-  }
+  // applyFilters(filters: FormGroup): void {
+  //   console.log('applyFilters', filters);
+  //   this.visibleFilterPannel.set(false);
+  //   this.filters.emit(filters);
+  // }
 
   quickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
