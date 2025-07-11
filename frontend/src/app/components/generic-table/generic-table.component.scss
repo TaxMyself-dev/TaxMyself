@@ -13,14 +13,16 @@
 .table-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    //align-items: center;
     width: 99%;
+    flex-direction: column;
 }
 
 .input-title-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: fit-content;
 }
 
 .table-title {
@@ -39,6 +41,30 @@
 .input-icon {
     width: 100%;
     border-radius: 20px;
+}
+
+.show-filters-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    // margin-right: 20px;
+}
+
+.filter-header {
+    //border: solid;
+    display: flex;
+    align-items: center;
+    background-color: #EBEBEB;
+    gap: 5px;
+    width: fit-content;
+    height: 25px;
+    border-radius: 20px;
+    padding: 0 14px;
+}
+
+.filter-header-text {
+    color: #363636;
 }
 
 .table {

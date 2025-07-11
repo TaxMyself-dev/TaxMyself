@@ -225,6 +225,9 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       border-color: transparent;
       color: rgb(42, 38, 38);
     }
+    &.gray {
+      color: #808080;
+    }
   }
 
   &.outlined {
