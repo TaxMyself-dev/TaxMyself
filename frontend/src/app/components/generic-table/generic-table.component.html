@@ -13,6 +13,33 @@
         </p-iconfield>
       }
     </div>
+    <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
+      <!-- <div> -->
+        @let filters = arrayFilters();
+        @if(filters) {
+          <div class="show-filters-container">
+            @if(filters.periodType) {
+              <div class="filter-header">
+                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('time')"></app-p-button>
+                <p class="filter-header-text">{{ getFullPeriodDisplay(filters) }}</p>
+              </div>
+            }
+            @if(filters?.account?.length > 0) {
+              <div class="filter-header">
+                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('account')"></app-p-button>
+                <p class="filter-header-text">חשבונות: {{ formatNames(filters.account) }}</p>
+              </div>
+            }
+            @if(filters?.category?.length > 0) {
+              <div class="filter-header">
+                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('category')"></app-p-button>
+                <p class="filter-header-text">קטגוריות: {{ formatNames(filters.category) }}</p>
+              </div>
+            }
+        </div>
+      }
+        <!-- </div> -->
+      <!-- } -->
     <!-- @if (filterButtonDisplay()) {
       <div class="sort-button">
         <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"

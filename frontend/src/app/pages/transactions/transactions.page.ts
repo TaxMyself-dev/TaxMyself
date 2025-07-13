@@ -1023,6 +1023,45 @@ export class TransactionsPage implements OnInit {
     this.visibleFilterPannel.set(false);
   }
 
+  resetFilters(event: string): void {
+    console.log("🚀 ~ resetFilters ~ event:", event);
+  
+    switch (event) {
+      case 'time':
+        this.filterData.update(current => {
+          // Reset the time-related fields
+          return {
+            ...current,
+            year: null,
+            month: null,
+            bimonth: null,
+            startDate: null,
+            endDate: null,
+            periodType: null
+          };
+        });
+        break;
+  
+      case 'account':
+        this.filterData.update(current => ({
+          ...current,
+          account: []
+        }));
+        break;
+  
+      case 'category':
+        this.filterData.update(current => ({
+          ...current,
+          category: []
+        }));
+        break;
+    }
+  
+    // After resetting — always call getTransactions with updated filters
+    this.getTransactions(this.filterData());
+  }
+  
+
   imageBunnerButtonClicked(event: any): void {
     this.router.navigate(['/reports'])
   }

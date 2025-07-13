@@ -36,7 +36,7 @@
         <!-- <app-filter-panel></app-filter-panel> -->
       </div>
 
-      <app-generic-table [arrayFilters]="filterData()" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
+      <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
         [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses"
         [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
         (visibleAccountAssociationClicked)="openAccountAssociation($event)"
