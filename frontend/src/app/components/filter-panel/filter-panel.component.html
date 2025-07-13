@@ -60,11 +60,12 @@
         }
         @else {
         <div class="wrap-inner-inputs">
+          <app-input-select (onChangeInputSelect)="onSelectedYear()" [size]="inputsSize.AUTO" [parentForm]="form" placeholder="בחר שנה" controlName="year"
+          [items]="years"></app-input-select>
           <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" [parentForm]="form" [controlName]="this.form?.get('periodType').value === 'MONTHLY' ? 'month' : 'bimonth'"
             [placeholder]="this.form?.get('periodType').value === 'MONTHLY' ? 'בחר חודש' : 'בחר חודשים'"
-            [items]="getOptions()"></app-input-select>
-          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" [parentForm]="form" placeholder="בחר שנה" controlName="year"
-            [items]="years"></app-input-select>
+            [items]="filteredMonth"></app-input-select>
+         
         </div>
         }
         }

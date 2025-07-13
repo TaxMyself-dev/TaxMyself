@@ -80,7 +80,7 @@ serviceAccount = {
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
                  DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, 
                  Clients, Documents, DocLines, JournalEntry, JournalLine, DefaultBookingAccount],
-      synchronize: true, //TODO: uncomment after the database is stable: // process.env.NODE_ENV !== 'production',
+      synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
     TypeOrmModule.forFeature([

@@ -8,8 +8,13 @@
             <span class="avatar-text">שלום {{ userData.fName }} {{ userData.lName }}</span>
         </div>
         <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-      [href]="'/add-expenses'">
-    </app-p-button>
+      [link]="'/add-expense'">
+            <i class="pi pi-plus"></i>
+        </app-p-button>
+        <!-- <app-p-button class="vat-report-payment-button" [buttonText]="'פתח'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+        [link]="'/add-expense'" (onButtonClicked)="openModalAddExpenses()">
+              <i class="pi pi-plus"></i>
+          </app-p-button> -->
     </div>
 
     <div class="nevigation-block">
@@ -23,8 +28,8 @@
     </div>
 
     <div class="table-block">
-        <span class="block-title">תנועות לא מסווגות</span>
-        <app-generic-table class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+        <p class="block-title">התנועות הלא מסווגות שלי</p>
+        <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
     </div>
 
 </div>

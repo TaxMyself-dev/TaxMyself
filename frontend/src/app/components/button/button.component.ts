@@ -2,24 +2,26 @@ import { Component, computed, EventEmitter, Input, input, OnInit, Output, Signal
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ButtonColor, ButtonSize, iconPosition } from './button.enum';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-p-button',
   standalone: true,
   templateUrl: './button.component.html',
   styleUrls: ['./button.component.scss'],
-  imports: [CommonModule, ButtonModule],
+  imports: [CommonModule, ButtonModule, RouterModule],
 })
 export class ButtonComponent  implements OnInit {
   icon = input<string>();
+  link = input<string>(null);
   iconPosition = input<iconPosition>(iconPosition.LEFT);
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   raised = input<boolean>(false); // For mark the button
-  // buttonText = input<string>('Button');
-  @Input() buttonText: string = 'Button';
+  buttonText = input<string>('Button');
+  //@Input() buttonText: string = 'Button';
   class = input<string>('');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
-  buttonColor = input<ButtonColor>(ButtonColor.BLACK);
+  buttonColor = input<ButtonColor>();
   severity = input<"success" | "info" | "warn" | "danger" | "help" | "primary" | "secondary" | "contrast">();
   badge = input<string>(); // Number for notifications TODO: check if need pass string or number
   variant = input<"outlined" | "text">(null);

@@ -1,0 +1,54 @@
+<div class="form-register">
+  <!-- First line -->
+  <div class="section-one">
+    <!---------first name----->
+    
+    <app-input-text [controlName]="expenseFormColumns.SUM" labelText="סכום"
+      [placeholder]="'הכנס סכום'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text>
+    <!--------last name------->
+    <app-input-select [controlName]="expenseFormColumns.BUSINESS_NUMBER" labelText="שייך לעסק"
+      [placeholder]="'בחר עסק'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'register'"></app-input-select>
+    <!-------id number------->
+    <app-input-date [controlName]="expenseFormColumns.DATE" labelText="בחר תאריך"
+      [placeholder]="'00/00/0000'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'"></app-input-date>
+
+  </div>
+  <!-- Second line -->
+  <div class="section-one">
+    <!-----email ---->
+    <app-input-text [controlName]="expenseFormColumns.EXPENSE_NUMBER" labelText="מספר חשבונית"
+      [placeholder]="'הכנס מספר'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text>
+    <!-----date of birth----->
+    <app-input-text [controlName]="expenseFormColumns.SUPPLIER" labelText="שם הספק"
+      placeholder="כתוב כאן" [parentForm]="addExpenseForm" [customStyle]="'fill-border'"></app-input-text>
+    <!----phone ----->
+    <app-input-text [controlName]="expenseFormColumns.SUPPLIER_ID" labelText="ח.פ. ספק"
+      [placeholder]="'כתוב כאן'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text>
+  </div>
+  <!-- Third line -->
+  <div class="section-one">
+    <!-- city -->
+    
+        <app-input-select [controlName]="expenseFormColumns.IS_EQUIPMENT" labelText="רכוש קבוע" [placeholder]="'בחר'" [items]="" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
+        <app-input-select [controlName]="expenseFormColumns.CATEGORY" labelText="בחר קטגוריה" [placeholder]="'בחר'" [items]="" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
+        <app-input-select [controlName]="expenseFormColumns.SUB_CATEGORY" labelText="בחר" [placeholder]="'בחר'" [items]="" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
+  </div>
+
+  <!-- Fifth line -->
+  <div class="section-one">
+    <app-input-text [controlName]="expenseFormColumns.VAT_PERCENT" labelText="(%)מוכר למע''מ"
+      [placeholder]="'כתוב כאן'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'" [errorText]="'מספרים בלבד'"></app-input-text>
+    <app-input-text [controlName]="expenseFormColumns.TAX_PERCENT" labelText="מוכר למס(%)"
+      [placeholder]="'כתוב כאן'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'" [errorText]="'מספרים בלבד'"></app-input-text>
+      <app-input-text [controlName]="expenseFormColumns.REDUCTION_PERCENT" labelText="אחוז פחת"
+      [placeholder]="'כתוב כאן'" [parentForm]="addExpenseForm" [size]="inputsSize.BETWEEN"
+      [customStyle]="'fill-border'" [errorText]="'מספרים בלבד'"></app-input-text>
+  </div>
+</div>

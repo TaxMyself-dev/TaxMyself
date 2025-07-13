@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Any, LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
@@ -8,6 +8,8 @@ import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { SharedService } from 'src/shared/shared.service';
+import { CityDto } from './dtos/city.dto';
+import axios from 'axios';
 
 
 @Injectable()
@@ -110,6 +112,8 @@ export class UsersService {
         newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
 
         console.log("signup - end");
+
+        // console.log("newUser is: ", newUser);
 
         const user = this.user_repo.create(newUser);
         return this.user_repo.save(user);
@@ -220,6 +224,22 @@ export class UsersService {
             console.log(`Updated user ${user.id} from TRIAL to PAYMENT_REQUIRED`);
         }
     }
+
+    // async fetchCities(): Promise<CityDto[]> {
+    //     return
+    // }
+
+    async fetchCities(): Promise<CityDto[]> {
+        const citiesUrl = 'https://raw.githubusercontent.com/royts/israel-cities/master/israel-cities.json';
+        try {
+          const response = await axios.get(citiesUrl);
+          console.log("🚀 ~ UsersService ~ fetchCities ~ response:", response)
+          return response.data; // Assumes it's already parsed as JSON array
+        } catch (error) {
+          console.error('Error fetching cities from GitHub:', error.message);
+          throw new InternalServerErrorException('Failed to fetch cities data');
+        }
+      }
 
 
 

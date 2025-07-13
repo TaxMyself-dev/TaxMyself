@@ -13,18 +13,45 @@
         </p-iconfield>
       }
     </div>
-    @if (filterButtonDisplay()) {
+    <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
+      <!-- <div> -->
+        @let filters = arrayFilters();
+        @if(filters) {
+          <div class="show-filters-container">
+            @if(filters.periodType) {
+              <div class="filter-header">
+                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('time')"></app-p-button>
+                <p class="filter-header-text">{{ getFullPeriodDisplay(filters) }}</p>
+              </div>
+            }
+            @if(filters?.account?.length > 0) {
+              <div class="filter-header">
+                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('account')"></app-p-button>
+                <p class="filter-header-text">חשבונות: {{ formatNames(filters.account) }}</p>
+              </div>
+            }
+            @if(filters?.category?.length > 0) {
+              <div class="filter-header">
+                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('category')"></app-p-button>
+                <p class="filter-header-text">קטגוריות: {{ formatNames(filters.category) }}</p>
+              </div>
+            }
+        </div>
+      }
+        <!-- </div> -->
+      <!-- } -->
+    <!-- @if (filterButtonDisplay()) {
       <div class="sort-button">
         <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
         [iconOnly]="true" [icon]="'pi pi-filter-fill'"
         variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
         [buttonSize]="buttonSize.ICON" ></app-p-button>
       </div>
-    }
+    } -->
   </div>
-  <div class="filter-panel-container" #filterPanelRef>
+  <!-- <div class="filter-panel-container" #filterPanelRef>
     <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
-  </div>
+  </div> -->
   <div class="table">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()" (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)" (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()" loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()" [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false"
       [virtualScrollItemSize]="76">
@@ -98,8 +125,8 @@
     }
     @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
     <app-p-button
-        (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+        (onButtonClicked)="quickClassify(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
       </app-p-button>
     }
     </div>

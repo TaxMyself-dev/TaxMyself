@@ -11,12 +11,13 @@ import { ButtonColor } from '../../components/button/button.enum';
 import { bunnerImagePosition, FormTypes } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
+import { MessageService } from 'primeng/api';
 
 @Component({
-    selector: 'app-login',
-    templateUrl: './login.page.html',
-    styleUrls: ['./login.page.scss'],
-    standalone: false
+  selector: 'app-login',
+  templateUrl: './login.page.html',
+  styleUrls: ['./login.page.scss'],
+  standalone: false
 })
 export class LoginPage implements OnInit {
 
@@ -27,6 +28,7 @@ export class LoginPage implements OnInit {
   readonly formTypes = FormTypes;
 
   isLoading = signal(false);
+  isLoadingStateResetPassword = signal(false);
   // emailVerify: boolean = true;
   userEmailForReset: string = "";
   //userCredential: UserCredential;
@@ -37,7 +39,7 @@ export class LoginPage implements OnInit {
   resetMode = false;
   // isLoading = false;
 
-  constructor(private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
+  constructor(private messageService: MessageService, private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
     this.loginForm = this.formBuilder.group({
       userName: new FormControl(
@@ -59,7 +61,7 @@ export class LoginPage implements OnInit {
     this.route.queryParams.subscribe(params => {
       if (params['from'] === 'register') {
         console.log('Navigated to Login Page from Register Page');
-        this.authService.error$.next('email');
+        this.authService.error.set('email');
         // alert('בסיום ההרשמה נשלח לחשבון הדוא"ל שלך מייל לאימות אנא ודן כי אישרת אותו')
       }
     });
@@ -76,9 +78,9 @@ export class LoginPage implements OnInit {
     this.login2();
   }
 
-    login2(): void {
+  login2(): void {
     this.isLoading.set(true);
-    this.authService.error$.next(null);
+    this.authService.error.set(null);
     const formData = this.loginForm.value;
     // this.genericService.getLoader()
     this.authService.userVerify(formData.userName, formData.password)
@@ -92,7 +94,7 @@ export class LoginPage implements OnInit {
           if (!res?.user?.emailVerified) {
             console.log("in email error");
             // this.genericService.dismissLoader();
-            this.authService.error$.next("email");
+            this.authService.error.set("email");
           }
           return res?.user?.emailVerified;
         }),
@@ -113,17 +115,54 @@ export class LoginPage implements OnInit {
           this.isLoading.set(false);
           // this.genericService.dismissLoader();
         })
-       
+
       )
       .subscribe()
   }
 
   sendVerficaitonEmail(): void {
     this.authService.SendVerificationMail()
-      .subscribe(() => {
-        this.genericService.showToast("מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת", "success")
-        // this.messageToast = "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת"
-        // this.isToastOpen = true;
+      .pipe(
+        catchError((err) => {
+          console.log("error in send verification email: ", err);
+          switch (err.code) {
+            case "auth/invalid-email":
+            case "auth/user-not-found":
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: "כתובת האימייל שהכנסת אינה תקינה או לא קיימת במערכת",
+                //life: 3000,
+                sticky: true,
+                key: 'br'
+              })
+              break;
+            case "auth/too-many-requests":
+            case "auth/network-request-failed":
+            case "auth/operation-not-allowed":
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: "אירעה שגיאה בשליחת המייל, אנא נסה מאוחר יותר",
+                //life: 3000,
+                sticky: true,
+                key: 'br'
+              })
+          }
+          return EMPTY;
+        }
+        )
+      )
+      .subscribe((res) => {
+        console.log("Verification email sent successfully: ", res);
+
+        this.messageService.add({
+          severity: 'info',
+          summary: 'Success',
+          detail: "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת",
+          life: 3000,
+          key: 'br'
+        })
       })
   }
 
@@ -140,40 +179,49 @@ export class LoginPage implements OnInit {
   }
 
   resetPassword(): void {
-    if (this.resetForm.valid) {
-      this.authService.ForgotPassword(this.userEmailForReset)
-        .pipe(
-          catchError((err) => {
-            console.log("err in reset: ", err);
-            switch (err.code) {
-              case "auth/invalid-email":
-              case "auth/user-not-found":
-                this.authService.error$.next("user");
-                break;
-              case "auth/too-many-requests":
-              case "auth/network-request-failed":
-              case "auth/operation-not-allowed":
-                this.authService.error$.next("error");
-            }
+    this.isLoadingStateResetPassword.set(true);
+    this.authService.ForgotPassword(this.loginForm.get('userName')?.value)
+      .pipe(
+        catchError((err) => {
+          console.log("err in reset: ", err);
+          switch (err.code) {
+            case "auth/invalid-email":
+            case "auth/user-not-found":
+            case "auth/missing-email":
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: "כתובת האימייל שהכנסת אינה תקינה או לא קיימת במערכת",
+                //life: 3000,
+                sticky: true,
+                key: 'br'
+              })
+              break;
+            case "auth/too-many-requests":
+            case "auth/network-request-failed":
+            case "auth/operation-not-allowed":
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: "אירעה שגיאה בשליחת המייל, אנא נסה מאוחר יותר",
+                //life: 3000,
+                sticky: true,
+                key: 'br'
+              })
+          }
 
-            return EMPTY;
-          })
-        ).subscribe(() => {
-          this.genericService.showToast("קישור לאיפוס סיסמא נשלח אליך למייל", "success")
-          // this.messageToast = "קישור לאיפוס סיסמא נשלח אליך למייל";
-          // this.isToastOpen =true;
-        });
-    }
-    else {
-      alert("אנא הכנס אימייל תקין");
-    }
-  }
-
-  // setOpenToast(): void {
-  //   this.isToastOpen = false;
-  // }
-
-  saveEmailForReset(email: string): void {
-    this.userEmailForReset = email;
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingStateResetPassword.set(false)),
+      ).subscribe(() => {
+        this.messageService.add({
+          severity: 'info',
+          summary: 'Success',
+          detail: "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת",
+          // life: 3000,
+          sticky: true,
+          key: 'br'
+        })
+      });
   }
 }

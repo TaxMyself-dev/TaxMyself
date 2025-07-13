@@ -25,7 +25,8 @@ input:-webkit-autofill {
 .login-card {
   width: 40%;
   //border:1px solid rgb(79, 171, 79);
-  height: 870px;
+  height: 88%;
+  // height: 870px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -41,6 +42,16 @@ input:-webkit-autofill {
 .login-image {
   width: 100%;
   height: 100%;
+}
+@media (max-width: 768px) {
+  .login-card {
+    width: 100%;
+    height: 88%;
+  }
+  .login-picture {
+    display: none;
+  }
+  
 }
 
 :host ::ng-deep .social-btn .p-button {
@@ -67,11 +78,14 @@ input:-webkit-autofill {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  height: 585px;
+  height: 67%;
+  // height: 585px;
+  width: 100%;
 }
 
 .wellcome-and-socisal-buttons {
   height: 120px;
+  // width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -89,11 +103,13 @@ input:-webkit-autofill {
   align-items: center;
   height: 405px;
   display: flex;
+  width: 77%;
   flex-direction: column;
   justify-content: start;
 }
 
 .register-with-exist-account {
+  width: 100%;
   height: 287px;
   display: flex;
   flex-direction: column;
@@ -147,7 +163,8 @@ p {
   flex-direction: column;
   align-items: center;
   justify-content: space-around;
-  width: 401px;
+  width: 100%;
+  // width: 401px;
   height: 241px;
 }
 
@@ -165,7 +182,8 @@ p {
   padding-right: 36px;
   border-radius: 30px;
   border: 1px solid #EBEBEB;
-  width: 401px;
+  width: 100%;
+  // width: 401px;
   //background-color: #FAFAFA;
   height: 39px;
 }
@@ -173,6 +191,7 @@ p {
 
 .inputs-wrap {
   height: 90px;
+  width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -253,16 +272,11 @@ p {
 }
 
 .text-error {
-  border: 2px solid red;
-  border-radius: 15px;
-  width: 60%;
+  align-self: baseline;
   word-wrap: break-word;
   text-align: justify;
   text-align-last: center;
-  padding-left: 5px;
-  padding-right: 5px;
-  font-weight: bold;
-  margin: 10px 0;
+  color: red;
 }
 
 .reset-buttons {

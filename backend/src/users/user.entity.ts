@@ -120,7 +120,8 @@ export class User {
       type: 'enum',
       enum: Gender,
       enumName: 'Gender',
-      default: Gender.MALE
+      nullable: true,
+      default: null
     })
     spouseGender: Gender;
 
@@ -135,7 +136,7 @@ export class User {
       enum: EmploymentType,
       enumName: 'EmploymentType',
       nullable: true,
-      default: EmploymentType.SELF_EMPLOYED
+      default: null
     })
     spouseEmploymentStatus: EmploymentType | null;
 

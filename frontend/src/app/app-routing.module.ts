@@ -83,6 +83,10 @@ const routes: Routes = [
     path: 'doc-create',
     loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule)
   },
+  {
+    path: 'add-expense',
+    loadComponent: () => import('./pages/add-expense/add-expense.component').then( m => m.AddExpenseComponent)
+  },
  
 ];
 

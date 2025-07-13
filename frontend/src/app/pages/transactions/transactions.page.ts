@@ -1,4 +1,4 @@
-import { Component, OnInit, Signal, WritableSignal, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, ViewChild, WritableSignal, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
@@ -18,6 +18,7 @@ import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
+// import { CheckboxModule } from 'primeng/checkbox';
 
 @Component({
   selector: 'app-transactions',
@@ -27,6 +28,17 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 })
 
 export class TransactionsPage implements OnInit {
+
+  @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
+    const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
+    
+    if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
+      this.visibleFilterPannel.set(false); // 👈 close the panel
+    }
+  }
 
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
   incomesData$ = new BehaviorSubject<IRowDataTable[]>(null);
@@ -81,13 +93,13 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
-  readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
-    [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
-    [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
-    [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
-    [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
-    [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
-  ]);
+  // readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
+  //   [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
+  //   [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
+  //   [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
+  //   [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
+  //   [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
+  // ]);
 
   readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.NAME, 1.3],
@@ -128,6 +140,8 @@ export class TransactionsPage implements OnInit {
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
+  
+
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
   visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
   visibleClassifyTran = signal<boolean>(false);
@@ -135,12 +149,18 @@ export class TransactionsPage implements OnInit {
   subCategoryMode = signal<boolean>(false);
   categoryName = signal<string>("");
   isLoadingStateTable = signal<boolean>(false);
+  filteredExpensesData = signal<IRowDataTable[]>(null);
+  filteredIncomesData = signal<IRowDataTable[]>(null);
+  visibleFilterPannel = signal(false);
+
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData = signal<IRowDataTable>(null); // Data for all version of left panels
+  selectedValue: string[] = ['classification', 'notClassification'];
+  // selectedValue = signal<string | null>(null);
   rows: IRowDataTable[];
   tableActionsExpense: ITableRowAction[];
   tableActionsIncomes: ITableRowAction[];
-  typeIncomeList = [{ value: null, name: 'הכל' }, { value: 'classification', name: 'סווג' }, { value: 'notClassification', name: 'טרם סווג' }];
+  classifyDisplayOptions = [{ value: 'classification', name: 'סווג' }, { value: 'notClassification', name: 'טרם סווג' }];
   transactionsForm: FormGroup;
   incomeForm: FormGroup;
   expensesForm: FormGroup;
@@ -167,6 +187,7 @@ export class TransactionsPage implements OnInit {
   filterByIncome: string = "";
   userData: IUserData;
   businessSelect: string = "";
+  
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
 
@@ -279,7 +300,7 @@ export class TransactionsPage implements OnInit {
       this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.ACTIONS, 1);
     }
 
-    this.setTableActions();
+    // this.setTableActions();
     this.transactionService.getAllBills();
     // this.transactionService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
     //   (accountsList) => {
@@ -349,6 +370,10 @@ export class TransactionsPage implements OnInit {
     this.isOpen = event
   }
 
+  openFilterDialod(): void {
+    this.visibleFilterPannel.set(!this.visibleFilterPannel());
+  }
+
   getTransactions(filters: any | null): void {
     this.isLoadingStateTable.set(true);
     const periodType = filters?.periodType;
@@ -359,13 +384,19 @@ export class TransactionsPage implements OnInit {
 
     let accountsNames = accounts?.map((account: ISelectItem) => account.value);
     let categoriesName = categories?.map((category: ISelectItem) => category.value);
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ accountsNames:", accountsNames);
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ category:", categoriesName);
-    
+    // === Setting the date
     if (!filters) { // For default table.
-      const currentYear = new Date().getFullYear();
-      const month = new Date().getMonth() + 1;
-      ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
+      const today = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
+      
+      ({ startDate, endDate } = this.dateService.getStartAndEndDates(
+        this.reportingPeriodType.DATE_RANGE,
+        null,
+        null,
+        thirtyDaysAgo.toISOString(),
+        today.toISOString()
+      ));
       accountsNames = null;
       categoriesName = null;
     }
@@ -384,14 +415,22 @@ export class TransactionsPage implements OnInit {
           ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.DATE_RANGE, null, null, filters?.startDate, filters?.endDate));
           break;
         default:
-          const currentYear = new Date().getFullYear();
-          const month = new Date().getMonth() + 1;
-          ({ startDate, endDate } = this.dateService.getStartAndEndDates(this.reportingPeriodType.MONTHLY, currentYear, month, null, null));
+          const today = new Date();
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
+          
+          ({ startDate, endDate } = this.dateService.getStartAndEndDates(
+            this.reportingPeriodType.DATE_RANGE,
+            null,
+            null,
+            thirtyDaysAgo.toISOString(),
+            today.toISOString()
+          ));
           break;
       }
     }
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ startDate:", startDate);
-    // console.log("🚀 ~ TransactionsPage ~ getTransactions ~ Date:end", endDate);
+    // === Setting the date //
+   
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
@@ -409,14 +448,12 @@ export class TransactionsPage implements OnInit {
       )
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
         this.incomesData = data.incomes;
-        console.log("income: ", this.incomesData);
-
         this.expensesData = data.expenses;
+        // this.classifyDataFilter();
+        this.filteredExpensesData.set(this.expensesData);
+        this.filteredIncomesData.set(this.incomesData);
+        console.log("income: ", this.incomesData);
         console.log("expense: ", this.expensesData);
-        this.incomesData$.next(this.incomesData);
-        this.filterIncomes(); // for after update table the table will stay filtered according to the search-bar
-        this.expensesData$.next(data.expenses);
-        this.filterExpenses(); // for after update table the table will stay filtered according to the search-bar
       });
   }
 
@@ -468,27 +505,27 @@ export class TransactionsPage implements OnInit {
     }
   }
 
-  setTableActions(): void {
-    this.tableActionsExpense = [
-      {
-        name: 'delete',
-        icon: 'create',
-        action: (row: IRowDataTable) => {
-          this.openEditRow(row)
-        }
-      },
-    ];
+  // setTableActions(): void {
+  //   this.tableActionsExpense = [
+  //     {
+  //       name: 'delete',
+  //       icon: 'create',
+  //       action: (row: IRowDataTable) => {
+  //         this.openEditRow(row)
+  //       }
+  //     },
+  //   ];
 
-    this.tableActionsIncomes = [
-      {
-        name: 'delete',
-        icon: 'create',
-        action: (row: IRowDataTable) => {
-          this.openEditRow(row, false)
-        }
-      },
-    ];
-  }
+  //   this.tableActionsIncomes = [
+  //     {
+  //       name: 'delete',
+  //       icon: 'create',
+  //       action: (row: IRowDataTable) => {
+  //         this.openEditRow(row, false)
+  //       }
+  //     },
+  //   ];
+  // }
 
   // openAddBill(data: IRowDataTable): void {
   //   this.selectBill = data.paymentIdentifier as string;
@@ -496,118 +533,118 @@ export class TransactionsPage implements OnInit {
   //   this.openPopupAddBill()
   // }
 
-  openPopupAddBill(data?: IRowDataTable): void {
-    from(this.modalController.create({
+  // openPopupAddBill(data?: IRowDataTable): void {
+  //   from(this.modalController.create({
 
-      component: AddBillComponent,
-      componentProps: {
-        paymentMethod: this.selectBill,
-      }
-    })).pipe(
-      takeUntil(this.destroy$),
-      catchError((err) => {
-        alert("openPopupAddBill error");
-        return EMPTY;
-      }),
-      switchMap((modal) => from(modal.present())
-        .pipe(
-          takeUntil(this.destroy$),
-          switchMap(() => from(modal.onWillDismiss()))
-        )),
-      catchError((err) => {
-        alert("openPopupAddBill switchMap error");
-        console.log(err);
-        return EMPTY;
-      }))
-      .subscribe(({ data, role }) => {
-        if (role === 'success') {
-          // this.getTransactions()
-        }
-      });
-  }
+  //     component: AddBillComponent,
+  //     componentProps: {
+  //       paymentMethod: this.selectBill,
+  //     }
+  //   })).pipe(
+  //     takeUntil(this.destroy$),
+  //     catchError((err) => {
+  //       alert("openPopupAddBill error");
+  //       return EMPTY;
+  //     }),
+  //     switchMap((modal) => from(modal.present())
+  //       .pipe(
+  //         takeUntil(this.destroy$),
+  //         switchMap(() => from(modal.onWillDismiss()))
+  //       )),
+  //     catchError((err) => {
+  //       alert("openPopupAddBill switchMap error");
+  //       console.log(err);
+  //       return EMPTY;
+  //     }))
+  //     .subscribe(({ data, role }) => {
+  //       if (role === 'success') {
+  //         // this.getTransactions()
+  //       }
+  //     });
+  // }
 
-  filterIncomes(): void {
-    const formData = this.incomeForm.value;
-    console.log(formData);
+  // filterIncomes(): void {
+  //   const formData = this.incomeForm.value;
+  //   console.log(formData);
 
-    const categoryName = this.listCategory?.find((category) => category.value === formData.category);
+  //   const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
-    if (!categoryName && !formData.incomeType) {
-      this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(this.filterByIncome)));
-    }
-    else if (!categoryName) {
-      if (formData.incomeType === "notClassification") {
-        this.incomesData$.next(this.incomesData.filter((income) => {
-          return (income.category === "טרם סווג") && String(income.name).includes(this.filterByIncome);
-        }
-        ));
-      }
-      else {
-        this.incomesData$.next(this.incomesData.filter((income) => {
-          return (income.category !== "טרם סווג") && String(income.name).includes(this.filterByIncome);
-        }));
-      }
-    }
-    else if (!formData.incomeType) {
-      this.incomesData$.next(this.incomesData.filter((income) => {
-        return (income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
-      }));
-    }
-    else {
-      if (formData.incomeType === "notClassification") {
-        this.incomesData$.next(this.incomesData.filter((income) => {
-          return (income.category === "טרם סווג" || income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
-        }));
-      }
-      else {
-        this.incomesData$.next(this.incomesData.filter((income) => {
-          return (income.category !== "טרם סווג" && income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
-        }));
-      }
+  //   if (!categoryName && !formData.incomeType) {
+  //     this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(this.filterByIncome)));
+  //   }
+  //   else if (!categoryName) {
+  //     if (formData.incomeType === "notClassification") {
+  //       this.incomesData$.next(this.incomesData.filter((income) => {
+  //         return (income.category === "טרם סווג") && String(income.name).includes(this.filterByIncome);
+  //       }
+  //       ));
+  //     }
+  //     else {
+  //       this.incomesData$.next(this.incomesData.filter((income) => {
+  //         return (income.category !== "טרם סווג") && String(income.name).includes(this.filterByIncome);
+  //       }));
+  //     }
+  //   }
+  //   else if (!formData.incomeType) {
+  //     this.incomesData$.next(this.incomesData.filter((income) => {
+  //       return (income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
+  //     }));
+  //   }
+  //   else {
+  //     if (formData.incomeType === "notClassification") {
+  //       this.incomesData$.next(this.incomesData.filter((income) => {
+  //         return (income.category === "טרם סווג" || income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
+  //       }));
+  //     }
+  //     else {
+  //       this.incomesData$.next(this.incomesData.filter((income) => {
+  //         return (income.category !== "טרם סווג" && income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
+  //       }));
+  //     }
 
-    }
-  }
+  //   }
+  // }
 
-  filterExpenses(): void {
-    const formData = this.expensesForm.value;
+  // filterExpenses(): void {
+  //   const formData = this.expensesForm.value;
 
-    const categoryName = this.listCategory?.find((category) => category.value === formData.category);
+  //   const categoryName = this.listCategory?.find((category) => category.value === formData.category);
 
-    if (!categoryName && !formData.expensesType) {
-      this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(this.filterByExpense)));
-    }
-    else if (!categoryName) {
-      if (formData.expensesType === "notClassification") {
-        this.expensesData$.next(this.expensesData.filter((expense) => {
-          return ((expense.category === "טרם סווג") && String(expense.name).includes(this.filterByExpense));
-        }));
-      }
-      else {
-        this.expensesData$.next(this.expensesData.filter((expense) => {
-          return (expense.category !== "טרם סווג") && String(expense.name).includes(this.filterByExpense);
-        }));
-      }
-    }
-    else if (!formData.expensesType) {
-      this.expensesData$.next(this.expensesData.filter((expense) => {
-        return (expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
-      }));
-    }
-    else {
-      if (formData.expensesType === "notClassification") {
-        this.expensesData$.next(this.expensesData.filter((expense) => {
-          return (expense.category === "טרם סווג" || expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
-        }))
-      }
-      else {
-        this.expensesData$.next(this.expensesData.filter((expense) => {
-          return (expense.category !== "טרם סווג" && expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense))
-        }));
-      }
+  //   if (!categoryName && !formData.expensesType) {
+  //     this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(this.filterByExpense)));
+  //   }
+  //   else if (!categoryName) {
+  //     if (formData.expensesType === "notClassification") {
+  //       this.expensesData$.next(this.expensesData.filter((expense) => {
+  //         return ((expense.category === "טרם סווג") && String(expense.name).includes(this.filterByExpense));
+  //       }));
+  //     }
+  //     else {
+  //       this.expensesData$.next(this.expensesData.filter((expense) => {
+  //         return (expense.category !== "טרם סווג") && String(expense.name).includes(this.filterByExpense);
+  //       }));
+  //     }
+  //   }
+  //   else if (!formData.expensesType) {
+  //     this.expensesData$.next(this.expensesData.filter((expense) => {
+  //       return (expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
+  //     }));
+  //   }
+  //   else {
+  //     if (formData.expensesType === "notClassification") {
+  //       this.expensesData$.next(this.expensesData.filter((expense) => {
+  //         return (expense.category === "טרם סווג" || expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
+  //       }))
+  //     }
+  //     else {
+  //       this.expensesData$.next(this.expensesData.filter((expense) => {
+  //         return (expense.category !== "טרם סווג" && expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense))
+  //       }));
+  //     }
 
-    }
-    //}
-  }
+  //   }
+  //   //}
+  // }
 
   handleTableData(data: ITransactionData[]) {
     const rows = [];
@@ -658,145 +695,145 @@ export class TransactionsPage implements OnInit {
       })
   }
 
-  openEditRow(data: IRowDataTable, isExpense: boolean = true): void {
-    let editFieldsNamesIncomes: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = []; // For does changes in fieldsNamesIncomes array before open update row.
-    let disabledFields: TransactionsOutcomesColumns[];
-    console.log("data.businessNumber: ", data.businessNumber);
-    console.log(" this.userData.businessNumber: ", this.userData.businessNumber);
+  // openEditRow(data: IRowDataTable, isExpense: boolean = true): void {
+  //   let editFieldsNamesIncomes: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = []; // For does changes in fieldsNamesIncomes array before open update row.
+  //   let disabledFields: TransactionsOutcomesColumns[];
+  //   console.log("data.businessNumber: ", data.businessNumber);
+  //   console.log(" this.userData.businessNumber: ", this.userData.businessNumber);
 
-    const businessNumber = data.businessNumber === this.userData.businessNumber || this.userData.businessName ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
-    console.log("data in open edit row: ", data);
-    console.log("businessNumber: ", businessNumber);
-
-
-    if (isExpense) {
-      if (!this.userData.isTwoBusinessOwner) {
-        this.editFieldsNamesExpenses = this.editFieldsNamesExpenses.filter(
-          field => field.name !== TransactionsOutcomesColumns.BUSINESS_NUMBER); // For remove column businessNumber from array for one business 
-      }
-      const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
-      const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
-      disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent === 0 ? 0 : ""),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-        this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-      this.editRowExpenseForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
-
-    }
-    else {
-      editFieldsNamesIncomes = this.fieldsNamesIncome.filter(
-        field => {
-          return field.name !== TransactionsOutcomesColumns.NOTE && field.name !== TransactionsOutcomesColumns.BUSINESS_NAME
-        }
-      ); // For remove column note & businessName from array 
-      editFieldsNamesIncomes.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
-
-      disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY, TransactionsOutcomesColumns.MONTH_REPORT];
-
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-        this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-        this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
-      this.editRowIncomeForm.get(TransactionsOutcomesColumns.MONTH_REPORT).patchValue(data.vatReportingDate || '');
-
-    }
+  //   const businessNumber = data.businessNumber === this.userData.businessNumber || this.userData.businessName ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
+  //   console.log("data in open edit row: ", data);
+  //   console.log("businessNumber: ", businessNumber);
 
 
+  //   if (isExpense) {
+  //     if (!this.userData.isTwoBusinessOwner) {
+  //       this.editFieldsNamesExpenses = this.editFieldsNamesExpenses.filter(
+  //         field => field.name !== TransactionsOutcomesColumns.BUSINESS_NUMBER); // For remove column businessNumber from array for one business 
+  //     }
+  //     const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
+  //     const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
+  //     disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
+  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
+  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
+  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent === 0 ? 0 : ""),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
+  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
+
+  //   }
+  //   else {
+  //     editFieldsNamesIncomes = this.fieldsNamesIncome.filter(
+  //       field => {
+  //         return field.name !== TransactionsOutcomesColumns.NOTE && field.name !== TransactionsOutcomesColumns.BUSINESS_NAME
+  //       }
+  //     ); // For remove column note & businessName from array 
+  //     editFieldsNamesIncomes.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
+
+  //     disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY, TransactionsOutcomesColumns.MONTH_REPORT];
+
+  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
+  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
+  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
+  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
+  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
+  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
+  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
+  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
+  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.MONTH_REPORT).patchValue(data.vatReportingDate || '');
+
+  //   }
 
 
-    if (data.category !== "טרם סווג" && data.category !== undefined) {
-      from(this.modalController.create({
-        component: editRowComponent,
-        componentProps: {
-          data,
-          fields: isExpense ? this.editFieldsNamesExpenses : editFieldsNamesIncomes,
-          parentForm: isExpense ? this.editRowExpenseForm : this.editRowIncomeForm,
-          disabledFields
-        },
-        cssClass: 'edit-row-modal',
-      }))
-        .pipe(
-          takeUntil(this.destroy$),
-          catchError((err) => {
-            alert("open Edit Row error");
-            console.log("open Edit Row error: ", err);
-            return EMPTY;
-          }),
-          switchMap((modal) => from(modal.present())
-            .pipe(
-              takeUntil(this.destroy$),
-              switchMap(() => from(modal.onWillDismiss())
-                .pipe(
-                  takeUntil(this.destroy$),
-                  tap((data) => {
-                    if (data.role != 'backdrop' && data.role != 'cancel') {
-                      // this.getTransactions()
-                    }
-                  })
-                )
-              )
-            )),
-          catchError((err) => {
-            alert("open Edit row switchMap error");
-            console.log("open Edit row switchMap error: ", err);
-            return EMPTY;
-          }))
-        .subscribe((res) => {
-          if (res.role == 'send') {
-            this.genericService.getLoader().subscribe();
-            this.updateRow(res.data.id)
-          }
-        });
-    }
-    else {
-      alert("חובה לסווג תנועה כדי לאפשר עריכה")
-    }
-  }
 
-  updateRow(id: number): void {
-    let formData: IClassifyTrans = this.editRowExpenseForm.getRawValue();
-    console.log("edit row form: ", formData);
 
-    formData.id = id;
-    formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
-    formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
-    formData.isSingleUpdate = true;
-    formData.isNewCategory = false;
-    formData.vatPercent = +formData.vatPercent;
-    formData.taxPercent = +formData.taxPercent;
-    formData.reductionPercent = +formData.reductionPercent;
+  //   if (data.category !== "טרם סווג" && data.category !== undefined) {
+  //     from(this.modalController.create({
+  //       component: editRowComponent,
+  //       componentProps: {
+  //         data,
+  //         fields: isExpense ? this.editFieldsNamesExpenses : editFieldsNamesIncomes,
+  //         parentForm: isExpense ? this.editRowExpenseForm : this.editRowIncomeForm,
+  //         disabledFields
+  //       },
+  //       cssClass: 'edit-row-modal',
+  //     }))
+  //       .pipe(
+  //         takeUntil(this.destroy$),
+  //         catchError((err) => {
+  //           alert("open Edit Row error");
+  //           console.log("open Edit Row error: ", err);
+  //           return EMPTY;
+  //         }),
+  //         switchMap((modal) => from(modal.present())
+  //           .pipe(
+  //             takeUntil(this.destroy$),
+  //             switchMap(() => from(modal.onWillDismiss())
+  //               .pipe(
+  //                 takeUntil(this.destroy$),
+  //                 tap((data) => {
+  //                   if (data.role != 'backdrop' && data.role != 'cancel') {
+  //                     // this.getTransactions()
+  //                   }
+  //                 })
+  //               )
+  //             )
+  //           )),
+  //         catchError((err) => {
+  //           alert("open Edit row switchMap error");
+  //           console.log("open Edit row switchMap error: ", err);
+  //           return EMPTY;
+  //         }))
+  //       .subscribe((res) => {
+  //         if (res.role == 'send') {
+  //           this.genericService.getLoader().subscribe();
+  //           this.updateRow(res.data.id)
+  //         }
+  //       });
+  //   }
+  //   else {
+  //     alert("חובה לסווג תנועה כדי לאפשר עריכה")
+  //   }
+  // }
 
-    this.transactionService.updateRow(formData)
-      .pipe(
-        // finalize(() => this.genericService.dismissLoader()),
-        catchError((err) => {
-          alert("עדכון שורה נכשל");
-          this.genericService.dismissLoader();
-          return EMPTY;
-        }),
-        takeUntil(this.destroy$)
-      )
-      .subscribe((res) => {
-        this.genericService.dismissLoader();
-        this.genericService.showToast("עדכון שורה הצליח", "success");
-        // this.messageToast = "עדכון שורה הצליח"
-        // this.isToastOpen = true;
-        this.getExpensesData()
-      });
-  }
+  // updateRow(id: number): void {
+  //   let formData: IClassifyTrans = this.editRowExpenseForm.getRawValue();
+  //   console.log("edit row form: ", formData);
+
+  //   formData.id = id;
+  //   formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
+  //   formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
+  //   formData.isSingleUpdate = true;
+  //   formData.isNewCategory = false;
+  //   formData.vatPercent = +formData.vatPercent;
+  //   formData.taxPercent = +formData.taxPercent;
+  //   formData.reductionPercent = +formData.reductionPercent;
+
+  //   this.transactionService.updateRow(formData)
+  //     .pipe(
+  //       // finalize(() => this.genericService.dismissLoader()),
+  //       catchError((err) => {
+  //         alert("עדכון שורה נכשל");
+  //         this.genericService.dismissLoader();
+  //         return EMPTY;
+  //       }),
+  //       takeUntil(this.destroy$)
+  //     )
+  //     .subscribe((res) => {
+  //       this.genericService.dismissLoader();
+  //       this.genericService.showToast("עדכון שורה הצליח", "success");
+  //       // this.messageToast = "עדכון שורה הצליח"
+  //       // this.isToastOpen = true;
+  //       this.getExpensesData()
+  //     });
+  // }
 
   openAddTransaction(event, isExpense: boolean): void {
     from(this.modalController.create({
@@ -845,78 +882,78 @@ export class TransactionsPage implements OnInit {
       });
   }
 
-  onClickedCell(event: { str: string, data: IRowDataTable }, isExpense: boolean = true): void {
-    if (event.str === "bill") {
-      // this.openAddBill(event.data);
-    }
-    else {
-      event.data.billName === "לא שוייך" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
-    }
-  }
+  // onClickedCell(event: { str: string, data: IRowDataTable }, isExpense: boolean = true): void {
+  //   if (event.str === "bill") {
+  //     // this.openAddBill(event.data);
+  //   }
+  //   else {
+  //     event.data.billName === "לא שוייך" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
+  //   }
+  // }
 
-  openPopupSelect(): void {
-    from(this.modalController.create({
-      component: PopupSelectComponent,
-      componentProps: {
-        message: "עבור איזה עסק אתה רוצה להפיק דוח?",
-        options: this.bussinesesList,
-      },
-      cssClass: 'popup-select'
-    }))
-      .pipe(
-        catchError((err) => {
-          alert("create popup select error");
-          return EMPTY;
-        }),
-        switchMap((modal) => from(modal.present())
-          .pipe(
-            catchError((err) => {
-              alert("present popup select error");
-              console.log(err);
-              return EMPTY;
-            }),
-            switchMap(() => from(modal.onWillDismiss())
-              .pipe(
-                catchError((err) => {
-                  console.log("err in close popup select: ", err);
-                  return EMPTY;
-                })
-              ))
-          )))
-      .subscribe((res) => {
-        this.businessSelect = res.data;
-        console.log("businessSelect: ", this.businessSelect);
+  // openPopupSelect(): void {
+  //   from(this.modalController.create({
+  //     component: PopupSelectComponent,
+  //     componentProps: {
+  //       message: "עבור איזה עסק אתה רוצה להפיק דוח?",
+  //       options: this.bussinesesList,
+  //     },
+  //     cssClass: 'popup-select'
+  //   }))
+  //     .pipe(
+  //       catchError((err) => {
+  //         alert("create popup select error");
+  //         return EMPTY;
+  //       }),
+  //       switchMap((modal) => from(modal.present())
+  //         .pipe(
+  //           catchError((err) => {
+  //             alert("present popup select error");
+  //             console.log(err);
+  //             return EMPTY;
+  //           }),
+  //           switchMap(() => from(modal.onWillDismiss())
+  //             .pipe(
+  //               catchError((err) => {
+  //                 console.log("err in close popup select: ", err);
+  //                 return EMPTY;
+  //               })
+  //             ))
+  //         )))
+  //     .subscribe((res) => {
+  //       this.businessSelect = res.data;
+  //       console.log("businessSelect: ", this.businessSelect);
 
-        console.log("res of popup select: ", res);
-        if (res.role === 'success') {
-          this.openFlowReport();
-        }
-      });
-  }
+  //       console.log("res of popup select: ", res);
+  //       if (res.role === 'success') {
+  //         this.openFlowReport();
+  //       }
+  //     });
+  // }
 
-  openFlowReport(): void {
-    if (!this.userData.isTwoBusinessOwner) {
-      this.businessSelect = this.userData.businessNumber;
-    }
-    this.router.navigate(['flow-report'], {
-      queryParams: {
-        startDate: this.dateForUpdate.startDate,
-        endDate: this.dateForUpdate.endDate,
-        businessNumber: this.businessSelect,
-        accounts: 'null'
-      }
-    })
-  }
+  // openFlowReport(): void {
+  //   if (!this.userData.isTwoBusinessOwner) {
+  //     this.businessSelect = this.userData.businessNumber;
+  //   }
+  //   this.router.navigate(['flow-report'], {
+  //     queryParams: {
+  //       startDate: this.dateForUpdate.startDate,
+  //       endDate: this.dateForUpdate.endDate,
+  //       businessNumber: this.businessSelect,
+  //       accounts: 'null'
+  //     }
+  //   })
+  // }
 
-  filterByExpenses(event: string): void {
-    this.filterByExpense = event;
-    this.filterExpenses()
-  }
+  // filterByExpenses(event: string): void {
+  //   this.filterByExpense = event;
+  //   this.filterExpenses()
+  // }
 
-  filterByIncomes(event: string): void {
-    this.filterByIncome = event;
-    this.filterIncomes()
-  }
+  // filterByIncomes(event: string): void {
+  //   this.filterByIncome = event;
+  //   this.filterIncomes()
+  // }
 
   openAccountAssociation(event: { state: boolean, data: IRowDataTable }): void {
     this.visibleAccountAssociationDialog.set(event.state);
@@ -934,14 +971,9 @@ export class TransactionsPage implements OnInit {
   }
 
   openAddCategory(event: { state: boolean, subCategoryMode: boolean, category?: string }): void {
-    
-    // console.log("🚀 ~ openAddCategory ~ subCategoryMode:", event.subCategoryMode)
-    // console.log("🚀 ~ openAddCategory ~ category:", event.category)
     this.visibleAddCategory.set(event.state);
     this.subCategoryMode.set(event.subCategoryMode);
     this.categoryName.set(event.category);
-    // console.log("🚀 ~ openAddCategory ~ this.categoryName:", this.categoryName())
-    // console.log("🚀 ~ openAddCategory ~ this.subCategoryMode:", this.subCategoryMode())
   }
 
   closeAccountAssociation(event: { visible: boolean, data: boolean }): void {
@@ -988,10 +1020,105 @@ export class TransactionsPage implements OnInit {
 
   applyFilters(filters: FormGroup): void {
     this.getTransactions(filters);
+    this.visibleFilterPannel.set(false);
   }
+
+  resetFilters(event: string): void {
+    console.log("🚀 ~ resetFilters ~ event:", event);
+  
+    switch (event) {
+      case 'time':
+        this.filterData.update(current => {
+          // Reset the time-related fields
+          return {
+            ...current,
+            year: null,
+            month: null,
+            bimonth: null,
+            startDate: null,
+            endDate: null,
+            periodType: null
+          };
+        });
+        break;
+  
+      case 'account':
+        this.filterData.update(current => ({
+          ...current,
+          account: []
+        }));
+        break;
+  
+      case 'category':
+        this.filterData.update(current => ({
+          ...current,
+          category: []
+        }));
+        break;
+    }
+  
+    // After resetting — always call getTransactions with updated filters
+    this.getTransactions(this.filterData());
+  }
+  
 
   imageBunnerButtonClicked(event: any): void {
     this.router.navigate(['/reports'])
   }
+
+  onQuickClassifyClicked(event: boolean): void {
+    this.getTransactions(this.filterData());
+  }
+  
+  selectOption(value: string) {
+    console.log("🚀 ~ selectOption ~ value:", value)
+    const valueExist = this.selectedValue.some(v => v === value);
+
+    console.log("🚀 ~ selectOption ~ valueExist:", valueExist);
+    if (valueExist) {
+      this.selectedValue = this.selectedValue.filter(item => item !== value);
+    } else {
+      this.selectedValue.push(value);
+    }
+    console.log("🚀 ~ selectOption ~ this.selectedValue:", this.selectedValue);
+
+    // const filteredExpenses = this.expensesData.filter(row => {
+    //   const hasClassification = this.selectedValue.includes('classification');
+    //   const hasNotClassification = this.selectedValue.includes('notClassification');
+    
+    //   if (hasClassification && hasNotClassification) return true; // show all
+    //   if (hasClassification) return row.category !== 'לא שוייך';
+    //   if (hasNotClassification) return row.category === 'לא שוייך';
+    //   return true; // default is display all
+    // });
+    this.classifyDataFilter();
+  }
+
+  classifyDataFilter(): void {
+   this.filteredExpensesData.set(this.expensesData.filter(row => {
+      const hasClassification = this.selectedValue.includes('classification');
+      const hasNotClassification = this.selectedValue.includes('notClassification');
+    
+      if (hasClassification && hasNotClassification) return true; // show all
+      if (hasClassification) return row.category !== 'טרם סווג';
+      if (hasNotClassification) return row.category === 'טרם סווג';
+      return true; // default is display all
+    }));
+
+    this.filteredIncomesData.set(this.incomesData.filter(row => {
+      const hasClassification = this.selectedValue.includes('classification');
+      const hasNotClassification = this.selectedValue.includes('notClassification');
+    
+      if (hasClassification && hasNotClassification) return true; // show all
+      if (hasClassification) return row.category !== 'טרם סווג';
+      if (hasNotClassification) return row.category === 'טרם סווג';
+      return true; // default is display all
+    }));
+    console.log("🚀 ~ selectOption ~ filteredExpenses:", this.filteredIncomesData())
+
+    // return this.expensesData = filteredExpenses;
+  }
+
+  
 
 }

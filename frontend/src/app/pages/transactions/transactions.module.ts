@@ -13,6 +13,9 @@ import { AccountAssociationDialogComponent } from "../../components/account-asso
 import { AddBillComponent } from "../../components/add-bill/add-bill.component";
 import { ClassifyTranComponent } from "../../components/classify-tran/classify-tran.component";
 import { AddCategoryComponent } from "../../components/add-category/add-category.component";
+import { CheckboxModule } from 'primeng/checkbox';
+import { FilterPanelComponent } from "../../components/filter-panel/filter-panell.component";
+import { ButtonComponent } from "../../components/button/button.component";
 
 @NgModule({
   imports: [
@@ -28,7 +31,10 @@ import { AddCategoryComponent } from "../../components/add-category/add-category
     AccountAssociationDialogComponent,
     AddBillComponent,
     ClassifyTranComponent,
-    AddCategoryComponent
+    AddCategoryComponent,
+    CheckboxModule,
+    FilterPanelComponent,
+    ButtonComponent
 ],
   declarations: [TransactionsPage]
 })

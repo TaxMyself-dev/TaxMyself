@@ -225,6 +225,9 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       border-color: transparent;
       color: rgb(42, 38, 38);
     }
+    &.gray {
+      color: #808080;
+    }
   }
 
   &.outlined {
@@ -404,12 +407,25 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
       }
     }
   }
+
   
 }
 
 input.p-inputtext::placeholder {
   color: gray !important;       /* your desired color */
   opacity: 1;           /* ensure full opacity if needed */
+}
+
+.p-autocomplete-input {
+  padding-inline: var(--p-inputtext-padding-x) !important;
+  border-radius: 26px !important;
+  background-color: #e0e0e054   !important;
+  border: 1px solid #ebe8e8 !important;
+
+  &.dirty {
+    border: 1px solid #204F56 !important;
+    background-color: white !important;
+  }
 }
 
 .p-dialog-header {
@@ -446,5 +462,6 @@ input.p-inputtext::placeholder {
   &::-webkit-scrollbar {
     display: none !important; /* Hide scrollbar in Chrome, Safari, and Opera */
   }
+  height: 500px !important; /* Set a fixed height for the table container */
 }
 

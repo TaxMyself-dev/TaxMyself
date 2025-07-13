@@ -371,19 +371,3 @@ export interface ICreateDocField<TFieldsHebrew, TFields> {
     expandable?: boolean;
     onChange?: (event?: any, parent?: any) => void;
 }
-
-export interface IFilterItems {
-    defaultValue: string;
-    name: string;
-    value: string;
-    fields: ISubFilterList[];
-}
-
-export interface ISubFilterList {
-    name: string;
-    value: string;
-    checkbox: boolean;
-    checked?: boolean;
-    multiple: boolean;
-    children?: ISubFilterList[];
-}

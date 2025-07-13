@@ -61,18 +61,24 @@ export class FinsiteService {
       });
     });
 
-    console.log("companiesData is ", companiesData);
+    // console.log("companiesData is ", companiesData);
     // Save each payment method in the Finsite entity
     for (const company of companiesData) {
+      // console.log("############# company is :", company.name);
+      console.log(`############# company is: ${company.name} | finsiteId: ${company.id} #############`);
       for (const account of company.accounts) {
-        for (const method of account.paymentMethods) {          
+        // console.log("account is :", account);
+        console.log(`############# account is: ${account.AccountName} | number: ${account.AccountNumber} #############`);
 
+        for (const method of account.paymentMethods) {    
           // Save only if subtype is "CreditCard" or "Current"
           if (method.subtype !== 'CreditCard' && method.subtype !== 'Current') {
             continue;
           }
+          console.log("method is :", method);
 
-          console.log("--------method is ", method);
+
+          // console.log("--------method is ", method);
 
           // Fetch the balance before checking for existing record
           const currentDate = new Date().toISOString().split('T')[0];
@@ -83,11 +89,11 @@ export class FinsiteService {
           let existingRecord = await this.finsiteRepo.findOneBy({ getTransFid: method.id });
 
           if (existingRecord) {
-            console.log(`Updating balance for existing payment method with id ${method.id}`);
+            // console.log(`Updating balance for existing payment method with id ${method.id}`);
             existingRecord.balance = balance; // Update only the balance field
             await this.finsiteRepo.save(existingRecord);
           } else {
-            console.log(`Creating new record for payment method with id ${method.id}`);
+            // console.log(`Creating new record for payment method with id ${method.id}`);
             const finsiteMethod = new Finsite();
             finsiteMethod.getTransFid = method.id;
             finsiteMethod.accountFid = method.accountId;

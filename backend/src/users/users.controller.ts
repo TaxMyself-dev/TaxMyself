@@ -53,4 +53,9 @@ export class UsersController {
         return this.userService.updateUser (userId, body);
     }
 
+    @Get('get-cities')
+    async getCities() {
+      return this.userService.fetchCities();
+    }
+
 }

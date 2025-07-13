@@ -1,11 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IItemNavigate, IUserData } from 'src/app/shared/interface';
 import { TransactionsService } from '../transactions/transactions.page.service';
-import { catchError, EMPTY, map } from 'rxjs';
+import { catchError, EMPTY, finalize, map } from 'rxjs';
 import { GenericService } from 'src/app/services/generic.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 
 @Component({
     selector: 'app-my-account',
@@ -17,6 +18,9 @@ export class MyAccountPage implements OnInit {
 
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
+  expenseService = inject(ExpenseDataService);
+
+  isLoadingDataTable = signal<boolean>(false);
 
   userData: IUserData;
   transToClassify: any;
@@ -58,7 +62,7 @@ export class MyAccountPage implements OnInit {
 
   getTransToClassify(): void {
     console.log("Fetching transactions to classify...");
-    
+    this.isLoadingDataTable.set(true);
   this.transToClassify = this.transactionService
     .getTransToClassify()
     .pipe(
@@ -66,6 +70,7 @@ export class MyAccountPage implements OnInit {
         console.error('Error in getTransToClassify:', err);
         return EMPTY;
       }),
+      finalize(() => this.isLoadingDataTable.set(false)),
       map(data =>
         data
           // .filter(row => row.isRecognized)
@@ -83,4 +88,11 @@ export class MyAccountPage implements OnInit {
     
 }
 
+openAddExpensesPage(): void {
+
+}
+
+// openModalAddExpenses(): void {
+//   this.expenseService.openModalAddExpense().subscribe()
+// }
 }
