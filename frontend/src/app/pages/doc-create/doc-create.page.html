@@ -9,34 +9,35 @@
       <p class="text-header">
         בחר איזה מסמך ברצונך להפיק   
       </p>
+      <app-input-select [controlName]="'docType'" labelText="סוג המסמך" [placeholder]="'בחר את סוג המסמך'" [items]="DocCreateTypeList" [parentForm]="generalDocForm" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onSelectedDoc($event)"></app-input-select>
     </div>
 
+    @if (selectedDocType) {
     <div class="general-fields">
-      @for(field of generalArray; track field.value) {
-        <!-- <p>{{field.value}}</p> -->
-        @switch (field.type) {
-          @case (formTypes.TEXT) {
-            <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDetailsForm"
-        [size]="inputsSize.BETWEEN"></app-input-text>
-          }
-          <!-- @case (formTypes.DATE) {
-              <p-datepicker
-                  placeholder="תאריך"
-                  name="תאריך המסמך"
-                  formControlName="docDate"
-                  [iconDisplay]="'input'"
-                  [showIcon]="true"
-                  inputId="docDate"
-                  [dateFormat]="'dd/mm/yy'"
-                  [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
-                ></p-datepicker>
-          } -->
-          @case (formTypes.DDL) {
-            <app-input-select [controlName]="'docType'" labelText="סוג המסמך" [placeholder]="'בחר את סוג המסמך'" [items]="DocCreateTypeList" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onSelectedDoc($event)"></app-input-select>
-          }
+
+      <div class="section-one">
+        <app-input-date [controlName]="'docDate'" labelText="תאריך המסמך" placeholder="00/00/0000" [parentForm]="generalDocForm"></app-input-date>
+        <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN"></app-input-text>
+      </div>
+
+      <div>
+        @if (showGeneralMoreFields) {
+          <app-input-text [controlName]="'docVatRate'" labelText="אחוז המעמ" [placeholder]="'אחוז המעמ'" [parentForm]="generalDocForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'"></app-input-text>
         }
-      }
+      </div>
+
+      <div>
+        <app-p-button class="pnl-pdf-button"
+          [buttonText]="showGeneralMoreFields ? 'הסתר שדות' : ' הצג הכל'"
+          [variant]="'text'"
+          [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="showGeneralMoreFields = !showGeneralMoreFields">
+        </app-p-button>
+      </div>
+
     </div>
+    }
 
   </div>
 
@@ -49,22 +50,30 @@
     </div>
 
     <div class="general-fields">
-      @for(field of userArray; track field.value) {
-        @switch (field.type) {
-          @case (formTypes.TEXT) {
-            <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
-        [size]="inputsSize.BETWEEN"></app-input-text>
-          }
-          @case (formTypes.TELEPHONE) {
-            <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
-        [size]="inputsSize.BETWEEN"></app-input-text>
-          }
-          @case (formTypes.EMAIL) {
-            <app-input-text [controlName]="field.value" [labelText]="field.labelText" [placeholder]="field.placeHolder" [parentForm]="userDetailsForm"
-        [size]="inputsSize.BETWEEN"></app-input-text>
-          }
+
+      <div class="section-one">
+        <app-input-text [controlName]="'customerName'" labelText="שם הלקוח" [placeholder]="'הקלד שם לבחירת לקוח קיים'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'customerId'" labelText="ת.ז או ח.פ" [placeholder]="'הקלד 9 ספרות'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'customerPhone'" labelText="טלפון נייד" [placeholder]="'הקלד 10 ספרות'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'customerEmail'" labelText="כתובת אימייל" [placeholder]="'name@gmail.com'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+      </div>
+
+      <div>
+        @if (showUserMoreFields) {
+          <app-input-text [controlName]="'docVatRate'" labelText="אחוז המעמ" [placeholder]="'אחוז המעמ'" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'"></app-input-text>
         }
-      }
+      </div>
+
+      <div>
+        <app-p-button class="pnl-pdf-button"
+          [buttonText]="showUserMoreFields ? 'הסתר שדות' : 'הצג הכל'"
+          [variant]="'text'"
+          [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="showUserMoreFields = !showUserMoreFields">
+        </app-p-button>
+      </div>
+
     </div>
 
   </div>
@@ -79,34 +88,107 @@
 
     <div class="line-item-row">
 
-      <!-- תיאור -->
-      <input pInputText type="text" placeholder="אנא מלא את התיאור" class="field description" />
+      <!-- Row of field titles -->
+      <div class="fields-grid fields-header">
+        <div>תיאור</div>
+        <div>כמות</div>
+        <div>מע״מ</div>
+        <div>סכום</div>
+        <div>הנחה</div>
+        <div>פעולה</div>
+      </div>
 
-      <!-- כמות -->
-      <!-- <p-inputNumber [(ngModel)]="quantity" inputId="quantity" class="field quantity" [showButtons]="false" /> -->
+      <!-- Line below headers -->
+      <hr class="fields-divider" />
 
-      <!-- מע"מ -->
-      <!-- <div class="field vat-options">
-        <p-checkbox name="vat" value="notIncluded" label="לא כולל מע״מ" [(ngModel)]="vatSelection"></p-checkbox>
-        <p-checkbox name="vat" value="before" label="לפני מע״מ" [(ngModel)]="vatSelection"></p-checkbox>
-        <p-checkbox name="vat" value="included" label="כולל מע״מ" [(ngModel)]="vatSelection"></p-checkbox>
-      </div> -->
 
-      <!-- סכום -->
-      <!-- <p-inputNumber [(ngModel)]="amount" class="field amount" [mode]="'decimal'" [minFractionDigits]="0" /> -->
+      <form [formGroup]="linesDocForm">
 
-      <!-- הנחה -->
-      <!-- <div class="field discount">
-        <p-inputGroup>
-          <p-suffix>%</p-suffix>
-          <input pInputText type="text" [(ngModel)]="discount" />
-        </p-inputGroup>
-      </div> -->
+        <div class="fields-grid fields-row">
 
-      <!-- פעולה -->
-      <!-- <a class="add-action" (click)="addRow()">הוסף</a> -->
+          <!-- תיאור -->
+          <app-input-text [controlName]="'lineDescription'" [placeholder]="'אנא מלא את התיאור'" [parentForm]="linesDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+
+          <!-- כמות -->
+          <p-inputnumber class="plus-minus" formControlName="lineQuantity" [showButtons]="true" buttonLayout="horizontal" spinnerMode="horizontal" [inputStyle]="{ width: '3rem' }">
+          <ng-template #incrementbuttonicon>
+            <span class="pi pi-plus"></span>
+          </ng-template>
+          <ng-template #decrementbuttonicon>
+            <span class="pi pi-minus"></span>
+          </ng-template>
+          </p-inputnumber>
+
+          <!-- מע"מ -->
+          <div class="gender-options-row">
+            <div class="vat-option">
+              <p-radiobutton formControlName="lineVatType" value="with" name="lineVatType" inputId="with" />
+              <label for="with" class="ml-2">כולל מע"מ</label>
+            </div>
+            <div class="vat-option">
+              <p-radiobutton formControlName="lineVatType" value="before" name="lineVatType" inputId="before" />
+              <label for="before" class="ml-2">לא כולל מע"מ</label>
+            </div>
+            <div class="vat-option">
+              <p-radiobutton formControlName="lineVatType" value="without" name="lineVatType" inputId="without" />
+              <label for="without" class="ml-2">ללא מע"מ</label>
+            </div>
+          </div>
+
+          <!-- סכום -->
+          <app-input-text [controlName]="'lineSum'" [placeholder]="'סכום'" [parentForm]="linesDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+          
+          <!-- הנחה -->
+          <app-input-text [controlName]="'lineDiscount'" [placeholder]="'הנחה'" [parentForm]="linesDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+
+          <!-- <app-p-button [buttonText]="'₪'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK" (onButtonClicked)="linesDocForm?.get('lineDiscountType')?.setValue('₪')"></app-p-button>
+          <app-p-button [buttonText]="'%'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK" (onButtonClicked)="linesDocForm?.get('lineDiscountType')?.setValue('%')"></app-p-button> -->
+
+          <app-p-button class="pnl-pdf-button"
+            [buttonText]="'הוסף שורה'"
+            [variant]="'text'"
+            [severity]="'info'"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="onAddLine()">
+          </app-p-button>
+
+        </div>
+
+      </form>
 
     </div>
+
+    @if (lineItems.length > 0) {
+      <div class="line-items-table">
+
+        <!-- כותרת -->
+        <div class="line-row header">
+          <div>תיאור</div>
+          <div>כמות</div>
+          <div>מע״מ</div>
+          <div>סכום</div>
+          <div>הנחה</div>
+        </div>
+
+        <hr class="fields-divider" />
+
+        <!-- שורות -->
+        @for (line of lineItems; track $index; let i = $index) {
+          <div class="line-row">
+            <div>{{ line.description }}</div>
+            <div>{{ line.unitAmount }}</div>
+            <div>{{ getVatLabel(line.vatOpts) }}</div>
+            <div>{{ line.sum | currency:'ILS' }}</div>
+            <div>{{ line.discount || '-' }}</div>
+            <div class="actions">
+              <i class="pi pi-trash" (click)="deleteLine(i)"></i>
+            </div>
+          </div>
+        }
+
+      </div>
+    }
+
 
   </div>
 
@@ -120,182 +202,13 @@
 
   </div>
 
+
+  <div class="section send-button-wrapper">
+    <app-p-button
+      [buttonText]="'שלח מסמך'"
+      [buttonSize]="buttonSize.AUTO"
+      [disabled]="!generalDetailsForm.valid || !customerDocForm.valid">
+    </app-p-button>
+  </div>
+
 </div>
-
-    <!-- <ng-container *ngFor="let field of generalArray">
-    <ng-container [ngSwitch]="field.type">
-
-      <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
-        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-      <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
-        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-      <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name" [controlName]="field.value"
-        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-      <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
-        [controlName]="field.value" [parentForm]="generalDetailsForm"
-        [inputType]="field.type"></app-generic-input>
-
-      <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
-        [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-      <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
-        [parentForm]="generalDetailsForm"
-        [items]="getDropdownItems(field.value)"></app-generic-select>
-    </ng-container>
-  </ng-container> -->
-
-<!-- <ion-content [fullscreen]="true">
-  <div class="wrap-screen">
-    <app-generic-select class="default-input-doc" title="בחר מסמך" [items]="DocCreateTypeList"
-      (selectionChanged)="onSelectedDoc($event)">
-    </app-generic-select>
-  </div>
-  <div *ngIf="fileSelected && !isInitial; else initialTemplate">
-    <p>{{HebrewNameFileSelected}} מספר: {{docIndexes?.docIndex}}</p> -->
-
-    <!-- General details card -->
-    <!-- <ion-card>
-      <ion-card-header>
-        <ion-card-title>נתוני מסמך כלליים</ion-card-title>
-        <app-button [buttonText]="isGeneralExpanded ? 'צמצם' : 'הרחב'"
-          (onButtonClicked)="expandGeneralDetails()"></app-button>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-list>
-          <ng-container *ngFor="let field of generalArray">
-            <ng-container [ngSwitch]="field.type">
-
-              <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
-                [controlName]="field.value" [parentForm]="generalDetailsForm"
-                [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="generalDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
-                [parentForm]="generalDetailsForm"
-                [items]="getDropdownItems(field.value)"></app-generic-select>
-            </ng-container>
-          </ng-container>
-        </ion-list>
-      </ion-card-content>
-    </ion-card> -->
-
-    <!-- User details card -->
-    <!-- <ion-card *ngIf="myForm">
-      <ion-card-header>
-        <ion-card-title>פרטי לקוח</ion-card-title>
-        <app-button [buttonText]="isUserExpanded ? 'צמצם' : 'הרחב'"
-          (onButtonClicked)="expandUserDetails()"></app-button>
-
-      </ion-card-header>
-      <ion-card-content>
-        <app-button buttonText="בחר לקוח" (onButtonClicked)="openSelectClients()"></app-button>
-        <app-button buttonText="שמור לקוח" (onButtonClicked)="saveClient()"></app-button>
-        <ion-list>
-          <ng-container *ngFor="let field of userArray">
-            <ng-container [ngSwitch]="field.type">
-
-              <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.TELEPHONE" [inputLabel]="field.name"
-                [controlName]="field.value" [parentForm]="userDetailsForm"
-                [inputType]="field.type"></app-generic-input>
-
-              <app-generic-input *ngSwitchCase="formTypes.EMAIL" [inputLabel]="field.name" [controlName]="field.value"
-                [parentForm]="userDetailsForm" [inputType]="field.type"></app-generic-input>
-
-              <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
-                [parentForm]="userDetailsForm"
-                [items]="getDropdownItems(field.value)"></app-generic-select>
-            </ng-container>
-          </ng-container>
-        </ion-list>
-      </ion-card-content>
-    </ion-card> -->
-
-    <!-- Payment details card -->
-    <!-- <ion-card>
-      <ion-card-header>
-        <ion-card-title>פרטי תשלום</ion-card-title>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-list *ngIf="paymentsFormArray.length > 0">
-          <app-button [buttonText]="'Add'" (onButtonClicked)="addPayment()"></app-button>
-          <ng-container *ngFor="let form of paymentsArray; let i = index">
-            <app-button [buttonText]="'Remove'" (onButtonClicked)="removePayment(i)"></app-button>
-            <app-button [buttonText]="isPaymentExpanded ? 'צמצם' : 'הרחב'"
-              (onButtonClicked)="expandPaymentDetails(i)"></app-button>
-            <ng-container *ngFor="let field of form">
-              <ng-container [ngSwitch]="field.type">
-                <app-generic-input *ngSwitchCase="formTypes.TEXT" [inputLabel]="field.name" [controlName]="field.value"
-                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input>
-
-                <app-generic-input *ngSwitchCase="formTypes.DATE" [inputLabel]="field.name" [controlName]="field.value"
-                  [parentForm]="getPaymentFormByIndex(i)" [inputType]="field.type"></app-generic-input>
-
-                <app-generic-input *ngSwitchCase="formTypes.NUMBER" [inputLabel]="field.name"
-                  [controlName]="field.value" [parentForm]="getPaymentFormByIndex(i)"
-                  [inputType]="field.type"></app-generic-input>
-
-                <app-generic-select *ngSwitchCase="formTypes.DDL" [title]="field.name" [controlName]="field.value"
-                  [parentForm]="getPaymentFormByIndex(i)" (selectionChanged)="onSelectionChanged(field.value, $event, i)"
-                  [items]="getDropdownItems(field.value)"></app-generic-select>
-              </ng-container>
-            </ng-container>
-          </ng-container>
-        </ion-list>
-      </ion-card-content>
-    </ion-card> -->
-
-    <!-- <ion-card>
-      <ion-card-header>
-        <ion-card-title>סה"כ לתשלום</ion-card-title>
-      </ion-card-header>
-      <div class="wrap-amount">
-        <p>amount before vat: {{overallTotals?.sumBefDisBefVat}}&nbsp;&nbsp;</p>
-        <p>vat amount: {{overallTotals?.vatSum}}&nbsp;&nbsp;</p>
-        <p>total amount: {{overallTotals?.sumAftDisWithVAT}}</p>
-      </div>
-    </ion-card>
-  </div>
-  <app-button [buttonText]="'Create'" (onButtonClicked)="createDoc()" [isLoading]="createPDFIsLoading"></app-button>
-  <app-button [buttonText]="'Preview'" (onButtonClicked)="previewtDoc()"
-    [isLoading]="createPreviewPDFIsLoading"></app-button>
-</ion-content> -->
-
-<!-- <ng-template #initialTemplate>
-  <ng-container *ngIf="fileSelected">
-
-    <p>
-      היי תמיד יש פעם ראשונה...
-      <br />
-      כמה הגדרות קצרות ונמשיך להפקת ה{{HebrewNameFileSelected}}
-    </p>
-    <form class="" [formGroup]="initialDetailsForm">
-      <app-generic-input inputLabel="באיזה מספר סידורי תרצה להתחיל?" [parentForm]="initialDetailsForm"
-        controlName="initialIndex" errorText="מספרים בלבד"></app-generic-input>
-    </form>
-    <app-button buttonText="Save" (onButtonClicked)="onClickInitialIndex()"
-      [disabled]="initialDetailsForm.invalid"></app-button>
-  </ng-container>
-</ng-template> -->

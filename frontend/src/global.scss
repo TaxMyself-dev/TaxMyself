@@ -379,6 +379,18 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     }
   }
 
+  &.white-style {
+    border: 1px solid #ebe8e8 !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+    border-radius: 26px !important;
+    background-color: white !important;
+    
+    &.dirty {
+      border: 1px solid #204F56 !important;
+      background-color: white !important;
+    }
+  }
+
   &.p-datepicker-input {
     &.register {
       padding-inline: var(--p-inputtext-padding-x) !important;

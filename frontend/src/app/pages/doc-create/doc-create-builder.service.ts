@@ -1,5 +1,5 @@
 import { Injectable } from "@angular/core";
-import { CardCompany, CreateDocFields, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from "src/app/shared/enums";
+import { CardCompany, CreateDocFields, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodValue, UnitOfMeasure, VatOptions } from "src/app/shared/enums";
 import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
 
@@ -283,7 +283,7 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [VatOptionsValue],
+            enumValues: [VatOptions],
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
@@ -495,7 +495,7 @@ export class DocCreateBuilderService {
     readonly docCreateBuilderSectionsData: Partial<Record<SectionKeysEnum, ICreateDocSectionData>> = {
         'GeneralDetails': {
             key: 'GeneralDetails',
-            baseFields: [FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOCUMENT_DATE,],
+            baseFields: [FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOCUMENT_DATE, FieldsCreateDocValue.DOC_VAT_RATE],
             expandable: true,
             expandedFields: [FieldsCreateDocValue.DOC_VAT_RATE, FieldsCreateDocValue.CURRENCY]
         },

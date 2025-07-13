@@ -13,6 +13,9 @@ import { Button } from 'primeng/button';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
+import { InputDateComponent } from "../../components/input-date/input-date.component";
+import { InputNumberModule } from 'primeng/inputnumber';
+import { RadioButtonModule } from 'primeng/radiobutton';
 
 @NgModule({
   imports: [
@@ -25,8 +28,11 @@ import { InputTextComponent } from 'src/app/components/input-text/input-text.com
     InputSelectComponent,
     InputTextComponent,
     ButtonComponent,
-    DatePickerModule
-  ],
+    DatePickerModule,
+    InputDateComponent,
+    InputNumberModule,
+    RadioButtonModule
+],
   declarations: [DocCreatePage]
 })
 export class DocCreatePageModule {}
