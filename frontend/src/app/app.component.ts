@@ -50,7 +50,6 @@ export class AppComponent implements OnInit {
     { label: 'הגדרות', routerLink: '/my-status' },
     { label: 'צור קשר' },
     { label: 'כניסה', routerLink: '/login' },
-    { label: 'פאנל ניהול', routerLink: '/admin-panel' },
   ]
 
   fromLoginPage = false; // Flag to check if entry was from login page
@@ -62,7 +61,7 @@ export class AppComponent implements OnInit {
   isAccountant: boolean = false;
   destroy$ = new Subject<void>();
 
-  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) { 
+  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) {
     // this.router.events.pipe(
     //   filter(e => e instanceof NavigationEnd)
     // ).subscribe((e: NavigationEnd) => {
@@ -77,7 +76,7 @@ export class AppComponent implements OnInit {
     this.hideTopNav();
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData?.role[0] === 'ADMIN') {
-      this.menuItems.push({ label: 'פאנל מנהלים', routerLink: '/admin-panel' });
+      this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
     }
     this.getRoute();
     this.getRoleUser();
@@ -92,7 +91,15 @@ export class AppComponent implements OnInit {
   restartData(): void {
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData?.role[0] === 'ADMIN') {
-      this.menuItems.push({ label: 'פאנל מנהלים', routerLink: '/admin-panel' });
+      const panelExist = this.menuItems.some(item => item.label === 'פאנל ניהול');
+      // If 'פאנל ניהול' is not already in the menuItems, add it
+      if (!panelExist) {
+        this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
+      }
+    }
+    else {
+      // If user is not admin, ensure 'פאנל ניהול' is removed
+      this.menuItems = this.menuItems.filter(item => item.label !== 'פאנל ניהול');
     }
     this.getRoleUser();
   }
