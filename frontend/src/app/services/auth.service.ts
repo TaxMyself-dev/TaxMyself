@@ -172,21 +172,20 @@ export class AuthService {
 
   SignUp(formData: any): Observable<any> {
     let uid: string = "";
-    this.genericService.getLoader().subscribe();
     return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.personal.password))
       .pipe(
-        finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log("err in create user: ", err);
           this.handleErrorSignup(err.code);
-          return EMPTY;
+          return throwError(() => err);
+          
         }),
         tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
         switchMap((userCredentialData: UserCredential) => from(sendEmailVerification(userCredentialData.user))),
         catchError((err) => {
           this.handleErrorSignup(err.code);
           console.log("err in send email verify: ", err);
-          return EMPTY;
+          return throwError(() => err);
         }),
         tap(() => this.isVerfyEmail$.next(true)),
         switchMap(() => {
@@ -202,7 +201,7 @@ export class AuthService {
             console.log("err:", err);
           })
           this.handleErrorSignup("auth/network-request-failed");
-          return EMPTY;
+          return throwError(() => err);
         })
       )
   }
