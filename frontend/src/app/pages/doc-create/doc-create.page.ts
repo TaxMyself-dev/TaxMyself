@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptionsValue } from 'src/app/shared/enums';
+import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptions } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
@@ -16,7 +16,9 @@ import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { is } from 'date-fns/locale';
 import { log } from 'console';
 import { inputsSize } from 'src/app/shared/enums';
-import { ButtonSize } from 'src/app/components/button/button.enum';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { RegisterFormControls } from '../register/regiater.enum';
+import { DocCreateFields, LineItems } from './doc-cerate.enum';
 
 
 
@@ -62,6 +64,23 @@ export class DocCreatePage implements OnInit {
 
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
+
+  // showMoreFields = false;
+  selectedDocType: string | null = null;
+  showGeneralMoreFields = false;
+  showUserMoreFields = false;
+  value1 = 50;
+  selectedUnit: string = '%';
+  value: number = 0;
+  lineItems: LineItems[] = [];
+
+
+  generalDocForm: FormGroup;
+  customerDocForm: FormGroup;
+  linesDocForm: FormGroup;
+  paymentForm: FormGroup;
+
   //accountsList = signal<ISelectItem[]>([]);
   form: FormGroup;
 
@@ -94,9 +113,9 @@ export class DocCreatePage implements OnInit {
   ];
 
   readonly vatOptionList = [
-    { value: VatOptionsValue.INCLUDE, name: 'כולל מע"מ' },
-    { value: VatOptionsValue.EXCLUDE, name: 'לא כולל מע"מ' },
-    { value: VatOptionsValue.WITHOUT, name: 'ללא מע"מ' },
+    { value: VatOptions.INCLUDE, name: 'כולל מע"מ' },
+    { value: VatOptions.EXCLUDE, name: 'לפני מע"מ' },
+    { value: VatOptions.WITHOUT, name: 'ללא מע"מ' },
   ];
 
   readonly UnitOfMeasureList = [
@@ -135,11 +154,64 @@ export class DocCreatePage implements OnInit {
 
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService) {
 
+    this.generalDocForm = this.formBuilder.group({
+      [DocCreateFields.DOC_TYPE]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.DOC_DATE]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.DOC_DESCRIPTION]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.DOC_VAT_RATE]: new FormControl(
+        18, Validators.required,
+      ),
+    })
+
+    this.customerDocForm = this.formBuilder.group({
+      [DocCreateFields.CUSTOMER_NAME]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.CUSTOMER_ID]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.CUSTOMER_PHONE]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.CUSTOMER_EMAIL]: new FormControl(
+        null, Validators.required,
+      ),
+    })
+
+    this.linesDocForm = this.formBuilder.group({
+      [DocCreateFields.LINE_DESCRIPTION]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.LINE_QUANTITY]: new FormControl(
+        1, Validators.required,
+      ),
+      [DocCreateFields.LINE_VAT_TYPE]: new FormControl(
+        null, Validators.required,
+      ),
+      [DocCreateFields.LINE_SUM]: new FormControl(
+        null, Validators.required,
+      ),
+      // [DocCreateFields.LINE_DISCOUNT_TYPE]: new FormControl(
+      //   null, Validators.required,
+      // ),
+       [DocCreateFields.LINE_DISCOUNT]: new FormControl(
+        null, Validators.required,
+      ),
+    })
+
     this.initialDetailsForm = this.formBuilder.group({
       initialIndex: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
     });
+
+
   }
 
 
@@ -147,6 +219,48 @@ export class DocCreatePage implements OnInit {
     this.userDetails = this.authService.getUserDataFromLocalStorage();
     this.createForms();
   }
+
+
+  //////////////////////////////////////////// New functions ////////////////////////////////////////////
+
+  onAddLine(): void {
+
+    console.log("Adding line with form value:", this.linesDocForm.value);
+    console.log("form valid is ", this.linesDocForm.valid);
+    
+    
+    if (this.linesDocForm.valid) {
+      const lineData = this.linesDocForm.value;
+      this.lineItems.push(lineData);
+
+      // Optional: log or process the result
+      console.log('Line added:', lineData);
+      console.log('All lines:', this.lineItems);
+
+      // Reset the form
+      this.linesDocForm.reset({
+        lineQuantity: 1  // Default value
+      });
+    } else {
+      this.linesDocForm.markAllAsTouched(); // Show validation errors if any
+    }
+  }
+
+
+  deleteLine(index: number): void {
+    this.lineItems.splice(index, 1);
+  }
+
+  getVatLabel(type: VatOptions): string {
+    switch (type) {
+      case VatOptions.INCLUDE: return 'כולל מע״מ';
+      case VatOptions.EXCLUDE: return 'לא כולל מע״מ';
+      case VatOptions.WITHOUT: return 'ללא מע״מ';
+      default: return '';
+    }
+  }
+
+
 
   get paymentsFormArray(): FormArray {
     return this.myForm.get(this.paymentSectionName) as FormArray;
@@ -172,11 +286,20 @@ export class DocCreatePage implements OnInit {
   //   this.paymentsArray.splice(index, 1);
   // }
 
+  selectUnit(unit: string) {
+    this.selectedUnit = unit;
+  }
+
   getPaymentFormByIndex(index: number): FormGroup {
     return this.paymentsFormArray.at(index) as FormGroup;
   }
 
   onSelectedDoc(event: any): void {
+
+    this.selectedDocType = event;
+    console.log("selectedDocType is ", this.selectedDocType);
+    
+
     this.fileSelected = event;
     console.log("event is ", event);
     console.log("event.value is ", event.value);
@@ -227,6 +350,12 @@ export class DocCreatePage implements OnInit {
       })
 
   }
+
+
+  // showAllFields(): void {
+  //   this.showMoreFields = !this.showMoreFields;
+  // }
+
 
   getHebrewNameDoc(typeDoc: string): void {
     const temp = this.DocCreateTypeList.find((doc) => doc.value === typeDoc);

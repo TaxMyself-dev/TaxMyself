@@ -1,4 +1,4 @@
-import { Component, computed, EventEmitter, input, OnInit, Output, Signal } from '@angular/core';
+import { Component, computed, EventEmitter, Input, input, OnInit, Output, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { ButtonColor, ButtonSize, iconPosition } from './button.enum';
@@ -18,6 +18,7 @@ export class ButtonComponent  implements OnInit {
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   raised = input<boolean>(false); // For mark the button
   buttonText = input<string>('Button');
+  //@Input() buttonText: string = 'Button';
   class = input<string>('');
   buttonSize = input<ButtonSize>(ButtonSize.BIG);
   buttonColor = input<ButtonColor>();

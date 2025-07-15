@@ -312,7 +312,7 @@ export enum PaymentMethodName {
   CHECK = "צ'ק",
 }
 
-export enum VatOptionsValue { 
+export enum VatOptions { 
   INCLUDE = 'INCLUDE',
   EXCLUDE = 'EXCLUDE',
   WITHOUT = 'WITHOUT',
@@ -333,7 +333,7 @@ export enum CreditTransactionType {
   OTHER = 'OTHER' // אחר
 }
 
-export type VatOptions = 'WITH_OUT' | 'BEFORE' | 'AFTER'
+// export type VatOptions = 'WITHOUT' | 'BEFORE' | 'AFTER'
 
 export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' | 'CREDIT_CARD' | 'CHECK';
 
