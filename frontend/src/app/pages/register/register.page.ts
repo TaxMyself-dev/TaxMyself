@@ -349,7 +349,7 @@ export class RegisterPage implements OnInit, OnDestroy {
         if (this.isIndependent() || this.isSpouseIndependent()) {
           this.selectedFormModule.set(RegisterFormModules.BUSINESS);
         } else {
-          this.selectedFormModule.set(RegisterFormModules.VALIDATION);
+          this.handleFormRegister();
         }
         break;
       case RegisterFormModules.SPOUSE:

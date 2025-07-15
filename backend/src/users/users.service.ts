@@ -233,7 +233,6 @@ export class UsersService {
         const citiesUrl = 'https://raw.githubusercontent.com/royts/israel-cities/master/israel-cities.json';
         try {
           const response = await axios.get(citiesUrl);
-          console.log("🚀 ~ UsersService ~ fetchCities ~ response:", response)
           return response.data; // Assumes it's already parsed as JSON array
         } catch (error) {
           console.error('Error fetching cities from GitHub:', error.message);
