@@ -5,12 +5,13 @@ import { ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
-import { map, startWith, Subject, takeUntil, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-register',
@@ -19,6 +20,7 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
   standalone: false
 })
 export class RegisterPage implements OnInit, OnDestroy {
+ 
 
 
   readonly inputsSize = inputsSize;
@@ -36,15 +38,15 @@ export class RegisterPage implements OnInit, OnDestroy {
   level = signal<string>("שלב 1");
   mainTitle = signal<string>("פרטים אישיים");
   subtitle = signal<string>("היי, אז נתחיל בהיכרות ראשונית...");
-
+  isLoading = signal<boolean>(false);
   myForm: FormGroup;
   employmentTypeOptionsList = employmentTypeOptionsList;
   businessTypeOptionsList = businessTypeOptionsList;
   familyStatusOptionsList = familyStatusOptionsList;
-  //requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
-  requierdField: boolean = true;
+  requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
+  // requierdField: boolean = true;
 
-  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService) {
+  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService) {
     effect(() => {
       const currentModule = this.selectedFormModule();
       switch (currentModule) {
@@ -298,11 +300,28 @@ export class RegisterPage implements OnInit, OnDestroy {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
     formData.validation = { password: formData?.personal?.password };
-    console.log("date is ", formData.personal.dateOfBirth);
-
     console.log("formData is :::: ", formData);
-    const data = { fromReg: false, email: formData.email };
-    this.authService.SignUp(formData).subscribe(() => {
+    this.isLoading.set(true);
+    this.authService.SignUp(formData)
+    .pipe(
+      catchError((error) => {
+        console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
+        
+        this.authService.error.set(error);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail:"היי אירעה שגיאה והרישום נכשל. נשמח שתנסה שוב",
+          sticky: true,
+          key: 'br'
+        })
+        return EMPTY;
+      }),
+      finalize(() => {
+        this.isLoading.set(false);
+      })
+    )
+    .subscribe(() => {
       this.router.navigate(['login'], { queryParams: { from: 'register' } })
     })
   }
@@ -389,7 +408,7 @@ export class RegisterPage implements OnInit, OnDestroy {
     };
   }
 
-  private isSingle(): boolean {
+  isSingle(): boolean {
     return this.personalForm?.get(RegisterFormControls.FAMILYSTATUS)?.value === FamilyStatus.SINGLE;
   }
 

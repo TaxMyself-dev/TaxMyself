@@ -28,12 +28,11 @@ export class AuthService {
   constructor(
     private genericService: GenericService,
     public afs: AngularFirestore,
-    public afAuth: AngularFireAuth, 
+    public afAuth: AngularFireAuth,
     public router: Router,
     private http: HttpClient,
-    public ngZone: NgZone, 
-  ) 
-  {}
+    public ngZone: NgZone,
+  ) { }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
   // public error$ = new BehaviorSubject<string>("");
@@ -56,7 +55,7 @@ export class AuthService {
   //       const currentTime = new Date().toLocaleString(); // Human-readable time
   //       // console.log(`Token refreshed at ${currentTime}:`, idToken);
   //       console.log("user is ", user);
-        
+
   //       // Store the token in local storage for easy access
   //       localStorage.setItem('token', idToken);
 
@@ -87,15 +86,9 @@ export class AuthService {
 
 
   userVerify(email: string, password: string): Observable<UserCredential> {
-    // Set token persistence to 'local' (persist the session across browser reloads and sessions)
-    // return from(this.afAuth.setPersistence('local').then(() => {
-        // After persistence is set, attempt to sign in
-        return from(this.afAuth.signInWithEmailAndPassword(email, password))
-    // }
-  // ))
-  .pipe(
+    return from(this.afAuth.signInWithEmailAndPassword(email, password))
+      .pipe(
         catchError((err) => {
-          this.genericService.dismissLoader();
           console.log("Error in sign in with email: ", err);
           this.handleErrorLogin(err.code);
           return throwError(() => err);
@@ -104,7 +97,7 @@ export class AuthService {
           // Store the user information locally after successful login
           localStorage.setItem('firebaseUserData', JSON.stringify(user.user));
         })
-    );
+      );
   }
 
 
@@ -114,8 +107,8 @@ export class AuthService {
     return businessNumber;
   }
 
-  
-  
+
+
   getUserDataFromLocalStorage(): IUserData {
     const tempA = localStorage.getItem('userData');
     return JSON.parse(tempA)
@@ -141,11 +134,11 @@ export class AuthService {
         }),
         tap((token) => {
           localStorage.setItem('token', token);
-        } ),
+        }),
         switchMap(() => this.http.post(url, {})),
         catchError((err) => {
-            this.error.set("error");
-            // this.error$.next("error");
+          this.error.set("error");
+          // this.error$.next("error");
           console.log("err in post request: ", err);
           return throwError(() => err);
         }),
@@ -156,7 +149,7 @@ export class AuthService {
   handleErrorSignup(err: string): void {
     switch (err) {
       case "auth/email-already-in-use":
-      
+
         this.error.set("user");
         break;
       case "auth/invalid-email":
@@ -167,7 +160,7 @@ export class AuthService {
         break;
       case "auth/user-disabled":
       case "auth/user-not-found":
-        case "auth/missing-email":
+      case "auth/missing-email":
         this.error.set("disabled");
         break;
       case "auth/too-many-requests":
@@ -178,38 +171,37 @@ export class AuthService {
 
 
   SignUp(formData: any): Observable<any> {
-        let uid: string = "";
-    this.genericService.getLoader().subscribe();
+    let uid: string = "";
     return from(this.afAuth.createUserWithEmailAndPassword(formData.personal.email, formData.personal.password))
       .pipe(
-        finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log("err in create user: ", err);
           this.handleErrorSignup(err.code);
-          return EMPTY;
+          return throwError(() => err);
+          
         }),
         tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
         switchMap((userCredentialData: UserCredential) => from(sendEmailVerification(userCredentialData.user))),
         catchError((err) => {
           this.handleErrorSignup(err.code);
           console.log("err in send email verify: ", err);
-          return EMPTY;
+          return throwError(() => err);
         }),
         tap(() => this.isVerfyEmail$.next(true)),
         switchMap(() => {
           const url = `${environment.apiUrl}auth/signup`
-          formData.personal.firebaseId = uid;          
+          formData.personal.firebaseId = uid;
           return this.http.post(url, formData);
 
         }),
         catchError((err) => {
-          this.afAuth.currentUser.then((user) =>{
+          this.afAuth.currentUser.then((user) => {
             user.delete();
-          }).catch((err) =>{
+          }).catch((err) => {
             console.log("err:", err);
           })
           this.handleErrorSignup("auth/network-request-failed");
-          return EMPTY;
+          return throwError(() => err);
         })
       )
   }
@@ -217,7 +209,7 @@ export class AuthService {
 
   // SendVerificationMail(): Observable<any> {
   //   const user = this.afAuth.currentUser;
-    
+
   //   console.log("🚀 ~ AuthService ~ SendVerificationMail ~ user:", user)
   //   return from(this.afAuth.currentUser)
   //   .pipe(
@@ -243,7 +235,7 @@ export class AuthService {
       })
     );
   }
-  
+
 
 
   ForgotPassword(passwordResetEmail: string): Observable<any> {
@@ -259,7 +251,7 @@ export class AuthService {
 
   updateUser(updatedData: any): Observable<any> {
     console.log("updatedData is ", updatedData);
-    
+
     const token = localStorage.getItem('token');  // Assuming you have a token stored
     const headers = { 'token': token };  // Add the token to the headers
     const url = `${environment.apiUrl}auth/update-user`;  // Backend endpoint for updating user

@@ -59,6 +59,7 @@ export class LoginPage implements OnInit {
 
   ngOnInit() {
     this.route.queryParams.subscribe(params => {
+      // this.authService.error.set('email');
       if (params['from'] === 'register') {
         console.log('Navigated to Login Page from Register Page');
         this.authService.error.set('email');
@@ -82,7 +83,6 @@ export class LoginPage implements OnInit {
     this.isLoading.set(true);
     this.authService.error.set(null);
     const formData = this.loginForm.value;
-    // this.genericService.getLoader()
     this.authService.userVerify(formData.userName, formData.password)
       .pipe(
         // switchMap(() => from(this.authService.userVerify(formData.userName, formData.password))),
@@ -93,6 +93,8 @@ export class LoginPage implements OnInit {
         filter((res) => {
           if (!res?.user?.emailVerified) {
             console.log("in email error");
+            console.log("res in email error", res);
+            
             // this.genericService.dismissLoader();
             this.authService.error.set("email");
           }
