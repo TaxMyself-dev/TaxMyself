@@ -44,12 +44,11 @@ export class AppComponent implements OnInit {
 
   menuItems = [
     { label: 'דף הבית', routerLink: '/my-account' },
-    { label: 'פרופיל אישי' },
+    // { label: 'פרופיל אישי' },
     { label: 'תזרים', routerLink: '/transactions' },
     { label: 'דוחות', routerLink: '/reports' },
-    { label: 'הגדרות', routerLink: '/my-status' },
-    { label: 'צור קשר' },
-    { label: 'כניסה', routerLink: '/login' },
+    // { label: 'הגדרות', routerLink: '/my-status' },
+    // { label: 'צור קשר' },
   ]
 
   fromLoginPage = false; // Flag to check if entry was from login page
@@ -62,14 +61,6 @@ export class AppComponent implements OnInit {
   destroy$ = new Subject<void>();
 
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) {
-    // this.router.events.pipe(
-    //   filter(e => e instanceof NavigationEnd)
-    // ).subscribe((e: NavigationEnd) => {
-    //   const url = e.urlAfterRedirects;
-    //   // console.log("🚀 ~ AppComponent ~ ).subscribe ~ url:", url)
-    //   this.showTopNav.set(!(['/login', '/register'].includes(url)));
-    //   // console.log("🚀 ~ AppComponent ~ ).subscribe ~  this.showTopNav:",  this.showTopNav())
-    // });
   };
   showTopNav = signal(true);
   ngOnInit() {
@@ -77,6 +68,7 @@ export class AppComponent implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     if (this.userData?.role[0] === 'ADMIN') {
       this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
+      this.menuItems.push({ label: 'כניסה', routerLink: '/login' });
     }
     this.getRoute();
     this.getRoleUser();
