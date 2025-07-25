@@ -21,7 +21,7 @@ export class DocCreateService {
   //   return this.http.get<ISettingDoc>(url);
   // }
 
-  getDetailsDoc(docType: string): Observable<IDocIndexes> {
+  getDocIndexes(docType: string): Observable<IDocIndexes> {
     const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
     return this.http.get<IDocIndexes>(url);
   }

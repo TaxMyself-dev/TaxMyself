@@ -16,6 +16,9 @@ import { InputTextComponent } from 'src/app/components/input-text/input-text.com
 import { InputDateComponent } from "../../components/input-date/input-date.component";
 import { InputNumberModule } from 'primeng/inputnumber';
 import { RadioButtonModule } from 'primeng/radiobutton';
+import { DialogModule } from 'primeng/dialog';
+import { TabMenuModule } from 'primeng/tabmenu';
+
 
 @NgModule({
   imports: [
@@ -31,7 +34,9 @@ import { RadioButtonModule } from 'primeng/radiobutton';
     DatePickerModule,
     InputDateComponent,
     InputNumberModule,
-    RadioButtonModule
+    RadioButtonModule,
+    DialogModule,
+    TabMenuModule
 ],
   declarations: [DocCreatePage]
 })

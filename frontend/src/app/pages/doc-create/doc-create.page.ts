@@ -1,6 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptions } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
@@ -12,15 +12,18 @@ import { FilesService } from 'src/app/services/files.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
-//import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
-import { is } from 'date-fns/locale';
-import { log } from 'console';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { RegisterFormControls } from '../register/regiater.enum';
-import { DocCreateFields, LineItems } from './doc-cerate.enum';
+import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotalsField, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
+import { MenuItem } from 'primeng/api';
 
-
+interface PaymentFieldConfig {
+  key: string;   // FormControlName
+  label: string; // Header label
+  type: 'date' | 'dropdown' | 'text';
+  options?: any[];
+}
 
 @Component({
     selector: 'app-doc-create',
@@ -32,7 +35,6 @@ export class DocCreatePage implements OnInit {
 
   paymentsDetailsForm: FormGroup;
   myForm: FormGroup;
-  initialDetailsForm: FormGroup;
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   paymentDetailsFields: ICreateDocField<FieldsCreateDocName | fieldLineDocName, FieldsCreateDocValue | fieldLineDocValue>[] = [];
   generalDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
@@ -66,42 +68,29 @@ export class DocCreatePage implements OnInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
-  // showMoreFields = false;
-  selectedDocType: string | null = null;
   showGeneralMoreFields = false;
   showUserMoreFields = false;
   value1 = 50;
   selectedUnit: string = '%';
   value: number = 0;
-  lineItems: LineItems[] = [];
 
+  lineItems: LineItem[] = [];
+  lineItemsDraft: PartialLineItem[] = [];
 
+  showInitialIndexDialog = false;
+  private initialIndexSubject?: Subject<IDocIndexes>;
+
+  form: FormGroup;
   generalDocForm: FormGroup;
   customerDocForm: FormGroup;
   linesDocForm: FormGroup;
   paymentForm: FormGroup;
+  initialIndexForm: FormGroup;
 
-  //accountsList = signal<ISelectItem[]>([]);
-  form: FormGroup;
 
-  accountsList: ISelectItem[] = [
-    { name: 'חודשי', value: 'MONTHLY' },
-    { name: 'דו-חודשי', value: 'BIMONTHLY' },
-    { name: 'שנתי', value: 'ANNUAL' },
-    { name: 'טווח תאריכים', value: 'DATE_RANGE' }
-  ];
+  readonly DocCreateTypeList = Object.entries(DocTypeDisplayName).map(([value, name]) => ({value, name}));
 
-  readonly DocCreateTypeList = [
-    { value: 'RECEIPT', name: 'קבלה' },
-    { value: 'TAX_INVOICE', name: 'חשבונית מס' },
-    { value: 'TAX_INVOICE_RECEIPT', name: 'חשבונית מס קבלה' },
-    { value: 'TRANSACTION_INVOICE', name: 'חשבונית עסקה' },
-    { value: 'CREDIT_INVOICE', name: 'חשבונית זיכוי' },
-    // { value: 6, name: 'הצעת מחיר' },
-    // { value: 7, name: 'הזמנת עבודה' },
-    // { value: 8, name: 'תעודת משלוח' },
-    // { value: 9, name: 'תעודת החזרה' },
-  ];
+  bankOptionsList = bankOptionsList;
 
   readonly paymentMethodList = [
     { value: PaymentMethodValue.BANK_TRANSFER, name: PaymentMethodName.BANK_TRANSFER },
@@ -148,6 +137,53 @@ export class DocCreatePage implements OnInit {
     { value: Currency.USD, name: 'דולר' },
     { value: Currency.EUR, name: 'יורו' },
   ];
+
+    paymentMethodTabs: MenuItem[] = [
+    { label: 'העברה בנקאית', id: 'BANK' as any },  // `id` is just an extra field (PrimeNG allows it)
+    { label: 'אשראי', id: 'CREDIT' as any },
+    { label: 'צ׳ק', id: 'CHECK' as any },
+    { label: 'אפליקציה', id: 'APP' as any },
+  ];
+
+    activePaymentMethod: MenuItem = this.paymentMethodTabs[0]; // default selected
+
+  paymentInputForm: FormGroup;  // Holds the active entry row
+  paymentsDraft: any[] = [];     // Stores all added payments
+
+  // activePaymentMethod = this.paymentMethodTabs[0]; // Default active payment method
+  // activePaymentMethod: PaymentTab = this.paymentMethodTabs[0];
+
+
+paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
+  BANK: [
+    { key: 'paymentDate', label: 'תאריך', type: 'date' },
+    { key: 'bankName', label: 'בנק', type: 'dropdown', options: this.bankOptionsList },
+    { key: 'branchNumber', label: 'סניף', type: 'text' },
+    { key: 'accountNumber', label: 'חשבון', type: 'text' },
+    { key: 'paymentAmount', label: 'סכום', type: 'text' }
+  ],
+  CREDIT: [
+    { key: 'paymentDate', label: 'תאריך', type: 'date' },
+    { key: 'cardType', label: 'סוג כרטיס', type: 'text' },
+    { key: 'last4Digits', label: '4 ספרות', type: 'text' },
+    { key: 'approvalCode', label: 'קוד אישור', type: 'text' },
+    { key: 'paymentAmount', label: 'סכום', type: 'text' }
+  ],
+  CHECK: [
+    { key: 'paymentDate', label: 'תאריך', type: 'date' },
+    { key: 'bankName', label: 'בנק', type: 'dropdown', options: this.bankOptionsList },
+    { key: 'branchNumber', label: 'סניף', type: 'text' },
+    { key: 'checkNumber', label: 'מספר צ׳ק', type: 'text' },
+    { key: 'paymentAmount', label: 'סכום', type: 'text' }
+  ],
+  APP: [
+    { key: 'paymentDate', label: 'תאריך', type: 'date' },
+    { key: 'appName', label: 'אפליקציה', type: 'text' },
+    { key: 'reference', label: 'אסמכתא', type: 'text' },
+    { key: 'paymentAmount', label: 'סכום', type: 'text' }
+  ]
+};
+
 
   readonly formTypes = FormTypes;
 
@@ -205,11 +241,21 @@ export class DocCreatePage implements OnInit {
       ),
     })
 
-    this.initialDetailsForm = this.formBuilder.group({
+    this.initialIndexForm = this.formBuilder.group({
       initialIndex: new FormControl(
         '', [Validators.required, Validators.pattern(/^\d+$/)]
       ),
     });
+
+    this.paymentForm = this.formBuilder.group({
+      bankPayments: this.formBuilder.array([]),
+      creditPayments: this.formBuilder.array([]),
+      checkPayments: this.formBuilder.array([]),
+      appPayments: this.formBuilder.array([]),
+    });
+
+    
+    this.createPaymentInputForm(this.activePaymentMethod.id as string);
 
 
   }
@@ -221,35 +267,219 @@ export class DocCreatePage implements OnInit {
   }
 
 
+  async onSelectedDoc(event: any): Promise<void> {
+
+    this.fileSelected = event;
+    console.log('onSelectedDoc: fileSelected is', this.fileSelected);
+
+    this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected);
+
+    await this.handleDocIndexes(this.fileSelected);
+    console.log("docIndexes is", this.docIndexes);
+
+  }
+
+
   //////////////////////////////////////////// New functions ////////////////////////////////////////////
 
-  onAddLine(): void {
+  addLineDetails(): void {
 
-    console.log("Adding line with form value:", this.linesDocForm.value);
-    console.log("form valid is ", this.linesDocForm.valid);
-    
-    
-    if (this.linesDocForm.valid) {
-      const lineData = this.linesDocForm.value;
-      this.lineItems.push(lineData);
+    const formValue = this.linesDocForm.value; // <-- get all field values directly
+    console.log("Adding line with form value:", formValue);
 
-      // Optional: log or process the result
-      console.log('Line added:', lineData);
-      console.log('All lines:', this.lineItems);
+    const lineIndex = this.lineItemsDraft.length;
 
-      // Reset the form
-      this.linesDocForm.reset({
-        lineQuantity: 1  // Default value
-      });
-    } else {
-      this.linesDocForm.markAllAsTouched(); // Show validation errors if any
+    const newLine: PartialLineItem = {
+      lineNumber: lineIndex + 1,
+      description: formValue.lineDescription,
+      unitQuantity: formValue.lineQuantity,
+      sum: formValue.lineSum,
+      discount: formValue.lineDiscount,
+      vatOpts: formValue.lineVatType,
+      vatRate: this.generalDocForm.value[DocCreateFields.DOC_VAT_RATE],
+    };
+
+    this.lineItemsDraft.push(newLine);
+    this.calculateVatFieldsForLine(lineIndex);
+
+  }
+
+
+  private calculateVatFieldsForLine(lineIndex: number): void {
+
+    const line = this.lineItemsDraft[lineIndex];
+    const quantity = line.unitQuantity ?? 1;
+    const sum = line.sum ?? 0;
+    const discount = line.discount ?? 0;
+    const vatOption = line.vatOpts ?? 'INCLUDE';
+    const vatRate = line.vatRate ?? 18;
+
+    const lineGross = sum * quantity;
+
+    let sumBefVat = 0;
+    let sumAftVat = 0;
+    let sumWithoutVat = 0;
+    let disBefVat = 0;
+    let vat = 0;
+    let sumAftDisWithVat = 0;
+
+    switch (vatOption) {
+      case 'INCLUDE': {
+        sumBefVat = lineGross / (1 + vatRate / 100);
+        sumWithoutVat = 0;
+        disBefVat = discount / (1 + vatRate / 100);
+        const netAfterDiscountInc = lineGross - discount;
+        vat = netAfterDiscountInc - (netAfterDiscountInc / (1 + vatRate / 100));
+        sumAftDisWithVat = netAfterDiscountInc;
+        break;
+      }
+
+      case 'EXCLUDE': {
+        sumBefVat = lineGross;
+        sumWithoutVat = 0;
+        disBefVat = discount;
+        const netAfterDiscountExc = lineGross - discount;
+        vat = netAfterDiscountExc * (vatRate / 100);
+        sumAftDisWithVat = netAfterDiscountExc + vat;
+        break;
+      }
+
+      case 'WITHOUT': {
+        sumBefVat = lineGross;
+        sumAftVat = lineGross;
+        sumWithoutVat = lineGross - discount;
+        disBefVat = discount;
+        vat = 0;
+        sumAftDisWithVat = lineGross - discount;
+        break;
+      }
+
+      default:
+        throw new Error(`Unhandled VAT option: ${vatOption}`);
     }
+
+    Object.assign(line, {
+      sumBefVat,
+      sumAftVat,
+      sumWithoutVat,
+      disBefVat,
+      vat,
+      sumAftDisWithVat,
+    });
+
+    console.log("line is ", this.lineItemsDraft[lineIndex]);
+    
+  }
+
+
+  //Getter for document totals (auto-calculated on the fly).
+  get documentTotals() {
+
+    const totals = {
+      [DocumentTotalsField.TOTAL_BEFORE_VAT]: 0,
+      [DocumentTotalsField.TOTAL_AFTER_VAT]: 0,
+      [DocumentTotalsField.TOTAL_WITHOUT_VAT]: 0,
+      [DocumentTotalsField.TOTAL_VAT]: 0,
+    };
+
+    this.lineItemsDraft.forEach((line) => {
+
+      const sumBefVat = line.sumBefVat ?? 0;
+      const sumAftVat = line.sumAftDisWithVat ?? 0;
+      const sumWithoutVat = line.sumWithoutVat ?? 0;
+      const vat = line.vat ?? 0;
+
+      totals[DocumentTotalsField.TOTAL_BEFORE_VAT] += sumBefVat;
+      totals[DocumentTotalsField.TOTAL_AFTER_VAT] += sumAftVat;
+      totals[DocumentTotalsField.TOTAL_WITHOUT_VAT] += sumWithoutVat;
+      totals[DocumentTotalsField.TOTAL_VAT] += vat;
+
+    });
+
+    return totals;
+
+  }
+
+
+  get visibleDocumentTotals() {
+
+    const totals = this.documentTotals;
+
+    // Map the totals into the ordered array using the labels array
+    return DocumentTotalsLabels
+      .map((item) => ({
+        field: item.field,
+        label: item.label,
+        value: totals[item.field] ?? 0,
+      }))
+      .filter((item) => item.value !== 0); // Optional: hide zeros
+  }
+
+
+    createPaymentInputForm(method: string): void {
+    switch (method) {
+      case 'BANK':
+        this.paymentInputForm = this.formBuilder.group({
+          paymentDate: [null, Validators.required],
+          bankName: [null, Validators.required],
+          branchNumber: [null, Validators.required],
+          accountNumber: [null, Validators.required],
+          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
+          method: [method]
+        });
+        break;
+
+      case 'CREDIT':
+        this.paymentInputForm = this.formBuilder.group({
+          paymentDate: [null, Validators.required],
+          cardType: [null, Validators.required],
+          last4Digits: [null, [Validators.required, Validators.pattern(/^\d{4}$/)]],
+          approvalCode: [null, Validators.required],
+          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
+          method: [method]
+        });
+        break;
+
+      case 'CHECK':
+        this.paymentInputForm = this.formBuilder.group({
+          paymentDate: [null, Validators.required],
+          bankName: [null, Validators.required],
+          branchNumber: [null, Validators.required],
+          checkNumber: [null, [Validators.required, Validators.pattern(/^\d+$/)]],
+          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
+          method: [method]
+        });
+        break;
+
+      case 'APP':
+        this.paymentInputForm = this.formBuilder.group({
+          paymentDate: [null, Validators.required],
+          appName: [null, Validators.required],
+          reference: [null, Validators.required],
+          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
+          method: [method]
+        });
+        break;
+    }
+  }
+
+
+  onPaymentMethodChange(method: MenuItem): void {
+    this.activePaymentMethod = method;
+    this.createPaymentInputForm(method.id as string);
+  }
+
+
+  addPayment(): void {
+    this.paymentsDraft.push(this.paymentInputForm.value);
+    this.createPaymentInputForm(this.activePaymentMethod.id as string); // reset for next entry
   }
 
 
   deleteLine(index: number): void {
     this.lineItems.splice(index, 1);
   }
+
 
   getVatLabel(type: VatOptions): string {
     switch (type) {
@@ -259,7 +489,6 @@ export class DocCreatePage implements OnInit {
       default: return '';
     }
   }
-
 
 
   get paymentsFormArray(): FormArray {
@@ -294,30 +523,7 @@ export class DocCreatePage implements OnInit {
     return this.paymentsFormArray.at(index) as FormGroup;
   }
 
-  onSelectedDoc(event: any): void {
 
-    this.selectedDocType = event;
-    console.log("selectedDocType is ", this.selectedDocType);
-    
-
-    this.fileSelected = event;
-    console.log("event is ", event);
-    console.log("event.value is ", event.value);
-    
-    console.log("onSelectedDoc: fileSelected is ", this.fileSelected);
-    this.HebrewNameFileSelected = this.ggetHebrewNameDoc(event.value);
-    switch (event.value) {
-      case 'RECEIPT':
-        this.paymentSectionName = 'ReceiptPaymentDetails';
-        break;
-      case 'TAX_INVOICE':
-        this.paymentSectionName = 'TaxInvoicePaymentDetails';
-        break;
-      }
-    this.getDocDetails()
-    //this.createForms();
-
-  }
 
   // createForms(): void {
   //   this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails', this.paymentSectionName]);
@@ -334,22 +540,33 @@ export class DocCreatePage implements OnInit {
     // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
   }
 
-  onClickInitialIndex(): void {
-    const formData = this.initialDetailsForm.value;
-    this.docCreateService.setInitialDocDetails(formData, this.fileSelected)
-      .pipe(
-        catchError((err) => {
-          console.log("err in set initial index: ", err);
-          return EMPTY;
-        })
-      )
-      .subscribe((res) => {
-        console.log("res in set initial index: ", res);
-        this.getDocDetails();
-        this.isInitial = false;
-      })
 
+  onClickInitialIndex(): void {
+
+    const initialIndex = this.initialIndexForm.value;
+
+    this.docCreateService.setInitialDocDetails(this.fileSelected, initialIndex)
+      .subscribe({
+        next: (res: IDocIndexes) => {
+          this.docIndexes = res; // Backend returns both docIndex & generalIndex
+          this.isInitial = false;
+          this.showInitialIndexDialog = false;
+
+          console.log('Initial index saved:', this.docIndexes);
+
+          // Resolve the waiting Subject so onSelectedDoc can continue
+          this.initialIndexSubject?.next(this.docIndexes);
+          this.initialIndexSubject?.complete();
+          this.initialIndexSubject = undefined;
+        },
+        error: (err) => {
+          console.error('Failed to set initial index:', err);
+          this.initialIndexSubject?.error(err);
+          this.initialIndexSubject = undefined;
+        }
+    });
   }
+
 
 
   // showAllFields(): void {
@@ -357,40 +574,44 @@ export class DocCreatePage implements OnInit {
   // }
 
 
-  getHebrewNameDoc(typeDoc: string): void {
-    const temp = this.DocCreateTypeList.find((doc) => doc.value === typeDoc);
-    if (temp) this.HebrewNameFileSelected = temp.name;
+  // getHebrewNameDoc(typeDoc: string): void {
+  //   const temp = this.DocCreateTypeList.find((doc) => doc.value === typeDoc);
+  //   if (temp) this.HebrewNameFileSelected = temp.name;
+  // }
+
+  // getHebrewNameDoc(typeDoc: string): string {
+  //   return this.DocCreateTypeList.find((doc) => doc.value === typeDoc)?.name;
+  // }
+
+
+  getHebrewNameDoc(typeDoc: string): string {
+    return (DocTypeDisplayName as Record<string, string>)[typeDoc] ?? (() => { throw new Error(`Invalid document type: ${typeDoc}`); })();
   }
 
-  ggetHebrewNameDoc(typeDoc: string): string {
-    return this.DocCreateTypeList.find((doc) => doc.value === typeDoc)?.name;
+
+  private async handleDocIndexes(docType: string): Promise<IDocIndexes> {
+    try {
+      const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
+      this.docIndexes = res;
+
+      if (res.isInitial) {
+        // Pre-fill default index and show dialog
+        const defaultIndex = DocTypeDefaultStart[docType];
+        this.initialIndexForm.get('initialIndex')?.setValue(defaultIndex);
+        this.showInitialIndexDialog = true;
+
+        // Wait until the user confirms the popup
+        this.initialIndexSubject = new Subject<IDocIndexes>();
+        return await firstValueFrom(this.initialIndexSubject);
+      }
+
+      return res; // Not first doc, just return the indexes
+    } catch (err) {
+      console.error('Error fetching doc indexes:', err);
+      throw err;
+    }
   }
 
-
-  getDocDetails(): void {
-    this.docCreateService.getDetailsDoc(this.fileSelected)
-      .pipe(
-        catchError((err) => {
-          console.log("err in get doc details: ", err);
-          if (err.status === 404) {
-            this.isInitial = true;
-          } else {
-            // TODO: handle error screen
-          }
-          return EMPTY;
-        }),
-        tap((data) => {
-          // If docIndex is 0, treat it as "initial"
-          this.isInitial = data.docIndex === 0;
-          console.log("this.isInitial: ", this.isInitial);
-        })
-      )
-      .subscribe((res) => {
-        console.log("res in get doc details: ", res);
-        this.docIndexes = res; // Store the indexes
-      });
-  }
-  
 
   openSelectClients() {
 
@@ -554,7 +775,7 @@ export class DocCreatePage implements OnInit {
         issuerAddress: this.userDetails?.city,
         issuerPhone: this.userDetails?.phone,
         issuerEmail: this.userDetails?.email,
-        hebrewNameDoc: this.ggetHebrewNameDoc(this.fileSelected)
+        hebrewNameDoc: this.getHebrewNameDoc(this.fileSelected)
       },
       docData: {
         issuerbusinessNumber: this.userDetails?.businessNumber,
@@ -670,20 +891,6 @@ export class DocCreatePage implements OnInit {
 
   }
 
-  // onSelectionChanged(field: string, event: any, i: number): void {
-  //   console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ event:", event)
-  //   console.log("🚀 ~ DocCreatePage ~ onSelectionChanged ~ control:", field)
-  //   switch (field) {
-  //     case 'vatOptions':
-  //       this.onVatOptionChange(event, i);
-  //       break;
-  //     case 'paymentMethod':
-  //       this.expandPayentMethod(i, field, event.value);
-  //       break;
-  //     default:
-  //       break;
-  //   }
-  // }
 
   onVatOptionChange(event: any, formIndex: number): void {
     console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
@@ -766,34 +973,6 @@ export class DocCreatePage implements OnInit {
     }
   }
 
-  // expandPaymentDetails(formIndex: number): void {
-  //   console.log(this.paymentsArray[formIndex]);
-  //   console.log(this.paymentsFormArray.controls[formIndex]);
-    
-    
-  //   this.isPaymentExpanded = !this.isPaymentExpanded;
-  //   if (this.isPaymentExpanded) {
-  //     this.docCreateBuilderService.addFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
-  //     const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName);
-  //     this.paymentsArray[formIndex] = [...this.paymentsArray[formIndex], ...expandedFields];
-  //   }
-  //   else {
-  //     this.docCreateBuilderService.removeFormControlsByExpandedSection(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName);
-  //     const expandedFields = this.docCreateBuilderService.getExpandedFieldsBySection(this.paymentSectionName); // For remove only the expanded fields and not enumValues fields
-  //     this.paymentsArray[formIndex] = this.paymentsArray[formIndex].filter((paymentField: IDocCreateFieldData) => {
-  //       return !expandedFields.some((expandedField: IDocCreateFieldData) => expandedField.value === paymentField.value);
-  //     });
-  //   }
-  // }
-
-  // expandPayentMethod(formIndex: number, field: string, paymentMethod: string): void {
-  //   this.docCreateBuilderService.addFormControlsByEnumValue(this.paymentsFormArray.controls[formIndex] as FormGroup, this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
-  //   console.log("🚀 ~ DocCreatePage ~ expandPaymentDetails ~ this.paymentsFormArray.controls[formIndex]:", this.paymentsFormArray.controls[formIndex]);
-  //   console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
-  //   //this.paymentsArray[formIndex] = []; // Reset array for new values
-  //   this.paymentsArray[formIndex] = this.docCreateBuilderService.getFieldsBySectionAndEnumValue(this.paymentSectionName, field, paymentMethod, this.isPaymentExpanded);
-  //   console.log("🚀 ~ DocCreatePage ~ expandPayentMethod ~ this.paymentsArray[formIndex]:", this.paymentsArray[formIndex])
-  // }
 
   getDropdownItems(controlValue: string): ISelectItem[] {
     switch (controlValue) {

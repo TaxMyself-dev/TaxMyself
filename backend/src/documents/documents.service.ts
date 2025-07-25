@@ -59,25 +59,49 @@ export class DocumentsService {
   }
 
 
-  async getCurrentIndexes(userId: string, docType: DocumentType): Promise<{ docIndex: number; generalIndex: number }> {
+  // async getCurrentIndexes(userId: string, docType: DocumentType): Promise<{ docIndex: number; generalIndex: number }> {
+  //   const [docSetting, generalSetting] = await Promise.all([
+  //     this.settingDocuments.findOne({ where: { userId, docType } }),
+  //     this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
+  //   ]);
+  
+  //   if (!docSetting) {
+  //     throw new HttpException(`Document settings for type "${docType}" not found`, HttpStatus.NOT_FOUND);
+  //   }
+  
+  //   if (!generalSetting) {
+  //     throw new HttpException(`Document settings for type "GENERAL" not found`, HttpStatus.NOT_FOUND);
+  //   }
+  
+  //   return {
+  //     docIndex: docSetting.currentIndex,
+  //     generalIndex: generalSetting.currentIndex,
+  //   };
+  // }
+
+
+  async getCurrentIndexes(
+    userId: string,
+    docType: DocumentType
+  ): Promise<{ docIndex: number; generalIndex: number | null; isInitial: boolean }> {
+
     const [docSetting, generalSetting] = await Promise.all([
       this.settingDocuments.findOne({ where: { userId, docType } }),
       this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
     ]);
-  
-    if (!docSetting) {
-      throw new HttpException(`Document settings for type "${docType}" not found`, HttpStatus.NOT_FOUND);
-    }
-  
-    if (!generalSetting) {
-      throw new HttpException(`Document settings for type "GENERAL" not found`, HttpStatus.NOT_FOUND);
-    }
-  
+
+    const isInitial = !docSetting || docSetting.currentIndex === 0;
+
     return {
-      docIndex: docSetting.currentIndex,
-      generalIndex: generalSetting.currentIndex,
+      docIndex: docSetting?.currentIndex ?? 0,              // 0 means uninitialized
+      generalIndex: generalSetting?.currentIndex ?? null,   // Only return if exists
+      isInitial,
     };
   }
+
+
+
+
   
 
   async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {

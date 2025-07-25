@@ -1005,10 +1005,6 @@ export class TransactionsService {
   endDate?: Date,
   businessNumber?: string
 ): Promise<Transactions[]> {
-  console.log("userId:", userId);
-  console.log("startDate:", startDate);
-  console.log("endDate:", endDate);
-  console.log("businessNumber:", businessNumber);
 
   const where: FindOptionsWhere<Transactions> = {
     userId,
@@ -1028,8 +1024,6 @@ export class TransactionsService {
   }
 
   const transactions = await this.transactionsRepo.find({ where });
-
-  console.log("Filtered uncategorized transactions:", transactions);
 
   return transactions;
 }

@@ -27,8 +27,8 @@ export class DocumentsController {
     const userId = request.user?.firebaseId;
 
     try {
-      const { docIndex, generalIndex } = await this.documentsService.getCurrentIndexes(userId, typeDoc);
-      return { docIndex, generalIndex };
+      const { docIndex, generalIndex, isInitial } = await this.documentsService.getCurrentIndexes(userId, typeDoc);
+      return { docIndex, generalIndex, isInitial };
     } catch (error) {
       throw error;
     }
@@ -39,12 +39,8 @@ export class DocumentsController {
   @UseGuards(FirebaseAuthGuard)
   async setInitialDocDetails(@Param('typeDoc') typeDoc: DocumentType, @Body() data: any, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    //console.log("🚀 ~ DocumentsController ~ setInitialDocDetails ~ userId:", userId)
-    //console.log("data: ", data);
-    //console.log("typeDoc: ", typeDoc);
     try {
       const docDetails = await this.documentsService.setInitialDocDetails(userId, typeDoc, data.initialIndex);
-      //console.log("docDetails: ", docDetails);
       return docDetails
     }
     catch (error) {

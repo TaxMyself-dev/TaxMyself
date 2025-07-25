@@ -83,6 +83,7 @@ export interface ISettingDoc {
 export interface IDocIndexes {
     docIndex: number;
     generalIndex: number;
+    isInitial: boolean;
 }  
 
 export interface ISuppliers {
