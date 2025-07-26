@@ -30,11 +30,12 @@ import { FinsiteService } from 'src/finsite/finsite.service';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { DocPayments } from 'src/documents/doc-payments.entity';
 
 
 @Module({
   imports: [TypeOrmModule.forFeature([Transactions, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
-                                      ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, 
+                                      ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments, 
                                       Delegation, JournalEntry, JournalLine, DefaultBookingAccount]),
             SharedModule],
   controllers: [ReportsController],

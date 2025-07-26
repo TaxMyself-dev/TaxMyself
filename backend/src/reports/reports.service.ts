@@ -26,6 +26,7 @@ import * as iconv from 'iconv-lite';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
+import { DocPayments } from 'src/documents/doc-payments.entity';
 
 
 @Injectable()
@@ -51,6 +52,8 @@ export class ReportsService {
     private documentsRepo: Repository<Documents>,
     @InjectRepository(DocLines)
     private docLinesRepo: Repository<DocLines>,
+    @InjectRepository(DocPayments)
+    private docPaymentsRepo: Repository<DocPayments>,
     @InjectRepository(User) 
     private userRepo: Repository<User>,
     @InjectRepository(JournalEntry) 
@@ -655,10 +658,10 @@ export class ReportsService {
           const f_1261 = this.formatField(line.manufacturerName, 50, '!');
           const f_1262 = this.formatField(line.productSerialNumber, 30, '!');
           const f_1263 = this.formatField(line.unitType, 20, '!');
-          const f_1264 = this.formatAmount(line.unitAmount, 12, 4);
-          const f_1265 = this.formatAmount(line.sumBefVat/line.unitAmount, 12, 2);
-          const f_1266 = this.formatAmount(line.disBefVat, 12, 2);
-          const f_1267 = this.formatAmount(line.sumBefVat, 12, 2);
+          const f_1264 = this.formatAmount(line.unitQuantity, 12, 4);
+          const f_1265 = this.formatAmount(line.sumBefVatPerUnit, 12, 2);
+          const f_1266 = this.formatAmount(line.disBefVatPerLine, 12, 2);
+          const f_1267 = this.formatAmount(line.sumAftDisBefVatPerLine, 12, 2);
           const f_1268 = this.formatAmount(line.vatRate, 2, 2, false);
           const f_1270 = this.formatField(doc.branchCode, 7, '0');
           const f_1272 = this.formatField(this.formatDateYYYYMMDD(doc.docDate), 8, '0');
@@ -681,8 +684,8 @@ export class ReportsService {
     
       for (const doc of documents) {
 
-        // Fetch all matching lines for the current document
-        const docLines = await this.docLinesRepo.find({
+        // Fetch all matching payments lines for the current document
+        const docPayments = await this.docPaymentsRepo.find({
           where: {
             issuerbusinessNumber: doc.issuerbusinessNumber,
             generalDocIndex: doc.generalDocIndex,
@@ -690,21 +693,21 @@ export class ReportsService {
         });
     
         // Loop through the lines and create D100 records
-        docLines.forEach((line) => {
+        docPayments.forEach((line) => {
           const f_1301 = this.getFormattedRecordCounter(); // Running counter (9 digits)
           const f_1302 = this.formatField(doc.issuerbusinessNumber, 9, '0');
           const f_1303 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1304 = this.formatField(doc.docNumber, 20, '0');
-          const f_1305 = this.formatField(line.lineNumber, 4, '0');
+          const f_1305 = this.formatField(line.paymentLineNumber, 4, '0');
           const f_1306 = this.formatField(line.paymentMethod, 1, '0');
           const f_1307 = this.formatField(line.bankNumber, 10, '0');
           const f_1308 = this.formatField(line.branchNumber, 10, '0');
           const f_1309 = this.formatField(line.accountNumber, 15, '0');
           const f_1310 = this.formatField(line.checkNumber, 10, '0');
-          const f_1311 = this.formatField(this.formatDateYYYYMMDD(line.paymentCheckDate), 8, '0');;
-          const f_1312 = this.formatAmount(line.sumAftDisWithVat, 12, 2);
+          const f_1311 = this.formatField(this.formatDateYYYYMMDD(line.paymentDate), 8, '0');;
+          const f_1312 = this.formatAmount(line.lineSum, 12, 2);
           const f_1313 = this.formatField(line.cardCompany, 1, '0');
-          const f_1314 = this.formatField(line.card4Number, 20, '0');
+          const f_1314 = this.formatField(line.creditCardName, 20, '0');
           const f_1315 = this.formatField(line.creditTransType, 1, '0');
           const f_1320 = this.formatField(doc.branchCode, 7, '0');
           const f_1322 = this.formatField(this.formatDateYYYYMMDD(doc.docDate), 8, '0');
