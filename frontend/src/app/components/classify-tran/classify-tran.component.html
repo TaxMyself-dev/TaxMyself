@@ -1,6 +1,10 @@
 <app-left-panel headerText="מיפוי עסקה" subHeaderText="מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע''מ ומס הכנסה" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)">
 
   <div class="content" content>
+    <div class="checkbox-container">
+      <p-checkbox [size]="'small'"  formControlName="isSingleUpdate" inputId="ny" [binary]="true" (onChange)="onCheckboxClicked($event)" [style]="{color: 'red'}"/>
+      <label for="ny" class="ml-2">מפה את התנועה באופן חד פעמי</label>
+    </div>
     <div class="sub-content-container">
     <div class="inputs">
       <app-input-select [ariaLabel]="'בחר קטגוריה '" [placeholder]="'בחר קטגוריה'" [controlName]="'categoryName'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="categoryList()" (onChangeInputSelect)="getSubCategory($event)"></app-input-select>
@@ -12,10 +16,6 @@
       <app-p-button [buttonText]="'הוסף קטגוריה חדשה'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openAddCategory()" ></app-p-button>
     </div>
 
-    <div class="checkbox-container">
-      <p-checkbox [size]="'small'"  formControlName="isSingleUpdate" inputId="ny" [binary]="true" (onChange)="onCheckboxClicked($event)" [style]="{color: 'red'}"/>
-      <label for="ny" class="ml-2">מפה את התנועה באופן חד פעמי</label>
-    </div>
   </div>
 
 <div class="subCategory-details-container">
