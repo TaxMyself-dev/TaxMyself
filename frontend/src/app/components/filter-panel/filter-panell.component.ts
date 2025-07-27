@@ -1,4 +1,4 @@
-import { Component, effect, ElementRef, inject, Injector, input, OnInit, output, runInInjectionContext, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, Injector, input, OnInit, output, runInInjectionContext, Signal, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { SelectModule } from 'primeng/select';
@@ -44,6 +44,7 @@ export interface SelectOption {
 export class FilterPanelComponent implements OnInit {
   private readonly injector = inject(Injector);
   private dateService = inject(DateService);
+  private transactionService = inject(TransactionsService);
 
   @ViewChild('menu') menu?: ElementRef<HTMLDivElement>;
   @ViewChild('content') content?: ElementRef<HTMLDivElement>;
@@ -55,8 +56,8 @@ export class FilterPanelComponent implements OnInit {
   private ro!: ResizeObserver;
 
   // Inputs & Outputs as Signals
-  readonly accountOptions = input<SelectOption[]>([]);
-  readonly categoryOptions = input<SelectOption[]>([]);
+  // readonly accountOptions = input<SelectOption[]>([]);
+  // readonly categoryOptions = input<SelectOption[]>([]);
   isVisible = input<boolean>(false);
   readonly applyFilters = output<any>();
   readonly clearFilters = output<void>();
@@ -66,15 +67,21 @@ export class FilterPanelComponent implements OnInit {
   // getOptions = signal<ISelectItem[]>([]);
   buttonText = signal<string>('aaa');
   viewReady = signal(false);
-  categoryList = signal<ISelectItem[]>([]);
-  accountsList = signal<ISelectItem[]>([]);
+  // categoryList= 
+  // accountsList = signal<ISelectItem[]>([]);
+  accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;    
+  categoryList: Signal<ISelectItem[]> = this.transactionService.categories;
+
+  fullListAccounts: Signal<ISelectItem[]> = computed(() => 
+    [{ name: 'אמצעי תשלום לא משוייכים', value: 'notBelong' }, ...this.accountsList()]
+  );
+
   filterData = signal<any>(null);
   selected: any[] = [];
   selectedType = signal<string>("");
 
   filteredMonth: ISelectItem[] = [];
   form: FormGroup
-  private transactionService = inject(TransactionsService);
   private fb = inject(FormBuilder);
 
 
@@ -155,27 +162,26 @@ export class FilterPanelComponent implements OnInit {
     });
 
     effect(() => {
-      const accounts = this.accountsList();
       const categories = this.categoryList();
-    
-      if (accounts.length > 0) {
-        this.form.get('account')?.setValue(accounts);
-      }
-    
       if (categories.length > 0) {
         this.form.get('category')?.setValue(categories);
       }
     });
-  }
+  
+
+  effect(() => {
+    const accounts = this.fullListAccounts();  
+    if (accounts.length > 0) {
+      this.form.get('account')?.setValue(accounts);
+    }
+  });
+}
 
   ngOnInit(): void {
     this.getButtonText();
     this.generateYears();
     this.getCategories();
     this.filterData = this.transactionService.filterData;
-    this.accountsList = this.transactionService.accountsList;
-    this.categoryList = this.transactionService.categories;
-
   }
   
 
