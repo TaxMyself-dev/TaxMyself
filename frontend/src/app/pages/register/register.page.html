@@ -167,7 +167,7 @@
             </div>
             @if (hasChildren()) {
             <div class="form-register">
-              <form *ngIf="childrenForm" [formGroup]="childrenForm">
+              <form class="children-form" *ngIf="childrenForm" [formGroup]="childrenForm">
                 <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
                   @for (child of childrenArray.controls; track $index) {
                   @let i = $index;
@@ -183,17 +183,17 @@
                         placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)"></app-input-date>
 
                       <div class="wrap-add-remove-child-button">
-                        @if (i > 0) {
+                        @if (childrenArray.controls.length > 1) {
                         <app-p-button [buttonText]="'-'" [buttonSize]="buttonSize.AUTO"
                           [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="removeChild(i)"></app-p-button>
                         }
-                        <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO"
-                          [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="addChild()"></app-p-button>
                       </div>
                     </div>
                   </div>
-                  }
-                </div>
+                }
+              </div>
+                <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO"
+                  [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="addChild()"></app-p-button>
               </form>
             </div>
             }
@@ -260,7 +260,8 @@
           <app-p-button [buttonText]="selectedFormModule() === registerFormModules.PERSONAL ? 'ביטול' : 'חזור'"
             [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.WHITE_BORDER"
             (onButtonClicked)="selectedFormModule() === registerFormModules.PERSONAL ? navigateToLogin() : onBackBtnClicked() "></app-p-button>
-          <app-p-button [buttonText]="selectedFormModule() === registerFormModules.BUSINESS  || (isSingle() && !isIndependent() ) ? 'סיום' : 'הבא'"
+          <app-p-button
+            [buttonText]="selectedFormModule() === registerFormModules.BUSINESS  || (isSingle() && !isIndependent() ) ? 'סיום' : 'הבא'"
             [buttonSize]="buttonSize.BETWEEN" [buttonColor]="buttonColor.YELLOW" (onButtonClicked)="onNextBtnClicked()"
             [disabled]="isNextButtonDisabled" [isLoading]="isLoading()"></app-p-button>
         </div>

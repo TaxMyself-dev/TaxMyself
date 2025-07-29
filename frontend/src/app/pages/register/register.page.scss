@@ -19,9 +19,10 @@
   height: 95%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  margin-top: 50px;
+  //align-items: center;
+  //justify-content: flex-start;
+  margin-top: 30px;
+  margin-right: 50px;
 }
 
 .module {
@@ -29,9 +30,25 @@
   flex-direction: column;
   // justify-content: flex-start;
   // gap: 25px;
-  // width: 100%;
+  width: 100%;
   // margin-right: 100px;
   height: 70%;
+}
+
+.children-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.child-row-wrap {
+  // border: solid red;
+  display: flex;
+  flex-direction: column;
+  row-gap: 16px;
+  height: fit-content;
+  max-height: 500px;
+  overflow-y: scroll;
 }
 
 .register-wrap-image {
