@@ -16,11 +16,10 @@ import { MultiSelectModule } from 'primeng/multiselect';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InputSelectComponent  implements OnInit {
+export class InputSelectComponent implements OnInit {
 
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
-  
 
   parentForm = input<FormGroup>(null);
   items = input<ISelectItem[] | { label: string; items: ISelectItem[]; }[]>([]);
@@ -51,16 +50,16 @@ export class InputSelectComponent  implements OnInit {
   //   const selected = this.selectedItemsSignal();
   //   console.log("🚀 ~ InputSelectComponent ~ selectedItemsLabel=computed ~ selected :", selected )
   //   const allItems = this.items() || [];
-  
+
   //   if (selected.length === allItems.length && allItems.length > 0) {
   //     return 'כל האפשרויות נבחרו';
   //   }
-  
+
   //   return `נבחרו ${selected.length}`;
   // });
 
 
-  constructor() {}
+  constructor() { }
 
   ngOnInit() {
     this.getinputClasses();
@@ -76,36 +75,24 @@ export class InputSelectComponent  implements OnInit {
     return false;
   }
 
-  // getStringMessage(): void {
-  //   const selectedItems = this.parentForm()?.get(this.controlName())?.value || [];
-  //   console.log("🚀 ~ InputSelectComponent ~ ngOnInit ~ selectedItems:", selectedItems)
-  //   const allItems = this.items() || [];
-  //   console.log("🚀 ~ InputSelectComponent ~ ngOnInit ~ allItems:", allItems)
-  
-  //   if (selectedItems.length === allItems.length && allItems.length > 0) {
-  //     this.stringMessage.set( 'כל האפשרויות נבחרו');
-  //   }
-  //   else {
-  //     this.stringMessage.set( `נבחרו ${selectedItems.length}`);
-  //   }
-  // }
-
   getStringMessage(): void {
     const selectedItems: ISelectItem[] = this.parentForm()?.get(this.controlName())?.value || [];
-    const allItems = this.items() || [];
-  
-    if (selectedItems.length === allItems.length && allItems.length > 0) {
-      this.stringMessage.set('כל האפשרויות נבחרו');
-    }
-    else if (selectedItems.length <= 3) {
-      const names = selectedItems.map(item => item.name).join(', ');
-      this.stringMessage.set(names);
-    }
-    else {
-      this.stringMessage.set(`נבחרו ${selectedItems.length}`);
+    if (Array.isArray(selectedItems)) {
+      const allItems = this.items() || [];
+
+      if (selectedItems.length === allItems.length && allItems.length > 0) {
+        this.stringMessage.set('כל האפשרויות נבחרו');
+      }
+      else if (selectedItems.length <= 3) {
+        const names = selectedItems.map(item => item.name).join(', ');
+        this.stringMessage.set(names);
+      }
+      else {
+        this.stringMessage.set(`נבחרו ${selectedItems.length}`);
+      }
     }
   }
-  
+
 
   getinputClasses(): void {
     const classes = [
@@ -120,13 +107,13 @@ export class InputSelectComponent  implements OnInit {
 
   onChange(event: any): void {
     this.getStringMessage();
-      const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-        if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
-          this.inputClasses.update(current => current + ' dirty');
-        }
-        else {
-          this.inputClasses.update(current => current.replace('dirty', ''));
-        }
+    const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
+    if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
+      this.inputClasses.update(current => current + ' dirty');
+    }
+    else {
+      this.inputClasses.update(current => current.replace('dirty', ''));
+    }
     this.onChangeInputSelect.emit(event.value);
   }
 
@@ -146,6 +133,6 @@ export class InputSelectComponent  implements OnInit {
 
 
 
- 
+
 
 }
