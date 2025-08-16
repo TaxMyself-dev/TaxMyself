@@ -224,7 +224,7 @@ export class FilterPanelComponent implements OnInit {
     if (periodType === 'MONTHLY') {
       this.filteredMonth = this.monthOptions.filter(month => {
         if (selectedYear < currentYear) return true;
-        if (selectedYear === currentYear) return Number(month.value) < currentMonth;
+        if (selectedYear === currentYear) return Number(month.value) <= currentMonth;
         return false;
       });
     } else if (periodType === 'BIMONTHLY') {
@@ -233,7 +233,7 @@ export class FilterPanelComponent implements OnInit {
         const monthEnd = monthStart + 1;
   
         if (selectedYear < currentYear) return true;
-        if (selectedYear === currentYear) return monthEnd < currentMonth;
+        if (selectedYear === currentYear) return monthEnd <= currentMonth;
         return false;
       });
     }
@@ -268,6 +268,7 @@ export class FilterPanelComponent implements OnInit {
   }
 
   onSelectType(value: string) {
+    this.form.reset(); // Reset the form to clear previous selections
     this.filteredMonth = [];
     this.selectedType.set(this.selectedType() === value ? null : value);
     this.form.patchValue({ periodType: value });
@@ -366,7 +367,6 @@ export class FilterPanelComponent implements OnInit {
 
   getButtonText(): void {
     console.log("!form.get('startDate')?.value:", !(this.form.get('startDate')?.value));
-    
     const periodType = this.form.get('periodType')?.value;
     const year = this.form.get('year')?.value;
     const month = this.form.get('month')?.value;

@@ -347,15 +347,19 @@ export class TransactionsPage implements OnInit {
   }
 
   getTransactions(filters: any | null): void {
+    console.log("filters: ", filters);
+    
     this.isLoadingStateTable.set(true);
     const periodType = filters?.periodType;
-    let accounts = filters?.account;
-    let categories = filters?.category;
+    let accounts: ISelectItem[] = filters?.account || null;
+    let categories: ISelectItem[] = filters?.category;
     let startDate: string;
     let endDate: string;
 
-    let accountsNames = accounts?.map((account: ISelectItem) => account.value);
-    let categoriesName = categories?.map((category: ISelectItem) => category.value);
+    let accountsNames: string[] = accounts?.map((account: ISelectItem) => account.value as string);
+    console.log("accountsNames: ", accountsNames);
+    
+    let categoriesName: string[] = categories?.map((category: ISelectItem) => category.value as string);
     // === Setting the date
     if (!filters) { // For default table.
       const today = new Date();
@@ -369,8 +373,7 @@ export class TransactionsPage implements OnInit {
         thirtyDaysAgo.toISOString(),
         today.toISOString()
       ));
-      accountsNames = null;
-      categoriesName = null;
+      
     }
     else {
       switch (periodType) {
@@ -401,8 +404,10 @@ export class TransactionsPage implements OnInit {
           break;
       }
     }
-    // === Setting the date //
-   
+    // === End setting the date //
+   // For dont send empty arrays to the backend
+   accountsNames.length > 0 || null;
+   categoriesName.length > 0 || null;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
