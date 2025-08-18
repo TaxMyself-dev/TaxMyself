@@ -10,7 +10,7 @@
   <!-- Select Time -->
   <div class="header">
     <span class="title">זמן</span>
-    <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.X_BIG" [buttonText]="buttonText()"
+    <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.BTN_SELECT" [buttonText]="buttonText()"
       [icon]="'pi pi-sort-down-fill'" [class]="'filter'" [variant]="'outlined'"
       (onButtonClicked)="visibleTimesOptions()"></app-p-button>
   </div>
@@ -77,13 +77,13 @@
   <div class="header">
     <span class="title">חשבון</span>
     <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
-      [size]="inputsSize.MEDIUM"></app-input-select>
+      [size]="inputsSize.BETWEEN"></app-input-select>
   </div>
   <!-- Select Category -->
   <div class="header">
     <span class="title">קטגוריה</span>
     <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
-      [parentForm]="form" [size]="inputsSize.MEDIUM">
+      [parentForm]="form" [size]="inputsSize.BETWEEN">
     </app-input-select>
   </div>
   <div class="apply-filters-button">

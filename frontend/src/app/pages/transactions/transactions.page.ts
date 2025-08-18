@@ -406,8 +406,8 @@ export class TransactionsPage implements OnInit {
     }
     // === End setting the date //
    // For dont send empty arrays to the backend
-   accountsNames.length > 0 || null;
-   categoriesName.length > 0 || null;
+   accountsNames?.length > 0 || null;
+   categoriesName?.length > 0 || null;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
