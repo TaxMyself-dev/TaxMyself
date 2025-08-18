@@ -9,6 +9,6 @@ export class CreateBillDto {
     billName: string;
 
     @IsString()
-    businessNumber: string;
+    businessNumber: string | null;
     
 }
