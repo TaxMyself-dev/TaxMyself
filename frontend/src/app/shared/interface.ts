@@ -7,6 +7,7 @@ export interface IUserData {
     businessName: string;
     businessNumber: string;
     businessType: string;
+    businessAddress: string;
     city: string;
     dateOfBirth: string;
     email: string;
@@ -26,12 +27,14 @@ export interface IUserData {
     spouseBusinessName: string;
     spouseBusinessNumber: string;
     spouseBusinessType: string;
+    spouseBusinessAddress: string;
     spouseDateOfBirth: string;
     spouseEmploymentStatus: string;
     spouseFName: string;
     spouseId: string;
     spouseLName: string;
     spousePhone: string;
+    spouseEmail: string;
     spouseTaxReportingType: string;
     spouseVatReportingType: string;
     taxReportingType: string;
@@ -371,4 +374,13 @@ export interface ICreateDocField<TFieldsHebrew, TFields> {
     errorText?: string;
     expandable?: boolean;
     onChange?: (event?: any, parent?: any) => void;
+}
+
+export interface BusinessInfo {
+  name: string;
+  value: string; //business number
+  address: string;
+  type: string;
+  phone: string;
+  email: string
 }

@@ -652,7 +652,7 @@ export class ReportsService {
           const f_1255 = this.formatField(line.lineNumber, 4, '0');
           const f_1256 = this.formatField(this.getDocumentTypeCode(doc.parentDocType, true), 3, '0');
           const f_1257 = this.formatField(doc.parentDocNumber, 20, '0');
-          const f_1258 = this.formatField(doc.transType, 1, '0');
+          const f_1258 = this.formatField(line.transType, 1, '0');
           const f_1259 = this.formatField("175790433", 20, '0');
           const f_1260 = this.formatField(line.description, 30, '!');
           const f_1261 = this.formatField(line.manufacturerName, 50, '!');

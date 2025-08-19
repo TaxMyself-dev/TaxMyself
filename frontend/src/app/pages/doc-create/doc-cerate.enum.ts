@@ -47,10 +47,10 @@ export enum DocCreateFields {
     DOC_DESCRIPTION = "docDescription",
     DOC_VAT_RATE = "docVatRate",
 
-    CUSTOMER_NAME = "customerName",
-    CUSTOMER_ID = "customerId",
-    CUSTOMER_PHONE = "customerPhone",
-    CUSTOMER_EMAIL = "customerEmail",
+    RECIPIENT_NAME = "recipientName",
+    RECIPIENT_ID = "recipientId",
+    RECIPIENT_PHONE = "recipientPhone",
+    RECIPIENT_EMAIL = "recipientEmail",
 
     LINE_DESCRIPTION = 'lineDescription',
     LINE_QUANTITY = 'lineQuantity',
@@ -79,14 +79,20 @@ export interface LineItem {
   sum: number;
   discount: number;
 
+  sumBefVatPerUnit : number;
+  disBefVatPerLine : number;
+  sumAftDisBefVatPerLine : number;
+  vatPerLine: number;
+
   sumBefVat: number;
   disBefVat: number;
   sumWithoutVat: number;
-  vat: number;
+  // vat: number;
   sumAftDisWithVat: number;
 
-  paymentMethod: PaymentMethodType;
+  // paymentMethod: PaymentMethodType;
   lineNumber: number;
+  transType: string; // = 3
   unitType: UnitOfMeasure;
   bankNumber?: string | null;
   branchNumber?: string | null;

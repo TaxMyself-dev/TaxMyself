@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 import { LoadingController, PopoverController } from '@ionic/angular';
 import { BehaviorSubject, EMPTY, Observable, Subject, catchError, from, map, switchMap, tap } from 'rxjs';
-import { IToastData } from '../shared/interface';
+import { BusinessInfo, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
+import { BusinessMode } from '../shared/enums';
+
 
 @Injectable({
   providedIn: 'root'
@@ -17,6 +19,119 @@ export class GenericService {
   toast$ = this.toastSubject.asObservable();
 
   constructor(private loader: LoadingController, private popoverController: PopoverController) { }
+
+
+
+  getBusinessData(user: IUserData): {
+    mode: BusinessMode;
+    uiList: { name: string; value: string }[];
+    fullList: BusinessInfo[];
+    showSelector: boolean;
+  } {
+
+    const fullList: BusinessInfo[] = [];
+
+    if (user.isTwoBusinessOwner) {
+      fullList.push({
+        name: user.businessName,
+        value: user.businessNumber,
+        address: user.businessAddress,
+        type: user.businessType,
+        phone: user.phone,
+        email: user.email
+      });
+
+      fullList.push({
+        name: user.spouseBusinessName,
+        value: user.spouseBusinessNumber,
+        address: user.spouseBusinessAddress,
+        type: user.spouseBusinessType,
+        phone: user.spousePhone,
+        email: user.spouseEmail
+      });
+
+      return {
+        mode: BusinessMode.TWO_BUSINESS,
+        uiList: fullList.map(b => ({ name: b.name, value: b.value })),
+        fullList,
+        showSelector: true
+      };
+    }
+
+    fullList.push({
+      name: user.businessName,
+      value: user.businessNumber,
+      address: user.businessAddress,
+      type: user.businessType,
+      phone: user.phone,
+      email: user.email
+    });
+
+    return {
+      mode: BusinessMode.ONE_BUSINESS,
+      uiList: fullList.map(b => ({ name: b.name, value: b.value })),
+      fullList,
+      showSelector: false
+    };
+  }
+
+
+
+//   getBusinessData(user: IUserData): {
+//   mode: BusinessMode;
+//   list: BusinessInfo[];
+//   showSelector: boolean;
+// } {
+//   const list: BusinessInfo[] = [];
+
+//   if (user.isTwoBusinessOwner) {
+//     list.push({
+//       name: user.businessName,
+//       value: user.businessNumber,
+//       address: user.businessAddress,
+//       type: user.businessType,
+//       phone: user.phone,
+//     });
+
+//     list.push({
+//       name: user.spouseBusinessName,
+//       value: user.spouseBusinessNumber,
+//       address: user.spouseBusinessAddress,
+//       type: user.spouseBusinessType,
+//       phone: user.spousePhone,
+//     });
+
+//     return { mode: BusinessMode.TWO_BUSINESS, list, showSelector: true };
+//   }
+
+//   list.push({
+//     name: user.businessName,
+//     value: user.businessNumber,
+//     address: user.businessAddress,
+//     type: user.businessType,
+//     phone: user.phone,
+//   });
+
+//   return { mode: BusinessMode.ONE_BUSINESS, list, showSelector: false };
+// }
+
+
+  // getBusinessData(user: IUserData): {
+  //   mode: BusinessMode;
+  //   list: BusinessInfo[];
+  //   showSelector: boolean;
+  // } {
+  //   const list: BusinessInfo[] = [];
+
+  //   if (user.isTwoBusinessOwner) {
+  //     list.push({ name: user.businessName, value: user.businessNumber });
+  //     list.push({ name: user.spouseBusinessName, value: user.spouseBusinessNumber });
+  //     return { mode: BusinessMode.TWO_BUSINESS, list, showSelector: true };
+  //   }
+
+  //   list.push({ name: user.businessName, value: user.businessNumber });
+  //   return { mode: BusinessMode.ONE_BUSINESS, list, showSelector: false };
+  // }
 
   showToast(message: string, type: 'success' | 'error', duration: number = 3000, color: string = 'primary', position: 'top' | 'middle' | 'bottom' = 'bottom') {
     const toastData: IToastData = {

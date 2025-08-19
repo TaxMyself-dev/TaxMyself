@@ -249,6 +249,9 @@ export class DocumentsService {
     console.log("templateType is ", templateType);
     console.log("data is ", data);
 
+    console.log("name is ", data.docData.hebrewNameDoc);
+    
+
     let fid: string;
     let prefill_data: any;
     
@@ -261,12 +264,12 @@ export class DocumentsService {
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId,
-          docTitle: `${data.fileData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
+          docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docDate: data.docData.docDate,
           issuerDetails:
-            `${data.fileData.issuerName}\n${data.fileData.issuerPhone}\n${data.fileData.issuerEmail}\n${data.fileData.issuerAddress}`,
+            `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          payments_table: await this.transformLinesToPaymentsTable(data.linesData),
+          payments_table: await this.transformLinesToPaymentsTable(data.paymentData),
           subTotal: data.docData.sumAftDisBefVAT,
           totalTax: data.docData.vatSum,
           total: data.docData.sumAftDisWithVAT,
@@ -318,31 +321,27 @@ export class DocumentsService {
 
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
+    
+    console.log("lines is ", lines);
+    
     return lines.map(line => ({
-        "סכום": `₪${line.sumBefVat * line.unitAmount}`,
-        "מחיר": `₪${line.sumBefVat}`,
-        "כמות": String(line.unitAmount),
+        "סכום": `₪${line.sumBefVatPerUnit * line.unitQuantity}`,
+        "מחיר": `₪${line.sumAftDisBefVatPerLine}`,
+        "כמות": String(line.unitQuantity),
         "פירוט": line.description || ""
     }));
   }
 
-  
-  async transformLinesToPaymentsTable(lines: any[]): Promise<any[]> {
-    return lines.map(line => {
+
+    async transformLinesToPaymentsTable(PaymentLines: any[]): Promise<any[]> {
+    
+    return PaymentLines.map(line => {
       
       console.log("line is ", line);
       
-      let sum: number;
+      // let sum: number;
       let details: string;
       let paymentMethodHebrew: string;
-
-      console.log("line.vatOpts is ", line.vatOpts);
-      
-      if (line.vatOpts === 'INCLUDE') {
-        sum = line.sumBefVat + (line.sumBefVat * line.vatRate / 100);
-      } else if (line.vatOpts === 'EXCLUDE' || line.vatOpts === 'WITHOUT') {
-        sum = line.sumBefVat;
-      }
 
       switch (line.paymentMethod) {
         case 'CASH':
@@ -366,18 +365,69 @@ export class DocumentsService {
       }
 
       return {
-        "סכום": `₪${Number(sum).toFixed(2)}`,
-        "תאריך": line.payDate,
+        "סכום": `₪${Number(line.paymentAmount).toFixed(2)}`,
+        "תאריך": line.paymentDate,
         "פירוט": details,
         "אמצעי תשלום": paymentMethodHebrew
       };
     });
   }
 
+  
+  // async transformLinesToPaymentsTable(lines: any[]): Promise<any[]> {
+
+  //   return lines.map(line => {
+      
+  //     console.log("line is ", line);
+      
+  //     let sum: number;
+  //     let details: string;
+  //     let paymentMethodHebrew: string;
+
+  //     console.log("line.vatOpts is ", line.vatOpts);
+      
+  //     if (line.vatOpts === 'INCLUDE') {
+  //       sum = line.sumBefVat + (line.sumBefVat * line.vatRate / 100);
+  //     } else if (line.vatOpts === 'EXCLUDE' || line.vatOpts === 'WITHOUT') {
+  //       sum = line.sumBefVat;
+  //     }
+
+  //     switch (line.paymentMethod) {
+  //       case 'CASH':
+  //         details = 'שולם במזומן';
+  //         paymentMethodHebrew = 'מזומן';
+  //         break;
+  //       case 'BANK_TRANSFER':
+  //         details = `${line.accountNumber} - חשבון ,${line.branchNumber} - סניף ,${line.bankNumber} - בנק`;
+  //         paymentMethodHebrew = 'העברה בנקאית';
+  //         break;
+  //       case 'CHECK':
+  //         details = `${line.checkNumber} - מספר המחאה`;
+  //         paymentMethodHebrew = 'צ׳ק';
+  //         break;
+  //       case 'CREDIT_CARD':
+  //         details = `${line.card4Number} - ${line.cardCompany}`;
+  //         paymentMethodHebrew = 'כרטיס אשראי';
+  //         break;
+  //       default:
+  //         throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
+  //     }
+
+  //     return {
+  //       "סכום": `₪${Number(sum).toFixed(2)}`,
+  //       "תאריך": line.payDate,
+  //       "פירוט": details,
+  //       "אמצעי תשלום": paymentMethodHebrew
+  //     };
+  //   });
+  // }
+
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
-    //console.log("DocumentsService ~ createDoc ~ data:", data)
+    console.log("createDoc in service - start");
+    
+    console.log("DocumentsService ~ createDoc ~ data:", data)
 
     try {
 
@@ -398,8 +448,10 @@ export class DocumentsService {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
+      console.log("docDetails is ", docDetails);
+      
       // Convert the paymentMethod from hebrew to english
-      data.docData.paymentMethod = this.convertPaymentMethod(data.docData.paymentMethod);
+      //data.docData.paymentMethod = this.convertPaymentMethod(data.docData.paymentMethod);
 
       // Add the document to the database
       const newDoc = await this.saveDocInfo(userId, data.docData);
@@ -408,8 +460,12 @@ export class DocumentsService {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
+      console.log("After save doc");
+
       // Add the lines to the database
       await this.saveLinesInfo(userId, data.linesData);
+
+      console.log("After save lines");
 
       // Add the jouranl entry to the database
       await this.bookkeepingService.createJournalEntry({

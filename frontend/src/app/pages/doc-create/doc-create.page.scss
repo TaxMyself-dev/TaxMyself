@@ -1,10 +1,12 @@
 .page-wrapper {
-  min-height: 100vh;
+  height: 100vh;
   padding: 30px;
   display: flex;
   flex-direction: column;
   gap: 20px;
   border: solid 1px red;
+  // height: auto;          /* Let it grow based on content */
+  overflow-y: scroll;      /* Enable scrolling when content overflows */
 }
 
 .section {
@@ -15,24 +17,6 @@
   border: solid 1px green;
   gap: 20px;
 }
-
-// .client-section {
-//   display: flex;
-//   flex-direction: column;
-//   border: solid 1px green;
-// }
-
-// .details-section {
-//   display: flex;
-//   flex-direction: column;
-//   border: solid 1px green;
-// }
-
-// .payment-section {
-//   display: flex;
-//   flex-direction: column;
-//   border: solid 1px green;
-// }
 
 .general-fields {
   display: flex;
@@ -135,9 +119,6 @@
   margin: 0;
 }
 
-
-
-
 .actions i {
   margin: 0 4px;
   cursor: pointer;
@@ -146,21 +127,10 @@
 }
 
 
-// .create-doc-wrap-screen {
-//   width: 100%;
-//   height: 95%;
-//   display: flex;
-//   flex-direction: column;
-//   align-items: left;
-//   padding-right: 50px;
-// }
-
 .create-doc-header {
   display: flex;
   flex-direction: column;
   text-align: right;
-  // margin-top: 100px;
-  // border: solid 1px green;
 }
 
 .title {

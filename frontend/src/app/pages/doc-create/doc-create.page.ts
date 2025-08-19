@@ -1,9 +1,9 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptions } from 'src/app/shared/enums';
+import { BusinessMode, CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptions } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
+import { BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -14,9 +14,14 @@ import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { RegisterFormControls } from '../register/regiater.enum';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotalsField, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
 import { MenuItem } from 'primeng/api';
+
+interface DocPayload {
+  docData: any[];
+  linesData: any[];
+  paymentData: any[];
+}
 
 interface PaymentFieldConfig {
   key: string;   // FormControlName
@@ -49,7 +54,7 @@ export class DocCreatePage implements OnInit {
   createPDFIsLoading: boolean = false;
   createPreviewPDFIsLoading: boolean = false;
   addPDFIsLoading: boolean = false;
-  userDetails: IUserData
+  userData: IUserData
   amountBeforeVat: number = 0;
   vatAmount: number = 0;
   totalAmount: number = 0;
@@ -64,6 +69,20 @@ export class DocCreatePage implements OnInit {
   paymentsArray: IDocCreateFieldData[] = [];
   paymentSectionName: SectionKeysEnum;
 
+  // Business-related properties
+  BusinessMode = BusinessMode;
+  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
+  showBusinessSelector = false;
+  businessUiList: ISelectItem[] = [];
+  businessFullList: BusinessInfo[] = [];
+  selectedBusinessNumber!: string;
+  selectedBusinessName!: string;
+  selectedBusinessAddress!: string;
+  selectedBusinessType!: string;
+  selectedBusinessPhone!: string;
+  selectedBusinessEmail!: string;
+
+    
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -82,7 +101,7 @@ export class DocCreatePage implements OnInit {
 
   form: FormGroup;
   generalDocForm: FormGroup;
-  customerDocForm: FormGroup;
+  recipientDocForm: FormGroup;
   linesDocForm: FormGroup;
   paymentForm: FormGroup;
   initialIndexForm: FormGroup;
@@ -139,10 +158,11 @@ export class DocCreatePage implements OnInit {
   ];
 
     paymentMethodTabs: MenuItem[] = [
-    { label: 'העברה בנקאית', id: 'BANK' as any },  // `id` is just an extra field (PrimeNG allows it)
-    { label: 'אשראי', id: 'CREDIT' as any },
+    { label: 'העברה בנקאית', id: 'BANK_TRANSFER' as any },  // `id` is just an extra field (PrimeNG allows it)
+    { label: 'אשראי', id: 'CREDIT_CARD' as any },
     { label: 'צ׳ק', id: 'CHECK' as any },
     { label: 'אפליקציה', id: 'APP' as any },
+    { label: 'מזומן', id: 'CASH' as any },
   ];
 
     activePaymentMethod: MenuItem = this.paymentMethodTabs[0]; // default selected
@@ -150,19 +170,15 @@ export class DocCreatePage implements OnInit {
   paymentInputForm: FormGroup;  // Holds the active entry row
   paymentsDraft: any[] = [];     // Stores all added payments
 
-  // activePaymentMethod = this.paymentMethodTabs[0]; // Default active payment method
-  // activePaymentMethod: PaymentTab = this.paymentMethodTabs[0];
-
-
 paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
-  BANK: [
+  BANK_TRANSFER: [
     { key: 'paymentDate', label: 'תאריך', type: 'date' },
     { key: 'bankName', label: 'בנק', type: 'dropdown', options: this.bankOptionsList },
     { key: 'branchNumber', label: 'סניף', type: 'text' },
     { key: 'accountNumber', label: 'חשבון', type: 'text' },
     { key: 'paymentAmount', label: 'סכום', type: 'text' }
   ],
-  CREDIT: [
+  CREDIT_CARD: [
     { key: 'paymentDate', label: 'תאריך', type: 'date' },
     { key: 'cardType', label: 'סוג כרטיס', type: 'text' },
     { key: 'last4Digits', label: '4 ספרות', type: 'text' },
@@ -181,7 +197,11 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     { key: 'appName', label: 'אפליקציה', type: 'text' },
     { key: 'reference', label: 'אסמכתא', type: 'text' },
     { key: 'paymentAmount', label: 'סכום', type: 'text' }
-  ]
+  ],
+  CASH: [
+    { key: 'paymentDate', label: 'תאריך', type: 'date' },
+    { key: 'paymentAmount', label: 'סכום', type: 'text' }
+  ],
 };
 
 
@@ -205,18 +225,18 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       ),
     })
 
-    this.customerDocForm = this.formBuilder.group({
-      [DocCreateFields.CUSTOMER_NAME]: new FormControl(
+    this.recipientDocForm = this.formBuilder.group({
+      [DocCreateFields.RECIPIENT_NAME]: new FormControl(
         null, Validators.required,
       ),
-      [DocCreateFields.CUSTOMER_ID]: new FormControl(
-        null, Validators.required,
+      [DocCreateFields.RECIPIENT_ID]: new FormControl(
+        null,
       ),
-      [DocCreateFields.CUSTOMER_PHONE]: new FormControl(
-        null, Validators.required,
+      [DocCreateFields.RECIPIENT_PHONE]: new FormControl(
+        null,
       ),
-      [DocCreateFields.CUSTOMER_EMAIL]: new FormControl(
-        null, Validators.required,
+      [DocCreateFields.RECIPIENT_EMAIL]: new FormControl(
+        null,
       ),
     })
 
@@ -262,8 +282,51 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
 
 
   ngOnInit() {
-    this.userDetails = this.authService.getUserDataFromLocalStorage();
+
+    this.userData = this.authService.getUserDataFromLocalStorage();
+
+    const businessData = this.genericService.getBusinessData(this.userData);
+
+    this.businessMode = businessData.mode;
+    this.businessUiList = businessData.uiList; // for the selector
+    this.businessFullList = businessData.fullList; // for internal details
+    this.showBusinessSelector = businessData.showSelector;
+
+    if (this.businessMode === BusinessMode.ONE_BUSINESS) {
+      const b = this.businessFullList[0];
+      this.setSelectedBusiness(b);
+    }
+
     this.createForms();
+
+  }
+
+
+  onConfirmBusinessSelection(): void {
+
+    if (!this.selectedBusinessNumber) {
+      throw new Error('No business number was selected.');
+    }
+
+    const selected = this.businessFullList.find(b => b.value === this.selectedBusinessNumber);
+
+    if (!selected) {
+      throw new Error(`Business number ${this.selectedBusinessNumber} not found.`);
+    }
+
+    this.setSelectedBusiness(selected);
+    this.showBusinessSelector = false;
+
+  }
+
+
+  private setSelectedBusiness(business: BusinessInfo): void {
+    this.selectedBusinessNumber = business.value;
+    this.selectedBusinessName = business.name;
+    this.selectedBusinessAddress = business.address;
+    this.selectedBusinessType = business.type;
+    this.selectedBusinessPhone = business.phone;
+    this.selectedBusinessEmail = business.email;
   }
 
 
@@ -280,7 +343,110 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   }
 
 
-  //////////////////////////////////////////// New functions ////////////////////////////////////////////
+  // Function for creating the doc and downloading it
+  createDoc(): void {
+
+    this.createPDFIsLoading = true;
+    // const data = this.getDocData();
+    const data = this.buildDocPayload();
+    
+    this.docCreateService.createDoc(data)
+      .pipe(
+        finalize(() => {
+          this.createPDFIsLoading = false;
+        }),
+        catchError((err) => {
+          console.error("Error in createPDF (Create):", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log("Update current index result:", res);
+        this.fileService.downloadFile("my pdf", res);
+      });
+  }
+
+
+  // Function for previewing the doc
+  previewtDoc(): void {
+
+    this.createPreviewPDFIsLoading = true;
+    // const data = this.getDocData();
+    const data = this.buildDocPayload();
+    
+
+    this.docCreateService.generatePDF(data)
+      .pipe(
+        finalize(() => {
+          this.createPreviewPDFIsLoading = false;
+        }),
+        catchError((err) => {
+          console.error("Error in createPDF (Preview):", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log("PDF creation result (Preview):", res);
+        this.fileService.previewFile1(res);
+      });
+  }
+
+
+  private buildDocPayload(): DocPayload {
+
+    if (!this.CreateDocIsValid) {
+      throw new Error('Cannot collect document data: forms are invalid or incomplete.');
+    }
+
+    let docPayload: DocPayload;
+
+    const issuerbusinessNumber = this.selectedBusinessNumber;
+               // `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
+
+    const issuerName = this.selectedBusinessName;
+    const issuerAddress = this.selectedBusinessAddress;
+    const issuerPhone = this.selectedBusinessPhone;
+    const issuerEmail = this.selectedBusinessEmail;
+
+    const docNumber = this.docIndexes.docIndex;
+    const generalDocIndex = this.docIndexes.generalIndex;
+    const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
+
+    const totals = this.documentTotals;
+    const sumBefDisBefVat = totals.sumBefDisBefVat;
+    const disSum = totals.disSum;
+    const sumAftDisBefVAT = totals.sumAftDisBefVAT;
+    const vatSum = totals.vatSum;
+    const sumAftDisWithVAT = totals.sumAftDisWithVAT;
+
+    docPayload = {
+      docData: {
+        ...this.generalDocForm.value,
+        ...this.recipientDocForm.value,
+        issuerbusinessNumber,
+        issuerName,
+        issuerAddress,
+        issuerPhone,
+        issuerEmail,
+        docNumber,
+        generalDocIndex,
+        hebrewNameDoc,
+        sumBefDisBefVat,
+        disSum,
+        sumAftDisBefVAT,
+        vatSum,
+        sumAftDisWithVAT,
+      },
+      linesData: this.lineItemsDraft,
+      paymentData: this.paymentsDraft,
+    };
+
+    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
+
+    return docPayload;
+
+  }
+
 
   addLineDetails(): void {
 
@@ -288,8 +454,10 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     console.log("Adding line with form value:", formValue);
 
     const lineIndex = this.lineItemsDraft.length;
+    const transType = "3";
 
     const newLine: PartialLineItem = {
+      issuerbusinessNumber: this.selectedBusinessNumber,
       lineNumber: lineIndex + 1,
       description: formValue.lineDescription,
       unitQuantity: formValue.lineQuantity,
@@ -297,6 +465,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       discount: formValue.lineDiscount,
       vatOpts: formValue.lineVatType,
       vatRate: this.generalDocForm.value[DocCreateFields.DOC_VAT_RATE],
+      transType: transType,
     };
 
     this.lineItemsDraft.push(newLine);
@@ -305,52 +474,61 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   }
 
 
+
+  // line
+  // sumBefVatPerUnit
+  // disBefVatPerLine
+  // sumAftDisBefVatPerLine
+
+  // doc
+  // sumBefDisBefVat: number; //  סכום המסמך לפני הנחה ולפני מע"מ
+  // disSum: number; //  סכום ההנחה במסמך
+  // sumAftDisBefVAT: number; // סכום המסמך לאחר הנחה לפני מע"מ
+  // vatSum: number; //  סכום המע"מ במסמך
+  // sumAftDisWithVAT: number; // סכום המסמך לאחר הנחה כולל מע"מ
+
+
   private calculateVatFieldsForLine(lineIndex: number): void {
 
     const line = this.lineItemsDraft[lineIndex];
     const quantity = line.unitQuantity ?? 1;
-    const sum = line.sum ?? 0;
+    const unitSum = line.sum ?? 0;
     const discount = line.discount ?? 0;
-    const vatOption = line.vatOpts ?? 'INCLUDE';
-    const vatRate = line.vatRate ?? 18;
+    const vatOption = line.vatOpts;
+    const vatRate = line.vatRate ?? 0;
 
-    const lineGross = sum * quantity;
-
-    let sumBefVat = 0;
-    let sumAftVat = 0;
-    let sumWithoutVat = 0;
-    let disBefVat = 0;
-    let vat = 0;
+    const lineGross = unitSum * quantity;
+    let sumBefVatPerUnit = 0;
+    let disBefVatPerLine = 0;
+    let sumAftDisBefVatPerLine = 0;
+    let vatPerLine = 0;
     let sumAftDisWithVat = 0;
 
     switch (vatOption) {
       case 'INCLUDE': {
-        sumBefVat = lineGross / (1 + vatRate / 100);
-        sumWithoutVat = 0;
-        disBefVat = discount / (1 + vatRate / 100);
-        const netAfterDiscountInc = lineGross - discount;
-        vat = netAfterDiscountInc - (netAfterDiscountInc / (1 + vatRate / 100));
-        sumAftDisWithVat = netAfterDiscountInc;
+        sumBefVatPerUnit = unitSum / (1 + vatRate / 100);
+        disBefVatPerLine = discount / (1 + vatRate / 100);
+        sumAftDisBefVatPerLine = (lineGross - discount) / (1 + vatRate / 100);
+        vatPerLine = (lineGross - discount) - sumAftDisBefVatPerLine;
+        sumAftDisWithVat = lineGross - discount;
         break;
       }
 
       case 'EXCLUDE': {
-        sumBefVat = lineGross;
-        sumWithoutVat = 0;
-        disBefVat = discount;
-        const netAfterDiscountExc = lineGross - discount;
-        vat = netAfterDiscountExc * (vatRate / 100);
-        sumAftDisWithVat = netAfterDiscountExc + vat;
+        sumBefVatPerUnit = unitSum;
+        disBefVatPerLine = discount;
+        sumAftDisBefVatPerLine = lineGross - discount;
+        vatPerLine = sumAftDisBefVatPerLine * (vatRate / 100);
+        sumAftDisWithVat = sumAftDisBefVatPerLine + vatPerLine;
         break;
       }
 
       case 'WITHOUT': {
-        sumBefVat = lineGross;
-        sumAftVat = lineGross;
-        sumWithoutVat = lineGross - discount;
-        disBefVat = discount;
-        vat = 0;
-        sumAftDisWithVat = lineGross - discount;
+        sumBefVatPerUnit = unitSum;
+        disBefVatPerLine = discount;
+        sumAftDisBefVatPerLine = lineGross - discount;
+        vatPerLine = 0;
+        sumAftDisWithVat = sumAftDisBefVatPerLine;
         break;
       }
 
@@ -359,46 +537,44 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     }
 
     Object.assign(line, {
-      sumBefVat,
-      sumAftVat,
-      sumWithoutVat,
-      disBefVat,
-      vat,
+      sumBefVatPerUnit,
+      disBefVatPerLine,
+      sumAftDisBefVatPerLine,
+      vatPerLine,
       sumAftDisWithVat,
     });
-
-    console.log("line is ", this.lineItemsDraft[lineIndex]);
-    
   }
 
 
-  //Getter for document totals (auto-calculated on the fly).
-  get documentTotals() {
+get documentTotals() {
 
-    const totals = {
-      [DocumentTotalsField.TOTAL_BEFORE_VAT]: 0,
-      [DocumentTotalsField.TOTAL_AFTER_VAT]: 0,
-      [DocumentTotalsField.TOTAL_WITHOUT_VAT]: 0,
-      [DocumentTotalsField.TOTAL_VAT]: 0,
-    };
+  const totals = {
+    sumBefDisBefVat: 0,        // סכום לפני הנחה ולפני מע״מ
+    disSum: 0,                 // סכום הנחה
+    sumAftDisBefVAT: 0,        // אחרי הנחה לפני מע״מ
+    vatSum: 0,                 // סכום המע״מ
+    sumAftDisWithVAT: 0        // אחרי הנחה כולל מע״מ
+  };
 
-    this.lineItemsDraft.forEach((line) => {
+  this.lineItemsDraft.forEach((line) => {
 
-      const sumBefVat = line.sumBefVat ?? 0;
-      const sumAftVat = line.sumAftDisWithVat ?? 0;
-      const sumWithoutVat = line.sumWithoutVat ?? 0;
-      const vat = line.vat ?? 0;
+    const quantity = line.unitQuantity ?? 1;
+    const sumPerUnit = line.sumBefVatPerUnit ?? 0;
+    const disPerLine = line.disBefVatPerLine ?? 0;
+    const aftDisBefVat = line.sumAftDisBefVatPerLine ?? 0;
+    const vat = line.vatPerLine ?? 0;
+    const aftDisWithVat = line.sumAftDisWithVat ?? 0;
 
-      totals[DocumentTotalsField.TOTAL_BEFORE_VAT] += sumBefVat;
-      totals[DocumentTotalsField.TOTAL_AFTER_VAT] += sumAftVat;
-      totals[DocumentTotalsField.TOTAL_WITHOUT_VAT] += sumWithoutVat;
-      totals[DocumentTotalsField.TOTAL_VAT] += vat;
+    totals.sumBefDisBefVat += sumPerUnit * quantity;
+    totals.disSum += disPerLine;
+    totals.sumAftDisBefVAT += aftDisBefVat;
+    totals.vatSum += vat;
+    totals.sumAftDisWithVAT += aftDisWithVat;
+  });
 
-    });
+  return totals;
+}
 
-    return totals;
-
-  }
 
 
   get visibleDocumentTotals() {
@@ -416,27 +592,27 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   }
 
 
-    createPaymentInputForm(method: string): void {
-    switch (method) {
-      case 'BANK':
+    createPaymentInputForm(paymentMethod: string): void {
+    switch (paymentMethod) {
+      case 'BANK_TRANSFER':
         this.paymentInputForm = this.formBuilder.group({
           paymentDate: [null, Validators.required],
           bankName: [null, Validators.required],
-          branchNumber: [null, Validators.required],
-          accountNumber: [null, Validators.required],
+          branchNumber: [null],
+          accountNumber: [null],
           paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          method: [method]
+          paymentMethod: [paymentMethod]
         });
         break;
 
-      case 'CREDIT':
+      case 'CREDIT_CARD':
         this.paymentInputForm = this.formBuilder.group({
           paymentDate: [null, Validators.required],
           cardType: [null, Validators.required],
           last4Digits: [null, [Validators.required, Validators.pattern(/^\d{4}$/)]],
           approvalCode: [null, Validators.required],
           paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          method: [method]
+          paymentMethod: [paymentMethod]
         });
         break;
 
@@ -447,7 +623,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
           branchNumber: [null, Validators.required],
           checkNumber: [null, [Validators.required, Validators.pattern(/^\d+$/)]],
           paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          method: [method]
+          paymentMethod: [paymentMethod]
         });
         break;
 
@@ -457,22 +633,46 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
           appName: [null, Validators.required],
           reference: [null, Validators.required],
           paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          method: [method]
+          paymentMethod: [paymentMethod]
+        });
+        break;
+
+      case 'CASH':
+        this.paymentInputForm = this.formBuilder.group({
+          paymentDate: [null, Validators.required],
+          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
+          paymentMethod: [paymentMethod]
         });
         break;
     }
   }
 
 
-  onPaymentMethodChange(method: MenuItem): void {
-    this.activePaymentMethod = method;
-    this.createPaymentInputForm(method.id as string);
+  onPaymentMethodChange(paymentMethod: MenuItem): void {
+    this.activePaymentMethod = paymentMethod;
+    this.createPaymentInputForm(paymentMethod.id as string);
   }
 
 
   addPayment(): void {
-    this.paymentsDraft.push(this.paymentInputForm.value);
-    this.createPaymentInputForm(this.activePaymentMethod.id as string); // reset for next entry
+
+    const paymentFormValue = this.paymentInputForm.value;
+
+    const selectedBank = bankOptionsList.find(bank => bank.value === paymentFormValue.bankName);
+    const hebrewBankName = selectedBank ? selectedBank.name : '';
+
+    // Build the full payment entry with extra fields
+    const paymentEntry = {
+      ...paymentFormValue,
+      hebrewBankName,  // Save the Hebrew name for later use (display / backend)
+      paymentMethod: this.activePaymentMethod.id // Track which payment method was selected
+    };
+
+    this.paymentsDraft.push(paymentEntry);
+
+    // Reset the form for the next payment entry
+    this.createPaymentInputForm(this.activePaymentMethod.id as string);
+
   }
 
 
@@ -491,9 +691,9 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   }
 
 
-  get paymentsFormArray(): FormArray {
-    return this.myForm.get(this.paymentSectionName) as FormArray;
-  }
+  // get paymentsFormArray(): FormArray {
+  //   return this.myForm.get(this.paymentSectionName) as FormArray;
+  // }
 
   get generalDetailsForm(): FormGroup {
     return this.myForm.get('GeneralDetails') as FormGroup;
@@ -503,25 +703,13 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     return this.myForm.get('UserDetails') as FormGroup;
   }
 
-  // addPayment(): void {
-  //   this.docCreateBuilderService.addFormGroupToFormArray(this.paymentsFormArray, this.paymentSectionName);
-  //   console.log(this.myForm);
-  //   this.paymentsArray[this.paymentsArray.length] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
-  //   console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentsArray:", this.paymentsArray)
-  // }
-
-  // removePayment(index: number): void {
-  //   this.docCreateBuilderService.removeFormGroupFromFormArray(this.paymentsFormArray, index);
-  //   this.paymentsArray.splice(index, 1);
-  // }
-
   selectUnit(unit: string) {
     this.selectedUnit = unit;
   }
 
-  getPaymentFormByIndex(index: number): FormGroup {
-    return this.paymentsFormArray.at(index) as FormGroup;
-  }
+  // getPaymentFormByIndex(index: number): FormGroup {
+  //   return this.paymentsFormArray.at(index) as FormGroup;
+  // }
 
 
 
@@ -687,182 +875,14 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   }
 
 
-  getDocData(): IDataDocFormat {
+  get CreateDocIsValid(): boolean {
 
-    const generalFormData = this.generalDetailsForm.value;
-    const userFormData = this.userDetailsForm.value;
-    const payments = this.paymentsFormArray.value;
-
-    let totalBefDisBefVat = 0;
-    let totalDisBefVat = 0;
-    let totalAftDisBefVat = 0;
-    let totalVat = 0;
-    let totalAfterVat = 0;
-    let lineNumber = 0; 
-  
-    const createLinesDoc: ICreateLineDoc[] = payments.map((payment: any) => {
-
-      let sumBefDisBefVatPerLine = 0;
-      let disBefVatPerLine = 0;
-      let sumAftDisBefVatPerLine = 0; 
-      let sumAftDisWithVatPerLine = 0; 
-      //let sumAftDisWithVat = 0;
-      let vatPerLine = 0;
-      const sum = Number(payment?.sum) * Number(payment?.unitAmount ?? 1);
-      const discount = Number(payment?.discount ?? 0);
-  
-      if (payment?.vatOptions === 'INCLUDE') {
-        sumBefDisBefVatPerLine = sum / (1 + Number(payment?.vatRate ?? 18) / 100);
-        disBefVatPerLine = discount / (1 + Number(payment?.vatRate ?? 18) / 100);
-        vatPerLine = (sumBefDisBefVatPerLine - disBefVatPerLine) * (Number(payment?.vatRate ?? 18) / 100);
-      } else if (payment?.vatOptions === 'EXCLUDE') {
-        sumBefDisBefVatPerLine = sum;
-        disBefVatPerLine = discount;
-        vatPerLine = (sum - discount) * (Number(payment?.vatRate ?? 18) / 100);
-      } else if (payment?.vatOptions === 'WITHOUT') {
-        sumBefDisBefVatPerLine = sum;
-        disBefVatPerLine = discount;
-        vatPerLine = 0;
-      } else {
-        sumBefDisBefVatPerLine = 0;
-      }
-      
-      sumAftDisBefVatPerLine = sumBefDisBefVatPerLine - disBefVatPerLine;
-      sumAftDisWithVatPerLine = sumAftDisBefVatPerLine + vatPerLine;
-
-      totalBefDisBefVat += sumBefDisBefVatPerLine;
-      totalDisBefVat += disBefVatPerLine;
-      totalAftDisBefVat += sumAftDisBefVatPerLine;
-      totalVat += vatPerLine;
-      totalAfterVat += sumAftDisWithVatPerLine;
-
-      lineNumber++;
-  
-      return {
-        issuerbusinessNumber: this.userDetails?.businessNumber,
-        generalDocIndex: this.docIndexes?.generalIndex.toString(),
-        description: payment?.description || null,
-        unitAmount: payment?.unitAmount ?? 1,
-        sumBefVat: sumAftDisBefVatPerLine,
-        sumAftDisWithVat: sumAftDisWithVatPerLine,
-        vatOpts: payment?.vatOptions,
-        vatRate: payment?.vatRate ?? 18,
-        paymentMethod: payment?.paymentMethod,
-        disBefVat: payment?.discount ?? 0,
-        lineNumber: lineNumber.toString(),
-        unitType: payment?.unitType ?? 1,
-        payDate: generalFormData.documentDate,
-        bankNumber: payment?.bankNumber || null,
-        branchNumber: payment?.branchNumber || null,
-        accountNumber: payment?.accountNumber || null,
-        checkNumber: payment?.checkNumber || null,
-        paymentCheckDate: payment?.paymentCheckDate || null,
-        cardCompany: payment.cardCompany || null,
-        card4Number: payment?.card4Number || null,
-        creditCardName: payment?.creditCardName || null,
-        creditTransType: payment?.creditTransType || null,
-        creditPayNumber: payment?.creditPayNumber || null,
-        manufacturerName: payment?.manufacturerName || null,
-        productSerialNumber: payment?.productSerialNumber || null,
-        internalNumber: payment?.internalNumber || null,
-        journalEntryMainId: payment?.journalEntryMainId || null,
-      };
-    });
-  
-    const data = {
-      fileData: {
-        issuerName: this.userDetails?.businessName,
-        issuerAddress: this.userDetails?.city,
-        issuerPhone: this.userDetails?.phone,
-        issuerEmail: this.userDetails?.email,
-        hebrewNameDoc: this.getHebrewNameDoc(this.fileSelected)
-      },
-      docData: {
-        issuerbusinessNumber: this.userDetails?.businessNumber,
-        recipientName: userFormData?.recipientName,
-        recipientId: userFormData?.recipientId || null,
-        recipientStreet: userFormData?.recipientStreet || null,
-        recipientHomeNumber: userFormData?.recipientHomeNumber || null,
-        recipientCity: userFormData?.recipientCity || null,
-        recipientPostalCode: userFormData?.recipientPostalCode || null,
-        recipientState: userFormData?.recipientState || null,
-        recipientStateCode: userFormData?.recipientStateCode || null,
-        recipientPhone: userFormData?.recipientPhone || null,
-        recipientEmail: userFormData?.recipientEmail || null,
-        docType: this.fileSelected,
-        generalDocIndex: this.docIndexes?.generalIndex.toString(),
-        docDescription: generalFormData?.docDescription,
-        docNumber: this.docIndexes?.docIndex.toString(),
-        docVatRate: 18,
-        transType: 3,
-        amountForeign: this.totalAmount,
-        currency: generalFormData?.currency || 'ILS',
-        sumBefDisBefVat: totalBefDisBefVat,
-        disSum: 0,
-        sumAftDisBefVAT: totalAftDisBefVat,
-        vatSum: totalVat,
-        sumAftDisWithVAT: totalAfterVat,
-        withholdingTaxAmount: 0,
-        docDate: generalFormData.documentDate,
-        issueDate: generalFormData.documentDate,
-        issueHour: generalFormData.documentHour,
-        customerKey: null,
-        matchField: null,
-        isCancelled: false,
-        branchCode: null,
-        operationPerformer: null,
-        parentDocType: null,
-        parentDocNumber: null,
-        parentBranchCode: null,
-      },
-      linesData: createLinesDoc,
-    };
-  
-    return data;
-  }
-  
-
-  // Function for previewing the doc
-  previewtDoc(): void {
-    this.createPreviewPDFIsLoading = true;
-    const data = this.getDocData();
-
-    this.docCreateService.generatePDF(data)
-      .pipe(
-        finalize(() => {
-          this.createPreviewPDFIsLoading = false;
-        }),
-        catchError((err) => {
-          console.error("Error in createPDF (Preview):", err);
-          return EMPTY;
-        })
-      )
-      .subscribe((res) => {
-        console.log("PDF creation result (Preview):", res);
-        this.fileService.previewFile1(res);
-      });
-  }
-
-  // Function for creating the doc and downloading it
-  createDoc(): void {
-    this.createPDFIsLoading = true;
-    const data = this.getDocData();
-    console.log("Debug - data is ", data);
-    
-    this.docCreateService.createDoc(data)
-      .pipe(
-        finalize(() => {
-          this.createPDFIsLoading = false;
-        }),
-        catchError((err) => {
-          console.error("Error in createPDF (Create):", err);
-          return EMPTY;
-        })
-      )
-      .subscribe((res) => {
-        console.log("Update current index result:", res);
-        this.fileService.downloadFile("my pdf", res);
-      });
+    return (
+      this.generalDocForm.valid &&
+      this.recipientDocForm.valid &&
+      this.lineItemsDraft.length > 0 &&
+      this.paymentsDraft.length > 0 // optional, only if payment is mandatory
+    );
   }
 
 
@@ -882,46 +902,46 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     return null;
   }
 
-  onBlur(field: string, i: number): void {
-    const vatOptionControl = this.paymentsFormArray.controls[i]?.get(fieldLineDocValue.VAT_OPTIONS);
-    if (!vatOptionControl.value) return; // If don't choosen vat option
-    if (field !== "sum") return; // If it is not "sum" field
-    this.onVatOptionChange(vatOptionControl, i)
-    console.log("on blur");
+  // onBlur(field: string, i: number): void {
+  //   const vatOptionControl = this.paymentsFormArray.controls[i]?.get(fieldLineDocValue.VAT_OPTIONS);
+  //   if (!vatOptionControl.value) return; // If don't choosen vat option
+  //   if (field !== "sum") return; // If it is not "sum" field
+  //   this.onVatOptionChange(vatOptionControl, i)
+  //   console.log("on blur");
 
-  }
+  // }
 
 
-  onVatOptionChange(event: any, formIndex: number): void {
-    console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
-    const sumControl = this.paymentsFormArray.controls[formIndex]?.get(fieldLineDocValue.SUM);
-    if (!sumControl) return;
+  // onVatOptionChange(event: any, formIndex: number): void {
+  //   console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
+  //   const sumControl = this.paymentsFormArray.controls[formIndex]?.get(fieldLineDocValue.SUM);
+  //   if (!sumControl) return;
 
-    const sum = parseFloat(sumControl.value);
-    if (isNaN(sum)) return;
+  //   const sum = parseFloat(sumControl.value);
+  //   if (isNaN(sum)) return;
 
-    this.amountBeforeVat = 0;
-    this.vatAmount = 0;
-    this.totalAmount = 0;
+  //   this.amountBeforeVat = 0;
+  //   this.vatAmount = 0;
+  //   this.totalAmount = 0;
 
-    switch (event.value) {
-      case 'BEFORE':
-        this.amountBeforeVat = sum;
-        this.vatAmount = this.calculateVatAmountBeforVat(sum);
-        this.totalAmount = sum + this.vatAmount;
-        break;
-      case 'AFTER':
-        this.totalAmount = sum;
-        this.vatAmount = this.calculateVatAmountAfterVat(sum);
-        this.amountBeforeVat = this.calculateSumAfterVat(sum);
-        break;
-      case 'WITH_OUT':
-        this.amountBeforeVat = sum;
-        this.vatAmount = 0;
-        this.totalAmount = sum;
-        break;
-    }
-  }
+  //   switch (event.value) {
+  //     case 'BEFORE':
+  //       this.amountBeforeVat = sum;
+  //       this.vatAmount = this.calculateVatAmountBeforVat(sum);
+  //       this.totalAmount = sum + this.vatAmount;
+  //       break;
+  //     case 'AFTER':
+  //       this.totalAmount = sum;
+  //       this.vatAmount = this.calculateVatAmountAfterVat(sum);
+  //       this.amountBeforeVat = this.calculateSumAfterVat(sum);
+  //       break;
+  //     case 'WITH_OUT':
+  //       this.amountBeforeVat = sum;
+  //       this.vatAmount = 0;
+  //       this.totalAmount = sum;
+  //       break;
+  //   }
+  // }
 
   calculateSumAfterVat(sum: number): number { // Calculate the original cost 
     const vatRate = 0.18; // Example VAT rate

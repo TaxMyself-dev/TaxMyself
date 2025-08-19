@@ -1,5 +1,39 @@
 <div class="page-wrapper">
 
+  <p-dialog
+  header="בחירת עסק"
+  [(visible)]="showBusinessSelector"
+  [modal]="true"
+  [closable]="false"
+  [dismissableMask]="false"
+  [rtl]="true"
+  [style]="{ width: '400px' }"
+  >
+  <div class="p-fluid">
+    <p>היי! זיהינו שיש לך שני עסקים.<br />באיזה עסק תרצה להפיק את המסמך?</p>
+
+    <div *ngFor="let business of businessUiList">
+      <p-radioButton
+        name="businessSelection"
+        [value]="business.value"
+        [(ngModel)]="selectedBusinessNumber"
+        inputId="{{ business.value }}"
+      ></p-radioButton>
+      <label [for]="business.value" class="ml-2">{{ business.name }}</label>
+    </div>
+
+    <div class="p-mt-3">
+      <app-p-button
+        [buttonText]="'אישור'"
+        [buttonSize]="buttonSize.AUTO"
+        [disabled]="!selectedBusinessNumber"
+        (onButtonClicked)="onConfirmBusinessSelection()"
+      ></app-p-button>
+    </div>
+  </div>
+</p-dialog>
+
+
   <div class="section">
 
     <div class="create-doc-header">
@@ -15,35 +49,7 @@
     @if (fileSelected) {
 
       @if (isInitial) {
-        <p-dialog 
-          header="הגדרת מספור"
-          [(visible)]="showInitialIndexDialog"
-          [modal]="true"
-          [closable]="false"
-          [rtl]="true"
-          [style]="{ width: '400px' }">
 
-          <div class="p-fluid">
-            <p>
-              היי תמיד יש פעם ראשונה...
-              <br />
-              כמה הגדרות קצרות ונמשיך להפקת ה{{HebrewNameFileSelected}}
-            </p>
-            <form class="" [formGroup]="initialIndexForm">
-              <app-generic-input inputLabel="באיזה מספר סידורי תרצה להתחיל?" [parentForm]="initialIndexForm"
-                controlName="initialIndex" errorText="מספרים בלבד"></app-generic-input>
-            </form>
-            <app-p-button
-              [buttonText]="'אישור'"
-              [buttonSize]="buttonSize.AUTO"
-              (onButtonClicked)="onClickInitialIndex()"
-              [disabled]="initialIndexForm.invalid">
-            </app-p-button>
-          </div>
-
-        </p-dialog>
-      }
-    
       <p-dialog 
         header="הגדרת מספור"
         [(visible)]="showInitialIndexDialog"
@@ -63,7 +69,6 @@
           <div class="p-field">
             <label for="index">מספר התחלה</label>
             <app-input-text [controlName]="'initialIndex'" labelText="" [placeholder]="''" [parentForm]="initialIndexForm" [size]="inputsSize.BETWEEN"></app-input-text>
-            <!-- <input id="index" type="number" pInputText [formControl]="initialIndexForm" /> -->
           </div>
 
           <div>
@@ -76,13 +81,14 @@
 
         </div>
       </p-dialog>
+    }
 
 
       <div class="general-fields">
 
         <div class="section-one">
           <app-input-date [controlName]="'docDate'" labelText="תאריך המסמך" placeholder="00/00/0000" [parentForm]="generalDocForm"></app-input-date>
-          <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN"></app-input-text>
+          <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'" [parentForm]="generalDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
         </div>
 
         <div>
@@ -117,10 +123,10 @@
     <div class="general-fields">
 
       <div class="section-one">
-        <app-input-text [controlName]="'customerName'" labelText="שם הלקוח" [placeholder]="'הקלד שם לבחירת לקוח קיים'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
-        <app-input-text [controlName]="'customerId'" labelText="ת.ז או ח.פ" [placeholder]="'הקלד 9 ספרות'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
-        <app-input-text [controlName]="'customerPhone'" labelText="טלפון נייד" [placeholder]="'הקלד 10 ספרות'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
-        <app-input-text [controlName]="'customerEmail'" labelText="כתובת אימייל" [placeholder]="'name@gmail.com'" [parentForm]="customerDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'recipientName'" labelText="שם הלקוח" [placeholder]="'הקלד שם לבחירת לקוח קיים'" [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'recipientId'" labelText="ת.ז או ח.פ" [placeholder]="'הקלד 9 ספרות'" [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'recipientPhone'" labelText="טלפון נייד" [placeholder]="'הקלד 10 ספרות'" [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+        <app-input-text [controlName]="'recipientEmail'" labelText="כתובת אימייל" [placeholder]="'name@gmail.com'" [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
       </div>
 
       <div>
@@ -342,7 +348,7 @@
       <!-- Payment Rows -->
       @for (payment of paymentsDraft; track $index) {
         <div class="line-row">
-          @for (field of paymentFieldConfigs[payment.method]; track field.key) {
+          @for (field of paymentFieldConfigs[payment.paymentMethod]; track field.key) {
             <div>{{ payment[field.key] || '-' }}</div>
           }
         </div>
@@ -350,6 +356,15 @@
     </div>
   }
 </div>
+
+  <div>
+    <app-p-button class="pnl-pdf-button"
+      [buttonText]="'צור מסמך'"
+      [buttonSize]="buttonSize.AUTO"
+      [disabled]="!CreateDocIsValid"
+      (onButtonClicked)="createDoc()">
+    </app-p-button>
+  </div>
 
 
 </div>

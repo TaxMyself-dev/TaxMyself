@@ -131,6 +131,9 @@ export class User {
     @Column({ type: 'varchar', nullable: true, default: null })
     spousePhone: string | null;
 
+    @Column({ type: 'varchar', nullable: true, default: null })
+    spouseEmail: string | null;
+
     @Column({
       type: 'enum',
       enum: EmploymentType,
@@ -152,6 +155,9 @@ export class User {
 
     @Column({ type: 'varchar', nullable: true, default: null })
     businessNumber: string | null;
+
+    @Column({ type: 'varchar', nullable: true, default: null })
+    businessAddress: string | null;
 
     @Column({
       type: 'enum',
@@ -198,6 +204,9 @@ export class User {
 
     @Column({ type: 'varchar', nullable: true, default: null })
     spouseBusinessNumber: string | null;
+
+     @Column({ type: 'varchar', nullable: true, default: null })
+    spouseBusinessAddress: string | null;
 
     @Column({
       type: 'enum',
