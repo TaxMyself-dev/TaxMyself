@@ -322,7 +322,14 @@ export class RegisterPage implements OnInit, OnDestroy {
       })
     )
     .subscribe(() => {
-      this.router.navigate(['login'], { queryParams: { from: 'register' } })
+      // this.router.navigate(['login'], { queryParams: { from: 'register', user: formData?.personal?.password } })
+      this.router.navigate(['/login'], {
+        state: {
+          from: 'register',
+          email: formData?.personal?.email,
+          password: formData?.personal?.password
+        }
+      });
     })
   }
 

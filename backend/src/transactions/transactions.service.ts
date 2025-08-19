@@ -736,148 +736,184 @@ export class TransactionsService {
   }
 
 
-  // New function to get transactions by string[].
-  async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billIds: string[] | null, categories: string[] | null): Promise<Transactions[]> {
-
-    let sources: string[] = [];
-    let allIdentifiers: string[] = [];
-
-    // Step 1: Handle the 'ALL_BILLS' case (billIds is null)
-    const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-
-    if (!billIds) {
-      // Collect all sources from the user's bills
-      allBills.forEach(bill => {
-        if (bill.sources) {
-          bill.sources.forEach(source => {
-            sources.push(source.sourceName);
-          });
-        }
-      });
-    } else {
-      // Step 2: Handle specific billIds
-      const billIdNums = billIds.map(id => parseInt(id, 10));
-      const selectedBills = allBills.filter(bill => billIdNums.includes(bill.id));
-      selectedBills.forEach(bill => {
-        if (bill.sources) {
-          sources.push(...bill.sources.map(source => source.sourceName));
-        }
-      });
-    }
-
-    // Step 3: Collect all identifiers from all bills (used in NOT IN clause)
-    allBills.forEach(bill => {
-      allIdentifiers.push(...bill.sources.map(source => source.sourceName));
-    });
-
-
-    // Step 4: Build the transaction query
-    const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
-    queryBuilder.where('transaction.userId = :userId', { userId });
-
-    if (sources.length > 0 || allIdentifiers.length > 0) {
-      queryBuilder.andWhere(
-        new Brackets(qb => {
-          qb.where(`transaction.paymentIdentifier IN (:...sources)`)
-            .orWhere(`transaction.paymentIdentifier NOT IN (:...allIdentifiers)`)
-            .orWhere(`transaction.paymentIdentifier IS NULL`);
-        }),
-        {
-          sources: sources.length > 0 ? sources : [],
-          allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : []
-        }
-      );
-    }
-
-    const defaultCategories = await this.categoryRepo.find();
-    const userCategories = await this.userCategoryRepo.find({ where: { firebaseId: userId } });
-
-    const allCategoriesName: string[] = [
-      ...defaultCategories.map(c => c.categoryName),
-      ...userCategories.map(c => c.categoryName),
-    ];
-
-    // Add category filter
-    if (categories && categories.length > 0 && allCategoriesName.length > 0) {
-      queryBuilder.andWhere(
-        new Brackets(qb => {
-          qb.where(`transaction.category IN (:...categories)`)
-            .orWhere(`transaction.category NOT IN (:...allCategoriesName)`)
-            .orWhere(`transaction.category IS NULL`);
-        }),
-        {
-          categories,
-          allCategoriesName,
-        }
-      );
-    }
-
-    queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
-      startDate: startDate,
-      endDate: endDate,
-    });
-
-    queryBuilder.orderBy('transaction.billDate', 'DESC');
-
-    const transactions = await queryBuilder.getMany();
-    return transactions;
-  }
-
-  // async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billIds: string[]): Promise<Transactions[]> {
+  // // New function to get transactions by string[].
+  // async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billIds: string[] | null, categories: string[] | null): Promise<Transactions[]> {
+  //   console.log("billIds is ", billIds);
+    
   //   let sources: string[] = [];
   //   let allIdentifiers: string[] = [];
 
-  //   if (billId === null) {  // TODO: I changed this to null from "ALL_BILLS", for allow all bills in vatReport
-  //     const bills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+  //   // Step 1: Handle the 'ALL_BILLS' case (billIds is null)
+  //   const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+
+  //   if (!billIds) {
   //     // Collect all sources from the user's bills
-  //     if (bills.length > 0)  {
-  //       bills.forEach(bill => {
-  //         if (bill.sources) {
-  //           bill.sources.forEach(source => {
-  //             sources.push(source.sourceName);
-  //           });
-  //         }
-  //       });
-  //     }
-  //   }
-  //    else {
-  //     // Get the specific bill for the user
-  //     const billIdNum = parseInt(billId[0], 10);
-  //     const bill = await this.billRepo.findOne({ where: { id: billIdNum, userId }, relations: ['sources'] });
-  //     if (!bill) {
-  //       throw new Error('Bill not found');
-  //     }
-  //     sources = bill.sources.map(source => source.sourceName);
+  //     allBills.forEach(bill => {
+  //       if (bill.sources) {
+  //         bill.sources.forEach(source => {
+  //           sources.push(source.sourceName);
+  //         });
+  //       }
+  //     });
+  //   } else {
+  //     // Step 2: Handle specific billIds
+  //     const billIdNums = billIds.map(id => parseInt(id, 10));
+  //     const selectedBills = allBills.filter(bill => billIdNums.includes(bill.id));
+  //     selectedBills.forEach(bill => {
+  //       if (bill.sources) {
+  //         sources.push(...bill.sources.map(source => source.sourceName));
+  //       }
+  //     });
   //   }
 
-  //   // Get all paymentIdentifiers for all bills
-  //   const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
+  //   // Step 3: Collect all identifiers from all bills (used in NOT IN clause)
   //   allBills.forEach(bill => {
   //     allIdentifiers.push(...bill.sources.map(source => source.sourceName));
   //   });
 
+
+  //   // Step 4: Build the transaction query
   //   const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
   //   queryBuilder.where('transaction.userId = :userId', { userId });
+
   //   if (sources.length > 0 || allIdentifiers.length > 0) {
   //     queryBuilder.andWhere(
-  //       `(transaction.paymentIdentifier IN (:...sources) OR transaction.paymentIdentifier NOT IN (:...allIdentifiers))`,
-  //       { sources: sources.length > 0 ? sources : [], allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : [] }
+  //       new Brackets(qb => {
+  //         qb.where(`transaction.paymentIdentifier IN (:...sources)`)
+  //           .orWhere(`transaction.paymentIdentifier NOT IN (:...allIdentifiers)`)
+  //           .orWhere(`transaction.paymentIdentifier IS NULL`);
+  //       }),
+  //       {
+  //         sources: sources.length > 0 ? sources : [],
+  //         allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : []
+  //       }
   //     );
   //   }
+
+  //   const defaultCategories = await this.categoryRepo.find();
+  //   const userCategories = await this.userCategoryRepo.find({ where: { firebaseId: userId } });
+
+  //   const allCategoriesName: string[] = [
+  //     ...defaultCategories.map(c => c.categoryName),
+  //     ...userCategories.map(c => c.categoryName),
+  //   ];
+
+  //   // Add category filter
+  //   if (categories && categories.length > 0 && allCategoriesName.length > 0) {
+  //     queryBuilder.andWhere(
+  //       new Brackets(qb => {
+  //         qb.where(`transaction.category IN (:...categories)`)
+  //           .orWhere(`transaction.category NOT IN (:...allCategoriesName)`)
+  //           .orWhere(`transaction.category IS NULL`);
+  //       }),
+  //       {
+  //         categories,
+  //         allCategoriesName,
+  //       }
+  //     );
+  //   }
+
   //   queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
   //     startDate: startDate,
   //     endDate: endDate,
   //   });
 
-  //   // Add ordering by billDate (ascending)
   //   queryBuilder.orderBy('transaction.billDate', 'DESC');
 
   //   const transactions = await queryBuilder.getMany();
-
   //   return transactions;
-
   // }
 
+  async getTransactionsByBillAndUserId(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    billIds: string[] | null,
+    categories: string[] | null
+  ): Promise<Transactions[]> {
+    console.log("billIds is ", billIds);
+  
+    const allBills = await this.billRepo.find({
+      where: { userId },
+      relations: ['sources']
+    });
+  
+    let includeUnlinked: boolean;
+    let billIdNums: number[];
+    let selectedBills: typeof allBills;
+  
+    if (billIds === null) {
+      // אם לא נשלח כלום – נכלול את כל החשבוניות ואת הלא-משויכות
+      includeUnlinked = true;
+      selectedBills = allBills;
+    } else {
+      includeUnlinked = billIds.includes('notBelong');
+      billIdNums = billIds.filter(id => id !== 'notBelong').map(id => parseInt(id, 10));
+      selectedBills = allBills.filter(bill => billIdNums.includes(bill.id));
+    }
+  
+    const sources: string[] = selectedBills.flatMap(bill =>
+      bill.sources.map(source => source.sourceName)
+    );
+  
+    const allIdentifiers: string[] = allBills.flatMap(bill =>
+      bill.sources.map(source => source.sourceName)
+    );
+  
+    const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
+    queryBuilder.where('transaction.userId = :userId', { userId });
+  
+    // תנאי לפי מקורות וכולל לא משויך אם נדרש
+    queryBuilder.andWhere(
+      new Brackets(qb => {
+        if (sources.length > 0) {
+          qb.where('transaction.paymentIdentifier IN (:...sources)', { sources });
+  
+          if (includeUnlinked) {
+            qb.orWhere('transaction.paymentIdentifier NOT IN (:...allIdentifiers)', { allIdentifiers });
+            qb.orWhere('transaction.paymentIdentifier IS NULL');
+          }
+        } else if (includeUnlinked) {
+          qb.where('transaction.paymentIdentifier NOT IN (:...allIdentifiers)', { allIdentifiers });
+          qb.orWhere('transaction.paymentIdentifier IS NULL');
+        } else {
+          qb.where('1 = 0'); // לא נבחר כלום ולא ביקשו לא משויך => אל תחזיר
+        }
+      })
+    );
+  
+    const defaultCategories = await this.categoryRepo.find();
+    const userCategories = await this.userCategoryRepo.find({
+      where: { firebaseId: userId }
+    });
+  
+    const allCategoriesName: string[] = [
+      ...defaultCategories.map(c => c.categoryName),
+      ...userCategories.map(c => c.categoryName),
+    ];
+  
+    if (categories && categories.length > 0 && allCategoriesName.length > 0) {
+      queryBuilder.andWhere(
+        new Brackets(qb => {
+          qb.where('transaction.category IN (:...categories)', { categories });
+          qb.orWhere('transaction.category NOT IN (:...allCategoriesName)', { allCategoriesName });
+          qb.orWhere('transaction.category IS NULL');
+        })
+      );
+    }
+  
+    queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
+      startDate,
+      endDate
+    });
+  
+    queryBuilder.orderBy('transaction.billDate', 'DESC');
+  
+    const transactions = await queryBuilder.getMany();
+    return transactions;
+  }
+  
+  
 
   async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null): Promise<Transactions[]> {
 

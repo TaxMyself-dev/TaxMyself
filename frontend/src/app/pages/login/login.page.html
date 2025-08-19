@@ -1,4 +1,22 @@
 <div class="login-wrap-screen">
+<div class="custom-modal-backdrop" (click)="closeModal()" *ngIf="showModal">
+  <div class="custom-modal" (click)="$event.stopPropagation()">
+    <button class="close-button" (click)="closeModal()">×</button>
+
+    <div>
+      ✨ <strong>ההרשמה הסתיימה בהצלחה!✨</strong><br>
+      נותר רק צעד קטן אחרון – אישור המייל 🎉<br><br>
+
+      שלחנו אליך הודעת אימות לכתובת המייל שאיתה נרשמת.<br>
+      כדי להתחיל, פשוט פתח/י את ההודעה ולחץ/י על הקישור לאישור.<br><br>
+
+      <strong>לא רואה את ההודעה?</strong><br>
+      כדאי לבדוק גם בתיקיית הספאם.<br>
+      ואם צריך – אפשר 
+      <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>.
+    </div>
+  </div>
+</div>
 
   <div class="login-screen">
 

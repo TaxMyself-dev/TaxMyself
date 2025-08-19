@@ -221,13 +221,48 @@ export class AuthService {
   //     )
   // }
 
-  SendVerificationMail(): Observable<any> {
+  // SendVerificationMail(mailAddress?: string): Observable<any> {
+  //   return from(this.afAuth.currentUser).pipe(
+  //     switchMap((user) => {
+  //       if (!user) {
+  //         return throwError(() => new Error('User not found'));
+  //       }
+  //       return from(user.sendEmailVerification());
+  //     }),
+  //     catchError((err) => {
+  //       console.log("err in send email verify", err);
+  //       return throwError(() => err);
+  //     })
+  //   );
+  // }
+
+  SendVerificationMail(mailAddress?: string, password?: string): Observable<any> {
     return from(this.afAuth.currentUser).pipe(
       switchMap((user) => {
-        if (!user) {
-          return throwError(() => new Error('User not found'));
+        if (user) {
+          // משתמש מחובר – שלח מייל אימות
+          return from(user.sendEmailVerification());
         }
-        return from(user.sendEmailVerification());
+  
+        // אם המשתמש לא מחובר אבל יש אימייל וסיסמה – ננסה להתחבר ואז לשלוח מייל
+        if (mailAddress && password) {
+          return from(this.afAuth.signInWithEmailAndPassword(mailAddress, password)).pipe(
+            switchMap((cred) => {
+              if (cred.user) {
+                return from(cred.user.sendEmailVerification());
+              } else {
+                return throwError(() => new Error('User not found after login'));
+              }
+            })
+          );
+        }
+  
+        // אין משתמש ואין פרטי התחברות
+        return throwError(() => {
+          const err: any = new Error('No user signed in, and no credentials provided');
+          err.code = 'auth/user-not-found';
+          return err;
+        });
       }),
       catchError((err) => {
         console.log("err in send email verify", err);
@@ -235,6 +270,7 @@ export class AuthService {
       })
     );
   }
+  
 
 
 

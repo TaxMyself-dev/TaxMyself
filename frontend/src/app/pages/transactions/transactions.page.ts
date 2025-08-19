@@ -1,24 +1,19 @@
 import { Component, ElementRef, HostListener, OnInit, ViewChild, WritableSignal, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
-import { IClassifyTrans, IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-// import { AddBillComponent } from 'src/app/shared/add-bill/add-bill.component';
-import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
 import { Router } from '@angular/router';
-import { editRowComponent } from 'src/app/shared/edit-row/edit-row.component';
 import { DateService } from 'src/app/services/date.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
-import { PopupSelectComponent } from 'src/app/shared/popup-select/popup-select.component';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
-// import { CheckboxModule } from 'primeng/checkbox';
 
 @Component({
   selector: 'app-transactions',
@@ -50,21 +45,21 @@ export class TransactionsPage implements OnInit {
 
 
 
-  editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList },
-    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DDL, listItems: this.equipmentList },
-    { name: TransactionsOutcomesColumns.IS_EQUIPMENT, value: TransactionsOutcomesHebrewColumns.isEquipment, type: FormTypes.DDL, listItems: this.equipmentList },
-    { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
-  ];
+  // editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+  //   { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList },
+  //   { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.DDL, listItems: this.equipmentList },
+  //   { name: TransactionsOutcomesColumns.IS_EQUIPMENT, value: TransactionsOutcomesHebrewColumns.isEquipment, type: FormTypes.DDL, listItems: this.equipmentList },
+  //   { name: TransactionsOutcomesColumns.REDUCTION_PERCENT, value: TransactionsOutcomesHebrewColumns.reductionPercent, type: FormTypes.NUMBER },
+  //   { name: TransactionsOutcomesColumns.TAX_PERCENT, value: TransactionsOutcomesHebrewColumns.totalTax, type: FormTypes.NUMBER },
+  //   { name: TransactionsOutcomesColumns.VAT_PERCENT, value: TransactionsOutcomesHebrewColumns.totalVat, type: FormTypes.NUMBER },
+  //   { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
+  //   { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.TEXT },
+  //   { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
+  //   { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
+  //   { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
+  //   { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
+  //   { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
+  // ];
 
   fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
@@ -93,27 +88,19 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
-  // readonly specialColumnsCellRendering = new Map<TransactionsOutcomesColumns, ICellRenderer>([
-  //   [TransactionsOutcomesColumns.CATEGORY, ICellRenderer.CATEGORY],
-  //   [TransactionsOutcomesColumns.SUBCATEGORY, ICellRenderer.SUBCATEGORY],
-  //   [TransactionsOutcomesColumns.BILL_NAME, ICellRenderer.BILL],
-  //   [TransactionsOutcomesColumns.BILL_DATE, ICellRenderer.DATE],
-  //   [TransactionsOutcomesColumns.PAY_DATE, ICellRenderer.DATE]
+  // readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
+  //   [TransactionsOutcomesColumns.NAME, 1.3],
+  //   [TransactionsOutcomesColumns.BILL_NUMBER, 1.3],
+  //   [TransactionsOutcomesColumns.BILL_NAME, 1.2],
+  //   [TransactionsOutcomesColumns.CATEGORY, 1.3],
+  //   [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
+  //   [TransactionsOutcomesColumns.BILL_DATE, 1.4],
+  //   [TransactionsOutcomesColumns.MONTH_REPORT, 1],
+  //   [TransactionsOutcomesColumns.SUM, 1.2],
+  //   // [TransactionsOutcomesColumns.ACTIONS, 1],
+  //   // [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
+  //   [TransactionsOutcomesColumns.NOTE, 2],
   // ]);
-
-  readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
-    [TransactionsOutcomesColumns.NAME, 1.3],
-    [TransactionsOutcomesColumns.BILL_NUMBER, 1.3],
-    [TransactionsOutcomesColumns.BILL_NAME, 1.2],
-    [TransactionsOutcomesColumns.CATEGORY, 1.3],
-    [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
-    [TransactionsOutcomesColumns.BILL_DATE, 1.4],
-    [TransactionsOutcomesColumns.MONTH_REPORT, 1],
-    [TransactionsOutcomesColumns.SUM, 1.2],
-    // [TransactionsOutcomesColumns.ACTIONS, 1],
-    // [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
-    [TransactionsOutcomesColumns.NOTE, 2],
-  ]);
 
   readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
     [TransactionsOutcomesColumns.NAME, 1.2],
@@ -289,24 +276,9 @@ export class TransactionsPage implements OnInit {
       if (inomeIndex > -1) {
         this.COLUMNS_TO_IGNORE_INCOMES.splice(inomeIndex, 1); // Remove 1 element at the found index
       }
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.NAME, 1.2);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NUMBER, 1.2);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_NAME, 1.2);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.CATEGORY, 1.1)
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUBCATEGORY, 1.1);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.BILL_DATE, 1.1);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.SUM, 1.1);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.NOTE, 1);
-      this.COLUMNS_WIDTH_INCOME.set(TransactionsOutcomesColumns.ACTIONS, 1);
     }
 
-    // this.setTableActions();
     this.transactionService.getAllBills();
-    // this.transactionService.accountsList$.pipe(takeUntil(this.destroy$)).subscribe(
-    //   (accountsList) => {
-    //     this.accountsList = accountsList;
-    //   }
-    // );
     this.accountsList = this.transactionService.accountsList;
     this.getCategory();
   }
@@ -375,15 +347,19 @@ export class TransactionsPage implements OnInit {
   }
 
   getTransactions(filters: any | null): void {
+    console.log("filters: ", filters);
+    
     this.isLoadingStateTable.set(true);
     const periodType = filters?.periodType;
-    let accounts = filters?.account;
-    let categories = filters?.category;
+    let accounts: ISelectItem[] = filters?.account || null;
+    let categories: ISelectItem[] = filters?.category;
     let startDate: string;
     let endDate: string;
 
-    let accountsNames = accounts?.map((account: ISelectItem) => account.value);
-    let categoriesName = categories?.map((category: ISelectItem) => category.value);
+    let accountsNames: string[] = accounts?.map((account: ISelectItem) => account.value as string);
+    console.log("accountsNames: ", accountsNames);
+    
+    let categoriesName: string[] = categories?.map((category: ISelectItem) => category.value as string);
     // === Setting the date
     if (!filters) { // For default table.
       const today = new Date();
@@ -397,8 +373,7 @@ export class TransactionsPage implements OnInit {
         thirtyDaysAgo.toISOString(),
         today.toISOString()
       ));
-      accountsNames = null;
-      categoriesName = null;
+      
     }
     else {
       switch (periodType) {
@@ -429,8 +404,10 @@ export class TransactionsPage implements OnInit {
           break;
       }
     }
-    // === Setting the date //
-   
+    // === End setting the date //
+   // For dont send empty arrays to the backend
+   accountsNames?.length > 0 || null;
+   categoriesName?.length > 0 || null;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
@@ -450,8 +427,9 @@ export class TransactionsPage implements OnInit {
         this.incomesData = data.incomes;
         this.expensesData = data.expenses;
         // this.classifyDataFilter();
-        this.filteredExpensesData.set(this.expensesData);
-        this.filteredIncomesData.set(this.incomesData);
+        // this.filteredExpensesData.set(this.expensesData);
+        // this.filteredIncomesData.set(this.incomesData);
+        this.classifyDataFilter();
         console.log("income: ", this.incomesData);
         console.log("expense: ", this.expensesData);
       });
@@ -505,146 +483,6 @@ export class TransactionsPage implements OnInit {
     }
   }
 
-  // setTableActions(): void {
-  //   this.tableActionsExpense = [
-  //     {
-  //       name: 'delete',
-  //       icon: 'create',
-  //       action: (row: IRowDataTable) => {
-  //         this.openEditRow(row)
-  //       }
-  //     },
-  //   ];
-
-  //   this.tableActionsIncomes = [
-  //     {
-  //       name: 'delete',
-  //       icon: 'create',
-  //       action: (row: IRowDataTable) => {
-  //         this.openEditRow(row, false)
-  //       }
-  //     },
-  //   ];
-  // }
-
-  // openAddBill(data: IRowDataTable): void {
-  //   this.selectBill = data.paymentIdentifier as string;
-  //   console.log("🚀 ~ TransactionsPage ~ openAddBill ~ this.selectBill:", this.selectBill)
-  //   this.openPopupAddBill()
-  // }
-
-  // openPopupAddBill(data?: IRowDataTable): void {
-  //   from(this.modalController.create({
-
-  //     component: AddBillComponent,
-  //     componentProps: {
-  //       paymentMethod: this.selectBill,
-  //     }
-  //   })).pipe(
-  //     takeUntil(this.destroy$),
-  //     catchError((err) => {
-  //       alert("openPopupAddBill error");
-  //       return EMPTY;
-  //     }),
-  //     switchMap((modal) => from(modal.present())
-  //       .pipe(
-  //         takeUntil(this.destroy$),
-  //         switchMap(() => from(modal.onWillDismiss()))
-  //       )),
-  //     catchError((err) => {
-  //       alert("openPopupAddBill switchMap error");
-  //       console.log(err);
-  //       return EMPTY;
-  //     }))
-  //     .subscribe(({ data, role }) => {
-  //       if (role === 'success') {
-  //         // this.getTransactions()
-  //       }
-  //     });
-  // }
-
-  // filterIncomes(): void {
-  //   const formData = this.incomeForm.value;
-  //   console.log(formData);
-
-  //   const categoryName = this.listCategory?.find((category) => category.value === formData.category);
-
-  //   if (!categoryName && !formData.incomeType) {
-  //     this.incomesData$.next(this.incomesData.filter((income) => String(income.name).includes(this.filterByIncome)));
-  //   }
-  //   else if (!categoryName) {
-  //     if (formData.incomeType === "notClassification") {
-  //       this.incomesData$.next(this.incomesData.filter((income) => {
-  //         return (income.category === "טרם סווג") && String(income.name).includes(this.filterByIncome);
-  //       }
-  //       ));
-  //     }
-  //     else {
-  //       this.incomesData$.next(this.incomesData.filter((income) => {
-  //         return (income.category !== "טרם סווג") && String(income.name).includes(this.filterByIncome);
-  //       }));
-  //     }
-  //   }
-  //   else if (!formData.incomeType) {
-  //     this.incomesData$.next(this.incomesData.filter((income) => {
-  //       return (income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
-  //     }));
-  //   }
-  //   else {
-  //     if (formData.incomeType === "notClassification") {
-  //       this.incomesData$.next(this.incomesData.filter((income) => {
-  //         return (income.category === "טרם סווג" || income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
-  //       }));
-  //     }
-  //     else {
-  //       this.incomesData$.next(this.incomesData.filter((income) => {
-  //         return (income.category !== "טרם סווג" && income.category === categoryName.name) && (String(income.name).includes(this.filterByIncome));
-  //       }));
-  //     }
-
-  //   }
-  // }
-
-  // filterExpenses(): void {
-  //   const formData = this.expensesForm.value;
-
-  //   const categoryName = this.listCategory?.find((category) => category.value === formData.category);
-
-  //   if (!categoryName && !formData.expensesType) {
-  //     this.expensesData$.next(this.expensesData.filter((expense) => String(expense.name).includes(this.filterByExpense)));
-  //   }
-  //   else if (!categoryName) {
-  //     if (formData.expensesType === "notClassification") {
-  //       this.expensesData$.next(this.expensesData.filter((expense) => {
-  //         return ((expense.category === "טרם סווג") && String(expense.name).includes(this.filterByExpense));
-  //       }));
-  //     }
-  //     else {
-  //       this.expensesData$.next(this.expensesData.filter((expense) => {
-  //         return (expense.category !== "טרם סווג") && String(expense.name).includes(this.filterByExpense);
-  //       }));
-  //     }
-  //   }
-  //   else if (!formData.expensesType) {
-  //     this.expensesData$.next(this.expensesData.filter((expense) => {
-  //       return (expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
-  //     }));
-  //   }
-  //   else {
-  //     if (formData.expensesType === "notClassification") {
-  //       this.expensesData$.next(this.expensesData.filter((expense) => {
-  //         return (expense.category === "טרם סווג" || expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense));
-  //       }))
-  //     }
-  //     else {
-  //       this.expensesData$.next(this.expensesData.filter((expense) => {
-  //         return (expense.category !== "טרם סווג" && expense.category === categoryName.name) && (String(expense.name).includes(this.filterByExpense))
-  //       }));
-  //     }
-
-  //   }
-  //   //}
-  // }
 
   handleTableData(data: ITransactionData[]) {
     const rows = [];
@@ -662,8 +500,13 @@ export class TransactionsPage implements OnInit {
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
-
-        data.businessNumber === this.userData.businessNumber ? data.businessNumber = this.userData.businessName : data.businessNumber = this.userData.spouseBusinessName
+        data.businessNumber =
+        data.businessNumber === this.userData.businessNumber
+          ? this.userData.businessName
+          : data.businessNumber === this.userData.spouseBusinessNumber
+            ? this.userData.spouseBusinessName
+            : 'לא משוייך';
+      
 
 
         rows.push(data);
@@ -687,273 +530,14 @@ export class TransactionsPage implements OnInit {
       .subscribe((res) => {
         this.listCategory = res;
         this.listFilterCategory.push(...res);
-        this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-          if (field.name === TransactionsOutcomesColumns.CATEGORY) {
-            field.listItems = res;
-          }
-        });
+        // this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
+        //   if (field.name === TransactionsOutcomesColumns.CATEGORY) {
+        //     field.listItems = res;
+        //   }
+        // });
       })
   }
 
-  // openEditRow(data: IRowDataTable, isExpense: boolean = true): void {
-  //   let editFieldsNamesIncomes: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = []; // For does changes in fieldsNamesIncomes array before open update row.
-  //   let disabledFields: TransactionsOutcomesColumns[];
-  //   console.log("data.businessNumber: ", data.businessNumber);
-  //   console.log(" this.userData.businessNumber: ", this.userData.businessNumber);
-
-  //   const businessNumber = data.businessNumber === this.userData.businessNumber || this.userData.businessName ? { name: this.userData.businessName, value: this.userData.businessNumber } : { name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber }
-  //   console.log("data in open edit row: ", data);
-  //   console.log("businessNumber: ", businessNumber);
-
-
-  //   if (isExpense) {
-  //     if (!this.userData.isTwoBusinessOwner) {
-  //       this.editFieldsNamesExpenses = this.editFieldsNamesExpenses.filter(
-  //         field => field.name !== TransactionsOutcomesColumns.BUSINESS_NUMBER); // For remove column businessNumber from array for one business 
-  //     }
-  //     const isEquipmentEdit = data?.isEquipment === "לא" ? 0 : 1;
-  //     const isRecognizedEdit = data?.isRecognized === "לא" ? 0 : 1;
-  //     disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY];
-  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
-  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
-  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_RECOGNIZED).patchValue(isRecognizedEdit || 0),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.TAX_PERCENT).patchValue(data?.taxPercent || ''),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.VAT_PERCENT).patchValue(data?.vatPercent === 0 ? 0 : ""),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.IS_EQUIPMENT).patchValue(isEquipmentEdit || 0),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.REDUCTION_PERCENT).patchValue(data?.reductionPercent || 0),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-  //       this.editRowExpenseForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-  //     this.editRowExpenseForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
-
-  //   }
-  //   else {
-  //     editFieldsNamesIncomes = this.fieldsNamesIncome.filter(
-  //       field => {
-  //         return field.name !== TransactionsOutcomesColumns.NOTE && field.name !== TransactionsOutcomesColumns.BUSINESS_NAME
-  //       }
-  //     ); // For remove column note & businessName from array 
-  //     editFieldsNamesIncomes.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.DDL, listItems: this.bussinesesList });
-
-  //     disabledFields = [TransactionsOutcomesColumns.BILL_NAME, TransactionsOutcomesColumns.BILL_NUMBER, TransactionsOutcomesColumns.SUM, TransactionsOutcomesColumns.NAME, TransactionsOutcomesColumns.BILL_DATE, TransactionsOutcomesColumns.CATEGORY, TransactionsOutcomesColumns.SUBCATEGORY, TransactionsOutcomesColumns.MONTH_REPORT];
-
-  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.CATEGORY).patchValue(data?.category || '');
-  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUBCATEGORY).patchValue(data?.subCategory || '');
-  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.SUM).patchValue(data?.sum || ''),
-  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_DATE).patchValue(data?.billDate || Date),
-  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NAME).patchValue(data?.billName || ''),
-  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.NAME).patchValue(data?.name || 0),
-  //       this.editRowIncomeForm.get(TransactionsOutcomesColumns.BILL_NUMBER).patchValue(data?.paymentIdentifier || 0);
-  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.BUSINESS_NUMBER).patchValue(businessNumber.value || '');
-  //     this.editRowIncomeForm.get(TransactionsOutcomesColumns.MONTH_REPORT).patchValue(data.vatReportingDate || '');
-
-  //   }
-
-
-
-
-  //   if (data.category !== "טרם סווג" && data.category !== undefined) {
-  //     from(this.modalController.create({
-  //       component: editRowComponent,
-  //       componentProps: {
-  //         data,
-  //         fields: isExpense ? this.editFieldsNamesExpenses : editFieldsNamesIncomes,
-  //         parentForm: isExpense ? this.editRowExpenseForm : this.editRowIncomeForm,
-  //         disabledFields
-  //       },
-  //       cssClass: 'edit-row-modal',
-  //     }))
-  //       .pipe(
-  //         takeUntil(this.destroy$),
-  //         catchError((err) => {
-  //           alert("open Edit Row error");
-  //           console.log("open Edit Row error: ", err);
-  //           return EMPTY;
-  //         }),
-  //         switchMap((modal) => from(modal.present())
-  //           .pipe(
-  //             takeUntil(this.destroy$),
-  //             switchMap(() => from(modal.onWillDismiss())
-  //               .pipe(
-  //                 takeUntil(this.destroy$),
-  //                 tap((data) => {
-  //                   if (data.role != 'backdrop' && data.role != 'cancel') {
-  //                     // this.getTransactions()
-  //                   }
-  //                 })
-  //               )
-  //             )
-  //           )),
-  //         catchError((err) => {
-  //           alert("open Edit row switchMap error");
-  //           console.log("open Edit row switchMap error: ", err);
-  //           return EMPTY;
-  //         }))
-  //       .subscribe((res) => {
-  //         if (res.role == 'send') {
-  //           this.genericService.getLoader().subscribe();
-  //           this.updateRow(res.data.id)
-  //         }
-  //       });
-  //   }
-  //   else {
-  //     alert("חובה לסווג תנועה כדי לאפשר עריכה")
-  //   }
-  // }
-
-  // updateRow(id: number): void {
-  //   let formData: IClassifyTrans = this.editRowExpenseForm.getRawValue();
-  //   console.log("edit row form: ", formData);
-
-  //   formData.id = id;
-  //   formData.isEquipment ? formData.isEquipment = true : formData.isEquipment = false;
-  //   formData.isRecognized ? formData.isRecognized = true : formData.isRecognized = false;
-  //   formData.isSingleUpdate = true;
-  //   formData.isNewCategory = false;
-  //   formData.vatPercent = +formData.vatPercent;
-  //   formData.taxPercent = +formData.taxPercent;
-  //   formData.reductionPercent = +formData.reductionPercent;
-
-  //   this.transactionService.updateRow(formData)
-  //     .pipe(
-  //       // finalize(() => this.genericService.dismissLoader()),
-  //       catchError((err) => {
-  //         alert("עדכון שורה נכשל");
-  //         this.genericService.dismissLoader();
-  //         return EMPTY;
-  //       }),
-  //       takeUntil(this.destroy$)
-  //     )
-  //     .subscribe((res) => {
-  //       this.genericService.dismissLoader();
-  //       this.genericService.showToast("עדכון שורה הצליח", "success");
-  //       // this.messageToast = "עדכון שורה הצליח"
-  //       // this.isToastOpen = true;
-  //       this.getExpensesData()
-  //     });
-  // }
-
-  openAddTransaction(event, isExpense: boolean): void {
-    from(this.modalController.create({
-
-      component: AddTransactionComponent,
-      componentProps: {
-        date: this.dateForUpdate,
-        data: event,
-        incomeMode: !isExpense
-      },
-      cssClass: 'expense-modal'
-    }))
-      .pipe(
-        catchError((err) => {
-          alert("openAddTransaction error");
-          return EMPTY;
-        }),
-        switchMap((modal) => from(modal.present())
-          .pipe(
-            switchMap(() => from(modal.onWillDismiss())
-              .pipe(
-                tap((data) => {
-                  if (data.role === 'error') {
-                    setTimeout(() => {
-                      this.genericService.dismissLoader()
-                      alert("אירעה שגיאה התנועה לא סווגה אנא נסה מאוחר יותר")
-                    }, 500)
-                  }
-                  else if (data.role != 'backdrop' && data.role != 'cancel') {
-                    this.genericService.showToast("התנועה סווגה בהצלחה", "success");
-                    // this.messageToast = "התנועה סווגה בהצלחה"
-                    // this.isToastOpen = true;
-                    // this.getTransactions()
-                  }
-
-                })
-              )
-            )
-          )),
-        catchError((err) => {
-          alert("openAddTransaction switchMap error");
-          console.log(err);
-          return EMPTY;
-        }))
-      .subscribe(() => {
-      });
-  }
-
-  // onClickedCell(event: { str: string, data: IRowDataTable }, isExpense: boolean = true): void {
-  //   if (event.str === "bill") {
-  //     // this.openAddBill(event.data);
-  //   }
-  //   else {
-  //     event.data.billName === "לא שוייך" ? alert("לפני סיווג קטגוריה יש לשייך אמצעי תשלום לחשבון") : this.openAddTransaction(event.data, isExpense);
-  //   }
-  // }
-
-  // openPopupSelect(): void {
-  //   from(this.modalController.create({
-  //     component: PopupSelectComponent,
-  //     componentProps: {
-  //       message: "עבור איזה עסק אתה רוצה להפיק דוח?",
-  //       options: this.bussinesesList,
-  //     },
-  //     cssClass: 'popup-select'
-  //   }))
-  //     .pipe(
-  //       catchError((err) => {
-  //         alert("create popup select error");
-  //         return EMPTY;
-  //       }),
-  //       switchMap((modal) => from(modal.present())
-  //         .pipe(
-  //           catchError((err) => {
-  //             alert("present popup select error");
-  //             console.log(err);
-  //             return EMPTY;
-  //           }),
-  //           switchMap(() => from(modal.onWillDismiss())
-  //             .pipe(
-  //               catchError((err) => {
-  //                 console.log("err in close popup select: ", err);
-  //                 return EMPTY;
-  //               })
-  //             ))
-  //         )))
-  //     .subscribe((res) => {
-  //       this.businessSelect = res.data;
-  //       console.log("businessSelect: ", this.businessSelect);
-
-  //       console.log("res of popup select: ", res);
-  //       if (res.role === 'success') {
-  //         this.openFlowReport();
-  //       }
-  //     });
-  // }
-
-  // openFlowReport(): void {
-  //   if (!this.userData.isTwoBusinessOwner) {
-  //     this.businessSelect = this.userData.businessNumber;
-  //   }
-  //   this.router.navigate(['flow-report'], {
-  //     queryParams: {
-  //       startDate: this.dateForUpdate.startDate,
-  //       endDate: this.dateForUpdate.endDate,
-  //       businessNumber: this.businessSelect,
-  //       accounts: 'null'
-  //     }
-  //   })
-  // }
-
-  // filterByExpenses(event: string): void {
-  //   this.filterByExpense = event;
-  //   this.filterExpenses()
-  // }
-
-  // filterByIncomes(event: string): void {
-  //   this.filterByIncome = event;
-  //   this.filterIncomes()
-  // }
 
   openAccountAssociation(event: { state: boolean, data: IRowDataTable }): void {
     this.visibleAccountAssociationDialog.set(event.state);
@@ -1100,6 +684,7 @@ export class TransactionsPage implements OnInit {
       const hasNotClassification = this.selectedValue.includes('notClassification');
     
       if (hasClassification && hasNotClassification) return true; // show all
+      if (!hasClassification && !hasNotClassification) return false; // hide all
       if (hasClassification) return row.category !== 'טרם סווג';
       if (hasNotClassification) return row.category === 'טרם סווג';
       return true; // default is display all

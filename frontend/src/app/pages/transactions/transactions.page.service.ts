@@ -79,6 +79,8 @@ export class TransactionsService implements OnInit{
   
 
   getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[]): Observable<ITransactionData[]> {
+    console.log("billId: ", billId);
+    
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
     .set('billId', billId?.length ? billId.join(',') : 'null' )

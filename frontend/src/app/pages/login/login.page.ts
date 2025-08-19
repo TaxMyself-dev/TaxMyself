@@ -12,12 +12,14 @@ import { bunnerImagePosition, FormTypes } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { MessageService } from 'primeng/api';
+import { Location } from '@angular/common';
+
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
-  standalone: false
+  standalone: false,
 })
 export class LoginPage implements OnInit {
 
@@ -37,9 +39,14 @@ export class LoginPage implements OnInit {
   displayError: string;
   showPassword: boolean = false;
   resetMode = false;
+  mailAddressForResendAuthMail: string = "";
+  passwordForResendAuthMail: string = "";
+  isVisibleDialogRegisterMessage: boolean = false;
+  showModal = false;
+
   // isLoading = false;
 
-  constructor(private messageService: MessageService, private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
+  constructor(private location: Location, private messageService: MessageService, private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
     this.loginForm = this.formBuilder.group({
       userName: new FormControl(
@@ -58,15 +65,60 @@ export class LoginPage implements OnInit {
   }
 
   ngOnInit() {
-    this.route.queryParams.subscribe(params => {
-      // this.authService.error.set('email');
-      if (params['from'] === 'register') {
-        console.log('Navigated to Login Page from Register Page');
-        this.authService.error.set('email');
-        // alert('בסיום ההרשמה נשלח לחשבון הדוא"ל שלך מייל לאימות אנא ודן כי אישרת אותו')
-      }
-    });
+    // this.route.queryParams.subscribe(params => {
+    //   // this.authService.error.set('email');
+    //   if (params['from'] === 'register') {
+    //     console.log('Navigated to Login Page from Register Page');
+    //     //this.authService.error.set('email');
+    //     // alert('בסיום ההרשמה נשלח לחשבון הדוא"ל שלך מייל לאימות אנא ודן כי אישרת אותו')
+    //   }
+    //   if (params['mail']) {
+    //     this.mailAddressForResendAuthMail = params['mail'];
+    //     console.log('mailAddressForResendAuthMail: ', this.mailAddressForResendAuthMail);
+    //   }
+    // });
+    // const navigation = this.router.getCurrentNavigation();
+    // console.log("🚀 ~ LoginPage ~ ngOnInit ~ navigation:", navigation)
+    // const state = navigation?.extras?.state;
+    // console.log("🚀 ~ LoginPage ~ ngOnInit ~ state:", state)
+
+    // if (state?.email && state?.password) {
+    //   this.mailAddressForResendAuthMail = state.email;
+    //   this.passwordForResendAuthMail = state.password;
+    // }
+    // if (state?.from === 'register') {
+    //   console.log('Navigated to Login Page from Register Page');
+    //   this.isVisibleDialogRegisterMessage = true;
+    //   // this.authService.error.set('email');
+    //   // alert('בסיום ההרשמה נשלח לחשבון הדוא"ל שלך מייל לאימות אנא ודן כי אישרת אותו')
+    // }
+    this.getStateData();
   }
+
+  getStateData() {
+    const state = this.location.getState() as {
+      from?: string;
+      email?: string;
+      password?: string;
+    };
+  
+    console.log("🚀 ~ LoginPage ~ ngOnInit ~ state:", state);
+  
+    if (state?.email && state?.password) {
+      this.mailAddressForResendAuthMail = state.email;
+      this.passwordForResendAuthMail = state.password;
+    }
+  
+    if (state?.from === 'register') {
+      console.log('Navigated to Login Page from Register Page');
+      this.showModal = true;
+    }
+  }
+
+
+closeModal() {
+  this.showModal = false;
+}
 
 
 
@@ -94,7 +146,7 @@ export class LoginPage implements OnInit {
           if (!res?.user?.emailVerified) {
             console.log("in email error");
             console.log("res in email error", res);
-            
+
             // this.genericService.dismissLoader();
             this.authService.error.set("email");
           }
@@ -122,8 +174,54 @@ export class LoginPage implements OnInit {
       .subscribe()
   }
 
+  // sendVerficaitonEmail(): void {
+  //   this.authService.SendVerificationMail(this.mailAddressForResendAuthMail)
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("error in send verification email: ", err);
+  //         switch (err.code) {
+  //           case "auth/invalid-email":
+  //           case "auth/user-not-found":
+  //             this.messageService.add({
+  //               severity: 'error',
+  //               summary: 'Error',
+  //               detail: "כתובת האימייל שהכנסת אינה תקינה או לא קיימת במערכת",
+  //               //life: 3000,
+  //               sticky: true,
+  //               key: 'br'
+  //             })
+  //             break;
+  //           case "auth/too-many-requests":
+  //           case "auth/network-request-failed":
+  //           case "auth/operation-not-allowed":
+  //             this.messageService.add({
+  //               severity: 'error',
+  //               summary: 'Error',
+  //               detail: "אירעה שגיאה בשליחת המייל, אנא נסה מאוחר יותר",
+  //               //life: 3000,
+  //               sticky: true,
+  //               key: 'br'
+  //             })
+  //         }
+  //         return EMPTY;
+  //       }
+  //       )
+  //     )
+  //     .subscribe((res) => {
+  //       console.log("Verification email sent successfully: ", res);
+
+  //       this.messageService.add({
+  //         severity: 'info',
+  //         summary: 'Success',
+  //         detail: "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת",
+  //         life: 3000,
+  //         key: 'br'
+  //       })
+  //     })
+  // }
+
   sendVerficaitonEmail(): void {
-    this.authService.SendVerificationMail()
+    this.authService.SendVerificationMail(this.mailAddressForResendAuthMail, this.passwordForResendAuthMail)
       .pipe(
         catchError((err) => {
           console.log("error in send verification email: ", err);
@@ -134,11 +232,11 @@ export class LoginPage implements OnInit {
                 severity: 'error',
                 summary: 'Error',
                 detail: "כתובת האימייל שהכנסת אינה תקינה או לא קיימת במערכת",
-                //life: 3000,
                 sticky: true,
                 key: 'br'
-              })
+              });
               break;
+  
             case "auth/too-many-requests":
             case "auth/network-request-failed":
             case "auth/operation-not-allowed":
@@ -146,27 +244,37 @@ export class LoginPage implements OnInit {
                 severity: 'error',
                 summary: 'Error',
                 detail: "אירעה שגיאה בשליחת המייל, אנא נסה מאוחר יותר",
-                //life: 3000,
                 sticky: true,
                 key: 'br'
-              })
+              });
+              break;
+  
+            default:
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: "אירעה שגיאה לא צפויה",
+                sticky: true,
+                key: 'br'
+              });
           }
           return EMPTY;
-        }
-        )
+        })
       )
-      .subscribe((res) => {
-        console.log("Verification email sent successfully: ", res);
-
+      .subscribe(() => {
+        console.log("Verification email sent successfully");
+  
         this.messageService.add({
           severity: 'info',
           summary: 'Success',
           detail: "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת",
           life: 3000,
           key: 'br'
-        })
-      })
+        });
+      });
   }
+  
+  
 
   navigateToRegister(): void {
     this.router.navigate(['register'])

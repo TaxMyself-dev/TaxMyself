@@ -149,6 +149,10 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     width: 215px;
   }
 
+  &.btn_select {
+    width: 264px;
+  }
+
   &.icon {
     width: 44px;
     height: 44px !important;
@@ -279,6 +283,8 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.filter {
   display: flex;
   justify-content: space-between;
+  font-size: larger;
+  height: 43px;
 }
 }
 
@@ -315,7 +321,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     width: 215px;
   }
   &.between {
-    width: 175px;
+    width: 264px;
   }
   &.narrow {
     width: 120px;
@@ -335,12 +341,12 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 }
 
 .p-select-label, .p-multiselect-label {
-  font-size: smaller;
+  font-size: larger;
   overflow: visible !important;
 }
 
 .p-multiselect-option, .p-select-option {
-  font-size: smaller;
+  font-size: large;
 }
 
 .p-multiselect-label.p-placeholder {
@@ -362,6 +368,9 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
   &.auto {
     width: auto;
+  }
+  &.between {
+    width: 175px;
   }
   &.normal {
     width: 215px;

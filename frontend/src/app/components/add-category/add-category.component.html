@@ -7,25 +7,14 @@
       <div class="checkbox-container">
         <p-checkbox [size]="'small'" inputId="ny" [binary]="true" (onChange)="onCheckboxClicked($event)"
           [style]="{color: 'red'}" />
-        <label for="ny" class="ml-2">האם ההוצאה מוכרת למע"מ?</label>
+        <label for="ny" class="ml-2">האם ההוצאה הינה הוצאה מוכרת?</label>
       </div>
     </div>
 
-    <!-- category input -->
-    <!-- @if (!isRecognized()) {
-    <div [formGroup]="unRecognizedForm" class="not-recognized-form">
-       <app-input-text [ariaLabel]="'קטגוריה'" [labelText]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : 'שם קטגוריה'" [controlName]="'categoryName'" [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM" >
-      </app-input-text>
-      <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
-        [parentForm]="unRecognizedForm" [size]="inputsSize.MEDIUM">
-      </app-input-text>
-    </div>
-    }
-    @else { -->
     <form [formGroup]="isRecognized() ? isRecognizedForm : unRecognizedForm" class="is-recognized-form">
       <!-- category input -->
       <ng-container>
-        <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : 'שם קטגוריה'"
+        <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : ''"
           [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="isRecognized() ? isRecognizedForm : unRecognizedForm" [size]="inputsSize.MEDIUM">
         </app-input-text>
       </ng-container>
@@ -45,15 +34,15 @@
             </app-input-select>
 
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'taxPercent'"
-              [labelText]="'% מס'" [size]="inputsSize.SMALL" [type]="'number'" [errorText]="'מספרים בלבד'"></app-input-text>
+              [labelText]="'% מס'" [size]="inputsSize.SMALL" [type]="'number'" [errorText]="'מספרים בלבד'" placeholder="אחוז מס"></app-input-text>
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'vatPercent'"
-              [labelText]="'% מעמ'" [size]="inputsSize.SMALL" [type]="'number'"></app-input-text>
+              [labelText]="'% מעמ'" [size]="inputsSize.SMALL" [type]="'number'"  placeholder='אחוז מע"מ'></app-input-text>
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'reductionPercent'"
-              [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'"></app-input-text>
+              [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחזו פחת"></app-input-text>
           }
           @else {
             <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
-            [parentForm]="getSubCategoryFormByIndex(i)" [size]="inputsSize.MEDIUM" >
+            [parentForm]="getSubCategoryFormByIndex(i)" [size]="inputsSize.MEDIUM" placeholder="">
           </app-input-text>
           }
           </div>

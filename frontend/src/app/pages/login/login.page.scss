@@ -22,6 +22,49 @@ input:-webkit-autofill {
   align-items: center;
 }
 
+.custom-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.6); /* semi-transparent background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.custom-modal {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 500px;
+  position: relative;
+  direction: rtl;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.close-button {
+  position: absolute;
+  top: 1rem;
+  left: 1rem; /* For RTL, X button on the left */
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #333;
+}
+
+.blue-link {
+  color: #007bff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+
 .login-card {
   width: 40%;
   //border:1px solid rgb(79, 171, 79);
