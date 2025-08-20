@@ -824,6 +824,7 @@ export class TransactionsService {
   //   return transactions;
   // }
 
+  
   async getTransactionsByBillAndUserId(
     userId: string,
     startDate: Date,
@@ -833,86 +834,136 @@ export class TransactionsService {
   ): Promise<Transactions[]> {
     console.log("billIds is ", billIds);
   
+    // 1) Load all user's bills (with their 'sources' relation) so we can derive identifiers.
     const allBills = await this.billRepo.find({
       where: { userId },
-      relations: ['sources']
+      relations: ['sources'],
     });
   
+    // 2) Prepare selection flags/collections based on the incoming billIds filter.
     let includeUnlinked: boolean;
-    let billIdNums: number[];
+    let billIdNums: number[] = [];
     let selectedBills: typeof allBills;
   
     if (billIds === null) {
-      // אם לא נשלח כלום – נכלול את כל החשבוניות ואת הלא-משויכות
+      // If no filter was provided -> include ALL bills AND also include "unlinked".
       includeUnlinked = true;
       selectedBills = allBills;
     } else {
+      // 'notBelong' is a special token meaning "include unlinked transactions".
       includeUnlinked = billIds.includes('notBelong');
-      billIdNums = billIds.filter(id => id !== 'notBelong').map(id => parseInt(id, 10));
-      selectedBills = allBills.filter(bill => billIdNums.includes(bill.id));
+  
+      // Keep only numeric bill ids
+      billIdNums = billIds
+        .filter((id) => id !== 'notBelong')
+        .map((id) => parseInt(id, 10));
+  
+      // Narrow the bills we care about to the selected list
+      selectedBills = allBills.filter((bill) => billIdNums.includes(bill.id));
     }
   
-    const sources: string[] = selectedBills.flatMap(bill =>
-      bill.sources.map(source => source.sourceName)
+    // 3) Build the identifiers:
+    //    - 'sources' = identifiers of SELECTED bills
+    //    - 'allIdentifiers' = identifiers of ALL user's bills
+    const sources: string[] = selectedBills.flatMap((bill) =>
+      bill.sources.map((source) => source.sourceName),
     );
   
-    const allIdentifiers: string[] = allBills.flatMap(bill =>
-      bill.sources.map(source => source.sourceName)
+    const allIdentifiers: string[] = allBills.flatMap((bill) =>
+      bill.sources.map((source) => source.sourceName),
     );
   
+    // 4) Start the query restricted to the current user
     const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
     queryBuilder.where('transaction.userId = :userId', { userId });
   
-    // תנאי לפי מקורות וכולל לא משויך אם נדרש
+    // 5) Filter by paymentIdentifier (linked vs unlinked)
     queryBuilder.andWhere(
-      new Brackets(qb => {
-        if (sources.length > 0) {
+      new Brackets((qb) => {
+        const hasSources = sources.length > 0;
+        const hasAllIds = allIdentifiers.length > 0;
+  
+        if (hasSources) {
+          // If some bills were selected, include transactions whose paymentIdentifier matches them:
           qb.where('transaction.paymentIdentifier IN (:...sources)', { sources });
   
           if (includeUnlinked) {
-            qb.orWhere('transaction.paymentIdentifier NOT IN (:...allIdentifiers)', { allIdentifiers });
+            // Also include "unlinked":
+            //  - paymentIdentifier NOT in ANY known identifier
+            //  - OR paymentIdentifier IS NULL
+            if (hasAllIds) {
+              qb.orWhere(
+                'transaction.paymentIdentifier NOT IN (:...allIdentifiers)',
+                { allIdentifiers },
+              );
+            } else {
+              // FIX PATH: when there are NO known identifiers at all,
+              // we must AVOID `NOT IN ()`. Using `1=1` keeps the bracket valid
+              // and effectively means "no linked ids exist, so treat all as unlinked".
+              qb.orWhere('1=1');
+            }
             qb.orWhere('transaction.paymentIdentifier IS NULL');
           }
         } else if (includeUnlinked) {
-          qb.where('transaction.paymentIdentifier NOT IN (:...allIdentifiers)', { allIdentifiers });
+          // No specific bills selected, but "unlinked" requested:
+          if (hasAllIds) {
+            qb.where(
+              'transaction.paymentIdentifier NOT IN (:...allIdentifiers)',
+              { allIdentifiers },
+            );
+          } else {
+            // FIX PATH: again, avoid `NOT IN ()` when allIdentifiers is empty
+            // (nothing is recognized as linked, so everything is effectively unlinked)
+            qb.where('1=1');
+          }
           qb.orWhere('transaction.paymentIdentifier IS NULL');
         } else {
-          qb.where('1 = 0'); // לא נבחר כלום ולא ביקשו לא משויך => אל תחזיר
+          // Neither bills selected nor "unlinked" requested -> return nothing.
+          qb.where('1 = 0');
         }
-      })
+      }),
     );
   
+    // 6) Category filter
     const defaultCategories = await this.categoryRepo.find();
     const userCategories = await this.userCategoryRepo.find({
-      where: { firebaseId: userId }
+      where: { firebaseId: userId },
     });
   
     const allCategoriesName: string[] = [
-      ...defaultCategories.map(c => c.categoryName),
-      ...userCategories.map(c => c.categoryName),
+      ...defaultCategories.map((c) => c.categoryName),
+      ...userCategories.map((c) => c.categoryName),
     ];
   
     if (categories && categories.length > 0 && allCategoriesName.length > 0) {
+      // Include:
+      //  - categories explicitly selected,
+      //  - OR anything not recognized in our combined category list,
+      //  - OR NULL categories.
       queryBuilder.andWhere(
-        new Brackets(qb => {
+        new Brackets((qb) => {
           qb.where('transaction.category IN (:...categories)', { categories });
-          qb.orWhere('transaction.category NOT IN (:...allCategoriesName)', { allCategoriesName });
+          qb.orWhere('transaction.category NOT IN (:...allCategoriesName)', {
+            allCategoriesName,
+          });
           qb.orWhere('transaction.category IS NULL');
-        })
+        }),
       );
     }
   
-    queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
-      startDate,
-      endDate
-    });
+    // 7) Date range filter (inclusive by DATE() casting)
+    queryBuilder.andWhere(
+      'DATE(transaction.billDate) BETWEEN :startDate AND :endDate',
+      { startDate, endDate },
+    );
   
+    // 8) Sort newest-first
     queryBuilder.orderBy('transaction.billDate', 'DESC');
   
+    // 9) Execute
     const transactions = await queryBuilder.getMany();
     return transactions;
   }
-  
   
 
   async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null): Promise<Transactions[]> {
