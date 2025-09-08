@@ -98,10 +98,9 @@ export class Documents {
   /// *********** Document Issuer Details *********** ///
 
   @Column()
-  issuerbusinessNumber: string;
+  issuerBusinessNumber: string;
 
-
-
+  
   // /// *********** Document Recipient Details *********** ///
 
   @Column()

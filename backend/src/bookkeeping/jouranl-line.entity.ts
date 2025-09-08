@@ -8,7 +8,7 @@ export class JournalLine {
   id: number;
 
   @Column()
-  businessNumber: string;
+  issuerBusinessNumber: string;
 
   @Column()
   journalEntryId: number;

@@ -8,7 +8,7 @@ export class JournalEntry {
   id: number; // Unique ID for the journal entry
 
   @Column()
-  businessNumber: string;
+  issuerBusinessNumber: string;
 
   @Column({ type: 'date' })
   date: string;

@@ -1,4 +1,4 @@
-import { CardCompany, CreditTransactionType, PaymentMethodType, UnitOfMeasure, VatOptions } from "src/app/shared/enums";
+import { CardCompany, CreditTransactionType, UnitOfMeasure, VatOptions } from "src/app/shared/enums";
 
 export enum DocumentType {
   RECEIPT = 'RECEIPT',
@@ -8,20 +8,28 @@ export enum DocumentType {
   CREDIT_INVOICE = 'CREDIT_INVOICE',
 }
 
+export const DocTypeDisplayName = {
+  [DocumentType.RECEIPT]: 'קבלה',
+  [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+  [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
+  [DocumentType.TRANSACTION_INVOICE]: 'חשבונית עסקה',
+  [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+};
+
+// export const DocTypeDisplayName: Record<DocumentType, string> = {
+//   [DocumentType.RECEIPT]: 'קבלה',
+//   [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+//   [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
+//   [DocumentType.TRANSACTION_INVOICE]: 'חשבונית עסקה',
+//   [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+// };
+
 export const DocTypeDefaultStart: Record<DocumentType, number> = {
   [DocumentType.RECEIPT]: 70001,
   [DocumentType.TAX_INVOICE]: 10001,
   [DocumentType.TAX_INVOICE_RECEIPT]: 50001,
   [DocumentType.TRANSACTION_INVOICE]: 90001,
   [DocumentType.CREDIT_INVOICE]: 80001,
-};
-
-export const DocTypeDisplayName: Record<DocumentType, string> = {
-  [DocumentType.RECEIPT]: 'קבלה',
-  [DocumentType.TAX_INVOICE]: 'חשבונית מס',
-  [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
-  [DocumentType.TRANSACTION_INVOICE]: 'חשבונית עסקה',
-  [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
 };
 
 export enum DocumentTotalsField {
@@ -69,7 +77,7 @@ export enum DocCreateFields {
 
 export interface LineItem {
 
-  issuerbusinessNumber: string;
+  issuerBusinessNumber: string;
   generalDocIndex: string | null;
 
   description: string;
@@ -87,11 +95,10 @@ export interface LineItem {
   sumBefVat: number;
   disBefVat: number;
   sumWithoutVat: number;
-  // vat: number;
   sumAftDisWithVat: number;
 
-  // paymentMethod: PaymentMethodType;
   lineNumber: number;
+  docType: DocumentType;
   transType: string; // = 3
   unitType: UnitOfMeasure;
   bankNumber?: string | null;
@@ -122,9 +129,10 @@ export enum BankName {
   HAPOALIM = 'HAPOALIM',
   LEUMI = 'LEUMI',
   MIZRAHI_TEFAHOT = 'MIZRAHI_TEFAHOT',
-  DISCOUNT = 'DISCOUNT',
-  IGUD = 'IGUD',
+  DISCONT = 'DISCONT',
   MERCANTILE = 'MERCANTILE',
+  BEN_LEUMI = 'BEN_LEUMI',
+  OTSAR_HACHAYAL = 'OTSAR_HACHAYAL',
 }
 
 // Map each bank enum to its Hebrew label
@@ -132,18 +140,20 @@ export const BankNameLabels = {
   [BankName.HAPOALIM]: 'הפועלים',
   [BankName.LEUMI]: 'לאומי',
   [BankName.MIZRAHI_TEFAHOT]: 'מזרחי טפחות',
-  [BankName.DISCOUNT]: 'דיסקונט',
-  [BankName.IGUD]: 'איגוד',
+  [BankName.DISCONT]: 'דיסקונט',
   [BankName.MERCANTILE]: 'מרכנתיל',
+  [BankName.BEN_LEUMI]: 'בינלאומי',
+  [BankName.OTSAR_HACHAYAL]: 'אוצר החייל',
 };
 
 // Create the list for dropdowns (PrimeNG p-dropdown expects {value, label/name})
 export const bankOptionsList = [
-  { value: BankName.HAPOALIM, name: BankNameLabels[BankName.HAPOALIM] },
-  { value: BankName.LEUMI, name: BankNameLabels[BankName.LEUMI] },
-  { value: BankName.MIZRAHI_TEFAHOT, name: BankNameLabels[BankName.MIZRAHI_TEFAHOT] },
-  { value: BankName.DISCOUNT, name: BankNameLabels[BankName.DISCOUNT] },
-  { value: BankName.IGUD, name: BankNameLabels[BankName.IGUD] },
-  { value: BankName.MERCANTILE, name: BankNameLabels[BankName.MERCANTILE] },
+  { value: BankName.HAPOALIM, name: BankNameLabels[BankName.HAPOALIM], number: '12' },
+  { value: BankName.LEUMI, name: BankNameLabels[BankName.LEUMI], number: '10' },
+  { value: BankName.MIZRAHI_TEFAHOT, name: BankNameLabels[BankName.MIZRAHI_TEFAHOT], number: '20' },
+  { value: BankName.DISCONT, name: BankNameLabels[BankName.DISCONT], number: '11' },
+  { value: BankName.MERCANTILE, name: BankNameLabels[BankName.MERCANTILE], number: '17' },
+  { value: BankName.BEN_LEUMI, name: BankNameLabels[BankName.BEN_LEUMI], number: '31' },
+  { value: BankName.OTSAR_HACHAYAL, name: BankNameLabels[BankName.OTSAR_HACHAYAL], number: '14' },
 ];
 

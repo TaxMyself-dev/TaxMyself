@@ -16,6 +16,7 @@ import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotalsField, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
 import { MenuItem } from 'primeng/api';
+import { DocumentType } from './doc-cerate.enum';
 
 interface DocPayload {
   docData: any[];
@@ -29,6 +30,8 @@ interface PaymentFieldConfig {
   type: 'date' | 'dropdown' | 'text';
   options?: any[];
 }
+
+
 
 @Component({
     selector: 'app-doc-create',
@@ -46,7 +49,9 @@ export class DocCreatePage implements OnInit {
   showUserDetailsCard: boolean = false;
   showPatmentDetailsCard: boolean = false;
   serialNumberFile: ISettingDoc;
-  fileSelected: string;
+    DocumentType = DocumentType;
+
+  fileSelected: DocumentType;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
   //docDetails: ISettingDoc;
@@ -157,7 +162,7 @@ export class DocCreatePage implements OnInit {
     { value: Currency.EUR, name: 'יורו' },
   ];
 
-    paymentMethodTabs: MenuItem[] = [
+  paymentMethodTabs: MenuItem[] = [
     { label: 'העברה בנקאית', id: 'BANK_TRANSFER' as any },  // `id` is just an extra field (PrimeNG allows it)
     { label: 'אשראי', id: 'CREDIT_CARD' as any },
     { label: 'צ׳ק', id: 'CHECK' as any },
@@ -400,7 +405,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
 
     let docPayload: DocPayload;
 
-    const issuerbusinessNumber = this.selectedBusinessNumber;
+    const issuerBusinessNumber = this.selectedBusinessNumber;
                // `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
 
     const issuerName = this.selectedBusinessName;
@@ -423,7 +428,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       docData: {
         ...this.generalDocForm.value,
         ...this.recipientDocForm.value,
-        issuerbusinessNumber,
+        issuerBusinessNumber,
         issuerName,
         issuerAddress,
         issuerPhone,
@@ -457,7 +462,8 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     const transType = "3";
 
     const newLine: PartialLineItem = {
-      issuerbusinessNumber: this.selectedBusinessNumber,
+      issuerBusinessNumber: this.selectedBusinessNumber,
+      generalDocIndex: String(this.docIndexes.generalIndex),
       lineNumber: lineIndex + 1,
       description: formValue.lineDescription,
       unitQuantity: formValue.lineQuantity,
@@ -465,6 +471,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       discount: formValue.lineDiscount,
       vatOpts: formValue.lineVatType,
       vatRate: this.generalDocForm.value[DocCreateFields.DOC_VAT_RATE],
+      docType: this.generalDocForm.value[DocCreateFields.DOC_TYPE],
       transType: transType,
     };
 
@@ -472,20 +479,6 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     this.calculateVatFieldsForLine(lineIndex);
 
   }
-
-
-
-  // line
-  // sumBefVatPerUnit
-  // disBefVatPerLine
-  // sumAftDisBefVatPerLine
-
-  // doc
-  // sumBefDisBefVat: number; //  סכום המסמך לפני הנחה ולפני מע"מ
-  // disSum: number; //  סכום ההנחה במסמך
-  // sumAftDisBefVAT: number; // סכום המסמך לאחר הנחה לפני מע"מ
-  // vatSum: number; //  סכום המע"מ במסמך
-  // sumAftDisWithVAT: number; // סכום המסמך לאחר הנחה כולל מע"מ
 
 
   private calculateVatFieldsForLine(lineIndex: number): void {
@@ -657,15 +650,22 @@ get documentTotals() {
   addPayment(): void {
 
     const paymentFormValue = this.paymentInputForm.value;
+    const paymentLineIndex = this.paymentsDraft.length;
+
 
     const selectedBank = bankOptionsList.find(bank => bank.value === paymentFormValue.bankName);
     const hebrewBankName = selectedBank ? selectedBank.name : '';
+    const bankNumber     = selectedBank?.number ?? '';
 
     // Build the full payment entry with extra fields
     const paymentEntry = {
       ...paymentFormValue,
+      issuerBusinessNumber: this.selectedBusinessNumber,
+      generalDocIndex: String(this.docIndexes.generalIndex),
+      paymentLineNumber: paymentLineIndex + 1,
+      paymentMethod: this.activePaymentMethod.id, // Track which payment method was selected
       hebrewBankName,  // Save the Hebrew name for later use (display / backend)
-      paymentMethod: this.activePaymentMethod.id // Track which payment method was selected
+      bankNumber
     };
 
     this.paymentsDraft.push(paymentEntry);
@@ -691,34 +691,20 @@ get documentTotals() {
   }
 
 
-  // get paymentsFormArray(): FormArray {
-  //   return this.myForm.get(this.paymentSectionName) as FormArray;
-  // }
-
   get generalDetailsForm(): FormGroup {
     return this.myForm.get('GeneralDetails') as FormGroup;
   }
+
 
   get userDetailsForm(): FormGroup {
     return this.myForm.get('UserDetails') as FormGroup;
   }
 
+
   selectUnit(unit: string) {
     this.selectedUnit = unit;
   }
 
-  // getPaymentFormByIndex(index: number): FormGroup {
-  //   return this.paymentsFormArray.at(index) as FormGroup;
-  // }
-
-
-
-  // createForms(): void {
-  //   this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails', this.paymentSectionName]);
-  //   this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
-  //   this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
-  //   this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
-  // }
 
   createForms(): void {
     this.myForm = this.docCreateBuilderService.buildDocCreateForm(['GeneralDetails', 'UserDetails']);
@@ -756,28 +742,12 @@ get documentTotals() {
   }
 
 
-
-  // showAllFields(): void {
-  //   this.showMoreFields = !this.showMoreFields;
-  // }
-
-
-  // getHebrewNameDoc(typeDoc: string): void {
-  //   const temp = this.DocCreateTypeList.find((doc) => doc.value === typeDoc);
-  //   if (temp) this.HebrewNameFileSelected = temp.name;
-  // }
-
-  // getHebrewNameDoc(typeDoc: string): string {
-  //   return this.DocCreateTypeList.find((doc) => doc.value === typeDoc)?.name;
-  // }
-
-
-  getHebrewNameDoc(typeDoc: string): string {
-    return (DocTypeDisplayName as Record<string, string>)[typeDoc] ?? (() => { throw new Error(`Invalid document type: ${typeDoc}`); })();
+  getHebrewNameDoc(typeDoc: DocumentType): string {
+    return DocTypeDisplayName[typeDoc];
   }
 
 
-  private async handleDocIndexes(docType: string): Promise<IDocIndexes> {
+  private async handleDocIndexes(docType: DocumentType): Promise<IDocIndexes> {
     try {
       const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
       this.docIndexes = res;
@@ -881,86 +851,33 @@ get documentTotals() {
       this.generalDocForm.valid &&
       this.recipientDocForm.valid &&
       this.lineItemsDraft.length > 0 &&
-      this.paymentsDraft.length > 0 // optional, only if payment is mandatory
+      (!this.isDocWithPayments() || this.paymentsDraft.length > 0)
     );
   }
 
-
-  getFid(): string {
-    switch (this.fileSelected) {
-      case 'RECEIPT':
-        return "RVxpym2O68";
-      case 'TAX_INVOICE':
-        return "";
-      case 'TAX_INVOICE_RECEIPT':
-        return "";
-      case 'TRANSACTION_INVOICE':
-        return "";
-      case 'CREDIT_INVOICE':
-        return "";
-    }
-    return null;
-  }
-
-  // onBlur(field: string, i: number): void {
-  //   const vatOptionControl = this.paymentsFormArray.controls[i]?.get(fieldLineDocValue.VAT_OPTIONS);
-  //   if (!vatOptionControl.value) return; // If don't choosen vat option
-  //   if (field !== "sum") return; // If it is not "sum" field
-  //   this.onVatOptionChange(vatOptionControl, i)
-  //   console.log("on blur");
-
-  // }
-
-
-  // onVatOptionChange(event: any, formIndex: number): void {
-  //   console.log("🚀 ~ DocCreatePage ~ onVatOptionChange ~ value:", event.value)
-  //   const sumControl = this.paymentsFormArray.controls[formIndex]?.get(fieldLineDocValue.SUM);
-  //   if (!sumControl) return;
-
-  //   const sum = parseFloat(sumControl.value);
-  //   if (isNaN(sum)) return;
-
-  //   this.amountBeforeVat = 0;
-  //   this.vatAmount = 0;
-  //   this.totalAmount = 0;
-
-  //   switch (event.value) {
-  //     case 'BEFORE':
-  //       this.amountBeforeVat = sum;
-  //       this.vatAmount = this.calculateVatAmountBeforVat(sum);
-  //       this.totalAmount = sum + this.vatAmount;
-  //       break;
-  //     case 'AFTER':
-  //       this.totalAmount = sum;
-  //       this.vatAmount = this.calculateVatAmountAfterVat(sum);
-  //       this.amountBeforeVat = this.calculateSumAfterVat(sum);
-  //       break;
-  //     case 'WITH_OUT':
-  //       this.amountBeforeVat = sum;
-  //       this.vatAmount = 0;
-  //       this.totalAmount = sum;
-  //       break;
-  //   }
-  // }
 
   calculateSumAfterVat(sum: number): number { // Calculate the original cost 
     const vatRate = 0.18; // Example VAT rate
     return sum / (1 + vatRate);
   }
 
+
   calculateVatAmountAfterVat(sum: number): number {
     const vatRate = 0.18; // Example VAT rate
     return sum - this.calculateSumAfterVat(sum);
   }
 
+
   calculateSumIncludingVat(sum: number): number {
     return sum;
   }
+
 
   calculateVatAmountBeforVat(sum: number): number {
     const vatRate = 0.18;
     return sum * vatRate;
   }
+
 
   expandGeneralDetails(): void {
     this.isGeneralExpanded = !this.isGeneralExpanded;
@@ -978,6 +895,7 @@ get documentTotals() {
     console.log("🚀 ~ DocCreatePage ~ expandGeneralDetails ~ this.generalArray:", this.generalArray)
 
   }
+
 
   expandUserDetails(): void {
     console.log(this.userDetailsForm);
@@ -1012,5 +930,14 @@ get documentTotals() {
         return [];
     }
   }
+
+
+  isDocWithPayments(): boolean {
+    return [
+      DocumentType.RECEIPT,
+      DocumentType.TAX_INVOICE_RECEIPT,
+    ].includes(this.fileSelected);
+  }
+
 
 }

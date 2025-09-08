@@ -1,6 +1,6 @@
 import { HttpException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
@@ -10,7 +10,7 @@ import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DocumentType, FIELD_MAP, JournalReferenceType, UniformFileTypeCodeMap} from 'src/enum';
+import { BusinessType, DocumentType, FIELD_MAP, JournalReferenceType, PaymentMethodType, UniformFileTypeCodeMap} from 'src/enum';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
@@ -550,7 +550,7 @@ export class ReportsService {
       let result = '';
       documents.forEach((doc) => {
         const f_1201 = this.getFormattedRecordCounter();
-        const f_1202 = this.formatField(doc.issuerbusinessNumber, 9, '0');
+        const f_1202 = this.formatField(doc.issuerBusinessNumber, 9, '0');
         const f_1203 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
         const f_1204 = this.formatField(doc.docNumber, 20, '0');
         const f_1205 = this.formatField(this.formatDateYYYYMMDD(doc.issueDate), 8, '0');
@@ -639,14 +639,18 @@ export class ReportsService {
         // Fetch all matching lines for the current document
         const docLines = await this.docLinesRepo.find({
           where: {
-            issuerbusinessNumber: doc.issuerbusinessNumber,
+            issuerBusinessNumber: doc.issuerBusinessNumber,
             generalDocIndex: doc.generalDocIndex,
+            docType: Not(DocumentType.RECEIPT),
           },
         });
+
+
     
         docLines.forEach((line) => {
+          
           const f_1251 = this.getFormattedRecordCounter();
-          const f_1252 = this.formatField(doc.issuerbusinessNumber, 9, '0');
+          const f_1252 = this.formatField(doc.issuerBusinessNumber, 9, '0');
           const f_1253 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1254 = this.formatField(doc.docNumber, 20, '0');
           const f_1255 = this.formatField(line.lineNumber, 4, '0');
@@ -687,25 +691,25 @@ export class ReportsService {
         // Fetch all matching payments lines for the current document
         const docPayments = await this.docPaymentsRepo.find({
           where: {
-            issuerbusinessNumber: doc.issuerbusinessNumber,
+            issuerBusinessNumber: doc.issuerBusinessNumber,
             generalDocIndex: doc.generalDocIndex,
           },
         });
     
-        // Loop through the lines and create D100 records
+        // Loop through the lines and create D120 records
         docPayments.forEach((line) => {
           const f_1301 = this.getFormattedRecordCounter(); // Running counter (9 digits)
-          const f_1302 = this.formatField(doc.issuerbusinessNumber, 9, '0');
+          const f_1302 = this.formatField(doc.issuerBusinessNumber, 9, '0');
           const f_1303 = this.formatField(this.getDocumentTypeCode(doc.docType, false), 3, '0');
           const f_1304 = this.formatField(doc.docNumber, 20, '0');
           const f_1305 = this.formatField(line.paymentLineNumber, 4, '0');
-          const f_1306 = this.formatField(line.paymentMethod, 1, '0');
+          const f_1306 = this.formatField(this.getPaymentCode(line.paymentMethod), 1, '0');
           const f_1307 = this.formatField(line.bankNumber, 10, '0');
           const f_1308 = this.formatField(line.branchNumber, 10, '0');
           const f_1309 = this.formatField(line.accountNumber, 15, '0');
           const f_1310 = this.formatField(line.checkNumber, 10, '0');
           const f_1311 = this.formatField(this.formatDateYYYYMMDD(line.paymentDate), 8, '0');;
-          const f_1312 = this.formatAmount(line.lineSum, 12, 2);
+          const f_1312 = this.formatAmount(line.paymentAmount, 12, 2);
           const f_1313 = this.formatField(line.cardCompany, 1, '0');
           const f_1314 = this.formatField(line.creditCardName, 20, '0');
           const f_1315 = this.formatField(line.creditTransType, 1, '0');
@@ -732,13 +736,13 @@ export class ReportsService {
         const lines = await this.JournalLineRepo.find({
           where: {
             journalEntryId: entry.id,
-            businessNumber: entry.businessNumber,
+            issuerBusinessNumber: entry.issuerBusinessNumber,
           }
         });
   
         lines.forEach((line) => {
           const f_1351 = this.getFormattedRecordCounter();
-          const f_1352 = this.formatField(entry.businessNumber, 9, '0');
+          const f_1352 = this.formatField(entry.issuerBusinessNumber, 9, '0');
           const f_1353 = this.formatField(entry.id, 10, '0');
           const f_1354 = this.formatField(line.lineInEntry, 5, '0');
           const f_1355 = this.formatField(entry.id, 8, '0');
@@ -930,6 +934,13 @@ export class ReportsService {
     }
     
 
+    private getPaymentCode(method: string): number {
+      if ((method as keyof typeof PaymentMethodType) in PaymentMethodType) {
+        return PaymentMethodType[method as keyof typeof PaymentMethodType];
+      }
+      return PaymentMethodType.OTHER;
+    }
+
 
     // Format date to YYYYMMDD
     private formatDateYYYYMMDD(dateInput: Date | string): string {
@@ -942,7 +953,7 @@ export class ReportsService {
     async fetchDocuments(businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
       return this.documentsRepo.find({
         where: {
-          issuerbusinessNumber: businessNumber, // Only fetch documents issued by this business
+          issuerBusinessNumber: businessNumber, // Only fetch documents issued by this business
           docDate: Between(new Date(startDate), new Date(endDate)),
         },
         order: { docDate: 'ASC' },
@@ -952,13 +963,13 @@ export class ReportsService {
     
     async fetchJournalEntries(
       userId: string,
-      businessNumber: string,
+      issuerBusinessNumber: string,
       startDate: string,
       endDate: string
     ): Promise<JournalEntry[]> {
       return await this.JournalEntryRepo.find({
         where: {
-          businessNumber,
+          issuerBusinessNumber,
           date: Between(startDate, endDate),
         },
         order: {
