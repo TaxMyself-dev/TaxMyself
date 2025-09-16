@@ -20,7 +20,6 @@ import { FormGroup } from '@angular/forms';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { MessageService } from 'primeng/api';
-import { fi } from 'date-fns/locale';
 
 
 @Component({
