@@ -103,8 +103,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
     const term = this.searchTerm().toLowerCase().trim();
-    const filtered = data?.filter(row => (String(row[this.columnSearch()]).includes(term)));
-    console.log('filteredDataTable', filtered);
+    const filtered = data?.filter(row => (String(row[this.columnSearch()]).toLowerCase().includes(term)));
     return filtered;
   });
 
