@@ -465,12 +465,37 @@ input.p-inputtext::placeholder {
 }
 
 .p-datatable-table-container {
-  scrollbar-width: none !important; /* Hide scrollbar in Firefox */
-  -ms-overflow-style: none !important; /* Hide scrollbar in IE and Edge */
-  overflow-y: scroll !important; /* Ensure scrolling still works */
+  overflow-x: auto !important;   /* horizontal scroll allowed */
+  overflow-y: auto !important;   /* vertical scroll allowed */
+  height: 500px !important;
+
+  /* ===== Chrome, Safari, Opera ===== */
   &::-webkit-scrollbar {
-    display: none !important; /* Hide scrollbar in Chrome, Safari, and Opera */
+    height: 5px; /* thickness of horizontal scrollbar */
   }
-  height: 500px !important; /* Set a fixed height for the table container */
+
+  /* Style horizontal scrollbar */
+  &::-webkit-scrollbar:horizontal {
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb:horizontal {
+    background-color: #888;
+    border-radius: 6px;
+    border: 2px solid #f1f1f1;
+  }
+  &::-webkit-scrollbar-thumb:horizontal:hover {
+    background-color: #555;
+  }
+  &::-webkit-scrollbar-track:horizontal {
+    background: #f1f1f1;
+  }
+
+  /* Hide vertical scrollbar but keep scroll functional */
+  &::-webkit-scrollbar:vertical {
+    width: 10px !important;
+    background: transparent !important;
+  }
 }
+
+
 
