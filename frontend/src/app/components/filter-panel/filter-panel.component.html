@@ -77,18 +77,18 @@
   <div class="header">
     <span class="title">חשבון</span>
     <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
-      [size]="inputsSize.BETWEEN"></app-input-select>
+      [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('account')"></app-input-select>
   </div>
   <!-- Select Category -->
   <div class="header">
     <span class="title">קטגוריה</span>
     <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
-      [parentForm]="form" [size]="inputsSize.BETWEEN">
+      [parentForm]="form" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('category')">
     </app-input-select>
   </div>
   <div class="apply-filters-button">
     <app-p-button [buttonText]="'סנן'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
-      (onButtonClicked)="onFilterButtonClicked()"></app-p-button>
+      (onButtonClicked)="onFilterButtonClicked()" [disabled]="disableFilter()"></app-p-button>
   </div>
   </div>
 }

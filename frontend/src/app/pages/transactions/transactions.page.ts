@@ -29,7 +29,7 @@ export class TransactionsPage implements OnInit {
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-    
+
     if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
@@ -89,66 +89,66 @@ export class TransactionsPage implements OnInit {
   ];
 
   fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
-  const onlyHide = this.isOnlyEmployer();
-  const addBiz   = this.isTwoBusinessOwner();
+    const onlyHide = this.isOnlyEmployer();
+    const addBiz = this.isTwoBusinessOwner();
 
-  // start from a fresh copy
-  let cols = [...this.allFieldsNamesExpenses];
+    // start from a fresh copy
+    let cols = [...this.allFieldsNamesExpenses];
 
-  // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
-  if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
-    const businessCol: IColumnDataTable<
-      TransactionsOutcomesColumns,
-      TransactionsOutcomesHebrewColumns
-    > = {
-      name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
-      value: TransactionsOutcomesHebrewColumns.businessNumber,
-      type: FormTypes.TEXT
-    };
+    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
+    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
+      const businessCol: IColumnDataTable<
+        TransactionsOutcomesColumns,
+        TransactionsOutcomesHebrewColumns
+      > = {
+        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
+        value: TransactionsOutcomesHebrewColumns.businessNumber,
+        type: FormTypes.TEXT
+      };
 
-    const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
-    const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
-    cols.splice(insertAt, 0, businessCol);
-  }
+      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
+      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
+      cols.splice(insertAt, 0, businessCol);
+    }
 
-  // filter out hidden columns when onlyHide = true
-  if (onlyHide) {
-    cols = cols.filter(c => !c.hide);
-  }
+    // filter out hidden columns when onlyHide = true
+    if (onlyHide) {
+      cols = cols.filter(c => !c.hide);
+    }
 
-  return cols;
-});
+    return cols;
+  });
 
-fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
-  const onlyHide = this.isOnlyEmployer();
-  const addBiz   = this.isTwoBusinessOwner();
+  fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
+    const onlyHide = this.isOnlyEmployer();
+    const addBiz = this.isTwoBusinessOwner();
 
-  // start from a fresh copy
-  let cols = [...this.allFieldsNamesExpenses];
+    // start from a fresh copy
+    let cols = [...this.allFieldsNamesExpenses];
 
-  // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
-  if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
-    const businessCol: IColumnDataTable<
-      TransactionsOutcomesColumns,
-      TransactionsOutcomesHebrewColumns
-    > = {
-      name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
-      value: TransactionsOutcomesHebrewColumns.businessNumber,
-      type: FormTypes.TEXT
-    };
+    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
+    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
+      const businessCol: IColumnDataTable<
+        TransactionsOutcomesColumns,
+        TransactionsOutcomesHebrewColumns
+      > = {
+        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
+        value: TransactionsOutcomesHebrewColumns.businessNumber,
+        type: FormTypes.TEXT
+      };
 
-    const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
-    const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
-    cols.splice(insertAt, 0, businessCol);
-  }
+      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
+      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
+      cols.splice(insertAt, 0, businessCol);
+    }
 
-  // filter out hidden columns when onlyHide = true
-  if (onlyHide) {
-    cols = cols.filter(c => !c.hide);
-  }
+    // filter out hidden columns when onlyHide = true
+    if (onlyHide) {
+      cols = cols.filter(c => !c.hide);
+    }
 
-  return cols;
-});
+    return cols;
+  });
 
 
 
@@ -158,7 +158,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
-  
+
 
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
   visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
@@ -208,7 +208,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
   filterByIncome: string = "";
   userData: IUserData;
   businessSelect: string = "";
-  
+
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
 
@@ -367,7 +367,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
 
   getTransactions(filters: any | null): void {
     console.log("filters: ", filters);
-    
+
     this.isLoadingStateTable.set(true);
     const periodType = filters?.periodType;
     let accounts: ISelectItem[] = filters?.account || null;
@@ -377,14 +377,14 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
 
     let accountsNames: string[] = accounts?.map((account: ISelectItem) => account.value as string);
     console.log("accountsNames: ", accountsNames);
-    
+
     let categoriesName: string[] = categories?.map((category: ISelectItem) => category.value as string);
     // === Setting the date
     if (!filters) { // For default table.
       const today = new Date();
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
-      
+
       ({ startDate, endDate } = this.dateService.getStartAndEndDates(
         this.reportingPeriodType.DATE_RANGE,
         null,
@@ -392,7 +392,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
         thirtyDaysAgo.toISOString(),
         today.toISOString()
       ));
-      
+
     }
     else {
       switch (periodType) {
@@ -412,7 +412,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
           const today = new Date();
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
-          
+
           ({ startDate, endDate } = this.dateService.getStartAndEndDates(
             this.reportingPeriodType.DATE_RANGE,
             null,
@@ -424,9 +424,9 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
       }
     }
     // === End setting the date //
-   // For dont send empty arrays to the backend
-   accountsNames?.length > 0 || null;
-   categoriesName?.length > 0 || null;
+    // For dont send empty arrays to the backend
+    accountsNames = accountsNames?.length ? accountsNames : null;
+    categoriesName = categoriesName?.length ? categoriesName : null;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
@@ -435,7 +435,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
     zip(incomeData$, expensesData$)
       .pipe(
         finalize(() => this.isLoadingStateTable.set(false))
-,        map(([incomeData, expenseData]) => {
+        , map(([incomeData, expenseData]) => {
           const incomeDataRows = this.handleTableData(incomeData);
           const expenseeDataRows = this.handleTableData(expenseData);
           return { incomes: incomeDataRows, expenses: expenseeDataRows };
@@ -520,12 +520,12 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
         data.businessNumber =
-        data.businessNumber === this.userData.businessNumber
-          ? this.userData.businessName
-          : data.businessNumber === this.userData.spouseBusinessNumber
-            ? this.userData.spouseBusinessName
-            : 'לא משוייך';
-      
+          data.businessNumber === this.userData.businessNumber
+            ? this.userData.businessName
+            : data.businessNumber === this.userData.spouseBusinessNumber
+              ? this.userData.spouseBusinessName
+              : 'לא משוייך';
+
 
 
         rows.push(data);
@@ -628,7 +628,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
 
   resetFilters(event: string): void {
     console.log("🚀 ~ resetFilters ~ event:", event);
-  
+
     switch (event) {
       case 'time':
         this.filterData.update(current => {
@@ -644,14 +644,14 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
           };
         });
         break;
-  
+
       case 'account':
         this.filterData.update(current => ({
           ...current,
           account: []
         }));
         break;
-  
+
       case 'category':
         this.filterData.update(current => ({
           ...current,
@@ -659,11 +659,11 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
         }));
         break;
     }
-  
+
     // After resetting — always call getTransactions with updated filters
     this.getTransactions(this.filterData());
   }
-  
+
 
   imageBunnerButtonClicked(event: any): void {
     this.router.navigate(['/reports'])
@@ -672,7 +672,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
   onQuickClassifyClicked(event: boolean): void {
     this.getTransactions(this.filterData());
   }
-  
+
   selectOption(value: string) {
     console.log("🚀 ~ selectOption ~ value:", value)
     const valueExist = this.selectedValue.some(v => v === value);
@@ -688,7 +688,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
     // const filteredExpenses = this.expensesData.filter(row => {
     //   const hasClassification = this.selectedValue.includes('classification');
     //   const hasNotClassification = this.selectedValue.includes('notClassification');
-    
+
     //   if (hasClassification && hasNotClassification) return true; // show all
     //   if (hasClassification) return row.category !== 'לא שוייך';
     //   if (hasNotClassification) return row.category === 'לא שוייך';
@@ -698,10 +698,10 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
   }
 
   classifyDataFilter(): void {
-   this.filteredExpensesData.set(this.expensesData.filter(row => {
+    this.filteredExpensesData.set(this.expensesData.filter(row => {
       const hasClassification = this.selectedValue.includes('classification');
       const hasNotClassification = this.selectedValue.includes('notClassification');
-    
+
       if (hasClassification && hasNotClassification) return true; // show all
       if (!hasClassification && !hasNotClassification) return false; // hide all
       if (hasClassification) return row.category !== 'טרם סווג';
@@ -712,7 +712,7 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
     this.filteredIncomesData.set(this.incomesData.filter(row => {
       const hasClassification = this.selectedValue.includes('classification');
       const hasNotClassification = this.selectedValue.includes('notClassification');
-    
+
       if (hasClassification && hasNotClassification) return true; // show all
       if (hasClassification) return row.category !== 'טרם סווג';
       if (hasNotClassification) return row.category === 'טרם סווג';
@@ -723,6 +723,6 @@ fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, Trans
     // return this.expensesData = filteredExpenses;
   }
 
-  
+
 
 }

@@ -64,8 +64,12 @@ export class FilterPanelComponent implements OnInit {
   showTimeOptions = signal(false);
   showAccountsOptions = signal(false);
   showCategoriesOptions = signal(false);
+  isCategoryEmpty = signal(false);
+  isAccountEmpty = signal(false);
+
+
   // getOptions = signal<ISelectItem[]>([]);
-  buttonText = signal<string>('aaa');
+  buttonText = signal<string>('בחר');
   viewReady = signal(false);
   // categoryList= 
   // accountsList = signal<ISelectItem[]>([]);
@@ -75,6 +79,8 @@ export class FilterPanelComponent implements OnInit {
   fullListAccounts: Signal<ISelectItem[]> = computed(() => 
     [{ name: 'אמצעי תשלום לא משוייכים', value: 'notBelong' }, ...this.accountsList()]
   );
+  disableFilter = computed(() => this.isAccountEmpty() || this.isCategoryEmpty() || this.buttonText() === 'בחר');
+
 
   filterData = signal<any>(null);
   selected: any[] = [];
@@ -268,11 +274,10 @@ export class FilterPanelComponent implements OnInit {
   }
 
   onSelectType(value: string) {
-    this.form.reset(); // Reset the form to clear previous selections
+    this.form.get('periodType')?.reset(); // Reset the control to clear previous selections
     this.filteredMonth = [];
     this.selectedType.set(this.selectedType() === value ? null : value);
     this.form.patchValue({ periodType: value });
-    // console.log("🚀 ~ FilterPanelComponent ~ onSelectType ~ this.form:", this.form)
     this.updateFormByPeryodType()
     this.getButtonText(); // For update button text when type changes
   }
@@ -342,11 +347,8 @@ export class FilterPanelComponent implements OnInit {
   /** Emit current filters */
   onFilterButtonClicked() {
     const data = this.form.value;
+    console.log("🚀 ~ FilterPanelComponent ~ onFilterButtonClicked ~ data:", data)
     this.filterData.set(data);
-    //console.log(this.transactionService.filterData());
-    
-    // console.log("form data:", data);
-    
     this.applyFilters.emit(this.filterData());
   }
 
@@ -418,6 +420,20 @@ export class FilterPanelComponent implements OnInit {
       this.buttonText.set(`from ${from}`);
     } else {
       this.buttonText.set('בחר');
+    }
+  }
+
+  validateSubmitButton(key: string): void {
+    const val = this.form.get(key).value.length;
+    switch (key) {
+      case 'category':
+        this.isCategoryEmpty.set(!val);
+        break;
+      case 'account':
+        this.isAccountEmpty.set(!val);
+        break;
+      default:
+        break;
     }
   }
   

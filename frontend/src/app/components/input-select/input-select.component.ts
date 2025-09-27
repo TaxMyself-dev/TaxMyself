@@ -38,10 +38,12 @@ export class InputSelectComponent implements OnInit {
   group = input<boolean>(false);
   virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
+  
   onChangeInputSelect = output<string>();
   onClickInputSelect = output<string>();
   multiSelectButtonClicked = output<any>();
   addSubCategoryClicked = output<{ state: true, subCategoryMode: true }>();
+
   inputClasses = signal<string>("");
   stringMessage = signal<string>("");
 
