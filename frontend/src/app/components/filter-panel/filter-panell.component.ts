@@ -55,9 +55,6 @@ export class FilterPanelComponent implements OnInit {
   readonly EXTRA = 50;
   private ro!: ResizeObserver;
 
-  // Inputs & Outputs as Signals
-  // readonly accountOptions = input<SelectOption[]>([]);
-  // readonly categoryOptions = input<SelectOption[]>([]);
   isVisible = input<boolean>(false);
   readonly applyFilters = output<any>();
   readonly clearFilters = output<void>();
@@ -68,11 +65,8 @@ export class FilterPanelComponent implements OnInit {
   isAccountEmpty = signal(false);
 
 
-  // getOptions = signal<ISelectItem[]>([]);
   buttonText = signal<string>('בחר');
   viewReady = signal(false);
-  // categoryList= 
-  // accountsList = signal<ISelectItem[]>([]);
   accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;    
   categoryList: Signal<ISelectItem[]> = this.transactionService.categories;
 
@@ -140,16 +134,17 @@ export class FilterPanelComponent implements OnInit {
     runInInjectionContext(this.injector, () => {
       effect(() => {
         if (!this.isVisible()) {
-          return; // panel is hidden → skip
+          this.toggle((true))
+          return;
         }
-  
+    
         queueMicrotask(() => {
           // Let Angular finish rendering *ngIf block
           const contentEl = this.content?.nativeElement;
           const menuEl = this.menu?.nativeElement;
-  
+    
           if (!contentEl || !menuEl) return; // still not rendered → try on next signal change
-  
+    
           if (!this.ro) {
             this.ro = new ResizeObserver(() => {
               const newH = contentEl.scrollHeight;
@@ -160,13 +155,17 @@ export class FilterPanelComponent implements OnInit {
                 }
               }
             });
-  
+    
             this.ro.observe(contentEl);
           }
         });
       });
     });
+    
 
+ 
+    
+    
     effect(() => {
       const categories = this.categoryList();
       if (categories.length > 0) {
@@ -195,7 +194,12 @@ export class FilterPanelComponent implements OnInit {
     this.ro?.disconnect();
   }
 
-  toggle() {
+  toggle(forceClose = false) {
+    if (forceClose) {
+      this.menu.nativeElement.style.height = '0';
+      this.isOpen = false;
+      return;
+    }
     if (this.isOpen) {
       // close immediately
       this.menu.nativeElement.style.height = '0';
@@ -210,7 +214,6 @@ export class FilterPanelComponent implements OnInit {
   getCategories(): void {
     this.transactionService.getCategories(null, true)
       .subscribe((res) => {
-        // console.log("category", res);
       })
   }
 
