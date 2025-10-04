@@ -5,6 +5,7 @@ import { IonicModule } from '@ionic/angular';
 import { UniformFilePageRoutingModule } from './uniform-file-routing.module';
 import { UniformFilePage } from './uniform-file.page';
 import { SharedModule } from '../../shared/shared.module';
+import { GenericTableComponent } from "src/app/components/generic-table/generic-table.component";
 
 @NgModule({
   imports: [
@@ -13,8 +14,9 @@ import { SharedModule } from '../../shared/shared.module';
     IonicModule,
     UniformFilePageRoutingModule,
     ReactiveFormsModule,
-    SharedModule
-  ],
+    SharedModule,
+    GenericTableComponent
+],
   declarations: [UniformFilePage]
 })
 export class UnifromFilePageModule {}

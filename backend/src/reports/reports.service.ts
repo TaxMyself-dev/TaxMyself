@@ -1,16 +1,14 @@
-import { HttpException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
-import { VatReportRequestDto } from './dtos/vat-report-request.dto';
-import { ReductionReportRequestDto } from './dtos/reduction-report-request.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DocumentType, FIELD_MAP, JournalReferenceType, PaymentMethodType, UniformFileTypeCodeMap} from 'src/enum';
+import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { TransactionsService } from 'src/transactions/transactions.service';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
@@ -67,8 +65,6 @@ export class ReportsService {
       fs.mkdirSync(this.debugFolder, { recursive: true });
     }
   }
-
-  
 
 
   async createPDF(data: any): Promise<Blob | undefined> {
@@ -357,17 +353,14 @@ export class ReportsService {
     }
     
 
-    async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ fileName: string; zipBuffer: Buffer }> {
+    async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ filePath: string; zipBuffer: Buffer; document_summary: DocumentSummaryRow[]; list_summary: ListSummaryRow[] }> {
 
       // Generate Unique Random Number (15 digits)
       const uniqueId = this.generateUniqueId();
-
-      console.log("createUniformFile: startDate is ", startDate);
-      console.log("createUniformFile: endDate is ", endDate);
       
       const { content: dataContent, summary } = await this.generateDataFileContent(userId, businessNumber, startDate, endDate, uniqueId);
 
-      const zipFileName = `openformat.zip`;
+      // const zipFileName = `openformat.zip`;
 
       // Trim businessNumber to 8 digits if it has 9
       let trimBusinessNumber = businessNumber;
@@ -387,24 +380,26 @@ export class ReportsService {
       // Generate file contents
       const iniContent = await this.generateIniFileContent(businessNumber, uniqueId, filePath, startDate, endDate);
 
+      const { document_summary, list_summary } = await this.buildUniformSummaries(businessNumber, startDate, endDate);
+
       return new Promise((resolve, reject) => {
         const archive = archiver('zip', { zlib: { level: 9 } });
         const chunks: Buffer[] = [];
 
         const iniBuffer = iconv.encode(iniContent, 'windows-1255');
-        archive.append(iniBuffer, { name: `OPENFRMT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
+        // archive.append(iniBuffer, { name: `OPENFRMT/${businessFolder}/${MMDDhhmm}/INI.TXT` });
+        archive.append(iniBuffer, { name: `OPENFRMT/${filePath}/INI.TXT` });
 
         const dataBuffer = iconv.encode(dataContent, 'windows-1255');
-        archive.append(dataBuffer, { name: `OPENFRMT/${businessFolder}/${MMDDhhmm}/BKMVDATA.TXT` });
+        archive.append(dataBuffer, { name: `OPENFRMT/${filePath}/BKMVDATA.TXT` });        
 
         // Finalize ZIP file
         archive.finalize();
-
         archive.on('data', (chunk) => chunks.push(chunk));
         archive.on('end', () => {
           const zipBuffer = Buffer.concat(chunks);
-          console.log(`ZIP file created with unique ID: ${uniqueId}`);
-          resolve({ fileName: zipFileName, zipBuffer });
+          // resolve({ fileName: zipFileName, zipBuffer, document_summary, list_summary});
+          resolve({ filePath: `OPENFRMT/${filePath}`, zipBuffer, document_summary, list_summary});
         });
 
         archive.on('error', (err) => reject(err));
@@ -459,6 +454,9 @@ export class ReportsService {
       const b100 = `B100${this.formatField(this.recordSummary[`B100`], 15, '0')}`;
       const b110 = `B110${this.formatField(this.recordSummary[`B110`], 15, '0')}`;
       const m100 = `M100${this.formatField(this.recordSummary[`M100`], 15, '0')}`;
+
+      console.log("c100 records:", this.recordSummary[`C100`]);
+      
 
       result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
      
@@ -544,8 +542,6 @@ export class ReportsService {
 
 
     private async generateC100Section(documents: Documents[]): Promise<string> {
-
-      console.log("generateC100Section - start");
 
       let result = '';
       documents.forEach((doc) => {
@@ -847,12 +843,83 @@ export class ReportsService {
     }
 
 
-    private wrapFieldsLTR(fields: (string | number)[]): string {
-      const LRM = '\u200E';
-      const wrappedFields = fields.map(f => LRM + f);
-      return `${wrappedFields.join("")}`;
+    async buildDocumentSummary(
+      businessNumber: string,
+      startDate: string | Date,
+      endDate: string | Date,
+    ): Promise<DocumentSummaryRow[]> {
+
+      const rows = await this.documentsRepo
+        .createQueryBuilder('d')
+        .select('d.docType', 'docType')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
+        .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
+        .andWhere('d.docDate BETWEEN :from AND :to', { from: startDate, to: endDate })
+        .groupBy('d.docType')
+        .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
+
+      const summary: DocumentSummaryRow[] = rows
+      .filter(row => DOC_TYPE_INFO[row.docType]) // only known types
+      .map(row => {
+        const { docNumber, docDescription } = DOC_TYPE_INFO[row.docType];
+        return {
+          docNumber,
+          docDescription,
+          totalDocs: Number(row.count),
+          totalSum: parseFloat(row.totalSum),
+        };
+      });
+
+      // compute grand totals
+      const totalDocs = summary.reduce((sum, row) => sum + row.totalDocs, 0);
+      const totalSum = summary.reduce((sum, row) => sum + row.totalSum, 0);
+
+      // add the "total" row
+      summary.push({
+        docNumber: 'סה"כ' as any,  // force it since docNumber is typed as number
+        docDescription: '',
+        totalDocs,
+        totalSum,
+      });
+
+      return summary;
+
     }
-    
+
+
+  async buildListSummary(): Promise<ListSummaryRow[]> {
+
+    let list_summary: ListSummaryRow[] = [];
+
+    list_summary = [
+      { listNumber : "A100", listDescription: "רשומת פתיחה", listTotal: 1 },
+      { listNumber : "B100", listDescription: "תנועות בהנהלת חשבונות", listTotal: this.recordSummary.B100 },
+      { listNumber : "B110", listDescription: "חשבון בהנהלת חשבונות", listTotal: this.recordSummary.B110 },
+      { listNumber : "C100", listDescription: "כותרת מסמך", listTotal: this.recordSummary.C100 },
+      { listNumber : "D110", listDescription: "פרטי מסמך", listTotal: this.recordSummary.D110 },
+      { listNumber : "D120", listDescription: "פרטי קבלות", listTotal: this.recordSummary.D120 },
+      { listNumber : "M100", listDescription: "פריטים במלאי", listTotal: this.recordSummary.M100 },
+      { listNumber : "Z900", listDescription: "רשומת סיום", listTotal: 1 },
+    ];
+
+    return list_summary;
+
+  }
+
+  async buildUniformSummaries(
+    businessNumber: string,
+    startDate: string | Date,
+    endDate: string | Date,
+  ): Promise<UniformSummaries> {
+    const [document_summary, list_summary] = await Promise.all([
+      this.buildDocumentSummary(businessNumber, startDate, endDate),
+      this.buildListSummary(),
+    ]);
+
+    return { document_summary, list_summary };
+  }
+
 
     private getRecordDescription(code: string): string {
       const descriptions: Record<string, string> = {
@@ -1028,6 +1095,25 @@ export class ReportsService {
       this.logger.log(`✅ Debug file created: ${debugFilePath}`);
       return debugFilePath;
     }
+
+
+  async getDocsSummary(
+    startDate: string,
+    endDate: string,
+    businessNumber: string,
+  ): Promise<
+    { docType: string; totalDocs: number; totalSum: number }[]
+  > {
+    return this.documentsRepo
+      .createQueryBuilder('doc')
+      .select('doc.docType', 'docType')
+      .addSelect('COUNT(doc.id)', 'totalDocs')
+      .addSelect('SUM(doc.sumAftDisWithVAT)', 'totalSum')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.docDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .groupBy('doc.docType')
+      .getRawMany();
+  }
 
     
 }

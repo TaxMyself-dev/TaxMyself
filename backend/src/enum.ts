@@ -135,6 +135,14 @@ export const UniformFileTypeCodeMap: Partial<Record<DocumentType | JournalRefere
   
 };
 
+export const DOC_TYPE_INFO: Partial<Record<DocumentType, { docNumber: number; docDescription: string }>> = {
+  [DocumentType.TRANSACTION_INVOICE]: { docNumber: 300, docDescription: 'חשבונית עסקה' },
+  [DocumentType.TAX_INVOICE]:         { docNumber: 305, docDescription: 'חשבונית מס' },
+  [DocumentType.TAX_INVOICE_RECEIPT]: { docNumber: 320, docDescription: 'חשבונית מס קבלה' },
+  [DocumentType.CREDIT_INVOICE]:      { docNumber: 330, docDescription: 'חשבונית זיכוי' },
+  [DocumentType.RECEIPT]:             { docNumber: 400, docDescription: 'קבלה' },
+};
+
 export enum PaymentMethodType {
   CASH = 1,            // מזומן
   CHECK = 2,           // המחאה
@@ -190,6 +198,9 @@ export enum ExpenseNecessity {
   IMPORTANT = 'IMPORTANT', // חשוב אבל אפשר להסתדר בלעדיו
   OPTIONAL = 'OPTIONAL', // רשות (למשל: בילויים, מותרות)
 }
+
+
+// ************ Uniform file ************ // 
 
 export const FIELD_MAP = {
   A000: [
@@ -394,6 +405,24 @@ export const FIELD_MAP = {
       { field: "f_1464", length: 10, description: "סה\"כ הוצאות לאחר ניכוי" },
       { field: "f_1465", length: 50, description: "שדה לשימוש עתידי" }
     ]
+};
+
+export type DocumentSummaryRow = {
+  docNumber: number;
+  docDescription: string;
+  totalDocs: number;
+  totalSum: number;
+};
+
+export type ListSummaryRow = {
+  listNumber: string;
+  listDescription: string;
+  listTotal: number;
+};
+
+export type UniformSummaries = {
+  document_summary: DocumentSummaryRow[];
+  list_summary: ListSummaryRow[];
 };
 
 

@@ -73,13 +73,52 @@ export class ReportsController {
             console.log("startDate is ", body.startDate);
             console.log("endDate is ", body.endDate);
             console.log("businessNumber is ", body.businessNumber);
-            const { fileName, zipBuffer } = await this.reportsService.createUniformFile(userId, body.startDate, body.endDate, body.businessNumber);
-            res.set({
-                'Content-Type': 'application/zip',
-                'Content-Disposition': `attachment; filename=${fileName}`,
-            });
-        res.send(zipBuffer);
+
+            const { filePath, zipBuffer, document_summary, list_summary } =
+            await this.reportsService.createUniformFile(
+              userId,
+              body.startDate,
+              body.endDate,
+              body.businessNumber
+            );
+
+          // respond with JSON: { fileName, file (base64), arrays }
+          res.json({
+            filePath,
+            file: zipBuffer.toString('base64'),
+            document_summary,
+            list_summary,
+          });
+        
     }
+
+
+    @Get('summary')
+    async getDocumentsSummary(
+      @Query('startDate') startDate: string,
+      @Query('endDate') endDate: string,
+      @Query('businessNumber') businessNumber: string,
+    ) {
+    
+      if (!startDate || !endDate || !businessNumber) {
+        return {
+          error: 'Missing required query parameters: startDate, endDate, businessNumber',
+        };
+      }
+
+      const summary = await this.reportsService.getDocsSummary(
+        startDate,
+        endDate,
+        businessNumber,
+      );
+
+    // Convert string numbers to real numbers for clean JSON
+    return summary.map((row) => ({
+      docType: row.docType,
+      totalDocs: Number(row.totalDocs),
+      totalSum: Number(row.totalSum),
+    }));
+  }
 
 
 
