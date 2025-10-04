@@ -37,7 +37,7 @@
       </div>
 
       <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
-        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses"
+        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
         (visibleAccountAssociationClicked)="openAccountAssociation($event)"
         (visibleClassifyTranClicked)="openClassifyTran($event)"
@@ -46,7 +46,7 @@
     <!-- incomes table -->
     <div class="table-wrap">
       <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
-        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'" [columnsTitle]="fieldsNamesExpenses"
+        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'" [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
         (visibleAccountAssociationClicked)="openAccountAssociation($event)"
         (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>

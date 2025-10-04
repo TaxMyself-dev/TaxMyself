@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, OnInit, ViewChild, WritableSignal, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
@@ -29,7 +29,7 @@ export class TransactionsPage implements OnInit {
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-    
+
     if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
@@ -61,7 +61,7 @@ export class TransactionsPage implements OnInit {
   //   { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
   // ];
 
-  fieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+  allFieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER, },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
@@ -73,7 +73,7 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
-  fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
+  allFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
@@ -82,52 +82,83 @@ export class TransactionsPage implements OnInit {
     { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
     // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT, hide: true },
     // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
+    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT, hide: true },
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
-  // readonly COLUMNS_WIDTH_INCOME = new Map<TransactionsOutcomesColumns, number>([
-  //   [TransactionsOutcomesColumns.NAME, 1.3],
-  //   [TransactionsOutcomesColumns.BILL_NUMBER, 1.3],
-  //   [TransactionsOutcomesColumns.BILL_NAME, 1.2],
-  //   [TransactionsOutcomesColumns.CATEGORY, 1.3],
-  //   [TransactionsOutcomesColumns.SUBCATEGORY, 1.3],
-  //   [TransactionsOutcomesColumns.BILL_DATE, 1.4],
-  //   [TransactionsOutcomesColumns.MONTH_REPORT, 1],
-  //   [TransactionsOutcomesColumns.SUM, 1.2],
-  //   // [TransactionsOutcomesColumns.ACTIONS, 1],
-  //   // [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
-  //   [TransactionsOutcomesColumns.NOTE, 2],
-  // ]);
+  fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
+    const onlyHide = this.isOnlyEmployer();
+    const addBiz = this.isTwoBusinessOwner();
 
-  readonly COLUMNS_WIDTH_EXPENSES = new Map<TransactionsOutcomesColumns, number>([
-    [TransactionsOutcomesColumns.NAME, 1.2],
-    [TransactionsOutcomesColumns.BILL_NUMBER, 1],
-    [TransactionsOutcomesColumns.BILL_NAME, 1],
-    [TransactionsOutcomesColumns.CATEGORY, 1.3],
-    [TransactionsOutcomesColumns.SUBCATEGORY, 1.2],
-    [TransactionsOutcomesColumns.SUM, 1],
-    [TransactionsOutcomesColumns.BILL_DATE, 1.3],
-    [TransactionsOutcomesColumns.IS_RECOGNIZED, 1],
-    [TransactionsOutcomesColumns.MONTH_REPORT, 1],
-    // [TransactionsOutcomesColumns.BUSINESS_NAME, 1],
-    [TransactionsOutcomesColumns.ACTIONS, 1],
-    [TransactionsOutcomesColumns.NOTE, 1],
-  ]);
+    // start from a fresh copy
+    let cols = [...this.allFieldsNamesExpenses];
+
+    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
+    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
+      const businessCol: IColumnDataTable<
+        TransactionsOutcomesColumns,
+        TransactionsOutcomesHebrewColumns
+      > = {
+        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
+        value: TransactionsOutcomesHebrewColumns.businessNumber,
+        type: FormTypes.TEXT
+      };
+
+      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
+      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
+      cols.splice(insertAt, 0, businessCol);
+    }
+
+    // filter out hidden columns when onlyHide = true
+    if (onlyHide) {
+      cols = cols.filter(c => !c.hide);
+    }
+
+    return cols;
+  });
+
+  fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
+    const onlyHide = this.isOnlyEmployer();
+    const addBiz = this.isTwoBusinessOwner();
+
+    // start from a fresh copy
+    let cols = [...this.allFieldsNamesExpenses];
+
+    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
+    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
+      const businessCol: IColumnDataTable<
+        TransactionsOutcomesColumns,
+        TransactionsOutcomesHebrewColumns
+      > = {
+        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
+        value: TransactionsOutcomesHebrewColumns.businessNumber,
+        type: FormTypes.TEXT
+      };
+
+      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
+      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
+      cols.splice(insertAt, 0, businessCol);
+    }
+
+    // filter out hidden columns when onlyHide = true
+    if (onlyHide) {
+      cols = cols.filter(c => !c.hide);
+    }
+
+    return cols;
+  });
+
+
 
 
   readonly bunnerImagePosition = bunnerImagePosition;
-
-  public COLUMNS_TO_IGNORE_EXPENSES = ['necessity', 'finsiteId', 'businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
-  // public COLUMNS_TO_SHOW_EXPENSES = ['businessNumber', 'id', 'payDate', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
-  public COLUMNS_TO_IGNORE_INCOMES = ['necessity', 'finsiteId', 'businessNumber', 'id', 'payDate', 'isRecognized', 'isEquipment', 'reductionPercent', 'taxPercent', 'vatPercent'];
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
   readonly ButtonClass = ButtonClass;
 
-  
+
 
   visibleAccountAssociationDialog: WritableSignal<boolean> = signal<boolean>(false);
   visibleAddBill: WritableSignal<boolean> = signal<boolean>(false);
@@ -139,6 +170,9 @@ export class TransactionsPage implements OnInit {
   filteredExpensesData = signal<IRowDataTable[]>(null);
   filteredIncomesData = signal<IRowDataTable[]>(null);
   visibleFilterPannel = signal(false);
+  isOnlyEmployer = signal<boolean>(false);
+  isTwoBusinessOwner = signal<boolean>(false);
+
 
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
   leftPanelData = signal<IRowDataTable>(null); // Data for all version of left panels
@@ -174,7 +208,7 @@ export class TransactionsPage implements OnInit {
   filterByIncome: string = "";
   userData: IUserData;
   businessSelect: string = "";
-  
+
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
 
@@ -255,27 +289,12 @@ export class TransactionsPage implements OnInit {
     this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
     console.log(this.userData);
 
+    if (this.userData.employmentStatus === 'employee' && this.userData.spouseEmploymentStatus === 'employee' || null) {
+      this.isOnlyEmployer.set(true);
+    }
     if (this.userData.isTwoBusinessOwner) {
+      this.isTwoBusinessOwner.set(true);
       console.log("in this.userData.isTwoBusinessOwner: ", this.userData.isTwoBusinessOwner);
-      
-      //------------ expenses -------------
-      this.fieldsNamesExpenses.push({ name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT });
-      const expenseIndex = this.COLUMNS_TO_IGNORE_EXPENSES.indexOf('businessNumber');
-      if (expenseIndex > -1) {
-        this.COLUMNS_TO_IGNORE_EXPENSES.splice(expenseIndex, 1);
-      }
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.NAME, 1)
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.CATEGORY, 1)
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.SUBCATEGORY, 1)
-      this.COLUMNS_WIDTH_EXPENSES.set(TransactionsOutcomesColumns.BILL_DATE, 1);
-
-      //------------ incomes -------------
-      this.fieldsNamesIncome.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
-
-      const inomeIndex = this.COLUMNS_TO_IGNORE_INCOMES.indexOf('businessNumber');
-      if (inomeIndex > -1) {
-        this.COLUMNS_TO_IGNORE_INCOMES.splice(inomeIndex, 1); // Remove 1 element at the found index
-      }
     }
 
     this.transactionService.getAllBills();
@@ -348,7 +367,7 @@ export class TransactionsPage implements OnInit {
 
   getTransactions(filters: any | null): void {
     console.log("filters: ", filters);
-    
+
     this.isLoadingStateTable.set(true);
     const periodType = filters?.periodType;
     let accounts: ISelectItem[] = filters?.account || null;
@@ -358,14 +377,14 @@ export class TransactionsPage implements OnInit {
 
     let accountsNames: string[] = accounts?.map((account: ISelectItem) => account.value as string);
     console.log("accountsNames: ", accountsNames);
-    
+
     let categoriesName: string[] = categories?.map((category: ISelectItem) => category.value as string);
     // === Setting the date
     if (!filters) { // For default table.
       const today = new Date();
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
-      
+
       ({ startDate, endDate } = this.dateService.getStartAndEndDates(
         this.reportingPeriodType.DATE_RANGE,
         null,
@@ -373,7 +392,7 @@ export class TransactionsPage implements OnInit {
         thirtyDaysAgo.toISOString(),
         today.toISOString()
       ));
-      
+
     }
     else {
       switch (periodType) {
@@ -393,7 +412,7 @@ export class TransactionsPage implements OnInit {
           const today = new Date();
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(today.getDate() - 29); // כולל היום = 30 ימים
-          
+
           ({ startDate, endDate } = this.dateService.getStartAndEndDates(
             this.reportingPeriodType.DATE_RANGE,
             null,
@@ -405,9 +424,9 @@ export class TransactionsPage implements OnInit {
       }
     }
     // === End setting the date //
-   // For dont send empty arrays to the backend
-   accountsNames?.length > 0 || null;
-   categoriesName?.length > 0 || null;
+    // For dont send empty arrays to the backend
+    accountsNames = accountsNames?.length ? accountsNames : null;
+    categoriesName = categoriesName?.length ? categoriesName : null;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
@@ -416,7 +435,7 @@ export class TransactionsPage implements OnInit {
     zip(incomeData$, expensesData$)
       .pipe(
         finalize(() => this.isLoadingStateTable.set(false))
-,        map(([incomeData, expenseData]) => {
+        , map(([incomeData, expenseData]) => {
           const incomeDataRows = this.handleTableData(incomeData);
           const expenseeDataRows = this.handleTableData(expenseData);
           return { incomes: incomeDataRows, expenses: expenseeDataRows };
@@ -501,12 +520,12 @@ export class TransactionsPage implements OnInit {
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
         data.businessNumber =
-        data.businessNumber === this.userData.businessNumber
-          ? this.userData.businessName
-          : data.businessNumber === this.userData.spouseBusinessNumber
-            ? this.userData.spouseBusinessName
-            : 'לא משוייך';
-      
+          data.businessNumber === this.userData.businessNumber
+            ? this.userData.businessName
+            : data.businessNumber === this.userData.spouseBusinessNumber
+              ? this.userData.spouseBusinessName
+              : 'לא משוייך';
+
 
 
         rows.push(data);
@@ -609,7 +628,7 @@ export class TransactionsPage implements OnInit {
 
   resetFilters(event: string): void {
     console.log("🚀 ~ resetFilters ~ event:", event);
-  
+
     switch (event) {
       case 'time':
         this.filterData.update(current => {
@@ -625,14 +644,14 @@ export class TransactionsPage implements OnInit {
           };
         });
         break;
-  
+
       case 'account':
         this.filterData.update(current => ({
           ...current,
           account: []
         }));
         break;
-  
+
       case 'category':
         this.filterData.update(current => ({
           ...current,
@@ -640,11 +659,11 @@ export class TransactionsPage implements OnInit {
         }));
         break;
     }
-  
+
     // After resetting — always call getTransactions with updated filters
     this.getTransactions(this.filterData());
   }
-  
+
 
   imageBunnerButtonClicked(event: any): void {
     this.router.navigate(['/reports'])
@@ -653,7 +672,7 @@ export class TransactionsPage implements OnInit {
   onQuickClassifyClicked(event: boolean): void {
     this.getTransactions(this.filterData());
   }
-  
+
   selectOption(value: string) {
     console.log("🚀 ~ selectOption ~ value:", value)
     const valueExist = this.selectedValue.some(v => v === value);
@@ -669,7 +688,7 @@ export class TransactionsPage implements OnInit {
     // const filteredExpenses = this.expensesData.filter(row => {
     //   const hasClassification = this.selectedValue.includes('classification');
     //   const hasNotClassification = this.selectedValue.includes('notClassification');
-    
+
     //   if (hasClassification && hasNotClassification) return true; // show all
     //   if (hasClassification) return row.category !== 'לא שוייך';
     //   if (hasNotClassification) return row.category === 'לא שוייך';
@@ -679,10 +698,10 @@ export class TransactionsPage implements OnInit {
   }
 
   classifyDataFilter(): void {
-   this.filteredExpensesData.set(this.expensesData.filter(row => {
+    this.filteredExpensesData.set(this.expensesData.filter(row => {
       const hasClassification = this.selectedValue.includes('classification');
       const hasNotClassification = this.selectedValue.includes('notClassification');
-    
+
       if (hasClassification && hasNotClassification) return true; // show all
       if (!hasClassification && !hasNotClassification) return false; // hide all
       if (hasClassification) return row.category !== 'טרם סווג';
@@ -693,7 +712,7 @@ export class TransactionsPage implements OnInit {
     this.filteredIncomesData.set(this.incomesData.filter(row => {
       const hasClassification = this.selectedValue.includes('classification');
       const hasNotClassification = this.selectedValue.includes('notClassification');
-    
+
       if (hasClassification && hasNotClassification) return true; // show all
       if (hasClassification) return row.category !== 'טרם סווג';
       if (hasNotClassification) return row.category === 'טרם סווג';
@@ -704,6 +723,6 @@ export class TransactionsPage implements OnInit {
     // return this.expensesData = filteredExpenses;
   }
 
-  
+
 
 }

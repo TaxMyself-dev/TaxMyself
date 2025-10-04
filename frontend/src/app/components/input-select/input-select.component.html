@@ -17,13 +17,13 @@
       [styleClass]="inputClasses()" [filter]="true" optionLabel="name" [placeholder]="placeholder()"
       [maxSelectedLabels]="0" [formControlName]="controlName()" [showToggleAll]="true">
       <ng-template #footer>
-      <div class="multiselect-footer">
-        
+        <div class="multiselect-footer">
+
           <app-p-button [buttonSize]="buttonSize.AUTO" [buttonText]="'בחר'" [variant]="'text'" [severity]="'info'"
-          (onButtonClicked)="onMultiSelectButtonClicked(multi)"></app-p-button>
+            (onButtonClicked)="onMultiSelectButtonClicked(multi)"></app-p-button>
         </div>
-        </ng-template>
-      </p-multiselect>
+      </ng-template>
+    </p-multiselect>
   </form>
 </div>
 }
@@ -46,7 +46,8 @@
       optionValue="value" optionLabel="name"
       [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
-      (onChange)="onChange($event)" (onClick)="onClick($event)" [virtualScroll]="virtualScroll()" [virtualScrollItemSize]="virtualScrollItemSize()">
+      (onChange)="onChange($event)" (onClick)="onClick($event)" [virtualScroll]="virtualScroll()"
+      [virtualScrollItemSize]="virtualScrollItemSize()">
       <ng-template #dropdownicon>
         <i class="pi pi-sort-down-fill" style="font-size: 0.8rem"></i>
       </ng-template>
