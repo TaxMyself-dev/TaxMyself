@@ -8,100 +8,12 @@ export class Documents {
   @PrimaryGeneratedColumn()
   id: number;
 
-
-  // General document info
-  // ******************************************************************************************************************************************************** //
-
-  // docDate
-  // docDescription
-  // +
-  // docVatRate  (by default 18%)
-  // currency
-
-  // ******************************************************************************************************************************************************** //
-
-
-
-  // Recipient Details
-  // ******************************************************************************************************************************************************** //
-
-  // recipientName
-  // recipientId
-  // recipientEmail
-  // recipientPhone
-  // +
-  // recipientStreet
-  // recipientHomeNumber
-  // recipientCity
-  // recipientPostalCode
-  // recipientState
-  // recipientStateCode
-
-  // ******************************************************************************************************************************************************** //
-
-
-
-  // RECEIPT + TAX_INVOICE_RECEIPT
-  // ******************************************************************************************************************************************************** //
-
-  // lineDesc     -----     unitAmount     -----     lineCost     -----     vatOption (include/none-include/without)     -----     paymentMethod    -----
-  // +
-  // lineDiscount
-  // +
-  // :: paymentMethod ::
-  // Transfer -     bankNumber, branchNumber, accountNumber
-  // Check    -     bankNumber, branchNumber, accountNumber, checkNumber, paymentCheckDate
-  // Credit   -     cardCompany, card4Number, creditTransType, creditPayNumber 
-  // App
-  // Cash
-  // +
-  // ניכוי במקור (עבור מסמך)
-
-  // ******************************************************************************************************************************************************** //
-
-
-
-  // TRANSACTION_INVOICE + TAX_INVOICE
-  // ******************************************************************************************************************************************************** //
-
-  // lineDesc     -----     unitAmount     -----     lineCost     -----     vatOption (include/none-include/without)     -----     paymentMethod    -----
-  // +
-  // lineDiscount
-
-  // ******************************************************************************************************************************************************** //
-
-
-
-  // CREDIT_INVOICE
-  // ******************************************************************************************************************************************************** //
-
-  // lineDesc     -----     unitAmount     -----     lineCost     -----     vatOption (include/none-include/without)     -----     paymentMethod    -----
-
-  // ******************************************************************************************************************************************************** //
-
-
-  // Another fields to save
-  // ******************************************************************************************************************************************************** //
-
-  // docType
-  // generalDocIndex
-  // docNumber
-  // issueDate
-  // issueHour
-  // isCancelled
-  // transType = 3
-  // branchCode = null
-  // operationPerformer = null
-
-
-
   /// *********** Document Issuer Details *********** ///
 
   @Column()
-  issuerbusinessNumber: string;
+  issuerBusinessNumber: string;
 
-
-
+  
   // /// *********** Document Recipient Details *********** ///
 
   @Column()

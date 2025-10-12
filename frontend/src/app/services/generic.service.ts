@@ -21,7 +21,6 @@ export class GenericService {
   constructor(private loader: LoadingController, private popoverController: PopoverController) { }
 
 
-
   getBusinessData(user: IUserData): {
     mode: BusinessMode;
     uiList: { name: string; value: string }[];
@@ -75,63 +74,6 @@ export class GenericService {
     };
   }
 
-
-
-//   getBusinessData(user: IUserData): {
-//   mode: BusinessMode;
-//   list: BusinessInfo[];
-//   showSelector: boolean;
-// } {
-//   const list: BusinessInfo[] = [];
-
-//   if (user.isTwoBusinessOwner) {
-//     list.push({
-//       name: user.businessName,
-//       value: user.businessNumber,
-//       address: user.businessAddress,
-//       type: user.businessType,
-//       phone: user.phone,
-//     });
-
-//     list.push({
-//       name: user.spouseBusinessName,
-//       value: user.spouseBusinessNumber,
-//       address: user.spouseBusinessAddress,
-//       type: user.spouseBusinessType,
-//       phone: user.spousePhone,
-//     });
-
-//     return { mode: BusinessMode.TWO_BUSINESS, list, showSelector: true };
-//   }
-
-//   list.push({
-//     name: user.businessName,
-//     value: user.businessNumber,
-//     address: user.businessAddress,
-//     type: user.businessType,
-//     phone: user.phone,
-//   });
-
-//   return { mode: BusinessMode.ONE_BUSINESS, list, showSelector: false };
-// }
-
-
-  // getBusinessData(user: IUserData): {
-  //   mode: BusinessMode;
-  //   list: BusinessInfo[];
-  //   showSelector: boolean;
-  // } {
-  //   const list: BusinessInfo[] = [];
-
-  //   if (user.isTwoBusinessOwner) {
-  //     list.push({ name: user.businessName, value: user.businessNumber });
-  //     list.push({ name: user.spouseBusinessName, value: user.spouseBusinessNumber });
-  //     return { mode: BusinessMode.TWO_BUSINESS, list, showSelector: true };
-  //   }
-
-  //   list.push({ name: user.businessName, value: user.businessNumber });
-  //   return { mode: BusinessMode.ONE_BUSINESS, list, showSelector: false };
-  // }
 
   showToast(message: string, type: 'success' | 'error', duration: number = 3000, color: string = 'primary', position: 'top' | 'middle' | 'bottom' = 'bottom') {
     const toastData: IToastData = {

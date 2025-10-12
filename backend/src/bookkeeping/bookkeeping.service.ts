@@ -23,23 +23,24 @@ export class BookkeepingService {
 
 
 async createJournalEntry(input: JournalEntryInput): Promise<void> {
+
   const {
-    businessNumber,
+    issuerBusinessNumber,
     date,
     referenceType,
     referenceId,
     description,
     lines,
   } = input;
-
+  
   try {
     // 1. Get the index journal entry ID for the user
-    const entryId = await this.sharedService.getJournalEntryCurrentIndex(businessNumber);
+    const entryId = await this.sharedService.getJournalEntryCurrentIndex(issuerBusinessNumber);
 
     // 2. Create and save the journal entry header (one row per document)
     const journalEntry = await this.journalEntryRepo.save({
       id: entryId,
-      businessNumber,
+      issuerBusinessNumber,
       date,
       referenceType,
       referenceId,
@@ -55,7 +56,7 @@ async createJournalEntry(input: JournalEntryInput): Promise<void> {
 
         return {
           journalEntryId: journalEntry.id,
-          businessNumber,
+          issuerBusinessNumber,
           accountCode: account.code,
           lineInEntry: index + 1,
           debit: line.debit || 0,
@@ -68,19 +69,19 @@ async createJournalEntry(input: JournalEntryInput): Promise<void> {
     await this.journalLineRepo.save(journalLines);
 
     // 5. Increment the journal entry index for the next usage
-    await this.sharedService.incrementJournalEntryIndex(businessNumber);
+    await this.sharedService.incrementJournalEntryIndex(issuerBusinessNumber);
 
   } catch (err) {
     // Optional: log the error with more context
     console.error('Fatal error while creating journal entry:', {
-      businessNumber,
+      issuerBusinessNumber,
       referenceType,
       referenceId,
       error: err?.message,
     });
 
     throw new InternalServerErrorException(
-      `Fatal: Failed to create journal entry for user ${businessNumber}. Details: ${err?.message || err}`
+      `Fatal: Failed to create journal entry for user ${issuerBusinessNumber}. Details: ${err?.message || err}`
     );
   }
 }

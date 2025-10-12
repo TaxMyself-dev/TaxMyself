@@ -12,6 +12,7 @@ import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
+import { DocPayments } from './doc-payments.entity';
 
 
 @Injectable()
@@ -29,6 +30,8 @@ export class DocumentsService {
     private documentsRepo: Repository<Documents>,
     @InjectRepository(DocLines)
     private docLinesRepo: Repository<DocLines>,
+    @InjectRepository(DocPayments)
+    private docPaymentsRepo: Repository<DocPayments>,
     @InjectRepository(JournalEntry)
     private journalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine)
@@ -59,27 +62,6 @@ export class DocumentsService {
   }
 
 
-  // async getCurrentIndexes(userId: string, docType: DocumentType): Promise<{ docIndex: number; generalIndex: number }> {
-  //   const [docSetting, generalSetting] = await Promise.all([
-  //     this.settingDocuments.findOne({ where: { userId, docType } }),
-  //     this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
-  //   ]);
-  
-  //   if (!docSetting) {
-  //     throw new HttpException(`Document settings for type "${docType}" not found`, HttpStatus.NOT_FOUND);
-  //   }
-  
-  //   if (!generalSetting) {
-  //     throw new HttpException(`Document settings for type "GENERAL" not found`, HttpStatus.NOT_FOUND);
-  //   }
-  
-  //   return {
-  //     docIndex: docSetting.currentIndex,
-  //     generalIndex: generalSetting.currentIndex,
-  //   };
-  // }
-
-
   async getCurrentIndexes(
     userId: string,
     docType: DocumentType
@@ -99,10 +81,6 @@ export class DocumentsService {
     };
   }
 
-
-
-
-  
 
   async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
     console.log("updateSettingDocByType - in service");
@@ -137,10 +115,12 @@ export class DocumentsService {
   }
 
   async incrementGeneralIndex(userId: string) {
-    console.log("incrementGeneralIndex - in service");
+
+    //console.log("incrementGeneralIndex - in service");
+
     let generalIndex: any;
 
-    console.log("userId is ", userId);
+    //console.log("userId is ", userId);
     
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
@@ -160,7 +140,7 @@ export class DocumentsService {
       console.log("not increment");
       return;
     }
-    console.log("decrementGeneralIndex - in service");
+    //console.log("decrementGeneralIndex - in service");
     let generalIndex: any;
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
@@ -174,108 +154,49 @@ export class DocumentsService {
     }
   }
 
-  // async generatePDF(data: any, userId: string): Promise<Blob | undefined> {
-  //   console.log('in generate PDF function');
-  //   // console.log("docData is ", data.docData);
-  //   // console.log("line_0 is ", data.linesData[0].description);
-  //   //console.log("line_1 is ", data.lines[1].description);
-    
-  //   const url = 'https://api.fillfaster.com/v1/generatePDF';
-  //   const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
-
-  //   const headers = {
-  //     'Authorization': `Bearer ${token}`,
-  //     'Content-Type': 'application/json'
-  //   };
-
-  //   // const fileData =
-  //   // { "fid": "RVxpym2O68",
-  //   //   "digitallySign": true,
-  //   //   "prefill_data":
-  //   //   { 
-  //   //     "recipientName": data.docData.recipientName,
-  //   //     "recipientTaxNumber": data.docData.recipientId,
-  //   //     "docTitle": data.fileData.hebrewNameDoc  + " מספר " + data.docData.docNumber,
-  //   //     "docDescription": "",
-  //   //     "docDate": data.docData.docDate,
-  //   //     "issuerDetails": 
-  //   //       data.fileData.issuerName + '\n' +
-  //   //       data.fileData.issuerPhone + '\n' +
-  //   //       data.fileData.issuerEmail + '\n' +
-  //   //       data.fileData.issuerAddress,
-  //   //     "items_table": await this.transformLinesToItemsTable(data.linesData),
-  //   //     "payments_table": await this.transformLinesToPaymentsTable(data.linesData),
-  //   //     "subTotal": data.docData.sumAftDisBefVAT,
-  //   //     "totalTax": data.docData.vatSum,
-  //   //     "total": data.docData.sumAftDisWithVAT,
-  //   //     "documentType": "מקור",
-  //   //     "paymentMethod": data.docData.paymentMethod,
-  //   //   }
-  //   // };
-
-  //   const fileData =
-  //   { "fid": "ydAEQsvSbC",
-  //     "digitallySign": true,
-  //     "prefill_data":
-  //     { 
-  //       "name": "Elazar Harel",
-  //       "id": "123456789",
-  //     }
-  //   };
-
-
-
-  //   try {
-
-  //     // Generate the PDF
-  //     const response = await axios.post<Blob>(url, fileData, {
-  //       headers: headers,
-  //       responseType: 'arraybuffer', // ensures the response is treated as a Blob
-  //     });
-  //     // Check if the response is valid
-  //     if (!response.data) {
-  //       throw new HttpException('Error in create PDF', HttpStatus.INTERNAL_SERVER_ERROR);
-  //     };
-  //     return response.data;
-  //   }
-  //   catch (error) {
-  //     throw error;
-  //   }
-  // }
-
 
   async generatePDF(data: any, templateType: string): Promise<Blob> {
 
-    console.log("templateType is ", templateType);
-    console.log("data is ", data);
-
-    console.log("name is ", data.docData.hebrewNameDoc);
+    //console.log("templateType is ", templateType);
+    //console.log("data is ", data);
+    //console.log("name is ", data.docData.hebrewNameDoc);
     
-
     let fid: string;
     let prefill_data: any;
     
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+    const docType = data.docData.docType;
 
     switch (templateType) {
-      case 'createDoc':
-        fid = 'RVxpym2O68';
+      case 'createDoc':      
+        fid = ['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType) ? 'RVxpym2O68' : ['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType) ? 'AKmqQkevbM' : 'UNKNOWN FID';
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docDate: data.docData.docDate,
-          issuerDetails:
-            `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
+          issuerDetails: [
+            data.docData.issuerName,
+            data.docData.issuerPhone,
+            data.docData.issuerEmail,
+            data.docData.issuerAddress,
+          ].filter(Boolean).join('\n'),
+          //issuerDetails:
+          //  `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          payments_table: await this.transformLinesToPaymentsTable(data.paymentData),
+          //payments_table: await this.transformLinesToPaymentsTable(data.paymentData),
           subTotal: data.docData.sumAftDisBefVAT,
           totalTax: data.docData.vatSum,
           total: data.docData.sumAftDisWithVAT,
           documentType: 'מקור',
           paymentMethod: data.docData.paymentMethod,
         };
+
+        if (data.paymentData && data.paymentData.length > 0) {
+          prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
+        }
+
         break;
 
       case 'pnlReport':
@@ -294,6 +215,8 @@ export class DocumentsService {
       default:
         throw new Error(`Unknown template type: ${templateType}`);
     }
+
+    log("fid is ", fid);
 
     const payload = {
       fid,
@@ -374,55 +297,6 @@ export class DocumentsService {
   }
 
   
-  // async transformLinesToPaymentsTable(lines: any[]): Promise<any[]> {
-
-  //   return lines.map(line => {
-      
-  //     console.log("line is ", line);
-      
-  //     let sum: number;
-  //     let details: string;
-  //     let paymentMethodHebrew: string;
-
-  //     console.log("line.vatOpts is ", line.vatOpts);
-      
-  //     if (line.vatOpts === 'INCLUDE') {
-  //       sum = line.sumBefVat + (line.sumBefVat * line.vatRate / 100);
-  //     } else if (line.vatOpts === 'EXCLUDE' || line.vatOpts === 'WITHOUT') {
-  //       sum = line.sumBefVat;
-  //     }
-
-  //     switch (line.paymentMethod) {
-  //       case 'CASH':
-  //         details = 'שולם במזומן';
-  //         paymentMethodHebrew = 'מזומן';
-  //         break;
-  //       case 'BANK_TRANSFER':
-  //         details = `${line.accountNumber} - חשבון ,${line.branchNumber} - סניף ,${line.bankNumber} - בנק`;
-  //         paymentMethodHebrew = 'העברה בנקאית';
-  //         break;
-  //       case 'CHECK':
-  //         details = `${line.checkNumber} - מספר המחאה`;
-  //         paymentMethodHebrew = 'צ׳ק';
-  //         break;
-  //       case 'CREDIT_CARD':
-  //         details = `${line.card4Number} - ${line.cardCompany}`;
-  //         paymentMethodHebrew = 'כרטיס אשראי';
-  //         break;
-  //       default:
-  //         throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
-  //     }
-
-  //     return {
-  //       "סכום": `₪${Number(sum).toFixed(2)}`,
-  //       "תאריך": line.payDate,
-  //       "פירוט": details,
-  //       "אמצעי תשלום": paymentMethodHebrew
-  //     };
-  //   });
-  // }
-
-
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
     console.log("createDoc in service - start");
@@ -448,7 +322,7 @@ export class DocumentsService {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
-      console.log("docDetails is ", docDetails);
+      //console.log("docDetails is ", docDetails);
       
       // Convert the paymentMethod from hebrew to english
       //data.docData.paymentMethod = this.convertPaymentMethod(data.docData.paymentMethod);
@@ -460,16 +334,24 @@ export class DocumentsService {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
-      console.log("After save doc");
+      //console.log("After save doc");
 
       // Add the lines to the database
       await this.saveLinesInfo(userId, data.linesData);
 
-      console.log("After save lines");
+      //console.log("After save lines");
+
+      // Add the lines to the database
+      await this.savePaymentsInfo(userId, data.paymentData);
+
+      //console.log("After save payments");
 
       // Add the jouranl entry to the database
+
+      //console.log("docData is ", data.docData);
+      
       await this.bookkeepingService.createJournalEntry({
-        businessNumber: data.docData.issuerbusinessNumber,
+        issuerBusinessNumber: data.docData.issuerBusinessNumber,
         date: data.docData.docDate,
         referenceType: data.docData.docType,
         referenceId: parseInt(data.docData.docNumber),
@@ -554,8 +436,6 @@ export class DocumentsService {
 
 
   async saveDocInfo(userId: string, data: any) {
-    console.log("saveDocInfo - in service");
-    console.log("data: ", data);
   
     try {
 
@@ -594,34 +474,58 @@ export class DocumentsService {
 
 
   async saveLinesInfo(userId: string, data: any[]) {
+
     if (!Array.isArray(data)) {
       throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
     }
-  
+
+    console.log("line data is ", data);
+    
     try {
       for (const item of data) {
 
-        console.log("vatOpts is ", item.vatOpts);
-        console.log("unitAmount is ", item.unitAmount);
+        //console.log("line item is ", item);
         
         const vatOptsRaw = item.vatOpts;
-        const paymentMethodRaw = item.paymentMethod;
-        console.log("vatOptsRaw is ", vatOptsRaw);
 
         // Convert string to enum value
         const vatOpts = VatOptions[vatOptsRaw as keyof typeof VatOptions];
-        const paymentMethod = PaymentMethodType[paymentMethodRaw as keyof typeof PaymentMethodType];
 
         if (vatOpts === undefined) {
           throw new HttpException(`Invalid vatOpts value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
         }
 
-        const linesData = { userId, ...item, vatOpts, paymentMethod };
+        // const linesData = { userId, ...item, vatOpts, paymentMethod };
+        const linesData = { userId, ...item, vatOpts };
         await this.docLinesRepo.insert(linesData); // If this fails, it will throw
       }
       // No need to return anything
     } catch (error) {
       console.error("Error in saveLinesInfo: ", error);
+      throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+
+  async savePaymentsInfo(userId: string, data: any[]) {
+
+    if (!Array.isArray(data)) {
+      throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
+    }
+
+    console.log("payment data is ", data);
+  
+    try {
+      for (const item of data) {
+
+        log("item is ", item);
+        
+        const paymentsData = { userId, ...item };
+        await this.docPaymentsRepo.insert(paymentsData);
+      }
+      // No need to return anything
+    } catch (error) {
+      console.error("Error in savePaymentsInfo: ", error);
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -642,11 +546,12 @@ export class DocumentsService {
       CREDIT_INVOICE: 5000,
     };
   
-    for (let i = 0; i < 1; i++) {
+    for (let i = 0; i < 2000; i++) {
       const data = this.generateDocData(i, docCounters);
       try {
         const pdfBlob = await this.createDoc(data, userId, false);
         docs.push(pdfBlob);
+        console.log(`Document ${i + 1} created successfully. Total so far: ${docs.length}`);
       } catch (error) {
         console.error(`Error generating document ${i + 1}`, error);
       }
@@ -703,7 +608,7 @@ export class DocumentsService {
       DocumentType.TAX_INVOICE,
       DocumentType.TAX_INVOICE_RECEIPT,
       DocumentType.TRANSACTION_INVOICE,
-      DocumentType.CREDIT_INVOICE,
+      //DocumentType.CREDIT_INVOICE,
     ];
   
     // Randomly select a docType
@@ -722,15 +627,12 @@ export class DocumentsService {
     const docDate = new Date(2025, 3, 18).toISOString().split('T')[0]; // 2025-04-18
   
     return {
-      fileData: {
+      docData: {
+        issuerBusinessNumber: '204245724',
         issuerName: 'אוריה הראל אדריכלות',
-        issuerAddress: 'נוב',
+        issuerAddress: null,
         issuerPhone: '0545401296',
         issuerEmail: 'harelazar@gmail.com',
-        hebrewNameDoc: 'קבלה'
-      },
-      docData: {
-        issuerbusinessNumber: '204245724',
         recipientName: 'אבי אוחיון',
         recipientId: null,
         recipientStreet: null,
@@ -742,6 +644,7 @@ export class DocumentsService {
         recipientPhone: null,
         recipientEmail: null,
         docType: docType,
+        hebrewNameDoc: 'קבלה',
         generalDocIndex: generalDocIndex,
         docDescription: randomDescription,
         docNumber: docNumber,
@@ -768,38 +671,42 @@ export class DocumentsService {
       },
       linesData: [
         {
-          issuerbusinessNumber: '204245724',
+          issuerBusinessNumber: '204245724',
           generalDocIndex: generalDocIndex,
+          docType: docType,
+          lineNumber: '1',
           description: 'דוגמה',
-          unitAmount: 1,
-          sumBefVat: 1000,
-          sumAftDisWithVat: 1180,
+          unitQuantity: 1,
           vatOpts: 'EXCLUDE',
           vatRate: 18,
-          paymentMethod: 'CASH',
-          disBefVat: 0,
-          lineNumber: '1',
+          sum: '1000',
+          discount: '0',
+          sumBefVatPerUnit: '1000',
+          disBefVatPerLine: '0',
+          sumAftDisBefVatPerLine: 1000,
+          vatPerLine: 180,
+          sumAftDisWithVat: 1180,
           unitType: 1,
-          payDate: docDate,
-          bankNumber: null,
+          transType: '3',
+        }
+      ],
+      paymentData: [DocumentType.RECEIPT, DocumentType.TAX_INVOICE_RECEIPT].includes(docType) ? [
+        {
+          issuerBusinessNumber: '204245724',
+          generalDocIndex: generalDocIndex,
+          paymentLineNumber: 1,
+          paymentDate: docDate,
+          bankName: 'LEUMI',
           branchNumber: null,
           accountNumber: null,
-          checkNumber: null,
-          paymentCheckDate: null,
-          cardCompany: null,
-          card4Number: null,
-          creditCardName: null,
-          creditTransType: null,
-          creditPayNumber: null,
-          manufacturerName: null,
-          productSerialNumber: null,
-          internalNumber: null,
-          journalEntryMainId: null
+          paymentAmount: '1180',
+          paymentMethod: 'BANK_TRANSFER',
+          hebrewBankName: 'לאומי',
+          bankNumber: '10'
         }
-      ]
+      ]: []
     };
   }
   
-
 
 }

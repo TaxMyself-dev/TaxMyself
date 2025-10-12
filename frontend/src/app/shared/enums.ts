@@ -99,7 +99,6 @@ export enum TransactionsOutcomesColumns {
   CHECKBOX = 'checkbox',
   ACTIONS = 'actions',
   NOTE = 'note2'
-
 }
 
 export enum TransactionsOutcomesHebrewColumns {
@@ -127,65 +126,31 @@ export enum TransactionsOutcomesHebrewColumns {
   currency = 'סוג מטבע',
 }
 
-// export const months = [
-//   { value: 0, name: 'ינואר - פברואר' },
-//   { value: 2, name: 'מרץ - אפריל' },
-//   { value: 4, name: 'מאי - יוני' },
-//   { value: 6, name: 'יולי - אוגוסט' },
-//   { value: 8, name: 'ספטמבר - אוקטובר' },
-//   { value: 10, name: 'נובמבר - דצמבר' }
-// ];
+export enum UniformFileDocumentSummaryColumns {
+  DOC_NUMBER = 'docNumber',
+  DOC_DESCRIPTION = 'docDescription',
+  TOTAL_DOCS = 'totalDocs',
+  TOTAL_SUM = 'totalSum',
+}
 
-// export const singleMonths = [
-//   { value: 0, name: 'ינואר' },
-//   { value: 1, name: 'פברואר' },
-//   { value: 2, name: 'מרץ' },
-//   { value: 3, name: 'אפריל' },
-//   { value: 4, name: 'מאי' },
-//   { value: 5, name: 'יוני' },
-//   { value: 6, name: 'יולי' },
-//   { value: 7, name: 'אוגוסט' },
-//   { value: 8, name: 'ספטמבר' },
-//   { value: 9, name: 'אוקטובר' },
-//   { value: 10, name: 'נובמבר' },
-//   { value: 11, name: 'דצמבר' }
-// ];
+export enum UniformFileDocumentSummaryHebrewColumns {
+  docNumber = 'מספר מסמך',
+  docDescription = 'סוג מסמך',
+  totalDocs = 'סה"כ כמותי',
+  totalSum = 'סה"כ כספי',
+}
 
-// export const DocCreateTypeList = [
-//   { value: 0, name: 'קבלה' },
-//   { value: 1, name: 'חשבונית מס' },
-//   { value: 2, name: 'חשבונית מס קבלה' },
-//   { value: 3, name: 'חשבונית עסקה' },
-//   { value: 4, name: 'חשבונית זיכוי' },
-//   { value: 5, name: 'הצעת מחיר' },
-//   { value: 6, name: 'הזמנת עבודה' },
-//   { value: 7, name: 'תעודת משלוח' },
-//   { value: 8, name: 'תעודת החזרה' },
-// ];
+export enum UniformFileListSummaryColumns {
+  LIST_NUMBER = 'listNumber',
+  LIST_DESCRIPION = 'listDescription',
+  LIST_TOTAL = 'listTotal',
+}
 
-// export enum DocCreateTypeListHebrew {
-//   receipt = 'קבלה' ,
-//   invoiceTax = 'חשבונית מס',
-//   receiptTaxInvoice = 'חשבונית מס קבלה',
-//   transactionInvoice = 'חשבונית עסקה',
-//   creditInvoice = 'חשבונית זיכוי',
-//   quotation =  'הצעת מחיר',
-//   workOrder = 'הזמנת עבודה',
-//   deliveryCertificate = 'תעודת משלוח',
-//   return_certificate = 'תעודת החזרה',
-// };
-
-// export enum DocCreateTypeList {
-//   RECEIPT = 0 ,
-//   INVOICE_TAX = 1,
-//   RECEIPT_INVOICE_TAX = 2,
-//   TRANSACTION_INVOICE = 3,
-//   CREDIT_INVOICE = 4,
-//   QUOTATION = 5,
-//   WORK_ORDER = 6,
-//   DELIVERY_CERTIFICATE = 7,
-//   RETURN_CERTIFICATE = 8,
-// }
+export enum UniformFileListSummaryHebrewColumns {
+  listNumber = 'קוד רשומה',
+  listDescription = 'תיאור רשומה',
+  listTotal = 'סך רשומות',
+}
 
 export enum Currency {
   ILS = 'ILS',

@@ -1,7 +1,7 @@
 import { JournalReferenceType } from "src/enum";
 
 export interface JournalEntryInput {
-    businessNumber: string;
+    issuerBusinessNumber: string;
     date: string;
     referenceType: JournalReferenceType;
     referenceId: number;

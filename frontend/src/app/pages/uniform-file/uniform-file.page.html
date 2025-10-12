@@ -1,10 +1,34 @@
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
-
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
     <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="uniformFileTemplate"
       [isDisabled]="uniformFileForm.invalid">
     </app-search-bar>
+
+    @if (reportDetails) {
+      <div class="report-details-card">
+        <h3>הפקת קבצים במבנה אחיד</h3>
+        <h3>עבור:</h3>
+        <p><strong>מספר עוסק מורשה:</strong> {{ reportDetails.businessNumber }}</p>
+        <p><strong>שם בית העסק:</strong> {{ reportDetails.businessName }}</p>
+        <h3>ביצוע ממשק פתוח הסתיים בהצלחה!</h3>
+        <p><strong>הנתונים נשמרו בנתיב:</strong> {{ reportDetails.downloadLink }}</p>
+        <p>
+          <strong>טווח תאריכים:</strong>
+          מתאריך {{ reportDetails.startDate }} עד תאריך {{ reportDetails.endDate }}
+        </p>
+      </div>
+
+      <div class="table-block">
+        <p class="block-title">פירוט סוגי המסמכים</p>
+        <app-generic-table class="table" [columnsTitle]="uniformFileDocumentSummaryTitles" [dataTable]="uniformFileDocumentSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+      </div>
+
+      <div class="table-block">
+        <p class="block-title">פירוט סוגי הרשומות </p>
+        <app-generic-table class="table" [columnsTitle]="uniformFileListSummaryTitles" [dataTable]="uniformFileListSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+      </div>
+
+    }
   </div>
 </ion-content>
 

@@ -50,6 +50,7 @@ import { JournalLine } from './bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from './bookkeeping/account.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
+import { DocPayments } from './documents/doc-payments.entity';
 
 let serviceAccount: any;
 
@@ -79,7 +80,7 @@ serviceAccount = {
       database:  process.env.DB_DATABASE,
       entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
                  DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, 
-                 Clients, Documents, DocLines, JournalEntry, JournalLine, DefaultBookingAccount],
+                 Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -101,6 +102,7 @@ serviceAccount = {
       Clients,
       Documents,
       DocLines,
+      DocPayments,
       JournalEntry,
       JournalLine,
       DefaultBookingAccount,

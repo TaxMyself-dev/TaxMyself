@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
-import { CardCompany, CreditTransactionType, PaymentMethodType, UnitOfMeasure, VatOptions } from 'src/enum';
+import { UnitOfMeasure, VatOptions, DocumentType } from 'src/enum';
 
 
 @Entity()
@@ -9,13 +9,16 @@ export class DocLines {
   id: number;
 
   @Column()
-  issuerbusinessNumber: string;
+  issuerBusinessNumber: string;
 
   @Column({ type: 'varchar', length: 7, nullable: true })
   generalDocIndex: string;
 
   @Column({ type: 'varchar', length: 4, nullable: true })
   lineNumber: string;
+
+  @Column({ type: 'enum', enum: DocumentType })
+  docType: DocumentType;
 
   @Column({ type: 'varchar', length: 1 })
   transType: string; // = 3

@@ -9,13 +9,22 @@ export class DocPayments {
   id: number;
 
   @Column()
-  issuerbusinessNumber: string;
+  issuerBusinessNumber: string;
+
+  @Column({ type: 'varchar', length: 7, nullable: true })
+  generalDocIndex: string;
 
   @Column({ type: 'varchar', length: 4, nullable: true })
   paymentLineNumber: string;
 
-  @Column({ type: 'enum', enum: PaymentMethodType })
-  paymentMethod: PaymentMethodType;
+  // @Column({ type: 'enum', enum: PaymentMethodType })
+  // paymentMethod: PaymentMethodType;
+
+  @Column({ type: 'varchar' })
+  paymentMethod: string;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  hebrewBankName: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
   bankNumber: string;
@@ -33,7 +42,7 @@ export class DocPayments {
   paymentDate: Date;
 
   @Column({ type: 'decimal', precision: 10, scale: 4, nullable: false })
-  lineSum: number;
+  paymentAmount: number;
 
   @Column({ type: 'enum', enum: CardCompany, nullable: true })
   cardCompany: CardCompany;
@@ -49,8 +58,5 @@ export class DocPayments {
 
   @Column({ type: 'varchar', length: 3, nullable: true })
   creditPayNumber: string;
-
-  @Column({ type: 'varchar', length: 7, nullable: true })
-  generalDocIndex: string;
   
 }

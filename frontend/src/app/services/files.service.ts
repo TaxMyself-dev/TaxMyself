@@ -247,13 +247,20 @@ export class FilesService {
 
 
 
-  createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
-    const url = `${environment.apiUrl}reports/create-uniform-file`;
-    const body = { startDate, endDate, businessNumber };
+  // createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
+  //   const url = `${environment.apiUrl}reports/create-uniform-file`;
+  //   const body = { startDate, endDate, businessNumber };
 
-    // Make a POST request to get the ZIP file from the backend
-    return this.http.post(url, body, { responseType: 'blob' });
-  }
+  //   // Make a POST request to get the ZIP file from the backend
+  //   return this.http.post(url, body, { responseType: 'blob' });
+  // }
+
+  createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<any> {
+  const url = `${environment.apiUrl}reports/create-uniform-file`;
+  const body = { startDate, endDate, businessNumber };
+
+  return this.http.post<any>(url, body);
+}
 
   
 
