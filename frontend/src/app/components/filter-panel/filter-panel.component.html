@@ -1,4 +1,4 @@
-@if (isVisible()) {
+<!-- @if (isVisible()) { -->
 <div class="filter-panel">
 
   <div class="header">
@@ -79,6 +79,12 @@
     <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
       [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('account')"></app-input-select>
   </div>
+   <!-- Select payment identifier -->
+   <div class="header">
+    <span class="title">אמצעי תשלום</span>
+    <app-input-select [controlName]="'paymentIdentifier'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
+      [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('paymentIdentifier')"></app-input-select>
+  </div>
   <!-- Select Category -->
   <div class="header">
     <span class="title">קטגוריה</span>
@@ -91,4 +97,4 @@
       (onButtonClicked)="onFilterButtonClicked()" [disabled]="disableFilter()"></app-p-button>
   </div>
   </div>
-}
+<!-- } -->

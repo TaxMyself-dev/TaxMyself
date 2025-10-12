@@ -1,4 +1,4 @@
-import { Component, computed, effect, ElementRef, inject, Injector, input, OnInit, output, runInInjectionContext, Signal, signal, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, computed, effect, ElementRef, inject, Injector, input, OnInit, output, runInInjectionContext, Signal, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 import { SelectModule } from 'primeng/select';
@@ -41,14 +41,14 @@ export interface SelectOption {
   templateUrl: './filter-panel.component.html',
   styleUrls: ['./filter-panel.component.scss']
 })
-export class FilterPanelComponent implements OnInit {
+export class FilterPanelComponent implements OnInit, AfterViewInit {
   private readonly injector = inject(Injector);
   private dateService = inject(DateService);
   private transactionService = inject(TransactionsService);
 
   @ViewChild('menu') menu?: ElementRef<HTMLDivElement>;
   @ViewChild('content') content?: ElementRef<HTMLDivElement>;
-  
+
   private lastContentHeight = 0;
 
   isOpen = false;
@@ -67,10 +67,10 @@ export class FilterPanelComponent implements OnInit {
 
   buttonText = signal<string>('בחר');
   viewReady = signal(false);
-  accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;    
+  accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;
   categoryList: Signal<ISelectItem[]> = this.transactionService.categories;
 
-  fullListAccounts: Signal<ISelectItem[]> = computed(() => 
+  fullListAccounts: Signal<ISelectItem[]> = computed(() =>
     [{ name: 'אמצעי תשלום לא משוייכים', value: 'notBelong' }, ...this.accountsList()]
   );
   disableFilter = computed(() => this.isAccountEmpty() || this.isCategoryEmpty() || this.buttonText() === 'בחר');
@@ -126,61 +126,29 @@ export class FilterPanelComponent implements OnInit {
       account: new FormControl(
         [this.accountsList()], [Validators.required]
       ),
+      paymentIdentifier: new FormControl(
+        [this.accountsList()], [Validators.required]
+      ),
       category: new FormControl(
         [this.categoryList()], [Validators.required]
       ),
     });
 
-    runInInjectionContext(this.injector, () => {
-      effect(() => {
-        if (!this.isVisible()) {
-          this.toggle((true))
-          return;
-        }
-    
-        queueMicrotask(() => {
-          // Let Angular finish rendering *ngIf block
-          const contentEl = this.content?.nativeElement;
-          const menuEl = this.menu?.nativeElement;
-    
-          if (!contentEl || !menuEl) return; // still not rendered → try on next signal change
-    
-          if (!this.ro) {
-            this.ro = new ResizeObserver(() => {
-              const newH = contentEl.scrollHeight;
-              if (newH !== this.lastContentHeight) {
-                this.lastContentHeight = newH;
-                if (this.isOpen) {
-                  menuEl.style.height = `${newH + this.EXTRA}px`;
-                }
-              }
-            });
-    
-            this.ro.observe(contentEl);
-          }
-        });
-      });
-    });
-    
-
- 
-    
-    
     effect(() => {
       const categories = this.categoryList();
       if (categories.length > 0) {
         this.form.get('category')?.setValue(categories);
       }
     });
-  
 
-  effect(() => {
-    const accounts = this.fullListAccounts();  
-    if (accounts.length > 0) {
-      this.form.get('account')?.setValue(accounts);
-    }
-  });
-}
+
+    effect(() => {
+      const accounts = this.fullListAccounts();
+      if (accounts.length > 0) {
+        this.form.get('account')?.setValue(accounts);
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.getButtonText();
@@ -188,25 +156,68 @@ export class FilterPanelComponent implements OnInit {
     this.getCategories();
     this.filterData = this.transactionService.filterData;
   }
+
+  ngAfterViewInit(): void {
+    this.viewReady.set(true);
   
+    runInInjectionContext(this.injector, () => {
+      effect(() => {
+        const visible = this.isVisible();
+  
+        queueMicrotask(() => {
+          const contentEl = this.content?.nativeElement;
+          const menuEl = this.menu?.nativeElement;
+          if (!contentEl || !menuEl) return;
+  
+          if (!visible) {
+            menuEl.style.height = '0px';
+            this.isOpen = false;
+            return;
+          }
+  
+          this.lastContentHeight = contentEl.scrollHeight;
+  
+          this.ro?.disconnect();
+          this.ro = new ResizeObserver(() => {
+            const newH = contentEl.scrollHeight;
+            if (newH !== this.lastContentHeight) {
+              this.lastContentHeight = newH;
+              if (this.isOpen) {
+                menuEl.style.height = `${newH + this.EXTRA}px`;
+              }
+            }
+          });
+          this.ro.observe(contentEl);
+        });
+      });
+    });
+  }
+  
+
 
   ngOnDestroy() {
     this.ro?.disconnect();
   }
 
+
   toggle(forceClose = false) {
+    if (!this.viewReady()) return;
+  
+    const menuEl = this.menu?.nativeElement;
+    const contentEl = this.content?.nativeElement;
+    if (!menuEl || !contentEl) return;
+  
     if (forceClose) {
-      this.menu.nativeElement.style.height = '0';
+      menuEl.style.height = '0px';
       this.isOpen = false;
       return;
     }
+  
     if (this.isOpen) {
-      // close immediately
-      this.menu.nativeElement.style.height = '0';
+      menuEl.style.height = '0px';
     } else {
-      // open: use the last measured content height
-      const h = this.lastContentHeight || this.content.nativeElement.scrollHeight;
-      this.menu.nativeElement.style.height = `${h + this.EXTRA}px`;
+      const h = this.lastContentHeight || contentEl.scrollHeight;
+      menuEl.style.height = `${h + this.EXTRA}px`;
     }
     this.isOpen = !this.isOpen;
   }
@@ -220,16 +231,16 @@ export class FilterPanelComponent implements OnInit {
   updateMonthOptions(): void {
     const selectedYear = this.form?.get('year')?.value;
     const periodType = this.form?.get('periodType')?.value;
-  
+
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1;
-  
+
     if (!selectedYear || !periodType) {
-      this.filteredMonth = []; // או אפס את מה שצריך
+      this.filteredMonth = [];
       return;
     }
-  
+
     if (periodType === 'MONTHLY') {
       this.filteredMonth = this.monthOptions.filter(month => {
         if (selectedYear < currentYear) return true;
@@ -240,20 +251,18 @@ export class FilterPanelComponent implements OnInit {
       this.filteredMonth = this.bimonthOptions.filter(option => {
         const monthStart = Number(option.value);
         const monthEnd = monthStart + 1;
-  
+
         if (selectedYear < currentYear) return true;
         if (selectedYear === currentYear) return monthEnd <= currentMonth;
         return false;
       });
     }
   }
-  
-  
+
+
 
   onSelectCategory(): void {
-    // console.log("form: ", this.form.value);
     this.visibleCategoriesOptions()
-
   }
 
   generateYears(): void {
@@ -265,6 +274,7 @@ export class FilterPanelComponent implements OnInit {
   }
 
   visibleTimesOptions(): void {
+    if (!this.viewReady()) return; 
     this.toggle();
   }
 
@@ -319,10 +329,10 @@ export class FilterPanelComponent implements OnInit {
         this.form.removeControl('bimonth');
         this.form.removeControl('year');
         this.form.addControl('startDate', new FormControl(null, [Validators.required]));
-        this.form.addControl('endDate', new FormControl({value: null, disabled: !(this.form.get('startDate')?.value)}, [Validators.required]));
+        this.form.addControl('endDate', new FormControl({ value: null, disabled: !(this.form.get('startDate')?.value) }, [Validators.required]));
         this.form.get('startDate')?.valueChanges.subscribe(start => {
           const endDateControl = this.form.get('endDate');
-        
+
           if (start) {
             endDateControl?.enable(); // enable if startDate is selected
             endDateControl?.setValidators([Validators.required]); // ensure validation is active
@@ -331,10 +341,10 @@ export class FilterPanelComponent implements OnInit {
             endDateControl?.setValue(null); // optionally reset
             endDateControl?.clearValidators();
           }
-        
+
           endDateControl?.updateValueAndValidity();
         });
-        
+
         break;
       default:
         const controlsToRemove = ['month', 'bimonth', 'year', 'startDate', 'endDate'];
@@ -371,14 +381,13 @@ export class FilterPanelComponent implements OnInit {
   }
 
   getButtonText(): void {
-    console.log("!form.get('startDate')?.value:", !(this.form.get('startDate')?.value));
     const periodType = this.form.get('periodType')?.value;
     const year = this.form.get('year')?.value;
     const month = this.form.get('month')?.value;
     const bimonth = this.form.get('bimonth')?.value;
     const startDate = this.form.get('startDate')?.value;
     const endDate = this.form.get('endDate')?.value;
-  
+
     let from: string | null = null;
     let to: string | null = null;
 
@@ -386,12 +395,13 @@ export class FilterPanelComponent implements OnInit {
       this.buttonText.set('בחר');
       return; // No selection → reset button text
     }
-  
+
     if (periodType === 'MONTHLY' && month && year) {
       const first = new Date(year, month - 1, 1);
       const last = new Date(year, month, 0); // last day of month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      if (!this.viewReady()) return; 
       this.toggle();
     }
     else if (periodType === 'BIMONTHLY' && bimonth && year) {
@@ -400,6 +410,7 @@ export class FilterPanelComponent implements OnInit {
       const last = new Date(year, startMonth + 1, 0); // end of second month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      if (!this.viewReady()) return; 
       this.toggle();
     }
     else if (periodType === 'ANNUAL' && year) {
@@ -407,16 +418,18 @@ export class FilterPanelComponent implements OnInit {
       const last = new Date(year, 11, 31);
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
+      if (!this.viewReady()) return; 
       this.toggle();
     }
     else if (periodType === 'DATE_RANGE') {
       if (startDate) from = this.formatShortDate(new Date(startDate));
       if (endDate) to = this.formatShortDate(new Date(endDate));
       if (startDate && endDate) {
+        if (!this.viewReady()) return; 
         this.toggle();
       }
     }
-  
+
     if (from && to) {
       this.buttonText.set(`${from}-${to}`);
     } else if (from) {
@@ -435,11 +448,14 @@ export class FilterPanelComponent implements OnInit {
       case 'account':
         this.isAccountEmpty.set(!val);
         break;
+      // case 'account':
+      //   this.isAccountEmpty.set(!val);
+      //   break;
       default:
         break;
     }
   }
-  
+
   private formatShortDate(date: Date): string {
     const d = new Date(date);
     const day = d.getDate();
@@ -447,7 +463,7 @@ export class FilterPanelComponent implements OnInit {
     const year = d.getFullYear() % 100; // last 2 digits
     return `${day}/${month}/${year}`;
   }
-  
+
 
   // get tooltipText(): string {
   //   return this.selectedValues.length

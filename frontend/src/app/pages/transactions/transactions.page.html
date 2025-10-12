@@ -30,7 +30,7 @@
             [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button>
           <div class="filter-panel-container" #filterPanelRef>
             <app-filter-panel (applyFilters)="applyFilters($event)"
-              [isVisible]="visibleFilterPannel()"></app-filter-panel>
+              [isVisible]="visibleFilterPannel()" [class.open-filter-panel]="visibleFilterPannel()" [class.close-filter-panel]="!visibleFilterPannel()"></app-filter-panel>
           </div>
         </div>
         <!-- <app-filter-panel></app-filter-panel> -->

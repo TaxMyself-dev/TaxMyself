@@ -64,6 +64,14 @@
   top: 54px;
 }
 
+.open-filter-panel {
+  visibility: visible;
+}
+
+.close-filter-panel {
+  visibility: hidden;
+}
+
 // ============================== ionic components ==============================
 // .header-transaction {
 //     display: flex;
