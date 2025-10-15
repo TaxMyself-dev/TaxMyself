@@ -43,12 +43,8 @@ export class DocumentsService {
   isIncrement: boolean = false;
   isGeneralIncrement: boolean = false;
 
-  
   async getSettingDocByType(userId: string, docType: DocumentType) {
 
-    console.log("getSettingDocByType - in service");
-    console.log("userId: ", userId);
-    console.log("docType: ", docType);
     try {
       const docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
@@ -83,8 +79,6 @@ export class DocumentsService {
 
 
   async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
-    console.log("updateSettingDocByType - in service");
-    console.log("initialIndex: ", initialIndex);
 
     try {
       await this.settingGeneralIndex(userId);
@@ -103,7 +97,6 @@ export class DocumentsService {
   }
 
   async settingGeneralIndex(userId: string) {
-    console.log("settingGeneralIndex - in service");
     let generalIndex: any;
     generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
     if (!generalIndex) {
@@ -116,11 +109,7 @@ export class DocumentsService {
 
   async incrementGeneralIndex(userId: string) {
 
-    //console.log("incrementGeneralIndex - in service");
-
     let generalIndex: any;
-
-    //console.log("userId is ", userId);
     
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
@@ -137,10 +126,8 @@ export class DocumentsService {
 
   async decrementGeneralIndex(userId: string) {
     if (!this.isGeneralIncrement) {
-      console.log("not increment");
       return;
     }
-    //console.log("decrementGeneralIndex - in service");
     let generalIndex: any;
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
@@ -157,10 +144,6 @@ export class DocumentsService {
 
   async generatePDF(data: any, templateType: string): Promise<Blob> {
 
-    console.log("templateType is ", templateType);
-    console.log("data is ", data);
-    console.log("name is ", data.docData.hebrewNameDoc);
-    
     let fid: string;
     let prefill_data: any;
     
