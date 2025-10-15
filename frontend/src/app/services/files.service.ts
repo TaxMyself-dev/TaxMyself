@@ -120,6 +120,218 @@ export class FilesService {
     window.open(blobUrl, '_blank');
   }
 
+
+  previewFileWithControls(file: Blob): void {
+  const blobUrl = URL.createObjectURL(file);
+
+  const newWindow = window.open('', '_blank', 'width=800,height=600');
+  if (!newWindow) {
+    alert("Popup blocked. Please allow popups for this site.");
+    return;
+  }
+
+  // Custom HTML with PDF iframe + close button
+  newWindow.document.write(`
+    <html dir="rtl">
+      <head>
+        <title>תצוגה מקדימה</title>
+        <style>
+          body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+          iframe { flex: 1; border: none; }
+          button { padding: 10px 20px; font-size: 16px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+          .top-bar { text-align: left; padding: 10px; background-color: #f0f0f0; }
+        </style>
+      </head>
+      <body>
+        <div class="top-bar">
+          <button onclick="window.close()">✖ סגור</button>
+        </div>
+        <iframe src="${blobUrl}" type="application/pdf"></iframe>
+      </body>
+    </html>
+  `);
+
+  newWindow.document.close();
+}
+
+
+previewFileWithPopup(file: Blob): void {
+  const blobUrl = URL.createObjectURL(file);
+
+  const popup = window.open(
+    '',
+    'PDFPreview',
+    'width=900,height=700,left=200,top=100,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes'
+  );
+
+  if (!popup) {
+    alert("Popup blocked. Please allow popups for this site.");
+    return;
+  }
+
+  popup.document.write(`
+    <html dir="rtl">
+      <head>
+        <title>תצוגה מקדימה של מסמך</title>
+        <style>
+          body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+          .top-bar {
+            background-color: #f0f0f0;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ccc;
+          }
+          button {
+            padding: 8px 16px;
+            font-size: 14px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+          }
+          iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="top-bar">
+          <button onclick="window.close()">✖ סגור</button>
+        </div>
+        <iframe src="${blobUrl}" type="application/pdf"></iframe>
+      </body>
+    </html>
+  `);
+
+  popup.document.close();
+}
+
+
+previewFile2(file: Blob): void {
+  const blobUrl = URL.createObjectURL(file);
+
+  // Open new popup window with custom size
+  const popup = window.open('', 'previewWindow', 'width=800,height=900');
+
+  if (!popup) {
+    alert('Popup blocked! Please allow popups for this site.');
+    return;
+  }
+
+  // Write custom HTML with iframe + close button
+  popup.document.write(`
+    <html dir="rtl" lang="he">
+      <head>
+        <title>תצוגה מקדימה</title>
+        <style>
+          body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+          }
+          .header {
+            background-color: #f0f0f0;
+            padding: 10px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            border-bottom: 1px solid #ccc;
+          }
+          .iframe-container {
+            width: 100%;
+            height: calc(100% - 50px);
+          }
+          iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+          }
+          .close-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: #d9534f;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .close-btn:hover {
+            background-color: #c9302c;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          תצוגה מקדימה
+          <button class="close-btn" onclick="window.close()">סגור</button>
+        </div>
+        <div class="iframe-container">
+          <iframe src="${blobUrl}"></iframe>
+        </div>
+      </body>
+    </html>
+  `);
+
+  popup.document.close();
+}
+
+
+previewFile3(blob: Blob): void {
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const base64data = reader.result as string;
+
+    const popup = window.open('', '_blank', 'width=800,height=600');
+    if (!popup) return;
+
+    popup.document.write(`
+      <html dir="rtl">
+        <head>
+          <title>תצוגה מקדימה</title>
+          <style>
+            body { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+            iframe { flex: 1; border: none; width: 100%; }
+            .toolbar {
+              background-color: #f5f5f5;
+              padding: 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 1px solid #ccc;
+              font-family: Arial;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            button {
+              font-size: 14px;
+              padding: 5px 10px;
+              cursor: pointer;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="toolbar">
+            <span>תצוגה מקדימה</span>
+            <button onclick="window.close()">סגור</button>
+          </div>
+          <iframe src="${base64data}"></iframe>
+        </body>
+      </html>
+    `);
+  };
+
+  reader.readAsDataURL(blob); // this triggers reader.onloadend
+}
+
+
+
+
+
   public async deleteFile(urlFile: string): Promise<void> {
     const storage = getStorage();
     const delRef = ref(storage, urlFile);

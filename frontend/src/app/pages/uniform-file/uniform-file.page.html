@@ -28,6 +28,15 @@
         <app-generic-table class="table" [columnsTitle]="uniformFileListSummaryTitles" [dataTable]="uniformFileListSummary" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
       </div>
 
+      <div>
+        <p dir="rtl">
+          הנתונים הופקו באמצעות תוכנת: {{ appName }},
+          מספר תעודת הרישום: {{ registrationNumber }}
+          בתאריך {{ generatedAt | date:'dd/MM/yyyy':'Asia/Jerusalem' }}
+          בשעה: {{ generatedAt | date:'HH:mm':'Asia/Jerusalem' }}
+        </p>
+      </div>
+
     }
   </div>
 </ion-content>

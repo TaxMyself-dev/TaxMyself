@@ -25,6 +25,10 @@ export interface ReportDetails {
 })
 export class UniformFilePage implements OnInit {
 
+  appName = 'TaxMyself';
+  registrationNumber = '123456789';
+  generatedAt!: Date;
+
   uniformFileForm: FormGroup;
   pnlReport: IPnlReportData;
   userData: IUserData;
@@ -101,6 +105,9 @@ export class UniformFilePage implements OnInit {
 
 
   async onSubmit() {
+
+
+    this.generatedAt = new Date();
 
     const formData = this.uniformFileForm.value;
     this.reportClick = false;

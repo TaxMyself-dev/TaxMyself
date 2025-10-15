@@ -16,14 +16,6 @@ export const DocTypeDisplayName = {
   [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
 };
 
-// export const DocTypeDisplayName: Record<DocumentType, string> = {
-//   [DocumentType.RECEIPT]: 'קבלה',
-//   [DocumentType.TAX_INVOICE]: 'חשבונית מס',
-//   [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
-//   [DocumentType.TRANSACTION_INVOICE]: 'חשבונית עסקה',
-//   [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
-// };
-
 export const DocTypeDefaultStart: Record<DocumentType, number> = {
   [DocumentType.RECEIPT]: 70001,
   [DocumentType.TAX_INVOICE]: 10001,
@@ -32,19 +24,27 @@ export const DocTypeDefaultStart: Record<DocumentType, number> = {
   [DocumentType.CREDIT_INVOICE]: 80001,
 };
 
-export enum DocumentTotalsField {
-  TOTAL_BEFORE_VAT = 'totalBeforeVat',
-  TOTAL_VAT = 'totalVat',
-  TOTAL_WITHOUT_VAT = 'totalWithoutVat',
-  TOTAL_AFTER_VAT = 'totalAfterVat',
-}
+// export enum DocumentTotalsField {
+//   TOTAL_BEFORE_VAT = 'totalBeforeVat',
+//   TOTAL_VAT = 'totalVat',
+//   TOTAL_WITHOUT_VAT = 'totalWithoutVat',
+//   TOTAL_AFTER_VAT = 'totalAfterVat',
+// }
 
-// Define labels in the exact order you want to display
-export const DocumentTotalsLabels: { field: DocumentTotalsField; label: string }[] = [
-  { field: DocumentTotalsField.TOTAL_BEFORE_VAT, label: 'סכום לפני מע״מ' },
-  { field: DocumentTotalsField.TOTAL_VAT, label: 'סכום מע״מ' },
-  { field: DocumentTotalsField.TOTAL_WITHOUT_VAT, label: 'סכום ללא מע״מ' },
-  { field: DocumentTotalsField.TOTAL_AFTER_VAT, label: 'סה״כ לתשלום (כולל מע״מ)' },
+export type DocumentTotals = {
+  sumBefDisBefVat: number;
+  disSum: number;
+  sumAftDisBefVat: number;
+  vatSum: number;
+  sumAftDisWithVat: number;
+};
+
+export const DocumentTotalsLabels: { field: keyof DocumentTotals; label: string }[] = [
+  { field: 'sumBefDisBefVat', label: 'סה״כ לפני הנחה ולפני מע״מ' },
+  { field: 'disSum', label: 'סה״כ הנחות' },
+  { field: 'sumAftDisBefVat', label: 'סה״כ לאחר הנחה לפני מע״מ' },
+  { field: 'vatSum', label: 'סה״כ מע״מ' },
+  { field: 'sumAftDisWithVat', label: 'סה״כ לתשלום כולל מע״מ' },
 ];
 
 export enum DocCreateFields {

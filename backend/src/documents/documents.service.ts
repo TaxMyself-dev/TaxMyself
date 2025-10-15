@@ -43,12 +43,8 @@ export class DocumentsService {
   isIncrement: boolean = false;
   isGeneralIncrement: boolean = false;
 
-  
   async getSettingDocByType(userId: string, docType: DocumentType) {
 
-    console.log("getSettingDocByType - in service");
-    console.log("userId: ", userId);
-    console.log("docType: ", docType);
     try {
       const docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
@@ -83,8 +79,6 @@ export class DocumentsService {
 
 
   async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
-    console.log("updateSettingDocByType - in service");
-    console.log("initialIndex: ", initialIndex);
 
     try {
       await this.settingGeneralIndex(userId);
@@ -103,7 +97,6 @@ export class DocumentsService {
   }
 
   async settingGeneralIndex(userId: string) {
-    console.log("settingGeneralIndex - in service");
     let generalIndex: any;
     generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
     if (!generalIndex) {
@@ -116,11 +109,7 @@ export class DocumentsService {
 
   async incrementGeneralIndex(userId: string) {
 
-    //console.log("incrementGeneralIndex - in service");
-
     let generalIndex: any;
-
-    //console.log("userId is ", userId);
     
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
@@ -137,10 +126,8 @@ export class DocumentsService {
 
   async decrementGeneralIndex(userId: string) {
     if (!this.isGeneralIncrement) {
-      console.log("not increment");
       return;
     }
-    //console.log("decrementGeneralIndex - in service");
     let generalIndex: any;
     try {
       generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
@@ -157,10 +144,6 @@ export class DocumentsService {
 
   async generatePDF(data: any, templateType: string): Promise<Blob> {
 
-    //console.log("templateType is ", templateType);
-    //console.log("data is ", data);
-    //console.log("name is ", data.docData.hebrewNameDoc);
-    
     let fid: string;
     let prefill_data: any;
     
@@ -169,7 +152,8 @@ export class DocumentsService {
     const docType = data.docData.docType;
 
     switch (templateType) {
-      case 'createDoc':      
+      case 'createDoc':
+      case 'previewDoc':
         fid = ['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType) ? 'RVxpym2O68' : ['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType) ? 'AKmqQkevbM' : 'UNKNOWN FID';
         prefill_data = {
           recipientName: data.docData.recipientName,
@@ -182,10 +166,7 @@ export class DocumentsService {
             data.docData.issuerEmail,
             data.docData.issuerAddress,
           ].filter(Boolean).join('\n'),
-          //issuerDetails:
-          //  `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          //payments_table: await this.transformLinesToPaymentsTable(data.paymentData),
           subTotal: data.docData.sumAftDisBefVAT,
           totalTax: data.docData.vatSum,
           total: data.docData.sumAftDisWithVAT,
@@ -216,14 +197,12 @@ export class DocumentsService {
         throw new Error(`Unknown template type: ${templateType}`);
     }
 
-    log("fid is ", fid);
-
     const payload = {
       fid,
-      digitallySign: true,
+      digitallySign: templateType === 'createDoc',
       prefill_data,
     };
-
+ 
     const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -298,11 +277,7 @@ export class DocumentsService {
 
   
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
-
-    console.log("createDoc in service - start");
     
-    console.log("DocumentsService ~ createDoc ~ data:", data)
-
     try {
 
       // Generate the PDF
@@ -322,11 +297,6 @@ export class DocumentsService {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       };
 
-      //console.log("docDetails is ", docDetails);
-      
-      // Convert the paymentMethod from hebrew to english
-      //data.docData.paymentMethod = this.convertPaymentMethod(data.docData.paymentMethod);
-
       // Add the document to the database
       const newDoc = await this.saveDocInfo(userId, data.docData);
       // Check if the document was added successfully
@@ -339,16 +309,8 @@ export class DocumentsService {
       // Add the lines to the database
       await this.saveLinesInfo(userId, data.linesData);
 
-      //console.log("After save lines");
-
       // Add the lines to the database
       await this.savePaymentsInfo(userId, data.paymentData);
-
-      //console.log("After save payments");
-
-      // Add the jouranl entry to the database
-
-      //console.log("docData is ", data.docData);
       
       await this.bookkeepingService.createJournalEntry({
         issuerBusinessNumber: data.docData.issuerBusinessNumber,
@@ -380,6 +342,25 @@ export class DocumentsService {
 
   }
 
+
+  async previewDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
+    
+    try {
+      // Generate the PDF
+      let pdfBlob = null;
+      if (generatePdf) {
+        // Only generate the PDF if requested
+        pdfBlob = await this.generatePDF(data, "previewDoc");
+      }
+      return pdfBlob;
+    }
+    catch (error) {
+      console.error('❌ Error in createDoc:', error);
+      throw error;
+    }
+
+  }
+
   convertPaymentMethod(paymentMethod: string): string {
     switch (paymentMethod) {
       case 'מזומן':
@@ -398,15 +379,12 @@ export class DocumentsService {
   }
 
   async incrementCurrentIndex(userId: string, docType: DocumentType) {
-    console.log("incrementCurrentIndex - in service");
-    console.log("documentType is ", docType);
     let docDetails: any;
     try {
       docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
       if (!docDetails) {
         throw new NotFoundException("not found userId or documentType")
       }
-      console.log("docDetails is ", docDetails);
       docDetails = await this.settingDocuments.update({ userId, docType }, { currentIndex: docDetails.currentIndex + 1 });
       this.isIncrement = true;
       return docDetails;
@@ -478,13 +456,9 @@ export class DocumentsService {
     if (!Array.isArray(data)) {
       throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
     }
-
-    console.log("line data is ", data);
     
     try {
       for (const item of data) {
-
-        //console.log("line item is ", item);
         
         const vatOptsRaw = item.vatOpts;
 
@@ -512,13 +486,9 @@ export class DocumentsService {
     if (!Array.isArray(data)) {
       throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
     }
-
-    console.log("payment data is ", data);
   
     try {
       for (const item of data) {
-
-        log("item is ", item);
         
         const paymentsData = { userId, ...item };
         await this.docPaymentsRepo.insert(paymentsData);
@@ -546,12 +516,12 @@ export class DocumentsService {
       CREDIT_INVOICE: 5000,
     };
   
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 10; i++) {
       const data = this.generateDocData(i, docCounters);
       try {
         const pdfBlob = await this.createDoc(data, userId, false);
         docs.push(pdfBlob);
-        console.log(`Document ${i + 1} created successfully. Total so far: ${docs.length}`);
+        console.log(`[${new Date().toLocaleTimeString()}] Document ${i + 1} created successfully. Total so far: ${docs.length}`);
       } catch (error) {
         console.error(`Error generating document ${i + 1}`, error);
       }
@@ -608,7 +578,7 @@ export class DocumentsService {
       DocumentType.TAX_INVOICE,
       DocumentType.TAX_INVOICE_RECEIPT,
       DocumentType.TRANSACTION_INVOICE,
-      //DocumentType.CREDIT_INVOICE,
+      DocumentType.CREDIT_INVOICE,
     ];
   
     // Randomly select a docType
@@ -623,8 +593,21 @@ export class DocumentsService {
     // Random description
     const descriptions = ['בדיקה אוטומטית', 'מסמך בדיקה', 'בדיקה מספרית', 'בדיקה מהירה', 'בדיקה אקראית'];
     const randomDescription = descriptions[Math.floor(Math.random() * descriptions.length)];
+
+    // Random sum (before VAT)
+    const possibleSums = [100, 1000, 500, 750, 2500, 300, 400];
+    const sumBefDisBefVat = possibleSums[Math.floor(Math.random() * possibleSums.length)];
+    const vatRate = 18;
+    // Calculate dependent sums
+    const disSum = 0;
+    const sumAftDisBefVat = sumBefDisBefVat - disSum;
+    const vatSum = (sumAftDisBefVat * vatRate) / 100;
+    const sumAftDisWithVat = sumAftDisBefVat + vatSum;
   
-    const docDate = new Date(2025, 3, 18).toISOString().split('T')[0]; // 2025-04-18
+    // const docDate = new Date(2025, 9, 3).toISOString().split('T')[0]; // 2025-04-18
+    const docDate = new Date(
+      new Date(2025, 7, 1).getTime() + Math.random() * (new Date(2025, 8, 30).getTime() - new Date(2025, 7, 1).getTime())
+    ).toISOString().split('T')[0];
   
     return {
       docData: {
@@ -644,7 +627,7 @@ export class DocumentsService {
         recipientPhone: null,
         recipientEmail: null,
         docType: docType,
-        hebrewNameDoc: 'קבלה',
+        hebrewNameDoc: '',
         generalDocIndex: generalDocIndex,
         docDescription: randomDescription,
         docNumber: docNumber,
@@ -652,11 +635,15 @@ export class DocumentsService {
         transType: 3,
         amountForeign: 0,
         currency: 'ILS',
-        sumBefDisBefVat: 1000,
+        //sumBefDisBefVat: 1000,
+        sumBefDisBefVat: sumBefDisBefVat,
         disSum: 0,
-        sumAftDisBefVAT: 1000,
-        vatSum: 180,
-        sumAftDisWithVAT: 1180,
+        //sumAftDisBefVAT: 1000,
+        sumAftDisBefVAT: sumAftDisBefVat,
+        //vatSum: 180,
+        vatSum: vatSum,
+        //sumAftDisWithVAT: 1180,
+        sumAftDisWithVAT: sumAftDisWithVat,
         withholdingTaxAmount: 0,
         docDate: docDate,
         issueDate: docDate,
@@ -679,13 +666,13 @@ export class DocumentsService {
           unitQuantity: 1,
           vatOpts: 'EXCLUDE',
           vatRate: 18,
-          sum: '1000',
-          discount: '0',
-          sumBefVatPerUnit: '1000',
-          disBefVatPerLine: '0',
-          sumAftDisBefVatPerLine: 1000,
-          vatPerLine: 180,
-          sumAftDisWithVat: 1180,
+          sum: sumBefDisBefVat,
+          discount: disSum,
+          sumBefVatPerUnit: sumBefDisBefVat,
+          disBefVatPerLine: disSum,
+          sumAftDisBefVatPerLine: sumAftDisBefVat,
+          vatPerLine: vatSum,
+          sumAftDisWithVat: sumAftDisWithVat,
           unitType: 1,
           transType: '3',
         }
@@ -699,7 +686,7 @@ export class DocumentsService {
           bankName: 'LEUMI',
           branchNumber: null,
           accountNumber: null,
-          paymentAmount: '1180',
+          paymentAmount: sumAftDisWithVat,
           paymentMethod: 'BANK_TRANSFER',
           hebrewBankName: 'לאומי',
           bankNumber: '10'

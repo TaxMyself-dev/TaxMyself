@@ -51,9 +51,23 @@ export class DocumentsController {
   
   @Post('create-doc')
   @UseGuards(FirebaseAuthGuard)
-  async createPDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+  // async createPDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+  async createDoc(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     const pdfBuffer = await this.documentsService.createDoc(body, userId);
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.send(pdfBuffer);
+  }
+
+
+  @Post('preview-doc')
+  @UseGuards(FirebaseAuthGuard)
+  async previewDoc(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    const pdfBuffer = await this.documentsService.previewDoc(body, userId);
+    console.log('🔹 [preview-doc] pdfBuffer type:', typeof pdfBuffer);
+    console.log('🔹 [preview-doc] pdfBuffer length:', pdfBuffer?.length || 0);
+    console.log('🔹 [preview-doc] pdfBuffer is Buffer?', Buffer.isBuffer(pdfBuffer));
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }
@@ -61,10 +75,7 @@ export class DocumentsController {
 
   @Post('generate-pdf')
   @UseGuards(FirebaseAuthGuard)
-  async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
-    // const userId = request.user?.firebaseId;
-    // console.log("body is ", body);
-    
+  async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {    
     const pdfBuffer = await this.documentsService.generatePDF(body, "pnlReport");
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);

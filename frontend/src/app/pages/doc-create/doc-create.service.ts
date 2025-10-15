@@ -43,18 +43,21 @@ export class DocCreateService {
     return this.http.get<any[]>(url);
   }
 
+  
   deleteClient(clientId: number): Observable<any> {
     const url = `${environment.apiUrl}clients/delete-client/${clientId}`;
     return this.http.delete<any>(url);
   }
 
-  // createDoc(dataFile: IDataDocFormat): Observable<Blob> {
-  //   const url = `${environment.apiUrl}documents/create-doc`;
-  //   return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
-  // }
 
   createDoc(dataFile: any): Observable<Blob> {
     const url = `${environment.apiUrl}documents/create-doc`;
+    return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
+  }
+
+
+  previewDoc(dataFile: any): Observable<Blob> {
+    const url = `${environment.apiUrl}documents/preview-doc`;
     return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
   }
 
