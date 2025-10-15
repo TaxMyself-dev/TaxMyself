@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, computed, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
 import { BusinessMode, CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, VatOptions } from 'src/app/shared/enums';
@@ -14,7 +14,7 @@ import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotalsField, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
+import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
 import { MenuItem } from 'primeng/api';
 import { DocumentType } from './doc-cerate.enum';
 
@@ -54,7 +54,6 @@ export class DocCreatePage implements OnInit {
   fileSelected: DocumentType;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
-  //docDetails: ISettingDoc;
   docIndexes: IDocIndexes | null = null;
   createPDFIsLoading: boolean = false;
   createPreviewPDFIsLoading: boolean = false;
@@ -98,7 +97,7 @@ export class DocCreatePage implements OnInit {
   selectedUnit: string = '%';
   value: number = 0;
 
-  lineItems: LineItem[] = [];
+  // lineItems: LineItem[] = [];
   lineItemsDraft: PartialLineItem[] = [];
 
   showInitialIndexDialog = false;
@@ -258,11 +257,8 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       [DocCreateFields.LINE_SUM]: new FormControl(
         null, Validators.required,
       ),
-      // [DocCreateFields.LINE_DISCOUNT_TYPE]: new FormControl(
-      //   null, Validators.required,
-      // ),
        [DocCreateFields.LINE_DISCOUNT]: new FormControl(
-        null, Validators.required,
+        0, Validators.required,
       ),
     })
 
@@ -279,9 +275,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       appPayments: this.formBuilder.array([]),
     });
 
-    
     this.createPaymentInputForm(this.activePaymentMethod.id as string);
-
 
   }
 
@@ -303,6 +297,13 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     }
 
     this.createForms();
+
+    // Subscribe to docDate changes
+    this.generalDocForm.get(DocCreateFields.DOC_DATE)?.valueChanges.subscribe((newDocDate) => {
+      if (this.paymentInputForm?.get('paymentDate')) {
+        this.paymentInputForm.get('paymentDate')?.setValue(newDocDate);
+      }
+    });
 
   }
 
@@ -352,7 +353,6 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   createDoc(): void {
 
     this.createPDFIsLoading = true;
-    // const data = this.getDocData();
     const data = this.buildDocPayload();
     
     this.docCreateService.createDoc(data)
@@ -368,19 +368,36 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       .subscribe((res) => {
         console.log("Update current index result:", res);
         this.fileService.downloadFile("my pdf", res);
-      });
+
+        // ✅ Reset all forms
+        this.generalDocForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18 });
+        this.recipientDocForm.reset();
+        this.linesDocForm.reset({ [DocCreateFields.LINE_QUANTITY]: 1 });
+        this.initialIndexForm.reset();
+        this.paymentForm.reset();
+        (this.paymentForm.get('bankPayments') as FormArray).clear();
+        (this.paymentForm.get('creditPayments') as FormArray).clear();
+        (this.paymentForm.get('checkPayments') as FormArray).clear();
+        (this.paymentForm.get('appPayments') as FormArray).clear();
+
+        // ✅ Clear local draft arrays
+        this.lineItemsDraft = [];
+        this.paymentsDraft = [];
+
+        this.fileSelected = null;
+        this.HebrewNameFileSelected = null;
+
+        });
+
   }
 
 
-  // Function for previewing the doc
   previewtDoc(): void {
 
     this.createPreviewPDFIsLoading = true;
-    // const data = this.getDocData();
     const data = this.buildDocPayload();
     
-
-    this.docCreateService.generatePDF(data)
+    this.docCreateService.previewDoc(data)
       .pipe(
         finalize(() => {
           this.createPreviewPDFIsLoading = false;
@@ -392,7 +409,8 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
       )
       .subscribe((res) => {
         console.log("PDF creation result (Preview):", res);
-        this.fileService.previewFile1(res);
+        this.fileService.previewFile3(res);
+        //this.fileService.previewFile1(res);
       });
   }
 
@@ -406,8 +424,6 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     let docPayload: DocPayload;
 
     const issuerBusinessNumber = this.selectedBusinessNumber;
-               // `${data.docData.issuerName}\n${data.docData.issuerPhone}\n${data.docData.issuerEmail}\n${data.docData.issuerAddress}`,
-
     const issuerName = this.selectedBusinessName;
     const issuerAddress = this.selectedBusinessAddress;
     const issuerPhone = this.selectedBusinessPhone;
@@ -416,13 +432,6 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     const docNumber = this.docIndexes.docIndex;
     const generalDocIndex = this.docIndexes.generalIndex;
     const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
-
-    const totals = this.documentTotals;
-    const sumBefDisBefVat = totals.sumBefDisBefVat;
-    const disSum = totals.disSum;
-    const sumAftDisBefVAT = totals.sumAftDisBefVAT;
-    const vatSum = totals.vatSum;
-    const sumAftDisWithVAT = totals.sumAftDisWithVAT;
 
     docPayload = {
       docData: {
@@ -436,11 +445,11 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
         docNumber,
         generalDocIndex,
         hebrewNameDoc,
-        sumBefDisBefVat,
-        disSum,
-        sumAftDisBefVAT,
-        vatSum,
-        sumAftDisWithVAT,
+        sumBefDisBefVat: this.documentTotals().sumBefDisBefVat,
+        disSum: this.documentTotals().disSum,
+        sumAftDisBefVAT: this.documentTotals().sumAftDisBefVat,
+        vatSum: this.documentTotals().vatSum,
+        sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
       },
       linesData: this.lineItemsDraft,
       paymentData: this.paymentsDraft,
@@ -455,7 +464,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
 
   addLineDetails(): void {
 
-    const formValue = this.linesDocForm.value; // <-- get all field values directly
+    const formValue = this.linesDocForm.value;
     console.log("Adding line with form value:", formValue);
 
     const lineIndex = this.lineItemsDraft.length;
@@ -477,6 +486,9 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
 
     this.lineItemsDraft.push(newLine);
     this.calculateVatFieldsForLine(lineIndex);
+    this.updateDocumentTotalsFromLines();
+    this.linesDocForm.reset({ [DocCreateFields.LINE_QUANTITY]: 1 });
+    this.createPaymentInputForm(this.activePaymentMethod.id as string);
 
   }
 
@@ -539,68 +551,68 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   }
 
 
-get documentTotals() {
+readonly documentTotals = signal<DocumentTotals>({
+  sumBefDisBefVat: 0,
+  disSum: 0,
+  sumAftDisBefVat: 0,
+  vatSum: 0,
+  sumAftDisWithVat: 0,
+});
 
-  const totals = {
-    sumBefDisBefVat: 0,        // סכום לפני הנחה ולפני מע״מ
-    disSum: 0,                 // סכום הנחה
-    sumAftDisBefVAT: 0,        // אחרי הנחה לפני מע״מ
-    vatSum: 0,                 // סכום המע״מ
-    sumAftDisWithVAT: 0        // אחרי הנחה כולל מע״מ
+
+readonly visibleDocumentTotals = computed(() => {
+  const totals = this.documentTotals();
+  return DocumentTotalsLabels
+    .map((item) => ({
+      field: item.field,
+      label: item.label,
+      value: totals[item.field] ?? 0,
+    }))
+    .filter((item) => item.value !== 0);
+});
+
+
+updateDocumentTotalsFromLines(): void {
+
+  const totals: DocumentTotals = {
+    sumBefDisBefVat: 0,
+    disSum: 0,
+    sumAftDisBefVat: 0,
+    vatSum: 0,
+    sumAftDisWithVat: 0,
   };
 
-  this.lineItemsDraft.forEach((line) => {
+  for (const line of this.lineItemsDraft) {
+    totals.sumBefDisBefVat += Number(line.sumBefVatPerUnit ?? 0);
+    totals.disSum += Number(line.disBefVatPerLine ?? 0);
+    totals.sumAftDisBefVat += Number(line.sumAftDisBefVatPerLine ?? 0);
+    totals.vatSum += Number(line.vatPerLine ?? 0);
+    totals.sumAftDisWithVat += Number(line.sumAftDisWithVat ?? 0);
+  }
 
-    const quantity = line.unitQuantity ?? 1;
-    const sumPerUnit = line.sumBefVatPerUnit ?? 0;
-    const disPerLine = line.disBefVatPerLine ?? 0;
-    const aftDisBefVat = line.sumAftDisBefVatPerLine ?? 0;
-    const vat = line.vatPerLine ?? 0;
-    const aftDisWithVat = line.sumAftDisWithVat ?? 0;
-
-    totals.sumBefDisBefVat += sumPerUnit * quantity;
-    totals.disSum += disPerLine;
-    totals.sumAftDisBefVAT += aftDisBefVat;
-    totals.vatSum += vat;
-    totals.sumAftDisWithVAT += aftDisWithVat;
-  });
-
-  return totals;
+  this.documentTotals.set(totals);
 }
 
 
+  createPaymentInputForm(paymentMethod: string, docDate: Date | null = null): void {
 
-  get visibleDocumentTotals() {
-
-    const totals = this.documentTotals;
-
-    // Map the totals into the ordered array using the labels array
-    return DocumentTotalsLabels
-      .map((item) => ({
-        field: item.field,
-        label: item.label,
-        value: totals[item.field] ?? 0,
-      }))
-      .filter((item) => item.value !== 0); // Optional: hide zeros
-  }
-
-
-    createPaymentInputForm(paymentMethod: string): void {
+    const sum = this.documentTotals().sumAftDisWithVat;
+      
     switch (paymentMethod) {
       case 'BANK_TRANSFER':
         this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [null, Validators.required],
+          paymentDate: [docDate, Validators.required],
           bankName: [null, Validators.required],
           branchNumber: [null],
           accountNumber: [null],
-          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
+          paymentAmount: [sum, [Validators.required, Validators.min(0.01)]],
           paymentMethod: [paymentMethod]
         });
         break;
 
       case 'CREDIT_CARD':
         this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [null, Validators.required],
+          paymentDate: [docDate, Validators.required],
           cardType: [null, Validators.required],
           last4Digits: [null, [Validators.required, Validators.pattern(/^\d{4}$/)]],
           approvalCode: [null, Validators.required],
@@ -611,7 +623,7 @@ get documentTotals() {
 
       case 'CHECK':
         this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [null, Validators.required],
+          paymentDate: [docDate, Validators.required],
           bankName: [null, Validators.required],
           branchNumber: [null, Validators.required],
           checkNumber: [null, [Validators.required, Validators.pattern(/^\d+$/)]],
@@ -622,7 +634,7 @@ get documentTotals() {
 
       case 'APP':
         this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [null, Validators.required],
+          paymentDate: [docDate, Validators.required],
           appName: [null, Validators.required],
           reference: [null, Validators.required],
           paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
@@ -632,7 +644,7 @@ get documentTotals() {
 
       case 'CASH':
         this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [null, Validators.required],
+          paymentDate: [docDate, Validators.required],
           paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
           paymentMethod: [paymentMethod]
         });
@@ -643,7 +655,8 @@ get documentTotals() {
 
   onPaymentMethodChange(paymentMethod: MenuItem): void {
     this.activePaymentMethod = paymentMethod;
-    this.createPaymentInputForm(paymentMethod.id as string);
+    const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
   }
 
 
@@ -671,13 +684,15 @@ get documentTotals() {
     this.paymentsDraft.push(paymentEntry);
 
     // Reset the form for the next payment entry
-    this.createPaymentInputForm(this.activePaymentMethod.id as string);
+    const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
 
   }
 
 
   deleteLine(index: number): void {
-    this.lineItems.splice(index, 1);
+    this.lineItemsDraft.splice(index, 1);
+    this.updateDocumentTotalsFromLines();
   }
 
 
