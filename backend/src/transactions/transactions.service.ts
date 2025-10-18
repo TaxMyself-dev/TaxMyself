@@ -716,6 +716,18 @@ export class TransactionsService {
 
   }
 
+  async getSourcesByBillId(userId: string, billId: number): Promise<string[]> {
+    let sources: string[] = [];
+
+    const bill = await this.billRepo.findOne({ where: { userId, id: billId }, relations: ['sources'] });
+    if (!bill) {
+      return [];
+    }
+    sources.push(...bill.sources.map(source => source.sourceName));
+
+    return sources;
+  }
+
 
   async getSources(userId: string): Promise<string[]> {
     let sources: string[] = [];
@@ -736,115 +748,30 @@ export class TransactionsService {
   }
 
 
-  // // New function to get transactions by string[].
-  // async getTransactionsByBillAndUserId(userId: string, startDate: Date, endDate: Date, billIds: string[] | null, categories: string[] | null): Promise<Transactions[]> {
-  //   console.log("billIds is ", billIds);
-    
-  //   let sources: string[] = [];
-  //   let allIdentifiers: string[] = [];
-
-  //   // Step 1: Handle the 'ALL_BILLS' case (billIds is null)
-  //   const allBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
-
-  //   if (!billIds) {
-  //     // Collect all sources from the user's bills
-  //     allBills.forEach(bill => {
-  //       if (bill.sources) {
-  //         bill.sources.forEach(source => {
-  //           sources.push(source.sourceName);
-  //         });
-  //       }
-  //     });
-  //   } else {
-  //     // Step 2: Handle specific billIds
-  //     const billIdNums = billIds.map(id => parseInt(id, 10));
-  //     const selectedBills = allBills.filter(bill => billIdNums.includes(bill.id));
-  //     selectedBills.forEach(bill => {
-  //       if (bill.sources) {
-  //         sources.push(...bill.sources.map(source => source.sourceName));
-  //       }
-  //     });
-  //   }
-
-  //   // Step 3: Collect all identifiers from all bills (used in NOT IN clause)
-  //   allBills.forEach(bill => {
-  //     allIdentifiers.push(...bill.sources.map(source => source.sourceName));
-  //   });
-
-
-  //   // Step 4: Build the transaction query
-  //   const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
-  //   queryBuilder.where('transaction.userId = :userId', { userId });
-
-  //   if (sources.length > 0 || allIdentifiers.length > 0) {
-  //     queryBuilder.andWhere(
-  //       new Brackets(qb => {
-  //         qb.where(`transaction.paymentIdentifier IN (:...sources)`)
-  //           .orWhere(`transaction.paymentIdentifier NOT IN (:...allIdentifiers)`)
-  //           .orWhere(`transaction.paymentIdentifier IS NULL`);
-  //       }),
-  //       {
-  //         sources: sources.length > 0 ? sources : [],
-  //         allIdentifiers: allIdentifiers.length > 0 ? allIdentifiers : []
-  //       }
-  //     );
-  //   }
-
-  //   const defaultCategories = await this.categoryRepo.find();
-  //   const userCategories = await this.userCategoryRepo.find({ where: { firebaseId: userId } });
-
-  //   const allCategoriesName: string[] = [
-  //     ...defaultCategories.map(c => c.categoryName),
-  //     ...userCategories.map(c => c.categoryName),
-  //   ];
-
-  //   // Add category filter
-  //   if (categories && categories.length > 0 && allCategoriesName.length > 0) {
-  //     queryBuilder.andWhere(
-  //       new Brackets(qb => {
-  //         qb.where(`transaction.category IN (:...categories)`)
-  //           .orWhere(`transaction.category NOT IN (:...allCategoriesName)`)
-  //           .orWhere(`transaction.category IS NULL`);
-  //       }),
-  //       {
-  //         categories,
-  //         allCategoriesName,
-  //       }
-  //     );
-  //   }
-
-  //   queryBuilder.andWhere('DATE(transaction.billDate) BETWEEN :startDate AND :endDate', {
-  //     startDate: startDate,
-  //     endDate: endDate,
-  //   });
-
-  //   queryBuilder.orderBy('transaction.billDate', 'DESC');
-
-  //   const transactions = await queryBuilder.getMany();
-  //   return transactions;
-  // }
-
-  
   async getTransactionsByBillAndUserId(
     userId: string,
     startDate: Date,
     endDate: Date,
     billIds: string[] | null,
-    categories: string[] | null
+    categories: string[] | null,
+    sourcesFilter: string[] | null
   ): Promise<Transactions[]> {
-    console.log("billIds is ", billIds);
-  
+
+    const normalizedSources = Array.isArray(sourcesFilter)
+      ? [...new Set(sourcesFilter.map(s => (s ?? '').trim()).filter(Boolean))]
+      : null;
+
     // 1) Load all user's bills (with their 'sources' relation) so we can derive identifiers.
     const allBills = await this.billRepo.find({
       where: { userId },
       relations: ['sources'],
     });
-  
+
     // 2) Prepare selection flags/collections based on the incoming billIds filter.
     let includeUnlinked: boolean;
     let billIdNums: number[] = [];
     let selectedBills: typeof allBills;
-  
+
     if (billIds === null) {
       // If no filter was provided -> include ALL bills AND also include "unlinked".
       includeUnlinked = true;
@@ -852,41 +779,41 @@ export class TransactionsService {
     } else {
       // 'notBelong' is a special token meaning "include unlinked transactions".
       includeUnlinked = billIds.includes('notBelong');
-  
+
       // Keep only numeric bill ids
       billIdNums = billIds
         .filter((id) => id !== 'notBelong')
         .map((id) => parseInt(id, 10));
-  
+
       // Narrow the bills we care about to the selected list
       selectedBills = allBills.filter((bill) => billIdNums.includes(bill.id));
     }
-  
+
     // 3) Build the identifiers:
     //    - 'sources' = identifiers of SELECTED bills
     //    - 'allIdentifiers' = identifiers of ALL user's bills
     const sources: string[] = selectedBills.flatMap((bill) =>
       bill.sources.map((source) => source.sourceName),
     );
-  
+
     const allIdentifiers: string[] = allBills.flatMap((bill) =>
       bill.sources.map((source) => source.sourceName),
     );
-  
+
     // 4) Start the query restricted to the current user
     const queryBuilder = this.transactionsRepo.createQueryBuilder('transaction');
     queryBuilder.where('transaction.userId = :userId', { userId });
-  
+
     // 5) Filter by paymentIdentifier (linked vs unlinked)
     queryBuilder.andWhere(
       new Brackets((qb) => {
         const hasSources = sources.length > 0;
         const hasAllIds = allIdentifiers.length > 0;
-  
+
         if (hasSources) {
           // If some bills were selected, include transactions whose paymentIdentifier matches them:
           qb.where('transaction.paymentIdentifier IN (:...sources)', { sources });
-  
+
           if (includeUnlinked) {
             // Also include "unlinked":
             //  - paymentIdentifier NOT in ANY known identifier
@@ -923,18 +850,23 @@ export class TransactionsService {
         }
       }),
     );
-  
+    if (normalizedSources && normalizedSources.length > 0) {
+      queryBuilder.andWhere('transaction.paymentIdentifier IN (:...normalizedSources)', {
+        normalizedSources,
+      });
+    }
+
     // 6) Category filter
     const defaultCategories = await this.categoryRepo.find();
     const userCategories = await this.userCategoryRepo.find({
       where: { firebaseId: userId },
     });
-  
+
     const allCategoriesName: string[] = [
       ...defaultCategories.map((c) => c.categoryName),
       ...userCategories.map((c) => c.categoryName),
     ];
-  
+
     if (categories && categories.length > 0 && allCategoriesName.length > 0) {
       // Include:
       //  - categories explicitly selected,
@@ -950,25 +882,25 @@ export class TransactionsService {
         }),
       );
     }
-  
+
     // 7) Date range filter (inclusive by DATE() casting)
     queryBuilder.andWhere(
       'DATE(transaction.billDate) BETWEEN :startDate AND :endDate',
       { startDate, endDate },
     );
-  
+
     // 8) Sort newest-first
     queryBuilder.orderBy('transaction.billDate', 'DESC');
-  
+
     // 9) Execute
     const transactions = await queryBuilder.getMany();
     return transactions;
   }
-  
 
-  async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null): Promise<Transactions[]> {
 
-    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories);
+  async getIncomesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null, sources: string[] | null): Promise<Transactions[]> {
+
+    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories, sources);
     //console.log("Transactions:\n", transactions)
     const incomeTransactions = transactions.filter(transaction => transaction.sum > 0);
     //console.log("incomeTransactions:\n", incomeTransactions)
@@ -977,10 +909,10 @@ export class TransactionsService {
   }
 
 
-  async getExpensesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null): Promise<Transactions[]> {
+  async getExpensesTransactions(userId: string, startDate: Date, endDate: Date, billId: string[] | null, categories: string[] | null, sources: string[] | null): Promise<Transactions[]> {
     console.log("🚀 ~ TransactionsService ~ getExpensesTransactions ~ billId:", billId)
 
-    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories);
+    const transactions = await this.getTransactionsByBillAndUserId(userId, startDate, endDate, billId, categories, sources);
     //console.log("Transactions:\n", transactions)
     const expenseTransactions = transactions.filter(transaction => transaction.sum < 0);
     //console.log("expenseTransactions:\n", expenseTransactions)
@@ -991,7 +923,7 @@ export class TransactionsService {
 
   async getTaxableIncomefromTransactions(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<number> {
 
-    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null);
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null, null);
 
     // Filter incomeTransactions by isRecognized = true and businessNumber = businessNumber
     const businessIncomeTransactions = incomeTransactions.filter(transaction =>
@@ -1011,7 +943,7 @@ export class TransactionsService {
   async getTaxableIncomefromTransactionsForVatReport(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<{ vatableIncome: number; noneVatableIncome: number }> {
 
     // Get all incomes from all bills
-    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null);
+    const incomeTransactions = await this.getIncomesTransactions(userId, startDate, endDate, null, null, null);
 
     // Get the VAT rate per year
     const year = startDate.getFullYear();
@@ -1055,7 +987,7 @@ export class TransactionsService {
 
 
   // async getExpensesToBuildReport(
-    async getTransactionToConfirmAndAddToExpenses(
+  async getTransactionToConfirmAndAddToExpenses(
     userId: string,
     businessNumber: string,
     startDate: Date,
@@ -1087,33 +1019,33 @@ export class TransactionsService {
 
 
   async getTransactionToClassify(
-  userId: string,
-  startDate?: Date,
-  endDate?: Date,
-  businessNumber?: string
-): Promise<Transactions[]> {
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+    businessNumber?: string
+  ): Promise<Transactions[]> {
 
-  const where: FindOptionsWhere<Transactions> = {
-    userId,
-    category: null
-  };
+    const where: FindOptionsWhere<Transactions> = {
+      userId,
+      category: null
+    };
 
-  if (startDate && endDate) {
-    where.billDate = Between(startDate, endDate);
-  } else if (startDate) {
-    where.billDate = MoreThanOrEqual(startDate);
-  } else if (endDate) {
-    where.billDate = LessThanOrEqual(endDate);
+    if (startDate && endDate) {
+      where.billDate = Between(startDate, endDate);
+    } else if (startDate) {
+      where.billDate = MoreThanOrEqual(startDate);
+    } else if (endDate) {
+      where.billDate = LessThanOrEqual(endDate);
+    }
+
+    if (businessNumber) {
+      where.businessNumber = businessNumber;
+    }
+
+    const transactions = await this.transactionsRepo.find({ where });
+
+    return transactions;
   }
-
-  if (businessNumber) {
-    where.businessNumber = businessNumber;
-  }
-
-  const transactions = await this.transactionsRepo.find({ where });
-
-  return transactions;
-}
 
 
   async getIncomesToBuildReport(

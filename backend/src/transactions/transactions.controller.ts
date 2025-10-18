@@ -88,6 +88,18 @@ export class TransactionsController {
   }
 
 
+  @Get('get-sources-by-bill/:billId')
+  @UseGuards(FirebaseAuthGuard)
+  async getSourcesByBillId(@Req() request: AuthenticatedRequest, @Param('billId') billId: string) {
+    const userId = request.user?.firebaseId;
+    const numericBillId = Number(billId);
+    console.log("🚀 ~ TransactionsController ~ getSourcesByBillId ~ numericBillId:", numericBillId)
+    if (!Number.isFinite(numericBillId)) {
+      throw new BadRequestException('Invalid billId parameter');
+    }
+    return this.transactionsService.getSourcesByBillId(userId, numericBillId);
+  }
+
   @Get('get-incomes')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
@@ -99,7 +111,7 @@ export class TransactionsController {
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-         // Handle billId
+  // Handle billId
   let billIds: string[] | null = null;
   if (query.billId && query.billId !== 'null' && query.billId.trim() !== '') {
     billIds = query.billId.split(',');
@@ -109,7 +121,12 @@ export class TransactionsController {
   if (query.categories && query.categories !== 'null' && query.categories.trim() !== '') {
     categories = query.categories.split(',');
   }
-    return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, billIds, categories);
+
+  let sources: string[] | null = null;
+  if (query.sources && query.sources !== 'null' && query.sources.trim() !== '') {
+    sources = query.sources.split(',');
+  }
+    return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, billIds, categories, sources);
   }
 
 
@@ -136,7 +153,12 @@ export class TransactionsController {
     categories = query.categories.split(',');
   }
 
-    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, billIds, categories);
+  let sources: string[] | null = null;
+  if (query.sources && query.sources !== 'null' && query.sources.trim() !== '') {
+    sources = query.sources.split(',');
+  }
+
+    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, billIds, categories, sources);
   }
   
 

@@ -107,7 +107,7 @@ export class InputSelectComponent implements OnInit {
     this.inputClasses.set(classes);
   }
 
-  onChange(event: any): void {
+  onChange(event: any): void {    
     this.getStringMessage();
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
@@ -117,11 +117,6 @@ export class InputSelectComponent implements OnInit {
       this.inputClasses.update(current => current.replace('dirty', ''));
     }
     this.onChangeInputSelect.emit(event.value);
-  }
-
-  onClick(event: any): void {
-    event.stopPropagation();
-    this.onClickInputSelect.emit(event);
   }
 
   onAddSubCategoryClicked(): void {

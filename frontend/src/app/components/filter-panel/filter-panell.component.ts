@@ -15,6 +15,7 @@ import { ISelectItem } from 'src/app/shared/interface';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { DateService } from 'src/app/services/date.service';
+import { catchError, EMPTY, map } from 'rxjs';
 
 export interface SelectOption {
   name: string;
@@ -63,10 +64,12 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   showCategoriesOptions = signal(false);
   isCategoryEmpty = signal(false);
   isAccountEmpty = signal(false);
+  isPaymentIdentifierEmpty = signal(false);
 
 
   buttonText = signal<string>('בחר');
   viewReady = signal(false);
+  sourcesList = signal<ISelectItem[]>([]);
   accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;
   categoryList: Signal<ISelectItem[]> = this.transactionService.categories;
 
@@ -126,9 +129,6 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
       account: new FormControl(
         [this.accountsList()], [Validators.required]
       ),
-      paymentIdentifier: new FormControl(
-        [this.accountsList()], [Validators.required]
-      ),
       category: new FormControl(
         [this.categoryList()], [Validators.required]
       ),
@@ -148,6 +148,13 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
         this.form.get('account')?.setValue(accounts);
       }
     });
+
+    effect(() => {
+      const sources = this.sourcesList();
+      if (sources.length > 0) {
+        this.form.get('sources')?.setValue(sources);
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -159,24 +166,24 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.viewReady.set(true);
-  
+
     runInInjectionContext(this.injector, () => {
       effect(() => {
         const visible = this.isVisible();
-  
+
         queueMicrotask(() => {
           const contentEl = this.content?.nativeElement;
           const menuEl = this.menu?.nativeElement;
           if (!contentEl || !menuEl) return;
-  
+
           if (!visible) {
             menuEl.style.height = '0px';
             this.isOpen = false;
             return;
           }
-  
+
           this.lastContentHeight = contentEl.scrollHeight;
-  
+
           this.ro?.disconnect();
           this.ro = new ResizeObserver(() => {
             const newH = contentEl.scrollHeight;
@@ -192,7 +199,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
       });
     });
   }
-  
+
 
 
   ngOnDestroy() {
@@ -202,17 +209,17 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
 
   toggle(forceClose = false) {
     if (!this.viewReady()) return;
-  
+
     const menuEl = this.menu?.nativeElement;
     const contentEl = this.content?.nativeElement;
     if (!menuEl || !contentEl) return;
-  
+
     if (forceClose) {
       menuEl.style.height = '0px';
       this.isOpen = false;
       return;
     }
-  
+
     if (this.isOpen) {
       menuEl.style.height = '0px';
     } else {
@@ -259,8 +266,6 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
     }
   }
 
-
-
   onSelectCategory(): void {
     this.visibleCategoriesOptions()
   }
@@ -274,7 +279,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   }
 
   visibleTimesOptions(): void {
-    if (!this.viewReady()) return; 
+    if (!this.viewReady()) return;
     this.toggle();
   }
 
@@ -293,6 +298,17 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
     this.form.patchValue({ periodType: value });
     this.updateFormByPeryodType()
     this.getButtonText(); // For update button text when type changes
+  }
+
+  addPaymentIdentifierControl(): void {
+    if (this.form.get('sources')) return; // Avoid duplicates
+    this.form.addControl('sources', new FormControl('', [Validators.required]));
+  }
+
+  removePaymentIdentifierControl(): void {
+    if (this.form?.contains('sources')) {
+      this.form.removeControl('sources');
+    }
   }
 
   updateFormByPeryodType(): void {
@@ -357,7 +373,6 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
     }
   }
 
-  /** Emit current filters */
   onFilterButtonClicked() {
     const data = this.form.value;
     console.log("🚀 ~ FilterPanelComponent ~ onFilterButtonClicked ~ data:", data)
@@ -401,7 +416,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
       const last = new Date(year, month, 0); // last day of month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
-      if (!this.viewReady()) return; 
+      if (!this.viewReady()) return;
       this.toggle();
     }
     else if (periodType === 'BIMONTHLY' && bimonth && year) {
@@ -410,7 +425,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
       const last = new Date(year, startMonth + 1, 0); // end of second month
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
-      if (!this.viewReady()) return; 
+      if (!this.viewReady()) return;
       this.toggle();
     }
     else if (periodType === 'ANNUAL' && year) {
@@ -418,14 +433,14 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
       const last = new Date(year, 11, 31);
       from = this.formatShortDate(first);
       to = this.formatShortDate(last);
-      if (!this.viewReady()) return; 
+      if (!this.viewReady()) return;
       this.toggle();
     }
     else if (periodType === 'DATE_RANGE') {
       if (startDate) from = this.formatShortDate(new Date(startDate));
       if (endDate) to = this.formatShortDate(new Date(endDate));
       if (startDate && endDate) {
-        if (!this.viewReady()) return; 
+        if (!this.viewReady()) return;
         this.toggle();
       }
     }
@@ -439,6 +454,35 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
     }
   }
 
+  onChangeSelection(event: any, key: string): void {
+    this.validateSubmitButton(key);
+    if (key === 'account') {
+      if (this.form.get('account')?.value.length === 1) {
+        this.getSourcesByBillId(event[0].value);
+        this.addPaymentIdentifierControl();
+      }
+      else {
+        this.removePaymentIdentifierControl();
+      }
+    }
+  }
+
+  getSourcesByBillId(billId: number): void {
+    this.transactionService.getSourcesByBillId(billId).pipe(
+      catchError((err) => {
+        console.log('err in get sources by billId: ', err);
+        return EMPTY;
+      }),
+      map((data: string[]) =>
+        data.map(item => ({ name: item, value: item }))
+
+      )
+    ).subscribe((res) => {
+      this.sourcesList.set(res);
+    })
+
+  }
+
   validateSubmitButton(key: string): void {
     const val = this.form.get(key).value.length;
     switch (key) {
@@ -448,9 +492,6 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
       case 'account':
         this.isAccountEmpty.set(!val);
         break;
-      // case 'account':
-      //   this.isAccountEmpty.set(!val);
-      //   break;
       default:
         break;
     }

@@ -372,6 +372,7 @@ export class TransactionsPage implements OnInit {
     const periodType = filters?.periodType;
     let accounts: ISelectItem[] = filters?.account || null;
     let categories: ISelectItem[] = filters?.category;
+    let sources: ISelectItem[] = filters?.sources;
     let startDate: string;
     let endDate: string;
 
@@ -379,6 +380,7 @@ export class TransactionsPage implements OnInit {
     console.log("accountsNames: ", accountsNames);
 
     let categoriesName: string[] = categories?.map((category: ISelectItem) => category.value as string);
+    let sourcesName: string[] = sources?.map((source: ISelectItem) => source.value as string);
     // === Setting the date
     if (!filters) { // For default table.
       const today = new Date();
@@ -427,10 +429,11 @@ export class TransactionsPage implements OnInit {
     // For dont send empty arrays to the backend
     accountsNames = accountsNames?.length ? accountsNames : null;
     categoriesName = categoriesName?.length ? categoriesName : null;
+    sourcesName = sourcesName?.length ? sourcesName : null;
 
     const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
 
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName);
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -461,7 +464,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null, null).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }

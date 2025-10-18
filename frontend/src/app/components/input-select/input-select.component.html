@@ -46,7 +46,7 @@
       optionValue="value" optionLabel="name"
       [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
-      (onChange)="onChange($event)" (onClick)="onClick($event)" [virtualScroll]="virtualScroll()"
+      (onChange)="onChange($event)" [virtualScroll]="virtualScroll()"
       [virtualScrollItemSize]="virtualScrollItemSize()">
       <ng-template #dropdownicon>
         <i class="pi pi-sort-down-fill" style="font-size: 0.8rem"></i>
