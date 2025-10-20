@@ -101,27 +101,23 @@ export class LoginPage implements OnInit {
       email?: string;
       password?: string;
     };
-  
+
     console.log("🚀 ~ LoginPage ~ ngOnInit ~ state:", state);
-  
+
     if (state?.email && state?.password) {
       this.mailAddressForResendAuthMail = state.email;
       this.passwordForResendAuthMail = state.password;
     }
-  
+
     if (state?.from === 'register') {
       console.log('Navigated to Login Page from Register Page');
       this.showModal = true;
     }
   }
 
-
-closeModal() {
-  this.showModal = false;
-}
-
-
-
+  closeModal() {
+    this.showModal = false;
+  }
 
   togglePassword() {
     this.showPassword = !this.showPassword;
@@ -236,7 +232,7 @@ closeModal() {
                 key: 'br'
               });
               break;
-  
+
             case "auth/too-many-requests":
             case "auth/network-request-failed":
             case "auth/operation-not-allowed":
@@ -248,7 +244,7 @@ closeModal() {
                 key: 'br'
               });
               break;
-  
+
             default:
               this.messageService.add({
                 severity: 'error',
@@ -263,7 +259,7 @@ closeModal() {
       )
       .subscribe(() => {
         console.log("Verification email sent successfully");
-  
+
         this.messageService.add({
           severity: 'info',
           summary: 'Success',
@@ -273,8 +269,8 @@ closeModal() {
         });
       });
   }
-  
-  
+
+
 
   navigateToRegister(): void {
     this.router.navigate(['register'])

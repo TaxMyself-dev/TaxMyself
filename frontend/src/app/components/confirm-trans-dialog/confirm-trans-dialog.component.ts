@@ -17,7 +17,7 @@ import { ButtonColor, ButtonSize } from '../button/button.enum';
   styleUrls: ['./confirm-trans-dialog.component.scss'],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DialogModule, GenericTableComponent, AsyncPipe, ButtonComponent, NgStyle]
+  imports: [DialogModule, GenericTableComponent, ButtonComponent, NgStyle]
 })
 export class ConfirmTransDialogComponent implements OnInit {
   transactionService = inject(TransactionsService);
