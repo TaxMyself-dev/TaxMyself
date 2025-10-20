@@ -25,12 +25,26 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 export class TransactionsPage implements OnInit {
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  private readonly OVERLAY_SEL =
+  '.p-datepicker, [data-pc-name="calendar"], .p-overlaypanel, .p-dropdown-panel, .p-autocomplete-panel, .p-multiselect-panel';
+
+isInPrimeOverlay(e: Event): boolean {
+  const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
+  if (path?.length) {
+    for (const n of path) {
+      const el = n as HTMLElement;
+      if (el?.closest?.(this.OVERLAY_SEL)) return true;
+    }
+  }
+  // Fallback
+  const t = e.target as HTMLElement | null;
+  return !!t?.closest?.(this.OVERLAY_SEL);
+}
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-
-    if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
+    if (!clickedInside && !clickedFilterButton && !this.isInPrimeOverlay(event) && this.visibleFilterPannel() ) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
   }
@@ -431,7 +445,7 @@ export class TransactionsPage implements OnInit {
     categoriesName = categoriesName?.length ? categoriesName : null;
     sourcesName = sourcesName?.length ? sourcesName : null;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 
     const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 

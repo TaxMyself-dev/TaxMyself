@@ -200,12 +200,9 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
     });
   }
 
-
-
   ngOnDestroy() {
     this.ro?.disconnect();
   }
-
 
   toggle(forceClose = false) {
     if (!this.viewReady()) return;
@@ -375,7 +372,6 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
 
   onFilterButtonClicked() {
     const data = this.form.value;
-    console.log("🚀 ~ FilterPanelComponent ~ onFilterButtonClicked ~ data:", data)
     this.filterData.set(data);
     this.applyFilters.emit(this.filterData());
   }
@@ -447,9 +443,8 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
 
     if (from && to) {
       this.buttonText.set(`${from}-${to}`);
-    } else if (from) {
-      this.buttonText.set(`from ${from}`);
-    } else {
+    }  
+    else {
       this.buttonText.set('בחר');
     }
   }
@@ -457,7 +452,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   onChangeSelection(event: any, key: string): void {
     this.validateSubmitButton(key);
     if (key === 'account') {
-      if (this.form.get('account')?.value.length === 1) {
+      if (this.form.get('account')?.value.length === 1 && this.form.get('account')?.value[0].value !== 'notBelong') {
         this.getSourcesByBillId(event[0].value);
         this.addPaymentIdentifierControl();
       }
