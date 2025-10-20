@@ -27,4 +27,8 @@ export class GetTransactionsDto {
     @IsString()
     @IsOptional()
     businessNumber: string;
+
+    @IsString()
+    @IsOptional()
+    sources: string;
 }

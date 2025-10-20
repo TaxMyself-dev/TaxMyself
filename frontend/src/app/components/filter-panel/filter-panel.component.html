@@ -77,19 +77,21 @@
   <div class="header">
     <span class="title">חשבון</span>
     <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
-      [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('account')"></app-input-select>
+      [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onChangeSelection($event, 'account')"></app-input-select>
   </div>
    <!-- Select payment identifier -->
-   <div class="header">
-    <span class="title">אמצעי תשלום</span>
-    <app-input-select [controlName]="'paymentIdentifier'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
-      [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('paymentIdentifier')"></app-input-select>
-  </div>
+   @if (form.contains('sources') && form.get('account')?.value?.length === 1) {
+    <div class="header">
+      <span class="title">אמצעי תשלום</span>
+      <app-input-select [controlName]="'sources'" [multiSelect]="true" [placeholder]="'בחר'" [items]="sourcesList()" [parentForm]="form"
+      [size]="inputsSize.BETWEEN"></app-input-select>
+    </div>
+  }
   <!-- Select Category -->
   <div class="header">
     <span class="title">קטגוריה</span>
     <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
-      [parentForm]="form" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="validateSubmitButton('category')">
+      [parentForm]="form" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onChangeSelection($event, 'category')">
     </app-input-select>
   </div>
   <div class="apply-filters-button">

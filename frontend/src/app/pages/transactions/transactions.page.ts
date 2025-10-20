@@ -25,12 +25,26 @@ import { ButtonClass } from 'src/app/shared/button/button.enum';
 export class TransactionsPage implements OnInit {
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  private readonly OVERLAY_SEL =
+  '.p-datepicker, [data-pc-name="calendar"], .p-overlaypanel, .p-dropdown-panel, .p-autocomplete-panel, .p-multiselect-panel';
+
+isInPrimeOverlay(e: Event): boolean {
+  const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
+  if (path?.length) {
+    for (const n of path) {
+      const el = n as HTMLElement;
+      if (el?.closest?.(this.OVERLAY_SEL)) return true;
+    }
+  }
+  // Fallback
+  const t = e.target as HTMLElement | null;
+  return !!t?.closest?.(this.OVERLAY_SEL);
+}
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-
-    if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
+    if (!clickedInside && !clickedFilterButton && !this.isInPrimeOverlay(event) && this.visibleFilterPannel() ) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
   }
@@ -372,6 +386,7 @@ export class TransactionsPage implements OnInit {
     const periodType = filters?.periodType;
     let accounts: ISelectItem[] = filters?.account || null;
     let categories: ISelectItem[] = filters?.category;
+    let sources: ISelectItem[] = filters?.sources;
     let startDate: string;
     let endDate: string;
 
@@ -379,6 +394,7 @@ export class TransactionsPage implements OnInit {
     console.log("accountsNames: ", accountsNames);
 
     let categoriesName: string[] = categories?.map((category: ISelectItem) => category.value as string);
+    let sourcesName: string[] = sources?.map((source: ISelectItem) => source.value as string);
     // === Setting the date
     if (!filters) { // For default table.
       const today = new Date();
@@ -427,10 +443,11 @@ export class TransactionsPage implements OnInit {
     // For dont send empty arrays to the backend
     accountsNames = accountsNames?.length ? accountsNames : null;
     categoriesName = categoriesName?.length ? categoriesName : null;
+    sourcesName = sourcesName?.length ? sourcesName : null;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName);
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName);
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -461,7 +478,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null, null).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }

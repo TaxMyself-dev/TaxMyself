@@ -67,24 +67,26 @@ export class TransactionsService implements OnInit{
   }
 
 
-  getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[]): Observable<ITransactionData[]> {
+  getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
     .set('billId', billId?.length ? billId.join(',') : 'null' )
     .set('categories', categories?.length ? categories.join(',') : 'null' )
+    .set('sources', sources?.length ? sources.join(',') : 'null' )
     .set('startDate', startDate)
     .set('endDate', endDate)
     return this.http.get<ITransactionData[]>(url, {params: param})
   }
   
 
-  getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[]): Observable<ITransactionData[]> {
+  getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     console.log("billId: ", billId);
     
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
     .set('billId', billId?.length ? billId.join(',') : 'null' )
     .set('categories', categories?.length ? categories.join(',') : 'null' )
+    .set('sources', sources?.length ? sources.join(',') : 'null' )
     .set('startDate', startDate)
     .set('endDate', endDate)
     return this.http.get<ITransactionData[]>(url, {params: param})
@@ -116,6 +118,11 @@ export class TransactionsService implements OnInit{
 
   getAllSources(): Observable<string[]> {
     const url = `${environment.apiUrl}transactions/get-sources`;
+    return this.http.get<any[]>(url)
+  }
+
+  getSourcesByBillId(billId:number): Observable<string[]> {
+    const url = `${environment.apiUrl}transactions/get-sources-by-bill/${billId}`;
     return this.http.get<any[]>(url)
   }
 
