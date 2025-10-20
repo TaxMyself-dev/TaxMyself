@@ -90,7 +90,8 @@ export class AuthService {
       .pipe(
         catchError((err) => {
           console.log("Error in sign in with email: ", err);
-          this.handleErrorLogin(err.code);
+          this.error.set("user");
+          // this.handleErrorLogin(err.code);
           return throwError(() => err);
         }),
         tap((user) => {
@@ -117,7 +118,7 @@ export class AuthService {
 
   handleErrorLogin(err: string): void {
     console.log("err string: ", err);
-    if (err === "auth/user-not-found" || err === "auth/invalid-email" || err === 'auth/invalid-login-credentials' || err === "auth/wrong-password") {
+    if (err === "auth/user-not-found" || err === "auth/invalid-email" || err === 'auth/invalid-login-credentials' || err === "auth/wrong-password" || err === "auth/invalid-credential") {
       this.error.set("user");
       // this.error$.next("user");
     }
