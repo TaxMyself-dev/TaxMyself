@@ -368,6 +368,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
         });
         break;
     }
+      this.form.get('year')?.reset();
   }
 
   onFilterButtonClicked() {
