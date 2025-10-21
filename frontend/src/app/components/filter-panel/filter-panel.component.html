@@ -44,6 +44,7 @@
               formControlName="endDate"
               [iconDisplay]="'input'"
               [showIcon]="true"
+              [maxDate]="today"
               inputId="endDate"
               [dateFormat]="'dd/mm/yy'"
               [minDate]="form.get('startDate')?.value"
