@@ -1,7 +1,7 @@
-import { Injectable, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
@@ -13,6 +13,7 @@ import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
 import { DocPayments } from './doc-payments.entity';
+import { DataSource } from 'typeorm';
 
 
 @Injectable()
@@ -38,6 +39,7 @@ export class DocumentsService {
     private journalLineRepo: Repository<JournalLine>,
     @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    private dataSource: DataSource
   ) { }
 
   isIncrement: boolean = false;
@@ -59,23 +61,25 @@ export class DocumentsService {
 
 
   async getCurrentIndexes(
-    userId: string,
-    docType: DocumentType
-  ): Promise<{ docIndex: number; generalIndex: number | null; isInitial: boolean }> {
+  userId: string,
+  docType: DocumentType
+): Promise<{ docIndex: number; generalIndex: number; isInitial: boolean }> {
+  const [docSetting, generalSetting] = await Promise.all([
+    this.settingDocuments.findOne({ where: { userId, docType } }),
+    this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
+  ]);
 
-    const [docSetting, generalSetting] = await Promise.all([
-      this.settingDocuments.findOne({ where: { userId, docType } }),
-      this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
-    ]);
+  const docIndex = docSetting?.currentIndex ?? 0;                // 0 means uninitialized
+  const generalIndex = generalSetting?.currentIndex ?? 1000001;  // 1000001 means is the first doc
+  const isInitial = !docSetting || docIndex === 0 || docIndex == null;
 
-    const isInitial = !docSetting || docSetting.currentIndex === 0;
+  return {
+    docIndex,
+    generalIndex,
+    isInitial,
+  };
+}
 
-    return {
-      docIndex: docSetting?.currentIndex ?? 0,              // 0 means uninitialized
-      generalIndex: generalSetting?.currentIndex ?? null,   // Only return if exists
-      isInitial,
-    };
-  }
 
 
   async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
@@ -107,35 +111,34 @@ export class DocumentsService {
     }
   }
 
-  async incrementGeneralIndex(userId: string) {
 
-    let generalIndex: any;
-    
+  async incrementGeneralIndex(userId: string, manager?: EntityManager): Promise<SettingDocuments> {
     try {
-      generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
+      const repo = manager
+        ? manager.getRepository(SettingDocuments)
+        : this.settingDocuments;
+
+      let generalIndex = await repo.findOne({
+        where: { userId, docType: DocumentType.GENERAL },
+      });
+
       if (!generalIndex) {
-        throw new NotFoundException("not found userId or documentType")
+        // First-time setup: initialize with default starting value
+        generalIndex = repo.create({
+          userId,
+          docType: DocumentType.GENERAL,
+          initialIndex: 1000001,
+          currentIndex: 1000002,
+        });
+      } else {
+        // Increment normally
+        generalIndex.currentIndex += 1;
       }
-      generalIndex = await this.settingDocuments.update({ userId, docType: DocumentType.GENERAL }, { currentIndex: generalIndex.currentIndex + 1 });
+
+      const updated = await repo.save(generalIndex);
       this.isGeneralIncrement = true;
-      return generalIndex;
-    } catch (error) {
-      throw error;
-    }
-  }
 
-  async decrementGeneralIndex(userId: string) {
-    if (!this.isGeneralIncrement) {
-      return;
-    }
-    let generalIndex: any;
-    try {
-      generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
-      if (!generalIndex) {
-        throw new NotFoundException("not found userId or documentType")
-      }
-      generalIndex = await this.settingDocuments.update({ userId, docType: DocumentType.GENERAL }, { currentIndex: generalIndex.currentIndex - 1 });
-      return generalIndex;
+      return updated;
     } catch (error) {
       throw error;
     }
@@ -159,7 +162,7 @@ export class DocumentsService {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
-          docDate: data.docData.docDate,
+          docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
           issuerDetails: [
             data.docData.issuerName,
             data.docData.issuerPhone,
@@ -167,9 +170,12 @@ export class DocumentsService {
             data.docData.issuerAddress,
           ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          subTotal: data.docData.sumAftDisBefVAT,
-          totalTax: data.docData.vatSum,
-          total: data.docData.sumAftDisWithVAT,
+          subTotal: `₪${data.docData.sumAftDisBefVAT}`,
+          // subTotal: data.docData.sumAftDisBefVAT,
+          totalTax: `₪${data.docData.vatSum}`,
+          //totalTax: data.docData.vatSum,
+          total: `₪${data.docData.sumAftDisWithVAT}`,
+          //total: data.docData.sumAftDisWithVAT,
           documentType: 'מקור',
           paymentMethod: data.docData.paymentMethod,
         };
@@ -221,11 +227,7 @@ export class DocumentsService {
   }
 
 
-
-  async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
-    
-    console.log("lines is ", lines);
-    
+  async transformLinesToItemsTable(lines: any[]): Promise<any[]> {    
     return lines.map(line => ({
         "סכום": `₪${line.sumBefVatPerUnit * line.unitQuantity}`,
         "מחיר": `₪${line.sumAftDisBefVatPerLine}`,
@@ -235,83 +237,89 @@ export class DocumentsService {
   }
 
 
-    async transformLinesToPaymentsTable(PaymentLines: any[]): Promise<any[]> {
-    
-    return PaymentLines.map(line => {
-      
-      console.log("line is ", line);
-      
-      // let sum: number;
-      let details: string;
-      let paymentMethodHebrew: string;
+  async transformLinesToPaymentsTable(PaymentLines: any[]): Promise<any[]> {
+  return PaymentLines.map(line => {
+    let details: string;
+    let paymentMethodHebrew: string;
 
-      switch (line.paymentMethod) {
-        case 'CASH':
-          details = 'שולם במזומן';
-          paymentMethodHebrew = 'מזומן';
-          break;
-        case 'BANK_TRANSFER':
-          details = `${line.accountNumber} - חשבון ,${line.branchNumber} - סניף ,${line.bankNumber} - בנק`;
-          paymentMethodHebrew = 'העברה בנקאית';
-          break;
-        case 'CHECK':
-          details = `${line.checkNumber} - מספר המחאה`;
-          paymentMethodHebrew = 'צ׳ק';
-          break;
-        case 'CREDIT_CARD':
-          details = `${line.card4Number} - ${line.cardCompany}`;
-          paymentMethodHebrew = 'כרטיס אשראי';
-          break;
-        default:
-          throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
-      }
+    switch (line.paymentMethod) {
+      case 'CASH':
+        details = 'שולם במזומן';
+        paymentMethodHebrew = 'מזומן';
+        break;
 
-      return {
-        "סכום": `₪${Number(line.paymentAmount).toFixed(2)}`,
-        "תאריך": line.paymentDate,
-        "פירוט": details,
-        "אמצעי תשלום": paymentMethodHebrew
-      };
-    });
-  }
+      case 'BANK_TRANSFER':
+        const bankDetails: string[] = [];
 
-  
+        if (line.bankNumber) bankDetails.push(`בנק ${line.hebrewBankName}`);
+        if (line.branchNumber) bankDetails.push(`סניף ${line.branchNumber}`);
+        if (line.accountNumber) bankDetails.push(`חשבון ${line.accountNumber}`);
+
+        details = bankDetails.join(', ');
+        paymentMethodHebrew = 'העברה בנקאית';
+        break;
+
+      case 'CHECK':
+        details = line.checkNumber ? `מספר המחאה ${line.checkNumber}` : '';
+        paymentMethodHebrew = 'צ׳ק';
+        break;
+
+      case 'CREDIT_CARD':
+        const creditDetails: string[] = [];
+
+        if (line.cardCompany) creditDetails.push(`${line.cardCompany}`);
+        if (line.card4Number) creditDetails.push(`${line.card4Number}`);
+
+        details = creditDetails.join(' - ');
+        paymentMethodHebrew = 'כרטיס אשראי';
+        break;
+
+      default:
+        throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
+    }
+
+    return {
+      "סכום": `₪${Number(line.paymentAmount).toFixed(2)}`,
+      // "תאריך": line.paymentDate,
+      "תאריך": this.formatDateToDDMMYYYY(line.paymentDate),
+      "פירוט": details,
+      "אמצעי תשלום": paymentMethodHebrew
+    };
+  });
+}
+
+
+
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
-    
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
 
-      // Generate the PDF
-      let pdfBlob = null;
-      if (generatePdf) {
-        // Only generate the PDF if requested
-        pdfBlob = await this.generatePDF(data, "createDoc");
-      }
+      // 1. Increment general index (use manager for DB operation)
+      await this.incrementGeneralIndex(userId, queryRunner.manager);
 
-      // Increment the general index
-      await this.incrementGeneralIndex(userId);
-
-      // Increment the current index
-      const docDetails = await this.incrementCurrentIndex(userId, data.docData.docType);
-      // Check if the increment is valid
+      // 2. Increment document-specific index
+      const docDetails = await this.incrementCurrentIndex(userId, data.docData.docType, queryRunner.manager, data.docData.docNumber);
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
-      };
+      }
 
-      // Add the document to the database
-      const newDoc = await this.saveDocInfo(userId, data.docData);
-      // Check if the document was added successfully
+      // 3. Save main document info
+      const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
       if (!newDoc) {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
-      };
+      }
 
-      //console.log("After save doc");
+      // 4. Save line items
+      await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
 
-      // Add the lines to the database
-      await this.saveLinesInfo(userId, data.linesData);
+      // 5. Save payments
+      await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
 
-      // Add the lines to the database
-      await this.savePaymentsInfo(userId, data.paymentData);
-      
+      // 6. Bookkeeping entry
       await this.bookkeepingService.createJournalEntry({
         issuerBusinessNumber: data.docData.issuerBusinessNumber,
         date: data.docData.docDate,
@@ -322,24 +330,32 @@ export class DocumentsService {
           { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
           { accountCode: '2400', credit: data.docData.vatSum },
         ]
-      });
+      }, queryRunner.manager);
+
+      // 7. Generate PDF before commit
+      let pdfBlob = null;
+      if (generatePdf) {
+        pdfBlob = await this.generatePDF(data, "createDoc");
+        if (!pdfBlob) {
+          throw new Error("PDF generation failed");
+        }
+      }
+
+      // ✅ All good – commit the transaction
+      await queryRunner.commitTransaction();
 
       return pdfBlob;
-    }
 
-    catch (error) {
+    } catch (error) {
 
-      console.error('❌ Error in createDoc:', error);
-    
-      // Cancel the increment general index
-      await this.decrementGeneralIndex(userId);
-
-      // Cancel the increment current index
-      await this.decrementCurrentIndex(userId, data.docData.documentType);
-    
+      console.error('❌ Error in createDoc transaction:', error);
+      // 🔁 Rollback anything saved so far
+      await queryRunner.rollbackTransaction();
       throw error;
-    }
 
+    } finally {
+      await queryRunner.release();
+    }
   }
 
 
@@ -378,124 +394,139 @@ export class DocumentsService {
     }
   }
 
-  async incrementCurrentIndex(userId: string, docType: DocumentType) {
-    let docDetails: any;
+
+  async incrementCurrentIndex(
+    userId: string,
+    docType: DocumentType,
+    manager?: EntityManager,
+    initialDocIndex?: number // optional starting value from frontend
+  ): Promise<SettingDocuments> {
     try {
-      docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
-      if (!docDetails) {
-        throw new NotFoundException("not found userId or documentType")
+      const repo = manager
+        ? manager.getRepository(SettingDocuments)
+        : this.settingDocuments;
+
+      let docSetting = await repo.findOne({
+        where: { userId, docType },
+      });
+
+      // First time
+      if (!docSetting) {
+        if (initialDocIndex == null) {
+          throw new BadRequestException(
+            `Initial document index required for first-time setup of ${docType}`
+          );
+        }
+        // Create new setting with initial index
+        docSetting = repo.create({
+          userId,
+          docType,
+          initialIndex: initialDocIndex,
+          currentIndex: initialDocIndex + 1,
+        });
+        return await repo.save(docSetting);
       }
-      docDetails = await this.settingDocuments.update({ userId, docType }, { currentIndex: docDetails.currentIndex + 1 });
-      this.isIncrement = true;
-      return docDetails;
+
+      // Existing setting — increment currentIndex
+      docSetting.currentIndex += 1;
+      return await repo.save(docSetting);
     } catch (error) {
       throw error;
     }
   }
 
-  async decrementCurrentIndex(userId: string, docType: DocumentType) {
-    if (!this.isIncrement) {
-      console.log("not increment");
-      return;
-    }
-    let docDetails: any;
-    try {
-      console.log("decrementCurrentIndex - in service");
-      docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
-      if (!docDetails) {
-        throw new NotFoundException("not found userId or documentType")
-      }
-      docDetails = await this.settingDocuments.update({ userId, docType }, { currentIndex: docDetails.currentIndex - 1 });
-      return docDetails;
-    } catch (error) {
-      throw error;
-    }
-  }
 
-
-  async saveDocInfo(userId: string, data: any) {
-  
+  async saveDocInfo(userId: string, data: any, manager?: EntityManager): Promise<Documents> {
     try {
+      const repo = manager
+        ? manager.getRepository(Documents)
+        : this.documentsRepo;
 
       // Get current time in HHMM format
       const now = new Date();
-      const hours = now.getHours().toString().padStart(2, '0'); // Ensures 2 digits
-      const minutes = now.getMinutes().toString().padStart(2, '0'); // Ensures 2 digits
-      const issueHour = `${hours}${minutes}`; // Format as HHMM
-  
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const issueHour = `${hours}${minutes}`;
+
       // Default values set on the server
       const serverGeneratedValues = {
         issueDate: new Date(),
         docDate: data.docDate ? new Date(data.docDate) : new Date(),
         valueDate: data.valueDate ? new Date(data.valueDate) : new Date(),
         issueHour,
-        isCancelled: data.isCancelled ?? false, // Default false if not provided
-        docNumber: data.docNumber.toString(), // Ensure string type
+        isCancelled: data.isCancelled ?? false,
+        docNumber: data.docNumber.toString(),
       };
-  
-      // Merge body with server-generated values
-      const docData = { userId, ...data, ...serverGeneratedValues };
-  
-      // Insert into database
-      const doc = await this.documentsRepo.insert(docData);
-  
-      if (!doc) {
-        throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
+
+      // Merge all values
+      const docData: Partial<Documents> = { userId, ...data, ...serverGeneratedValues };
+
+      // Save and return the inserted document
+      const savedDoc = await repo.save(docData);
+
+      if (!savedDoc) {
+        throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       }
-  
-      return doc;
+
+      return savedDoc;
     } catch (error) {
-      console.error("Error in saveDocInfo: ", error);
+      console.error("❌ Error in saveDocInfo:", error);
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
 
-  async saveLinesInfo(userId: string, data: any[]) {
+  async saveLinesInfo(userId: string, data: any[], manager?: EntityManager): Promise<void> {
 
     if (!Array.isArray(data)) {
       throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
     }
-    
+
     try {
+      const repo = manager
+        ? manager.getRepository(DocLines)
+        : this.docLinesRepo;
+
       for (const item of data) {
-        
         const vatOptsRaw = item.vatOpts;
 
-        // Convert string to enum value
+        // Convert string to enum
         const vatOpts = VatOptions[vatOptsRaw as keyof typeof VatOptions];
 
         if (vatOpts === undefined) {
           throw new HttpException(`Invalid vatOpts value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
         }
 
-        // const linesData = { userId, ...item, vatOpts, paymentMethod };
         const linesData = { userId, ...item, vatOpts };
-        await this.docLinesRepo.insert(linesData); // If this fails, it will throw
+
+        await repo.insert(linesData); // Will throw if insert fails
       }
-      // No need to return anything
     } catch (error) {
-      console.error("Error in saveLinesInfo: ", error);
+      console.error("❌ Error in saveLinesInfo:", error);
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
 
-  async savePaymentsInfo(userId: string, data: any[]) {
-
+  async savePaymentsInfo(userId: string, data: any[], manager?: EntityManager): Promise<void> {
     if (!Array.isArray(data)) {
       throw new HttpException('Expected an array of data', HttpStatus.BAD_REQUEST);
     }
-  
+
     try {
-      for (const item of data) {
-        
-        const paymentsData = { userId, ...item };
-        await this.docPaymentsRepo.insert(paymentsData);
-      }
-      // No need to return anything
+      const repo = manager
+        ? manager.getRepository(DocPayments)
+        : this.docPaymentsRepo;
+
+      const payments = data.map(item => ({
+        userId,
+        ...item,
+      }));
+
+      await repo.insert(payments); // Insert all at once
+
     } catch (error) {
-      console.error("Error in savePaymentsInfo: ", error);
+      console.error("❌ Error in savePaymentsInfo:", error);
       throw new HttpException(error.message, error.status || HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -516,7 +547,7 @@ export class DocumentsService {
       CREDIT_INVOICE: 5000,
     };
   
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 500; i++) {
       const data = this.generateDocData(i, docCounters);
       try {
         const pdfBlob = await this.createDoc(data, userId, false);
@@ -588,11 +619,15 @@ export class DocumentsService {
     const docNumber = (docCounters[docType]++).toString();
   
     // General document index (always incrementing by all docs)
-    const generalDocIndex = (1000010 + index).toString();
+    const generalDocIndex = (1000000 + index).toString();
   
     // Random description
     const descriptions = ['בדיקה אוטומטית', 'מסמך בדיקה', 'בדיקה מספרית', 'בדיקה מהירה', 'בדיקה אקראית'];
     const randomDescription = descriptions[Math.floor(Math.random() * descriptions.length)];
+
+    // Random recipient names
+    const recipientNames = ['אבי אוחיון', 'נועה כהן', 'רועי לוי', 'טל שרון', 'דנה יעקב', 'אורן מזרחי', 'יובל בן דוד', 'מיכל ישראלי', 'עדי פרידמן', 'איתי ברקוביץ'];
+    const randomRecipient = recipientNames[Math.floor(Math.random() * recipientNames.length)];
 
     // Random sum (before VAT)
     const possibleSums = [100, 1000, 500, 750, 2500, 300, 400];
@@ -616,7 +651,7 @@ export class DocumentsService {
         issuerAddress: null,
         issuerPhone: '0545401296',
         issuerEmail: 'harelazar@gmail.com',
-        recipientName: 'אבי אוחיון',
+        recipientName: randomRecipient,
         recipientId: null,
         recipientStreet: null,
         recipientHomeNumber: null,
@@ -635,14 +670,10 @@ export class DocumentsService {
         transType: 3,
         amountForeign: 0,
         currency: 'ILS',
-        //sumBefDisBefVat: 1000,
         sumBefDisBefVat: sumBefDisBefVat,
         disSum: 0,
-        //sumAftDisBefVAT: 1000,
         sumAftDisBefVAT: sumAftDisBefVat,
-        //vatSum: 180,
         vatSum: vatSum,
-        //sumAftDisWithVAT: 1180,
         sumAftDisWithVAT: sumAftDisWithVat,
         withholdingTaxAmount: 0,
         docDate: docDate,
@@ -693,6 +724,15 @@ export class DocumentsService {
         }
       ]: []
     };
+  }
+
+
+  private formatDateToDDMMYYYY(dateInput: string | Date): string {
+    const date = new Date(dateInput);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero-based
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
   }
   
 

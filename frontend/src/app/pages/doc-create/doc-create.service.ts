@@ -16,27 +16,23 @@ export class DocCreateService {
   constructor(private http: HttpClient) {};
 
 
-  // getDetailsDoc(docType: string): Observable<ISettingDoc> {
-  //   const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
-  //   return this.http.get<ISettingDoc>(url);
-  // }
-
   getDocIndexes(docType: string): Observable<IDocIndexes> {
     const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
     return this.http.get<IDocIndexes>(url);
   }
   
 
-  setInitialDocDetails(data,docType: string): Observable<any> {
+  setInitialDocDetails(docType: string, initialIndex: number): Observable<any> {
     const url = `${environment.apiUrl}documents/setting-initial-index/${docType}`;
-    return this.http.post<any>(url, {initialIndex: data.initialIndex});
+    return this.http.post<any>(url, { initialIndex });
   }
 
+
   saveClientDetails(data: any): Observable<any> {
-    // console.log("🚀 ~ DocCreateService ~ saveClientDetails ~ data:", data)
     const url = `${environment.apiUrl}clients/add-client`;
     return this.http.post<any>(url, data);
   }
+
 
   getClients(): Observable<any> {
     const url = `${environment.apiUrl}clients/get-clients`;

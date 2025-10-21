@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Req, Res, UseGuards, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Req, Res, UseGuards, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType } from 'src/enum';
 
@@ -7,6 +7,7 @@ import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { log } from 'node:console';
 
 
 
@@ -37,21 +38,25 @@ export class DocumentsController {
 
   @Post('setting-initial-index/:typeDoc')
   @UseGuards(FirebaseAuthGuard)
-  async setInitialDocDetails(@Param('typeDoc') typeDoc: DocumentType, @Body() data: any, @Req() request: AuthenticatedRequest) {
+  async setInitialDocDetails(
+    @Param('typeDoc') typeDoc: DocumentType,
+    @Body() body: any,
+    @Req() request: AuthenticatedRequest
+  ) {
     const userId = request.user?.firebaseId;
-    try {
-      const docDetails = await this.documentsService.setInitialDocDetails(userId, typeDoc, data.initialIndex);
-      return docDetails
+    const initialIndex = Number(body.initialIndex);
+
+    if (typeof initialIndex !== 'number' || isNaN(initialIndex)) {
+      throw new BadRequestException('initialIndex must be a valid number');
     }
-    catch (error) {
-      throw error;
-    }
+
+    const docDetails = await this.documentsService.setInitialDocDetails(userId, typeDoc, initialIndex);
+    return docDetails;
   }
 
   
   @Post('create-doc')
   @UseGuards(FirebaseAuthGuard)
-  // async createPDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
   async createDoc(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     const pdfBuffer = await this.documentsService.createDoc(body, userId);

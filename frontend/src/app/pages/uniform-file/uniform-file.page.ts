@@ -25,7 +25,7 @@ export interface ReportDetails {
 })
 export class UniformFilePage implements OnInit {
 
-  appName = 'TaxMyself';
+  appName = 'Keepintax';
   registrationNumber = '123456789';
   generatedAt!: Date;
 
@@ -119,11 +119,8 @@ export class UniformFilePage implements OnInit {
       businessName: selectedBusiness?.name ?? '',
       startDate: formData.startDate,
       endDate: formData.endDate,
-      downloadLink: '',        // placeholder
-      // structureLink: 'https://yourdomain.com/download/structure.pdf'     // placeholder
+      downloadLink: '',
     };
-
-    // const businessNumber = this.authService.getUserBussinesNumber();
 
     const { document_summary, list_summary, filePath } =
     await this.createUniformFile(formData.startDate, formData.endDate, this.reportDetails.businessNumber);
