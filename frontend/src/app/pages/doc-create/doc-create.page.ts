@@ -54,7 +54,8 @@ export class DocCreatePage implements OnInit {
   fileSelected: DocumentType;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
-  docIndexes: IDocIndexes | null = null;
+  // docIndexes: IDocIndexes | null = null;
+  docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
   createPDFIsLoading: boolean = false;
   createPreviewPDFIsLoading: boolean = false;
   addPDFIsLoading: boolean = false;
@@ -100,8 +101,9 @@ export class DocCreatePage implements OnInit {
   // lineItems: LineItem[] = [];
   lineItemsDraft: PartialLineItem[] = [];
 
-  showInitialIndexDialog = false;
-  private initialIndexSubject?: Subject<IDocIndexes>;
+  showInitialIndexDialog = true;
+  // private initialIndexSubject?: Subject<IDocIndexes>;
+  private initialIndexSubject?: Subject<number>;
 
   form: FormGroup;
   generalDocForm: FormGroup;
@@ -339,12 +341,8 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
   async onSelectedDoc(event: any): Promise<void> {
 
     this.fileSelected = event;
-    console.log('onSelectedDoc: fileSelected is', this.fileSelected);
-
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected);
-
     await this.handleDocIndexes(this.fileSelected);
-    console.log("docIndexes is", this.docIndexes);
 
   }
 
@@ -488,7 +486,8 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     this.calculateVatFieldsForLine(lineIndex);
     this.updateDocumentTotalsFromLines();
     this.linesDocForm.reset({ [DocCreateFields.LINE_QUANTITY]: 1 });
-    this.createPaymentInputForm(this.activePaymentMethod.id as string);
+    const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
 
   }
 
@@ -665,7 +664,6 @@ updateDocumentTotalsFromLines(): void {
     const paymentFormValue = this.paymentInputForm.value;
     const paymentLineIndex = this.paymentsDraft.length;
 
-
     const selectedBank = bankOptionsList.find(bank => bank.value === paymentFormValue.bankName);
     const hebrewBankName = selectedBank ? selectedBank.name : '';
     const bankNumber     = selectedBank?.number ?? '';
@@ -685,6 +683,7 @@ updateDocumentTotalsFromLines(): void {
 
     // Reset the form for the next payment entry
     const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
+    this.paymentForm.reset();
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
 
   }
@@ -732,29 +731,20 @@ updateDocumentTotalsFromLines(): void {
 
   onClickInitialIndex(): void {
 
-    const initialIndex = this.initialIndexForm.value;
+    const initialIndex = this.initialIndexForm.get('initialIndex')?.value;
 
-    this.docCreateService.setInitialDocDetails(this.fileSelected, initialIndex)
-      .subscribe({
-        next: (res: IDocIndexes) => {
-          this.docIndexes = res; // Backend returns both docIndex & generalIndex
-          this.isInitial = false;
-          this.showInitialIndexDialog = false;
+    this.docIndexes.docIndex = initialIndex;
+    this.isInitial = false;
+    this.showInitialIndexDialog = false;
 
-          console.log('Initial index saved:', this.docIndexes);
+    console.log('Initial index selected:', this.docIndexes);
 
-          // Resolve the waiting Subject so onSelectedDoc can continue
-          this.initialIndexSubject?.next(this.docIndexes);
-          this.initialIndexSubject?.complete();
-          this.initialIndexSubject = undefined;
-        },
-        error: (err) => {
-          console.error('Failed to set initial index:', err);
-          this.initialIndexSubject?.error(err);
-          this.initialIndexSubject = undefined;
-        }
-    });
+    // Resolve the waiting Subject so onSelectedDoc can continue
+    this.initialIndexSubject?.next(this.docIndexes.docIndex);
+    this.initialIndexSubject?.complete();
+    this.initialIndexSubject = undefined;
   }
+
 
 
   getHebrewNameDoc(typeDoc: DocumentType): string {
@@ -762,23 +752,35 @@ updateDocumentTotalsFromLines(): void {
   }
 
 
-  private async handleDocIndexes(docType: DocumentType): Promise<IDocIndexes> {
+  private async handleDocIndexes(docType: DocumentType): Promise<void> {
     try {
       const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
-      this.docIndexes = res;
+      this.isInitial = res.isInitial;
+
+      console.log("res in handleDocIndexes:", res);
+      
+
+      // Save general index always (used for internal doc ID)
+      this.docIndexes.generalIndex = res.generalIndex;
 
       if (res.isInitial) {
-        // Pre-fill default index and show dialog
-        const defaultIndex = DocTypeDefaultStart[docType];
+        const defaultIndex = DocTypeDefaultStart[docType] ?? 100001;
         this.initialIndexForm.get('initialIndex')?.setValue(defaultIndex);
-        this.showInitialIndexDialog = true;
 
-        // Wait until the user confirms the popup
-        this.initialIndexSubject = new Subject<IDocIndexes>();
-        return await firstValueFrom(this.initialIndexSubject);
+        // Show popup and wait for user input
+        this.showInitialIndexDialog = true;
+        this.initialIndexSubject = new Subject<number>();
+
+        const selectedDocIndex = await firstValueFrom(this.initialIndexSubject);
+
+        // Save selected doc index
+        this.docIndexes.docIndex = selectedDocIndex;
+
+      } else {
+        // Use backend-provided value
+        this.docIndexes.docIndex = res.docIndex;
       }
 
-      return res; // Not first doc, just return the indexes
     } catch (err) {
       console.error('Error fetching doc indexes:', err);
       throw err;
@@ -825,6 +827,7 @@ updateDocumentTotalsFromLines(): void {
     })
   }
 
+
   fillClientDetails(client: any) {
     console.log("🚀 ~ DocCreatePage ~ fillClientDetails ~ client", client)
     this.userDetailsForm.patchValue({
@@ -833,6 +836,7 @@ updateDocumentTotalsFromLines(): void {
       [FieldsCreateDocValue.RECIPIENT_PHONE]: client.phone,
     });
   }
+
 
   saveClient() {
     const { [FieldsCreateDocValue.RECIPIENT_NAME]: name, [FieldsCreateDocValue.RECIPIENT_EMAIL]: email, [FieldsCreateDocValue.RECIPIENT_PHONE]: phone } = this.userDetailsForm.value;

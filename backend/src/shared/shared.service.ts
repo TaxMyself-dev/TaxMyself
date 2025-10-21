@@ -10,6 +10,8 @@ import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES } from 
 import * as annualParams from 'src/annual.params.json';
 import { SettingDocuments } from '../documents/settingDocuments.entity';
 import { DocumentType } from 'src/enum';
+import { EntityManager } from 'typeorm';
+
 
 @Injectable()
 export class SharedService {
@@ -198,62 +200,84 @@ export class SharedService {
     }
 
 
+    // async getJournalEntryCurrentIndex(userId: string): Promise<number> {
+    //     let setting = await this.settingDocumentsRepo.findOne({
+    //         where: {
+    //         userId,
+    //         docType: DocumentType.JOURNAL_ENTRY,
+    //         },
+    //     });
+        
+    //     if (!setting) {
+    //         // Create initial setting with default index
+    //         setting = this.settingDocumentsRepo.create({
+    //         userId,
+    //         docType: DocumentType.JOURNAL_ENTRY,
+    //         initialIndex: 10000000,
+    //         currentIndex: 10000000,
+    //         });
+        
+    //         await this.settingDocumentsRepo.save(setting);
+    //     }
+        
+    //     return setting.currentIndex;
+    // }
 
 
-    async getJournalEntryCurrentIndex(userId: string): Promise<number> {
-        let setting = await this.settingDocumentsRepo.findOne({
-          where: {
+    async getJournalEntryCurrentIndex(userId: string, manager?: EntityManager): Promise<number> {
+        const repo = manager
+            ? manager.getRepository(SettingDocuments)
+            : this.settingDocumentsRepo;
+
+        let setting = await repo.findOne({
+            where: {
             userId,
             docType: DocumentType.JOURNAL_ENTRY,
-          },
+            },
         });
-      
+
         if (!setting) {
-          // Create initial setting with default index
-          setting = this.settingDocumentsRepo.create({
+            setting = repo.create({
             userId,
             docType: DocumentType.JOURNAL_ENTRY,
             initialIndex: 10000000,
             currentIndex: 10000000,
-          });
-      
-          await this.settingDocumentsRepo.save(setting);
+            });
+
+            await repo.save(setting);
         }
-      
+
         return setting.currentIndex;
-      }
-      
+    }
 
 
-    // async getJournalEntryCurrentIndex(userId: string): Promise<number> {
-
-    //     const setting = await this.settingDocumentsRepo.findOne({
+    // async incrementJournalEntryIndex(userId: string): Promise<void> {
+    //     const setting = await this.settingDocumentsRepo.findOneOrFail({
     //       where: {
     //         userId,
     //         docType: DocumentType.JOURNAL_ENTRY,
     //       },
     //     });
-    
-    //     if (!setting) {
-    //       throw new NotFoundException(
-    //         `No document setting found for JOURNAL_ENTRY for user: ${userId}`,
-    //       );
-    //     }
-    
-    //     return setting.currentIndex;
+      
+    //     setting.currentIndex += 1;
+    //     await this.settingDocumentsRepo.save(setting);
     // }
 
 
-    async incrementJournalEntryIndex(userId: string): Promise<void> {
-        const setting = await this.settingDocumentsRepo.findOneOrFail({
-          where: {
+    async incrementJournalEntryIndex(userId: string, manager?: EntityManager): Promise<void> {
+        const repo = manager
+            ? manager.getRepository(SettingDocuments)
+            : this.settingDocumentsRepo;
+
+        const setting = await repo.findOneOrFail({
+            where: {
             userId,
             docType: DocumentType.JOURNAL_ENTRY,
-          },
+            },
         });
-      
+
         setting.currentIndex += 1;
-        await this.settingDocumentsRepo.save(setting);
+        await repo.save(setting);
     }
 
 
