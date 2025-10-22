@@ -2,7 +2,7 @@ import { Injectable, OnInit, signal } from '@angular/core';
 import { BehaviorSubject, EMPTY, Observable, catchError, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
-import { IClassifyTrans, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
+import { IClassifyTrans, IClassifyTransMinimal, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
 
@@ -173,7 +173,7 @@ export class TransactionsService implements OnInit{
     return this.http.post<any>(url, formData);
   }
  
-  addClassifiction(formData: IClassifyTrans, date?: any): Observable<any> {
+  addClassifiction(formData: IClassifyTrans | IClassifyTransMinimal, date?: any): Observable<any> {
     console.log("in add classificaion");
     console.log("form data of classify trans: ",formData);
     const url = `${environment.apiUrl}transactions/classify-trans`;
