@@ -257,6 +257,15 @@ export interface IClassifyTrans {
     isExpense: boolean
 }
 
+export interface IClassifyTransMinimal {
+    id: number;
+    isSingleUpdate: boolean | number;
+    name: string;
+    billName: string;
+    category: string;
+    subCategory: string;
+}
+
 export interface ISelectItem {
     value: string | number | boolean | Date;
     name: string | number;

@@ -51,7 +51,7 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   @ViewChild('content') content?: ElementRef<HTMLDivElement>;
 
   private lastContentHeight = 0;
-
+  today = new Date();
   isOpen = false;
   readonly EXTRA = 50;
   private ro!: ResizeObserver;

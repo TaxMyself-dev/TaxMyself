@@ -4,7 +4,7 @@ import { InputSelectComponent } from "../input-select/input-select.component";
 import { ButtonComponent } from "../button/button.component";
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { IClassifyTrans, IGetSubCategory, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { ButtonSize } from '../button/button.enum';
 import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
@@ -17,7 +17,7 @@ import { CommonModule } from '@angular/common';
   selector: 'app-classify-tran',
   templateUrl: './classify-tran.component.html',
   styleUrls: ['./classify-tran.component.scss'],
-  imports: [LeftPanelComponent, InputSelectComponent, ButtonComponent, ToastModule, CheckboxModule, CommonModule],
+  imports: [LeftPanelComponent, InputSelectComponent, ButtonComponent, ToastModule, CheckboxModule, CommonModule, ReactiveFormsModule],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   // providers: [MessageService],
@@ -94,7 +94,14 @@ export class ClassifyTranComponent implements OnInit {
       isSingleUpdate: new FormControl(
         false, []
       ),
+      isRecognized: new FormControl(false, []),
+      isEquipment: new FormControl(false, []),
+      taxPercent: new FormControl<number | null>(null, [Validators.min(0), Validators.max(100)]),
+      vatPercent: new FormControl<number | null>(null, [Validators.min(0), Validators.max(100)]),
+      reductionPercent: new FormControl<number | null>(null, [Validators.min(0), Validators.max(100)]),
+      isExpense: new FormControl(false, []),
     });
+    this.toggleDetailControls(false);
   }
 
   ngOnInit() {
@@ -117,22 +124,35 @@ export class ClassifyTranComponent implements OnInit {
 
   classifyTransaction(event: any): void {
     this.isLoading.set(true);
-    const category = event.controls?.['categoryName']?.value;
-    const subCategory = event.controls?.['subCategoryName']?.value;
-    let formData: IClassifyTrans = {
-      id: this.rowData().id as number,
-      isSingleUpdate: event.controls?.['isSingleUpdate']?.value,
-      // isNewCategory: false,
-      name: this.rowData().name as string,
-      billName: this.rowData().billName as string,
-      category: event.controls?.['categoryName']?.value,
-      subCategory: event.controls?.['subCategoryName']?.value,
-      isRecognized: this.selectedSubCategory().isRecognized as boolean,
-      vatPercent: +this.selectedSubCategory().vatPercent,
-      taxPercent: +this.selectedSubCategory().taxPercent,
-      isEquipment: this.selectedSubCategory().isEquipment as boolean,
-      reductionPercent: +this.selectedSubCategory().reductionPercent,
-      isExpense: this.selectedSubCategory().isExpense as boolean,
+    const raw = this.myForm.getRawValue() as any;
+    const isSingle = !!raw.isSingleUpdate;
+    const category = raw.categoryName;
+    const subCategory = raw.subCategoryName;
+    let formData: any;
+    if (!isSingle) {
+      formData = {
+        id: this.rowData().id as number,
+        isSingleUpdate: false,
+        name: this.rowData().name as string,
+        billName: this.rowData().billName as string,
+        category,
+        subCategory,
+      };
+    } else {
+      formData = {
+        id: this.rowData().id as number,
+        isSingleUpdate: true,
+        name: this.rowData().name as string,
+        billName: this.rowData().billName as string,
+        category,
+        subCategory,
+        isRecognized: !!raw.isRecognized,
+        vatPercent: +(raw.vatPercent ?? 0),
+        taxPercent: +(raw.taxPercent ?? 0),
+        isEquipment: !!raw.isEquipment,
+        reductionPercent: +(raw.reductionPercent ?? 0),
+        isExpense: !!raw.isExpense,
+      };
     }
     console.log("🚀 ~ ClassifyTranComponent ~ classifyTransaction ~ formData:", formData)
 
@@ -248,10 +268,32 @@ export class ClassifyTranComponent implements OnInit {
 
   onCheckboxClicked(event: any): void {
     this.myForm.patchValue({'isSingleUpdate': event.checked});
+    this.toggleDetailControls(!!event.checked);
   }
 
   subCategorySelected(event: string): void {
     this.selectedSubCategory.set(this.originalSubCategoryList().find((item) => item.subCategoryName === event));
+    const sub = this.selectedSubCategory();
+    if (sub) {
+      this.myForm.patchValue({
+        isRecognized: sub.isRecognized as boolean,
+        isEquipment: sub.isEquipment as boolean,
+        taxPercent: (sub as any).taxPercent ?? null,
+        vatPercent: (sub as any).vatPercent ?? null,
+        reductionPercent: (sub as any).reductionPercent ?? null,
+      });
+      const isSingle = this.myForm.get('isSingleUpdate')?.value as boolean;
+      this.toggleDetailControls(!!isSingle);
+    }
+  }
+
+  private toggleDetailControls(enable: boolean): void {
+    const keys = ['isRecognized','isEquipment','taxPercent','vatPercent','reductionPercent','isExpense'];
+    keys.forEach(k => {
+      const c = this.myForm.get(k);
+      if (!c) return;
+      if (enable) { c.enable({ emitEvent: false }); } else { c.disable({ emitEvent: false }); }
+    });
   }
 
 
