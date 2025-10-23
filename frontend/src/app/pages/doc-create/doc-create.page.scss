@@ -6,7 +6,8 @@
   gap: 20px;
   border: solid 1px red;
   // height: auto;          /* Let it grow based on content */
-  overflow-y: scroll;      /* Enable scrolling when content overflows */
+  overflow-y: scroll;
+  /* Enable scrolling when content overflows */
 }
 
 .section {
@@ -25,6 +26,11 @@
   gap: 10px;
 }
 
+.fields-line {
+  display: flex;
+  gap: 128px;
+}
+
 .section-one {
   display: flex;
   flex-direction: row;
@@ -40,9 +46,11 @@
 }
 
 .fields-header {
-  font-weight: bold;
-  text-align: center;
-  margin-bottom: 0.3rem;
+  font-size: 14px;
+  font-weight: 400;
+  color: #666;
+  margin-bottom: 0;
+  margin-top: 3px;
 }
 
 .fields-row {
@@ -77,11 +85,12 @@
   border-radius: 0 !important;
   width: 18px;
   height: 18px;
-  border: 2px solid #007bff; 
+  border: 2px solid #007bff;
 }
 
 ::ng-deep .p-radiobutton .p-radiobutton-icon {
-  border-radius: 0 !important; /* Make inner dot square too */
+  border-radius: 0 !important;
+  /* Make inner dot square too */
 }
 
 ::ng-deep .p-inputnumber-horizontal .p-inputnumber-button {
@@ -134,15 +143,16 @@
 }
 
 .title {
-  font-size: 2rem;
-  font-weight: 500;
+  font-size: 22px;
+  font-weight: bold;
   position: relative;
 }
 
 .text-header {
-  font-size: 1.2rem;
+  font-size: 18px;
   color: #666;
-  margin-top: 0.5rem;
+  margin-top: 3px;
+  font-weight: 400;
 }
 
 .general-details {
@@ -150,24 +160,24 @@
   height: 95%;
   display: flex;
   flex-direction: row;
-//   align-items: left;
+  //   align-items: left;
   border: solid 1px green;
   justify-content: space-around;
 }
 
 .default-input-doc {
-    width: 200px;
+  width: 200px;
 }
 
 .payment-list {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .inputs-container {
-    display: flex;
+  display: flex;
 }
 
 .wrap-amount {
-    display: flex;
+  display: flex;
 }

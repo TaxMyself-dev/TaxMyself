@@ -100,7 +100,7 @@ export class DocCreatePage implements OnInit {
 
   // lineItems: LineItem[] = [];
   lineItemsDraft: PartialLineItem[] = [];
-
+initiallinesDocFormValues: FormGroup;
   showInitialIndexDialog = true;
   // private initialIndexSubject?: Subject<IDocIndexes>;
   private initialIndexSubject?: Subject<number>;
@@ -224,7 +224,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
         null, Validators.required,
       ),
       [DocCreateFields.DOC_DESCRIPTION]: new FormControl(
-        null, Validators.required,
+        null,
       ),
       [DocCreateFields.DOC_VAT_RATE]: new FormControl(
         18, Validators.required,
@@ -257,12 +257,14 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
         null, Validators.required,
       ),
       [DocCreateFields.LINE_SUM]: new FormControl(
-        null, Validators.required,
+        null, [Validators.required, Validators.pattern(/^[0-9]*$/)],
       ),
        [DocCreateFields.LINE_DISCOUNT]: new FormControl(
         0, Validators.required,
       ),
     })
+    this.initiallinesDocFormValues = this.linesDocForm.getRawValue();
+
 
     this.initialIndexForm = this.formBuilder.group({
       initialIndex: new FormControl(
@@ -370,7 +372,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
         // ✅ Reset all forms
         this.generalDocForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18 });
         this.recipientDocForm.reset();
-        this.linesDocForm.reset({ [DocCreateFields.LINE_QUANTITY]: 1 });
+        this.linesDocForm.reset(this.initiallinesDocFormValues);
         this.initialIndexForm.reset();
         this.paymentForm.reset();
         (this.paymentForm.get('bankPayments') as FormArray).clear();
@@ -485,7 +487,7 @@ paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     this.lineItemsDraft.push(newLine);
     this.calculateVatFieldsForLine(lineIndex);
     this.updateDocumentTotalsFromLines();
-    this.linesDocForm.reset({ [DocCreateFields.LINE_QUANTITY]: 1 });
+    this.linesDocForm.reset(this.initiallinesDocFormValues);
     const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
 

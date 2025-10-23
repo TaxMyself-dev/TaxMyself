@@ -19,7 +19,7 @@ export class InputDateComponent implements OnInit {
   errorText = input<string>("");
   size = input<string>("");
   icon = input<string>("pi pi-sort-down-fill");
-  customStyle = input<string>("register");
+  customStyle = input<string>("");
   disabled = input<boolean>(false);
   showIcon = input<boolean>(true);
   inputClasses = signal<string>("");
@@ -28,7 +28,9 @@ export class InputDateComponent implements OnInit {
 
   constructor() { }
 
-  ngOnInit() {
+  ngOnInit() {}
+
+  ngAfterViewInit(): void {
     this.getinputClasses();
   }
 

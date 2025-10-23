@@ -127,6 +127,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
   }
 }
+
 // ======================== primeNG
 .p-button {
   &.big {
@@ -156,10 +157,11 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   &.icon {
     width: 44px;
     height: 44px !important;
+
     &.clicked {
       background-color: #E5E5E5 !important;
     }
-   
+
   }
 
   &.big_icon {
@@ -176,6 +178,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     background-color: #EBFD71;
     border-color: #EBFD71;
     color: gray;
+
     &.yellow:hover {
       background-color: #EBFD71;
       border-color: #EBFD71;
@@ -187,6 +190,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     background-color: black;
     border-color: black;
     color: white;
+
     &.black:hover {
       background-color: #333;
       border-color: #333;
@@ -199,6 +203,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     // border-color: black;
     border-color: white;
     color: black;
+
     &.white:hover {
       background-color: white;
       border-color: white;
@@ -206,29 +211,32 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     }
   }
 
-    &.white-border {
+  &.white-border {
+    background-color: white;
+    border-color: black;
+    // border-color: white;
+    color: black;
+
+    &.white-border:hover {
       background-color: white;
       border-color: black;
       // border-color: white;
       color: black;
-      &.white-border:hover {
-        background-color: white;
-        border-color: black;
-        // border-color: white;
-        color: black;
-      }
     }
-  
+  }
+
 
   &.transparent {
     background-color: transparent;
     border-color: transparent;
     color: rgb(42, 38, 38);
+
     &.transparent:hover {
       background-color: transparent;
       border-color: transparent;
       color: rgb(42, 38, 38);
     }
+
     &.gray {
       color: #808080;
     }
@@ -238,6 +246,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     background-color: white;
     border-color: rgb(186, 183, 183);
     color: black;
+
     &.outlined:hover {
       background-color: transparent;
       border-color: rgb(186, 183, 183);
@@ -250,10 +259,12 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     border-color: #e0e0e0 !important;
     color: white !important;
     cursor: default !important;
+
     &.yellow {
       background-color: #EBFD71 !important;
       color: gray !important;
     }
+
     &.text {
       background-color: white !important;
       border-color: white !important;
@@ -272,7 +283,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
         font-weight: bolder !important;
       }
     }
-    
+
     &.disabled.text:hover {
       background-color: white !important;
       border-color: white !important;
@@ -281,21 +292,23 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.filter {
-  display: flex;
-  justify-content: space-between;
-  font-size: larger;
-  height: 43px;
-}
+    display: flex;
+    justify-content: space-between;
+    font-size: larger;
+    height: 43px;
+  }
 }
 
-.p-button-text.p-button-info:hover { // for avoid the shadow of button text
+.p-button-text.p-button-info:hover {
+  // for avoid the shadow of button text
   background-color: transparent !important;
 }
 
 .p-button-text.p-button-info {
   &.login {
     padding-inline: 0 !important;
-    padding-block: 0 !important;  
+    padding-block: 0 !important;
+
     &.login:hover {
       border-bottom: 2px solid lightblue;
       border-radius: 0 !important;
@@ -303,26 +316,33 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 }
 
-.p-drawer-footer { // for footer of left panel
+.p-drawer-footer {
+  // for footer of left panel
   box-shadow: 0 -4px 8px -4px rgba(0, 0, 0, 0.2);
 }
 
-.p-select, .p-multiselect { //For select input
+.p-select,
+.p-multiselect {
+  //For select input
   border-radius: 20px !important;
-  // border-color: rgb(245 242 242) !important;
-  border-color: rgb(186, 183, 183)  !important;
+  border-color: rgb(186, 183, 183) !important;
+
   &.wide {
     width: 420px !important;
   }
+
   &.auto {
     width: auto;
   }
+
   &.normal {
     width: 215px;
   }
+
   &.between {
     width: 264px;
   }
+
   &.narrow {
     width: 120px;
   }
@@ -332,7 +352,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     padding-inline: var(--p-inputtext-padding-x) !important;
     border-radius: 26px !important;
     background-color: #e0e0e054;
-    
+
     &.dirty {
       border: 1px solid #204F56 !important;
       background-color: white !important;
@@ -340,12 +360,14 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 }
 
-.p-select-label, .p-multiselect-label {
+.p-select-label,
+.p-multiselect-label {
   font-size: larger;
   overflow: visible !important;
 }
 
-.p-multiselect-option, .p-select-option {
+.p-multiselect-option,
+.p-select-option {
   font-size: large;
 }
 
@@ -357,24 +379,30 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   color: black !important;
 }
 
-.p-inputtext { //For text input
+.p-inputtext {
+  //For text input
   border-color: rgb(245 242 242) !important;
   border: none !important;
   padding-inline: 0 !important;
   border-bottom: 1px solid #ebe8e8 !important;
   border-radius: 0px !important;
+
   &.wide {
     width: 420px !important;
   }
+
   &.auto {
     width: auto;
   }
+
   &.between {
     width: 175px;
   }
+
   &.normal {
     width: 215px;
   }
+
   &.narrow {
     width: 120px;
   }
@@ -384,7 +412,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     padding-inline: var(--p-inputtext-padding-x) !important;
     border-radius: 26px !important;
     background-color: #e0e0e054;
-    
+
     &.dirty {
       border: 1px solid #204F56 !important;
       background-color: white !important;
@@ -396,7 +424,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     padding-inline: var(--p-inputtext-padding-x) !important;
     border-radius: 26px !important;
     background-color: white !important;
-    
+
     &.dirty {
       border: 1px solid #204F56 !important;
       background-color: white !important;
@@ -404,10 +432,14 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.p-datepicker-input {
+    border: 1px solid !important;
+    border-radius: 20px !important;
+    border-color: rgb(186, 183, 183) !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+
     &.register {
-      padding-inline: var(--p-inputtext-padding-x) !important;
       border-radius: 26px !important;
-      background-color: #e0e0e054   !important;
+      background-color: #e0e0e054 !important;
       border: 1px solid #ebe8e8 !important;
 
       &.dirty {
@@ -417,18 +449,20 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
     }
   }
 
-  
+
 }
 
 input.p-inputtext::placeholder {
-  color: gray !important;       /* your desired color */
-  opacity: 1;           /* ensure full opacity if needed */
+  color: gray !important;
+  /* your desired color */
+  opacity: 1;
+  /* ensure full opacity if needed */
 }
 
 .p-autocomplete-input {
   padding-inline: var(--p-inputtext-padding-x) !important;
   border-radius: 26px !important;
-  background-color: #e0e0e054   !important;
+  background-color: #e0e0e054 !important;
   border: 1px solid #ebe8e8 !important;
 
   &.dirty {
@@ -441,9 +475,9 @@ input.p-inputtext::placeholder {
   padding-bottom: 0 !important;
 }
 
-.p-datatable-tbody > tr.p-datatable-row-selected {
+.p-datatable-tbody>tr.p-datatable-row-selected {
   background: white !important;
-  color: black !important; 
+  color: black !important;
 }
 
 .p-checkbox-checked .p-checkbox-icon {
@@ -457,7 +491,8 @@ input.p-inputtext::placeholder {
 
 .p-datatable .p-overlay-mask {
   background: transparent !important;
-  pointer-events: none !important; /* allows interactions while loading */
+  pointer-events: none !important;
+  /* allows interactions while loading */
 }
 
 .p-datatable-loading-icon {
@@ -465,27 +500,33 @@ input.p-inputtext::placeholder {
 }
 
 .p-datatable-table-container {
-  overflow-x: auto !important;   /* horizontal scroll allowed */
-  overflow-y: auto !important;   /* vertical scroll allowed */
+  overflow-x: auto !important;
+  /* horizontal scroll allowed */
+  overflow-y: auto !important;
+  /* vertical scroll allowed */
   height: 500px !important;
 
   /* ===== Chrome, Safari, Opera ===== */
   &::-webkit-scrollbar {
-    height: 5px; /* thickness of horizontal scrollbar */
+    height: 5px;
+    /* thickness of horizontal scrollbar */
   }
 
   /* Style horizontal scrollbar */
   &::-webkit-scrollbar:horizontal {
     height: 8px;
   }
+
   &::-webkit-scrollbar-thumb:horizontal {
     background-color: #888;
     border-radius: 6px;
     border: 2px solid #f1f1f1;
   }
+
   &::-webkit-scrollbar-thumb:horizontal:hover {
     background-color: #555;
   }
+
   &::-webkit-scrollbar-track:horizontal {
     background: #f1f1f1;
   }
@@ -497,5 +538,10 @@ input.p-inputtext::placeholder {
   }
 }
 
+:root {
+  --ion-font-family: 'Open Sans Hebrew', 'Roboto', Arial, Helvetica, sans-serif;
+}
 
-
+html, body, ion-app, ion-content, .mat-typography {
+  font-family: var(--ion-font-family) !important;
+}

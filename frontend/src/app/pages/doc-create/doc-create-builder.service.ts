@@ -30,7 +30,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required]
+            validators: []
         },
         [FieldsCreateDocValue.DOCUMENT_DATE]: {
             //name: FieldsCreateDocName.documentDate,
