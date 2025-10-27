@@ -1,4 +1,4 @@
-import { CardCompany, CreditTransactionType, UnitOfMeasure, VatOptions } from "src/app/shared/enums";
+import { CardCompany, CreditTransactionType, UnitOfMeasure, VatType } from "src/app/shared/enums";
 
 export enum DocumentType {
   RECEIPT = 'RECEIPT',
@@ -83,7 +83,7 @@ export interface LineItem {
   description: string;
   unitQuantity: number;
   vatRate: number;
-  vatOpts: VatOptions;
+  vatOpts: VatType;
   sum: number;
   discount: number;
 

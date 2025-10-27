@@ -121,3 +121,22 @@ ion-note {
 ion-item.selected {
   --color: var(--ion-color-primary);
 }
+
+:host { display:flex; flex-direction:column; min-height:100dvh; width:100%; }
+
+.app-content {
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+  width:100%;
+  overflow:hidden;
+}
+
+/* Critical: routed element directly under .app-content */
+.app-content > * {
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+}

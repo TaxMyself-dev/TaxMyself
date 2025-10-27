@@ -59,6 +59,23 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 
 @import "primeicons/primeicons.css";
 
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+app-root {
+  height: 100%;
+  width: 100%;
+  display: block;
+}
+
 .expense-modal {
   --width: 80%;
   --height: 70%;
@@ -432,6 +449,7 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
   }
 
   &.p-datepicker-input {
+    font-size: larger;
     border: 1px solid !important;
     border-radius: 20px !important;
     border-color: rgb(186, 183, 183) !important;
@@ -499,12 +517,13 @@ input.p-inputtext::placeholder {
   color: black !important;
 }
 
-.p-datatable-table-container {
-  overflow-x: auto !important;
-  /* horizontal scroll allowed */
-  overflow-y: auto !important;
-  /* vertical scroll allowed */
+.table .p-datatable-table-container {
   height: 500px !important;
+}
+
+.p-datatable-table-container {
+  overflow-x: auto !important; 
+  overflow-y: auto !important;
 
   /* ===== Chrome, Safari, Opera ===== */
   &::-webkit-scrollbar {
@@ -540,6 +559,7 @@ input.p-inputtext::placeholder {
 
 :root {
   --ion-font-family: 'Open Sans Hebrew', 'Roboto', Arial, Helvetica, sans-serif;
+  --app-header-h: 64px; /* adjust to your actual top nav height */
 }
 
 html, body, ion-app, ion-content, .mat-typography {

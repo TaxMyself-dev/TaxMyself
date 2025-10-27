@@ -18,6 +18,7 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { DialogModule } from 'primeng/dialog';
 import { TabMenuModule } from 'primeng/tabmenu';
+import { TableModule } from 'primeng/table';
 
 
 @NgModule({
@@ -36,8 +37,10 @@ import { TabMenuModule } from 'primeng/tabmenu';
     InputNumberModule,
     RadioButtonModule,
     DialogModule,
-    TabMenuModule
+    TabMenuModule,
+    TableModule
 ],
   declarations: [DocCreatePage]
 })
 export class DocCreatePageModule {}
+

@@ -1,7 +1,7 @@
 <div class="page-wrapper">
 
   <!-- בחירת עסק -->
-  <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
+  <!-- <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
     [dismissableMask]="false" [rtl]="true" [style]="{ width: '400px' }">
     <div class="p-fluid">
       <p>היי! זיהינו שיש לך יותר מעסק אחד .<br />באיזה עסק תרצה להפיק את המסמך?</p>
@@ -15,7 +15,7 @@
           (onButtonClicked)="onConfirmBusinessSelection()"></app-p-button>
       </div>
     </div>
-  </p-dialog>
+  </p-dialog> -->
   <!-- הגדרת מספור במידה וזהו המסמך הראשון שנוצר מאותו סוג -->
   @if (isInitial) {
   <p-dialog header="הגדרת מספור" [(visible)]="showInitialIndexDialog" [modal]="true" [closable]="false" [rtl]="true"
@@ -48,290 +48,327 @@
         בחר איזה מסמך ברצונך להפיק
       </p>
     </div>
-    <div class="fields-line">
-      <app-input-select [controlName]="'docType'" labelText="סוג המסמך" [placeholder]="'בחר את סוג המסמך'"
-        [items]="DocCreateTypeList" [parentForm]="generalDocForm" [size]="inputsSize.MEDIUM"
-        (onChangeInputSelect)="onSelectedDoc($event)"></app-input-select>
-      <app-input-text [controlName]="'docDescription'" labelText="תיאור המסמך" [placeholder]="'תיאור המסמך'"
-        [parentForm]="generalDocForm" [size]="inputsSize.LARGE"></app-input-text>
-    </div>
+    <div class="general-fields">
+      <div class="user-details-section">
+        @for (item of generalArray; track item.value) {
+        @switch (item.type) {
 
-    <div class="fields-line">
-      <app-input-date [controlName]="'docDate'" labelText="תאריך המסמך" placeholder="00/00/0000"
-        [parentForm]="generalDocForm"></app-input-date>
-      @if (showGeneralMoreFields) {
-      <app-input-text [controlName]="'docVatRate'" labelText="אחוז המעמ" [placeholder]="'אחוז המעמ'"
-        [parentForm]="generalDocForm" [size]="inputsSize.BETWEEN" [type]="'number'"></app-input-text>
-      }
-    </div>
-    <app-p-button class="pnl-pdf-button" [buttonText]="showGeneralMoreFields ? 'הסתר שדות' : 'הצג שדות נוספים'"
-      [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
-      (onButtonClicked)="showGeneralMoreFields = !showGeneralMoreFields">
-    </app-p-button>
-  </div>
+        @case (formTypes.DDL) {
+        <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+          [items]="item.enumValues" [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM"
+          (onChangeInputSelect)="onSelectedDoc($event)">
+        </app-input-select>
+        }
 
-  <!-- Recipient details section -->
-  @if (fileSelected) {
-  <div class="section">
-    <div class="create-doc-header">
-      <div class="icon-title">
-        <span class="title">פרטי הלקוח</span>
+        @case (formTypes.DATE) {
+        <app-input-date [controlName]="item.value" [labelText]="item.labelText" placeholder="00/00/0000"
+          [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM">
+        </app-input-date>
+        }
+
+        @default {
+        @if (item.value !== FieldsCreateDocValue.DOC_VAT_RATE || isGeneralExpanded) {
+        <app-input-text [controlName]="item.value" [value]="item.initialValue" [labelText]="item.labelText"
+          [placeholder]="item.placeHolder" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" [type]="
+          item.type === formTypes.NUMBER ? 'number' : 'text'"></app-input-text>
+        }
+        }
+
+        }
+        }
+      </div>
+      <div>
+        <app-p-button class="pnl-pdf-button" [buttonText]="isGeneralExpanded ? 'הסתר שדות' : 'הצג שדות נוספים'"
+          [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="expandGeneralDetails()">
+        </app-p-button>
       </div>
     </div>
-    <div class="general-fields">
-      <div class="section-one">
-        <app-input-text [controlName]="'recipientName'" labelText="שם הלקוח" [placeholder]="'הקלד שם לבחירת לקוח קיים'"
+
+    <!-- Recipient details section -->
+    @if (fileSelected) {
+    <div class="section">
+      <div class="create-doc-header">
+        <div class="icon-title">
+          <span class="title">פרטי הלקוח</span>
+        </div>
+      </div>
+      <div class="general-fields">
+        <div class="user-details-section">
+          @for (item of userArray; track item.value) {
+          @switch (item.type) {
+
+          @case (formTypes.DDL) {
+          <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+            [items]="item.enumValues" [parentForm]="userDetailsForm" [size]="inputsSize.BETWEEN">
+          </app-input-select>
+          }
+
+          @case (formTypes.DATE) {
+          <app-input-date [controlName]="item.value" [labelText]="item.labelText" placeholder="00/00/0000"
+            [parentForm]="userDetailsForm">
+          </app-input-date>
+          }
+
+          @default {
+          <app-input-text [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+            [parentForm]="userDetailsForm" [size]="inputsSize.BETWEEN" [type]="
+          item.type === formTypes.NUMBER ? 'number' :
+          'text'
+        ">
+          </app-input-text>
+          }
+
+          }
+          }
+          <!-- <app-input-text [controlName]="'recipientName'" labelText="שם הלקוח" [placeholder]="'לדוגמא: א.ב. צינורות'"
           [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
         <app-input-text [controlName]="'recipientId'" labelText="ת.ז או ח.פ" [placeholder]="'הקלד 9 ספרות'"
           [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
         <app-input-text [controlName]="'recipientPhone'" labelText="טלפון נייד" [placeholder]="'הקלד 10 ספרות'"
           [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
         <app-input-text [controlName]="'recipientEmail'" labelText="כתובת אימייל" [placeholder]="'name@gmail.com'"
-          [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
+          [parentForm]="recipientDocForm" [size]="inputsSize.BETWEEN"></app-input-text> -->
+        </div>
+        <div>
+          <app-p-button class="pnl-pdf-button" [buttonText]="isUserExpanded ? 'הסתר שדות' : 'הצג שדות נוספים'"
+            [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="expandUserDetails()">
+          </app-p-button>
+        </div>
       </div>
-      <div>
-        @if (showUserMoreFields) {
-        <app-input-text [controlName]="'docVatRate'" labelText="אחוז המעמ" [placeholder]="'אחוז המעמ'"
-          [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'"></app-input-text>
+    </div>
+
+    <!-- line details section -->
+    <div class="section">
+      <div class="create-doc-header">
+        <div class="icon-title">
+          <span class="title">פירוט</span>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <p-table [columns]="lineDetailsColumns" [value]="[{}]" [tableStyle]="{ 'min-width': '50rem' }">
+          <ng-template pTemplate="header" let-columns>
+            <tr>
+              <th *ngFor="let col of columns" style="color: gray;"
+                [ngStyle]="col.field === FieldsCreateDocValue.VAT_OPTIONS ? { 'padding-right': '40px' } : {}">
+                {{ col.header }}
+              </th>
+            </tr>
+          </ng-template>
+
+          <ng-template pTemplate="body" let-rowData let-columns="columns">
+            <tr [formGroup]="lineDetailsForm">
+              <td *ngFor="let col of columns"
+                [style.width]="col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? '420px' : col.field === FieldsCreateDocValue.UNIT_AMOUNT ? '9%' : ''"
+                [ngStyle]="col.field === FieldsCreateDocValue.VAT_OPTIONS ? { 'padding-right': '40px' } : {}">
+                @switch (col.field) {
+
+                @case (FieldsCreateDocValue.UNIT_AMOUNT) {
+                <p-inputnumber [min]="1" class="plus-minus" [formControlName]="col.field" [showButtons]="true"
+                  buttonLayout="horizontal" spinnerMode="horizontal"
+                  [inputStyle]="{ width: '3rem', 'text-align': 'center' }"
+                  [ngStyle]="{display: 'flex', 'flex-direction': 'row-reverse'}">
+                  <ng-template #decrementbuttonicon>
+                    <span class="pi pi-minus"></span>
+                  </ng-template>
+                  <ng-template #incrementbuttonicon>
+                    <span class="pi pi-plus"></span>
+                  </ng-template>
+
+                </p-inputnumber>
+                }
+
+                @case (FieldsCreateDocValue.VAT_OPTIONS) {
+                <div class="gender-options-row" role="radiogroup" [attr.aria-labelledby]="'vat-label'">
+                  @for (opt of vatOptions; track opt.value; let i = $index) {
+                  <!-- Make 'name' and 'inputId' unique per row to prevent cross-row grouping -->
+                  <div class="vat-option">
+                    <p-radiobutton [formControlName]="col.field" [value]="opt.value" [name]="col.field"
+                      [inputId]="col.field + '-' + opt.value" />
+                    <label class="ml-2" [for]="col.field + '-' + opt.value">{{ opt.name }}</label>
+                  </div>
+                  }
+                </div>
+                }
+
+                @case ('action') {
+                <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף שורה'" [variant]="'text'" [severity]="'info'"
+                  [buttonSize]="buttonSize.AUTO" [disabled]="!lineDetailsForm.valid"
+                  (onButtonClicked)="addLineDetails()">
+                </app-p-button>
+                }
+
+                @default {
+                <app-input-text [controlName]="col.field" [placeholder]="col.header" [parentForm]="lineDetailsForm"
+                  [type]="col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? 'text' : 'number'"
+                  [size]="col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? inputsSize.LARGE : inputsSize.SMALL"></app-input-text>
+                }
+
+                }
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+
+      @if (lineItemsDraft().length > 0) {
+      <div class="line-items-table">
+        <!-- כותרת -->
+        <div class="line-row header">
+          <div>תיאור</div>
+          <div>כמות</div>
+          <div>מע״מ</div>
+          <div>סכום</div>
+          <div>הנחה</div>
+        </div>
+        <hr class="fields-divider" />
+        <!-- שורות -->
+        @for (line of lineItemsDraft(); track $index; let i = $index) {
+        <div class="line-row">
+          <div>{{ line.description }}</div>
+          <div>{{ line.unitQuantity }}</div>
+          <div>{{ getVatLabel(line.vatOpts) }}</div>
+          <div>{{ line.sum | currency:'ILS' }}</div>
+          <div>{{ line.discount || '-' }}</div>
+          <div class="actions">
+            <i class="pi pi-trash" (click)="deleteLine(i)"></i>
+          </div>
+        </div>
+        }
+        <!-- סיכום כולל -->
+        <div class="totals-summary">
+          <span class="title">סיכום כולל</span>
+          @for (item of visibleDocumentTotals(); track item.field) {
+          <!-- @for (item of visibleDocumentTotals; track item.field) { -->
+          <div class="total-line">
+            <span>{{ item.label }}:</span>
+            <span>{{ item.value | number:'1.2-2' }} ₪</span>
+          </div>
+          }
+        </div>
+      </div>
+      }
+    </div>
+    <!-- } -->
+
+    <!-- תשלומים -->
+    @if (isDocWithPayments()) {
+
+    <div class="section">
+
+      <!-- Section Header -->
+      <div class="create-doc-header">
+        <div class="icon-title">
+          <span class="title">תשלומים</span>
+        </div>
+      </div>
+
+      <!-- Tab Menu for Payment Method -->
+      <p-tabMenu [model]="paymentMethodTabs" [activeItem]="activePaymentMethod"
+        (activeItemChange)="onPaymentMethodChange($event)">
+      </p-tabMenu>
+
+      <!-- Payment Entry Row -->
+      <div class="line-item-row">
+
+        <!-- Header Row -->
+        <div class="fields-grid fields-header">
+          @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
+          <div>{{ field.label }}</div>
+          }
+          <div>פעולה</div>
+        </div>
+
+        <hr class="fields-divider" />
+
+        <!-- Input Row -->
+        <form [formGroup]="paymentInputForm">
+          <div class="fields-grid fields-row">
+            @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
+            @switch (field.type) {
+            @case ('date') {
+            <app-input-date [controlName]="field.key" [labelText]="field.label" placeholder="00/00/0000"
+              [parentForm]="paymentInputForm"></app-input-date>
+            }
+            @case ('dropdown') {
+            <app-input-select [controlName]="field.key" [labelText]="field.label" [placeholder]=""
+              [items]="field.options" [parentForm]="paymentInputForm" [size]="inputsSize.BETWEEN"></app-input-select>
+            }
+            @default {
+            <app-input-text [controlName]="field.key" [labelText]="field.label" [placeholder]="''"
+              [parentForm]="paymentInputForm" [size]="inputsSize.BETWEEN"></app-input-text>
+            }
+            }
+            }
+
+            <!-- Add Button -->
+            <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף תשלום'" [variant]="'text'" [severity]="'info'"
+              [buttonSize]="buttonSize.AUTO" [disabled]="!paymentInputForm.valid" (onButtonClicked)="addPayment()">
+            </app-p-button>
+          </div>
+        </form>
+
+      </div>
+
+      <!-- Display Added Payments -->
+      @if (paymentsDraft.length > 0) {
+      <div class="line-items-table">
+        <!-- Header -->
+        <div class="line-row header">
+          @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
+          <div>{{ field.label }}</div>
+          }
+        </div>
+
+        <hr class="fields-divider" />
+
+        <!-- Payment Rows -->
+        @for (payment of paymentsDraft; track $index) {
+        <div class="line-row">
+          @for (field of paymentFieldConfigs[payment.paymentMethod]; track field.key) {
+          <div>{{ payment[field.key] || '-' }}</div>
+          }
+        </div>
         }
       </div>
+      }
+    </div>
+    }
+    <!-- @if (fileSelected) { -->
+    <div class="buttons-container">
       <div>
-        <app-p-button class="pnl-pdf-button" [buttonText]="showUserMoreFields ? 'הסתר שדות' : 'הצג הכל'"
-          [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
-          (onButtonClicked)="showUserMoreFields = !showUserMoreFields">
+        <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.SMALL"
+          [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!CreateDocIsValid" (onButtonClicked)="previewtDoc()">
         </app-p-button>
       </div>
-    </div>
-  </div>
-  }
-
-  <!-- פירוט -->
-  @if (fileSelected) {
-  <div class="section">
-    <div class="create-doc-header">
-      <div class="icon-title">
-        <span class="title">פירוט</span>
-      </div>
-    </div>
-    <div class="line-item-row">
-
-      <!-- Row of field titles -->
-      <div class="fields-grid fields-header">
-        <div>תיאור</div>
-        <div>כמות</div>
-        <div>מע״מ</div>
-        <div>סכום</div>
-        <div>הנחה</div>
-        <div>פעולה</div>
+      <div>
+        <app-p-button class="pnl-pdf-button" [buttonText]="'צור מסמך'" [buttonSize]="buttonSize.SMALL"
+          [disabled]="!CreateDocIsValid" (onButtonClicked)="createDoc()" [buttonColor]="buttonColor.BLACK">
+        </app-p-button>
       </div>
 
-      <!-- Line below headers -->
-      <hr class="fields-divider" />
-
-
-      <form [formGroup]="linesDocForm">
-
-        <div class="fields-grid fields-row">
-
-          <!-- תיאור -->
-          <app-input-text [controlName]="'lineDescription'" [placeholder]="'אנא מלא את התיאור'"
-            [parentForm]="linesDocForm" [size]="inputsSize.BETWEEN"></app-input-text>
-
-          <!-- כמות -->
-          <p-inputnumber class="plus-minus" formControlName="lineQuantity" [showButtons]="true"
-            buttonLayout="horizontal" spinnerMode="horizontal" [inputStyle]="{ width: '3rem' }">
-            <ng-template #incrementbuttonicon>
-              <span class="pi pi-plus"></span>
-            </ng-template>
-            <ng-template #decrementbuttonicon>
-              <span class="pi pi-minus"></span>
-            </ng-template>
-          </p-inputnumber>
-
-          <!-- מע"מ -->
-          <div class="gender-options-row">
-            <div class="vat-option">
-              <p-radiobutton formControlName="lineVatType" value="INCLUDE" name="lineVatType" inputId="INCLUDE" />
-              <label for="INCLUDE" class="ml-2">כולל מע"מ</label>
-            </div>
-            <div class="vat-option">
-              <p-radiobutton formControlName="lineVatType" value="EXCLUDE" name="lineVatType" inputId="EXCLUDE" />
-              <label for="EXCLUDE" class="ml-2">לא כולל מע"מ</label>
-            </div>
-            <div class="vat-option">
-              <p-radiobutton formControlName="lineVatType" value="WITHOUT" name="lineVatType" inputId="WITHOUT" />
-              <label for="WITHOUT" class="ml-2">ללא מע"מ</label>
-            </div>
-          </div>
-
-          <!-- סכום -->
-          <app-input-text [controlName]="'lineSum'" [placeholder]="'סכום'" [parentForm]="linesDocForm"
-            [size]="inputsSize.BETWEEN"></app-input-text>
-
-          <!-- הנחה -->
-          <app-input-text [controlName]="'lineDiscount'" [placeholder]="'הנחה'" [parentForm]="linesDocForm"
-            [size]="inputsSize.BETWEEN"></app-input-text>
-
-          <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף שורה'" [variant]="'text'" [severity]="'info'"
-            [buttonSize]="buttonSize.AUTO" [disabled]="!linesDocForm.valid" (onButtonClicked)="addLineDetails()">
-          </app-p-button>
-        </div>
-      </form>
-    </div>
-    @if (lineItemsDraft.length > 0) {
-    <div class="line-items-table">
-      <!-- כותרת -->
-      <div class="line-row header">
-        <div>תיאור</div>
-        <div>כמות</div>
-        <div>מע״מ</div>
-        <div>סכום</div>
-        <div>הנחה</div>
-      </div>
-      <hr class="fields-divider" />
-      <!-- שורות -->
-      @for (line of lineItemsDraft; track $index; let i = $index) {
-      <div class="line-row">
-        <div>{{ line.description }}</div>
-        <div>{{ line.unitQuantity }}</div>
-        <div>{{ getVatLabel(line.vatOpts) }}</div>
-        <div>{{ line.sum | currency:'ILS' }}</div>
-        <div>{{ line.discount || '-' }}</div>
-        <div class="actions">
-          <i class="pi pi-trash" (click)="deleteLine(i)"></i>
-        </div>
-      </div>
-      }
-      <!-- סיכום כולל -->
-      <div class="totals-summary">
-        <span class="title">סיכום כולל</span>
-        @for (item of visibleDocumentTotals(); track item.field) {
-        <!-- @for (item of visibleDocumentTotals; track item.field) { -->
-        <div class="total-line">
-          <span>{{ item.label }}:</span>
-          <span>{{ item.value | number:'1.2-2' }} ₪</span>
-        </div>
-        }
-      </div>
     </div>
     }
+
   </div>
-  }
 
-  <!-- תשלומים -->
-  @if (isDocWithPayments()) {
 
-  <div class="section">
 
-    <!-- Section Header -->
-    <div class="create-doc-header">
-      <div class="icon-title">
-        <span class="title">תשלומים</span>
-      </div>
-    </div>
 
-    <!-- Tab Menu for Payment Method -->
-    <p-tabMenu [model]="paymentMethodTabs" [activeItem]="activePaymentMethod"
-      (activeItemChange)="onPaymentMethodChange($event)">
-    </p-tabMenu>
+  <ng-template #initialTemplate>
+    <ng-container *ngIf="fileSelected">
 
-    <!-- Payment Entry Row -->
-    <div class="line-item-row">
-
-      <!-- Header Row -->
-      <div class="fields-grid fields-header">
-        @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
-        <div>{{ field.label }}</div>
-        }
-        <div>פעולה</div>
-      </div>
-
-      <hr class="fields-divider" />
-
-      <!-- Input Row -->
-      <form [formGroup]="paymentInputForm">
-        <div class="fields-grid fields-row">
-          @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
-          @switch (field.type) {
-          @case ('date') {
-          <app-input-date [controlName]="field.key" [labelText]="field.label" placeholder="00/00/0000"
-            [parentForm]="paymentInputForm"></app-input-date>
-          }
-          @case ('dropdown') {
-          <app-input-select [controlName]="field.key" [labelText]="field.label" [placeholder]="" [items]="field.options"
-            [parentForm]="paymentInputForm" [size]="inputsSize.BETWEEN"></app-input-select>
-          }
-          @default {
-          <app-input-text [controlName]="field.key" [labelText]="field.label" [placeholder]="''"
-            [parentForm]="paymentInputForm" [size]="inputsSize.BETWEEN"></app-input-text>
-          }
-          }
-          }
-
-          <!-- Add Button -->
-          <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף תשלום'" [variant]="'text'" [severity]="'info'"
-            [buttonSize]="buttonSize.AUTO" [disabled]="!paymentInputForm.valid" (onButtonClicked)="addPayment()">
-          </app-p-button>
-        </div>
+      <p>
+        היי תמיד יש פעם ראשונה...
+        <br />
+        כמה הגדרות קצרות ונמשיך להפקת ה{{HebrewNameFileSelected}}
+      </p>
+      <form class="" [formGroup]="initialIndexForm">
+        <app-generic-input inputLabel="באיזה מספר סידורי תרצה להתחיל?" [parentForm]="initialIndexForm"
+          controlName="initialIndex" errorText="מספרים בלבד"></app-generic-input>
       </form>
-
-    </div>
-
-    <!-- Display Added Payments -->
-    @if (paymentsDraft.length > 0) {
-    <div class="line-items-table">
-      <!-- Header -->
-      <div class="line-row header">
-        @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
-        <div>{{ field.label }}</div>
-        }
-      </div>
-
-      <hr class="fields-divider" />
-
-      <!-- Payment Rows -->
-      @for (payment of paymentsDraft; track $index) {
-      <div class="line-row">
-        @for (field of paymentFieldConfigs[payment.paymentMethod]; track field.key) {
-        <div>{{ payment[field.key] || '-' }}</div>
-        }
-      </div>
-      }
-    </div>
-    }
-  </div>
-  }
-
-  <div>
-    <div>
-      <app-p-button class="pnl-pdf-button" [buttonText]="'צור מסמך'" [buttonSize]="buttonSize.AUTO"
-        [disabled]="!CreateDocIsValid" (onButtonClicked)="createDoc()">
-      </app-p-button>
-    </div>
-    <div>
-      <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.AUTO"
-        [disabled]="!CreateDocIsValid" (onButtonClicked)="previewtDoc()">
-      </app-p-button>
-    </div>
-  </div>
-
-
-</div>
-
-
-<ng-template #initialTemplate>
-  <ng-container *ngIf="fileSelected">
-
-    <p>
-      היי תמיד יש פעם ראשונה...
-      <br />
-      כמה הגדרות קצרות ונמשיך להפקת ה{{HebrewNameFileSelected}}
-    </p>
-    <form class="" [formGroup]="initialIndexForm">
-      <app-generic-input inputLabel="באיזה מספר סידורי תרצה להתחיל?" [parentForm]="initialIndexForm"
-        controlName="initialIndex" errorText="מספרים בלבד"></app-generic-input>
-    </form>
-    <app-button buttonText="Save" (onButtonClicked)="onClickInitialIndex()"
-      [disabled]="initialIndexForm.invalid"></app-button>
-  </ng-container>
-</ng-template>
+      <!-- <app-button buttonText="Save" (onButtonClicked)="onClickInitialIndex()"
+        [disabled]="initialIndexForm.invalid"></app-button> -->
+    </ng-container>
+  </ng-template>

@@ -158,6 +158,12 @@ export enum Currency {
   EUR = 'EUR',
 }
 
+export enum CurrencyHebrew {
+  ILS = 'שקל',
+  USD = 'דולר',
+  EUR = 'יורו',
+}
+
 export enum FieldsCreateDocValue {
   DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
@@ -165,8 +171,8 @@ export enum FieldsCreateDocValue {
   DOC_VAT_RATE = 'docVatRate',
   VAT_SUM = 'vatSum',
   CURRENCY = "currency",
-  RECIPIENT_NAME = 'recipientName', 
-  RECIPIENT_ID= 'recipientId',
+  RECIPIENT_NAME = 'recipientName',
+  RECIPIENT_ID = 'recipientId',
   RECIPIENT_PHONE = 'recipientPhone',
   RECIPIENT_EMAIL = 'recipientEmail',
   RECIPIENT_CITY = 'recipientCity',
@@ -178,17 +184,22 @@ export enum FieldsCreateDocValue {
   SUM_AFTER_DIS_BEF_VAT = 'sumAfterDisBefVat',
   SUM_AFTER_DIS_WITH_VAT = 'sumAfterDisWithVat',
   SUM_BEF_DIS_BEF_VAT = 'sumBefDisBefVat',
+  LINE_DESCRIPTION = 'description',
+  SUM = 'sum',
+  VAT_OPTIONS = 'vatOptions',
+  DISCOUNT = 'discount',
+  UNIT_AMOUNT = 'unitAmount',
 }
 
 export enum FieldsCreateDocName {
-//typeFile = "באיזה מסמך אתה מעוניין?",
+  //typeFile = "באיזה מסמך אתה מעוניין?",
   currency = "מטבע",
   docVatRate = "שיעור מעמ",
   date = "תאריך ביצוע התשלום",
   documentDate = "תאריך המסמך",
   recipientName = "שם הלקוח",
   recipientId = "ת.ז. / ח.פ. של הלקוח",
-  recipientEmail= "אימייל של הלקוח",
+  recipientEmail = "אימייל של הלקוח",
   recipientCity = "עיר",
   recipientStreet = "רחוב",
   recipientHomeNumber = "מס' בית",
@@ -277,11 +288,20 @@ export enum PaymentMethodName {
   CHECK = "צ'ק",
 }
 
-export enum VatOptions { 
-  INCLUDE = 'INCLUDE',
-  EXCLUDE = 'EXCLUDE',
-  WITHOUT = 'WITHOUT',
-}
+// export enum VatOptions {
+//   INCLUDE = 'INCLUDE',
+//   EXCLUDE = 'EXCLUDE',
+//   WITHOUT = 'WITHOUT',
+// }
+
+export type VatType = 'INCLUDE' | 'EXCLUDE' | 'WITHOUT';
+
+export const vatOptions: Array<{ value: VatType; name: string }> = [
+  { value: 'INCLUDE', name: 'כולל מע״מ' },
+  { value: 'EXCLUDE', name: 'לא כולל מע״מ' },
+  { value: 'WITHOUT', name: 'ללא מע״מ' },
+];
+
 
 export enum UnitOfMeasure {
   UNIT = 'UNIT',

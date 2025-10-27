@@ -1,5 +1,6 @@
 import { ValidatorFn } from "@angular/forms";
 import { fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes } from "src/app/shared/enums";
+import { ISelectItem } from "src/app/shared/interface";
 
 export interface ICreateDocSectionData {
     key: SectionKeysEnum;
@@ -8,7 +9,7 @@ export interface ICreateDocSectionData {
     expandedFields: FieldsCreateDocValue[] | fieldLineDocValue[]; 
 }
 
-export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' ;
+export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' | 'LineDetails' ;
 
 export interface IDocCreateFieldData {
     //name: FieldsCreateDocName | fieldLineDocName;
@@ -16,7 +17,7 @@ export interface IDocCreateFieldData {
     labelText: string;
     placeHolder: string;
     type: FormTypes; 
-    enumValues: { [key: string]: string }[];
+    enumValues: ISelectItem[] | null;
     editFormBasedOnValue: { [key: string]: FieldsCreateDocName[] | fieldLineDocValue[]};  
     validators?: ValidatorFn[];   
     initialValue?: any;     

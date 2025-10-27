@@ -1,31 +1,47 @@
 import { Injectable } from "@angular/core";
-import { CardCompany, CreateDocFields, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodValue, UnitOfMeasure, VatOptions } from "src/app/shared/enums";
+import { CardCompany, CreateDocFields, CreditTransactionType, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodValue, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
 import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
+import { DocTypeDisplayName, DocCreateFields } from "./doc-cerate.enum";
 
 @Injectable({
     providedIn: 'root'
 })
 export class DocCreateBuilderService {
 
+    readonly currencyList = [
+        { value: Currency.ILS, name: CurrencyHebrew.ILS },
+        { value: Currency.USD, name: CurrencyHebrew.USD },
+        { value: Currency.EUR, name: CurrencyHebrew.EUR },
+    ];
+
+    lineDetailsColumns = [
+        { field: FieldsCreateDocValue.LINE_DESCRIPTION, header: 'תיאור'},
+        { field: FieldsCreateDocValue.UNIT_AMOUNT, header: 'כמות'},
+        { field: FieldsCreateDocValue.VAT_OPTIONS, header: 'מע"מ'},
+        { field: FieldsCreateDocValue.SUM, header: 'סכום'},
+        { field: FieldsCreateDocValue.DISCOUNT, header: 'הנחה'},
+        { field: 'action', header: ''}
+    ];
+
     readonly docCreateBuilderData: Record<CreateDocFields, IDocCreateFieldData> = {
         // General Details 
         [FieldsCreateDocValue.DOC_TYPE]: {
             //name: FieldsCreateDocName.typeFile,
             value: FieldsCreateDocValue.DOC_TYPE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'סוג המסמך',
+            placeHolder: 'בחר את סוג המסמך',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [],
+            enumValues: Object.entries(DocTypeDisplayName).map(([value, name]) => ({ value, name })),
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.required]
         },
         [FieldsCreateDocValue.DOC_DESCRIPTION]: {
             //name: FieldsCreateDocName.docDescription,
             value: FieldsCreateDocValue.DOC_DESCRIPTION,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'תיאור מסמך (לא מוצג ללקוח)',
+            placeHolder: 'תיאור המסמך',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -35,8 +51,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.DOCUMENT_DATE]: {
             //name: FieldsCreateDocName.documentDate,
             value: FieldsCreateDocValue.DOCUMENT_DATE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'תאריך המסמך',
+            placeHolder: '00/00/0000',
             type: FormTypes.DATE,
             initialValue: new Date(),
             enumValues: [],
@@ -46,8 +62,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.DOC_VAT_RATE]: {
             //name: FieldsCreateDocName.docVatRate,
             value: FieldsCreateDocValue.DOC_VAT_RATE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'אחוז המע"מ',
+            placeHolder: 'אחוז המע"מ',
             type: FormTypes.TEXT,
             initialValue: 18,
             enumValues: [],
@@ -57,11 +73,11 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.CURRENCY]: {
             //name: FieldsCreateDocName.currency,
             value: FieldsCreateDocValue.CURRENCY,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מטבע',
+            placeHolder: 'בחר את סוג המטבע',
             type: FormTypes.DDL,
-            initialValue: 'ILS',
-            enumValues: [Currency],
+            initialValue: this.currencyList[0].value,
+            enumValues: this.currencyList,
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
@@ -70,7 +86,7 @@ export class DocCreateBuilderService {
             //name: FieldsCreateDocName.recipientName,
             value: FieldsCreateDocValue.RECIPIENT_NAME,
             labelText: 'שם הלקוח',
-            placeHolder: 'לדוגמה: ישראל ישראלי',
+            placeHolder: 'לדוגמא: א.ב. צינורות',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -86,7 +102,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.pattern(/^\d{9}$/)]
         },
         [FieldsCreateDocValue.RECIPIENT_PHONE]: {
             //name: FieldsCreateDocName.recipientPhone,
@@ -113,8 +129,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_CITY]: {
             //name: FieldsCreateDocName.recipientCity,
             value: FieldsCreateDocValue.RECIPIENT_CITY,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'עיר',
+            placeHolder: 'עיר',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -124,8 +140,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_STREET]: {
             //name: FieldsCreateDocName.recipientStreet,
             value: FieldsCreateDocValue.RECIPIENT_STREET,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'רחוב',
+            placeHolder: 'רחוב',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -135,8 +151,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: {
             //name: FieldsCreateDocName.recipientHomeNumber,
             value: FieldsCreateDocValue.RECIPIENT_HOME_NUMBER,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מספר בית',
+            placeHolder: 'מספר בית',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -146,8 +162,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: {
             //name: FieldsCreateDocName.recipientPostalCode,
             value: FieldsCreateDocValue.RECIPIENT_POSTAL_CODE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מיקוד',
+            placeHolder: 'מיקוד',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -157,8 +173,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_STATE]: {
             //name: FieldsCreateDocName.recipientState,
             value: FieldsCreateDocValue.RECIPIENT_STATE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מדינה',
+            placeHolder: 'מדינה',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -168,8 +184,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: {
             //name: FieldsCreateDocName.recipientStateCode,
             value: FieldsCreateDocValue.RECIPIENT_STATE_CODE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'קוד מדינה',
+            placeHolder: 'קוד מדינה',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -241,7 +257,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required]
+            validators: [Validators.min(0), Validators.required]
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
             //name: fieldLineDocName.line_description,
@@ -283,7 +299,8 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [VatOptions],
+            enumValues: vatOptions,
+            // enumValues: Object.entries(VatOptions).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
@@ -296,7 +313,7 @@ export class DocCreateBuilderService {
             initialValue: 0,
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.min(0), Validators.required]
         },
         [fieldLineDocValue.LINE_NUMBER]: {
             //name: fieldLineDocName.lineNumber,
@@ -316,7 +333,7 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [UnitOfMeasure],
+            enumValues: Object.entries(UnitOfMeasure).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: []
         },
@@ -327,7 +344,7 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [PaymentMethodValue],
+            enumValues: Object.entries(PaymentMethodValue).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {
                 TRANSFER: [fieldLineDocValue.BANK_NUMBER, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER],
                 CHECK: [fieldLineDocValue.BANK_NUMBER, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER, fieldLineDocValue.CHECK_NUMBER, fieldLineDocValue.PAYMENT_CHECK_DATE],
@@ -397,7 +414,7 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [CardCompany],
+            enumValues: Object.entries(CardCompany).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: []
         },
@@ -430,7 +447,7 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [CreditTransactionType],
+            enumValues: Object.entries(CreditTransactionType).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: []
         },
@@ -488,22 +505,28 @@ export class DocCreateBuilderService {
             enumValues: [],
             editFormBasedOnValue: {},
             validators: []
-        }
+        },
 
     };
 
     readonly docCreateBuilderSectionsData: Partial<Record<SectionKeysEnum, ICreateDocSectionData>> = {
         'GeneralDetails': {
             key: 'GeneralDetails',
-            baseFields: [FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOCUMENT_DATE, FieldsCreateDocValue.DOC_VAT_RATE],
+            baseFields: [FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOCUMENT_DATE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOC_VAT_RATE],
             expandable: true,
-            expandedFields: [FieldsCreateDocValue.DOC_VAT_RATE, FieldsCreateDocValue.CURRENCY]
+            expandedFields: [FieldsCreateDocValue.CURRENCY]
         },
         'UserDetails': {
             key: 'UserDetails',
             baseFields: [FieldsCreateDocValue.RECIPIENT_NAME, FieldsCreateDocValue.RECIPIENT_ID, FieldsCreateDocValue.RECIPIENT_PHONE, FieldsCreateDocValue.RECIPIENT_EMAIL],
             expandable: true,
             expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE, FieldsCreateDocValue.RECIPIENT_STATE, FieldsCreateDocValue.RECIPIENT_STATE_CODE]
+        },
+        'LineDetails': {
+            key: 'LineDetails',
+            baseFields: [FieldsCreateDocValue.LINE_DESCRIPTION, FieldsCreateDocValue.SUM, FieldsCreateDocValue.DISCOUNT, FieldsCreateDocValue.UNIT_AMOUNT, FieldsCreateDocValue.VAT_OPTIONS],
+            expandable: true,
+            expandedFields: []
         },
         'ReceiptPaymentDetails': {
             key: 'ReceiptPaymentDetails',
@@ -563,8 +586,6 @@ export class DocCreateBuilderService {
     addFormControlsByExpandedSection(sectionForm: FormGroup, section: SectionKeysEnum) {
         const expandedFields = this.docCreateBuilderSectionsData[section].expandedFields;
         expandedFields.forEach((field) => {
-            console.log("field is ", field);
-            console.log(this.docCreateBuilderData[field]?.initialValue);
             sectionForm.addControl(field, new FormControl(
                 this.docCreateBuilderData[field]?.initialValue, this.docCreateBuilderData[field].validators
             ));
@@ -581,15 +602,12 @@ export class DocCreateBuilderService {
         });
     }
 
-    addFormControlsByEnumValue(sectionForm: FormGroup, section: SectionKeysEnum, field: string,  enumValue: string, isExpanded: boolean) {
+    addFormControlsByEnumValue(sectionForm: FormGroup, section: SectionKeysEnum, field: string, enumValue: string, isExpanded: boolean) {
         const enumValueFields: string[] = this.docCreateBuilderData[field]?.editFormBasedOnValue[enumValue];
-        console.log("🚀 ~ DocCreateBuilderService ~ addFormControlsByEnumValue ~ enumValueFields:", enumValueFields)
         const desiredFields: string[] = [...this.docCreateBuilderSectionsData[section]?.baseFields];
-        console.log("🚀 ~ DocCreateBuilderService ~ addFormControlsByEnumValue ~ desiredFields:", desiredFields)
         isExpanded ? desiredFields.push(...this.docCreateBuilderSectionsData[section]?.expandedFields) : null;
 
         Object.keys(sectionForm.controls).forEach((key) => {
-            console.log("🚀 ~ DocCreateBuilderService ~ Object.keys ~ key:", key)
             if (!desiredFields.includes(key)) {
                 sectionForm.removeControl(key);
             }
@@ -603,8 +621,6 @@ export class DocCreateBuilderService {
     }
 
     getBaseFieldsBySection(section: SectionKeysEnum): IDocCreateFieldData[] {
-        console.log("🚀 ~ DocCreateBuilderService ~ getBaseFieldsBySection ~ section:", section);
-        
         const sectionData = this.docCreateBuilderSectionsData[section];
         if (!sectionData) {
             return [];
