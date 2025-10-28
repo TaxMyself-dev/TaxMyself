@@ -1,7 +1,7 @@
 import { Component, computed, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { BusinessMode, CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, PaymentMethodValue, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { BusinessMode, CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
@@ -27,7 +27,7 @@ interface DocPayload {
 interface PaymentFieldConfig {
   key: string;   // FormControlName
   label: string; // Header label
-  type: 'date' | 'dropdown' | 'text';
+  type: FormTypes;
   options?: any[];
 }
 
@@ -51,7 +51,7 @@ export class DocCreatePage implements OnInit {
   serialNumberFile: ISettingDoc;
   DocumentType = DocumentType;
   DocCreateFields = DocCreateFields;
-
+  isFileSelected = signal(false);
   fileSelected: DocumentType;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
@@ -92,6 +92,7 @@ export class DocCreatePage implements OnInit {
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
+  paymentMethodOptions = paymentMethodOptions;
 
   showGeneralMoreFields = false;
   showUserMoreFields = false;
@@ -100,32 +101,17 @@ export class DocCreatePage implements OnInit {
   value: number = 0;
 
   // lineItems: LineItem[] = [];
+  isDocWithPayments = signal<boolean>(false);
   lineItemsDraft = signal<PartialLineItem[]>([]);
   initiallinesDocFormValues: FormGroup;
   showInitialIndexDialog = true;
-  // private initialIndexSubject?: Subject<IDocIndexes>;
-  private initialIndexSubject?: Subject<number>;
+  // private initialIndexSubject?: Subject<number>;
 
-  // form: FormGroup;
-  // generalDocForm: FormGroup;
-  // recipientDocForm: FormGroup;
-  // linesDocForm: FormGroup;
-  // paymentForm: FormGroup;
   initialIndexForm: FormGroup;
-
 
   readonly DocCreateTypeList = Object.entries(DocTypeDisplayName).map(([value, name]) => ({ value, name }));
 
   bankOptionsList = bankOptionsList;
-
-  readonly paymentMethodList = [
-    { value: PaymentMethodValue.BANK_TRANSFER, name: PaymentMethodName.BANK_TRANSFER },
-    { value: PaymentMethodValue.CASH, name: PaymentMethodName.CASH },
-    { value: PaymentMethodValue.BIT, name: PaymentMethodName.BIT },
-    { value: PaymentMethodValue.PAYBOX, name: PaymentMethodName.PAYBOX },
-    { value: PaymentMethodValue.CREDIT_CARD, name: PaymentMethodName.CREDIT_CARD },
-    { value: PaymentMethodValue.CHECK, name: PaymentMethodName.CHECK },
-  ];
 
   readonly UnitOfMeasureList = [
     { value: UnitOfMeasure.UNIT, name: 'יחידות' },
@@ -152,57 +138,47 @@ export class DocCreatePage implements OnInit {
     { value: CreditTransactionType.OTHER, name: 'אחר' },
   ]
 
-
-
-  paymentMethodTabs: MenuItem[] = [
-    { label: 'העברה בנקאית', id: 'BANK_TRANSFER' as any },  // `id` is just an extra field (PrimeNG allows it)
-    { label: 'אשראי', id: 'CREDIT_CARD' as any },
-    { label: 'צ׳ק', id: 'CHECK' as any },
-    { label: 'אפליקציה', id: 'APP' as any },
-    { label: 'מזומן', id: 'CASH' as any },
-  ];
-
-  activePaymentMethod: MenuItem = this.paymentMethodTabs[0]; // default selected
+  activePaymentMethod: MenuItem = this.paymentMethodOptions[0]; // default selected
 
   paymentInputForm: FormGroup;  // Holds the active entry row
   paymentsDraft: any[] = [];     // Stores all added payments
+  readonly formTypes = FormTypes;
 
   paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
     BANK_TRANSFER: [
-      { key: 'paymentDate', label: 'תאריך', type: 'date' },
-      { key: 'bankName', label: 'בנק', type: 'dropdown', options: this.bankOptionsList },
-      { key: 'branchNumber', label: 'סניף', type: 'text' },
-      { key: 'accountNumber', label: 'חשבון', type: 'text' },
-      { key: 'paymentAmount', label: 'סכום', type: 'text' }
+      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
+      { key: 'bankName', label: 'בנק', type: this.formTypes.DDL, options: this.bankOptionsList },
+      { key: 'branchNumber', label: 'סניף', type: this.formTypes.TEXT },
+      { key: 'accountNumber', label: 'חשבון', type: this.formTypes.TEXT },
+      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.TEXT }
     ],
     CREDIT_CARD: [
-      { key: 'paymentDate', label: 'תאריך', type: 'date' },
-      { key: 'cardType', label: 'סוג כרטיס', type: 'text' },
-      { key: 'last4Digits', label: '4 ספרות', type: 'text' },
-      { key: 'approvalCode', label: 'קוד אישור', type: 'text' },
-      { key: 'paymentAmount', label: 'סכום', type: 'text' }
+      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
+      { key: 'cardType', label: 'סוג כרטיס', type: this.formTypes.DDL, options: this.CardCompanyList },
+      { key: 'last4Digits', label: '4 ספרות', type: this.formTypes.TEXT },
+      { key: 'approvalCode', label: 'קוד אישור', type: this.formTypes.TEXT },
+      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.TEXT }
     ],
     CHECK: [
-      { key: 'paymentDate', label: 'תאריך', type: 'date' },
-      { key: 'bankName', label: 'בנק', type: 'dropdown', options: this.bankOptionsList },
-      { key: 'branchNumber', label: 'סניף', type: 'text' },
-      { key: 'checkNumber', label: 'מספר צ׳ק', type: 'text' },
-      { key: 'paymentAmount', label: 'סכום', type: 'text' }
+      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
+      { key: 'bankName', label: 'בנק', type: this.formTypes.DDL, options: this.bankOptionsList },
+      { key: 'branchNumber', label: 'סניף', type: this.formTypes.TEXT },
+      { key: 'checkNumber', label: 'מספר צ׳ק', type: this.formTypes.TEXT },
+      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.NUMBER }
     ],
     APP: [
-      { key: 'paymentDate', label: 'תאריך', type: 'date' },
-      { key: 'appName', label: 'אפליקציה', type: 'text' },
-      { key: 'reference', label: 'אסמכתא', type: 'text' },
-      { key: 'paymentAmount', label: 'סכום', type: 'text' }
+      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
+      { key: 'appName', label: 'אפליקציה', type: this.formTypes.TEXT },
+      { key: 'reference', label: 'אסמכתא', type: this.formTypes.TEXT },
+      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.NUMBER }
     ],
     CASH: [
-      { key: 'paymentDate', label: 'תאריך', type: 'date' },
-      { key: 'paymentAmount', label: 'סכום', type: 'text' }
+      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
+      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.NUMBER }
     ],
   };
 
 
-  readonly formTypes = FormTypes;
   FieldsCreateDocValue = FieldsCreateDocValue;
   vatOptions = vatOptions;
 
@@ -222,6 +198,8 @@ export class DocCreatePage implements OnInit {
 
 
   ngOnInit() {
+console.log("paymentMethodOptions: ", paymentMethodOptions);
+console.log("activePaymentMethod: ", this.activePaymentMethod);
 
     this.userData = this.authService.getUserDataFromLocalStorage();
 
@@ -277,11 +255,11 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  async onSelectedDoc(event: any): Promise<void> {
-
+  onSelectedDoc(event: any): void {
+    this.isDocWithPayments.set(event === DocumentType.RECEIPT || event === DocumentType.TAX_INVOICE_RECEIPT);
     this.fileSelected = event;
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected);
-    await this.handleDocIndexes(this.fileSelected);
+    this.handleDocIndexes(this.fileSelected);
 
   }
 
@@ -330,74 +308,74 @@ export class DocCreatePage implements OnInit {
 
 
   previewtDoc(): void {
-    // console.log(this.myForm);
+    console.log(this.myForm);
 
-    // this.createPreviewPDFIsLoading = true;
-    // const data = this.buildDocPayload();
+    this.createPreviewPDFIsLoading = true;
+    const data = this.buildDocPayload();
 
-    // this.docCreateService.previewDoc(data)
-    //   .pipe(
-    //     finalize(() => {
-    //       this.createPreviewPDFIsLoading = false;
-    //     }),
-    //     catchError((err) => {
-    //       console.error("Error in createPDF (Preview):", err);
-    //       return EMPTY;
-    //     })
-    //   )
-    //   .subscribe((res) => {
-    //     console.log("PDF creation result (Preview):", res);
-    //     this.fileService.previewFile3(res);
-    //     //this.fileService.previewFile1(res);
-    //   });
+    this.docCreateService.previewDoc(data)
+      .pipe(
+        finalize(() => {
+          this.createPreviewPDFIsLoading = false;
+        }),
+        catchError((err) => {
+          console.error("Error in createPDF (Preview):", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log("PDF creation result (Preview):", res);
+        this.fileService.previewFile3(res);
+        //this.fileService.previewFile1(res);
+      });
   }
 
 
-  // private buildDocPayload(): DocPayload {
+  private buildDocPayload(): DocPayload {
 
-  // if (!this.CreateDocIsValid) {
-  //   throw new Error('Cannot collect document data: forms are invalid or incomplete.');
-  // }
+  if (!this.CreateDocIsValid) {
+    throw new Error('Cannot collect document data: forms are invalid or incomplete.');
+  }
 
-  // let docPayload: DocPayload;
+  let docPayload: DocPayload;
 
-  // const issuerBusinessNumber = this.selectedBusinessNumber;
-  // const issuerName = this.selectedBusinessName;
-  // const issuerAddress = this.selectedBusinessAddress;
-  // const issuerPhone = this.selectedBusinessPhone;
-  // const issuerEmail = this.selectedBusinessEmail;
+  const issuerBusinessNumber = this.selectedBusinessNumber;
+  const issuerName = this.selectedBusinessName;
+  const issuerAddress = this.selectedBusinessAddress;
+  const issuerPhone = this.selectedBusinessPhone;
+  const issuerEmail = this.selectedBusinessEmail;
 
-  // const docNumber = this.docIndexes.docIndex;
-  // const generalDocIndex = this.docIndexes.generalIndex;
-  // const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
+  const docNumber = this.docIndexes.docIndex;
+  const generalDocIndex = this.docIndexes.generalIndex;
+  const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
 
-  // docPayload = {
-  //   docData: {
-  //     ...this.generalDocForm.value,
-  //     ...this.recipientDocForm.value,
-  //     issuerBusinessNumber,
-  //     issuerName,
-  //     issuerAddress,
-  //     issuerPhone,
-  //     issuerEmail,
-  //     docNumber,
-  //     generalDocIndex,
-  //     hebrewNameDoc,
-  //     sumBefDisBefVat: this.documentTotals().sumBefDisBefVat,
-  //     disSum: this.documentTotals().disSum,
-  //     sumAftDisBefVAT: this.documentTotals().sumAftDisBefVat,
-  //     vatSum: this.documentTotals().vatSum,
-  //     sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
-  //   },
-  //   linesData: this.lineItemsDraft,
-  //   paymentData: this.paymentsDraft,
-  // };
+  docPayload = {
+    docData: {
+      ...this.generalDetailsForm.value,
+      ...this.userDetailsForm.value,
+      issuerBusinessNumber,
+      issuerName,
+      issuerAddress,
+      issuerPhone,
+      issuerEmail,
+      docNumber,
+      generalDocIndex,
+      hebrewNameDoc,
+      sumBefDisBefVat: this.documentTotals().sumBefDisBefVat,
+      disSum: this.documentTotals().disSum,
+      sumAftDisBefVAT: this.documentTotals().sumAftDisBefVat,
+      vatSum: this.documentTotals().vatSum,
+      sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
+    },
+    linesData: this.lineItemsDraft(),
+    paymentData: this.paymentsDraft,
+  };
 
-  // console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
+  console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
 
-  // return docPayload;
+  return docPayload;
 
-  // }
+  }
 
 
   addLineDetails(): void {
@@ -600,37 +578,37 @@ export class DocCreatePage implements OnInit {
 
   onPaymentMethodChange(paymentMethod: MenuItem): void {
     this.activePaymentMethod = paymentMethod;
-    // const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
-    // this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
   }
 
 
   addPayment(): void {
 
-    // const paymentFormValue = this.paymentInputForm.value;
-    // const paymentLineIndex = this.paymentsDraft.length;
+    const paymentFormValue = this.paymentInputForm.value;
+    const paymentLineIndex = this.paymentsDraft.length;
 
-    // const selectedBank = bankOptionsList.find(bank => bank.value === paymentFormValue.bankName);
-    // const hebrewBankName = selectedBank ? selectedBank.name : '';
-    // const bankNumber = selectedBank?.number ?? '';
+    const selectedBank = bankOptionsList.find(bank => bank.value === paymentFormValue.bankName);
+    const hebrewBankName = selectedBank ? selectedBank.name : '';
+    const bankNumber = selectedBank?.number ?? '';
 
-    // // Build the full payment entry with extra fields
-    // const paymentEntry = {
-    //   ...paymentFormValue,
-    //   issuerBusinessNumber: this.selectedBusinessNumber,
-    //   generalDocIndex: String(this.docIndexes.generalIndex),
-    //   paymentLineNumber: paymentLineIndex + 1,
-    //   paymentMethod: this.activePaymentMethod.id, // Track which payment method was selected
-    //   hebrewBankName,  // Save the Hebrew name for later use (display / backend)
-    //   bankNumber
-    // };
+    // Build the full payment entry with extra fields
+    const paymentEntry = {
+      ...paymentFormValue,
+      issuerBusinessNumber: this.selectedBusinessNumber,
+      generalDocIndex: String(this.docIndexes.generalIndex),
+      paymentLineNumber: paymentLineIndex + 1,
+      paymentMethod: this.activePaymentMethod.id, // Track which payment method was selected
+      hebrewBankName,  // Save the Hebrew name for later use (display / backend)
+      bankNumber
+    };
 
-    // this.paymentsDraft.push(paymentEntry);
+    this.paymentsDraft.push(paymentEntry);
 
-    // // Reset the form for the next payment entry
-    // const docDate = this.generalDocForm.get(DocCreateFields.DOC_DATE)?.value ?? null;
-    // this.paymentForm.reset();
-    // this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
+    // Reset the form for the next payment entry
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
+    this.paymentInputForm.reset();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
 
   }
 
@@ -689,15 +667,34 @@ export class DocCreatePage implements OnInit {
     const initialIndex = this.initialIndexForm.get('initialIndex')?.value;
 
     this.docIndexes.docIndex = initialIndex;
-    this.isInitial = false;
-    this.showInitialIndexDialog = false;
+    // this.isInitial = false;
+    // this.showInitialIndexDialog = false;
 
     console.log('Initial index selected:', this.docIndexes);
-
+    this.setInitialIndex();
     // Resolve the waiting Subject so onSelectedDoc can continue
-    this.initialIndexSubject?.next(this.docIndexes.docIndex);
-    this.initialIndexSubject?.complete();
-    this.initialIndexSubject = undefined;
+    // this.initialIndexSubject?.next(this.docIndexes.docIndex);
+    // this.initialIndexSubject?.complete();
+    // this.initialIndexSubject = undefined;
+  }
+
+  setInitialIndex(): void {
+    this.docCreateService.setInitialDocDetails(this.fileSelected, this.docIndexes.docIndex)
+    .pipe(
+      catchError(err => {
+        console.error('Error setting initial index:', err);
+        alert("אירעה שגיאה בהגדרת מספר התחלתי אנא נסה מאוחר יותר או להפיק מסמך אחר")
+        return EMPTY;
+      })
+    )
+    .subscribe(
+      (res) => {
+        console.log("res in setInitialIndex:", res);
+        this.isInitial = false;
+        this.showInitialIndexDialog = false;
+        this.isFileSelected.set(true);
+      }
+    )
   }
 
   getHebrewNameDoc(typeDoc: DocumentType): string {
@@ -706,39 +703,46 @@ export class DocCreatePage implements OnInit {
 
 
 
-  private async handleDocIndexes(docType: DocumentType): Promise<void> {
-    try {
-      const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
-      this.isInitial = res.isInitial;
-
-      console.log("res in handleDocIndexes:", res);
-
-
-      // Save general index always (used for internal doc ID)
-      this.docIndexes.generalIndex = res.generalIndex;
-
-      if (res.isInitial) {
+  handleDocIndexes(docType: DocumentType): void {
+    this.docCreateService.getDocIndexes(docType).subscribe(
+      (res) => {
+        console.log("res in handleDocIndexes:", res);
+        //   // Save general index always (used for internal doc ID)
+        this.docIndexes.generalIndex = res.generalIndex;
         const defaultIndex = DocTypeDefaultStart[docType] ?? 100001;
         this.initialIndexForm.get('initialIndex')?.setValue(defaultIndex);
-
-        // Show popup and wait for user input
+        this.isInitial = res.isInitial;
+        this.isFileSelected.set(!res.isInitial); // If this docType is already initilized, display the page
         this.showInitialIndexDialog = true;
-        this.initialIndexSubject = new Subject<number>();
-
-        const selectedDocIndex = await firstValueFrom(this.initialIndexSubject);
-
-        // Save selected doc index
-        this.docIndexes.docIndex = selectedDocIndex;
-
-      } else {
-        // Use backend-provided value
-        this.docIndexes.docIndex = res.docIndex;
       }
+    )
+    // try {
+    //   const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
+    //   this.isInitial = res.isInitial;
 
-    } catch (err) {
-      console.error('Error fetching doc indexes:', err);
-      throw err;
-    }
+    //   console.log("res in handleDocIndexes:", res);
+
+
+
+    //   if (res.isInitial) {
+
+    //     // Show popup and wait for user input
+        // this.initialIndexSubject = new Subject<number>();
+
+    //     const selectedDocIndex = await firstValueFrom(this.initialIndexSubject);
+
+    //     // Save selected doc index
+    //     this.docIndexes.docIndex = selectedDocIndex;
+
+    //   } else {
+    //     // Use backend-provided value
+    //     this.docIndexes.docIndex = res.docIndex;
+    //   }
+
+    // } catch (err) {
+    //   console.error('Error fetching doc indexes:', err);
+    //   throw err;
+    // }
   }
 
   openSelectClients() {
@@ -897,7 +901,7 @@ export class DocCreatePage implements OnInit {
       case FieldsCreateDocValue.CURRENCY:
       // return this.currencyList;
       case fieldLineDocValue.PAYMENT_METHOD:
-        return this.paymentMethodList;
+        // return this.paymentMethodOptions;
       case fieldLineDocValue.VAT_OPTIONS:
         return vatOptions;
       case fieldLineDocValue.UNIT_TYPE:
@@ -912,12 +916,12 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  isDocWithPayments(): boolean {
-    return [
-      DocumentType.RECEIPT,
-      DocumentType.TAX_INVOICE_RECEIPT,
-    ].includes(this.fileSelected);
-  }
+  // isDocWithPayments(): boolean {
+  //   return [
+  //     DocumentType.RECEIPT,
+  //     DocumentType.TAX_INVOICE_RECEIPT,
+  //   ].includes(this.fileSelected);
+  // }
 
 
 }

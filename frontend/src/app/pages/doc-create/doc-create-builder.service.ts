@@ -1,5 +1,5 @@
 import { Injectable } from "@angular/core";
-import { CardCompany, CreateDocFields, CreditTransactionType, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodValue, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
+import { CardCompany, CreateDocFields, CreditTransactionType, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
 import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
 import { DocTypeDisplayName, DocCreateFields } from "./doc-cerate.enum";
@@ -344,7 +344,7 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: Object.entries(PaymentMethodValue).map(([name, value]) => ({ value, name })),
+            enumValues: [],
             editFormBasedOnValue: {
                 TRANSFER: [fieldLineDocValue.BANK_NUMBER, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER],
                 CHECK: [fieldLineDocValue.BANK_NUMBER, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER, fieldLineDocValue.CHECK_NUMBER, fieldLineDocValue.PAYMENT_CHECK_DATE],
@@ -525,7 +525,7 @@ export class DocCreateBuilderService {
         'LineDetails': {
             key: 'LineDetails',
             baseFields: [FieldsCreateDocValue.LINE_DESCRIPTION, FieldsCreateDocValue.SUM, FieldsCreateDocValue.DISCOUNT, FieldsCreateDocValue.UNIT_AMOUNT, FieldsCreateDocValue.VAT_OPTIONS],
-            expandable: true,
+            expandable: false,
             expandedFields: []
         },
         'ReceiptPaymentDetails': {

@@ -1,7 +1,7 @@
 <div class="page-wrapper">
 
   <!-- בחירת עסק -->
-  <!-- <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
+  <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
     [dismissableMask]="false" [rtl]="true" [style]="{ width: '400px' }">
     <div class="p-fluid">
       <p>היי! זיהינו שיש לך יותר מעסק אחד .<br />באיזה עסק תרצה להפיק את המסמך?</p>
@@ -15,10 +15,10 @@
           (onButtonClicked)="onConfirmBusinessSelection()"></app-p-button>
       </div>
     </div>
-  </p-dialog> -->
-  <!-- הגדרת מספור במידה וזהו המסמך הראשון שנוצר מאותו סוג -->
+  </p-dialog>
+  <!-- Dialog for initial index -->
   @if (isInitial) {
-  <p-dialog header="הגדרת מספור" [(visible)]="showInitialIndexDialog" [modal]="true" [closable]="false" [rtl]="true"
+  <p-dialog header="הגדרת מספור" [(visible)]="showInitialIndexDialog" [modal]="true" [rtl]="true"
     [style]="{ width: '400px' }">
     <div class="p-fluid">
       <p>
@@ -86,7 +86,7 @@
     </div>
 
     <!-- Recipient details section -->
-    @if (fileSelected) {
+    @if (isFileSelected()) {
     <div class="section">
       <div class="create-doc-header">
         <div class="icon-title">
@@ -250,9 +250,8 @@
       </div>
       }
     </div>
-    <!-- } -->
 
-    <!-- תשלומים -->
+    <!-- payments -->
     @if (isDocWithPayments()) {
 
     <div class="section">
@@ -265,7 +264,7 @@
       </div>
 
       <!-- Tab Menu for Payment Method -->
-      <p-tabMenu [model]="paymentMethodTabs" [activeItem]="activePaymentMethod"
+      <p-tabMenu [model]="paymentMethodOptions" [activeItem]="activePaymentMethod"
         (activeItemChange)="onPaymentMethodChange($event)">
       </p-tabMenu>
 
@@ -277,7 +276,6 @@
           @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
           <div>{{ field.label }}</div>
           }
-          <div>פעולה</div>
         </div>
 
         <hr class="fields-divider" />
@@ -287,17 +285,17 @@
           <div class="fields-grid fields-row">
             @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
             @switch (field.type) {
-            @case ('date') {
+            @case (formTypes.DATE) {
             <app-input-date [controlName]="field.key" [labelText]="field.label" placeholder="00/00/0000"
               [parentForm]="paymentInputForm"></app-input-date>
             }
-            @case ('dropdown') {
+            @case (formTypes.DDL) {
             <app-input-select [controlName]="field.key" [labelText]="field.label" [placeholder]=""
-              [items]="field.options" [parentForm]="paymentInputForm" [size]="inputsSize.BETWEEN"></app-input-select>
+              [items]="field.options" [parentForm]="paymentInputForm" [size]="inputsSize.AUTO"></app-input-select>
             }
             @default {
             <app-input-text [controlName]="field.key" [labelText]="field.label" [placeholder]="''"
-              [parentForm]="paymentInputForm" [size]="inputsSize.BETWEEN"></app-input-text>
+              [parentForm]="paymentInputForm" [type]="field.type === formTypes.NUMBER ? 'number' : 'text'" [size]="inputsSize.BETWEEN"></app-input-text>
             }
             }
             }

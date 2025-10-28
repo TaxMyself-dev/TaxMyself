@@ -1,3 +1,4 @@
+import { MenuItem } from "primeng/api";
 import { ISelectItem } from "./interface";
 
 export enum paymentIdentifierType {
@@ -270,14 +271,6 @@ export enum fieldLineDocName {
 
 export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;
 
-export enum PaymentMethodValue {
-  CASH = 'CASH',
-  BANK_TRANSFER = 'BANK_TRANSFER',
-  BIT = 'BIT',
-  PAYBOX = 'PAYBOX',
-  CREDIT_CARD = 'CREDIT_CARD',
-  CHECK = 'CHECK',
-}
 
 export enum PaymentMethodName {
   CASH = 'מזומן',
@@ -320,7 +313,16 @@ export enum CreditTransactionType {
 
 // export type VatOptions = 'WITHOUT' | 'BEFORE' | 'AFTER'
 
-export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' | 'CREDIT_CARD' | 'CHECK';
+export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'APP' | 'CREDIT_CARD' | 'CHECK';
+export type PaymentMethodTypeHebrew = 'מזומן' | 'העברה בנקאית' | 'אפליקציה' | 'כרטיס אשראי' | 'צ׳ק';
+
+export const paymentMethodOptions = [
+  { label: 'העברה בנקאית', id: 'BANK_TRANSFER' },
+  { label: 'כרטיס אשראי',   id: 'CREDIT_CARD' },
+  { label: 'מזומן',         id: 'CASH' },
+  { label: 'אפליקציה',      id: 'APP' },
+  { label: 'צ׳ק',           id: 'CHECK' },
+] satisfies Array<MenuItem & { label: PaymentMethodTypeHebrew; id: PaymentMethodType }>;
 
 export enum CardCompany {
   ISRACARD = 'ISRACARD',
