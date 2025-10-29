@@ -135,6 +135,18 @@ export enum BankName {
   OTSAR_HACHAYAL = 'OTSAR_HACHAYAL',
 }
 
+export type BankNameHebrew = 'הפועלים' | 'לאומי' | 'מזרחי טפחות' | 'דיסקונט' | 'מרכנתיל' | 'בינלאומי' | 'אוצר החייל';
+
+export const bankOptionsList = [
+  { value: 12, name: 'הפועלים' },
+  { value: 10, name: 'לאומי' },
+  { value: 20, name: 'מזרחי טפחות' },
+  { value: 11, name: 'דיסקונט' },
+  { value: 17, name: 'מרכנתיל' },
+  { value: 31, name: 'בינלאומי' },
+  { value: 14, name: 'אוצר החייל' },
+] satisfies Array<{ value: number; name: BankNameHebrew }>;
+
 // Map each bank enum to its Hebrew label
 export const BankNameLabels = {
   [BankName.HAPOALIM]: 'הפועלים',
@@ -147,13 +159,13 @@ export const BankNameLabels = {
 };
 
 // Create the list for dropdowns (PrimeNG p-dropdown expects {value, label/name})
-export const bankOptionsList = [
-  { value: BankName.HAPOALIM, name: BankNameLabels[BankName.HAPOALIM], number: '12' },
-  { value: BankName.LEUMI, name: BankNameLabels[BankName.LEUMI], number: '10' },
-  { value: BankName.MIZRAHI_TEFAHOT, name: BankNameLabels[BankName.MIZRAHI_TEFAHOT], number: '20' },
-  { value: BankName.DISCONT, name: BankNameLabels[BankName.DISCONT], number: '11' },
-  { value: BankName.MERCANTILE, name: BankNameLabels[BankName.MERCANTILE], number: '17' },
-  { value: BankName.BEN_LEUMI, name: BankNameLabels[BankName.BEN_LEUMI], number: '31' },
-  { value: BankName.OTSAR_HACHAYAL, name: BankNameLabels[BankName.OTSAR_HACHAYAL], number: '14' },
-];
+// export const bankOptionsList = [
+//   { value: BankName.HAPOALIM, name: BankNameLabels[BankName.HAPOALIM], number: '12' },
+//   { value: BankName.LEUMI, name: BankNameLabels[BankName.LEUMI], number: '10' },
+//   { value: BankName.MIZRAHI_TEFAHOT, name: BankNameLabels[BankName.MIZRAHI_TEFAHOT], number: '20' },
+//   { value: BankName.DISCONT, name: BankNameLabels[BankName.DISCONT], number: '11' },
+//   { value: BankName.MERCANTILE, name: BankNameLabels[BankName.MERCANTILE], number: '17' },
+//   { value: BankName.BEN_LEUMI, name: BankNameLabels[BankName.BEN_LEUMI], number: '31' },
+//   { value: BankName.OTSAR_HACHAYAL, name: BankNameLabels[BankName.OTSAR_HACHAYAL], number: '14' },
+// ];
 

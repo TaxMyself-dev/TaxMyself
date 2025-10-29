@@ -9,7 +9,7 @@ export interface ICreateDocSectionData {
     expandedFields: FieldsCreateDocValue[] | fieldLineDocValue[]; 
 }
 
-export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' | 'LineDetails' | 'BankTransferDetails' | 'CreditCardDetails' | 'AppsDetails' | 'CheckDetails' | 'CashDetails' ;
+export type SectionKeysEnum = 'GeneralDetails' | 'ReceiptPaymentDetails' | 'TaxInvoicePaymentDetails' | 'UserDetails' | 'Document Summary' | 'LineDetails' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'APP' | 'CHECK' | 'CASH' ;
 
 export interface IDocCreateFieldData {
     //name: FieldsCreateDocName | fieldLineDocName;

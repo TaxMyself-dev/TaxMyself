@@ -198,11 +198,11 @@ export class DocCreatePage implements OnInit {
 
 
   ngOnInit() {
-console.log("paymentMethodOptions: ", paymentMethodOptions);
-console.log("activePaymentMethod: ", this.activePaymentMethod);
-
     this.userData = this.authService.getUserDataFromLocalStorage();
-
+    if (!this.userData.isTwoBusinessOwner) {
+      this.selectedBusinessNumber = this.userData.businessNumber;
+      this.onBusinessSelection(this.selectedBusinessNumber);
+    }
     const businessData = this.genericService.getBusinessData(this.userData);
 
     this.businessMode = businessData.mode;
@@ -227,11 +227,8 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
   }
 
 
-  onConfirmBusinessSelection(): void {
-
-    if (!this.selectedBusinessNumber) {
-      throw new Error('No business number was selected.');
-    }
+  onBusinessSelection(event: string): void {
+    this.selectedBusinessNumber = event;
 
     const selected = this.businessFullList.find(b => b.value === this.selectedBusinessNumber);
 
@@ -240,12 +237,10 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
     }
 
     this.setSelectedBusiness(selected);
-    this.showBusinessSelector = false;
-
   }
 
 
-  private setSelectedBusiness(business: BusinessInfo): void {
+  setSelectedBusiness(business: BusinessInfo): void {
     this.selectedBusinessNumber = business.value;
     this.selectedBusinessName = business.name;
     this.selectedBusinessAddress = business.address;
@@ -261,6 +256,23 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected);
     this.handleDocIndexes(this.fileSelected);
 
+  }
+
+  onSelectionChange(field: string, event: any): void {
+    console.log("field: ", field);
+    console.log("event: ", event);
+
+    switch (field) {
+      case 'docType':
+        this.onSelectedDoc(event);
+        break;
+        case 'businessNumber':
+        this.generalDetailsForm.get('docType')?.setValue(""); //To enable switching between businesses and selecting the same document
+        this.onBusinessSelection(event);
+        break;
+      default:
+        break;
+    }
   }
 
 
@@ -333,47 +345,47 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
 
   private buildDocPayload(): DocPayload {
 
-  if (!this.CreateDocIsValid) {
-    throw new Error('Cannot collect document data: forms are invalid or incomplete.');
-  }
+    if (!this.CreateDocIsValid) {
+      throw new Error('Cannot collect document data: forms are invalid or incomplete.');
+    }
 
-  let docPayload: DocPayload;
+    let docPayload: DocPayload;
 
-  const issuerBusinessNumber = this.selectedBusinessNumber;
-  const issuerName = this.selectedBusinessName;
-  const issuerAddress = this.selectedBusinessAddress;
-  const issuerPhone = this.selectedBusinessPhone;
-  const issuerEmail = this.selectedBusinessEmail;
+    const issuerBusinessNumber = this.selectedBusinessNumber;
+    const issuerName = this.selectedBusinessName;
+    const issuerAddress = this.selectedBusinessAddress;
+    const issuerPhone = this.selectedBusinessPhone;
+    const issuerEmail = this.selectedBusinessEmail;
 
-  const docNumber = this.docIndexes.docIndex;
-  const generalDocIndex = this.docIndexes.generalIndex;
-  const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
+    const docNumber = this.docIndexes.docIndex;
+    const generalDocIndex = this.docIndexes.generalIndex;
+    const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
 
-  docPayload = {
-    docData: {
-      ...this.generalDetailsForm.value,
-      ...this.userDetailsForm.value,
-      issuerBusinessNumber,
-      issuerName,
-      issuerAddress,
-      issuerPhone,
-      issuerEmail,
-      docNumber,
-      generalDocIndex,
-      hebrewNameDoc,
-      sumBefDisBefVat: this.documentTotals().sumBefDisBefVat,
-      disSum: this.documentTotals().disSum,
-      sumAftDisBefVAT: this.documentTotals().sumAftDisBefVat,
-      vatSum: this.documentTotals().vatSum,
-      sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
-    },
-    linesData: this.lineItemsDraft(),
-    paymentData: this.paymentsDraft,
-  };
+    docPayload = {
+      docData: {
+        ...this.generalDetailsForm.value,
+        ...this.userDetailsForm.value,
+        issuerBusinessNumber,
+        issuerName,
+        issuerAddress,
+        issuerPhone,
+        issuerEmail,
+        docNumber,
+        generalDocIndex,
+        hebrewNameDoc,
+        sumBefDisBefVat: this.documentTotals().sumBefDisBefVat,
+        disSum: this.documentTotals().disSum,
+        sumAftDisBefVAT: this.documentTotals().sumAftDisBefVat,
+        vatSum: this.documentTotals().vatSum,
+        sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
+      },
+      linesData: this.lineItemsDraft(),
+      paymentData: this.paymentsDraft,
+    };
 
-  console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
+    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
 
-  return docPayload;
+    return docPayload;
 
   }
 
@@ -518,60 +530,24 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
 
 
   createPaymentInputForm(paymentMethod: string, docDate: Date | null = null): void {
+    console.log("🚀 ~ DocCreatePage ~ createPaymentInputForm ~ paymentMethod", paymentMethod);
 
     const sum = this.documentTotals().sumAftDisWithVat;
 
-    switch (paymentMethod) {
-      case 'BANK_TRANSFER':
-        this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [docDate, Validators.required],
-          bankName: [null, Validators.required],
-          branchNumber: [null],
-          accountNumber: [null],
-          paymentAmount: [sum, [Validators.required, Validators.min(0.01)]],
-          paymentMethod: [paymentMethod]
-        });
-        break;
+    // Build the section form using the builder and extract the inner section group as the working form
+    const built = this.docCreateBuilderService.buildDocCreateForm([paymentMethod as SectionKeysEnum]);
+    const sectionForm = built.get(paymentMethod) as FormGroup;
+    this.paymentInputForm = sectionForm ?? built; // fallback just in case
 
-      case 'CREDIT_CARD':
-        this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [docDate, Validators.required],
-          cardType: [null, Validators.required],
-          last4Digits: [null, [Validators.required, Validators.pattern(/^\d{4}$/)]],
-          approvalCode: [null, Validators.required],
-          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          paymentMethod: [paymentMethod]
-        });
-        break;
+    // Expose fields for rendering
+    this.paymentsArray = this.docCreateBuilderService.getBaseFieldsBySection(paymentMethod as SectionKeysEnum);
 
-      case 'CHECK':
-        this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [docDate, Validators.required],
-          bankName: [null, Validators.required],
-          branchNumber: [null, Validators.required],
-          checkNumber: [null, [Validators.required, Validators.pattern(/^\d+$/)]],
-          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          paymentMethod: [paymentMethod]
-        });
-        break;
-
-      case 'APP':
-        this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [docDate, Validators.required],
-          appName: [null, Validators.required],
-          reference: [null, Validators.required],
-          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          paymentMethod: [paymentMethod]
-        });
-        break;
-
-      case 'CASH':
-        this.paymentInputForm = this.formBuilder.group({
-          paymentDate: [docDate, Validators.required],
-          paymentAmount: [null, [Validators.required, Validators.min(0.01)]],
-          paymentMethod: [paymentMethod]
-        });
-        break;
+    // Apply default values based on current doc context
+    if (this.paymentInputForm.get('paymentDate')) {
+      this.paymentInputForm.get('paymentDate')?.setValue(docDate);
+    }
+    if (this.paymentInputForm.get('sum')) {
+      this.paymentInputForm.get('sum')?.setValue(sum);
     }
   }
 
@@ -582,15 +558,19 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
   }
 
+  getPaymentFields(section: string) {
+    return this.docCreateBuilderService.getBaseFieldsBySection(section as SectionKeysEnum);
+  }
+
 
   addPayment(): void {
 
     const paymentFormValue = this.paymentInputForm.value;
     const paymentLineIndex = this.paymentsDraft.length;
 
-    const selectedBank = bankOptionsList.find(bank => bank.value === paymentFormValue.bankName);
+    const selectedBank = bankOptionsList.find(bank => bank.value === (paymentFormValue.bankNumber ?? paymentFormValue.bankName));
     const hebrewBankName = selectedBank ? selectedBank.name : '';
-    const bankNumber = selectedBank?.number ?? '';
+    const bankNumber = selectedBank?.value ?? '';
 
     // Build the full payment entry with extra fields
     const paymentEntry = {
@@ -679,22 +659,23 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
   }
 
   setInitialIndex(): void {
-    this.docCreateService.setInitialDocDetails(this.fileSelected, this.docIndexes.docIndex)
-    .pipe(
-      catchError(err => {
-        console.error('Error setting initial index:', err);
-        alert("אירעה שגיאה בהגדרת מספר התחלתי אנא נסה מאוחר יותר או להפיק מסמך אחר")
-        return EMPTY;
-      })
-    )
-    .subscribe(
-      (res) => {
-        console.log("res in setInitialIndex:", res);
-        this.isInitial = false;
-        this.showInitialIndexDialog = false;
-        this.isFileSelected.set(true);
-      }
-    )
+    console.log("🚀 ~ DocCreatePage ~ setInitialIndex ~ this.busoneselectedBusinessNumberss:", this.selectedBusinessNumber)
+    this.docCreateService.setInitialDocDetails(this.fileSelected, this.docIndexes.docIndex, this.selectedBusinessNumber)
+      .pipe(
+        catchError(err => {
+          console.log('Error setting initial index:', err);
+          alert("אירעה שגיאה בהגדרת מספר התחלתי אנא נסה מאוחר יותר או להפיק מסמך אחר")
+          return EMPTY;
+        })
+      )
+      .subscribe(
+        (res) => {
+          console.log("res in setInitialIndex:", res);
+          this.isInitial = false;
+          this.showInitialIndexDialog = false;
+          this.isFileSelected.set(true);
+        }
+      )
   }
 
   getHebrewNameDoc(typeDoc: DocumentType): string {
@@ -704,7 +685,15 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
 
 
   handleDocIndexes(docType: DocumentType): void {
-    this.docCreateService.getDocIndexes(docType).subscribe(
+    this.docCreateService.getDocIndexes(docType, this.selectedBusinessNumber)
+    .pipe(
+      catchError(err => {
+        console.error('Error getting doc indexes:', err);
+        alert("אירעה שגיאה אנא נסה מאוחר יותר")
+        return EMPTY;
+      })
+    )
+    .subscribe(
       (res) => {
         console.log("res in handleDocIndexes:", res);
         //   // Save general index always (used for internal doc ID)
@@ -727,7 +716,7 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
     //   if (res.isInitial) {
 
     //     // Show popup and wait for user input
-        // this.initialIndexSubject = new Subject<number>();
+    // this.initialIndexSubject = new Subject<number>();
 
     //     const selectedDocIndex = await firstValueFrom(this.initialIndexSubject);
 
@@ -900,8 +889,8 @@ console.log("activePaymentMethod: ", this.activePaymentMethod);
     switch (controlValue) {
       case FieldsCreateDocValue.CURRENCY:
       // return this.currencyList;
-      case fieldLineDocValue.PAYMENT_METHOD:
-        // return this.paymentMethodOptions;
+      // case fieldLineDocValue.PAYMENT_METHOD:
+      // return this.paymentMethodOptions;
       case fieldLineDocValue.VAT_OPTIONS:
         return vatOptions;
       case fieldLineDocValue.UNIT_TYPE:

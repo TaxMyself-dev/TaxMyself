@@ -166,6 +166,7 @@ export enum CurrencyHebrew {
 }
 
 export enum FieldsCreateDocValue {
+  BUSINESS_NUMBER = 'businessNumber',
   DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
   DOCUMENT_DATE = 'documentDate',
@@ -217,16 +218,17 @@ export enum FieldsCreateDocName {
 
 export enum fieldLineDocValue {
   SUM = 'sum',
+  PAYMENT_SUM = 'paymentSum',
   LINE_DESCRIPTION = 'description',
   UNIT_AMOUNT = 'unitAmount',
   SUM_BEF_VAT = 'sumBefVat',
   VAT_RATE = 'vatRate',
   VAT_OPTIONS = 'vatOptions',
-  PAYMENT_METHOD = 'paymentMethod',
+  // PAYMENT_METHOD = 'paymentMethod',
   DISCOUNT = 'discount',
   LINE_NUMBER = 'lineNumber',
   UNIT_TYPE = 'unitType',
-  BANK_NUMBER = 'bankNumber',
+  BANK_NAME = 'bankNumber',
   BRANCH_NUMBER = 'branchNumber',
   ACCOUNT_NUMBER = 'accountNumber',
   CHECK_NUMBER = 'checkNumber',
@@ -240,10 +242,15 @@ export enum fieldLineDocValue {
   PRODUCT_SERIAL_NUMBER = 'productSerialNumber',
   INTERNAL_NUMBER = 'internalNumber',
   JOURNAL_ENTRY_MAIN_ID = 'journalEntryMainId',
+  PAYMENT_DATE = 'paymentDate',
+  APPROVAL_CODE = 'approvalCode',
+  APP_NAME = 'appName',
+  REFERENCE = 'reference',
 }
 
 export enum fieldLineDocName {
   sum = 'סכום',
+  paymentSum = 'סכום',
   line_description = 'תיאור',
   unitAmount = 'מחיר ליחידה',
   sumBefVat = 'סכום לפני מע"מ',
@@ -253,7 +260,7 @@ export enum fieldLineDocName {
   discount = 'הנחה',
   lineNumber = 'מספר שורה',
   unitType = 'יחידת מידה',
-  bankNumber = 'מספר הבנק',
+  bankName = 'שם הבנק',
   branchNumber = 'מספר הסניף',
   accountNumber = 'מספר חשבון',
   checkNumber = 'מספר המחאה',
@@ -267,6 +274,10 @@ export enum fieldLineDocName {
   productSerialNumber = 'מספר סידורי של המוצר',
   internalNumber = 'מספר פנימי',
   journalEntryMainId = 'מספר ראשי של רשומת יומן',
+  paymentDate = 'תאריך',
+  approvalCode = 'קוד אישור',
+  appName = 'אפליקציה',
+  reference = 'אסמכתא',
 }
 
 export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;

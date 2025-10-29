@@ -62,10 +62,16 @@ export class DocumentsService {
 
   async getCurrentIndexes(
     userId: string,
-    docType: DocumentType
+    docType: DocumentType,
+    issuerBusinessNumber: string,
   ): Promise<{ docIndex: number; generalIndex: number; isInitial: boolean }> {    
+    if (docType !== DocumentType.GENERAL) {
+      if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+        throw new BadRequestException('issuerBusinessNumber is required');
+      }
+    }
     const [docSetting, generalSetting] = await Promise.all([
-      this.settingDocuments.findOne({ where: { userId, docType } }),
+      this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType } }),
       this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
     ]);
 
@@ -82,13 +88,18 @@ export class DocumentsService {
 
 
 
-  async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
+  async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number, issuerBusinessNumber: string) {
 
     try {
+      if (docType !== DocumentType.GENERAL) {
+        if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+          throw new BadRequestException('issuerBusinessNumber is required');
+        }
+      }
       await this.settingGeneralIndex(userId);
-      let docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
+      let docDetails = await this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType } });
       if (!docDetails) {
-        docDetails = await this.settingDocuments.save({ userId, docType, initialIndex, currentIndex: initialIndex });
+        docDetails = await this.settingDocuments.save({ userId, issuerBusinessNumber, docType, initialIndex, currentIndex: initialIndex });
         if (!docDetails) {
           throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -303,7 +314,7 @@ export class DocumentsService {
       await this.incrementGeneralIndex(userId, queryRunner.manager);
 
       // 2. Increment document-specific index
-      const docDetails = await this.incrementCurrentIndex(userId, data.docData.docType, queryRunner.manager, data.docData.docNumber);
+      const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -398,17 +409,23 @@ export class DocumentsService {
 
   async incrementCurrentIndex(
     userId: string,
+    issuerBusinessNumber: string,
     docType: DocumentType,
     manager?: EntityManager,
     initialDocIndex?: number // optional starting value from frontend
   ): Promise<SettingDocuments> {
     try {
+      if (docType !== DocumentType.GENERAL) {
+        if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+          throw new BadRequestException('issuerBusinessNumber is required');
+        }
+      }
       const repo = manager
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
       let docSetting = await repo.findOne({
-        where: { userId, docType },
+        where: { userId, issuerBusinessNumber, docType },
       });
 
       // First time
@@ -421,6 +438,7 @@ export class DocumentsService {
         // Create new setting with initial index
         docSetting = repo.create({
           userId,
+          issuerBusinessNumber,
           docType,
           initialIndex: initialDocIndex,
           currentIndex: initialDocIndex + 1,
@@ -538,7 +556,9 @@ export class DocumentsService {
     const docs = [];
 
     // Ensure settings exist before starting
-    await this.ensureDocumentSettingsExist(userId);
+    // Use the same issuer business number used in generateDocData()
+    const issuerBusinessNumber = '204245724';
+    await this.ensureDocumentSettingsExist(userId, issuerBusinessNumber);
 
     const docCounters: Record<string, number> = {
       RECEIPT: 1000,
@@ -563,7 +583,7 @@ export class DocumentsService {
   }
 
 
-  async ensureDocumentSettingsExist(userId: string): Promise<void> {
+  async ensureDocumentSettingsExist(userId: string, issuerBusinessNumber: string): Promise<void> {
 
     const docTypes: DocumentType[] = [
       DocumentType.RECEIPT,
@@ -586,17 +606,23 @@ export class DocumentsService {
     };
 
     for (const docType of docTypes) {
-      const existing = await this.settingDocuments.findOne({
-        where: { userId, docType },
-      });
+      const whereClause = docType === DocumentType.GENERAL
+        ? { userId, docType }
+        : { userId, issuerBusinessNumber, docType };
+
+      const existing = await this.settingDocuments.findOne({ where: whereClause });
 
       if (!existing) {
-        await this.settingDocuments.save({
+        const payload: any = {
           userId,
           docType,
           initialIndex: defaultInitialValues[docType],
           currentIndex: defaultInitialValues[docType],
-        });
+        };
+        if (docType !== DocumentType.GENERAL) {
+          payload.issuerBusinessNumber = issuerBusinessNumber;
+        }
+        await this.settingDocuments.save(payload);
         console.log(`✅ Created initial setting for ${docType} for user ${userId}`);
       }
     }

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Req, Res, UseGuards, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType } from 'src/enum';
 
@@ -23,12 +23,19 @@ export class DocumentsController {
   @UseGuards(FirebaseAuthGuard)
   async getSettingDocByType(
     @Param('typeDoc') typeDoc: DocumentType,
+    @Query('issuerBusinessNumber') issuerBusinessNumber: string,
     @Req() request: AuthenticatedRequest
   ) {
     const userId = request.user?.firebaseId;
 
     try {
-      const { docIndex, generalIndex, isInitial } = await this.documentsService.getCurrentIndexes(userId, typeDoc);
+      // For non-GENERAL types, a valid issuerBusinessNumber is required
+      if (typeDoc !== DocumentType.GENERAL) {
+        if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+          throw new BadRequestException('issuerBusinessNumber is required');
+        }
+      }
+      const { docIndex, generalIndex, isInitial } = await this.documentsService.getCurrentIndexes(userId, typeDoc, issuerBusinessNumber);
       return { docIndex, generalIndex, isInitial };
     } catch (error) {
       throw error;
@@ -45,12 +52,18 @@ export class DocumentsController {
   ) {
     const userId = request.user?.firebaseId;
     const initialIndex = Number(body.initialIndex);
+    const issuerBusinessNumber: string = body.issuerBusinessNumber;
+    console.log("🚀 ~ DocumentsController ~ setInitialDocDetails ~ issuerBusinessNumber:", issuerBusinessNumber)
 
     if (typeof initialIndex !== 'number' || isNaN(initialIndex)) {
       throw new BadRequestException('initialIndex must be a valid number');
     }
 
-    const docDetails = await this.documentsService.setInitialDocDetails(userId, typeDoc, initialIndex);
+    if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+      throw new BadRequestException('issuerBusinessNumber is required');
+    }
+
+    const docDetails = await this.documentsService.setInitialDocDetails(userId, typeDoc, initialIndex, issuerBusinessNumber);
     return docDetails;
   }
 

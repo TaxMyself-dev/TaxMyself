@@ -10,6 +10,9 @@ export class SettingDocuments {
   @Column({ type: 'varchar' })
   userId: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  issuerBusinessNumber: string;
+
   @Column({ type: 'enum', enum: DocumentType })
   docType: DocumentType;
 

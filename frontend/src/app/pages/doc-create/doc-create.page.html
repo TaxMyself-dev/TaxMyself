@@ -1,7 +1,7 @@
 <div class="page-wrapper">
 
   <!-- בחירת עסק -->
-  <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
+  <!-- <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
     [dismissableMask]="false" [rtl]="true" [style]="{ width: '400px' }">
     <div class="p-fluid">
       <p>היי! זיהינו שיש לך יותר מעסק אחד .<br />באיזה עסק תרצה להפיק את המסמך?</p>
@@ -15,7 +15,7 @@
           (onButtonClicked)="onConfirmBusinessSelection()"></app-p-button>
       </div>
     </div>
-  </p-dialog>
+  </p-dialog> -->
   <!-- Dialog for initial index -->
   @if (isInitial) {
   <p-dialog header="הגדרת מספור" [(visible)]="showInitialIndexDialog" [modal]="true" [rtl]="true"
@@ -55,8 +55,8 @@
 
         @case (formTypes.DDL) {
         <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-          [items]="item.enumValues" [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM"
-          (onChangeInputSelect)="onSelectedDoc($event)">
+          [items]="item.labelText === 'עסק' ? businessUiList : item.enumValues" [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM"
+          (onChangeInputSelect)="onSelectionChange(item.value, $event)">
         </app-input-select>
         }
 
@@ -273,8 +273,8 @@
 
         <!-- Header Row -->
         <div class="fields-grid fields-header">
-          @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
-          <div>{{ field.label }}</div>
+          @for (item of getPaymentFields(activePaymentMethod.id); track item.value) {
+          <div>{{ item.labelText || item.value }}</div>
           }
         </div>
 
@@ -283,21 +283,22 @@
         <!-- Input Row -->
         <form [formGroup]="paymentInputForm">
           <div class="fields-grid fields-row">
-            @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
-            @switch (field.type) {
-            @case (formTypes.DATE) {
-            <app-input-date [controlName]="field.key" [labelText]="field.label" placeholder="00/00/0000"
-              [parentForm]="paymentInputForm"></app-input-date>
-            }
-            @case (formTypes.DDL) {
-            <app-input-select [controlName]="field.key" [labelText]="field.label" [placeholder]=""
-              [items]="field.options" [parentForm]="paymentInputForm" [size]="inputsSize.AUTO"></app-input-select>
-            }
-            @default {
-            <app-input-text [controlName]="field.key" [labelText]="field.label" [placeholder]="''"
-              [parentForm]="paymentInputForm" [type]="field.type === formTypes.NUMBER ? 'number' : 'text'" [size]="inputsSize.BETWEEN"></app-input-text>
-            }
-            }
+            @for (item of getPaymentFields(activePaymentMethod.id); track item.value) {
+              @switch (item.type) {
+              @case (formTypes.DATE) {
+              <app-input-date [controlName]="item.value" [placeholder]="item.placeHolder"
+                [parentForm]="paymentInputForm"></app-input-date>
+              }
+              @case (formTypes.DDL) {
+              <app-input-select [controlName]="item.value" [placeholder]="item.placeHolder"
+                [items]="item.enumValues"
+                [parentForm]="paymentInputForm" [size]="inputsSize.AUTO"></app-input-select>
+              }
+              @default {
+              <app-input-text [controlName]="item.value" [placeholder]="item.placeHolder"
+                [parentForm]="paymentInputForm" [type]="item.type === formTypes.NUMBER ? 'number' : 'text'" [size]="inputsSize.SMALL"></app-input-text>
+              }
+              }
             }
 
             <!-- Add Button -->
@@ -312,22 +313,26 @@
       <!-- Display Added Payments -->
       @if (paymentsDraft.length > 0) {
       <div class="line-items-table">
-        <!-- Header -->
-        <div class="line-row header">
-          @for (field of paymentFieldConfigs[activePaymentMethod.id]; track field.key) {
-          <div>{{ field.label }}</div>
-          }
-        </div>
-
-        <hr class="fields-divider" />
-
-        <!-- Payment Rows -->
+        <!-- Payment Rows (each with its own header based on its method) -->
         @for (payment of paymentsDraft; track $index) {
-        <div class="line-row">
-          @for (field of paymentFieldConfigs[payment.paymentMethod]; track field.key) {
-          <div>{{ payment[field.key] || '-' }}</div>
-          }
-        </div>
+          <div class="line-row header">
+            @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
+            <div>{{ item.labelText || item.value }}</div>
+            }
+          </div>
+
+          <hr class="fields-divider" />
+
+          <div class="line-row">
+            @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
+            <div>
+              {{ item.type === formTypes.DATE
+                  ? (payment[item.value] | date:'dd/MM/yyyy')
+                  : (payment[item.value] || '-')
+              }}
+            </div>
+            }
+          </div>
         }
       </div>
       }
