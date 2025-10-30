@@ -203,3 +203,19 @@
   justify-content: end;
   gap: 20px;
 }
+
+.error-difference {
+  color: red;
+}
+
+.currency {
+  margin-right: 5px;
+}
+.amount .minus {
+  display: inline-block;
+  // margin-inline-end: 5px; /* space between minus and amount */
+}
+
+.amount .amount-value {
+  unicode-bidi: plaintext; /* helps keep currency and digits together in RTL */
+}

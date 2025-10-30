@@ -55,11 +55,11 @@
 
         @case (formTypes.DDL) {
         @if (item.value !== FieldsCreateDocValue.BUSINESS_NUMBER || showBusinessSelector) {
-          <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-            [items]="item.labelText === 'עסק' ? businessUiList : item.enumValues" [parentForm]="generalDetailsForm"
-            [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
+        <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+          [items]="item.labelText === 'עסק' ? businessUiList : item.enumValues" [parentForm]="generalDetailsForm"
+          [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
     item.value === 'docType' && !generalDetailsForm.get('businessNumber')?.value">
-          </app-input-select>
+        </app-input-select>
         }
         }
 
@@ -342,11 +342,30 @@
             }}
           </div>
           }
+          <div class="actions">
+            <i class="pi pi-trash" (click)="deletePayment($index)"></i>
+          </div>
         </div>
         }
       </div>
       }
     </div>
+    @if (chargesPaymentsDifference() !== 0) {
+    <div>
+      <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
+      <p class="amount">יתרה לתשלום:
+        @if (chargesPaymentsDifference() < 0) {
+          <span class="amount-value">{{ -(chargesPaymentsDifference()) | number:'1.2-2' }}</span>
+          <span class="minus">−</span>
+          <span class="currency">ש"ח</span>
+        }
+        @else {
+          <span class="amount-value">{{ chargesPaymentsDifference() | number:'1.2-2' }}</span>
+          <span class="currency">ש"ח</span>
+        }
+      </p>
+    </div>
+    }
     }
     <!-- @if (fileSelected) { -->
     <div class="buttons-container">
