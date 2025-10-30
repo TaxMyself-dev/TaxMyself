@@ -4,6 +4,17 @@ import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./d
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
 import { DocTypeDisplayName, DocCreateFields, bankOptionsList } from "./doc-cerate.enum";
 
+const CardCompanyHebrewLabels: Record<CardCompany, string> = {
+    [CardCompany.ISRACARD]: 'ישראכרט',
+    [CardCompany.CAL]: 'כאל',
+    [CardCompany.DINERS]: 'דיינרס',
+    [CardCompany.AMERICAN_EXPRESS]: 'אמריקן אקספרס',
+    [CardCompany.VISA]: 'ויזה',
+    [CardCompany.LEUMI_CARD]: 'לאומי קארד',
+    [CardCompany.MASTERCARD]: 'מאסטרקארד',
+    [CardCompany.OTHER]: 'אחר',
+};
+
 @Injectable({
     providedIn: 'root'
 })
@@ -41,7 +52,7 @@ export class DocCreateBuilderService {
             //name: FieldsCreateDocName.typeFile,
             value: FieldsCreateDocValue.DOC_TYPE,
             labelText: 'סוג המסמך',
-            placeHolder: 'בחר את סוג המסמך',
+            placeHolder: 'בחר מסמך',
             type: FormTypes.DDL,
             initialValue: '',
             enumValues: Object.entries(DocTypeDisplayName).map(([value, name]) => ({ value, name })),
@@ -293,7 +304,7 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.VAT_RATE]: {
-            //name: fieldLineDocName.vatRate,
+            // name: fieldLineDocName.vatRate,
             value: fieldLineDocValue.VAT_RATE,
             labelText: '',
             placeHolder: '',
@@ -421,7 +432,7 @@ export class DocCreateBuilderService {
             placeHolder: 'בחר סוג כרטיס',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: Object.entries(CardCompany).map(([name, value]) => ({ value, name })),
+            enumValues: Object.entries(CardCompany).map(([name, value]) => ({ value, name: CardCompanyHebrewLabels[value as CardCompany] })),
             editFormBasedOnValue: {},
             validators: []
         },

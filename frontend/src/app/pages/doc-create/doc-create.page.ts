@@ -198,11 +198,13 @@ export class DocCreatePage implements OnInit {
 
 
   ngOnInit() {
+    this.createForms();
+
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (!this.userData.isTwoBusinessOwner) {
-      this.selectedBusinessNumber = this.userData.businessNumber;
-      this.onBusinessSelection(this.selectedBusinessNumber);
-    }
+    // if (!this.userData.isTwoBusinessOwner) {
+    //   this.selectedBusinessNumber = this.userData.businessNumber;
+    //   this.onBusinessSelection(this.selectedBusinessNumber);
+    // }
     const businessData = this.genericService.getBusinessData(this.userData);
 
     this.businessMode = businessData.mode;
@@ -211,11 +213,13 @@ export class DocCreatePage implements OnInit {
     this.showBusinessSelector = businessData.showSelector;
 
     if (this.businessMode === BusinessMode.ONE_BUSINESS) {
+      console.log("🚀 ~ DocCreatePage ~ ngOnInit ~ this.businessFullList:", this.businessFullList);
+      
       const b = this.businessFullList[0];
       this.setSelectedBusiness(b);
+      this.generalDetailsForm?.get('businessNumber')?.setValue(b.value);
     }
 
-    this.createForms();
 
     // Subscribe to docDate changes
     // this.generalDocForm.get(DocCreateFields.DOC_DATE)?.valueChanges.subscribe((newDocDate) => {
@@ -232,11 +236,11 @@ export class DocCreatePage implements OnInit {
 
     const selected = this.businessFullList.find(b => b.value === this.selectedBusinessNumber);
 
-    if (!selected) {
-      throw new Error(`Business number ${this.selectedBusinessNumber} not found.`);
+    if (selected) {
+      // throw new Error(`Business number ${this.selectedBusinessNumber} not found.`);
+      this.setSelectedBusiness(selected);
     }
 
-    this.setSelectedBusiness(selected);
   }
 
 
@@ -261,13 +265,16 @@ export class DocCreatePage implements OnInit {
   onSelectionChange(field: string, event: any): void {
     console.log("field: ", field);
     console.log("event: ", event);
-
     switch (field) {
       case 'docType':
+        if (!event) {
+          return
+        }
         this.onSelectedDoc(event);
         break;
-        case 'businessNumber':
+      case 'businessNumber':
         this.generalDetailsForm.get('docType')?.setValue(""); //To enable switching between businesses and selecting the same document
+        this.isFileSelected.set(false);
         this.onBusinessSelection(event);
         break;
       default:
@@ -564,8 +571,11 @@ export class DocCreatePage implements OnInit {
 
 
   addPayment(): void {
+    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentInputForm", this.paymentInputForm);
+    console.log("patmentDraft", this.paymentsDraft);
 
     const paymentFormValue = this.paymentInputForm.value;
+    // const paymentdata = 
     const paymentLineIndex = this.paymentsDraft.length;
 
     const selectedBank = bankOptionsList.find(bank => bank.value === (paymentFormValue.bankNumber ?? paymentFormValue.bankName));
@@ -686,25 +696,25 @@ export class DocCreatePage implements OnInit {
 
   handleDocIndexes(docType: DocumentType): void {
     this.docCreateService.getDocIndexes(docType, this.selectedBusinessNumber)
-    .pipe(
-      catchError(err => {
-        console.error('Error getting doc indexes:', err);
-        alert("אירעה שגיאה אנא נסה מאוחר יותר")
-        return EMPTY;
-      })
-    )
-    .subscribe(
-      (res) => {
-        console.log("res in handleDocIndexes:", res);
-        //   // Save general index always (used for internal doc ID)
-        this.docIndexes.generalIndex = res.generalIndex;
-        const defaultIndex = DocTypeDefaultStart[docType] ?? 100001;
-        this.initialIndexForm.get('initialIndex')?.setValue(defaultIndex);
-        this.isInitial = res.isInitial;
-        this.isFileSelected.set(!res.isInitial); // If this docType is already initilized, display the page
-        this.showInitialIndexDialog = true;
-      }
-    )
+      .pipe(
+        catchError(err => {
+          console.error('Error getting doc indexes:', err);
+          alert("אירעה שגיאה אנא נסה מאוחר יותר")
+          return EMPTY;
+        })
+      )
+      .subscribe(
+        (res) => {
+          console.log("res in handleDocIndexes:", res);
+          //   // Save general index always (used for internal doc ID)
+          this.docIndexes.generalIndex = res.generalIndex;
+          const defaultIndex = DocTypeDefaultStart[docType] ?? 100001;
+          this.initialIndexForm.get('initialIndex')?.setValue(defaultIndex);
+          this.isInitial = res.isInitial;
+          this.isFileSelected.set(!res.isInitial); // If this docType is already initilized, display the page
+          this.showInitialIndexDialog = true;
+        }
+      )
     // try {
     //   const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
     //   this.isInitial = res.isInitial;

@@ -72,7 +72,7 @@ export class DocumentsService {
     }
     const [docSetting, generalSetting] = await Promise.all([
       this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType } }),
-      this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
+      this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL } }),
     ]);
 
     const docIndex = docSetting?.currentIndex ?? 0;                // 0 means uninitialized
@@ -96,7 +96,7 @@ export class DocumentsService {
           throw new BadRequestException('issuerBusinessNumber is required');
         }
       }
-      await this.settingGeneralIndex(userId);
+      await this.settingGeneralIndex(userId, issuerBusinessNumber);
       let docDetails = await this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType } });
       if (!docDetails) {
         docDetails = await this.settingDocuments.save({ userId, issuerBusinessNumber, docType, initialIndex, currentIndex: initialIndex });
@@ -111,11 +111,11 @@ export class DocumentsService {
     }
   }
 
-  async settingGeneralIndex(userId: string) {
+  async settingGeneralIndex(userId: string, issuerBusinessNumber: string) {
     let generalIndex: any;
-    generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
+    generalIndex = await this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL } });
     if (!generalIndex) {
-      generalIndex = await this.settingDocuments.insert({ userId, docType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
+      generalIndex = await this.settingDocuments.insert({ userId, issuerBusinessNumber, docType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
       if (!generalIndex) {
         throw new HttpException('Error in add general serial number', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -123,20 +123,21 @@ export class DocumentsService {
   }
 
 
-  async incrementGeneralIndex(userId: string, manager?: EntityManager): Promise<SettingDocuments> {
+  async incrementGeneralIndex(userId: string, issuerBusinessNumber: string, manager?: EntityManager): Promise<SettingDocuments> {
     try {
       const repo = manager
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
       let generalIndex = await repo.findOne({
-        where: { userId, docType: DocumentType.GENERAL },
+        where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL },
       });
 
       if (!generalIndex) {
         // First-time setup: initialize with default starting value
         generalIndex = repo.create({
           userId,
+          issuerBusinessNumber,
           docType: DocumentType.GENERAL,
           initialIndex: 1000001,
           currentIndex: 1000002,
@@ -311,7 +312,7 @@ export class DocumentsService {
     try {
 
       // 1. Increment general index (use manager for DB operation)
-      await this.incrementGeneralIndex(userId, queryRunner.manager);
+      await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
 
       // 2. Increment document-specific index
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
@@ -606,22 +607,18 @@ export class DocumentsService {
     };
 
     for (const docType of docTypes) {
-      const whereClause = docType === DocumentType.GENERAL
-        ? { userId, docType }
-        : { userId, issuerBusinessNumber, docType };
+      const whereClause = { userId, issuerBusinessNumber, docType };
 
       const existing = await this.settingDocuments.findOne({ where: whereClause });
 
       if (!existing) {
         const payload: any = {
           userId,
+          issuerBusinessNumber,
           docType,
           initialIndex: defaultInitialValues[docType],
           currentIndex: defaultInitialValues[docType],
         };
-        if (docType !== DocumentType.GENERAL) {
-          payload.issuerBusinessNumber = issuerBusinessNumber;
-        }
         await this.settingDocuments.save(payload);
         console.log(`✅ Created initial setting for ${docType} for user ${userId}`);
       }

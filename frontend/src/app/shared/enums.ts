@@ -228,7 +228,7 @@ export enum fieldLineDocValue {
   DISCOUNT = 'discount',
   LINE_NUMBER = 'lineNumber',
   UNIT_TYPE = 'unitType',
-  BANK_NAME = 'bankNumber',
+  BANK_NAME = 'bankName',
   BRANCH_NUMBER = 'branchNumber',
   ACCOUNT_NUMBER = 'accountNumber',
   CHECK_NUMBER = 'checkNumber',

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, input, output, signal, WritableSignal, computed, Signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, input, output, signal, WritableSignal, computed, Signal, effect, inject, Injector } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { SelectModule } from 'primeng/select';
@@ -17,6 +17,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InputSelectComponent implements OnInit {
+  private injector = inject(Injector);
 
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
@@ -66,6 +67,23 @@ export class InputSelectComponent implements OnInit {
   ngOnInit() {
     this.getinputClasses();
     this.getStringMessage();
+
+     effect(() => {
+      const form = this.parentForm();
+      const name = this.controlName();
+      const isDisabled = this.disabled();
+
+      if (!form || !name) return;
+      const ctrl = form.get(name);
+      if (!ctrl) return;
+
+      if (isDisabled && ctrl.enabled) {
+        ctrl.disable({ emitEvent: false });
+      } else if (!isDisabled && ctrl.disabled) {
+        ctrl.enable({ emitEvent: false });
+      }
+    }, { injector: this.injector });
+  
   }
 
   get isRequired(): boolean {
