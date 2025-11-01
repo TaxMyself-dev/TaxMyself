@@ -1,4 +1,4 @@
-import { CardCompany, CreditTransactionType, UnitOfMeasure, VatType } from "src/app/shared/enums";
+import { CardCompany, UnitOfMeasure, VatType } from "src/app/shared/enums";
 
 export enum DocumentType {
   RECEIPT = 'RECEIPT',
@@ -135,6 +135,7 @@ export enum BankName {
   OTSAR_HACHAYAL = 'OTSAR_HACHAYAL',
 }
 
+
 export type BankNameHebrew = 'הפועלים' | 'לאומי' | 'מזרחי טפחות' | 'דיסקונט' | 'מרכנתיל' | 'בינלאומי' | 'אוצר החייל';
 
 export const bankOptionsList = [
@@ -158,14 +159,5 @@ export const BankNameLabels = {
   [BankName.OTSAR_HACHAYAL]: 'אוצר החייל',
 };
 
-// Create the list for dropdowns (PrimeNG p-dropdown expects {value, label/name})
-// export const bankOptionsList = [
-//   { value: BankName.HAPOALIM, name: BankNameLabels[BankName.HAPOALIM], number: '12' },
-//   { value: BankName.LEUMI, name: BankNameLabels[BankName.LEUMI], number: '10' },
-//   { value: BankName.MIZRAHI_TEFAHOT, name: BankNameLabels[BankName.MIZRAHI_TEFAHOT], number: '20' },
-//   { value: BankName.DISCONT, name: BankNameLabels[BankName.DISCONT], number: '11' },
-//   { value: BankName.MERCANTILE, name: BankNameLabels[BankName.MERCANTILE], number: '17' },
-//   { value: BankName.BEN_LEUMI, name: BankNameLabels[BankName.BEN_LEUMI], number: '31' },
-//   { value: BankName.OTSAR_HACHAYAL, name: BankNameLabels[BankName.OTSAR_HACHAYAL], number: '14' },
-// ];
+export type CreditTransactionType = 'REGULAR' | 'INSTALLMENTS' | 'CREDIT' | 'DEFERRED_CHARGE' | 'OTHER';
 

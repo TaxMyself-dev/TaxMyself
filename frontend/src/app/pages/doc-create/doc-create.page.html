@@ -223,32 +223,38 @@
           <div>כמות</div>
           <div>מע״מ</div>
           <div>סכום</div>
-          <div>הנחה</div>
+          <div>הנחה (ש"ח)</div>
         </div>
         <hr class="fields-divider" />
         <!-- שורות -->
         @for (line of lineItemsDraft(); track $index; let i = $index) {
-        <div class="line-row">
+        <div class="line-row content">
           <div>{{ line.description }}</div>
           <div>{{ line.unitQuantity }}</div>
           <div>{{ getVatLabel(line.vatOpts) }}</div>
           <div>{{ line.sum | currency:'ILS' }}</div>
           <div>{{ line.discount || '-' }}</div>
           <div class="actions">
-            <i class="pi pi-trash" (click)="deleteLine(i)"></i>
+            <app-p-button [buttonColor]="buttonColor.TRANSPARET"  [buttonSize]="buttonSize.ICON" [iconOnly]="true" [icon]="'pi pi-trash'" (onButtonClicked)="deleteLine(i)"></app-p-button>
           </div>
         </div>
         }
-        <!-- סיכום כולל -->
+
         <div class="totals-summary">
-          <span class="title">סיכום כולל</span>
-          @for (item of visibleDocumentTotals(); track item.field) {
-          <!-- @for (item of visibleDocumentTotals; track item.field) { -->
-          <div class="total-line">
-            <span>{{ item.label }}:</span>
-            <span>{{ item.value | number:'1.2-2' }} ₪</span>
+          <div class="keys-summary">
+            <p class="content-summary"> חייב במע"מ</p>
+            <p class="content-summary">ללא מע"מ</p>
+            <p class="content-summary">מע"מ</p>
+            <p class="content-summary">הנחה (ש"ח)</p>
+            <p class="content-summary">סה"כ לתשלום</p>
           </div>
-          }
+          <div class="values-summary">
+            <p class="content-summary"> {{amountSubjectToVAT | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{totalNonVATAmount | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{totalVatAmount | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{totalDiscount | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{totalAmount() | number:'1.2-2'}} ש"ח </p>
+          </div>
         </div>
       </div>
       }
@@ -298,7 +304,7 @@
             }
             @default {
             <app-input-text [controlName]="item.value" [placeholder]="item.placeHolder" [parentForm]="paymentInputForm"
-              [type]="item.type === formTypes.NUMBER ? 'number' : 'text'" [size]="inputsSize.SMALL"></app-input-text>
+              [type]="item.type === formTypes.NUMBER ? 'number' : 'text'" [min]="1" [size]="inputsSize.SMALL"></app-input-text>
             }
             }
             }
@@ -313,10 +319,10 @@
       </div>
 
       <!-- Display Added Payments -->
-      @if (paymentsDraft.length > 0) {
+      @if (paymentsDraft().length > 0) {
       <div class="line-items-table">
         <!-- Payment Rows (each with its own header based on its method) -->
-        @for (payment of paymentsDraft; track $index) {
+        @for (payment of paymentsDraft(); track $index) {
         <div class="line-row header">
           @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
           <div>{{ item.labelText || item.value }}</div>
@@ -342,9 +348,15 @@
             }}
           </div>
           }
+            <div class="actions">
+            <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true" [icon]="'pi pi-trash'" (onButtonClicked)="deletePayment($index)"></app-p-button>
+          </div>
         </div>
         }
       </div>
+      }
+      @if (!isPaymentsEqualToCharges()) {
+      <p class="error-text">סכום התשלומים חייב להיות זהה לסכום החיובים </p>
       }
     </div>
     }
@@ -352,12 +364,12 @@
     <div class="buttons-container">
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.SMALL"
-          [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!CreateDocIsValid" (onButtonClicked)="previewtDoc()">
+          [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!createDocIsValid()" (onButtonClicked)="previewDoc()">
         </app-p-button>
       </div>
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'צור מסמך'" [buttonSize]="buttonSize.SMALL"
-          [disabled]="!CreateDocIsValid" (onButtonClicked)="createDoc()" [buttonColor]="buttonColor.BLACK">
+          [disabled]="!createDocIsValid()" (onButtonClicked)="createDoc()" [buttonColor]="buttonColor.BLACK">
         </app-p-button>
       </div>
 

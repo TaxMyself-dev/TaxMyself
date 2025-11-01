@@ -1,8 +1,9 @@
 import { Injectable } from "@angular/core";
-import { CardCompany, CreateDocFields, CreditTransactionType, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
+import { CardCompany, CreateDocFields, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
 import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
 import { DocTypeDisplayName, DocCreateFields, bankOptionsList } from "./doc-cerate.enum";
+import { ISelectItem } from "src/app/shared/interface";
 
 const CardCompanyHebrewLabels: Record<CardCompany, string> = {
     [CardCompany.ISRACARD]: 'ישראכרט',
@@ -14,6 +15,14 @@ const CardCompanyHebrewLabels: Record<CardCompany, string> = {
     [CardCompany.MASTERCARD]: 'מאסטרקארד',
     [CardCompany.OTHER]: 'אחר',
 };
+
+export const creditTransactionTypeOptions: ISelectItem[] = [
+  { name: 'רגיל', value: 'REGULAR' },
+  { name: 'תשלומים', value: 'INSTALLMENTS' },
+  { name: 'קרדיט', value: 'CREDIT' },
+  { name: 'חיוב נדחה', value: 'DEFERRED_CHARGE' },
+  { name: 'אחר', value: 'OTHER' },
+];
 
 @Injectable({
     providedIn: 'root'
@@ -31,9 +40,10 @@ export class DocCreateBuilderService {
         { field: FieldsCreateDocValue.UNIT_AMOUNT, header: 'כמות'},
         { field: FieldsCreateDocValue.VAT_OPTIONS, header: 'מע"מ'},
         { field: FieldsCreateDocValue.SUM, header: 'סכום'},
-        { field: FieldsCreateDocValue.DISCOUNT, header: 'הנחה'},
+        { field: FieldsCreateDocValue.DISCOUNT, header: 'הנחה (ש"ח)'},
         { field: 'action', header: ''}
     ];
+
 
     readonly docCreateBuilderData: Record<CreateDocFields, IDocCreateFieldData> = {
         // General Details 
@@ -403,17 +413,17 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: []
         },
-        [fieldLineDocValue.PAYMENT_CHECK_DATE]: {
-            //name: fieldLineDocName.paymentCheckDate,
-            value: fieldLineDocValue.PAYMENT_CHECK_DATE,
-            labelText: '',
-            placeHolder: 'בחר תאריך',
-            type: FormTypes.DATE,
-            initialValue: new Date(),
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: [],
-        },
+        // [fieldLineDocValue.PAYMENT_CHECK_DATE]: {
+        //     //name: fieldLineDocName.paymentCheckDate,
+        //     value: fieldLineDocValue.PAYMENT_CHECK_DATE,
+        //     labelText: '',
+        //     placeHolder: 'בחר תאריך',
+        //     type: FormTypes.DATE,
+        //     initialValue: new Date(),
+        //     enumValues: [],
+        //     editFormBasedOnValue: {},
+        //     validators: [],
+        // },
           [fieldLineDocValue.PAYMENT_SUM]: {
             //name: fieldLineDocName.paymentCheckDate,
             value: fieldLineDocValue.PAYMENT_SUM,
@@ -441,11 +451,11 @@ export class DocCreateBuilderService {
             value: fieldLineDocValue.CARD_4_NUMBER,
             labelText: '4 ספרות',
             placeHolder: 'הכנס 4 ספרות אחרונות ',
-            type: FormTypes.NUMBER,
+            type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.pattern(/^\d{4}$/), Validators.required]
+            validators: [Validators.pattern(/^\d{4}$/)]
         },
         [fieldLineDocValue.CREDIT_CARD_NAME]: {
             //name: fieldLineDocName.creditCardName,
@@ -465,7 +475,7 @@ export class DocCreateBuilderService {
             placeHolder: 'בחר סוג תשלום',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: Object.entries(CreditTransactionType).map(([name, value]) => ({ value, name })),
+            enumValues: creditTransactionTypeOptions,
             editFormBasedOnValue: {},
             validators: []
         },
@@ -534,7 +544,7 @@ export class DocCreateBuilderService {
             initialValue: new Date(),
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.required]
         },
         [fieldLineDocValue.APPROVAL_CODE]: {
             value: fieldLineDocValue.APPROVAL_CODE,
@@ -552,7 +562,12 @@ export class DocCreateBuilderService {
             placeHolder: 'בחר אפליקציה',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [],
+            enumValues: [
+                { value: 'Bit', name: 'Bit' },
+                { value: 'PayBox', name: 'PayBox' },
+                { value: 'PepperPay', name: 'PepperPay' },
+                { value: 'Other', name: 'אחר' },
+            ],
             editFormBasedOnValue: {},
             validators: []
         },

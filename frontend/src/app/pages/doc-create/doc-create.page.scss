@@ -137,6 +137,10 @@
   font-weight: bold;
 }
 
+.line-row.content {
+  border-bottom: 1px solid #ccc;
+}
+
 .fields-divider {
   border: none;
   border-top: 1px solid #ccc;
@@ -202,4 +206,23 @@
   display: flex;
   justify-content: end;
   gap: 20px;
+  width: 100%;
+}
+
+.totals-summary {
+  display: flex;
+  justify-content: end;
+}
+
+.keys-summary {
+  margin-left: 120px;
+  font-weight: 600;
+}
+
+.values-summary {
+  margin-left: 50px;
+}
+
+.error-text {
+  color: red;
 }

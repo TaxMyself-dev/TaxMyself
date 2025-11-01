@@ -23,6 +23,8 @@ export class InputTextComponent  implements OnInit {
   size = input<string>("");
   customStyle = input<string>("");
   value = input<string>("");
+  min = input<number>(null);
+  max = input<number>(null);
   disabled = input<boolean>(false);
   type = input<'text' | 'number'>('text');
   onInputText = output<string>();

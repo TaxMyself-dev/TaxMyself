@@ -232,7 +232,7 @@ export enum fieldLineDocValue {
   BRANCH_NUMBER = 'branchNumber',
   ACCOUNT_NUMBER = 'accountNumber',
   CHECK_NUMBER = 'checkNumber',
-  PAYMENT_CHECK_DATE = 'paymentCheckDate',
+  // PAYMENT_CHECK_DATE = 'paymentCheckDate',
   CARD_COMPANY = 'cardCompany',
   CARD_4_NUMBER = 'card4Number',
   CREDIT_CARD_NAME = 'creditCardName',
@@ -313,16 +313,6 @@ export enum UnitOfMeasure {
   LITER = 'LITER',
   KILOGRAM = 'KILOGRAM'
 }
-
-export enum CreditTransactionType {
-  REGULAR = 'REGULAR',   // רגיל
-  INSTALLMENTS = 'INSTALLMENTS', // תשלומים
-  CREDIT = 'CREDIT', // קרדיט
-  DEFERRED_CHARGE = 'DEFERRED_CHARGE', // חיוב נדחה
-  OTHER = 'OTHER' // אחר
-}
-
-// export type VatOptions = 'WITHOUT' | 'BEFORE' | 'AFTER'
 
 export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'APP' | 'CREDIT_CARD' | 'CHECK';
 export type PaymentMethodTypeHebrew = 'מזומן' | 'העברה בנקאית' | 'אפליקציה' | 'כרטיס אשראי' | 'צ׳ק';

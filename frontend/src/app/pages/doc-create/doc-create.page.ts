@@ -1,7 +1,7 @@
-import { Component, computed, OnInit, signal } from '@angular/core';
+import { Component, computed, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { BusinessMode, CardCompany, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap } from 'rxjs';
+import { BusinessMode, CardCompany, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
@@ -17,6 +17,7 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
 import { MenuItem } from 'primeng/api';
 import { DocumentType } from './doc-cerate.enum';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 interface DocPayload {
   docData: any[];
@@ -46,12 +47,14 @@ export class DocCreatePage implements OnInit {
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   paymentDetailsFields: ICreateDocField<FieldsCreateDocName | fieldLineDocName, FieldsCreateDocValue | fieldLineDocValue>[] = [];
   generalDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
-  showUserDetailsCard: boolean = false;
-  showPatmentDetailsCard: boolean = false;
+  // showUserDetailsCard: boolean = false;
+  // showPatmentDetailsCard: boolean = false;
   serialNumberFile: ISettingDoc;
   DocumentType = DocumentType;
   DocCreateFields = DocCreateFields;
   isFileSelected = signal(false);
+  generalFormIsValidSignal = signal(false);
+  userFormIsValidSignal = signal(false);
   fileSelected: DocumentType;
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
@@ -62,8 +65,6 @@ export class DocCreatePage implements OnInit {
   addPDFIsLoading: boolean = false;
   userData: IUserData
   amountBeforeVat: number = 0;
-  vatAmount: number = 0;
-  totalAmount: number = 0;
   overallTotals: ITotals;
   vatRate = 0.18; // 18% VAT
   isGeneralExpanded: boolean = false;
@@ -92,14 +93,22 @@ export class DocCreatePage implements OnInit {
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
+  readonly formTypes = FormTypes;
+  readonly FieldsCreateDocValue = FieldsCreateDocValue;
   paymentMethodOptions = paymentMethodOptions;
+  // UISummaryTotals = this.docCreateBuilderService.UISummaryTotals
 
   showGeneralMoreFields = false;
   showUserMoreFields = false;
   value1 = 50;
   selectedUnit: string = '%';
   value: number = 0;
-
+  totalNonVATAmount: number = 0;
+  amountSubjectToVAT: number = 0;
+  totalVatAmount: number = 0;
+  totalAmount = signal(0);
+  totalDiscount: number = 0;
+  totalPayments = signal(0);
   // lineItems: LineItem[] = [];
   isDocWithPayments = signal<boolean>(false);
   lineItemsDraft = signal<PartialLineItem[]>([]);
@@ -107,80 +116,49 @@ export class DocCreatePage implements OnInit {
   showInitialIndexDialog = true;
   // private initialIndexSubject?: Subject<number>;
 
-  initialIndexForm: FormGroup;
-
-  readonly DocCreateTypeList = Object.entries(DocTypeDisplayName).map(([value, name]) => ({ value, name }));
-
-  bankOptionsList = bankOptionsList;
-
-  readonly UnitOfMeasureList = [
-    { value: UnitOfMeasure.UNIT, name: 'יחידות' },
-    { value: UnitOfMeasure.WORK_HOUR, name: 'שעות עבודה' },
-    { value: UnitOfMeasure.LITER, name: 'ליטר' },
-    { value: UnitOfMeasure.KILOGRAM, name: 'קילוגרם' },
-  ];
-
-  readonly CardCompanyList = [
-    { value: CardCompany.ISRACARD, name: 'ישראכארט' },
-    { value: CardCompany.CAL, name: 'כאל' },
-    { value: CardCompany.DINERS, name: 'דיינרס' },
-    { value: CardCompany.VISA, name: 'ויזה' },
-    { value: CardCompany.LEUMI_CARD, name: 'לאומי קארד' },
-    { value: CardCompany.MASTERCARD, name: 'מאסטרקארד' },
-    { value: CardCompany.OTHER, name: 'אחר' },
-  ];
-
-  readonly CreditTransactionTypeList = [
-    { value: CreditTransactionType.REGULAR, name: 'רגיל' },
-    { value: CreditTransactionType.INSTALLMENTS, name: 'תשלומים' },
-    { value: CreditTransactionType.CREDIT, name: 'קרדיט' },
-    { value: CreditTransactionType.DEFERRED_CHARGE, name: 'חיוב נדחה' },
-    { value: CreditTransactionType.OTHER, name: 'אחר' },
-  ]
-
   activePaymentMethod: MenuItem = this.paymentMethodOptions[0]; // default selected
 
   paymentInputForm: FormGroup;  // Holds the active entry row
-  paymentsDraft: any[] = [];     // Stores all added payments
-  readonly formTypes = FormTypes;
+  paymentsDraft = signal([]);     // Stores all added payments
+  initialIndexForm: FormGroup;
 
-  paymentFieldConfigs: Record<string, PaymentFieldConfig[]> = {
-    BANK_TRANSFER: [
-      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
-      { key: 'bankName', label: 'בנק', type: this.formTypes.DDL, options: this.bankOptionsList },
-      { key: 'branchNumber', label: 'סניף', type: this.formTypes.TEXT },
-      { key: 'accountNumber', label: 'חשבון', type: this.formTypes.TEXT },
-      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.TEXT }
-    ],
-    CREDIT_CARD: [
-      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
-      { key: 'cardType', label: 'סוג כרטיס', type: this.formTypes.DDL, options: this.CardCompanyList },
-      { key: 'last4Digits', label: '4 ספרות', type: this.formTypes.TEXT },
-      { key: 'approvalCode', label: 'קוד אישור', type: this.formTypes.TEXT },
-      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.TEXT }
-    ],
-    CHECK: [
-      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
-      { key: 'bankName', label: 'בנק', type: this.formTypes.DDL, options: this.bankOptionsList },
-      { key: 'branchNumber', label: 'סניף', type: this.formTypes.TEXT },
-      { key: 'checkNumber', label: 'מספר צ׳ק', type: this.formTypes.TEXT },
-      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.NUMBER }
-    ],
-    APP: [
-      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
-      { key: 'appName', label: 'אפליקציה', type: this.formTypes.TEXT },
-      { key: 'reference', label: 'אסמכתא', type: this.formTypes.TEXT },
-      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.NUMBER }
-    ],
-    CASH: [
-      { key: 'paymentDate', label: 'תאריך', type: this.formTypes.DATE },
-      { key: 'paymentAmount', label: 'סכום', type: this.formTypes.NUMBER }
-    ],
-  };
+  readonly vatOptions = vatOptions;
+
+  documentTotals = signal<DocumentTotals>({
+    sumBefDisBefVat: 0,
+    disSum: 0,
+    sumAftDisBefVat: 0,
+    vatSum: 0,
+    sumAftDisWithVat: 0,
+  });
+
+  visibleDocumentTotals = computed(() => {
+    const totals = this.documentTotals();
+    return DocumentTotalsLabels
+      .map((item) => ({
+        field: item.field,
+        label: item.label,
+        value: totals[item.field] ?? 0,
+      }))
+      .filter((item) => item.value !== 0);
+  });
+
+  isPaymentsEqualToCharges = computed(() => {
+    return this.totalPayments() === this.totalAmount();
+  });
+
+  createDocIsValid = computed(() => {
+  return (
+    this.generalFormIsValidSignal() &&
+    this.userFormIsValidSignal() &&
+    this.lineItemsDraft().length > 0 &&
+    (!this.isDocWithPayments() || this.paymentsDraft().length > 0) &&
+    this.isPaymentsEqualToCharges()
+  );
+});
 
 
-  FieldsCreateDocValue = FieldsCreateDocValue;
-  vatOptions = vatOptions;
+
 
 
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService) {
@@ -199,12 +177,13 @@ export class DocCreatePage implements OnInit {
 
   ngOnInit() {
     this.createForms();
-
+    this.generalDetailsForm.statusChanges.subscribe(() => {
+      this.generalFormIsValidSignal.set(this.generalDetailsForm.valid);
+    });
+    this.userDetailsForm.statusChanges.subscribe(() => {
+      this.userFormIsValidSignal.set(this.userDetailsForm.valid);
+    });
     this.userData = this.authService.getUserDataFromLocalStorage();
-    // if (!this.userData.isTwoBusinessOwner) {
-    //   this.selectedBusinessNumber = this.userData.businessNumber;
-    //   this.onBusinessSelection(this.selectedBusinessNumber);
-    // }
     const businessData = this.genericService.getBusinessData(this.userData);
 
     this.businessMode = businessData.mode;
@@ -214,20 +193,11 @@ export class DocCreatePage implements OnInit {
 
     if (this.businessMode === BusinessMode.ONE_BUSINESS) {
       console.log("🚀 ~ DocCreatePage ~ ngOnInit ~ this.businessFullList:", this.businessFullList);
-      
+
       const b = this.businessFullList[0];
       this.setSelectedBusiness(b);
       this.generalDetailsForm?.get('businessNumber')?.setValue(b.value);
     }
-
-
-    // Subscribe to docDate changes
-    // this.generalDocForm.get(DocCreateFields.DOC_DATE)?.valueChanges.subscribe((newDocDate) => {
-    //   if (this.paymentInputForm?.get('paymentDate')) {
-    //     this.paymentInputForm.get('paymentDate')?.setValue(newDocDate);
-    //   }
-    // });
-
   }
 
 
@@ -326,7 +296,7 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  previewtDoc(): void {
+  previewDoc(): void {
     console.log(this.myForm);
 
     this.createPreviewPDFIsLoading = true;
@@ -350,9 +320,9 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  private buildDocPayload(): DocPayload {
+  buildDocPayload(): DocPayload {
 
-    if (!this.CreateDocIsValid) {
+    if (!this.createDocIsValid()) {
       throw new Error('Cannot collect document data: forms are invalid or incomplete.');
     }
 
@@ -387,7 +357,7 @@ export class DocCreatePage implements OnInit {
         sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
       },
       linesData: this.lineItemsDraft(),
-      paymentData: this.paymentsDraft,
+      paymentData: this.paymentsDraft(),
     };
 
     console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
@@ -417,7 +387,6 @@ export class DocCreatePage implements OnInit {
       docType: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value,
       transType: transType,
     };
-    console.log("🚀 ~ DocCreatePage ~ addLineDetails ~ newLine", newLine);
 
     this.lineItemsDraft.update(items => [...items, newLine]);
     console.log("🚀 ~ DocCreatePage ~ addLineDetails ~ this.lineItemsDraft", this.lineItemsDraft());
@@ -428,16 +397,17 @@ export class DocCreatePage implements OnInit {
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
       [FieldsCreateDocValue.DISCOUNT]: 0
     });
+    this.calcTotals();
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
 
   }
 
 
-  private calculateVatFieldsForLine(lineIndex: number): void {
+  calculateVatFieldsForLine(lineIndex: number): void {
     console.log("🚀 ~ DocCreatePage ~ calculateVatFieldsForLine ~ lineIndex", lineIndex);
 
-    const line = this.lineItemsDraft()[lineIndex];
+    const line = this.lineItemsDraft()[lineIndex]; //Get the line by reference
     const quantity = line.unitQuantity ?? 1;
     const unitSum = line.sum ?? 0;
     const discount = line.discount ?? 0;
@@ -490,28 +460,9 @@ export class DocCreatePage implements OnInit {
       vatPerLine,
       sumAftDisWithVat,
     });
+    console.log("🚀 ~ DocCreatePage ~ calculateVatFieldsForLine ~ line after calaulate", line);
+
   }
-
-
-  readonly documentTotals = signal<DocumentTotals>({
-    sumBefDisBefVat: 0,
-    disSum: 0,
-    sumAftDisBefVat: 0,
-    vatSum: 0,
-    sumAftDisWithVat: 0,
-  });
-
-
-  readonly visibleDocumentTotals = computed(() => {
-    const totals = this.documentTotals();
-    return DocumentTotalsLabels
-      .map((item) => ({
-        field: item.field,
-        label: item.label,
-        value: totals[item.field] ?? 0,
-      }))
-      .filter((item) => item.value !== 0);
-  });
 
 
   updateDocumentTotalsFromLines(): void {
@@ -533,6 +484,28 @@ export class DocCreatePage implements OnInit {
     }
 
     this.documentTotals.set(totals);
+  }
+
+  calcTotals(): void {
+
+    this.amountSubjectToVAT = 0;
+    this.totalNonVATAmount = 0;
+    this.totalDiscount = 0;
+    this.totalVatAmount = 0;
+    this.totalAmount.set(0);
+    for (const line of this.lineItemsDraft()) {
+      if (line.vatOpts === 'WITHOUT') {
+        this.totalNonVATAmount += line.sumBefVatPerUnit * line.unitQuantity;
+      }
+      else {
+        this.amountSubjectToVAT += line.sumBefVatPerUnit * line.unitQuantity;
+      }
+      this.totalDiscount += line.disBefVatPerLine * line.unitQuantity;
+      this.totalVatAmount += line.vatPerLine;
+    }
+    // this.totalVatAmount = this.amountSubjectToVAT * (this.vatRate / 100);
+
+    this.totalAmount.set(this.amountSubjectToVAT + this.totalVatAmount + this.totalNonVATAmount - this.totalDiscount);
   }
 
 
@@ -593,12 +566,16 @@ export class DocCreatePage implements OnInit {
       bankNumber
     };
 
-    this.paymentsDraft.push(paymentEntry);
+    // this.paymentsDraft.push(paymentEntry);
+    this.paymentsDraft.update(items => [...items, paymentEntry]);
 
     // Reset the form for the next payment entry
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
     this.paymentInputForm.reset();
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
+    this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
+    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.totalPayments:", this.totalPayments());
+    console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.totalAmount:", this.totalAmount());
 
   }
 
@@ -606,6 +583,12 @@ export class DocCreatePage implements OnInit {
   deleteLine(index: number): void {
     this.lineItemsDraft.update(items => items.filter((_, i) => i !== index));
     this.updateDocumentTotalsFromLines();
+    this.calcTotals();
+  }
+
+  deletePayment(index: number): void {
+    this.paymentsDraft.update(items => items.filter((_, i) => i !== index));
+    this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
   }
 
 
@@ -637,9 +620,9 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  selectUnit(unit: string) {
-    this.selectedUnit = unit;
-  }
+  // selectUnit(unit: string) {
+  //   this.selectedUnit = unit;
+  // }
 
 
   createForms(): void {
@@ -657,15 +640,8 @@ export class DocCreatePage implements OnInit {
     const initialIndex = this.initialIndexForm.get('initialIndex')?.value;
 
     this.docIndexes.docIndex = initialIndex;
-    // this.isInitial = false;
-    // this.showInitialIndexDialog = false;
-
     console.log('Initial index selected:', this.docIndexes);
     this.setInitialIndex();
-    // Resolve the waiting Subject so onSelectedDoc can continue
-    // this.initialIndexSubject?.next(this.docIndexes.docIndex);
-    // this.initialIndexSubject?.complete();
-    // this.initialIndexSubject = undefined;
   }
 
   setInitialIndex(): void {
@@ -715,33 +691,6 @@ export class DocCreatePage implements OnInit {
           this.showInitialIndexDialog = true;
         }
       )
-    // try {
-    //   const res = await firstValueFrom(this.docCreateService.getDocIndexes(docType));
-    //   this.isInitial = res.isInitial;
-
-    //   console.log("res in handleDocIndexes:", res);
-
-
-
-    //   if (res.isInitial) {
-
-    //     // Show popup and wait for user input
-    // this.initialIndexSubject = new Subject<number>();
-
-    //     const selectedDocIndex = await firstValueFrom(this.initialIndexSubject);
-
-    //     // Save selected doc index
-    //     this.docIndexes.docIndex = selectedDocIndex;
-
-    //   } else {
-    //     // Use backend-provided value
-    //     this.docIndexes.docIndex = res.docIndex;
-    //   }
-
-    // } catch (err) {
-    //   console.error('Error fetching doc indexes:', err);
-    //   throw err;
-    // }
   }
 
   openSelectClients() {
@@ -819,17 +768,6 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  get CreateDocIsValid(): boolean {
-    return true
-    // return (
-    //   this.generalDocForm.valid &&
-    //   this.recipientDocForm.valid &&
-    //   this.lineItemsDraft.length > 0 &&
-    //   (!this.isDocWithPayments() || this.paymentsDraft.length > 0)
-    // );
-  }
-
-
   calculateSumAfterVat(sum: number): number { // Calculate the original cost 
     const vatRate = 0.18; // Example VAT rate
     return sum / (1 + vatRate);
@@ -895,24 +833,24 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  getDropdownItems(controlValue: string): ISelectItem[] {
-    switch (controlValue) {
-      case FieldsCreateDocValue.CURRENCY:
-      // return this.currencyList;
-      // case fieldLineDocValue.PAYMENT_METHOD:
-      // return this.paymentMethodOptions;
-      case fieldLineDocValue.VAT_OPTIONS:
-        return vatOptions;
-      case fieldLineDocValue.UNIT_TYPE:
-        return this.UnitOfMeasureList;
-      case fieldLineDocValue.CARD_COMPANY:
-        return this.CardCompanyList;
-      case fieldLineDocValue.CREDIT_TRANS_TYPE:
-        return this.CreditTransactionTypeList;
-      default:
-        return [];
-    }
-  }
+  // getDropdownItems(controlValue: string): ISelectItem[] {
+  //   switch (controlValue) {
+  //     case FieldsCreateDocValue.CURRENCY:
+  //     // return this.currencyList;
+  //     // case fieldLineDocValue.PAYMENT_METHOD:
+  //     // return this.paymentMethodOptions;
+  //     case fieldLineDocValue.VAT_OPTIONS:
+  //       return vatOptions;
+  //     case fieldLineDocValue.UNIT_TYPE:
+  //       return this.UnitOfMeasureList;
+  //     case fieldLineDocValue.CARD_COMPANY:
+  //       return this.CardCompanyList;
+  //     case fieldLineDocValue.CREDIT_TRANS_TYPE:
+  //       return this.CreditTransactionTypeList;
+  //     default:
+  //       return [];
+  //   }
+  // }
 
 
   // isDocWithPayments(): boolean {
