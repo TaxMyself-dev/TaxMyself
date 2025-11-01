@@ -1,18 +1,147 @@
-<app-left-panel [headerText]="subCategoryMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'"
+<app-left-panel
+  [headerText]="subCategoryMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'"
+  [visible]="isVisible()"
+  (visibleChanged)="onVisibleChange($event)"
+  [backEnabled]="true"
+  (backEnabledClicked)="onBackEnabled($event)"
+>
+  <div class="content" content>
+    <form [formGroup]="mainForm" class="is-recognized-form">
+      <!-- CATEGORY -->
+      <app-input-text
+        [ariaLabel]="'קטגוריה'"
+        [placeholder]="subCategoryMode() ? categoryName() : ''"
+        [labelText]="'קטגוריה'"
+        [controlName]="'categoryName'"
+        [parentForm]="mainForm"
+        [size]="inputsSize.MEDIUM">
+      </app-input-text>
+
+      <!-- SUBCATEGORIES -->
+      <div class="subCategories-container" formArrayName="subCategories">
+        @for (group of subCategories.controls; let i = $index; track i) {
+          <div [formGroupName]="i" class="wrap-subcat-block">
+
+            <div class="subcat-block">
+              <!-- Checkbox per subcategory -->
+              <div class="checkbox-container">
+                <p-checkbox
+                  [size]="'small'"
+                  inputId="ny-{{ i }}"
+                  [binary]="true"
+                  formControlName="isRecognized"
+                  [style]="{ color: 'red' }"
+                  (onChange)="onCheckboxClicked($event, i)" />
+                <label for="ny-{{ i }}" class="ml-2">
+                  האם ההוצאה הינה הוצאה מוכרת?
+                </label>
+              </div>
+
+              <!-- Conditional fields -->
+              @if (getSubCategoryFormByIndex(i).get('isRecognized')?.value) {
+                <!-- Recognized -->
+                <app-input-text
+                  [parentForm]="getSubCategoryFormByIndex(i)"
+                  [controlName]="'subCategoryName'"
+                  [labelText]="'תת-קטגוריה'"
+                  [size]="inputsSize.MEDIUM">
+                </app-input-text>
+
+                <app-input-select
+                  [parentForm]="getSubCategoryFormByIndex(i)"
+                  [controlName]="'isEquipment'"
+                  [labelText]="'רכוש קבוע?'"
+                  [items]="isEquipmentValues"
+                  [placeholder]="'בחר'"
+                  [size]="inputsSize.SMALL">
+                </app-input-select>
+
+                <app-input-text
+                  [parentForm]="getSubCategoryFormByIndex(i)"
+                  [controlName]="'taxPercent'"
+                  [labelText]="'% מס'"
+                  [size]="inputsSize.SMALL"
+                  [type]="'number'"
+                  [errorText]="'מספרים בלבד'"
+                  placeholder="אחוז מס">
+                </app-input-text>
+
+                <app-input-text
+                  [parentForm]="getSubCategoryFormByIndex(i)"
+                  [controlName]="'vatPercent'"
+                  [labelText]="'% מע״מ'"
+                  [size]="inputsSize.SMALL"
+                  [type]="'number'"
+                  placeholder="אחוז מע״מ">
+                </app-input-text>
+
+                <app-input-text
+                  [parentForm]="getSubCategoryFormByIndex(i)"
+                  [controlName]="'reductionPercent'"
+                  [labelText]="'% פחת'"
+                  [size]="inputsSize.SMALL"
+                  [type]="'number'"
+                  placeholder="אחוז פחת">
+                </app-input-text>
+
+              }
+              @else {
+                <!-- Unrecognized -->
+                <app-input-text
+                  [ariaLabel]="'תת-קטגוריה'"
+                  [labelText]="'תת-קטגוריה'"
+                  [controlName]="'subCategoryName'"
+                  [parentForm]="getSubCategoryFormByIndex(i)"
+                  [size]="inputsSize.MEDIUM"
+                  placeholder="">
+                </app-input-text>
+              }
+            </div>
+
+            <!-- Remove Button -->
+            @if (subCategories.length > 1) {
+              <app-p-button
+                [buttonColor]="buttonColor.WHITE"
+                [buttonSize]="buttonSize.ICON"
+                [icon]="'pi pi-times-circle'"
+                [iconOnly]="true"
+                (onButtonClicked)="removeSubCategory(i)">
+              </app-p-button>
+            }
+          </div>
+        }
+
+        <!-- Add Button -->
+        <app-p-button
+          [buttonText]="' + הוסף תת קטגוריה'"
+          [variant]="'text'"
+          [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="AddSubCategory()">
+        </app-p-button>
+      </div>
+    </form>
+  </div>
+
+  <div class="footer" footer>
+    <app-p-button
+      [buttonText]="'הוסף'"
+      [isLoading]="isLoading()"
+      [disabled]="mainForm.invalid"
+      (onButtonClicked)="addCategory()">
+    </app-p-button>
+  </div>
+</app-left-panel>
+
+
+
+<!-- <app-left-panel [headerText]="subCategoryMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'"
   [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true"
   (backEnabledClicked)="onBackEnabled($event)">
 
   <div class="content" content>
-    <div>
-      <div class="checkbox-container">
-        <p-checkbox [size]="'small'" inputId="ny" [binary]="true" (onChange)="onCheckboxClicked($event)"
-          [style]="{color: 'red'}" />
-        <label for="ny" class="ml-2">האם ההוצאה הינה הוצאה מוכרת?</label>
-      </div>
-    </div>
 
     <form [formGroup]="isRecognized() ? isRecognizedForm : unRecognizedForm" class="is-recognized-form">
-      <!-- category input -->
       <ng-container>
         <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : ''"
           [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="isRecognized() ? isRecognizedForm : unRecognizedForm" [size]="inputsSize.MEDIUM">
@@ -20,12 +149,29 @@
       </ng-container>
 
 
-      <!-- Sub-categories FormArray -->
       <div class="subCategories-container" formArrayName="subCategories">
         @for (group of subCategories.controls; let i = $index; track i) {
         <div [formGroupName]="i" class="wrap-subcat-block">
+
+        
+
           <div class="subcat-block">
-            @if (isRecognized()) {
+
+            <div class="checkbox-container">
+              <p-checkbox
+                [size]="'small'"
+                inputId="ny-{{ i }}"
+                [binary]="true"
+                formControlName="isRecognized"
+                [style]="{ color: 'red' }"
+                (onChange)="onCheckboxClicked($event, i)" />
+              <label for="ny-{{ i }}" class="ml-2">
+                האם ההוצאה הינה הוצאה מוכרת?
+              </label>
+            </div>
+
+            @if (getSubCategoryFormByIndex(i).get('isRecognized')?.value) {
+
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'subCategoryName'"
               [labelText]="'תת-קטגוריה'" [size]="inputsSize.MEDIUM"></app-input-text>
 
@@ -39,6 +185,18 @@
               [labelText]="'% מעמ'" [size]="inputsSize.SMALL" [type]="'number'"  placeholder='אחוז מע"מ'></app-input-text>
             <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'reductionPercent'"
               [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחזו פחת"></app-input-text>
+
+            @if (showAdvanceFields) {
+              <app-input-date [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'startDate'" [labelText]="'תאריך התחלה'" [size]="inputsSize.SMALL" placeholder="תאריך התחלה"></app-input-date>
+              <app-input-date [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'endDate'" [labelText]="'תאריך התחלה'" [size]="inputsSize.SMALL" placeholder="תאריך התחלה"></app-input-date>
+            }
+            <app-p-button class="pnl-pdf-button"
+            [buttonText]="showAdvanceFields ? 'הסתר' : 'סיווג מתקדם'"
+            [variant]="'text'"
+            [severity]="'info'"
+            [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="showAdvanceFields = !showAdvanceFields">
+            </app-p-button>
           }
           @else {
             <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
@@ -62,7 +220,6 @@
         </app-p-button>
       </div>
     </form>
-    <!-- } -->
   </div>
   <div class="footer" footer>
     <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()"
@@ -70,4 +227,4 @@
       (onButtonClicked)="addCategory()">
     </app-p-button>
   </div>
-</app-left-panel>
+</app-left-panel> -->

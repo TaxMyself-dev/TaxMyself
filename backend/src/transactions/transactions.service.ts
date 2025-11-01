@@ -29,6 +29,7 @@ import { UserCategory } from 'src/expenses/user-categories.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
 import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import { log } from 'console';
 
 
 @Injectable()
@@ -462,96 +463,347 @@ export class TransactionsService {
   }
 
 
-  async classifyTransaction(classifyDto: ClassifyTransactionDto, userId: string, startDate?: Date, endDate?: Date): Promise<void> {
+  async classifyTransaction(
+  classifyDto: ClassifyTransactionDto,
+  userId: string,
+): Promise<void> {
+  const {
+    id,
+    isSingleUpdate,
+    name,
+    billName,
+    category,
+    subCategory,
+    taxPercent,
+    vatPercent,
+    reductionPercent,
+    isEquipment,
+    isRecognized,
+    startDate,
+    endDate,
+    minSum,
+    maxSum,
+    comment,          // user-entered text
+    matchType = 'equals', // new field for match behavior
+  } = classifyDto;
 
-    const { id, isSingleUpdate, name, billName, category, subCategory, taxPercent, vatPercent, reductionPercent, isEquipment, isRecognized } = classifyDto;
-    let transactions: Transactions[];
+  console.log('classifyDto is ', classifyDto);
 
-    // Add new user category if isNewCategory is true
-    // if (isNewCategory) {
-    //   try {
-    //      // Align to CreateUserCategoryDto
-    //      const categoryData: CreateUserCategoryDto = {
-    //       categoryName: category,
-    //       subCategoryName: subCategory,
-    //       firebaseId: userId,
-    //       taxPercent,
-    //       vatPercent,
-    //       reductionPercent,
-    //       isEquipment,
-    //       isRecognized,
-    //       isExpense
-    //     };
-    //     await this.expenseService.addUserCategory(userId, categoryData);
-    //   } catch (error) {
-    //     if (error instanceof ConflictException) {
-    //       console.log('Category already exists:', error.message);
-    //     } else {
-    //       throw error; // Re-throw other unexpected errors
-    //     }
-    //   }
-    // }
-
-    if (!isSingleUpdate) {
-      transactions = await this.transactionsRepo.find({
-        where: {
-          userId,
-          name,
-          billName,
-          //billDate: Between(startDate, endDate)
-        },
-      });
-    } else {
-      transactions = await this.transactionsRepo.find({
-        where: {
-          id,
-          userId
-        },
-      });
-    }
-
-    transactions.forEach(transaction => {
-      transaction.category = category;
-      transaction.subCategory = subCategory;
-      transaction.taxPercent = taxPercent;
-      transaction.vatPercent = vatPercent;
-      transaction.reductionPercent = reductionPercent;
-      transaction.isEquipment = isEquipment;
-      transaction.isRecognized = isRecognized;
+  // ✅ Case 1: Single update
+  if (isSingleUpdate) {
+    const transaction = await this.transactionsRepo.findOne({
+      where: { id, userId },
     });
 
-    await this.transactionsRepo.save(transactions);
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
+    }
 
-    // Update ClassifiedTransactions only if it's not a single update
-    if (!isSingleUpdate) {
-      let classifiedTransaction = await this.classifiedTransactionsRepo.findOne({ where: { userId, transactionName: name, billName } });
+    transaction.category = category;
+    transaction.subCategory = subCategory;
+    transaction.taxPercent = taxPercent;
+    transaction.vatPercent = vatPercent;
+    transaction.reductionPercent = reductionPercent;
+    transaction.isEquipment = isEquipment;
+    transaction.isRecognized = isRecognized ?? false;
 
-      if (!classifiedTransaction) {
-        classifiedTransaction = this.classifiedTransactionsRepo.create({
-          userId,
-          transactionName: name,
-          billName,
-          category,
-          subCategory,
-          taxPercent,
-          vatPercent,
-          reductionPercent,
-          isEquipment,
-          isRecognized
-        });
-      } else {
-        classifiedTransaction.category = category;
-        classifiedTransaction.subCategory = subCategory;
-        classifiedTransaction.taxPercent = taxPercent;
-        classifiedTransaction.vatPercent = vatPercent;
-        classifiedTransaction.reductionPercent = reductionPercent;
-        classifiedTransaction.isEquipment = isEquipment;
-        classifiedTransaction.isRecognized = isRecognized;
-      }
+    await this.transactionsRepo.save(transaction);
+    return;
+  }
 
-      await this.classifiedTransactionsRepo.save(classifiedTransaction);
+  // ✅ Case 2: Bulk update
+  const subCategoryDetails = await this.findSubCategoryDetails(
+    userId,
+    category,
+    subCategory,
+  );
+
+  if (!subCategoryDetails) {
+    throw new NotFoundException(
+      `Subcategory "${subCategory}" under category "${category}" not found.`,
+    );
+  }
+
+  // ✅ Build dynamic query
+  const query = this.transactionsRepo
+    .createQueryBuilder('t')
+    .where('t.userId = :userId', { userId })
+    .andWhere('t.name = :name', { name })
+    .andWhere('t.billName = :billName', { billName })
+    .andWhere(subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0');
+
+  // Optional date filter
+  if (startDate && endDate) {
+    query.andWhere('t.billDate BETWEEN :start AND :end', {
+      start: startDate,
+      end: endDate,
+    });
+  }
+
+  // Optional sum range filter
+  if (minSum != null && maxSum != null) {
+    query.andWhere('ABS(t.sum) BETWEEN :minSum AND :maxSum', { minSum, maxSum });
+  } else if (minSum != null) {
+    query.andWhere('ABS(t.sum) >= :minSum', { minSum });
+  } else if (maxSum != null) {
+    query.andWhere('ABS(t.sum) <= :maxSum', { maxSum });
+  }
+
+  // Optional comment filter (depending on match type)
+  if (comment) {
+    if (matchType === 'equals') {
+      query.andWhere('t.note2 = :comment', { comment });
+    } else if (matchType === 'contains') {
+      query.andWhere('t.note2 LIKE :comment', { comment: `%${comment}%` });
     }
   }
+
+  const transactions = await query.getMany();
+
+  if (!transactions.length) {
+    throw new NotFoundException(
+      `No matching transactions found for "${name}" (${billName})`,
+    );
+  }
+
+  // ✅ Update all matched transactions
+  transactions.forEach((t) => {
+    t.category = subCategoryDetails.categoryName;
+    t.subCategory = subCategoryDetails.subCategoryName;
+    t.taxPercent = subCategoryDetails.taxPercent;
+    t.vatPercent = subCategoryDetails.vatPercent;
+    t.reductionPercent = subCategoryDetails.reductionPercent;
+    t.isEquipment = subCategoryDetails.isEquipment;
+    t.isRecognized = subCategoryDetails.isRecognized ?? false;
+  });
+
+  await this.transactionsRepo.save(transactions);
+
+  // ✅ Update or create entry in ClassifiedTransactions
+  let classified = await this.classifiedTransactionsRepo.findOne({
+    where: {
+      userId,
+      transactionName: name,
+      billName,
+      isExpense: subCategoryDetails.isExpense ?? false,
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
+      minAbsSum: minSum ?? null,
+      maxAbsSum: maxSum ?? null,
+      commentPattern: comment ?? null,
+      commentMatchType: matchType ?? 'equals',
+    },
+  });
+
+  if (!classified) {
+    classified = this.classifiedTransactionsRepo.create({
+      userId,
+      transactionName: name,
+      billName,
+      category: subCategoryDetails.categoryName,
+      subCategory: subCategoryDetails.subCategoryName,
+      taxPercent: subCategoryDetails.taxPercent,
+      vatPercent: subCategoryDetails.vatPercent,
+      reductionPercent: subCategoryDetails.reductionPercent,
+      isEquipment: subCategoryDetails.isEquipment,
+      isRecognized: subCategoryDetails.isRecognized ?? false,
+      isExpense: subCategoryDetails.isExpense ?? false,
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
+      minAbsSum: minSum ?? null,
+      maxAbsSum: maxSum ?? null,
+      commentPattern: comment ?? null,
+      commentMatchType: matchType ?? 'equals',
+    });
+  } else {
+    classified.category = subCategoryDetails.categoryName;
+    classified.subCategory = subCategoryDetails.subCategoryName;
+    classified.taxPercent = subCategoryDetails.taxPercent;
+    classified.vatPercent = subCategoryDetails.vatPercent;
+    classified.reductionPercent = subCategoryDetails.reductionPercent;
+    classified.isEquipment = subCategoryDetails.isEquipment;
+    classified.isRecognized = subCategoryDetails.isRecognized ?? false;
+    classified.isExpense = subCategoryDetails.isExpense ?? false;
+    classified.startDate = startDate ?? null;
+    classified.endDate = endDate ?? null;
+    classified.minAbsSum = minSum ?? null;
+    classified.maxAbsSum = maxSum ?? null;
+    classified.commentPattern = comment ?? null;
+    classified.commentMatchType = matchType ?? 'equals';
+  }
+
+  await this.classifiedTransactionsRepo.save(classified);
+}
+
+
+
+  // async classifyTransaction(
+  //   classifyDto: ClassifyTransactionDto,
+  //   userId: string,
+  // ): Promise<void> {
+  //   const {
+  //     id,
+  //     isSingleUpdate,
+  //     name,
+  //     billName,
+  //     category,
+  //     subCategory,
+  //     taxPercent,
+  //     vatPercent,
+  //     reductionPercent,
+  //     isEquipment,
+  //     isRecognized,
+  //     startDate,
+  //     endDate,
+  //     minSum,
+  //     maxSum,
+  //     comment
+  //   } = classifyDto;
+
+  //   console.log("classifyDto is ", classifyDto);
+    
+
+  //   // ✅ Case 1: Single update
+  //   if (isSingleUpdate) {
+
+  //     const transaction = await this.transactionsRepo.findOne({
+  //       where: { id, userId },
+  //     });
+
+  //     if (!transaction) {
+  //       throw new NotFoundException(`Transaction with ID ${id} not found`);
+  //     }
+
+  //     transaction.category = category;
+  //     transaction.subCategory = subCategory;
+  //     transaction.taxPercent = taxPercent;
+  //     transaction.vatPercent = vatPercent;
+  //     transaction.reductionPercent = reductionPercent;
+  //     transaction.isEquipment = isEquipment;
+  //     transaction.isRecognized = isRecognized ?? false;
+
+  //     await this.transactionsRepo.save(transaction);
+  //     return;
+
+  //   }    
+
+  //   // ✅ Case 2: Bulk update
+  //   const subCategoryDetails = await this.findSubCategoryDetails(
+  //     userId,
+  //     category,
+  //     subCategory,
+  //   );
+
+  //   if (!subCategoryDetails) {
+  //     throw new NotFoundException(
+  //       `Subcategory "${subCategory}" under category "${category}" not found.`,
+  //     );
+  //   }
+
+  //   // ✅ Build dynamic query
+  //   const query = this.transactionsRepo
+  //     .createQueryBuilder('t')
+  //     .where('t.userId = :userId', { userId })
+  //     .andWhere('t.name = :name', { name })
+  //     .andWhere('t.billName = :billName', { billName })
+  //     .andWhere(
+  //       subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0',
+  //     );
+
+  //   // Optional date filter
+  //   if (startDate && endDate) {
+  //     query.andWhere('t.billDate BETWEEN :start AND :end', {
+  //       start: startDate,
+  //       end: endDate,
+  //     });
+  //   }
+
+  //   // Optional sum range filter
+  //   if (minSum != null && maxSum != null) {
+  //     query.andWhere('ABS(t.sum) BETWEEN :minSum AND :maxSum', {
+  //       minSum,
+  //       maxSum,
+  //     });
+  //   } else if (minSum != null) {
+  //     query.andWhere('ABS(t.sum) >= :minSum', { minSum });
+  //   } else if (maxSum != null) {
+  //     query.andWhere('ABS(t.sum) <= :maxSum', { maxSum });
+  //   }
+
+  //   // Optional comment filter
+  //   if (comment) {
+  //     query.andWhere('t.note2 = :comment', { comment });
+  //   }
+
+  //   const transactions = await query.getMany();
+
+  //   if (!transactions.length) {
+  //     throw new NotFoundException(
+  //       `No matching transactions found for "${name}" (${billName})`,
+  //     );
+  //   }
+
+  //   // ✅ Update all matched transactions
+  //   transactions.forEach((t) => {
+  //     t.category = subCategoryDetails.categoryName;
+  //     t.subCategory = subCategoryDetails.subCategoryName;
+  //     t.taxPercent = subCategoryDetails.taxPercent;
+  //     t.vatPercent = subCategoryDetails.vatPercent;
+  //     t.reductionPercent = subCategoryDetails.reductionPercent;
+  //     t.isEquipment = subCategoryDetails.isEquipment;
+  //     t.isRecognized = subCategoryDetails.isRecognized ?? false;
+  //     // optionally: t.isExpense = subCategoryDetails.isExpense ?? false;
+  //   });
+
+  //   await this.transactionsRepo.save(transactions);
+
+  //   // ✅ Update or create entry in ClassifiedTransactions
+  //   let classified = await this.classifiedTransactionsRepo.findOne({
+  //     where: {
+  //       userId,
+  //       transactionName: name,
+  //       billName,
+  //       isExpense: subCategoryDetails.isExpense ?? false,
+  //       startDate: startDate ?? null,
+  //       endDate: endDate ?? null,
+  //       minAbsSum: minSum ?? null,
+  //       maxAbsSum: maxSum ?? null,
+  //       comment: comment ?? null,
+  //     },
+  //   });
+
+  //   if (!classified) {
+  //     classified = this.classifiedTransactionsRepo.create({
+  //       userId,
+  //       transactionName: name,
+  //       billName,
+  //       category: subCategoryDetails.categoryName,
+  //       subCategory: subCategoryDetails.subCategoryName,
+  //       taxPercent: subCategoryDetails.taxPercent,
+  //       vatPercent: subCategoryDetails.vatPercent,
+  //       reductionPercent: subCategoryDetails.reductionPercent,
+  //       isEquipment: subCategoryDetails.isEquipment,
+  //       isRecognized: subCategoryDetails.isRecognized ?? false,
+  //       isExpense: subCategoryDetails.isExpense ?? false,
+  //     });
+  //   } else {
+  //     classified.category = subCategoryDetails.categoryName;
+  //     classified.subCategory = subCategoryDetails.subCategoryName;
+  //     classified.taxPercent = subCategoryDetails.taxPercent;
+  //     classified.vatPercent = subCategoryDetails.vatPercent;
+  //     classified.reductionPercent = subCategoryDetails.reductionPercent;
+  //     classified.isEquipment = subCategoryDetails.isEquipment;
+  //     classified.isRecognized = subCategoryDetails.isRecognized ?? false;
+  //     classified.isExpense = subCategoryDetails.isExpense ?? false;
+  //   }
+
+  //   await this.classifiedTransactionsRepo.save(classified);
+  // }
+
+
+
+
+
 
 
   async quickClassify(transactionId: number, userId: string): Promise<void> {
@@ -573,6 +825,43 @@ export class TransactionsService {
     transaction.isRecognized = false;
 
     await this.transactionsRepo.save(transaction);
+  }
+
+
+  async findSubCategoryDetails(
+    firebaseId: string,
+    categoryName: string,
+    subCategoryName: string,
+  ): Promise<UserSubCategory | DefaultSubCategory> {
+    // 1️⃣ Try to find in user subcategories
+    const userSubCategory = await this.userSubCategoryRepo.findOne({
+      where: {
+        firebaseId,
+        categoryName,
+        subCategoryName,
+      },
+    });
+
+    if (userSubCategory) {
+      return userSubCategory;
+    }
+
+    // 2️⃣ If not found, try to find in default subcategories
+    const defaultSubCategory = await this.defaultSubCategoryRepo.findOne({
+      where: {
+        categoryName,
+        subCategoryName,
+      },
+    });
+
+    if (defaultSubCategory) {
+      return defaultSubCategory;
+    }
+
+    // 3️⃣ If not found in either, throw an error
+    throw new NotFoundException(
+      `Subcategory '${subCategoryName}' not found under category '${categoryName}'`,
+    );
   }
 
 
@@ -723,6 +1012,7 @@ export class TransactionsService {
     if (!bill) {
       return [];
     }
+
     sources.push(...bill.sources.map(source => source.sourceName));
 
     return sources;

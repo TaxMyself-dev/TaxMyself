@@ -169,6 +169,7 @@ export class TransactionsController {
     @Body() classifyDto: ClassifyTransactionDto,
   ): Promise<void> {
     const userId = request.user?.firebaseId;
+    console.log("classifyDto is ", classifyDto);
     return this.transactionsService.classifyTransaction(classifyDto, userId);
   }
 
