@@ -2,5 +2,6 @@
 @if (showTopNav()) {
   <app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
 }
-<router-outlet id="main-content">
-</router-outlet>
+<div class="app-content">
+  <router-outlet id="main-content"></router-outlet>
+</div>

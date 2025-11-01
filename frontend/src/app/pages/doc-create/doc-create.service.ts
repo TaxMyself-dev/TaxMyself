@@ -16,15 +16,16 @@ export class DocCreateService {
   constructor(private http: HttpClient) {};
 
 
-  getDocIndexes(docType: string): Observable<IDocIndexes> {
+  getDocIndexes(docType: string, issuerBusinessNumber: string): Observable<IDocIndexes> {
     const url = `${environment.apiUrl}documents/get-setting-doc-by-type/${docType}`;
-    return this.http.get<IDocIndexes>(url);
+    const params = new HttpParams().set('issuerBusinessNumber', issuerBusinessNumber);
+    return this.http.get<IDocIndexes>(url, { params });
   }
   
 
-  setInitialDocDetails(docType: string, initialIndex: number): Observable<any> {
+  setInitialDocDetails(docType: string, initialIndex: number, issuerBusinessNumber: string): Observable<any> {
     const url = `${environment.apiUrl}documents/setting-initial-index/${docType}`;
-    return this.http.post<any>(url, { initialIndex });
+    return this.http.post<any>(url, { initialIndex, issuerBusinessNumber });
   }
 
 

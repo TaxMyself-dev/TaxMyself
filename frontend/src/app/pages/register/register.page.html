@@ -44,7 +44,7 @@
                   [customStyle]="'fill-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
                 <!-----date of birth----->
                 <app-input-date [controlName]="registerFormControls.DATEOFBIRTH" labelText="תאריך לידה"
-                  placeholder="00/00/0000" [parentForm]="personalForm"></app-input-date>
+                  placeholder="00/00/0000" [parentForm]="personalForm" [customStyle]="'register'"></app-input-date>
                 <!----phone ----->
                 <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון"
                   [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
@@ -126,7 +126,7 @@
                   [customStyle]="'fill-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
                 <!-----date of birth----->
                 <app-input-date [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" labelText="תאריך לידה"
-                  placeholder="00/00/0000" [parentForm]="spouseForm"></app-input-date>
+                  placeholder="00/00/0000" [parentForm]="spouseForm" [customStyle]="'register'"></app-input-date>
                 <!----phone ----->
                 <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון"
                   [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
@@ -180,7 +180,7 @@
                         [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN"
                         [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
                       <app-input-date [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" labelText="תאריך לידה"
-                        placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)"></app-input-date>
+                        placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)" [customStyle]="'register'"></app-input-date>
 
                       <div class="wrap-add-remove-child-button">
                         @if (childrenArray.controls.length > 1) {

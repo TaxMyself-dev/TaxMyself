@@ -1,42 +1,80 @@
 import { Injectable } from "@angular/core";
-import { CardCompany, CreateDocFields, CreditTransactionType, Currency, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodValue, UnitOfMeasure, VatOptions } from "src/app/shared/enums";
+import { CardCompany, CreateDocFields, CreditTransactionType, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
 import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
+import { DocTypeDisplayName, DocCreateFields, bankOptionsList } from "./doc-cerate.enum";
+
+const CardCompanyHebrewLabels: Record<CardCompany, string> = {
+    [CardCompany.ISRACARD]: 'ישראכרט',
+    [CardCompany.CAL]: 'כאל',
+    [CardCompany.DINERS]: 'דיינרס',
+    [CardCompany.AMERICAN_EXPRESS]: 'אמריקן אקספרס',
+    [CardCompany.VISA]: 'ויזה',
+    [CardCompany.LEUMI_CARD]: 'לאומי קארד',
+    [CardCompany.MASTERCARD]: 'מאסטרקארד',
+    [CardCompany.OTHER]: 'אחר',
+};
 
 @Injectable({
     providedIn: 'root'
 })
 export class DocCreateBuilderService {
 
+    readonly currencyList = [
+        { value: Currency.ILS, name: CurrencyHebrew.ILS },
+        { value: Currency.USD, name: CurrencyHebrew.USD },
+        { value: Currency.EUR, name: CurrencyHebrew.EUR },
+    ];
+
+    lineDetailsColumns = [
+        { field: FieldsCreateDocValue.LINE_DESCRIPTION, header: 'תיאור'},
+        { field: FieldsCreateDocValue.UNIT_AMOUNT, header: 'כמות'},
+        { field: FieldsCreateDocValue.VAT_OPTIONS, header: 'מע"מ'},
+        { field: FieldsCreateDocValue.SUM, header: 'סכום'},
+        { field: FieldsCreateDocValue.DISCOUNT, header: 'הנחה'},
+        { field: 'action', header: ''}
+    ];
+
     readonly docCreateBuilderData: Record<CreateDocFields, IDocCreateFieldData> = {
         // General Details 
-        [FieldsCreateDocValue.DOC_TYPE]: {
+          [FieldsCreateDocValue.BUSINESS_NUMBER]: {
             //name: FieldsCreateDocName.typeFile,
-            value: FieldsCreateDocValue.DOC_TYPE,
-            labelText: '',
-            placeHolder: '',
+            value: FieldsCreateDocValue.BUSINESS_NUMBER,
+            labelText: 'עסק',
+            placeHolder: 'בחר עסק',
             type: FormTypes.DDL,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
-        [FieldsCreateDocValue.DOC_DESCRIPTION]: {
-            //name: FieldsCreateDocName.docDescription,
-            value: FieldsCreateDocValue.DOC_DESCRIPTION,
-            labelText: '',
-            placeHolder: '',
-            type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
+        [FieldsCreateDocValue.DOC_TYPE]: {
+            //name: FieldsCreateDocName.typeFile,
+            value: FieldsCreateDocValue.DOC_TYPE,
+            labelText: 'סוג המסמך',
+            placeHolder: 'בחר מסמך',
+            type: FormTypes.DDL,
+            initialValue: '',
+            enumValues: Object.entries(DocTypeDisplayName).map(([value, name]) => ({ value, name })),
+            editFormBasedOnValue: {},
+            validators: [Validators.required]
+        },
+        [FieldsCreateDocValue.DOC_DESCRIPTION]: {
+            //name: FieldsCreateDocName.docDescription,
+            value: FieldsCreateDocValue.DOC_DESCRIPTION,
+            labelText: 'תיאור מסמך (לא מוצג ללקוח)',
+            placeHolder: 'תיאור המסמך',
+            type: FormTypes.TEXT,
+            initialValue: '',
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: []
+        },
         [FieldsCreateDocValue.DOCUMENT_DATE]: {
             //name: FieldsCreateDocName.documentDate,
             value: FieldsCreateDocValue.DOCUMENT_DATE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'תאריך המסמך',
+            placeHolder: '00/00/0000',
             type: FormTypes.DATE,
             initialValue: new Date(),
             enumValues: [],
@@ -46,8 +84,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.DOC_VAT_RATE]: {
             //name: FieldsCreateDocName.docVatRate,
             value: FieldsCreateDocValue.DOC_VAT_RATE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'אחוז המע"מ',
+            placeHolder: 'אחוז המע"מ',
             type: FormTypes.TEXT,
             initialValue: 18,
             enumValues: [],
@@ -57,11 +95,11 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.CURRENCY]: {
             //name: FieldsCreateDocName.currency,
             value: FieldsCreateDocValue.CURRENCY,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מטבע',
+            placeHolder: 'בחר את סוג המטבע',
             type: FormTypes.DDL,
-            initialValue: 'ILS',
-            enumValues: [Currency],
+            initialValue: this.currencyList[0].value,
+            enumValues: this.currencyList,
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
@@ -70,7 +108,7 @@ export class DocCreateBuilderService {
             //name: FieldsCreateDocName.recipientName,
             value: FieldsCreateDocValue.RECIPIENT_NAME,
             labelText: 'שם הלקוח',
-            placeHolder: 'לדוגמה: ישראל ישראלי',
+            placeHolder: 'לדוגמא: א.ב. צינורות',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -86,7 +124,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.pattern(/^\d{9}$/)]
         },
         [FieldsCreateDocValue.RECIPIENT_PHONE]: {
             //name: FieldsCreateDocName.recipientPhone,
@@ -113,8 +151,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_CITY]: {
             //name: FieldsCreateDocName.recipientCity,
             value: FieldsCreateDocValue.RECIPIENT_CITY,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'עיר',
+            placeHolder: 'עיר',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -124,8 +162,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_STREET]: {
             //name: FieldsCreateDocName.recipientStreet,
             value: FieldsCreateDocValue.RECIPIENT_STREET,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'רחוב',
+            placeHolder: 'רחוב',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -135,8 +173,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: {
             //name: FieldsCreateDocName.recipientHomeNumber,
             value: FieldsCreateDocValue.RECIPIENT_HOME_NUMBER,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מספר בית',
+            placeHolder: 'מספר בית',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -146,8 +184,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: {
             //name: FieldsCreateDocName.recipientPostalCode,
             value: FieldsCreateDocValue.RECIPIENT_POSTAL_CODE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מיקוד',
+            placeHolder: 'מיקוד',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -157,8 +195,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_STATE]: {
             //name: FieldsCreateDocName.recipientState,
             value: FieldsCreateDocValue.RECIPIENT_STATE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'מדינה',
+            placeHolder: 'מדינה',
             type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
@@ -168,8 +206,8 @@ export class DocCreateBuilderService {
         [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: {
             //name: FieldsCreateDocName.recipientStateCode,
             value: FieldsCreateDocValue.RECIPIENT_STATE_CODE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'קוד מדינה',
+            placeHolder: 'קוד מדינה',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -241,7 +279,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required]
+            validators: [Validators.min(0), Validators.required, Validators.pattern(/^\d+$/)]
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
             //name: fieldLineDocName.line_description,
@@ -266,7 +304,7 @@ export class DocCreateBuilderService {
             validators: []
         },
         [fieldLineDocValue.VAT_RATE]: {
-            //name: fieldLineDocName.vatRate,
+            // name: fieldLineDocName.vatRate,
             value: fieldLineDocValue.VAT_RATE,
             labelText: '',
             placeHolder: '',
@@ -283,7 +321,8 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [VatOptions],
+            enumValues: vatOptions,
+            // enumValues: Object.entries(VatOptions).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
@@ -296,7 +335,7 @@ export class DocCreateBuilderService {
             initialValue: 0,
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.min(0), Validators.required]
         },
         [fieldLineDocValue.LINE_NUMBER]: {
             //name: fieldLineDocName.lineNumber,
@@ -316,64 +355,49 @@ export class DocCreateBuilderService {
             placeHolder: '',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [UnitOfMeasure],
+            enumValues: Object.entries(UnitOfMeasure).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: []
         },
-        [fieldLineDocValue.PAYMENT_METHOD]: {
-            //name: fieldLineDocName.paymentMethod,
-            value: fieldLineDocValue.PAYMENT_METHOD,
-            labelText: '',
-            placeHolder: '',
+        [fieldLineDocValue.BANK_NAME]: {
+            //name: fieldLineDocName.bankNumber,
+            value: fieldLineDocValue.BANK_NAME,
+            labelText: 'בנק',
+            placeHolder: 'בחר בנק',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [PaymentMethodValue],
-            editFormBasedOnValue: {
-                TRANSFER: [fieldLineDocValue.BANK_NUMBER, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER],
-                CHECK: [fieldLineDocValue.BANK_NUMBER, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER, fieldLineDocValue.CHECK_NUMBER, fieldLineDocValue.PAYMENT_CHECK_DATE],
-                CREDIT_CARD: [fieldLineDocValue.CARD_COMPANY, fieldLineDocValue.CARD_4_NUMBER, fieldLineDocValue.CREDIT_CARD_NAME, fieldLineDocValue.CREDIT_TRANS_TYPE, fieldLineDocValue.CREDIT_PAY_NUMBER],
-            },
-            validators: [Validators.required]
-        },
-        [fieldLineDocValue.BANK_NUMBER]: {
-            //name: fieldLineDocName.bankNumber,
-            value: fieldLineDocValue.BANK_NUMBER,
-            labelText: '',
-            placeHolder: '',
-            type: FormTypes.NUMBER,
-            initialValue: '',
-            enumValues: [],
+            enumValues: bankOptionsList,
             editFormBasedOnValue: {},
             validators: []
         },
         [fieldLineDocValue.BRANCH_NUMBER]: {
             //name: fieldLineDocName.branchNumber,
             value: fieldLineDocValue.BRANCH_NUMBER,
-            labelText: '',
-            placeHolder: '',
-            type: FormTypes.NUMBER,
+            labelText: 'סניף',
+            placeHolder: 'הכנס מספר סניף',
+            type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.pattern(/^\d+$/)]
         },
         [fieldLineDocValue.ACCOUNT_NUMBER]: {
             //name: fieldLineDocName.accountNumber,
             value: fieldLineDocValue.ACCOUNT_NUMBER,
-            labelText: '',
-            placeHolder: '',
-            type: FormTypes.NUMBER,
+            labelText: 'חשבון',
+            placeHolder: 'הכנס מספר חשבון',
+            type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.pattern(/^\d+$/)]
         },
         [fieldLineDocValue.CHECK_NUMBER]: {
             //name: fieldLineDocName.checkNumber,
             value: fieldLineDocValue.CHECK_NUMBER,
-            labelText: '',
-            placeHolder: '',
-            type: FormTypes.NUMBER,
+            labelText: 'מספר צ׳ק',
+            placeHolder: 'הכנס מספר צ׳ק',
+            type: FormTypes.TEXT,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
@@ -383,34 +407,45 @@ export class DocCreateBuilderService {
             //name: fieldLineDocName.paymentCheckDate,
             value: fieldLineDocValue.PAYMENT_CHECK_DATE,
             labelText: '',
-            placeHolder: '',
+            placeHolder: 'בחר תאריך',
             type: FormTypes.DATE,
             initialValue: new Date(),
             enumValues: [],
             editFormBasedOnValue: {},
             validators: [],
         },
+          [fieldLineDocValue.PAYMENT_SUM]: {
+            //name: fieldLineDocName.paymentCheckDate,
+            value: fieldLineDocValue.PAYMENT_SUM,
+            labelText: 'סכום',
+            placeHolder: 'הכנס סכום',
+            type: FormTypes.NUMBER,
+            initialValue: '',
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: [Validators.required],
+        },
         [fieldLineDocValue.CARD_COMPANY]: {
             //name: fieldLineDocName.cardCompany,
             value: fieldLineDocValue.CARD_COMPANY,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'סוג כרטיס',
+            placeHolder: 'בחר סוג כרטיס',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [CardCompany],
+            enumValues: Object.entries(CardCompany).map(([name, value]) => ({ value, name: CardCompanyHebrewLabels[value as CardCompany] })),
             editFormBasedOnValue: {},
             validators: []
         },
         [fieldLineDocValue.CARD_4_NUMBER]: {
             //name: fieldLineDocName.card4Number,
             value: fieldLineDocValue.CARD_4_NUMBER,
-            labelText: '',
-            placeHolder: '',
+            labelText: '4 ספרות',
+            placeHolder: 'הכנס 4 ספרות אחרונות ',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [Validators.pattern(/^\d{4}$/), Validators.required]
         },
         [fieldLineDocValue.CREDIT_CARD_NAME]: {
             //name: fieldLineDocName.creditCardName,
@@ -426,19 +461,19 @@ export class DocCreateBuilderService {
         [fieldLineDocValue.CREDIT_TRANS_TYPE]: {
             //name: fieldLineDocName.creditTransType,
             value: fieldLineDocValue.CREDIT_TRANS_TYPE,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'סוג תשלום',
+            placeHolder: 'בחר סוג תשלום',
             type: FormTypes.DDL,
             initialValue: '',
-            enumValues: [CreditTransactionType],
+            enumValues: Object.entries(CreditTransactionType).map(([name, value]) => ({ value, name })),
             editFormBasedOnValue: {},
             validators: []
         },
         [fieldLineDocValue.CREDIT_PAY_NUMBER]: {
             //name: fieldLineDocName.creditPayNumber,
             value: fieldLineDocValue.CREDIT_PAY_NUMBER,
-            labelText: '',
-            placeHolder: '',
+            labelText: 'תשלומים',
+            placeHolder: 'הכנס מספר תשלומים',
             type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
@@ -488,16 +523,58 @@ export class DocCreateBuilderService {
             enumValues: [],
             editFormBasedOnValue: {},
             validators: []
-        }
+        },
+
+        // New payment specific fields
+        [fieldLineDocValue.PAYMENT_DATE]: {
+            value: fieldLineDocValue.PAYMENT_DATE,
+            labelText: 'תאריך תשלום',
+            placeHolder: '00/00/0000',
+            type: FormTypes.DATE,
+            initialValue: new Date(),
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: []
+        },
+        [fieldLineDocValue.APPROVAL_CODE]: {
+            value: fieldLineDocValue.APPROVAL_CODE,
+            labelText: 'קוד אישור',
+            placeHolder: 'הכנס קוד אישור',
+            type: FormTypes.TEXT,
+            initialValue: '',
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: []
+        },
+        [fieldLineDocValue.APP_NAME]: {
+            value: fieldLineDocValue.APP_NAME,
+            labelText: 'בחר אפליקציה',
+            placeHolder: 'בחר אפליקציה',
+            type: FormTypes.DDL,
+            initialValue: '',
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: []
+        },
+        [fieldLineDocValue.REFERENCE]: {
+            value: fieldLineDocValue.REFERENCE,
+            labelText: 'אסמכתא',
+            placeHolder: 'הכנס אסמכתא',
+            type: FormTypes.TEXT,
+            initialValue: '',
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: []
+        },
 
     };
 
     readonly docCreateBuilderSectionsData: Partial<Record<SectionKeysEnum, ICreateDocSectionData>> = {
         'GeneralDetails': {
             key: 'GeneralDetails',
-            baseFields: [FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOCUMENT_DATE, FieldsCreateDocValue.DOC_VAT_RATE],
+            baseFields: [FieldsCreateDocValue.BUSINESS_NUMBER, FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOCUMENT_DATE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOC_VAT_RATE],
             expandable: true,
-            expandedFields: [FieldsCreateDocValue.DOC_VAT_RATE, FieldsCreateDocValue.CURRENCY]
+            expandedFields: [FieldsCreateDocValue.CURRENCY]
         },
         'UserDetails': {
             key: 'UserDetails',
@@ -505,17 +582,41 @@ export class DocCreateBuilderService {
             expandable: true,
             expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE, FieldsCreateDocValue.RECIPIENT_STATE, FieldsCreateDocValue.RECIPIENT_STATE_CODE]
         },
-        'ReceiptPaymentDetails': {
-            key: 'ReceiptPaymentDetails',
-            baseFields: [fieldLineDocValue.SUM, fieldLineDocValue.LINE_DESCRIPTION, fieldLineDocValue.VAT_OPTIONS, fieldLineDocValue.PAYMENT_METHOD],
-            expandable: true,
-            expandedFields: [fieldLineDocValue.DISCOUNT, fieldLineDocValue.UNIT_AMOUNT, fieldLineDocValue.VAT_RATE, fieldLineDocValue.UNIT_TYPE]
+        'LineDetails': {
+            key: 'LineDetails',
+            baseFields: [FieldsCreateDocValue.LINE_DESCRIPTION, FieldsCreateDocValue.SUM, FieldsCreateDocValue.DISCOUNT, FieldsCreateDocValue.UNIT_AMOUNT, FieldsCreateDocValue.VAT_OPTIONS],
+            expandable: false,
+            expandedFields: []
         },
-        'TaxInvoicePaymentDetails': {
-            key: 'TaxInvoicePaymentDetails',
-            baseFields: [fieldLineDocValue.SUM, fieldLineDocValue.LINE_DESCRIPTION, fieldLineDocValue.VAT_OPTIONS, fieldLineDocValue.PAYMENT_METHOD],
-            expandable: true,
-            expandedFields: [fieldLineDocValue.DISCOUNT, fieldLineDocValue.UNIT_AMOUNT, fieldLineDocValue.VAT_RATE, fieldLineDocValue.UNIT_TYPE]
+        'BANK_TRANSFER': {
+            key: 'BANK_TRANSFER',
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.BANK_NAME, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.ACCOUNT_NUMBER, fieldLineDocValue.PAYMENT_SUM],
+            expandable: false,
+            expandedFields: []
+        },
+        'CREDIT_CARD': {
+            key: 'CREDIT_CARD',
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.CARD_COMPANY, fieldLineDocValue.CARD_4_NUMBER, fieldLineDocValue.CREDIT_TRANS_TYPE, fieldLineDocValue.CREDIT_PAY_NUMBER, fieldLineDocValue.PAYMENT_SUM],
+            expandable: false,
+            expandedFields: []
+        },
+        'CHECK': {
+            key: 'CHECK',
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.BANK_NAME, fieldLineDocValue.BRANCH_NUMBER, fieldLineDocValue.CHECK_NUMBER, fieldLineDocValue.PAYMENT_SUM],
+            expandable: false,
+            expandedFields: []
+        },
+        'APP': {
+            key: 'APP',
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.APP_NAME, fieldLineDocValue.REFERENCE, fieldLineDocValue.PAYMENT_SUM],
+            expandable: false,
+            expandedFields: []
+        },
+        'CASH': {
+            key: 'CASH',
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.PAYMENT_SUM],
+            expandable: false,
+            expandedFields: []
         },
     };
 
@@ -563,8 +664,6 @@ export class DocCreateBuilderService {
     addFormControlsByExpandedSection(sectionForm: FormGroup, section: SectionKeysEnum) {
         const expandedFields = this.docCreateBuilderSectionsData[section].expandedFields;
         expandedFields.forEach((field) => {
-            console.log("field is ", field);
-            console.log(this.docCreateBuilderData[field]?.initialValue);
             sectionForm.addControl(field, new FormControl(
                 this.docCreateBuilderData[field]?.initialValue, this.docCreateBuilderData[field].validators
             ));
@@ -581,15 +680,12 @@ export class DocCreateBuilderService {
         });
     }
 
-    addFormControlsByEnumValue(sectionForm: FormGroup, section: SectionKeysEnum, field: string,  enumValue: string, isExpanded: boolean) {
+    addFormControlsByEnumValue(sectionForm: FormGroup, section: SectionKeysEnum, field: string, enumValue: string, isExpanded: boolean) {
         const enumValueFields: string[] = this.docCreateBuilderData[field]?.editFormBasedOnValue[enumValue];
-        console.log("🚀 ~ DocCreateBuilderService ~ addFormControlsByEnumValue ~ enumValueFields:", enumValueFields)
         const desiredFields: string[] = [...this.docCreateBuilderSectionsData[section]?.baseFields];
-        console.log("🚀 ~ DocCreateBuilderService ~ addFormControlsByEnumValue ~ desiredFields:", desiredFields)
         isExpanded ? desiredFields.push(...this.docCreateBuilderSectionsData[section]?.expandedFields) : null;
 
         Object.keys(sectionForm.controls).forEach((key) => {
-            console.log("🚀 ~ DocCreateBuilderService ~ Object.keys ~ key:", key)
             if (!desiredFields.includes(key)) {
                 sectionForm.removeControl(key);
             }
@@ -603,8 +699,6 @@ export class DocCreateBuilderService {
     }
 
     getBaseFieldsBySection(section: SectionKeysEnum): IDocCreateFieldData[] {
-        console.log("🚀 ~ DocCreateBuilderService ~ getBaseFieldsBySection ~ section:", section);
-        
         const sectionData = this.docCreateBuilderSectionsData[section];
         if (!sectionData) {
             return [];

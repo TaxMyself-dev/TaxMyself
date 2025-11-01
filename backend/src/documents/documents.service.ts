@@ -61,34 +61,45 @@ export class DocumentsService {
 
 
   async getCurrentIndexes(
-  userId: string,
-  docType: DocumentType
-): Promise<{ docIndex: number; generalIndex: number; isInitial: boolean }> {
-  const [docSetting, generalSetting] = await Promise.all([
-    this.settingDocuments.findOne({ where: { userId, docType } }),
-    this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } }),
-  ]);
+    userId: string,
+    docType: DocumentType,
+    issuerBusinessNumber: string,
+  ): Promise<{ docIndex: number; generalIndex: number; isInitial: boolean }> {    
+    if (docType !== DocumentType.GENERAL) {
+      if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+        throw new BadRequestException('issuerBusinessNumber is required');
+      }
+    }
+    const [docSetting, generalSetting] = await Promise.all([
+      this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType } }),
+      this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL } }),
+    ]);
 
-  const docIndex = docSetting?.currentIndex ?? 0;                // 0 means uninitialized
-  const generalIndex = generalSetting?.currentIndex ?? 1000001;  // 1000001 means is the first doc
-  const isInitial = !docSetting || docIndex === 0 || docIndex == null;
+    const docIndex = docSetting?.currentIndex ?? 0;                // 0 means uninitialized
+    const generalIndex = generalSetting?.currentIndex ?? 1000001;  // 1000001 means is the first doc
+    const isInitial = !docSetting || docIndex === 0 || docIndex == null;
 
-  return {
-    docIndex,
-    generalIndex,
-    isInitial,
-  };
-}
+    return {
+      docIndex,
+      generalIndex,
+      isInitial,
+    };
+  }
 
 
 
-  async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number) {
+  async setInitialDocDetails(userId: string, docType: DocumentType, initialIndex: number, issuerBusinessNumber: string) {
 
     try {
-      await this.settingGeneralIndex(userId);
-      let docDetails = await this.settingDocuments.findOne({ where: { userId, docType } });
+      if (docType !== DocumentType.GENERAL) {
+        if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+          throw new BadRequestException('issuerBusinessNumber is required');
+        }
+      }
+      await this.settingGeneralIndex(userId, issuerBusinessNumber);
+      let docDetails = await this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType } });
       if (!docDetails) {
-        docDetails = await this.settingDocuments.save({ userId, docType, initialIndex, currentIndex: initialIndex });
+        docDetails = await this.settingDocuments.save({ userId, issuerBusinessNumber, docType, initialIndex, currentIndex: initialIndex });
         if (!docDetails) {
           throw new HttpException('Error in save', HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -100,11 +111,11 @@ export class DocumentsService {
     }
   }
 
-  async settingGeneralIndex(userId: string) {
+  async settingGeneralIndex(userId: string, issuerBusinessNumber: string) {
     let generalIndex: any;
-    generalIndex = await this.settingDocuments.findOne({ where: { userId, docType: DocumentType.GENERAL } });
+    generalIndex = await this.settingDocuments.findOne({ where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL } });
     if (!generalIndex) {
-      generalIndex = await this.settingDocuments.insert({ userId, docType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
+      generalIndex = await this.settingDocuments.insert({ userId, issuerBusinessNumber, docType: DocumentType.GENERAL, initialIndex: 1000000, currentIndex: 1000000 });
       if (!generalIndex) {
         throw new HttpException('Error in add general serial number', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -112,20 +123,21 @@ export class DocumentsService {
   }
 
 
-  async incrementGeneralIndex(userId: string, manager?: EntityManager): Promise<SettingDocuments> {
+  async incrementGeneralIndex(userId: string, issuerBusinessNumber: string, manager?: EntityManager): Promise<SettingDocuments> {
     try {
       const repo = manager
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
       let generalIndex = await repo.findOne({
-        where: { userId, docType: DocumentType.GENERAL },
+        where: { userId, issuerBusinessNumber, docType: DocumentType.GENERAL },
       });
 
       if (!generalIndex) {
         // First-time setup: initialize with default starting value
         generalIndex = repo.create({
           userId,
+          issuerBusinessNumber,
           docType: DocumentType.GENERAL,
           initialIndex: 1000001,
           currentIndex: 1000002,
@@ -149,7 +161,7 @@ export class DocumentsService {
 
     let fid: string;
     let prefill_data: any;
-    
+
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
     const docType = data.docData.docType;
@@ -164,12 +176,11 @@ export class DocumentsService {
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
           issuerDetails: [
-            data.docData.issuerName,
-            // `${data.docData.issuerBusinessNumber} מ.ע`,
-            `${data.docData.issuerBusinessNumber} \u200Fמ.ע`,
-            data.docData.issuerPhone,
-            data.docData.issuerEmail,
-            data.docData.issuerAddress,
+            data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
+            data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.: ${data.docData.issuerBusinessNumber}` : null,
+            data.docData.issuerPhone ? `טלפון: ${data.docData.issuerPhone}` : null,
+            data.docData.issuerEmail ? `כתובת מייל: ${data.docData.issuerEmail}` : null,
+            data.docData.issuerAddress ? `כתובת: ${data.docData.issuerAddress}` : null,
           ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           subTotal: `₪${data.docData.sumAftDisBefVAT}`,
@@ -210,7 +221,7 @@ export class DocumentsService {
       digitallySign: templateType === 'createDoc',
       prefill_data,
     };
- 
+
     const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -229,66 +240,66 @@ export class DocumentsService {
   }
 
 
-  async transformLinesToItemsTable(lines: any[]): Promise<any[]> {    
+  async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
-        "סכום": `₪${line.sumBefVatPerUnit * line.unitQuantity}`,
-        "מחיר": `₪${line.sumAftDisBefVatPerLine}`,
-        "כמות": String(line.unitQuantity),
-        "פירוט": line.description || ""
+      "סכום": `₪${line.sumBefVatPerUnit * line.unitQuantity}`,
+      "מחיר": `₪${line.sumAftDisBefVatPerLine}`,
+      "כמות": String(line.unitQuantity),
+      "פירוט": line.description || ""
     }));
   }
 
 
   async transformLinesToPaymentsTable(PaymentLines: any[]): Promise<any[]> {
-  return PaymentLines.map(line => {
-    let details: string;
-    let paymentMethodHebrew: string;
+    return PaymentLines.map(line => {
+      let details: string;
+      let paymentMethodHebrew: string;
 
-    switch (line.paymentMethod) {
-      case 'CASH':
-        details = 'שולם במזומן';
-        paymentMethodHebrew = 'מזומן';
-        break;
+      switch (line.paymentMethod) {
+        case 'CASH':
+          details = 'שולם במזומן';
+          paymentMethodHebrew = 'מזומן';
+          break;
 
-      case 'BANK_TRANSFER':
-        const bankDetails: string[] = [];
+        case 'BANK_TRANSFER':
+          const bankDetails: string[] = [];
 
-        if (line.bankNumber) bankDetails.push(`בנק ${line.hebrewBankName}`);
-        if (line.branchNumber) bankDetails.push(`סניף ${line.branchNumber}`);
-        if (line.accountNumber) bankDetails.push(`חשבון ${line.accountNumber}`);
+          if (line.bankNumber) bankDetails.push(`בנק ${line.hebrewBankName}`);
+          if (line.branchNumber) bankDetails.push(`סניף ${line.branchNumber}`);
+          if (line.accountNumber) bankDetails.push(`חשבון ${line.accountNumber}`);
 
-        details = bankDetails.join(', ');
-        paymentMethodHebrew = 'העברה בנקאית';
-        break;
+          details = bankDetails.join(', ');
+          paymentMethodHebrew = 'העברה בנקאית';
+          break;
 
-      case 'CHECK':
-        details = line.checkNumber ? `מספר המחאה ${line.checkNumber}` : '';
-        paymentMethodHebrew = 'צ׳ק';
-        break;
+        case 'CHECK':
+          details = line.checkNumber ? `מספר המחאה ${line.checkNumber}` : '';
+          paymentMethodHebrew = 'צ׳ק';
+          break;
 
-      case 'CREDIT_CARD':
-        const creditDetails: string[] = [];
+        case 'CREDIT_CARD':
+          const creditDetails: string[] = [];
 
-        if (line.cardCompany) creditDetails.push(`${line.cardCompany}`);
-        if (line.card4Number) creditDetails.push(`${line.card4Number}`);
+          if (line.cardCompany) creditDetails.push(`${line.cardCompany}`);
+          if (line.card4Number) creditDetails.push(`${line.card4Number}`);
 
-        details = creditDetails.join(' - ');
-        paymentMethodHebrew = 'כרטיס אשראי';
-        break;
+          details = creditDetails.join(' - ');
+          paymentMethodHebrew = 'כרטיס אשראי';
+          break;
 
-      default:
-        throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
-    }
+        default:
+          throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
+      }
 
-    return {
-      "סכום": `₪${Number(line.paymentAmount).toFixed(2)}`,
-      // "תאריך": line.paymentDate,
-      "תאריך": this.formatDateToDDMMYYYY(line.paymentDate),
-      "פירוט": details,
-      "אמצעי תשלום": paymentMethodHebrew
-    };
-  });
-}
+      return {
+        "סכום": `₪${Number(line.paymentAmount).toFixed(2)}`,
+        // "תאריך": line.paymentDate,
+        "תאריך": this.formatDateToDDMMYYYY(line.paymentDate),
+        "פירוט": details,
+        "אמצעי תשלום": paymentMethodHebrew
+      };
+    });
+  }
 
 
 
@@ -301,10 +312,10 @@ export class DocumentsService {
     try {
 
       // 1. Increment general index (use manager for DB operation)
-      await this.incrementGeneralIndex(userId, queryRunner.manager);
+      await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
 
       // 2. Increment document-specific index
-      const docDetails = await this.incrementCurrentIndex(userId, data.docData.docType, queryRunner.manager, data.docData.docNumber);
+      const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -362,7 +373,7 @@ export class DocumentsService {
 
 
   async previewDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
-    
+
     try {
       // Generate the PDF
       let pdfBlob = null;
@@ -399,17 +410,23 @@ export class DocumentsService {
 
   async incrementCurrentIndex(
     userId: string,
+    issuerBusinessNumber: string,
     docType: DocumentType,
     manager?: EntityManager,
     initialDocIndex?: number // optional starting value from frontend
   ): Promise<SettingDocuments> {
     try {
+      if (docType !== DocumentType.GENERAL) {
+        if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+          throw new BadRequestException('issuerBusinessNumber is required');
+        }
+      }
       const repo = manager
         ? manager.getRepository(SettingDocuments)
         : this.settingDocuments;
 
       let docSetting = await repo.findOne({
-        where: { userId, docType },
+        where: { userId, issuerBusinessNumber, docType },
       });
 
       // First time
@@ -422,6 +439,7 @@ export class DocumentsService {
         // Create new setting with initial index
         docSetting = repo.create({
           userId,
+          issuerBusinessNumber,
           docType,
           initialIndex: initialDocIndex,
           currentIndex: initialDocIndex + 1,
@@ -539,8 +557,10 @@ export class DocumentsService {
     const docs = [];
 
     // Ensure settings exist before starting
-    await this.ensureDocumentSettingsExist(userId);
-  
+    // Use the same issuer business number used in generateDocData()
+    const issuerBusinessNumber = '204245724';
+    await this.ensureDocumentSettingsExist(userId, issuerBusinessNumber);
+
     const docCounters: Record<string, number> = {
       RECEIPT: 1000,
       TAX_INVOICE: 2000,
@@ -548,7 +568,7 @@ export class DocumentsService {
       TRANSACTION_INVOICE: 4000,
       CREDIT_INVOICE: 5000,
     };
-  
+
     for (let i = 0; i < 500; i++) {
       const data = this.generateDocData(i, docCounters);
       try {
@@ -559,12 +579,12 @@ export class DocumentsService {
         console.error(`Error generating document ${i + 1}`, error);
       }
     }
-  
+
     return docs;
   }
 
 
-  async ensureDocumentSettingsExist(userId: string): Promise<void> {
+  async ensureDocumentSettingsExist(userId: string, issuerBusinessNumber: string): Promise<void> {
 
     const docTypes: DocumentType[] = [
       DocumentType.RECEIPT,
@@ -575,7 +595,7 @@ export class DocumentsService {
       DocumentType.GENERAL,
       DocumentType.JOURNAL_ENTRY,
     ];
-  
+
     const defaultInitialValues: Record<DocumentType, number> = {
       [DocumentType.RECEIPT]: 10000,
       [DocumentType.TAX_INVOICE]: 20000,
@@ -585,25 +605,27 @@ export class DocumentsService {
       [DocumentType.GENERAL]: 1000000,
       [DocumentType.JOURNAL_ENTRY]: 10000000,
     };
-  
+
     for (const docType of docTypes) {
-      const existing = await this.settingDocuments.findOne({
-        where: { userId, docType },
-      });
-  
+      const whereClause = { userId, issuerBusinessNumber, docType };
+
+      const existing = await this.settingDocuments.findOne({ where: whereClause });
+
       if (!existing) {
-        await this.settingDocuments.save({
+        const payload: any = {
           userId,
+          issuerBusinessNumber,
           docType,
           initialIndex: defaultInitialValues[docType],
           currentIndex: defaultInitialValues[docType],
-        });
+        };
+        await this.settingDocuments.save(payload);
         console.log(`✅ Created initial setting for ${docType} for user ${userId}`);
       }
     }
   }
-  
-  
+
+
   generateDocData(index: number, docCounters: Record<string, number>): any {
 
     const docTypes: DocumentType[] = [
@@ -613,16 +635,16 @@ export class DocumentsService {
       DocumentType.TRANSACTION_INVOICE,
       DocumentType.CREDIT_INVOICE,
     ];
-  
+
     // Randomly select a docType
     const docType = docTypes[Math.floor(Math.random() * docTypes.length)];
-  
+
     // Increment the counter for the specific docType
     const docNumber = (docCounters[docType]++).toString();
-  
+
     // General document index (always incrementing by all docs)
     const generalDocIndex = (1000000 + index).toString();
-  
+
     // Random description
     const descriptions = ['בדיקה אוטומטית', 'מסמך בדיקה', 'בדיקה מספרית', 'בדיקה מהירה', 'בדיקה אקראית'];
     const randomDescription = descriptions[Math.floor(Math.random() * descriptions.length)];
@@ -640,12 +662,12 @@ export class DocumentsService {
     const sumAftDisBefVat = sumBefDisBefVat - disSum;
     const vatSum = (sumAftDisBefVat * vatRate) / 100;
     const sumAftDisWithVat = sumAftDisBefVat + vatSum;
-  
+
     // const docDate = new Date(2025, 9, 3).toISOString().split('T')[0]; // 2025-04-18
     const docDate = new Date(
       new Date(2025, 7, 1).getTime() + Math.random() * (new Date(2025, 8, 30).getTime() - new Date(2025, 7, 1).getTime())
     ).toISOString().split('T')[0];
-  
+
     return {
       docData: {
         issuerBusinessNumber: '204245724',
@@ -724,7 +746,7 @@ export class DocumentsService {
           hebrewBankName: 'לאומי',
           bankNumber: '10'
         }
-      ]: []
+      ] : []
     };
   }
 
@@ -736,6 +758,6 @@ export class DocumentsService {
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
   }
-  
+
 
 }

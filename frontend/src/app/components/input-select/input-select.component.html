@@ -42,7 +42,7 @@
     </label>
     }
 
-    <p-select [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()"
+    <p-select [showClear]="true" [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()"
       optionValue="value" optionLabel="name"
       [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"

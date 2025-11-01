@@ -21,11 +21,7 @@ export class GenericService {
   constructor(private loader: LoadingController, private popoverController: PopoverController) { }
 
 
-  getBusinessData(user: IUserData): {
-    mode: BusinessMode;
-    uiList: { name: string; value: string }[];
-    fullList: BusinessInfo[];
-    showSelector: boolean;
+  getBusinessData(user: IUserData): { mode: BusinessMode; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
   } {
 
     const fullList: BusinessInfo[] = [];

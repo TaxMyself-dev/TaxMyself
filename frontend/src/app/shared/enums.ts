@@ -1,3 +1,4 @@
+import { MenuItem } from "primeng/api";
 import { ISelectItem } from "./interface";
 
 export enum paymentIdentifierType {
@@ -158,15 +159,22 @@ export enum Currency {
   EUR = 'EUR',
 }
 
+export enum CurrencyHebrew {
+  ILS = 'שקל',
+  USD = 'דולר',
+  EUR = 'יורו',
+}
+
 export enum FieldsCreateDocValue {
+  BUSINESS_NUMBER = 'businessNumber',
   DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
   DOCUMENT_DATE = 'documentDate',
   DOC_VAT_RATE = 'docVatRate',
   VAT_SUM = 'vatSum',
   CURRENCY = "currency",
-  RECIPIENT_NAME = 'recipientName', 
-  RECIPIENT_ID= 'recipientId',
+  RECIPIENT_NAME = 'recipientName',
+  RECIPIENT_ID = 'recipientId',
   RECIPIENT_PHONE = 'recipientPhone',
   RECIPIENT_EMAIL = 'recipientEmail',
   RECIPIENT_CITY = 'recipientCity',
@@ -178,17 +186,22 @@ export enum FieldsCreateDocValue {
   SUM_AFTER_DIS_BEF_VAT = 'sumAfterDisBefVat',
   SUM_AFTER_DIS_WITH_VAT = 'sumAfterDisWithVat',
   SUM_BEF_DIS_BEF_VAT = 'sumBefDisBefVat',
+  LINE_DESCRIPTION = 'description',
+  SUM = 'sum',
+  VAT_OPTIONS = 'vatOptions',
+  DISCOUNT = 'discount',
+  UNIT_AMOUNT = 'unitAmount',
 }
 
 export enum FieldsCreateDocName {
-//typeFile = "באיזה מסמך אתה מעוניין?",
+  //typeFile = "באיזה מסמך אתה מעוניין?",
   currency = "מטבע",
   docVatRate = "שיעור מעמ",
   date = "תאריך ביצוע התשלום",
   documentDate = "תאריך המסמך",
   recipientName = "שם הלקוח",
   recipientId = "ת.ז. / ח.פ. של הלקוח",
-  recipientEmail= "אימייל של הלקוח",
+  recipientEmail = "אימייל של הלקוח",
   recipientCity = "עיר",
   recipientStreet = "רחוב",
   recipientHomeNumber = "מס' בית",
@@ -205,16 +218,17 @@ export enum FieldsCreateDocName {
 
 export enum fieldLineDocValue {
   SUM = 'sum',
+  PAYMENT_SUM = 'paymentSum',
   LINE_DESCRIPTION = 'description',
   UNIT_AMOUNT = 'unitAmount',
   SUM_BEF_VAT = 'sumBefVat',
   VAT_RATE = 'vatRate',
   VAT_OPTIONS = 'vatOptions',
-  PAYMENT_METHOD = 'paymentMethod',
+  // PAYMENT_METHOD = 'paymentMethod',
   DISCOUNT = 'discount',
   LINE_NUMBER = 'lineNumber',
   UNIT_TYPE = 'unitType',
-  BANK_NUMBER = 'bankNumber',
+  BANK_NAME = 'bankName',
   BRANCH_NUMBER = 'branchNumber',
   ACCOUNT_NUMBER = 'accountNumber',
   CHECK_NUMBER = 'checkNumber',
@@ -228,10 +242,15 @@ export enum fieldLineDocValue {
   PRODUCT_SERIAL_NUMBER = 'productSerialNumber',
   INTERNAL_NUMBER = 'internalNumber',
   JOURNAL_ENTRY_MAIN_ID = 'journalEntryMainId',
+  PAYMENT_DATE = 'paymentDate',
+  APPROVAL_CODE = 'approvalCode',
+  APP_NAME = 'appName',
+  REFERENCE = 'reference',
 }
 
 export enum fieldLineDocName {
   sum = 'סכום',
+  paymentSum = 'סכום',
   line_description = 'תיאור',
   unitAmount = 'מחיר ליחידה',
   sumBefVat = 'סכום לפני מע"מ',
@@ -241,7 +260,7 @@ export enum fieldLineDocName {
   discount = 'הנחה',
   lineNumber = 'מספר שורה',
   unitType = 'יחידת מידה',
-  bankNumber = 'מספר הבנק',
+  bankName = 'שם הבנק',
   branchNumber = 'מספר הסניף',
   accountNumber = 'מספר חשבון',
   checkNumber = 'מספר המחאה',
@@ -255,18 +274,14 @@ export enum fieldLineDocName {
   productSerialNumber = 'מספר סידורי של המוצר',
   internalNumber = 'מספר פנימי',
   journalEntryMainId = 'מספר ראשי של רשומת יומן',
+  paymentDate = 'תאריך',
+  approvalCode = 'קוד אישור',
+  appName = 'אפליקציה',
+  reference = 'אסמכתא',
 }
 
 export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;
 
-export enum PaymentMethodValue {
-  CASH = 'CASH',
-  BANK_TRANSFER = 'BANK_TRANSFER',
-  BIT = 'BIT',
-  PAYBOX = 'PAYBOX',
-  CREDIT_CARD = 'CREDIT_CARD',
-  CHECK = 'CHECK',
-}
 
 export enum PaymentMethodName {
   CASH = 'מזומן',
@@ -277,11 +292,20 @@ export enum PaymentMethodName {
   CHECK = "צ'ק",
 }
 
-export enum VatOptions { 
-  INCLUDE = 'INCLUDE',
-  EXCLUDE = 'EXCLUDE',
-  WITHOUT = 'WITHOUT',
-}
+// export enum VatOptions {
+//   INCLUDE = 'INCLUDE',
+//   EXCLUDE = 'EXCLUDE',
+//   WITHOUT = 'WITHOUT',
+// }
+
+export type VatType = 'INCLUDE' | 'EXCLUDE' | 'WITHOUT';
+
+export const vatOptions: Array<{ value: VatType; name: string }> = [
+  { value: 'INCLUDE', name: 'כולל מע״מ' },
+  { value: 'EXCLUDE', name: 'לא כולל מע״מ' },
+  { value: 'WITHOUT', name: 'ללא מע״מ' },
+];
+
 
 export enum UnitOfMeasure {
   UNIT = 'UNIT',
@@ -300,7 +324,16 @@ export enum CreditTransactionType {
 
 // export type VatOptions = 'WITHOUT' | 'BEFORE' | 'AFTER'
 
-export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'BIT' | 'PAYBOX' | 'CREDIT_CARD' | 'CHECK';
+export type PaymentMethodType = 'CASH' | 'BANK_TRANSFER' | 'APP' | 'CREDIT_CARD' | 'CHECK';
+export type PaymentMethodTypeHebrew = 'מזומן' | 'העברה בנקאית' | 'אפליקציה' | 'כרטיס אשראי' | 'צ׳ק';
+
+export const paymentMethodOptions = [
+  { label: 'העברה בנקאית', id: 'BANK_TRANSFER' },
+  { label: 'כרטיס אשראי',   id: 'CREDIT_CARD' },
+  { label: 'מזומן',         id: 'CASH' },
+  { label: 'אפליקציה',      id: 'APP' },
+  { label: 'צ׳ק',           id: 'CHECK' },
+] satisfies Array<MenuItem & { label: PaymentMethodTypeHebrew; id: PaymentMethodType }>;
 
 export enum CardCompany {
   ISRACARD = 'ISRACARD',
