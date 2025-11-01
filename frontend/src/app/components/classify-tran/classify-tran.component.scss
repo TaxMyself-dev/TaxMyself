@@ -55,6 +55,41 @@
     justify-content: space-between;
 }
 
+
+.advanced-section {
+  margin-top: 1rem;
+  border-top: 1px solid #ddd;
+  padding-top: 0.5rem;
+
+  .advanced-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease-in-out;
+
+    .title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    i {
+      font-size: 1.1rem;
+      transition: transform 0.3s ease;
+    }
+  }
+
+  .advanced-fields {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+}
+
+
 // .subcategory-details {
 //     direction: rtl;
 //     display: flex;

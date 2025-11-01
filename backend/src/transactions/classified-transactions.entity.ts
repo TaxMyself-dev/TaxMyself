@@ -30,6 +30,9 @@ export class ClassifiedTransactions {
   necessity: ExpenseNecessity;
 
   @Column()
+  isExpense: boolean;
+
+  @Column()
   isRecognized: boolean;
 
   @Column()
@@ -43,5 +46,30 @@ export class ClassifiedTransactions {
 
   @Column()
   reductionPercent: number;
+
+  @Column({ type: 'date', nullable: true, default: null })
+  startDate: Date | null;
+
+  @Column({ type: 'date', nullable: true, default: null })
+  endDate: Date | null;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true, default: null })
+  minAbsSum: number;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true, default: null })
+  maxAbsSum: number;
+
+  // @Column({ type: 'varchar', nullable: true, default: null })
+  // comment: string | null;
+
+  @Column({ nullable: true })
+  commentPattern?: string; // the keyword or exact comment
+
+  @Column({
+    type: 'enum',
+    enum: ['equals', 'contains'],
+    default: 'equals',
+  })
+  commentMatchType: 'equals' | 'contains';
 
 }

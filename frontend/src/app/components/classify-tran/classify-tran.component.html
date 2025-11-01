@@ -1,4 +1,162 @@
-<app-left-panel headerText="מיפוי עסקה" subHeaderText="מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע''מ ומס הכנסה" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)">
+<app-left-panel
+  headerText="מיפוי עסקה"
+  subHeaderText="מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע''מ ומס הכנסה"
+  [visible]="isVisible()"
+  (visibleChanged)="onVisibleChange($event)"
+>
+  <div class="content" content [formGroup]="myForm">
+    <div class="checkbox-container">
+      <p-checkbox
+        [size]="'small'"
+        formControlName="isSingleUpdate"
+        inputId="ny"
+        [binary]="true"
+        (onChange)="onCheckboxClicked($event)"
+        [style]="{ color: 'red' }" />
+      <label for="ny" class="ml-2">מפה את התנועה באופן חד פעמי</label>
+    </div>
+
+    <div class="sub-content-container">
+      <div class="inputs">
+        <app-input-select
+          [ariaLabel]="'בחר קטגוריה'"
+          [placeholder]="'בחר קטגוריה'"
+          [controlName]="'categoryName'"
+          [parentForm]="myForm"
+          [size]="inputsSize.MEDIUM"
+          [items]="categoryList()"
+          (onChangeInputSelect)="getSubCategory($event)">
+        </app-input-select>
+
+        <app-input-select
+          [group]="true"
+          [ariaLabel]="'בחר תת קטגוריה'"
+          [isSubCategory]="true"
+          [placeholder]="'בחר תת קטגוריה'"
+          [controlName]="'subCategoryName'"
+          [parentForm]="myForm"
+          [size]="inputsSize.MEDIUM"
+          [items]="myForm.get('categoryName')?.value ? groupedSubCategory() : null"
+          (addSubCategoryClicked)="openAddSubCategory($event)"
+          (onChangeInputSelect)="subCategorySelected($event)">
+        </app-input-select>
+      </div>
+
+      <div class="buttons">
+        <app-p-button
+          [buttonText]="'הוסף קטגוריה חדשה'"
+          [variant]="'text'"
+          [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="openAddCategory()">
+        </app-p-button>
+      </div>
+    </div>
+
+    <div class="subCategory-details-container">
+      @if (selectedSubCategory() !== null && selectedSubCategoryEntries().length > 2) {
+        <div class="subcategory-details" [formGroup]="myForm">
+          @for (item of selectedSubCategoryEntries(); track item.key) {
+            <div class="detail-row">
+              <strong>{{ displayHebrew[item.key] }}</strong>
+              @if (myForm.get('isSingleUpdate')?.value && (item.key !== 'categoryName' && item.key !== 'subCategoryName')) {
+                @if (typeof item.value === 'boolean') {
+                  <p-checkbox [binary]="true" [inputId]="item.key" [formControlName]="item.key"></p-checkbox>
+                } @else {
+                  <input type="number" max="100" min="0" [formControlName]="item.key" />
+                }
+              } @else {
+                @if (typeof item.value === 'boolean') {
+                  <span>{{ item.value ? 'כן' : 'לא' }}</span>
+                } @else {
+                  <span>{{ item.value }}</span>
+                }
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- ADVANCED CLASSIFICATION SECTION -->
+    @if (!myForm.get('isSingleUpdate')?.value) {
+      <div class="advanced-section">
+        <div class="advanced-header" (click)="showAdvancedSection.set(!showAdvancedSection())">
+          <h4 class="title">סיווג מתקדם</h4>
+          <i class="pi" [ngClass]="showAdvancedSection() ? 'pi-chevron-up' : 'pi-chevron-down'"></i>
+        </div>
+
+        @if (showAdvancedSection()) {
+          <div class="advanced-fields">
+            <app-input-date
+              [parentForm]="myForm"
+              [controlName]="'startDate'"
+              [labelText]="'תאריך התחלה'"
+              [size]="inputsSize.SMALL">
+            </app-input-date>
+
+            <app-input-date
+              [parentForm]="myForm"
+              [controlName]="'endDate'"
+              [labelText]="'תאריך סיום'"
+              [size]="inputsSize.SMALL">
+            </app-input-date>
+
+            <app-input-text
+              [parentForm]="myForm"
+              [controlName]="'minSum'"
+              [labelText]="'סכום מינימלי'"
+              [size]="inputsSize.SMALL"
+              [type]="'number'">
+            </app-input-text>
+
+            <app-input-text
+              [parentForm]="myForm"
+              [controlName]="'maxSum'"
+              [labelText]="'סכום מקסימלי'"
+              [size]="inputsSize.SMALL"
+              [type]="'number'">
+            </app-input-text>
+
+            <app-input-text
+              [parentForm]="myForm"
+              [controlName]="'comment'"
+              [labelText]="'הערה'"
+              [size]="inputsSize.MEDIUM">
+            </app-input-text>
+
+            <app-input-select
+              [parentForm]="myForm"
+              [controlName]="'commentMatchType'"
+              [items]="[
+                { name: 'שווה לערך', value: 'equals' },
+                { name: 'מכיל את הערך', value: 'contains' }
+              ]"
+              [placeholder]="'סוג התאמה'"
+              [labelText]="'התאמת הערה'"
+              [size]="inputsSize.SMALL">
+            </app-input-select>
+            
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="footer" footer>
+    <app-p-button
+      [buttonText]="'סווג תנועה'"
+      [isLoading]="isLoading()"
+      [disabled]="myForm?.invalid"
+      (onButtonClicked)="classifyTransaction()">
+    </app-p-button>
+  </div>
+</app-left-panel>
+
+
+
+
+<!-- <app-left-panel headerText="מיפוי עסקה" subHeaderText="מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע''מ ומס הכנסה" [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)">
 
   <div class="content" content [formGroup]="myForm">
     <div class="checkbox-container">
@@ -50,4 +208,4 @@
   <div class="footer" footer>
     <app-p-button [buttonText]="'סווג תנועה'" [isLoading]="isLoading()" [disabled]="myForm?.invalid" (onButtonClicked)="classifyTransaction(myForm)" ></app-p-button>
   </div>
-</app-left-panel>
+</app-left-panel> -->
