@@ -165,6 +165,8 @@ export class DocumentsService {
           docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
           issuerDetails: [
             data.docData.issuerName,
+            // `${data.docData.issuerBusinessNumber} מ.ע`,
+            `${data.docData.issuerBusinessNumber} \u200Fמ.ע`,
             data.docData.issuerPhone,
             data.docData.issuerEmail,
             data.docData.issuerAddress,
