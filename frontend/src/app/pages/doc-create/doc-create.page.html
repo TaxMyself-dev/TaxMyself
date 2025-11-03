@@ -355,9 +355,23 @@
         }
       </div>
       }
-      @if (!isPaymentsEqualToCharges()) {
-      <p class="error-text">סכום התשלומים חייב להיות זהה לסכום החיובים </p>
-      }
+
+      @if (chargesPaymentsDifference() !== 0) {
+        <div>
+          <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
+          <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }}
+            <!-- @if (chargesPaymentsDifference() < 0) {
+              <span class="amount-value">{{ -(chargesPaymentsDifference()) | number:'1.2-2' }}</span>
+              <span class="minus">−</span>
+              <span class="currency">ש"ח</span>
+            }
+            @else { -->
+              <span class="amount-value">{{ chargesPaymentsDifference() | number:'1.2-2' }}</span>
+              <span class="currency">ש"ח</span>
+            <!-- } -->
+          </p>
+        </div>
+        }
     </div>
     }
     <!-- @if (fileSelected) { -->
