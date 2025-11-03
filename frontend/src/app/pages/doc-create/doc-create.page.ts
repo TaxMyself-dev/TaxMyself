@@ -195,6 +195,7 @@ export class DocCreatePage implements OnInit {
     if (this.businessMode === BusinessMode.ONE_BUSINESS) {
       console.log("🚀 ~ DocCreatePage ~ ngOnInit ~ this.businessFullList:", this.businessFullList);
 
+
       const b = this.businessFullList[0];
       this.setSelectedBusiness(b);
       this.generalDetailsForm?.get('businessNumber')?.setValue(b.value);
@@ -230,6 +231,11 @@ export class DocCreatePage implements OnInit {
     this.fileSelected = event;
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected);
     this.handleDocIndexes(this.fileSelected);
+    this.lineDetailsForm?.reset({ [FieldsCreateDocValue.UNIT_AMOUNT]: 1, [FieldsCreateDocValue.DISCOUNT]: 0 });
+    this.paymentInputForm?.reset();
+    this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('documentDate')?.value);
+    this.paymentsDraft = [];
+    this.lineItemsDraft.set([]);
 
   }
 
@@ -520,7 +526,6 @@ export class DocCreatePage implements OnInit {
 
 
   createPaymentInputForm(paymentMethod: string, docDate: Date | null = null): void {
-    console.log("🚀 ~ DocCreatePage ~ createPaymentInputForm ~ paymentMethod", paymentMethod);
 
     const sum = this.documentTotals().sumAftDisWithVat;
 
@@ -541,11 +546,16 @@ export class DocCreatePage implements OnInit {
     }
   }
 
+  setSumInPaymentForm(): void {
+    this.paymentInputForm?.get('paymentSum')?.setValue(this.chargesPaymentsDifference());
+  }
+
 
   onPaymentMethodChange(paymentMethod: MenuItem): void {
     this.activePaymentMethod = paymentMethod;
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
+    this.setSumInPaymentForm();
   }
 
   getPaymentFields(section: string) {
@@ -555,7 +565,6 @@ export class DocCreatePage implements OnInit {
 
   addPayment(): void {
     console.log("🚀 ~ DocCreatePage ~ addPayment ~ this.paymentInputForm", this.paymentInputForm);
-    console.log("patmentDraft", this.paymentsDraft);
 
     const paymentFormValue = this.paymentInputForm.value;
     // const paymentdata = 
@@ -568,6 +577,9 @@ export class DocCreatePage implements OnInit {
     // Build the full payment entry with extra fields
     const paymentEntry = {
       ...paymentFormValue,
+      paymentSum: paymentFormValue.paymentSum
+    ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
+    : null,
       issuerBusinessNumber: this.selectedBusinessNumber,
       generalDocIndex: String(this.docIndexes.generalIndex),
       paymentLineNumber: paymentLineIndex + 1,
