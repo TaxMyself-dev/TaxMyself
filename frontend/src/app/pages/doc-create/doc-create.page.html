@@ -55,11 +55,11 @@
 
         @case (formTypes.DDL) {
         @if (item.value !== FieldsCreateDocValue.BUSINESS_NUMBER || showBusinessSelector) {
-        <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-          [items]="item.labelText === 'עסק' ? businessUiList : item.enumValues" [parentForm]="generalDetailsForm"
-          [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
+          <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+            [items]="item.labelText === 'עסק' ? businessUiList : item.enumValues" [parentForm]="generalDetailsForm"
+            [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
     item.value === 'docType' && !generalDetailsForm.get('businessNumber')?.value">
-        </app-input-select>
+          </app-input-select>
         }
         }
 
