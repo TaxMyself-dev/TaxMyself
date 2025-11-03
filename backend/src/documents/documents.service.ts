@@ -174,17 +174,19 @@ export class DocumentsService {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
-          docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
-          issuerDetails: [
-            data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
-            data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.: ${data.docData.issuerBusinessNumber}` : null,
-            data.docData.issuerPhone ? `טלפון: ${data.docData.issuerPhone}` : null,
-            data.docData.issuerEmail ? `כתובת מייל: ${data.docData.issuerEmail}` : null,
-            data.docData.issuerAddress ? `כתובת: ${data.docData.issuerAddress}` : null,
-          ].filter(Boolean).join('\n'),
+          docDate: this.formatDateToDDMMYYYY(data.docData.documentDate),
+          // issuerDetails: [
+            issuerName: data.docData.issuerName ? `שם העסק:           ${data.docData.issuerName}` : null,
+            issuerBusinessNumber: data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:         ${data.docData.issuerBusinessNumber}` : null,
+            issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
+            issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
+            issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
+          // ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          subTotal: `₪${data.docData.sumAftDisBefVAT}`,
+          subTotal: `₪${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat}`,
           // subTotal: data.docData.sumAftDisBefVAT,
+          totalWithoutVat: `₪${data.docData.sumWithoutVat}`,
+          totalDiscount: `₪${data.docData.disSum}`,
           totalTax: `₪${data.docData.vatSum}`,
           //totalTax: data.docData.vatSum,
           total: `₪${data.docData.sumAftDisWithVAT}`,
@@ -242,10 +244,10 @@ export class DocumentsService {
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
-      "סכום": `₪${line.sumBefVatPerUnit * line.unitQuantity}`,
-      "מחיר": `₪${line.sumAftDisBefVatPerLine}`,
-      "כמות": String(line.unitQuantity),
-      "פירוט": line.description || ""
+      'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
+      'מחיר': `₪${Number(line.sumAftDisBefVatPerLine).toFixed(2)}`,
+      'כמות': String(line.unitQuantity),
+      'פירוט': line.description || ""
     }));
   }
 
@@ -292,7 +294,7 @@ export class DocumentsService {
       }
 
       return {
-        "סכום": `₪${Number(line.paymentAmount).toFixed(2)}`,
+        "סכום": `₪${Number(line.paymentSum).toFixed(2)}`,
         // "תאריך": line.paymentDate,
         "תאריך": this.formatDateToDDMMYYYY(line.paymentDate),
         "פירוט": details,
@@ -315,6 +317,8 @@ export class DocumentsService {
       await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
 
       // 2. Increment document-specific index
+      console.log("🚀 ~ DocumentsService ~ createDoc ~ data.docData:", data.docData)
+      
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);

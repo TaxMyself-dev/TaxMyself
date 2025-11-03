@@ -249,11 +249,11 @@
             <p class="content-summary">סה"כ לתשלום</p>
           </div>
           <div class="values-summary">
-            <p class="content-summary"> {{amountSubjectToVAT | number:'1.2-2'}} ש"ח </p>
-            <p class="content-summary"> {{totalNonVATAmount | number:'1.2-2'}} ש"ח </p>
-            <p class="content-summary"> {{totalVatAmount | number:'1.2-2'}} ש"ח </p>
-            <p class="content-summary"> {{totalDiscount | number:'1.2-2'}} ש"ח </p>
-            <p class="content-summary"> {{totalAmount() | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{documentTotals().sumBefDisBefVat - documentTotals().sumWithoutVat | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{documentTotals().sumWithoutVat | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{documentTotals().vatSum | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{documentTotals().disSum | number:'1.2-2'}} ש"ח </p>
+            <p class="content-summary"> {{documentTotals().sumAftDisWithVat | number:'1.2-2'}} ש"ח </p>
           </div>
         </div>
       </div>

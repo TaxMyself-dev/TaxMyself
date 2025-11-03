@@ -130,6 +130,7 @@ export class DocCreatePage implements OnInit {
     sumAftDisBefVat: 0,
     vatSum: 0,
     sumAftDisWithVat: 0,
+    sumWithoutVat: 0,
   });
 
   visibleDocumentTotals = computed(() => {
@@ -350,11 +351,12 @@ export class DocCreatePage implements OnInit {
         docNumber,
         generalDocIndex,
         hebrewNameDoc,
-        sumBefDisBefVat: this.documentTotals().sumBefDisBefVat,
-        disSum: this.documentTotals().disSum,
-        sumAftDisBefVAT: this.documentTotals().sumAftDisBefVat,
-        vatSum: this.documentTotals().vatSum,
-        sumAftDisWithVAT: this.documentTotals().sumAftDisWithVat,
+        sumWithoutVat: Number(this.documentTotals().sumWithoutVat.toFixed(2)),
+        sumBefDisBefVat: Number(this.documentTotals().sumBefDisBefVat.toFixed(2)),
+        disSum: Number(this.documentTotals().disSum.toFixed(2)),
+        sumAftDisBefVAT: Number(this.documentTotals().sumAftDisBefVat.toFixed(2)),
+        vatSum: Number(this.documentTotals().vatSum.toFixed(2)),
+        sumAftDisWithVAT: Number(this.documentTotals().sumAftDisWithVat.toFixed(2)),
       },
       linesData: this.lineItemsDraft(),
       paymentData: this.paymentsDraft(),
@@ -408,11 +410,11 @@ export class DocCreatePage implements OnInit {
     console.log("🚀 ~ DocCreatePage ~ calculateVatFieldsForLine ~ lineIndex", lineIndex);
 
     const line = this.lineItemsDraft()[lineIndex]; //Get the line by reference
-    const quantity = line.unitQuantity ?? 1;
-    const unitSum = line.sum ?? 0;
-    const discount = line.discount ?? 0;
+    const quantity = Number(line.unitQuantity ?? 1);
+    const unitSum = Number(line.sum ?? 0);
+    const discount = Number(line.discount ?? 0);
     const vatOption = line.vatOpts;
-    const vatRate = line.vatRate ?? 0;
+    const vatRate = Number(line.vatRate ?? 0);
 
     const lineGross = unitSum * quantity;
     let sumBefVatPerUnit = 0;
@@ -454,11 +456,11 @@ export class DocCreatePage implements OnInit {
     }
 
     Object.assign(line, {
-      sumBefVatPerUnit,
-      disBefVatPerLine,
-      sumAftDisBefVatPerLine,
-      vatPerLine,
-      sumAftDisWithVat,
+      sumBefVatPerUnit: sumBefVatPerUnit,
+      disBefVatPerLine: disBefVatPerLine,
+      sumAftDisBefVatPerLine: sumAftDisBefVatPerLine,
+      vatPerLine: vatPerLine,
+      sumAftDisWithVat: sumAftDisWithVat,
     });
     console.log("🚀 ~ DocCreatePage ~ calculateVatFieldsForLine ~ line after calaulate", line);
 
@@ -473,9 +475,13 @@ export class DocCreatePage implements OnInit {
       sumAftDisBefVat: 0,
       vatSum: 0,
       sumAftDisWithVat: 0,
+      sumWithoutVat: 0,
     };
 
     for (const line of this.lineItemsDraft()) {
+      if (line.vatOpts === 'WITHOUT') {
+        totals.sumWithoutVat += Number(line.sumBefVatPerUnit ?? 0);
+      }
       totals.sumBefDisBefVat += Number(line.sumBefVatPerUnit ?? 0);
       totals.disSum += Number(line.disBefVatPerLine ?? 0);
       totals.sumAftDisBefVat += Number(line.sumAftDisBefVatPerLine ?? 0);

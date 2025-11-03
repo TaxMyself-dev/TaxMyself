@@ -37,6 +37,7 @@ export type DocumentTotals = {
   sumAftDisBefVat: number;
   vatSum: number;
   sumAftDisWithVat: number;
+  sumWithoutVat: number;
 };
 
 export const DocumentTotalsLabels: { field: keyof DocumentTotals; label: string }[] = [
