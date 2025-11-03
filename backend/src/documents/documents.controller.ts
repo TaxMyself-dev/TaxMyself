@@ -83,9 +83,6 @@ export class DocumentsController {
   async previewDoc(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     const pdfBuffer = await this.documentsService.previewDoc(body, userId);
-    console.log('🔹 [preview-doc] pdfBuffer type:', typeof pdfBuffer);
-    console.log('🔹 [preview-doc] pdfBuffer length:', pdfBuffer?.length || 0);
-    console.log('🔹 [preview-doc] pdfBuffer is Buffer?', Buffer.isBuffer(pdfBuffer));
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }

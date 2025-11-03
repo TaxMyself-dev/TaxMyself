@@ -542,10 +542,26 @@ export class DocumentsService {
         ? manager.getRepository(DocPayments)
         : this.docPaymentsRepo;
 
-      const payments = data.map(item => ({
-        userId,
-        ...item,
-      }));
+      const payments = data.map(item => {
+        // Normalize date to YYYY-MM-DD for MySQL DATE column
+        let paymentDate: string | null = null;
+        if (item.paymentDate) {
+          const d = new Date(item.paymentDate);
+          if (!isNaN(d.getTime())) {
+            paymentDate = d.toISOString().split('T')[0];
+          }
+        }
+
+        // Map paymentSum (from frontend) to paymentAmount (DB column)
+        const paymentAmount = item.paymentAmount ?? item.paymentSum ?? 0;
+
+        return {
+          userId,
+          ...item,
+          paymentAmount,
+          paymentDate,
+        } as Partial<DocPayments>;
+      });
 
       await repo.insert(payments); // Insert all at once
 

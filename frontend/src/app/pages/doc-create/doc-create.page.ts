@@ -60,8 +60,8 @@ export class DocCreatePage implements OnInit {
   isInitial: boolean = false;
   // docIndexes: IDocIndexes | null = null;
   docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
-  createPDFIsLoading: boolean = false;
-  createPreviewPDFIsLoading: boolean = false;
+  createPDFIsLoading = signal(false);
+  createPreviewPDFIsLoading = signal(false);
   addPDFIsLoading: boolean = false;
   userData: IUserData
   amountBeforeVat: number = 0;
@@ -149,14 +149,14 @@ export class DocCreatePage implements OnInit {
   });
 
   createDocIsValid = computed(() => {
-  return (
-    this.generalFormIsValidSignal() &&
-    this.userFormIsValidSignal() &&
-    this.lineItemsDraft().length > 0 &&
-    (!this.isDocWithPayments() || this.paymentsDraft().length > 0) &&
-    this.isPaymentsEqualToCharges()
-  );
-});
+    return (
+      this.generalFormIsValidSignal() &&
+      this.userFormIsValidSignal() &&
+      this.lineItemsDraft().length > 0 &&
+      (!this.isDocWithPayments() || this.paymentsDraft().length > 0) &&
+      this.isPaymentsEqualToCharges()
+    );
+  });
 
 
 
@@ -257,42 +257,46 @@ export class DocCreatePage implements OnInit {
   // Function for creating the doc and downloading it
   createDoc(): void {
 
-    // this.createPDFIsLoading = true;
-    // const data = this.buildDocPayload();
+    this.createPDFIsLoading.set(true);
+    const data = this.buildDocPayload();
 
-    // this.docCreateService.createDoc(data)
-    //   .pipe(
-    //     finalize(() => {
-    //       this.createPDFIsLoading = false;
-    //     }),
-    //     catchError((err) => {
-    //       console.error("Error in createPDF (Create):", err);
-    //       return EMPTY;
-    //     })
-    //   )
-    //   .subscribe((res) => {
-    //     console.log("Update current index result:", res);
-    //     this.fileService.downloadFile("my pdf", res);
+    this.docCreateService.createDoc(data)
+      .pipe(
+        finalize(() => {
+          this.createPDFIsLoading.set(false);
+        }),
+        catchError((err) => {
+          console.error("Error in createPDF (Create):", err);
+          return EMPTY;
+        })
+      )
+      .subscribe((res) => {
+        console.log("Update current index result:", res);
+        this.fileService.downloadFile("my pdf", res);
 
-    //     // ✅ Reset all forms
-    //     this.generalDocForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18 });
-    //     this.recipientDocForm.reset();
-    //     this.linesDocForm.reset(this.initiallinesDocFormValues);
-    //     this.initialIndexForm.reset();
-    //     this.paymentForm.reset();
-    //     (this.paymentForm.get('bankPayments') as FormArray).clear();
-    //     (this.paymentForm.get('creditPayments') as FormArray).clear();
-    //     (this.paymentForm.get('checkPayments') as FormArray).clear();
-    //     (this.paymentForm.get('appPayments') as FormArray).clear();
+        // ✅ Reset all forms
+        this.generalDetailsForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18, [FieldsCreateDocValue.DOCUMENT_DATE]: new Date() });
+        this.userDetailsForm.reset();
+        this.lineDetailsForm.reset({
+          [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+          [FieldsCreateDocValue.DISCOUNT]: 0
+        });
+        this.initialIndexForm.reset();
+        this.paymentInputForm.reset({[fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('documentDate')?.value});
+        // this.paymentForm.reset();
+        // (this.paymentForm.get('bankPayments') as FormArray).clear();
+        // (this.paymentForm.get('creditPayments') as FormArray).clear();
+        // (this.paymentForm.get('checkPayments') as FormArray).clear();
+        // (this.paymentForm.get('appPayments') as FormArray).clear();
 
-    //     // ✅ Clear local draft arrays
-    //     this.lineItemsDraft = [];
-    //     this.paymentsDraft = [];
+        // ✅ Clear local draft arrays
+        this.lineItemsDraft.set([]);
+        this.paymentsDraft.set([]);
 
-    //     this.fileSelected = null;
-    //     this.HebrewNameFileSelected = null;
+        this.fileSelected = null;
+        this.HebrewNameFileSelected = null;
 
-    //   });
+      });
 
   }
 
@@ -300,13 +304,13 @@ export class DocCreatePage implements OnInit {
   previewDoc(): void {
     console.log(this.myForm);
 
-    this.createPreviewPDFIsLoading = true;
+    this.createPreviewPDFIsLoading.set(true);
     const data = this.buildDocPayload();
 
     this.docCreateService.previewDoc(data)
       .pipe(
         finalize(() => {
-          this.createPreviewPDFIsLoading = false;
+          this.createPreviewPDFIsLoading.set(false);
         }),
         catchError((err) => {
           console.error("Error in createPDF (Preview):", err);
