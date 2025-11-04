@@ -14,6 +14,7 @@ import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
 import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
+import * as admin from 'firebase-admin';
 
 
 @Injectable()
@@ -59,6 +60,106 @@ export class DocumentsService {
     }
   }
 
+  /**
+   * Upload a PDF buffer to Firebase Storage
+   * @returns fullPath in Firebase Storage
+   */
+  private async uploadToFirebase(
+    pdfBuffer: Buffer,
+    issuerBusinessNumber: string,
+    generalDocIndex: string,
+    docType: string,
+    fileType: 'original' | 'copy'
+  ): Promise<string> {
+    try {
+      const bucket = admin.storage().bucket('taxmyself-5d8a0.appspot.com');
+      const fileName = `documents/${issuerBusinessNumber}/${docType}/${generalDocIndex}_${fileType}.pdf`;
+      const file = bucket.file(fileName);
+
+      await file.save(pdfBuffer, {
+        metadata: {
+          contentType: 'application/pdf',
+        },
+      });
+
+      return fileName; // Return the fullPath
+    } catch (error) {
+      console.error('Error uploading to Firebase:', error);
+      throw new HttpException('Failed to upload PDF to Firebase', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Delete a file from Firebase Storage (best-effort, no throw)
+   */
+  private async deleteFromFirebase(fullPath: string): Promise<void> {
+    try {
+      const bucket = admin.storage().bucket('taxmyself-5d8a0.appspot.com');
+      await bucket.file(fullPath).delete();
+      console.log(`Deleted Firebase file: ${fullPath}`);
+    } catch (error) {
+      console.error(`Failed to delete Firebase file: ${fullPath}`, error);
+    }
+  }
+
+  async rollbackDocumentAndIndexes(
+    issuerBusinessNumber: string,
+    generalDocIndex: string,
+  ): Promise<{ rolledBack: boolean }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const documentsRepo = queryRunner.manager.getRepository(Documents);
+      const docLinesRepo = queryRunner.manager.getRepository(DocLines);
+      const docPaymentsRepo = queryRunner.manager.getRepository(DocPayments);
+      const settingsRepo = queryRunner.manager.getRepository(SettingDocuments);
+
+      const doc = await documentsRepo.findOne({ where: { issuerBusinessNumber, generalDocIndex } });
+      if (!doc) {
+        throw new NotFoundException('Document not found to rollback');
+      }
+
+      const docType = doc.docType;
+
+      // Delete Firebase files if they exist (best-effort)
+      if (doc.originalFile) {
+        await this.deleteFromFirebase(doc.originalFile);
+      }
+      if (doc.copyFile) {
+        await this.deleteFromFirebase(doc.copyFile);
+      }
+
+      await docPaymentsRepo.delete({ issuerBusinessNumber, generalDocIndex });
+      await docLinesRepo.delete({ issuerBusinessNumber, generalDocIndex });
+      await documentsRepo.delete({ issuerBusinessNumber, generalDocIndex });
+
+      const generalSetting = await settingsRepo.findOne({ where: { issuerBusinessNumber, docType: DocumentType.GENERAL } });
+      if (generalSetting && generalSetting.currentIndex > generalSetting.initialIndex) {
+        generalSetting.currentIndex -= 1;
+        await settingsRepo.save(generalSetting);
+      }
+
+      const typeSetting = await settingsRepo.findOne({ where: { issuerBusinessNumber, docType } });
+      if (typeSetting && typeSetting.currentIndex > typeSetting.initialIndex) {
+        typeSetting.currentIndex -= 1;
+        if (typeSetting.currentIndex === typeSetting.initialIndex) {
+          await settingsRepo.delete({ issuerBusinessNumber, docType });
+        } else {
+          await settingsRepo.save(typeSetting);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return { rolledBack: true };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 
   async getCurrentIndexes(
     userId: string,
@@ -157,7 +258,7 @@ export class DocumentsService {
   }
 
 
-  async generatePDF(data: any, templateType: string): Promise<Blob> {
+  async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
     let fid: string;
     let prefill_data: any;
@@ -191,7 +292,7 @@ export class DocumentsService {
           //totalTax: data.docData.vatSum,
           total: `₪${data.docData.sumAftDisWithVAT}`,
           //total: data.docData.sumAftDisWithVAT,
-          documentType: 'מקור',
+          documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
         };
 
@@ -237,6 +338,19 @@ export class DocumentsService {
     if (!response.data) {
       throw new Error('Failed to generate PDF');
     }
+
+    // if (templateType === 'createDoc') {
+    //   try {
+    //     const payloadCopy = {
+    //       ...payload,
+    //       prefill_data: { ...prefill_data, documentType: 'העתק נאמן למקור' },
+    //     };
+    //     await axios.post<Blob>(url, payloadCopy, {
+    //       headers,
+    //       responseType: 'arraybuffer',
+    //     });
+    //   } catch (e) { }
+    // }
 
     return response.data;
   }
@@ -349,19 +463,80 @@ export class DocumentsService {
         ]
       }, queryRunner.manager);
 
-      // 7. Generate PDF before commit
-      let pdfBlob = null;
+      // 7. Generate both PDFs (original and copy)
+      let originalFilePath: string | null = null;
+      let copyFilePath: string | null = null;
+
       if (generatePdf) {
-        pdfBlob = await this.generatePDF(data, "createDoc");
-        if (!pdfBlob) {
-          throw new Error("PDF generation failed");
+        try {
+          // Generate original PDF (מקור)
+          const originalPdfBlob = await this.generatePDF(data, "createDoc");
+          if (!originalPdfBlob) {
+            throw new Error("Original PDF generation failed");
+          }
+          const originalBuffer = Buffer.from(originalPdfBlob as any);
+
+          // Generate copy PDF (העתק נאמן למקור)
+          const copyData = {
+            ...data,
+            docData: {
+              ...data.docData,
+              // Mark as certified copy
+            }
+          };
+          const copyPdfBlob = await this.generatePDF(copyData, "createDoc", true); // Pass true for copy
+          if (!copyPdfBlob) {
+            throw new Error("Copy PDF generation failed");
+          }
+          const copyBuffer = Buffer.from(copyPdfBlob as any);
+
+          // 8. Upload both PDFs to Firebase
+          originalFilePath = await this.uploadToFirebase(
+            originalBuffer,
+            data.docData.issuerBusinessNumber,
+            data.docData.generalDocIndex,
+            data.docData.docType,
+            'original'
+          );
+
+          copyFilePath = await this.uploadToFirebase(
+            copyBuffer,
+            data.docData.issuerBusinessNumber,
+            data.docData.generalDocIndex,
+            data.docData.docType,
+            'copy'
+          );
+
+          // 9. Update document with Firebase paths
+          const documentsRepo = queryRunner.manager.getRepository(Documents);
+          newDoc.originalFile = originalFilePath;
+          newDoc.copyFile = copyFilePath;
+          await documentsRepo.save(newDoc);
+
+        } catch (uploadError) {
+          // If upload fails, delete any uploaded files
+          if (originalFilePath) {
+            await this.deleteFromFirebase(originalFilePath);
+          }
+          if (copyFilePath) {
+            await this.deleteFromFirebase(copyFilePath);
+          }
+          throw uploadError;
         }
       }
 
       // ✅ All good – commit the transaction
       await queryRunner.commitTransaction();
 
-      return pdfBlob;
+      return {
+        success: true,
+        docType: data.docData.docType,
+        message: 'Document created successfully',
+        generalDocIndex: data.docData.generalDocIndex,
+        docNumber: data.docData.docNumber,
+        originalFile: originalFilePath,
+        copyFile: copyFilePath
+      };
 
     } catch (error) {
 

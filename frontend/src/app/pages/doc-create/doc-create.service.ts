@@ -47,15 +47,20 @@ export class DocCreateService {
   }
 
 
-  createDoc(dataFile: any): Observable<Blob> {
+  createDoc(dataFile: any): Observable<any> {
     const url = `${environment.apiUrl}documents/create-doc`;
-    return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
+    return this.http.post<any>(url, dataFile);
   }
 
 
   previewDoc(dataFile: any): Observable<Blob> {
     const url = `${environment.apiUrl}documents/preview-doc`;
     return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
+  }
+
+  rollbackDocument(issuerBusinessNumber: string, generalDocIndex: string | number): Observable<any> {
+    const url = `${environment.apiUrl}documents/rollback`;
+    return this.http.post<any>(url, { issuerBusinessNumber, generalDocIndex: String(generalDocIndex) });
   }
 
   

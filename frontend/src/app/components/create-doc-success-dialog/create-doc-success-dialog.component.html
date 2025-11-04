@@ -1,0 +1,35 @@
+<div class="success-dialog">
+  <div class="success-icon">
+    <i class="pi pi-check-circle"></i>
+  </div>
+  
+  <h2>המסמך נוצר בהצלחה!</h2>
+  
+  <p class="doc-number">{{docType}} מספר: <strong>{{ docNumber }}</strong></p>
+  
+  <div class="download-buttons">
+    <app-p-button
+      [buttonText]="'הורד מסמך מקור'"
+      [icon]="'pi pi-download'"
+      [severity]="'success'"
+      [disabled]="!originalFile"
+      (onButtonClicked)="downloadOriginal()">
+    </app-p-button>
+    
+    <app-p-button
+      [buttonText]="'הורד העתק נאמן למקור'"
+      [icon]="'pi pi-download'"
+      [severity]="'info'"
+      [disabled]="!copyFile"
+      (onButtonClicked)="downloadCopy()">
+    </app-p-button>
+  </div>
+  
+  <div class="close-button">
+    <app-p-button
+      [buttonText]="'סגור'"
+      [severity]="'secondary'"
+      (onButtonClicked)="close()">
+    </app-p-button>
+  </div>
+</div>

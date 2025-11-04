@@ -1,6 +1,6 @@
-import { Component, computed, OnInit, Signal, signal } from '@angular/core';
+import { Component, computed, OnDestroy, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
 import { BusinessMode, CardCompany, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
@@ -18,6 +18,8 @@ import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayNa
 import { MenuItem } from 'primeng/api';
 import { DocumentType } from './doc-cerate.enum';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 
 interface DocPayload {
   docData: any[];
@@ -40,7 +42,7 @@ interface PaymentFieldConfig {
   styleUrls: ['./doc-create.page.scss', '../../shared/shared-styling.scss'],
   standalone: false
 })
-export class DocCreatePage implements OnInit {
+export class DocCreatePage implements OnInit, OnDestroy {
 
   paymentsDetailsForm: FormGroup;
   myForm: FormGroup;
@@ -52,13 +54,12 @@ export class DocCreatePage implements OnInit {
   serialNumberFile: ISettingDoc;
   DocumentType = DocumentType;
   DocCreateFields = DocCreateFields;
-  isFileSelected = signal(false);
+  isFileSelected = signal(false); // For HTML template
   generalFormIsValidSignal = signal(false);
   userFormIsValidSignal = signal(false);
-  fileSelected: DocumentType;
+  fileSelected: DocumentType; // For get type of file
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
-  // docIndexes: IDocIndexes | null = null;
   docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
   createPDFIsLoading = signal(false);
   createPreviewPDFIsLoading = signal(false);
@@ -121,6 +122,7 @@ export class DocCreatePage implements OnInit {
   paymentInputForm: FormGroup;  // Holds the active entry row
   paymentsDraft = signal([]);     // Stores all added payments
   initialIndexForm: FormGroup;
+  private dialogRef: DynamicDialogRef | undefined;
 
   readonly vatOptions = vatOptions;
 
@@ -155,7 +157,7 @@ export class DocCreatePage implements OnInit {
       this.userFormIsValidSignal() &&
       this.lineItemsDraft().length > 0 &&
       (!this.isDocWithPayments() || this.paymentsDraft().length > 0) &&
-      this.chargesPaymentsDifference() === 0
+      (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0)
     );
   });
 
@@ -163,7 +165,7 @@ export class DocCreatePage implements OnInit {
 
 
 
-  constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService) {
+  constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
 
 
     this.initialIndexForm = this.formBuilder.group({
@@ -199,6 +201,30 @@ export class DocCreatePage implements OnInit {
       this.setSelectedBusiness(b);
       this.generalDetailsForm?.get('businessNumber')?.setValue(b.value);
     }
+  }
+
+  ngOnDestroy() {
+    if (this.dialogRef) {
+      this.dialogRef.close();
+    }
+  }
+
+
+  get generalDetailsForm(): FormGroup {
+    return this.myForm.get('GeneralDetails') as FormGroup;
+  }
+
+
+  get userDetailsForm(): FormGroup {
+    return this.myForm.get('UserDetails') as FormGroup;
+  }
+
+  get lineDetailsForm(): FormGroup {
+    return this.myForm.get('LineDetails') as FormGroup;
+  }
+
+  get lineDetailsColumns(): any[] {
+    return this.docCreateBuilderService.lineDetailsColumns;
   }
 
 
@@ -260,50 +286,125 @@ export class DocCreatePage implements OnInit {
 
 
   // Function for creating the doc and downloading it
+  // createDoc(): void {
+
+  //   this.createPDFIsLoading.set(true);
+  //   const data = this.buildDocPayload();
+
+  //   this.docCreateService.createDoc(data)
+  //     .pipe(
+  //       finalize(() => {
+  //         this.createPDFIsLoading.set(false);
+  //       }),
+  //       catchError((err) => {
+  //         console.error("Error in createPDF (Create):", err);
+  //         return EMPTY;
+  //       })
+  //     )
+  //     .subscribe((res) => {
+  //       console.log("Update current index result:", res);
+  //       const file = this.fileService.convertBlobToFile(res);
+  //       this.fileService.uploadFileViaFront(file).pipe(
+  //         finalize(() => {
+  //           this.createPDFIsLoading.set(false);
+  //         }),
+  //         catchError((err) => {
+  //           console.error("Error in createPDF (Create):", err);
+  //           return EMPTY;
+  //         })
+  //       ).subscribe((res) => {
+  //         console.log("Update current index result:", res);
+  //         this.resetDocFormsAndDrafts();
+  //       });
+  //       // this.fileService.downloadFile("my pdf", res);
+
+  //       // ✅ Reset all forms
+  //       // this.generalDetailsForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18, [FieldsCreateDocValue.DOCUMENT_DATE]: new Date() });
+  //       // this.userDetailsForm.reset();
+  //       // this.lineDetailsForm.reset({
+  //       //   [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+  //       //   [FieldsCreateDocValue.DISCOUNT]: 0
+  //       // });
+  //       // this.initialIndexForm.reset();
+  //       // this.paymentInputForm.reset({[fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('documentDate')?.value});
+
+  //       // // ✅ Clear local draft arrays
+  //       // this.lineItemsDraft.set([]);
+  //       // this.paymentsDraft.set([]);
+
+  //       // this.fileSelected = null;
+  //       // this.HebrewNameFileSelected = null;
+
+  //     });
+
+  // }
+
   createDoc(): void {
+  this.createPDFIsLoading.set(true);
 
-    this.createPDFIsLoading.set(true);
-    const data = this.buildDocPayload();
+  const payload = this.buildDocPayload();
 
-    this.docCreateService.createDoc(data)
-      .pipe(
-        finalize(() => {
-          this.createPDFIsLoading.set(false);
-        }),
-        catchError((err) => {
-          console.error("Error in createPDF (Create):", err);
-          return EMPTY;
-        })
-      )
-      .subscribe((res) => {
-        console.log("Update current index result:", res);
-        this.fileService.downloadFile("my pdf", res);
-
-        // ✅ Reset all forms
-        this.generalDetailsForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18, [FieldsCreateDocValue.DOCUMENT_DATE]: new Date() });
-        this.userDetailsForm.reset();
-        this.lineDetailsForm.reset({
-          [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-          [FieldsCreateDocValue.DISCOUNT]: 0
-        });
-        this.initialIndexForm.reset();
-        this.paymentInputForm.reset({[fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('documentDate')?.value});
-        // this.paymentForm.reset();
-        // (this.paymentForm.get('bankPayments') as FormArray).clear();
-        // (this.paymentForm.get('creditPayments') as FormArray).clear();
-        // (this.paymentForm.get('checkPayments') as FormArray).clear();
-        // (this.paymentForm.get('appPayments') as FormArray).clear();
-
-        // ✅ Clear local draft arrays
-        this.lineItemsDraft.set([]);
-        this.paymentsDraft.set([]);
-
-        this.fileSelected = null;
-        this.HebrewNameFileSelected = null;
-
+  this.docCreateService.createDoc(payload).pipe(
+    // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
+    tap((response) => {
+      console.log('✅ Document created successfully:', response);
+      
+      // Show success dialog
+      this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
+        header: '',
+        width: '400px',
+        rtl: true,
+        data: {
+          docNumber: response.docNumber,
+          originalFile: response.originalFile,
+          copyFile: response.copyFile,
+          docType: this.getHebrewNameDoc(response.docType)
+        }
       });
+      
+      this.resetDocFormsAndDrafts();
+    }),
 
-  }
+    // Handle errors
+    catchError((err) => {
+      console.error('❌ Error creating document:', err);
+      // Backend automatically rolls back the transaction if anything fails
+      return EMPTY; // swallow to allow finalize to run
+    }),
+
+    // Turn off loader no matter what
+    finalize(() => {
+      this.createPDFIsLoading.set(false);
+    })
+  ).subscribe();
+}
+
+  private resetDocFormsAndDrafts(): void {
+  this.generalDetailsForm.reset({
+    [DocCreateFields.DOC_VAT_RATE]: 18,
+    [FieldsCreateDocValue.DOCUMENT_DATE]: new Date()
+  });
+
+  this.userDetailsForm.reset();
+
+  this.lineDetailsForm.reset({
+    [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+    [FieldsCreateDocValue.DISCOUNT]: 0
+  });
+
+  this.initialIndexForm.reset();
+
+  // Use the cached date so we don't read from a reset control
+  this.paymentInputForm.reset({
+    [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('documentDate')?.value
+  });
+
+  this.lineItemsDraft.set([]);
+  this.paymentsDraft.set([]);
+
+  this.isFileSelected.set(false);
+  // this.HebrewNameFileSelected = null;
+}
 
 
   previewDoc(): void {
@@ -345,6 +446,8 @@ export class DocCreatePage implements OnInit {
     const issuerEmail = this.selectedBusinessEmail;
 
     const docNumber = this.docIndexes.docIndex;
+    console.log("docNumber: ", docNumber);
+    
     const generalDocIndex = this.docIndexes.generalIndex;
     const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
 
@@ -625,23 +728,6 @@ export class DocCreatePage implements OnInit {
   }
 
 
-  get generalDetailsForm(): FormGroup {
-    return this.myForm.get('GeneralDetails') as FormGroup;
-  }
-
-
-  get userDetailsForm(): FormGroup {
-    return this.myForm.get('UserDetails') as FormGroup;
-  }
-
-  get lineDetailsForm(): FormGroup {
-    return this.myForm.get('LineDetails') as FormGroup;
-  }
-
-  get lineDetailsColumns(): any[] {
-    return this.docCreateBuilderService.lineDetailsColumns;
-  }
-
 
   // selectUnit(unit: string) {
   //   this.selectedUnit = unit;
@@ -707,6 +793,7 @@ export class DocCreatePage implements OnInit {
           console.log("res in handleDocIndexes:", res);
           //   // Save general index always (used for internal doc ID)
           this.docIndexes.generalIndex = res.generalIndex;
+          this.docIndexes.docIndex = res.docIndex;
           const defaultIndex = DocTypeDefaultStart[docType] ?? 100001;
           this.initialIndexForm.get('initialIndex')?.setValue(defaultIndex);
           this.isInitial = res.isInitial;

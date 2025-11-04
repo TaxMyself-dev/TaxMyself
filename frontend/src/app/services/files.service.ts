@@ -122,16 +122,16 @@ export class FilesService {
 
 
   previewFileWithControls(file: Blob): void {
-  const blobUrl = URL.createObjectURL(file);
+    const blobUrl = URL.createObjectURL(file);
 
-  const newWindow = window.open('', '_blank', 'width=800,height=600');
-  if (!newWindow) {
-    alert("Popup blocked. Please allow popups for this site.");
-    return;
-  }
+    const newWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!newWindow) {
+      alert("Popup blocked. Please allow popups for this site.");
+      return;
+    }
 
-  // Custom HTML with PDF iframe + close button
-  newWindow.document.write(`
+    // Custom HTML with PDF iframe + close button
+    newWindow.document.write(`
     <html dir="rtl">
       <head>
         <title>תצוגה מקדימה</title>
@@ -151,25 +151,25 @@ export class FilesService {
     </html>
   `);
 
-  newWindow.document.close();
-}
-
-
-previewFileWithPopup(file: Blob): void {
-  const blobUrl = URL.createObjectURL(file);
-
-  const popup = window.open(
-    '',
-    'PDFPreview',
-    'width=900,height=700,left=200,top=100,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes'
-  );
-
-  if (!popup) {
-    alert("Popup blocked. Please allow popups for this site.");
-    return;
+    newWindow.document.close();
   }
 
-  popup.document.write(`
+
+  previewFileWithPopup(file: Blob): void {
+    const blobUrl = URL.createObjectURL(file);
+
+    const popup = window.open(
+      '',
+      'PDFPreview',
+      'width=900,height=700,left=200,top=100,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes'
+    );
+
+    if (!popup) {
+      alert("Popup blocked. Please allow popups for this site.");
+      return;
+    }
+
+    popup.document.write(`
     <html dir="rtl">
       <head>
         <title>תצוגה מקדימה של מסמך</title>
@@ -206,23 +206,23 @@ previewFileWithPopup(file: Blob): void {
     </html>
   `);
 
-  popup.document.close();
-}
-
-
-previewFile2(file: Blob): void {
-  const blobUrl = URL.createObjectURL(file);
-
-  // Open new popup window with custom size
-  const popup = window.open('', 'previewWindow', 'width=800,height=900');
-
-  if (!popup) {
-    alert('Popup blocked! Please allow popups for this site.');
-    return;
+    popup.document.close();
   }
 
-  // Write custom HTML with iframe + close button
-  popup.document.write(`
+
+  previewFile2(file: Blob): void {
+    const blobUrl = URL.createObjectURL(file);
+
+    // Open new popup window with custom size
+    const popup = window.open('', 'previewWindow', 'width=800,height=900');
+
+    if (!popup) {
+      alert('Popup blocked! Please allow popups for this site.');
+      return;
+    }
+
+    // Write custom HTML with iframe + close button
+    popup.document.write(`
     <html dir="rtl" lang="he">
       <head>
         <title>תצוגה מקדימה</title>
@@ -277,19 +277,19 @@ previewFile2(file: Blob): void {
     </html>
   `);
 
-  popup.document.close();
-}
+    popup.document.close();
+  }
 
 
-previewFile3(blob: Blob): void {
-  const reader = new FileReader();
-  reader.onloadend = () => {
-    const base64data = reader.result as string;
+  previewFile3(blob: Blob): void {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64data = reader.result as string;
 
-    const popup = window.open('', '_blank', 'width=800,height=600');
-    if (!popup) return;
+      const popup = window.open('', '_blank', 'width=800,height=600');
+      if (!popup) return;
 
-    popup.document.write(`
+      popup.document.write(`
       <html dir="rtl">
         <head>
           <title>תצוגה מקדימה</title>
@@ -323,10 +323,10 @@ previewFile3(blob: Blob): void {
         </body>
       </html>
     `);
-  };
+    };
 
-  reader.readAsDataURL(blob); // this triggers reader.onloadend
-}
+    reader.readAsDataURL(blob); // this triggers reader.onloadend
+  }
 
 
 
@@ -456,25 +456,34 @@ previewFile3(blob: Blob): void {
     }
   }
 
+  convertBlobToFile(blob: Blob): File {
+    const filename = 'document.pdf'; // must include a valid extension: pdf/png/jpg/jpeg
+    const file = new File([blob], filename, {
+      type: blob.type || 'application/pdf',
+      lastModified: Date.now(),
+    });
+    return file;
+  }
 
 
 
-  // createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
-  //   const url = `${environment.apiUrl}reports/create-uniform-file`;
-  //   const body = { startDate, endDate, businessNumber };
 
-  //   // Make a POST request to get the ZIP file from the backend
-  //   return this.http.post(url, body, { responseType: 'blob' });
-  // }
+    // createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
+    //   const url = `${environment.apiUrl}reports/create-uniform-file`;
+    //   const body = { startDate, endDate, businessNumber };
 
-  createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<any> {
-  const url = `${environment.apiUrl}reports/create-uniform-file`;
-  const body = { startDate, endDate, businessNumber };
+    //   // Make a POST request to get the ZIP file from the backend
+    //   return this.http.post(url, body, { responseType: 'blob' });
+    // }
 
-  return this.http.post<any>(url, body);
-}
+    createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable < any > {
+      const url = `${environment.apiUrl}reports/create-uniform-file`;
+      const body = { startDate, endDate, businessNumber };
 
-  
+      return this.http.post<any>(url, body);
+    }
 
 
-}
+
+
+  }

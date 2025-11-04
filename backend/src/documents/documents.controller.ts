@@ -70,11 +70,10 @@ export class DocumentsController {
   
   @Post('create-doc')
   @UseGuards(FirebaseAuthGuard)
-  async createDoc(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+  async createDoc(@Body() body: any, @Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const pdfBuffer = await this.documentsService.createDoc(body, userId);
-    res.setHeader('Content-Type', 'application/pdf');
-    return res.send(pdfBuffer);
+    const result = await this.documentsService.createDoc(body, userId);
+    return result;
   }
 
 
@@ -87,6 +86,14 @@ export class DocumentsController {
     return res.send(pdfBuffer);
   }
   
+
+  @Post('rollback')
+  @UseGuards(FirebaseAuthGuard)
+  async rollback(@Body() body: { issuerBusinessNumber: string; generalDocIndex: string }) {
+    const { issuerBusinessNumber, generalDocIndex } = body;
+    return this.documentsService.rollbackDocumentAndIndexes(issuerBusinessNumber, generalDocIndex);
+  }
+
 
   @Post('generate-pdf')
   @UseGuards(FirebaseAuthGuard)

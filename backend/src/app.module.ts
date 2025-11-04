@@ -35,7 +35,7 @@ import { Documents } from './documents/documents.entity';
 import { DocLines } from './documents/doc-lines.entity';
 
 import 'dotenv/config'
-import admin from 'firebase-admin';
+import * as admin from 'firebase-admin';
 import { TransactionsService } from './transactions/transactions.service';
 import { FinsiteService } from './finsite/finsite.service';
 import { ExpensesService } from './expenses/expenses.service';
@@ -52,21 +52,19 @@ import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { DocPayments } from './documents/doc-payments.entity';
 
-let serviceAccount: any;
-
-serviceAccount = {
-  "type": process.env.FIREBASE_TYPE,
-  "project_id": process.env.FIREBASE_PROJECT_ID,
-  "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID,
-  "private_key": process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Replace \n with actual newlines
-  "client_email": process.env.FIREBASE_CLIENT_EMAIL,
-  "client_id": process.env.FIREBASE_CLIENT_ID,
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL,
-  "universe_domain": "googleapis.com"
-}
+// let serviceAccount = {
+//   "type": process.env.FIREBASE_TYPE,
+//   "project_id": process.env.FIREBASE_PROJECT_ID,
+//   "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID,
+//   "private_key": process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Replace \n with actual newlines
+//   "client_email": process.env.FIREBASE_CLIENT_EMAIL,
+//   "client_id": process.env.FIREBASE_CLIENT_ID,
+//   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+//   "token_uri": "https://oauth2.googleapis.com/token",
+//   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+//   "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL,
+//   "universe_domain": "googleapis.com"
+// }
 
 
 @Module({
@@ -116,10 +114,13 @@ serviceAccount = {
 export class AppModule {
 
   constructor() {    
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      //databaseURL: "",
-      //storageBucket: ""
-    });
+  admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  }),
+  storageBucket: 'taxmyself-5d8a0.appspot.com',
+});
   }
 }
