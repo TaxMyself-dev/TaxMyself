@@ -71,11 +71,14 @@ export class DocumentsService {
     docType: string,
     fileType: 'original' | 'copy'
   ): Promise<string> {
+    console.log('Bucketttttttttttttttttt:', process.env.FIREBASE_STORAGE_BUCKET);
+
     try {
       const bucket = admin.storage().bucket('taxmyself-5d8a0.appspot.com');
+      console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
       const fileName = `documents/${issuerBusinessNumber}/${docType}/${generalDocIndex}_${fileType}.pdf`;
       const file = bucket.file(fileName);
-
+console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
           contentType: 'application/pdf',
@@ -84,8 +87,14 @@ export class DocumentsService {
 
       return fileName; // Return the fullPath
     } catch (error) {
-      console.error('Error uploading to Firebase:', error);
-      throw new HttpException('Failed to upload PDF to Firebase', HttpStatus.INTERNAL_SERVER_ERROR);
+      console.log('Error uploading to Firebase:', error);
+      throw new HttpException(
+    {
+      message: 'Failed to upload PDF to Firebase',
+      error: error.message || error.toString(),
+    },
+    HttpStatus.INTERNAL_SERVER_ERROR,
+  );
     }
   }
 
