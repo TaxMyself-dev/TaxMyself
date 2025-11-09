@@ -52,33 +52,19 @@ import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { DocPayments } from './documents/doc-payments.entity';
 
-// let serviceAccount = {
-//   "type": process.env.FIREBASE_TYPE,
-//   "project_id": process.env.FIREBASE_PROJECT_ID,
-//   "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID,
-//   "private_key": process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Replace \n with actual newlines
-//   "client_email": process.env.FIREBASE_CLIENT_EMAIL,
-//   "client_id": process.env.FIREBASE_CLIENT_ID,
-//   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-//   "token_uri": "https://oauth2.googleapis.com/token",
-//   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-//   "client_x509_cert_url": process.env.FIREBASE_CLIENT_X509_CERT_URL,
-//   "universe_domain": "googleapis.com"
-// }
-
 
 @Module({
-  imports: [ 
+  imports: [
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: process.env.DB_HOST,
       port: Number(process.env.DB_PORT),
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
-      database:  process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source, 
-                 DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments, 
-                 Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount],
+      database: process.env.DB_DATABASE,
+      entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source,
+        DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
+        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
     }),
@@ -108,19 +94,21 @@ import { DocPayments } from './documents/doc-payments.entity';
     ]),
     ScheduleModule.forRoot(),
     UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
-    controllers: [AppController],
+  controllers: [AppController],
   providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
 })
 export class AppModule {
 
-  constructor() {    
-  admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  }),
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-});
+  constructor() {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: (process.env.FIREBASE_PRIVATE_KEY || '')
+          .replace(/\\n/g, '\n')
+          .replace(/^"|"$/g, ''),  // מסיר גרשיים עוטפים אם נשמרו כך בטעות
+      }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    });
   }
 }

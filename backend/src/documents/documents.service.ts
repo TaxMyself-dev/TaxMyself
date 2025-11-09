@@ -76,9 +76,14 @@ export class DocumentsService {
     try {
       const bucket = admin.storage().bucket('taxmyself-5d8a0.appspot.com');
       console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
+      console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
+      console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
+      console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
+      console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
+
       const fileName = `documents/${issuerBusinessNumber}/${docType}/${generalDocIndex}_${fileType}.pdf`;
       const file = bucket.file(fileName);
-console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
+      console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
           contentType: 'application/pdf',
@@ -89,12 +94,12 @@ console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
     } catch (error) {
       console.log('Error uploading to Firebase:', error);
       throw new HttpException(
-    {
-      message: 'Failed to upload PDF to Firebase',
-      error: error.message || error.toString(),
-    },
-    HttpStatus.INTERNAL_SERVER_ERROR,
-  );
+        {
+          message: 'Failed to upload PDF to Firebase',
+          error: error.message || error.toString(),
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -174,7 +179,7 @@ console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
     userId: string,
     docType: DocumentType,
     issuerBusinessNumber: string,
-  ): Promise<{ docIndex: number; generalIndex: number; isInitial: boolean }> {    
+  ): Promise<{ docIndex: number; generalIndex: number; isInitial: boolean }> {
     if (docType !== DocumentType.GENERAL) {
       if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
         throw new BadRequestException('issuerBusinessNumber is required');
@@ -286,11 +291,11 @@ console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docDate: this.formatDateToDDMMYYYY(data.docData.documentDate),
           // issuerDetails: [
-            issuerName: data.docData.issuerName ? `שם העסק:           ${data.docData.issuerName}` : null,
-            issuerBusinessNumber: data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:         ${data.docData.issuerBusinessNumber}` : null,
-            issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
-            issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
-            issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
+          issuerName: data.docData.issuerName ? `שם העסק:           ${data.docData.issuerName}` : null,
+          issuerBusinessNumber: data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:         ${data.docData.issuerBusinessNumber}` : null,
+          issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
+          issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
+          issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
           // ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           subTotal: `₪${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat}`,
@@ -441,7 +446,7 @@ console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
 
       // 2. Increment document-specific index
       console.log("🚀 ~ DocumentsService ~ createDoc ~ data.docData:", data.docData)
-      
+
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
