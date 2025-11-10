@@ -1,7 +1,7 @@
-import { Component, effect, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl, ValidatorFn, ValidationErrors } from '@angular/forms';
 import { RegisterService } from './register.service';
-import { ISelectItem } from 'src/app/shared/interface';
+import { IRegisterLoginImage, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
@@ -30,6 +30,46 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly registerFormControls = RegisterFormControls;
   readonly formTypes = FormTypes;
 
+  readonly registerImages: IRegisterLoginImage[] = [
+    {
+      src: "assets/Signup_gallery_personal.svg",
+      alt: 'תמונת רקע של פרטיים אישיים',
+      title: "שמירת כל המסמכים בענן",
+      subTitle: "כל תיעוד ההכנסות וההוצאות מגובה בענן מוכן לשליחה, הורדה, או סתם לומר שלום",
+      colorText: '#1A2641',
+      page: RegisterFormModules.PERSONAL,
+      posText: 'top'
+    },
+        {
+      src: "assets/Signup_gallery_spouse.svg",
+      alt: 'תמונת רקע של פרטי בן זוג ',
+      title: "חיבור לחשבונות הבנק וכרטיסי האשראי",
+      subTitle: "גם לשלוט בתזרים במקום אחד וגם להפריד בקלות בין העסק לבית כך שלא תפספסו אף הוצאה.",
+      colorText: '#EBFD71',
+      page: RegisterFormModules.SPOUSE,
+      posText: 'bottom'
+    },
+       {
+      src: "assets/Signup_gallery_children.svg",
+      alt: 'תמונת רקע של פרטיים אישיים',
+      title: "הפקת דוחות בקליק",
+      subTitle: "הפלטפורמה מאפשרת לכם להפיק דוחות בקלות ובנוחות מתוך התזרים בקליק אחד ובלי מאמץ",
+      colorText: '#1A2641',
+      page: RegisterFormModules.CHILDREN,
+      posText: 'top'
+    },
+        {
+      src: "assets/Signup_gallery_business.svg",
+      alt: 'תמונת רקע של פרטי בן זוג ',
+      title: "הפקת חשבוניות וקבלות בקלות",
+      subTitle: "הפקת קבלות וחשבוניות לעסק בקלות וביעילות",
+      colorText: '#1A2641',
+      page: RegisterFormModules.BUSINESS,
+      posText: 'bottom'
+    }
+  ]
+  
+
   private ngUnsubscribe = new Subject();
 
   cities = signal<ISelectItem[]>([]);
@@ -43,8 +83,15 @@ export class RegisterPage implements OnInit, OnDestroy {
   employmentTypeOptionsList = employmentTypeOptionsList;
   businessTypeOptionsList = businessTypeOptionsList;
   familyStatusOptionsList = familyStatusOptionsList;
+  registerPictureText = signal<string>("שמירת כל המסמכים בענן")
+  registerPictureSubText = signal<string>("כל תיעוד ההכנסות וההוצאות מגובה בענן מוכן לשליחה, הורדה, או סתם לומר שלום")
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
   // requierdField: boolean = true;
+
+matchRegisterImage = computed(() => {
+  const currentModule = this.selectedFormModule();
+  return this.registerImages.find(image => image.page === currentModule);
+})
 
   constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService) {
     effect(() => {

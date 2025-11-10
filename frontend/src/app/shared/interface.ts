@@ -1,3 +1,4 @@
+import { RegisterFormModules } from "../pages/register/regiater.enum";
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
 
 export interface IUserData {
@@ -89,6 +90,16 @@ export interface IDocIndexes {
     generalIndex: number;
     isInitial: boolean;
 }  
+
+export interface IRegisterLoginImage {
+    src: string;
+    alt: string;
+    title: string;
+    subTitle: string;
+    colorText: string;
+    page: RegisterFormModules;
+    posText: string;
+}
 
 export interface ISuppliers {
     id: number,
