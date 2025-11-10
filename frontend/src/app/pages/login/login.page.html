@@ -1,22 +1,22 @@
 <div class="login-wrap-screen">
-<div class="custom-modal-backdrop" (click)="closeModal()" *ngIf="showModal">
-  <div class="custom-modal" (click)="$event.stopPropagation()">
-    <button class="close-button" (click)="closeModal()">×</button>
+  <div class="custom-modal-backdrop" (click)="closeModal()" *ngIf="showModal">
+    <div class="custom-modal" (click)="$event.stopPropagation()">
+      <button class="close-button" (click)="closeModal()">×</button>
 
-    <div>
-      ✨ <strong>ההרשמה הסתיימה בהצלחה!✨</strong><br>
-      נותר רק צעד קטן אחרון – אישור המייל 🎉<br><br>
+      <div>
+        ✨ <strong>ההרשמה הסתיימה בהצלחה!✨</strong><br>
+        נותר רק צעד קטן אחרון – אישור המייל 🎉<br><br>
 
-      שלחנו אליך הודעת אימות לכתובת המייל שאיתה נרשמת.<br>
-      כדי להתחיל, פשוט פתח/י את ההודעה ולחץ/י על הקישור לאישור.<br><br>
+        שלחנו אליך הודעת אימות לכתובת המייל שאיתה נרשמת.<br>
+        כדי להתחיל, פשוט פתח/י את ההודעה ולחץ/י על הקישור לאישור.<br><br>
 
-      <strong>לא רואה את ההודעה?</strong><br>
-      כדאי לבדוק גם בתיקיית הספאם.<br>
-      ואם צריך – אפשר 
-      <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>.
+        <strong>לא רואה את ההודעה?</strong><br>
+        כדאי לבדוק גם בתיקיית הספאם.<br>
+        ואם צריך – אפשר
+        <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>.
+      </div>
     </div>
   </div>
-</div>
 
   <div class="login-screen">
 
@@ -28,7 +28,8 @@
         <div class="wellcome-and-socisal-buttons">
           <div class="welcome">
             <p class="welcome-title">ברוכים הבאים</p>
-            <p style="overflow-wrap: break-word; text-align: center;">בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</p>
+            <p style="overflow-wrap: break-word; text-align: center;">בחרו איך תרצו ליצור חשבון או התחברו עם החשבון
+              הקיים שלכם</p>
           </div>
 
           <div class="social-login-buttons">
@@ -55,56 +56,48 @@
                 <p-iconfield iconPosition="right">
                   <p-inputicon styleClass="pi pi-envelope" />
                   <input class="input-field" type="text" pInputText pSize="large" placeholder="אימייל"
-                    formControlName="userName"
-                    />
+                    formControlName="userName" />
                 </p-iconfield>
 
                 <p-iconfield iconPosition="right">
                   <p-inputicon styleClass="pi pi-lock" />
-                  <input
-                  class="input-field"
-                  pInputText
-                  [type]="showPassword ? 'text' : 'password'"
-                  formControlName="password"
-                  placeholder="סיסמה"
-                  />
-                  <p-inputicon
-                  [styleClass]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"
-                  (click)="togglePassword()"
-                  style="cursor: pointer;"
-                ></p-inputicon>
+                  <input class="input-field" pInputText [type]="showPassword ? 'text' : 'password'"
+                    formControlName="password" placeholder="סיסמה" />
+                  <p-inputicon [styleClass]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" (click)="togglePassword()"
+                    style="cursor: pointer;"></p-inputicon>
                 </p-iconfield>
               </div>
               @if (authService.error()){
-                @switch (authService.error()) {
-                  @case ('email') {
-                    <p class="text-error">
-                      נשלח אליך בהרשמה מייל לאימות, אנא ודא שאישרת אותו
-                       <br>
-                       לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
-                     </p>
-                  }
-                  @case ('user') {
-                    <p class="text-error">
-                      מייל או סיסמא לא תקינים.
-                      </p>
-                  }
-                  @case ('error') {
-                    <p class="text-error">
-                      השירות אינו זמין כעת אנא נסה מאוחר יותר
-                    </p>
-                  }
-                  @default {
-                    <p class="text-error">
-                      השירות אינו זמין כעת אנא נסה מאוחר יותר
-                    </p>
-                  }
-                }
+              @switch (authService.error()) {
+              @case ('email') {
+              <p class="text-error">
+                נשלח אליך בהרשמה מייל לאימות, אנא ודא שאישרת אותו
+                <br>
+                לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
+              </p>
+              }
+              @case ('user') {
+              <p class="text-error">
+                מייל או סיסמא לא תקינים.
+              </p>
+              }
+              @case ('error') {
+              <p class="text-error">
+                השירות אינו זמין כעת אנא נסה מאוחר יותר
+              </p>
+              }
+              @default {
+              <p class="text-error">
+                השירות אינו זמין כעת אנא נסה מאוחר יותר
+              </p>
+              }
+              }
               }
               <div class="forgot-password">
                 <span>שכחת את הסיסמה?</span>
                 <app-p-button [class]="'login'" [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
-                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="resetPassword()" [isLoading]="isLoadingStateResetPassword()" ></app-p-button>
+                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="resetPassword()"
+                  [isLoading]="isLoadingStateResetPassword()"></app-p-button>
               </div>
 
               <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"
@@ -115,11 +108,11 @@
           </div>
         </div>
       </div>
-      
+
       <div class="register-link">
         <span>אין לכם חשבון?</span><br />
-        <app-p-button [class]="'login'" [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
-          (onButtonClicked)="navigateToRegister()"></app-p-button>
+        <app-p-button [class]="'login'" [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO" (onButtonClicked)="navigateToRegister()"></app-p-button>
       </div>
 
 
@@ -127,7 +120,13 @@
     </div>
 
     <div class="login-picture">
+      <div class="image-text">
+        <h1 class="image-title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</h1>
+        <p class="image-subtitle"></p>
+      </div>
+      <div>
       <img src="../../../assets/login_picture.png" alt="Login Image" class="login-image">
+    </div>
     </div>
 
   </div>

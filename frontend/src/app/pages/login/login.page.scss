@@ -20,6 +20,7 @@ input:-webkit-autofill {
   width: 100%;
   height: 100%;
   align-items: center;
+  justify-content: space-between;
 }
 
 .custom-modal-backdrop {
@@ -28,7 +29,8 @@ input:-webkit-autofill {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.6); /* semi-transparent background */
+  background-color: rgba(0, 0, 0, 0.6);
+  /* semi-transparent background */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,7 +52,8 @@ input:-webkit-autofill {
 .close-button {
   position: absolute;
   top: 1rem;
-  left: 1rem; /* For RTL, X button on the left */
+  left: 1rem;
+  /* For RTL, X button on the left */
   background: transparent;
   border: none;
   font-size: 1.5rem;
@@ -76,25 +79,23 @@ input:-webkit-autofill {
   justify-content: space-around;
 }
 
-.login-picture {
-  width: 60%;
-  height: 100%;
-  //border: solid 1px red;
-}
 
-.login-image {
-  width: 100%;
-  height: 100%;
-}
+
+// .login-image {
+//   width: 100%;
+//   height: 100%;
+// }
+
 @media (max-width: 768px) {
   .login-card {
     width: 100%;
     height: 88%;
   }
+
   .login-picture {
     display: none;
   }
-  
+
 }
 
 :host ::ng-deep .social-btn .p-button {
@@ -325,4 +326,30 @@ p {
 .reset-buttons {
   display: inline-flex;
   gap: 6px;
+}
+
+.login-picture {
+    position: relative;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+.image-text {
+display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+}
+
+.login-image {
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-title {
+  font-size: 62px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
 }
