@@ -33,6 +33,8 @@ import { Delegation } from './delegation/delegation.entity';
 import { Clients } from './clients/clients.entity';
 import { Documents } from './documents/documents.entity';
 import { DocLines } from './documents/doc-lines.entity';
+import { DocPayments } from './documents/doc-payments.entity';
+import { Business } from './business/business.entity';
 
 import 'dotenv/config'
 import * as admin from 'firebase-admin';
@@ -50,7 +52,7 @@ import { JournalLine } from './bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from './bookkeeping/account.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
-import { DocPayments } from './documents/doc-payments.entity';
+import { BusinessModule } from './business/business.module';
 
 
 @Module({
@@ -62,7 +64,7 @@ import { DocPayments } from './documents/doc-payments.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
-      entities: [User, Child, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source,
+      entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount],
       synchronize: process.env.NODE_ENV !== 'production',
@@ -70,6 +72,7 @@ import { DocPayments } from './documents/doc-payments.entity';
     }),
     TypeOrmModule.forFeature([
       User,
+      Business,
       Supplier,
       Transactions,
       ClassifiedTransactions,
@@ -93,7 +96,7 @@ import { DocPayments } from './documents/doc-payments.entity';
       Child
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
+    UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
   controllers: [AppController],
   providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
 })

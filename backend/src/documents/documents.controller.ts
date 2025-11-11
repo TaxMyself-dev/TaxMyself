@@ -19,6 +19,24 @@ export class DocumentsController {
   ) { }
 
 
+  @Get('get-docs')
+  async getFilteredDocs(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('docType') docType?: DocumentType,
+    @Query('issuerBusinessNumber') issuerBusinessNumber?: string, // optional query param
+  ) {
+
+    console.log("get-docs - start");
+
+    if (!issuerBusinessNumber) {
+      throw new BadRequestException('issuerBusinessNumber is required');
+    }
+
+    return this.documentsService.getDocuments(issuerBusinessNumber, startDate, endDate, docType);
+  }
+
+
   @Get('get-setting-doc-by-type/:typeDoc')
   @UseGuards(FirebaseAuthGuard)
   async getSettingDocByType(

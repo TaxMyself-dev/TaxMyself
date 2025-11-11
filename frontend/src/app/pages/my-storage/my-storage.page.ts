@@ -14,6 +14,9 @@ import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 
+import { IItemNavigate } from 'src/app/shared/interface';
+
+
 @Component({
     selector: 'app-my-storage',
     templateUrl: './my-storage.page.html',
@@ -21,6 +24,9 @@ import { AuthService } from 'src/app/services/auth.service';
     standalone: false
 })
 export class MyStoragePage implements OnInit {
+
+  itemsNavigate: IItemNavigate[] 
+  
 
   readonly COLUMNS_WIDTH = new Map<ExpenseFormColumns, number>([
     [ExpenseFormColumns.CATEGORY, 1.2],
@@ -84,7 +90,13 @@ export class MyStoragePage implements OnInit {
   }
 
   ngOnInit() {
+
     this.userData = this.authService.getUserDataFromLocalStorage();
+
+    this.itemsNavigate = [
+      { name: 'מסמכים שיצרתי', link: "/vat-report", image: "../../../assets/vat_report.svg", id: '0', index: 'zero', disable: this.userData.businessType === "EXEMPT" ? true : false, content: ''},
+      { name:  'מסמכים שהעלתי', link: "/pnl-report", image: "../../../assets/p&l_report.svg", id: '1', index: 'one', content: ""}, 
+    ];
 
     if (this.userData?.isTwoBusinessOwner) {
       this.storageForm?.get('businessNumber').setValidators([Validators.required]);

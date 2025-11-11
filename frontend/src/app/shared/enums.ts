@@ -127,6 +127,22 @@ export enum TransactionsOutcomesHebrewColumns {
   currency = 'סוג מטבע',
 }
 
+export enum DocumentsTableColumns {
+  DOC_DATE = 'docDate',
+  DOC_TYPE = 'docType',
+  DOC_SUM = 'docSum',
+  DOC_NUMBER = 'docNumber',
+  CLIENT_NAME = 'clientName',
+}
+
+export enum DocumentsTableHebrewColumns {
+  docDate = 'תאריך מסמך',
+  docType = 'סוג מסמך',
+  docSum = 'סכום',
+  docNumber = 'מספר מסמך',
+  clientName = 'שם לקוח',
+}
+
 export enum UniformFileDocumentSummaryColumns {
   DOC_NUMBER = 'docNumber',
   DOC_DESCRIPTION = 'docDescription',
@@ -478,6 +494,8 @@ export enum inputsSize {
 }
 
 export enum BusinessMode {
-  ONE_BUSINESS = 'oneBusiness',
+  NO_BUSINESS    = 'noBusiness',
+  ONE_BUSINESS   = 'oneBusiness',
+  MULTI_BUSINESS = 'oneBusiness',
   TWO_BUSINESS = 'twoBusiness',
 }

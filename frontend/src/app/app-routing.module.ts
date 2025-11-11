@@ -24,6 +24,11 @@ const routes: Routes = [
     canActivate: [AuthGuard] 
   },
   {
+    path: 'book-keeping',
+    loadChildren: () => import('./pages/book-keeping/book-keeping.module').then( m => m.BookKeepingPageModule),
+    canActivate: [AuthGuard] 
+  },
+  {
     path: 'my-account',
     loadChildren: () => import('./pages/my-account/my-account.module').then( m => m.MyAccountPageModule),
     canActivate: [AuthGuard] 

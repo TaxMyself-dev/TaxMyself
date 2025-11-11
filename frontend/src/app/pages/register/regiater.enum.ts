@@ -12,7 +12,7 @@ export enum RegisterFormControls {
         CITY = "city",
         FAMILYSTATUS = "familyStatus",
         PASSWORD = "password",
-        CHILDREN = "children",
+        // CHILDREN = "children",
         CHILD_FIRST_NAME = "childFName",
         CHILD_LAST_NAME = "childLName",
         CHILD_ID = "childID",

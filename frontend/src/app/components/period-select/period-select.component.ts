@@ -41,16 +41,6 @@ export class PeriodSelectComponent {
   /* ------------ Form --------------- */
   readonly fb   = inject(FormBuilder);
 
-//   readonly form = this.fb.group({
-//   // periodMode : new FormControl<ReportingPeriodType>(ReportingPeriodType.MONTHLY, Validators.required),
-//   periodMode : new FormControl<ReportingPeriodType>(null, Validators.required),
-//   year       : new FormControl<number | null>(null),
-//   month      : new FormControl<string | number | null>(null),
-//   startDate  : new FormControl<Date | null>(null),
-//   endDate    : new FormControl<Date | null>(null),
-//   business   : new FormControl<string | null>(null),
-// });
-
   readonly form = this.fb.group({
     periodMode : new FormControl<ReportingPeriodType | null>(null, Validators.required),
     year       : new FormControl<number | null>(null),
@@ -68,56 +58,6 @@ export class PeriodSelectComponent {
   get mode(): ReportingPeriodType | null {
     return this.form.controls.periodMode.value as ReportingPeriodType | null;
   }
-
-  /* ------------ Constructor ---------- */
-  // constructor() {
-
-  //   const cdr = inject(ChangeDetectorRef);
-
-  //   // Subscribe to changes in periodMode and reconfigure controls
-  //   this.form.controls.periodMode.valueChanges.subscribe(val => {
-  //     this.configureControls(val as ReportingPeriodType);
-  //     cdr.markForCheck(); // triggers UI update for OnPush
-  //   });
-
-  //   // Apply default behavior for 'MONTHLY' at startup
-  //   this.configureControls(ReportingPeriodType.MONTHLY);
-  // }
-
-//   constructor() {
-//   const cdr = inject(ChangeDetectorRef);
-
-//   // Watch for user changes to periodMode
-//   this.form.controls.periodMode.valueChanges.subscribe(val => {
-//     this.configureControls(val as ReportingPeriodType);
-//     cdr.markForCheck();
-//   });
-
-//   // Force initial rendering of year + month controls (even if periodMode is empty)
-//   this.configureControls('PREVIEW_MONTHLY');
-//   // this.configureControls(ReportingPeriodType.MONTHLY);
-// }
-
-// constructor() {
-//   const cdr = inject(ChangeDetectorRef);
-
-//   // Show fields initially
-//   this.form.controls.year.enable();
-//   this.form.controls.month.enable();
-
-//   // Set validators manually for the visible fields
-//   this.form.controls.year.setValidators([Validators.required]);
-//   this.form.controls.month.setValidators([Validators.required]);
-
-//   this.form.controls.year.updateValueAndValidity();
-//   this.form.controls.month.updateValueAndValidity();
-
-//   // Watch for when the user actually selects a periodMode
-//   this.form.controls.periodMode.valueChanges.subscribe(val => {
-//     this.configureControls(val as ReportingPeriodType);
-//     cdr.markForCheck();
-//   });
-// }
 
 constructor() {
   const cdr = inject(ChangeDetectorRef);
@@ -151,44 +91,6 @@ constructor() {
     this.formSubmit.emit(this.form.value);
   }
 
-  /* -------------- Helpers ------------- */
-
-  /** enable/disable & (re)set validators according to the chosen mode */
-  // private configureControls(mode: ReportingPeriodType) {
-  //   const { year, month, startDate, endDate } = this.form.controls;
-
-  //   // Reset control state first
-  //   [year, month, startDate, endDate].forEach(c => {
-  //     c.clearValidators();
-  //     c.reset();
-  //     c.disable();
-  //   });
-
-  //   switch (mode) {
-  //     case ReportingPeriodType.MONTHLY:
-  //     case ReportingPeriodType.BIMONTHLY:
-  //       year.setValidators([Validators.required]);
-  //       month.setValidators([Validators.required]);
-  //       year.enable();  month.enable();
-  //       break;
-
-  //     case ReportingPeriodType.ANNUAL:
-  //       year.setValidators([Validators.required]);
-  //       year.enable();
-  //       break;
-
-  //     case ReportingPeriodType.DATE_RANGE:
-  //       startDate.setValidators([Validators.required]);
-  //       endDate.setValidators([Validators.required]);
-  //       startDate.enable();  endDate.enable();
-  //       break;
-  //   }
-
-  //   year.updateValueAndValidity();
-  //   month.updateValueAndValidity();
-  //   startDate.updateValueAndValidity();
-  //   endDate.updateValueAndValidity();
-  // }
 
   private configureControls(mode: ReportingPeriodType | 'PREVIEW_MONTHLY' | null) {
   const { year, month, startDate, endDate } = this.form.controls;

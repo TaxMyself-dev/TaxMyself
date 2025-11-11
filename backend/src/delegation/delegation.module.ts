@@ -12,10 +12,11 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+import { Business } from 'src/business/business.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Delegation, User, Transactions, Expense, Child, SettingDocuments])],
+  imports: [TypeOrmModule.forFeature([Delegation, User, Business, Transactions, Expense, Child, SettingDocuments])],
   controllers: [DelegationController],
   providers: [
     DelegationService,
