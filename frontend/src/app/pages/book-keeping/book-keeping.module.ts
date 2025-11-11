@@ -1,25 +1,22 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-
-import { IonicModule } from '@ionic/angular';
-
-import { MyStoragePageRoutingModule } from './my-storage-routing.module';
-
-import { MyStoragePage } from './my-storage.page';
+import { BookKeepingPage } from './book-keeping.page';
+import { BookKeepingPageRoutingModule } from './book-keeping-routing.module';
 import { SharedModule } from '../../shared/shared.module';
 import { CardNavigateComponent } from "src/app/components/card-navigate/card-navigate.component";
+import { TabMenu } from "primeng/tabmenu";
 
 @NgModule({
   imports: [
     CommonModule,
     FormsModule,
-    IonicModule,
     ReactiveFormsModule,
-    MyStoragePageRoutingModule,
+    BookKeepingPageRoutingModule,
     SharedModule,
-    CardNavigateComponent
+    CardNavigateComponent,
+    TabMenu
 ],
-  declarations: [MyStoragePage]
+  declarations: [BookKeepingPage]
 })
-export class MyStoragePageModule {}
+export class BookKeepingPageModule {}

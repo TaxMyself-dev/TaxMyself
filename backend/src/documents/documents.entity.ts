@@ -68,9 +68,6 @@ export class Documents {
   @Column({ type: 'decimal', precision: 5, scale: 2 })
   docVatRate: number;
 
-  // @Column({ type: 'varchar', length: 1 })
-  // transType: string; // = 3
-
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   amountForeign: number; // סכום המסמך במט"ח
 
@@ -134,4 +131,5 @@ export class Documents {
 
   @Column({ type: 'varchar', length: 7, nullable: true })
   parentBranchCode: string; //  מספר הסניף בו הופק המסמך האב
+  
 }

@@ -1,15 +1,14 @@
-import { Injectable } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { LoadingController, PopoverController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, Subject, catchError, from, map, switchMap, tap } from 'rxjs';
-import { BusinessInfo, IToastData, IUserData, User } from '../shared/interface';
+import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom, from, map, switchMap, tap } from 'rxjs';
+import { BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
 import { BusinessMode } from '../shared/enums';
+import { environment } from 'src/environments/environment';
+import { HttpClient, HttpParams } from '@angular/common/http';
 
-
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable( {providedIn: 'root'})
 export class GenericService {
 
   private loaderMessage$ = new BehaviorSubject<string>("Please wait...");
@@ -18,7 +17,61 @@ export class GenericService {
 
   toast$ = this.toastSubject.asObservable();
 
-  constructor(private loader: LoadingController, private popoverController: PopoverController) { }
+  constructor(
+    private loader: LoadingController, 
+    private popoverController: PopoverController,
+    private http: HttpClient,
+  ) { }
+
+  // --- signals (state) ---
+  private _businesses = signal<ISelectItem[] | null>(null);
+  readonly businesses = computed(() => this._businesses() ?? []);
+  readonly isLoadingBusinesses = signal(false);
+
+  private _bills = signal<[] | null>(null);
+  readonly bills = computed(() => this._bills() ?? []);
+  readonly isLoadingBills = signal(false);
+
+
+  // --- load once (cached) ---
+  async loadBusinesses(): Promise<void> {
+    // ✅ if already loaded, skip HTTP call
+    if (this._businesses()) {
+      console.log("already fetch: ", this._businesses());
+      return;
+    }
+
+    this.isLoadingBusinesses.set(true);
+
+    try {
+      const res = await firstValueFrom(this.http.get<any[]>(`${environment.apiUrl}business/get-businesses`));
+      const mapped: ISelectItem[] = (res ?? []).map(b => ({
+        name: b.businessName,
+        value: b.businessNumber,
+      }));
+      this._businesses.set(mapped);
+      console.log("get from backend ", this._businesses());
+      
+    } catch (err) {
+      console.error('❌ loadBusinesses failed', err);
+      this._businesses.set([]); // safe fallback
+    } finally {
+      this.isLoadingBusinesses.set(false);
+    }
+  }
+
+
+  // --- manual refresh ---
+  async refreshBusinesses(): Promise<void> {
+    this._businesses.set(null);
+    await this.loadBusinesses();
+  }
+
+
+  // --- clear on logout ---
+  clearBusinesses(): void {
+    this._businesses.set(null);
+  }
 
 
   getBusinessData(user: IUserData): { mode: BusinessMode; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;

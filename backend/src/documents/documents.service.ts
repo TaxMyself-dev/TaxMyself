@@ -45,6 +45,43 @@ export class DocumentsService {
   isIncrement: boolean = false;
   isGeneralIncrement: boolean = false;
 
+
+  async getDocuments(issuerBusinessNumber: string, startDate?: string, endDate?: string, docType?: DocumentType): Promise<Documents[]> {
+
+
+    const query = this.documentsRepo
+    .createQueryBuilder('doc')
+    .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
+
+    if (docType) {
+      query.andWhere('doc.docType = :docType', { docType });
+    }
+
+    if (startDate && endDate) {
+      query.andWhere('doc.docDate BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    } else if (startDate) {
+      query.andWhere('doc.docDate >= :startDate', { startDate });
+    } else if (endDate) {
+      query.andWhere('doc.docDate <= :endDate', { endDate });
+    } else {
+      // Default: start of year → today
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1); // Jan 1st
+      query.andWhere('doc.docDate BETWEEN :start AND :end', {
+        start: startOfYear,
+        end: now,
+      });
+    }
+
+    query.orderBy('doc.docDate', 'DESC');
+
+    return await query.getMany();
+  }
+
+
   async getSettingDocByType(userId: string, docType: DocumentType) {
 
     try {

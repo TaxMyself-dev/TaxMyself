@@ -204,3 +204,59 @@
   gap: 5px;
   margin-top: 30px;
 }
+
+/* === Business form container === */
+.business-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* === Wrapper for all businesses === */
+.business-row-wrap {
+  display: flex;
+  flex-direction: column;
+  row-gap: 24px;
+  height: fit-content;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* === Each business block === */
+.business-block {
+  display: flex;
+  flex-direction: column; /* stack title + inputs */
+  gap: 10px; /* space between title and row */
+  border-top: 1px solid #e5e5e5;
+  padding-top: 10px;
+}
+
+/* === Title styling === */
+.business-title {
+  display: flex;
+  justify-content: flex-start;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+/* === Inputs row (fields + button) === */
+.business-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 15px;
+  align-items: flex-end;
+}
+
+/* === Add/remove buttons === */
+.wrap-add-remove-business-button {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+

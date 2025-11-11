@@ -10,6 +10,7 @@ import { UpdateUserDto } from './dtos/update-user.dto';
 import { SharedService } from 'src/shared/shared.service';
 import { CityDto } from './dtos/city.dto';
 import axios from 'axios';
+import { Business } from 'src/business/business.entity';
 
 
 @Injectable()
@@ -21,11 +22,108 @@ export class UsersService {
     (
         private readonly sharedService: SharedService,
         @InjectRepository(User) private user_repo: Repository<User>, 
+        @InjectRepository(Business) private business_repo: Repository<Business>, 
         @InjectRepository(Child) private child_repo: Repository<Child>
     )
     {
         this.firebaseAuth = admin.auth();
     }
+
+
+    async signup_new({ personal, spouse, children, business }: any) {
+  console.log("signup_new - start");
+
+  console.log("🧍 personal:", personal);
+  console.log("🤝 spouse:", spouse);
+  console.log("👶 children:", children);
+  console.log("🏢 business:", business);
+
+  // ✅ 1️⃣ Extract arrays correctly (in case frontend sends wrapped data)
+  const newChildren = children?.childrenArray ?? [];
+  const newBusinesses: Partial<Business>[] = business?.businessArray ?? [];
+
+  // ✅ 2️⃣ Create base user object (no business fields here)
+  const newUser = {
+    ...personal,
+    ...spouse,
+    role: [UserRole.REGULAR],
+    finsiteId: 0,
+    createdAt: new Date(),
+    subscriptionEndDate: new Date(),
+    payStatus: PayStatus.TRIAL,
+    modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
+  };
+
+  newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
+
+  // ✅ 3️⃣ Determine VAT / Tax reporting logic for user
+  if ([EmploymentType.SELF_EMPLOYED, EmploymentType.BOTH].includes(newUser.employmentStatus)) {
+    if (newUser.businessType === BusinessType.EXEMPT) {
+      newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
+      newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+    } else if (
+      [BusinessType.LICENSED, BusinessType.COMPANY].includes(newUser.businessType)
+    ) {
+      newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+      newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+    }
+  } else {
+    newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
+    newUser.taxReportingType = TaxReportingType.NOT_REQUIRED;
+  }
+
+  // ✅ 4️⃣ Determine two-business owner flag
+  newUser.isTwoBusinessOwner =
+    [EmploymentType.SELF_EMPLOYED, EmploymentType.BOTH].includes(newUser.employmentStatus) &&
+    [EmploymentType.SELF_EMPLOYED, EmploymentType.BOTH].includes(newUser.spouseEmploymentStatus);
+
+  // ✅ 5️⃣ Save user first
+  const user = this.user_repo.create(newUser);
+  const savedUser = await this.user_repo.save(user);
+
+  // ✅ 6️⃣ Save all children (if any)
+  for (const child of newChildren) {
+    const newChild = this.child_repo.create({
+      ...child,
+      parentUserID: personal.firebaseId,
+    });
+    await this.child_repo.save(newChild);
+  }
+
+  // ✅ 7️⃣ Save all businesses (if any)
+  for (const biz of newBusinesses) {
+    if (!biz) continue;
+
+    const newBusiness = this.business_repo.create({
+      ...biz,
+      firebaseId: personal.firebaseId,
+    });
+
+    // Apply VAT & tax logic per business type
+    switch (newBusiness.businessType) {
+      case BusinessType.EXEMPT:
+        newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
+        newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+        break;
+      case BusinessType.LICENSED:
+      case BusinessType.COMPANY:
+        newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+        newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+        break;
+      default:
+        newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
+        newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
+        break;
+    }
+
+    await this.business_repo.save(newBusiness);
+  }
+
+  console.log("signup_new - end");
+  return savedUser;
+}
+
+
                               
 
     async signup({personal,spouse,children,business} : any) {

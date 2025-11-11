@@ -168,7 +168,7 @@
             @if (hasChildren()) {
             <div class="form-register">
               <form class="children-form" *ngIf="childrenForm" [formGroup]="childrenForm">
-                <div class="child-row-wrap" [formArrayName]="registerFormControls.CHILDREN">
+                <div class="child-row-wrap" formArrayName="childrenArray">
                   @for (child of childrenArray.controls; track $index) {
                   @let i = $index;
                   <div [formGroupName]="i" class="child-row">
@@ -202,53 +202,109 @@
           <!-------------- BUSINESS MODULE ------------->
           <div class="module" *ngSwitchCase="registerFormModules.BUSINESS">
 
-            <!-- <ng-container *ngTemplateOutlet="headerTemplate; context: {
-              level: 'שלב 4',
-              mainTitle: 'פרטי העסק',
-              subtitle: 'רק עוד קצת וסיימנו'
-            }">
-            </ng-container> -->
+            <div class="form-register">
+              <form class="business-form" *ngIf="businessForm" [formGroup]="businessForm">
+                <div class="business-row-wrap" formArrayName="businessArray">
+                  @for (business of businessArray.controls; track $index) {
+                    @let i = $index;
+                    <div [formGroupName]="i" class="business-block">
+                      <!-- ✅ Title row -->
+                      <div class="business-title">
+                        {{ business.get('title')?.value }}
+                      </div>
 
-            <!-------Business 1 ------>
-            <!-- <div class="wrap-two-detial-business"> -->
-            <!-- <div class="wrap-one-detial-business"> -->
-            <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש/ת ראשי/ת</div>
+                      <!-- ✅ Inputs row -->
+                      <div class="business-row">
+                        <app-input-text
+                          [controlName]="registerFormControls.BUSINESSNAME"
+                          labelText="שם העסק"
+                          [placeholder]="'כתוב כאן'"
+                          [parentForm]="getBusinessFormByIndex(i)"
+                          [size]="inputsSize.BETWEEN"
+                          [customStyle]="'fill-border'">
+                        </app-input-text>
+
+                        <app-input-text
+                          [controlName]="registerFormControls.BUSINESSNUMBER"
+                          labelText="מספר העסק"
+                          [placeholder]="'כתוב כאן'"
+                          [parentForm]="getBusinessFormByIndex(i)"
+                          [size]="inputsSize.BETWEEN"
+                          [customStyle]="'fill-border'"
+                          [errorText]="'אנא הכנס מספרים בלבד'">
+                        </app-input-text>
+
+                        <app-input-select
+                          [controlName]="registerFormControls.BUSINESSTYPE"
+                          labelText="סוג העסק"
+                          [placeholder]="'בחר/י'"
+                          [items]="businessTypeOptionsList"
+                          [parentForm]="getBusinessFormByIndex(i)"
+                          [size]="inputsSize.BETWEEN">
+                        </app-input-select>
+
+                        <div class="wrap-add-remove-business-button">
+                          @if (businessArray.controls.length > 1) {
+                            <app-p-button
+                              [buttonText]="'-'"
+                              [buttonSize]="buttonSize.AUTO"
+                              [buttonColor]="buttonColor.YELLOW"
+                              (onButtonClicked)="removeBusiness(i)">
+                            </app-p-button>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <app-p-button
+                  [buttonText]="'+'"
+                  [buttonSize]="buttonSize.AUTO"
+                  [buttonColor]="buttonColor.YELLOW"
+                  (onButtonClicked)="addBusiness()">
+                </app-p-button>
+              </form>
+            </div>
+
+
+            <!-- <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש/ת ראשי/ת</div>
             <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
-              <div class="section-one">
+              <div class="section-one"> -->
                 <!-------Business name------>
-                <app-input-text [controlName]="registerFormControls.BUSINESSNAME" labelText="שם העסק"
+                <!-- <app-input-text [controlName]="registerFormControls.BUSINESSNAME" labelText="שם העסק"
                   [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'"></app-input-text>
+                  [customStyle]="'fill-border'"></app-input-text> -->
                 <!-------Business id------>
-                <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText="מספר העסק"
+                <!-- <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText="מספר העסק"
                   [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text>
+                  [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text> -->
                 <!--------------- Business type ------------->
-                <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק"
+                <!-- <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק"
                   [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm"
                   [size]="inputsSize.BETWEEN"></app-input-select>
               </div>
-            </form>
+            </form> -->
             <!-- </div> -->
             <!-------Business 2 ------>
             <!-- <div class="wrap-one-detial-business"> -->
-            <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן/בת הזוג</div>
+            <!-- <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן/בת הזוג</div>
             <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
-              <div class="section-one">
+              <div class="section-one"> -->
                 <!-------Business name------>
-                <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNAME" labelText="שם העסק"
+                <!-- <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNAME" labelText="שם העסק"
                   [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'"></app-input-text>
+                  [customStyle]="'fill-border'"></app-input-text> -->
                 <!-------Business id------>
-                <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER" labelText="מספר העסק"
+                <!-- <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER" labelText="מספר העסק"
                   [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text>
+                  [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text> -->
                 <!--------------- Business type ------------->
-                <app-input-select [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" labelText="סוג העסק"
+                <!-- <app-input-select [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" labelText="סוג העסק"
                   [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm"
                   [size]="inputsSize.BETWEEN"></app-input-select>
               </div>
-            </form>
+            </form> -->
             <!-- </div> -->
           </div>
         </div>

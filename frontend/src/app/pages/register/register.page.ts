@@ -139,41 +139,45 @@ export class RegisterPage implements OnInit, OnDestroy {
     })
 
     const childrenForm = this.formBuilder.group({
-      [RegisterFormControls.CHILDREN]: this.formBuilder.array([]),
+      ["childrenArray"]: this.formBuilder.array([]),
     })
 
     const businessForm = this.formBuilder.group({
-      [RegisterFormControls.BUSINESSNAME]: new FormControl(
-        null, this.requierdField && this.isIndependent() ? Validators.required : null,
-      ),
-      [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-        null, this.requierdField && this.isIndependent() ? Validators.required : null,
-      ),
-      // [RegisterFormControls.BUSINESSDATE]: new FormControl(
-      //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
-      // ),
-      [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-        null, this.requierdField && this.isIndependent() ? [Validators.required, Validators.pattern(/^\d+$/)] : null,
-      ),
-      // [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
-      //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
-      // ),
-      [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
-        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      ),
-      [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
-        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      ),
-      // [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
-      //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      // ),
-      [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
-        null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      ),
-      // [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
-      //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-      // ),
+      ["businessArray"]: this.formBuilder.array([]),
     })
+
+    // const businessForm = this.formBuilder.group({
+    //   [RegisterFormControls.BUSINESSNAME]: new FormControl(
+    //     null, this.requierdField && this.isIndependent() ? Validators.required : null,
+    //   ),
+    //   [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+    //     null, this.requierdField && this.isIndependent() ? Validators.required : null,
+    //   ),
+    //   // [RegisterFormControls.BUSINESSDATE]: new FormControl(
+    //   //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
+    //   // ),
+    //   [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
+    //     null, this.requierdField && this.isIndependent() ? [Validators.required, Validators.pattern(/^\d+$/)] : null,
+    //   ),
+    //   // [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
+    //   //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
+    //   // ),
+    //   [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
+    //     null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+    //   ),
+    //   [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
+    //     null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+    //   ),
+    //   // [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
+    //   //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+    //   // ),
+    //   [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
+    //     null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+    //   ),
+    //   // [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
+    //   //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
+    //   // ),
+    // })
 
 
     this.myForm = this.formBuilder.group({
@@ -190,6 +194,7 @@ export class RegisterPage implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.gelAllCities();
+    this.fillDevDefaults();
   }
 
   doRefresh(event: any) {
@@ -215,12 +220,20 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   get childrenArray(): FormArray {
-    return this.myForm?.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+    return this.myForm?.get(RegisterFormModules.CHILDREN).get("childrenArray") as FormArray;
   }
 
   get businessForm(): FormGroup {
     return this.myForm?.get(RegisterFormModules.BUSINESS) as FormGroup;
   }
+
+  get businessArray(): FormArray {
+    return this.myForm?.get(RegisterFormModules.BUSINESS).get("businessArray") as FormArray;
+  }
+
+  // get businessForm(): FormGroup {
+  //   return this.myForm?.get(RegisterFormModules.BUSINESS) as FormGroup;
+  // }
 
   get isNextButtonDisabled(): boolean {
     return !this.isCurrentFormValid();
@@ -252,6 +265,70 @@ export class RegisterPage implements OnInit, OnDestroy {
       .subscribe();
   }
 
+
+  // addBusiness() {
+  //   const items = this.myForm.get(RegisterFormModules.BUSINESS).get('businessArray') as FormArray;
+  //   items.push(
+  //     this.formBuilder.group({
+  //       [RegisterFormControls.BUSINESSNAME]: new FormControl(
+  //         '', [Validators.required]
+  //       ),
+  //       [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
+  //         '', [Validators.required, Validators.pattern(/^\d+$/)]
+  //       ),
+  //       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
+  //         '', Validators.required,
+  //       )
+  //     })
+  //   );
+  // }
+
+
+  addBusiness(title?: string): void {
+    this.businessArray.push(
+      this.formBuilder.group({
+        title: new FormControl(title || ''), // store the title for display
+        [RegisterFormControls.BUSINESSNAME]: new FormControl('', this.requierdField ? Validators.required : null),
+        [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
+          '', this.requierdField ? [Validators.required, Validators.pattern(/^\d+$/)] : null
+        ),
+        [RegisterFormControls.BUSINESSTYPE]: new FormControl(null, this.requierdField ? Validators.required : null),
+      })
+    );
+  }
+
+
+  removeBusiness(index: number) {
+    const items = this.myForm.get(RegisterFormModules.BUSINESS).get("businessArray") as FormArray;
+    items.removeAt(index);
+  }
+
+
+  prepareBusinessLines(): void {
+    // Clear previous lines if any (optional)
+    this.businessArray.clear();
+
+    // User is independent → add one line
+    if (this.isIndependent()) {
+      this.addBusiness('פרטי עסק משתמש/ת ראשי');
+    }
+
+    // Spouse is independent → add another line
+    if (this.isSpouseIndependent()) {
+      this.addBusiness('פרטי עסק בן/בת הזוג');
+    }
+
+    // If none are independent, ensure no rows remain
+    if (!this.isIndependent() && !this.isSpouseIndependent()) {
+      this.businessArray.clear();
+    }
+  }
+  
+
+  getBusinessFormByIndex(index: number): FormGroup {
+    return this.businessArray.at(index) as FormGroup;
+  }
+
   getChildFormByIndex(index: number): FormGroup {
     return this.childrenArray.at(index) as FormGroup;
   }
@@ -271,7 +348,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   addChild() {
-    const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+    const items = this.myForm.get(RegisterFormModules.CHILDREN).get("childrenArray") as FormArray;
     items.push(
       this.formBuilder.group({
         [RegisterFormControls.CHILD_FIRST_NAME]: new FormControl(
@@ -291,7 +368,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   }
 
   removeChild(index: number) {
-    const items = this.myForm.get(RegisterFormModules.CHILDREN).get(RegisterFormControls.CHILDREN) as FormArray;
+    const items = this.myForm.get(RegisterFormModules.CHILDREN).get("childrenArray") as FormArray;
     items.removeAt(index);
   }
 
@@ -365,6 +442,7 @@ export class RegisterPage implements OnInit, OnDestroy {
           this.selectedFormModule.set(RegisterFormModules.SPOUSE);
         } else if (this.isSingle() && this.isIndependent()) {
           this.selectedFormModule.set(RegisterFormModules.BUSINESS);
+          this.prepareBusinessLines();
         } else if (this.isSingle() && !this.isIndependent()) {
           this.handleFormRegister();
         } else {
@@ -374,6 +452,7 @@ export class RegisterPage implements OnInit, OnDestroy {
       case RegisterFormModules.CHILDREN:
         if (this.isIndependent() || this.isSpouseIndependent()) {
           this.selectedFormModule.set(RegisterFormModules.BUSINESS);
+          this.prepareBusinessLines();
         } else {
           this.handleFormRegister();
         }
@@ -452,4 +531,55 @@ export class RegisterPage implements OnInit, OnDestroy {
       this.businessForm.get(RegisterFormControls.BUSINESSINVENTORY).patchValue(null);
     }
   }
+
+
+  private fillDevDefaults(): void {
+
+    if (process.env.NODE_ENV == 'production') return;
+
+    console.log('🧩 Filling default values for dev testing');
+
+    // Personal
+    this.personalForm.patchValue({
+      fName: 'Elazar',
+      lName: 'Harel',
+      id: '123456789',
+      gender: 'male',
+      email: 'test@example.com',
+      phone: '0501234567',
+      dateOfBirth: '01/01/1990',
+      employmentStatus: 'SELF_EMPLOYED',
+      city: 'Tel Aviv',
+      familyStatus: 'SINGLE',
+      password: 'Test1234',
+      confirmPassword: 'Test1234',
+    });
+
+    // Spouse (optional)
+    this.spouseForm.patchValue({
+      spouseFName: 'Uriah',
+      spouseLName: 'Harel',
+      spouseId: '987654321',
+      spouseEmail: 'spouse@example.com',
+      spousePhone: '0509876543',
+      spouseGender: 'female',
+    });
+
+    // Children example
+    this.addChild(); // ensure at least one child form exists
+    this.childrenArray.at(0).patchValue({
+      childFName: 'Noam',
+      childLName: 'Harel',
+      childDate: '01/09/2020',
+    });
+
+    // Business array example (if you use dynamic businesses)
+    if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
+    this.businessArray.at(0).patchValue({
+      businessName: 'KeepInTax',
+      businessNumber: '555555555',
+      businessType: 'LICENSED',
+    });
+  }
+
 }

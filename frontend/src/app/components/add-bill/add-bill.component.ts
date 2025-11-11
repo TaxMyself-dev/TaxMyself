@@ -1,4 +1,4 @@
-import { Component, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { ButtonComponent } from "../button/button.component";
@@ -12,6 +12,7 @@ import { TransactionsService } from 'src/app/pages/transactions/transactions.pag
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-add-bill2',
@@ -21,9 +22,14 @@ import { MessageService } from 'primeng/api';
   providers: [],
 })
 export class AddBillComponent implements OnInit {
+
   authService = inject(AuthService);
   transactionService = inject(TransactionsService);
   messageService = inject(MessageService);
+  private gs = inject(GenericService);
+  
+  // reactive bindings
+  businessOptions = computed(() => this.gs.businesses());
 
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);
@@ -50,18 +56,20 @@ export class AddBillComponent implements OnInit {
     });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData.isTwoBusinessOwner) {
-      this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
-      this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-      this.myForm.get('businessNumber')?.setValidators([Validators.required]);
-    }
-    else {
-      this.myForm.patchValue({
-        businessNumber: this.userData.businessNumber,
-      });
-    }
+    await this.gs.loadBusinesses();
+
+    // if (this.userData.isTwoBusinessOwner) {
+    //   this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
+    //   this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
+    //   this.myForm.get('businessNumber')?.setValidators([Validators.required]);
+    // }
+    // else {
+    //   this.myForm.patchValue({
+    //     businessNumber: this.userData.businessNumber,
+    //   });
+    // }
   }
 
   onVisibleChange(visible: boolean) {
