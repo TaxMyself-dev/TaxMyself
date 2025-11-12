@@ -7,9 +7,10 @@ import { User } from './user.entity';
 import { Child } from './child.entity';
 import { SharedModule } from 'src/shared/shared.module';
 import { Delegation } from 'src/delegation/delegation.entity';
+import { Business } from 'src/business/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Child, Delegation]), SharedModule],
+  imports: [TypeOrmModule.forFeature([User, Child, Business, Delegation]), SharedModule],
   controllers: [UsersController],
   providers: [
     UsersService, 

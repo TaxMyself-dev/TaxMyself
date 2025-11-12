@@ -18,9 +18,10 @@ import { Child } from '../users/child.entity';
 import { DefaultCategory } from './default-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
+import { Business } from 'src/business/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation ]),
+  imports: [TypeOrmModule.forFeature([Expense, User, Business, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Supplier, Child, Delegation ]),
             SharedModule],
   controllers: [ExpensesController],
   providers: [

@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, Input, OnInit, signal } from '@angular/core';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -29,6 +29,12 @@ import { MessageService } from 'primeng/api';
   standalone: false
 })
 export class VatReportPage implements OnInit {
+
+  private gs = inject(GenericService);
+
+  // reactive bindings
+  businessOptions = computed(() => this.gs.businesses());
+  isLoading = computed(() => this.gs.isLoadingBusinesses());
 
   visibleConfirmTransDialog = signal<boolean>(false);
 
@@ -105,8 +111,11 @@ export class VatReportPage implements OnInit {
 ) {}
 
 
-  ngOnInit() {
+  async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    this.gs.clearBusinesses();
+    await this.gs.loadBusinesses();
+
     if (this.userData.isTwoBusinessOwner) {
       console.log("two business owner");
       this.businessMode = BusinessMode.TWO_BUSINESS;

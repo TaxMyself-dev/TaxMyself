@@ -22,9 +22,10 @@ import { FinsiteService } from 'src/finsite/finsite.service';
 import { Finsite } from 'src/finsite/finsite.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+import { Business } from 'src/business/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
+  imports: [TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
             Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation, SettingDocuments])],
   controllers: [TransactionsController],
   providers: [

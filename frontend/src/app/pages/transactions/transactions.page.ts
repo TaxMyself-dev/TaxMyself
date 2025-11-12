@@ -14,6 +14,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
+import { log } from 'console';
 
 @Component({
   selector: 'app-transactions',
@@ -295,7 +296,8 @@ isInPrimeOverlay(e: Event): boolean {
   }
 
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
+    await this.genericService.loadBusinesses();
     this.filterData = this.transactionService.filterData;
     this.getTransactions(null);
     this.userData = this.authService.getUserDataFromLocalStorage();
@@ -522,8 +524,9 @@ isInPrimeOverlay(e: Event): boolean {
 
   handleTableData(data: ITransactionData[]) {
     const rows = [];
+    const businesses = this.genericService.businesses();
+
     if (data.length) {
-      console.log("data in handle data in transaction: ", data);
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
@@ -536,15 +539,8 @@ isInPrimeOverlay(e: Event): boolean {
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
-        data.businessNumber =
-          data.businessNumber === this.userData.businessNumber
-            ? this.userData.businessName
-            : data.businessNumber === this.userData.spouseBusinessNumber
-              ? this.userData.spouseBusinessName
-              : 'לא משוייך';
-
-
-
+        const matchedBusiness = businesses.find(b => b.value === data.businessNumber);
+        data.businessNumber = String(matchedBusiness ? matchedBusiness.name : "לא משוייך");
         rows.push(data);
       }
       )
