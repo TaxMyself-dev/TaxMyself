@@ -5,6 +5,7 @@ import { ButtonGroupModule } from 'primeng/buttongroup';
 import { InputIcon } from 'primeng/inputicon';
 import { IconField } from 'primeng/iconfield';
 import { TableModule } from 'primeng/table';
+import { TooltipModule } from 'primeng/tooltip';
 import { InputGroupModule } from 'primeng/inputgroup';
 import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
@@ -36,7 +37,7 @@ import { MessageService } from 'primeng/api';
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
 })
@@ -58,6 +59,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   transactionService = inject(TransactionsService);
 
   title = input<string>();
+  attachment = input<boolean>(false);
+  filesAttached = input<Map<number, File>>(new Map());
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   incomeMode = input<boolean>(false);
@@ -100,6 +103,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isSlideIn = signal<boolean>(false);
 
   onQuickClassifyClicked = output<boolean>();
+  fileSelected = output<{ row: IRowDataTable, file: File }>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -367,6 +371,21 @@ onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
         key: 'br'
       })
     });
+  }
+
+  onFileSelected(event: Event, row: IRowDataTable): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      console.log('File selected:', file.name, 'for row:', row);
+      this.fileSelected.emit({ row, file });
+      // Reset input to allow selecting the same file again
+      input.value = '';
+    }
+  }
+
+  hasFileAttached(row: IRowDataTable): boolean {
+    return this.filesAttached().has(row.id as number) || (row['attachmentCount'] && Number(row['attachmentCount']) > 0);
   }
 
 }

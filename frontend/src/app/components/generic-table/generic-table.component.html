@@ -65,6 +65,11 @@
           <th style="position: sticky; top: 0;" *ngFor="let col of columns" class="columns-header">
             {{ col.value }}
           </th>
+          @if (attachment()) {
+            <th style="position: sticky; top: 0; width: 4rem; text-align: center;" class="columns-header">
+              צרופות
+            </th>
+          }
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
@@ -97,6 +102,25 @@
               }
             </span>
           </td>
+          }
+          @if (attachment()) {
+            <td style="text-align: center;">
+              <input 
+                #fileInput
+                type="file" 
+                style="display: none;"
+                (change)="onFileSelected($event, row)"
+                accept=".pdf,.jpg,.jpeg,.png"
+              />
+              <i class="pi pi-paperclip" 
+                 style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
+                 (click)="fileInput.click()"
+                 pTooltip="צרף קובץ"
+                 tooltipPosition="top"></i>
+              @if (row['attachmentCount'] && row['attachmentCount'] > 0) {
+                <span style="margin-left: 0.3rem; font-size: 0.85rem; color: #6b7280;">({{ row['attachmentCount'] }})</span>
+              }
+            </td>
           }
         </tr>
       </ng-template>

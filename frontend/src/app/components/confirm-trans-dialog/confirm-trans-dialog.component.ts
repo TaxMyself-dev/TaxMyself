@@ -34,9 +34,11 @@ export class ConfirmTransDialogComponent implements OnInit {
   endDate = input<string>("");
   businessNumber = input<string>("");
   isVisibleChange = output<boolean>(); // manual output
-  confirmArraySelected = output<IRowDataTable[]>(); 
+  confirmArraySelected = output<{ transactions: IRowDataTable[], files: { id: number, file: File }[] }>(); 
   userData: IUserData;
   selectedArray: IRowDataTable[] = [];
+  filesAttachedMap = signal<Map<number, File>>(new Map());
+  arrayFile: { id: number, file: File }[] = [];
 
   buttonColor = ButtonColor;
   buttonSize = ButtonSize;
@@ -121,8 +123,29 @@ export class ConfirmTransDialogComponent implements OnInit {
     this.selectedArray = event;    
   }
 
+  onFileSelected(data: { row: IRowDataTable, file: File }): void {
+    console.log("File selected for transaction:", data.row.id, "file:", data.file.name);
+    
+    // Update or add to arrayFile (store locally, no upload yet)
+    const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
+    if (existingIndex !== -1) {
+      this.arrayFile[existingIndex].file = data.file;
+    } else {
+      this.arrayFile.push({ id: data.row.id as number, file: data.file });
+    }
+
+    // Update the filesAttachedMap for UI feedback (icon changes immediately)
+    const updatedMap = new Map(this.filesAttachedMap());
+    updatedMap.set(data.row.id as number, data.file);
+    this.filesAttachedMap.set(updatedMap);
+  }
+
   sendArray(): void {
-    this.confirmArraySelected.emit(this.selectedArray);
+    // Emit both transactions and attached files
+    this.confirmArraySelected.emit({
+      transactions: this.selectedArray,
+      files: this.arrayFile
+    });
   }
 
 }

@@ -39,8 +39,17 @@
 
   @let vatReportDataTable = dataTable | async;
   @if (vatReportDataTable?.length > 0) {
-    <app-generic-table class="expenses-table"
-      [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesToShow" [dataTable]="vatReportDataTable" columnSearch="supplier" [tableHeight]="'500px'" >
+    <app-generic-table 
+      (fileSelected)="onFileSelected($event)"
+      [attachment]="true"
+      [filesAttached]="filesAttachedMap()" 
+      class="expenses-table"
+      [placeholderSearch]="'חיפוש לפי שם עסק'" 
+      [title]="'הוצאות'" 
+      [columnsTitle]="fieldsNamesToShow" 
+      [dataTable]="vatReportDataTable" 
+      columnSearch="supplier" 
+      [tableHeight]="'500px'">
     </app-generic-table>
   }
 

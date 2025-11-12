@@ -83,6 +83,8 @@ export class ExpensesController {
   @Patch('add-file-to-expense')
   async addFileToExpense(@Headers('token') token: string,
     @Body() expensesData: {id: number, file: string | null}[]) {
+      console.log("🚀 ~ ExpensesController ~ addFileToExpense ~ expensesData:", expensesData)
+      
       const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
      return await this.expensesService.saveFileToExpenses(expensesData, firebaseId);
 

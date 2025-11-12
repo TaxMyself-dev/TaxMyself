@@ -262,8 +262,9 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async saveTransToExpenses(
     @Req() request: AuthenticatedRequest,
-    @Body() transactionData: {id: number, file: string | null}[],
+    @Body() transactionData: {id: number, file?: string | null}[],
   ): Promise<{ message: string }> {
+    console.log("🚀 ~ TransactionsController ~ saveTransToExpenses ~ transactionData:", transactionData)
     const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
   }

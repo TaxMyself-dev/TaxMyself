@@ -1360,7 +1360,7 @@ export class TransactionsService {
   }
 
 
-  async saveTransactionsToExpenses(transactionData: { id: number, file: string | null }[], userId: string): Promise<{ message: string }> {
+  async saveTransactionsToExpenses(transactionData: { id: number, file?: string | null }[], userId: string): Promise<{ message: string }> {
 
     console.log("saveTransactionsToExpenses - start");
 

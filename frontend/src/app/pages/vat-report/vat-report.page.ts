@@ -51,6 +51,7 @@ export class VatReportPage implements OnInit {
   //vatReportForm: FormGroup;
   tableActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
+  filesAttachedMap = signal<Map<number, File>>(new Map());
   previousFile: string;
   tableData$: Observable<IRowDataTable[]>;
   items$: Observable<IRowDataTable[]>;
@@ -357,9 +358,11 @@ export class VatReportPage implements OnInit {
     // }
   }
 
-  confirmTrans(event: IRowDataTable[]): void {
+  confirmTrans(event: { transactions: IRowDataTable[], files: { id: number, file: File }[] }): void {
     this.isLoadingButtonConfirmDialog.set(true);
-    this.transactionService.addTransToExpense(event)
+    
+    // Step 1: Confirm transactions as expenses
+    this.transactionService.addTransToExpense(event.transactions)
       .pipe(
         catchError((err) => {
           console.log("Error in confirmTrans: ", err);
@@ -370,22 +373,57 @@ export class VatReportPage implements OnInit {
             detail:"אירעה שגיאה באישור התנועות, נא לנסות שוב מאוחר יותר",
             life: 3000,
             key: 'br'
-          })
+          });
+          this.isLoadingButtonConfirmDialog.set(false);
           return EMPTY;
+        }),
+        switchMap((res) => {
+          // Step 2: If files were attached, upload and attach them
+          if (event.files && event.files.length > 0) {
+            console.log(`Uploading ${event.files.length} files for confirmed transactions...`);
+            return this.filesService.uploadAndSaveToServer(
+              event.files,
+              (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles)
+            ).pipe(
+              tap(() => {
+                this.messageService.add({
+                  severity: 'success',
+                  summary: 'Success',
+                  detail:`אישור התנועות והעלאת ${event.files.length} קבצים בוצעו בהצלחה`,
+                  life: 3000,
+                  key: 'br'
+                });
+              }),
+              catchError((fileErr) => {
+                console.error("Error uploading files:", fileErr);
+                this.messageService.add({
+                  severity: 'error',
+                  summary: 'Error',
+                  detail:"התנועות אושרו אך העלאת הקבצים נכשלה",
+                  life: 5000,
+                  key: 'br'
+                });
+                return of(res); // Continue anyway
+              })
+            );
+          } else {
+            // No files to upload
+            this.messageService.add({
+              severity: 'success',
+              summary: 'Success',
+              detail:"אישור התנועות בוצע בהצלחה",
+              life: 3000,
+              key: 'br'
+            });
+            return of(res);
+          }
         }),
         finalize(() => {
           this.isLoadingButtonConfirmDialog.set(false);
           this.visibleConfirmTransDialog.set(false);
-        }),
+        })
       )
       .subscribe((res) => {
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Success',
-          detail:"אישור התנועות בוצע בהצלחה",
-          life: 3000,
-          key: 'br'
-        })
         
       })
   }
@@ -519,75 +557,60 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  // addFileToExpense(): void {
-  //   const totalTransactions = this.arrayFile.length;
-  //   let filesUploaded = 0;
-  //   this.genericService.getLoader().subscribe();
-  //   this.genericService.updateLoaderMessage(`Uploading files... ${0}%`);
+  onFileSelected(data: { row: IRowDataTable, file: File }): void {
+    console.log("File selected for row:", data.row.id, "file:", data.file.name);
+    
+    // Update or add to arrayFile (store locally, no upload yet)
+    const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
+    if (existingIndex !== -1) {
+      this.arrayFile[existingIndex].file = data.file; // Update existing file
+    } else {
+      this.arrayFile.push({ id: data.row.id as number, file: data.file });
+    }
 
-  //   // Create an array of observables for each file upload
-  //   const fileUploadObservables = this.arrayFile.map((tran) => {
-  //     if (tran.file) {
-  //       return this.filesService.uploadFileViaFront(tran.file as File).pipe(
-  //         finalize(() => {
-  //           this.genericService.dismissLoader();
-  //         }),
-  //         catchError((error) => {
-  //           console.log("Error in get vat report uploading file: ", error);
-  //           alert("Error uploading file");
-  //           return EMPTY;
-  //         }),
-  //         tap((res) => {
-  //           tran.file = res.metadata.fullPath;  // Update the file path after upload
-  //           filesUploaded++;
-  //           const progress = Math.round((filesUploaded / totalTransactions) * 100);
-  //           this.genericService.updateLoaderMessage(`Uploading files... ${progress}%`);
-  //           this.genericService.dismissLoader();
-  //         }
-  //         )
-  //       );
-  //     } else {
-  //       return of(null);  // Return an observable that emits null for transactions without files
-  //     }
-  //   });
+    // Update the filesAttachedMap for UI feedback (icon changes immediately)
+    const updatedMap = new Map(this.filesAttachedMap());
+    updatedMap.set(data.row.id as number, data.file);
+    this.filesAttachedMap.set(updatedMap);
 
-  //   // Use forkJoin to wait for all file uploads to finish
-  //   forkJoin(fileUploadObservables)
-  //     .pipe(
-  //       finalize(() => {
-  //         this.genericService.dismissLoader();
-  //       }),
-  //       catchError((err) => {
-  //         console.log("Error in get vat report forkJoin: ", err);
-  //         this.genericService.dismissLoader();
-  //         return EMPTY;
-  //       }),
-  //       switchMap(() => this.vatReportService.addFileToExpenses(this.arrayFile)),
-  //       catchError((err) => {
-  //         console.log("err in send files to server: ", err);
-  //         this.arrayFile.forEach((tran) => {
-  //           if (tran.file) {
-  //             this.filesService.deleteFile(tran.file as string);
-  //           }
-  //         })
-  //         this.genericService.showToast("אירעה שגיאה העלאת קבצים נכשלה", "error");
-  //         // this.messageToast = "אירעה שגיאה העלאת קבצים נכשלה"
-  //         // this.isToastOpen = true;
-  //         return EMPTY
-  //       }),
-  //       tap(() => {
-  //         console.log("All file uploads complete.");
-  //         this.genericService.showToast(`הועלו ${totalTransactions} קבצים `, "success");
-  //         // this.messageToast = `הועלו ${totalTransactions} קבצים `
-  //         // this.isToastOpen = true;
-  //       }),
+    // Show feedback to user
+    this.genericService.showToast(`קובץ ${data.file.name} נבחר. לחץ על אישור לשליחה`, "success");
+  }
 
-  //     )
-  //     .subscribe(() => {
-  //       this.arrayFile = [];
-  //       this.setRowsData();
-  //     });
-  // }
+  /**
+   * Upload files to Firebase and save to server with automatic rollback on failure
+   * Call this method when user confirms/submits the form
+   */
+  addFileToExpense(): void {
+    if (this.arrayFile.length === 0) {
+      console.log("No files to upload");
+      return;
+    }
+
+    const totalFiles = this.arrayFile.length;
+
+    // Use the enhanced FilesService with automatic rollback
+    this.filesService.uploadAndSaveToServer(
+      this.arrayFile,
+      (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles)
+    ).pipe(
+      catchError((err) => {
+        console.error("Failed to upload and save files:", err);
+        this.genericService.showToast("אירעה שגיאה בהעלאת הקבצים", "error");
+        return EMPTY;
+      })
+    ).subscribe(() => {
+      console.log("All files uploaded and saved successfully");
+      this.genericService.showToast(`${totalFiles} קבצים הועלו בהצלחה`, "success");
+      
+      // Clear the arrays and map
+      this.arrayFile = [];
+      this.filesAttachedMap.set(new Map());
+      
+      // Refresh table data
+      this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+    });
+  }
 
   onChange(event: string): void {
     console.log("onChange event: ", event);

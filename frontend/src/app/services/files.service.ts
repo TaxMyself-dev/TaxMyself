@@ -4,11 +4,21 @@ import { getStorage, ref, getDownloadURL, deleteObject, uploadString } from "@an
 import { SafeResourceUrl } from '@angular/platform-browser';
 import { error, log } from 'console';
 import { nanoid } from 'nanoid';
-import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap, throwError } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap, throwError, forkJoin } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
 import { ICreateDataDoc } from '../shared/interface';
+
+export interface IFileUploadItem {
+  id: number;
+  file: File | string;
+}
+
+export interface IUploadResult {
+  id: number;
+  filePath: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -483,7 +493,116 @@ export class FilesService {
       return this.http.post<any>(url, body);
     }
 
+  /**
+   * Uploads multiple files to Firebase with progress tracking
+   * @param files Array of file upload items
+   * @returns Observable of upload results
+   */
+  uploadFilesToFirebaseBatch(files: IFileUploadItem[]): Observable<IUploadResult[]> {
+    const totalFiles = files.length;
+    let filesUploaded = 0;
 
+    this.genericService.getLoader().subscribe();
+    this.genericService.updateLoaderMessage(`מעלה קבצים... 0%`);
 
+    const fileUploadObservables = files.map((item) => {
+      if (item.file instanceof File) {
+        return this.uploadFileViaFront(item.file).pipe(
+          tap((res) => {
+            filesUploaded++;
+            const progress = Math.round((filesUploaded / totalFiles) * 100);
+            this.genericService.updateLoaderMessage(`מעלה קבצים... ${progress}%`);
+          }),
+          map((res) => ({
+            id: item.id,
+            filePath: res.metadata.fullPath
+          })),
+          catchError((error) => {
+            console.error("Error uploading file for id", item.id, error);
+            return EMPTY;
+          })
+        );
+      } else {
+        // File already uploaded (string path)
+        return of({ id: item.id, filePath: item.file as string });
+      }
+    });
+
+    return forkJoin(fileUploadObservables).pipe(
+      tap(() => {
+        this.genericService.dismissLoader();
+      }),
+      catchError((err) => {
+        console.error("Error in file upload batch:", err);
+        this.genericService.dismissLoader();
+        throw err;
+      })
+    );
+  }
+
+  /**
+   * Deletes multiple files from Firebase
+   * @param filePaths Array of file paths to delete
+   * @returns Observable that completes when all deletions are done
+   */
+  deleteMultipleFiles(filePaths: string[]): Observable<void> {
+    const deleteObservables = filePaths.map(path => 
+      this.deleteFile(path).then(() => {
+        console.log("Deleted file:", path);
+      }).catch(err => {
+        console.error("Failed to delete file:", path, err);
+      })
+    );
+
+    return new Observable(observer => {
+      Promise.all(deleteObservables)
+        .then(() => {
+          observer.next();
+          observer.complete();
+        })
+        .catch(err => {
+          observer.error(err);
+        });
+    });
+  }
+
+  /**
+   * Upload files and send to server with automatic rollback on failure
+   * @param files Array of file upload items
+   * @param serverSaveFunction Function to save file paths to server
+   * @returns Observable that completes when upload and server save succeed
+   */
+  uploadAndSaveToServer<T>(
+    files: IFileUploadItem[],
+    serverSaveFunction: (uploadedFiles: IFileUploadItem[]) => Observable<T>
+  ): Observable<T> {
+    let uploadedFilePaths: string[] = [];
+
+    return this.uploadFilesToFirebaseBatch(files).pipe(
+      tap((results) => {
+        uploadedFilePaths = results.map(r => r.filePath);
+      }),
+      switchMap((results) => {
+        // Update files array with uploaded paths
+        const updatedFiles = results.map(r => ({
+          id: r.id,
+          file: r.filePath
+        }));
+
+        // Call server save function
+        return serverSaveFunction(updatedFiles).pipe(
+          catchError((err) => {
+            console.error("Server save failed, rolling back uploads:", err);
+            // Rollback: delete all uploaded files
+            this.deleteMultipleFiles(uploadedFilePaths).subscribe({
+              next: () => console.log("Rollback complete: all files deleted"),
+              error: (deleteErr) => console.error("Rollback failed:", deleteErr)
+            });
+            throw err;
+          })
+        );
+      })
+    );
+  }
 
   }
