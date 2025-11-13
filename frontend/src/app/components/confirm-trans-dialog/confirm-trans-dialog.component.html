@@ -5,7 +5,7 @@
         
         <app-generic-table 
             [attachment]="true" 
-            (fileSelected)="onFileSelected($event)"
+            (fileChange)="onFileChange($event)"
             [filesAttached]="filesAttachedMap()"
             (isAllChecked)="onAllChecked($event)" 
             (rowsChecked)="onChecked($event)" 

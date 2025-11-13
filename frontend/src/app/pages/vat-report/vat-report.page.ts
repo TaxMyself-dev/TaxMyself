@@ -7,7 +7,7 @@ import { BusinessMode, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
+import { FileChangeEvent, IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
 import { FilesService } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
@@ -71,9 +71,9 @@ export class VatReportPage implements OnInit {
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
   // dataTable = Observable<IRowDataTable[]>;
-  transToConfirm: Observable<IRowDataTable[]> ;
-  dataTable: Observable<IRowDataTable[]> ;
-  
+  transToConfirm: Observable<IRowDataTable[]>;
+  dataTable: Observable<IRowDataTable[]>;
+
 
   readonly fieldsNamesToShow: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
@@ -108,7 +108,7 @@ export class VatReportPage implements OnInit {
   buttonColor = ButtonColor;
 
   constructor(private genericService: GenericService, private dateService: DateService, private filesService: FilesService, private router: Router, public vatReportService: VatReportService, private formBuilder: FormBuilder, private expenseDataService: ExpenseDataService, private modalController: ModalController, public authService: AuthService, private transactionService: TransactionsService, private messageService: MessageService
-) {}
+  ) { }
 
 
   async ngOnInit() {
@@ -229,19 +229,15 @@ export class VatReportPage implements OnInit {
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
-    
-    this.getVatReportData(startDate, endDate, this.businessNumber());
-    this.getDataTable(startDate, endDate, this.businessNumber());
-    
   }
-  
+
   getTransToConfirm(): void {
     this.visibleConfirmTransDialog.set(true);
     console.log("in getTransToConfirm");
     console.log("startDate: ", this.startDate());
     console.log("endDate: ", this.endDate());
     console.log("businessNumber: ", this.businessNumber());
-    
+
     this.transToConfirm = this.transactionService.getTransToConfirm(
       this.startDate(),
       this.endDate(),
@@ -251,9 +247,9 @@ export class VatReportPage implements OnInit {
         console.error("Error in getTransToConfirm:", err);
         return EMPTY;
       }),
-      map(data =>{
+      map(data => {
         console.log("🚀 ~ VatReportPage ~ getTransToConfirm ~ data:", data);
-        
+
         return data.filter(row => !row.vatReportingDate || row.vatReportingDate === '0')
           .map(row => ({
             ...row,
@@ -263,14 +259,14 @@ export class VatReportPage implements OnInit {
               ? this.userData.businessName
               : this.userData.spouseBusinessName
           }))
-                 }
+      }
       ),
-       tap((data: IRowDataTable[]) => {
+      tap((data: IRowDataTable[]) => {
         console.log("🚀 ~ tap ~ data:", data)
         this.arrayLength.set(data.length);
       })
     )
-   
+
     // .subscribe(res => {
     //   console.log("Filtered & transformed transactions:", res);
     // });
@@ -298,7 +294,7 @@ export class VatReportPage implements OnInit {
       )
       .subscribe((res) => {
         console.log("🚀 ~ VatReportPage ~ getVatReportData ~ res:", res);
-        
+
         this.vatReportData.set(res);
         console.log("🚀 ~ VatReportPage ~ .subscribe ~ this.vatReportData in subscribe:", this.vatReportData())
       });
@@ -313,63 +309,82 @@ export class VatReportPage implements OnInit {
       event = '0';
     }
 
-      // Step 1: Update vatableTurnover
-      this.vatReportData.update((prev) => ({
-        ...prev,
-        vatableTurnover: event, // Update vatableTurnover with the new value
-      }));
+    // Step 1: Update vatableTurnover
+    this.vatReportData.update((prev) => ({
+      ...prev,
+      vatableTurnover: event, // Update vatableTurnover with the new value
+    }));
     // }
     // else {
 
-    
-      // Step 2: Convert all fields to number for calculation
-      // const numericData = Object.fromEntries(
-      //   Object.entries(this.vatReportData()).map(([key, value]) => [
-      //     key,
-      //     this.genericService.convertStringToNumber(value),
-      //   ])
-      // ) as IVatReportData;
 
-      const numericData = {} as IVatReportData;
-      Object.entries(this.vatReportData()).forEach(([key, value]) => {
-        // numericData[key as keyof IVatReportData] = 15;
-        numericData[key as keyof IVatReportData] = this.genericService.convertStringToNumber(value);
-      });
-      console.log("🚀 ~ VatReportPage ~ updateIncome ~ numericData:", numericData)
+    // Step 2: Convert all fields to number for calculation
+    // const numericData = Object.fromEntries(
+    //   Object.entries(this.vatReportData()).map(([key, value]) => [
+    //     key,
+    //     this.genericService.convertStringToNumber(value),
+    //   ])
+    // ) as IVatReportData;
 
-      // Step 3: Recalculate vatPayment
-      const vatPayment = (
-        Number(numericData.vatableTurnover) * Number(numericData.vatRate) -
-        Number(numericData.vatRefundOnAssets) -
-        Number(numericData.vatRefundOnExpenses)
-      ).toFixed(2);
+    const numericData = {} as IVatReportData;
+    Object.entries(this.vatReportData()).forEach(([key, value]) => {
+      // numericData[key as keyof IVatReportData] = 15;
+      numericData[key as keyof IVatReportData] = this.genericService.convertStringToNumber(value);
+    });
+    console.log("🚀 ~ VatReportPage ~ updateIncome ~ numericData:", numericData)
 
-      // Step 4: Update vatPayment
-      this.vatReportData.update((prev) => ({
-        ...numericData,
-        vatPayment,
-      }));
+    // Step 3: Recalculate vatPayment
+    const vatPayment = (
+      Number(numericData.vatableTurnover) * Number(numericData.vatRate) -
+      Number(numericData.vatRefundOnAssets) -
+      Number(numericData.vatRefundOnExpenses)
+    ).toFixed(2);
 
-      // Step 5: Convert all values back to display strings
-      // const stringFormatted = Object.fromEntries(
-      //   Object.entries(this.vatReportData()).map(([key, value]) => [
-      //     key,
-      //     this.genericService.addComma(value),
-      //   ])
-      // ) as IVatReportData;
-      const stringFormatted = {} as IVatReportData;
-      Object.entries(this.vatReportData()).forEach(([key, value]) => {
-        stringFormatted[key as keyof IVatReportData] = this.genericService.addComma(value);
-      });
+    // Step 4: Update vatPayment
+    this.vatReportData.update((prev) => ({
+      ...numericData,
+      vatPayment,
+    }));
+
+    // Step 5: Convert all values back to display strings
+    // const stringFormatted = Object.fromEntries(
+    //   Object.entries(this.vatReportData()).map(([key, value]) => [
+    //     key,
+    //     this.genericService.addComma(value),
+    //   ])
+    // ) as IVatReportData;
+    const stringFormatted = {} as IVatReportData;
+    Object.entries(this.vatReportData()).forEach(([key, value]) => {
+      stringFormatted[key as keyof IVatReportData] = this.genericService.addComma(value);
+    });
 
 
-      this.vatReportData.set(stringFormatted);
+    this.vatReportData.set(stringFormatted);
     // }
   }
 
+  closeDialogWithoutConfirm(event: boolean): void {
+    console.log("🚀 ~ VatReportPage ~ closeDialogWithoutConfirm ~ event:", event)
+    this.visibleConfirmTransDialog.set(event);
+    this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
+    this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
   confirmTrans(event: { transactions: IRowDataTable[], files: { id: number, file: File }[] }): void {
+    if (!event.transactions.length) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Error',
+        sticky: true,
+        detail: "לא נבחרה אף תנועה",
+        life: 3000,
+        key: 'br'
+      });
+      return;
+    }
+    console.log("🚀 ~ VatReportPage ~ confirmTrans ~ event:", event)
     this.isLoadingButtonConfirmDialog.set(true);
-    
+
     // Step 1: Confirm transactions as expenses
     this.transactionService.addTransToExpense(event.transactions)
       .pipe(
@@ -379,7 +394,7 @@ export class VatReportPage implements OnInit {
             severity: 'error',
             summary: 'Error',
             sticky: true,
-            detail:"אירעה שגיאה באישור התנועות, נא לנסות שוב מאוחר יותר",
+            detail: "אירעה שגיאה באישור התנועות, נא לנסות שוב מאוחר יותר",
             life: 3000,
             key: 'br'
           });
@@ -392,13 +407,13 @@ export class VatReportPage implements OnInit {
             console.log(`Uploading ${event.files.length} files for confirmed transactions...`);
             return this.filesService.uploadAndSaveToServer(
               event.files,
-              (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles)
+              (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles, true)
             ).pipe(
               tap(() => {
                 this.messageService.add({
                   severity: 'success',
                   summary: 'Success',
-                  detail:`אישור התנועות והעלאת ${event.files.length} קבצים בוצעו בהצלחה`,
+                  detail: `אושרו ${event.transactions.length} תנועות והועלו ${event.files.length} קבצים בהצלחה`,
                   life: 3000,
                   key: 'br'
                 });
@@ -408,7 +423,7 @@ export class VatReportPage implements OnInit {
                 this.messageService.add({
                   severity: 'error',
                   summary: 'Error',
-                  detail:"התנועות אושרו אך העלאת הקבצים נכשלה",
+                  detail: `אושרו ${event.transactions.length} תנועות אך העלאת הקבצים נכשלה`,
                   life: 5000,
                   key: 'br'
                 });
@@ -420,7 +435,7 @@ export class VatReportPage implements OnInit {
             this.messageService.add({
               severity: 'success',
               summary: 'Success',
-              detail:"אישור התנועות בוצע בהצלחה",
+              detail: `אושרו ${event.transactions.length} תנועות בהצלחה`,
               life: 3000,
               key: 'br'
             });
@@ -433,10 +448,12 @@ export class VatReportPage implements OnInit {
         })
       )
       .subscribe((res) => {
-        
+        // Refresh data after transactions are confirmed
+        this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
+        this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
       })
   }
-  
+
 
 
   // updateIncome(event: any) {
@@ -490,11 +507,11 @@ export class VatReportPage implements OnInit {
           return rows
         })
       )
-      // .subscribe((res) => {
-        // this.dataTable.set(res);
-        // console.log("data table in vat report: ", this.dataTable());
-// 
-      // })
+    // .subscribe((res) => {
+    // this.dataTable.set(res);
+    // console.log("data table in vat report: ", this.dataTable());
+    // 
+    // })
 
     //= this.expenseDataService.getExpenseForVatReport(startDate, endDate, businessNumber)
 
@@ -566,25 +583,37 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  onFileSelected(data: { row: IRowDataTable, file: File }): void {
-    console.log("File selected for row:", data.row.id, "file:", data.file.name);
-    
-    // Update or add to arrayFile (store locally, no upload yet)
-    const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
-    if (existingIndex !== -1) {
-      this.arrayFile[existingIndex].file = data.file; // Update existing file
-    } else {
-      this.arrayFile.push({ id: data.row.id as number, file: data.file });
-    }
+  // onFileChange(data: FileChangeEvent): void {
+  //   console.log("🚀 ~ VatReportPage ~ onFileSelected ~ file:", data.file)
+  //   console.log("File selected for row:", data.row.id, "file:", data.file.name);
 
-    // Update the filesAttachedMap for UI feedback (icon changes immediately)
-    const updatedMap = new Map(this.filesAttachedMap());
-    updatedMap.set(data.row.id as number, data.file);
-    this.filesAttachedMap.set(updatedMap);
+  //   // Update or add to arrayFile (store locally, no upload yet)
+  //   const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
+  //   if (existingIndex !== -1) {
+  //     this.arrayFile[existingIndex].file = data.file; // Update existing file
+  //   } else {
+  //     this.arrayFile.push({ id: data.row.id as number, file: data.file });
+  //   }
 
-    // Show feedback to user
-    this.genericService.showToast(`קובץ ${data.file.name} נבחר. לחץ על אישור לשליחה`, "success");
+  //   // Update the filesAttachedMap for UI feedback (icon changes immediately)
+  //   const updatedMap = new Map(this.filesAttachedMap());
+  //   updatedMap.set(data.row.id as number, data.file);
+  //   this.filesAttachedMap.set(updatedMap);
+
+  //   // Show feedback to user
+  //   this.genericService.showToast(`קובץ ${data.file.name} נבחר. לחץ על אישור לשליחה`, "success");
+  // }
+  onFileChange(e: FileChangeEvent) {
+  const updated = new Map(this.filesAttachedMap());
+  if (e.type === 'set') {
+    updated.set(e.row.id as number, e.file);
+    this.arrayFile = [...this.arrayFile.filter(x => x.id !== e.row.id), { id: e.row.id as number, file: e.file }];
+  } else {
+    updated.delete(e.row.id as number);
+    this.arrayFile = this.arrayFile.filter(x => x.id !== e.row.id);
   }
+  this.filesAttachedMap.set(updated);
+}
 
   /**
    * Upload files to Firebase and save to server with automatic rollback on failure
@@ -611,11 +640,11 @@ export class VatReportPage implements OnInit {
     ).subscribe(() => {
       console.log("All files uploaded and saved successfully");
       this.genericService.showToast(`${totalFiles} קבצים הועלו בהצלחה`, "success");
-      
+
       // Clear the arrays and map
       this.arrayFile = [];
       this.filesAttachedMap.set(new Map());
-      
+
       // Refresh table data
       this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
     });
@@ -628,7 +657,7 @@ export class VatReportPage implements OnInit {
 
   show(): void {
     console.log("in show");
-    
+
     this.visibleConfirmTransDialog.set(true);
   }
 

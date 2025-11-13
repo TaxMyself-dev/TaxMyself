@@ -9,6 +9,7 @@ import { ButtonSize } from '../button/button.enum';
 import { vi } from 'date-fns/locale';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-account-association-dialog',
@@ -20,6 +21,8 @@ import { TransactionsService } from 'src/app/pages/transactions/transactions.pag
 
 export class AccountAssociationDialogComponent implements OnInit {
   formBuilder = inject(FormBuilder);
+    messageService = inject(MessageService);
+  
   transactionService = inject(TransactionsService);
   isVisible = input<boolean>(false);
   accounts = input<ISelectItem[]>([]);
@@ -66,6 +69,13 @@ export class AccountAssociationDialogComponent implements OnInit {
         )
         .subscribe(() => {
           this.onVisibleChange(false, true);
+          this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail:"שיוך אמצעי תשלום לחשבון בוצע בהצלחה!",
+          life: 3000,
+          key: 'br'
+        })
         })
     }
 

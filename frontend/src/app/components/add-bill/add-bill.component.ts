@@ -95,7 +95,7 @@ export class AddBillComponent implements OnInit {
         this.messageService.add({
           severity: 'success',
           summary: 'Success',
-          detail:"הוספת חשבונית הצליחה",
+          detail:"הוספת חשבון הצליחה",
           life: 3000,
           key: 'br'
         })

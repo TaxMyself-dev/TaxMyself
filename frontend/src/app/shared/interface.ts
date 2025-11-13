@@ -91,6 +91,10 @@ export interface IDocIndexes {
     isInitial: boolean;
 }  
 
+export type FileChangeEvent =
+  | { row: IRowDataTable; type: 'set'; file: File }
+  | { row: IRowDataTable; type: 'clear' };
+
 export interface IRegisterLoginImage {
     src: string;
     alt: string;

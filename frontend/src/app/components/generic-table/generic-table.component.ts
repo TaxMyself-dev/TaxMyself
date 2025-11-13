@@ -11,7 +11,7 @@ import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
+import { FileChangeEvent, IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -103,7 +103,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isSlideIn = signal<boolean>(false);
 
   onQuickClassifyClicked = output<boolean>();
-  fileSelected = output<{ row: IRowDataTable, file: File }>();
+
+fileChange = output<FileChangeEvent>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -373,19 +374,24 @@ onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
     });
   }
 
-  onFileSelected(event: Event, row: IRowDataTable): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      const file = input.files[0];
-      console.log('File selected:', file.name, 'for row:', row);
-      this.fileSelected.emit({ row, file });
-      // Reset input to allow selecting the same file again
-      input.value = '';
-    }
+onFileChange(event: Event, row: IRowDataTable) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+
+  if (file) {
+    this.fileChange.emit({ row: row, type: 'set', file });
+  } else {
+    this.fileChange.emit({ row: row, type: 'clear' });
   }
 
+}
+
   hasFileAttached(row: IRowDataTable): boolean {
-    return this.filesAttached().has(row.id as number) || (row['attachmentCount'] && Number(row['attachmentCount']) > 0);
+    const hasInMap = this.filesAttached().has(row.id as number);
+    const hasCount = row['attachmentCount'] && Number(row['attachmentCount']) > 0;
+    const result = hasInMap || hasCount;
+    // console.log(`hasFileAttached for row ${row.id}:`, { hasInMap, hasCount, result, mapSize: this.filesAttached().size });
+    return result;
   }
 
 }

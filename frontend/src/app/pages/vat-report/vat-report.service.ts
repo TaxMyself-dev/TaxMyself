@@ -32,13 +32,13 @@ export class VatReportService {
     return this.http.get<any>(url, { params: params, headers: headers})
   }
 
-  addFileToExpenses(formData: {id:number, file: string | File}[]): Observable<any> {
+  addFileToExpenses(formData: {id:number, file: string | File}[], fromTransactions: boolean = false): Observable<any> {
     const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-file-to-expense`;
     const headers = {
       'token': token
     }
-    return this.http.patch<any>(url, formData, {headers: headers})
+    return this.http.patch<any>(url, {formData, fromTransactions}, {headers: headers})
 
   }
 

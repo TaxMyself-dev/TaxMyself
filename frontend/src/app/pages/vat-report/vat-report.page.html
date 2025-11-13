@@ -40,7 +40,7 @@
   @let vatReportDataTable = dataTable | async;
   @if (vatReportDataTable?.length > 0) {
     <app-generic-table 
-      (fileSelected)="onFileSelected($event)"
+      (fileChange)="onFileChange($event)"
       [attachment]="true"
       [filesAttached]="filesAttachedMap()" 
       class="expenses-table"
@@ -57,6 +57,6 @@
 
 @let transToConfirmData = transToConfirm | async;
 @if (transToConfirmData?.length > 0 && visibleConfirmTransDialog()) {
-  <app-confirm-trans-dialog  (confirmArraySelected)="confirmTrans($event)" (isVisibleChange)="visibleConfirmTransDialog.set($event)" [isLoadingButton]="isLoadingButtonConfirmDialog()"
+  <app-confirm-trans-dialog  (confirmArraySelected)="confirmTrans($event)" (isVisibleChange)="closeDialogWithoutConfirm($event)" [isLoadingButton]="isLoadingButtonConfirmDialog()"
   [isVisible]="visibleConfirmTransDialog()" [data]="transToConfirmData" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()" [arrayLength]="arrayLength()"></app-confirm-trans-dialog>
 }

@@ -4,7 +4,7 @@ import { catchError, EMPTY, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, IUserData } from 'src/app/shared/interface';
+import { FileChangeEvent, IColumnDataTable, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
 import { AsyncPipe, NgStyle } from '@angular/common';
 import { TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
@@ -81,39 +81,6 @@ export class ConfirmTransDialogComponent implements OnInit {
     this.isAllChecked.set(event);
   }
 
-  // getTransToConfirm(): void {
-  //   this.transToConfirm = this.transactionService.getTransToConfirm(
-  //     this.startDate(),
-  //     this.endDate(),
-  //     this.businessNumber()
-  //   ).pipe(
-  //     catchError(err => {
-  //       console.error("Error in getTransToConfirm:", err);
-  //       return EMPTY;
-  //     }),
-  //     map(data =>{
-  //       return data
-  //         .filter(row => row.isRecognized) 
-  //         .map(row => ({
-  //           ...row,
-  //           sum: this.genericService.addComma(Math.abs(row.sum as number)),
-  //           businessNumber: row?.businessNumber === this.userData.businessNumber
-  //             ? this.userData.businessName
-  //             : this.userData.spouseBusinessName
-  //         }))
-  //                }
-  //     ),
-  //      tap((data: IRowDataTable[]) => {
-  //       console.log("🚀 ~ tap ~ data:", data)
-  //       // this.arrayLength.set(data.length);
-  //     })
-  //   )
-   
-  //   // .subscribe(res => {
-  //   //   console.log("Filtered & transformed transactions:", res);
-  //   // });
-  // }
-
   closeDialog(): void {
     this.dialogVisible = false;
     this.isVisibleChange.emit(false);
@@ -122,23 +89,17 @@ export class ConfirmTransDialogComponent implements OnInit {
   onChecked(event :IRowDataTable[]): void {
     this.selectedArray = event;    
   }
-
-  onFileSelected(data: { row: IRowDataTable, file: File }): void {
-    console.log("File selected for transaction:", data.row.id, "file:", data.file.name);
-    
-    // Update or add to arrayFile (store locally, no upload yet)
-    const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
-    if (existingIndex !== -1) {
-      this.arrayFile[existingIndex].file = data.file;
-    } else {
-      this.arrayFile.push({ id: data.row.id as number, file: data.file });
-    }
-
-    // Update the filesAttachedMap for UI feedback (icon changes immediately)
-    const updatedMap = new Map(this.filesAttachedMap());
-    updatedMap.set(data.row.id as number, data.file);
-    this.filesAttachedMap.set(updatedMap);
+onFileChange(e: FileChangeEvent) {
+  const updated = new Map(this.filesAttachedMap());
+  if (e.type === 'set') {
+    updated.set(e.row.id as number, e.file);
+    this.arrayFile = [...this.arrayFile.filter(x => x.id !== e.row.id), { id: e.row.id as number, file: e.file }];
+  } else {
+    updated.delete(e.row.id as number);
+    this.arrayFile = this.arrayFile.filter(x => x.id !== e.row.id);
   }
+  this.filesAttachedMap.set(updated);
+}
 
   sendArray(): void {
     // Emit both transactions and attached files

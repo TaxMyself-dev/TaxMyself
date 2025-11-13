@@ -73,7 +73,7 @@
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
-        <tr [pSelectableRow]="row" [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
+        <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
           (mouseenter)="onRowEnter(rowIndex, row, $event)" (mouseleave)="onRowLeave()">
           @if (showCheckbox()) {
             <td>
@@ -109,14 +109,24 @@
                 #fileInput
                 type="file" 
                 style="display: none;"
-                (change)="onFileSelected($event, row)"
+                (change)="onFileChange($event, row)"
                 accept=".pdf,.jpg,.jpeg,.png"
               />
-              <i class="pi pi-paperclip" 
-                 style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
-                 (click)="fileInput.click()"
-                 pTooltip="צרף קובץ"
-                 tooltipPosition="top"></i>
+              @if (hasFileAttached(row)) {
+                <i class="pi pi-file" 
+                   style="font-size: 1.2rem; cursor: pointer; color: #10b981;"
+                   (click)="fileInput.click()"
+                   pTooltip="שנה קובץ"
+                   tooltipPosition="top"></i>
+                <i class="pi pi-check-circle" 
+                   style="font-size: 0.8rem; color: #10b981; margin-right: -0.5rem; margin-top: -0.8rem;"></i>
+              } @else {
+                <i class="pi pi-paperclip" 
+                   style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
+                   (click)="fileInput.click()"
+                   pTooltip="צרף קובץ"
+                   tooltipPosition="top"></i>
+              }
               @if (row['attachmentCount'] && row['attachmentCount'] > 0) {
                 <span style="margin-left: 0.3rem; font-size: 0.85rem; color: #6b7280;">({{ row['attachmentCount'] }})</span>
               }
