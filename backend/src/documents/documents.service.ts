@@ -478,6 +478,9 @@ export class DocumentsService {
 
     try {
 
+      console.log("date is ", data.docData.date);
+      
+
       // 1. Increment general index (use manager for DB operation)
       await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
 

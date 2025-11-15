@@ -11,7 +11,7 @@
     </div>
 
     <app-period-select class="pnl-report-search-bar-input"
-      [businessMode]="businessMode" [businessOptions]="businessNamesList" (formSubmit)="onSubmit($event)">
+      [businessMode]="businessMode" [businessOptions]="businessOptions()" (formSubmit)="onSubmit($event)">
     </app-period-select> 
 
     <ng-container *ngIf="pnlReport">

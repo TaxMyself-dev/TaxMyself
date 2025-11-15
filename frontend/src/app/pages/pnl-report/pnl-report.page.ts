@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ICreateDataDoc, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
@@ -19,6 +19,12 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
     standalone: false
 })
 export class PnLReportPage implements OnInit {
+
+  private gs = inject(GenericService);
+
+  // reactive bindings
+  businessOptions = computed(() => this.gs.businesses());
+  isLoadingBusiness = computed(() => this.gs.isLoadingBusinesses());
 
   pnlReportForm: FormGroup;
   pnlReport: IPnlReportData;
@@ -42,8 +48,10 @@ export class PnLReportPage implements OnInit {
   }
 
 
-  ngOnInit() {
+  async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    this.gs.clearBusinesses();
+    await this.gs.loadBusinesses();
     if (this.userData.isTwoBusinessOwner) {
       this.businessMode = BusinessMode.TWO_BUSINESS;
       this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});

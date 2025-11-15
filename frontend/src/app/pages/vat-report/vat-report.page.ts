@@ -112,7 +112,7 @@ export class VatReportPage implements OnInit {
 
   async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    this.gs.clearBusinesses();
+    //this.gs.clearBusinesses();
     await this.gs.loadBusinesses();
 
     if (this.userData.isTwoBusinessOwner) {
