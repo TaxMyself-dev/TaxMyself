@@ -52,6 +52,7 @@ export class VatReportPage implements OnInit {
   endDate = signal<string>("");
   isLoadingButtonConfirmDialog = signal<boolean>(false);
   isLoadingStatePeryodSelectButton = signal<boolean>(false);
+  isRequestSent = signal<boolean>(false);
   businessNumber = signal<string>("");
   displayExpenses: boolean = false;
   //vatReportForm: FormGroup;
@@ -229,14 +230,11 @@ export class VatReportPage implements OnInit {
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
+    this.isRequestSent.set(true);
   }
 
   getTransToConfirm(): void {
     this.visibleConfirmTransDialog.set(true);
-    console.log("in getTransToConfirm");
-    console.log("startDate: ", this.startDate());
-    console.log("endDate: ", this.endDate());
-    console.log("businessNumber: ", this.businessNumber());
 
     this.transToConfirm = this.transactionService.getTransToConfirm(
       this.startDate(),
@@ -247,11 +245,17 @@ export class VatReportPage implements OnInit {
         console.error("Error in getTransToConfirm:", err);
         return EMPTY;
       }),
+        tap((data: IRowDataTable[]) => {
+          if (!data?.length) {
+            this.closeDialogWithoutConfirm(false);
+          }
+        console.log("🚀 ~ tap ~ data:", data)
+        this.arrayLength.set(data?.length);
+      }),
       map(data => {
         console.log("🚀 ~ VatReportPage ~ getTransToConfirm ~ data:", data);
 
-        return data.filter(row => !row.vatReportingDate || row.vatReportingDate === '0')
-          .map(row => ({
+        return data?.map(row => ({
             ...row,
             sum: this.genericService.addComma(Math.abs(row.sum as number)),
             isRecognized: row.isRecognized ? 'כן' : 'לא',
@@ -261,10 +265,7 @@ export class VatReportPage implements OnInit {
           }))
       }
       ),
-      tap((data: IRowDataTable[]) => {
-        console.log("🚀 ~ tap ~ data:", data)
-        this.arrayLength.set(data.length);
-      })
+    
     )
 
     // .subscribe(res => {
@@ -659,6 +660,112 @@ export class VatReportPage implements OnInit {
     console.log("in show");
 
     this.visibleConfirmTransDialog.set(true);
+  }
+
+  onPreviewFile(row: IRowDataTable): void {
+    console.log("Preview file for row:", row);
+    this.onPreviewFileClicked(row);
+  }
+
+  onDeleteFile(event: { row: IRowDataTable, deleteFromServer: boolean }): void {
+    console.log("Delete file for row:", event);
+    const { row, deleteFromServer } = event;
+    
+    if (deleteFromServer) {
+      // Delete from server and Firebase
+      from(this.modalController.create({
+        component: PopupConfirmComponent,
+        componentProps: {
+          message: "האם אתה בטוח שברצונך למחוק את הקובץ?",
+          buttonTextConfirm: "כן, מחק",
+          buttonTextCancel: "ביטול"
+        },
+        cssClass: 'vatReport-modal'
+      }))
+        .pipe(
+          switchMap((modal) => from(modal.present()).pipe(
+            switchMap(() => from(modal.onWillDismiss()))
+          )),
+          switchMap((res) => {
+            if (res.data) {
+              // User confirmed deletion
+              this.genericService.getLoader().subscribe();
+              
+              // First delete from Firebase
+              return from(this.filesService.deleteFileFromFirebase(row['file'] as string)).pipe(
+                switchMap(() => {
+                  // Then delete from server
+                  return this.vatReportService.deleteFileFromDB(row.id as number);
+                }),
+                tap(() => {
+                  this.genericService.showToast("קובץ נמחק בהצלחה", "success");
+                  // Refresh the table
+                  this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+                }),
+                catchError((err) => {
+                  console.error("Error deleting file:", err);
+                  this.genericService.showToast("שגיאה במחיקת הקובץ", "error");
+                  return EMPTY;
+                }),
+                finalize(() => {
+                  this.genericService.dismissLoader();
+                })
+              );
+            }
+            return EMPTY;
+          }),
+          catchError((err) => {
+            console.error("Error in delete confirmation:", err);
+            return EMPTY;
+          })
+        )
+        .subscribe();
+    } else {
+      // Just remove from local arrays (newly attached file not yet uploaded)
+      const updatedMap = new Map(this.filesAttachedMap());
+      updatedMap.delete(row.id as number);
+      this.filesAttachedMap.set(updatedMap);
+      
+      this.arrayFile = this.arrayFile.filter(item => item.id !== row.id);
+      this.genericService.showToast("קובץ הוסר מהרשימה", "success");
+    }
+  }
+
+  onEditFile(row: IRowDataTable): void {
+    console.log("Edit file for row:", row);
+    
+    // Confirm the user wants to replace the file
+    from(this.modalController.create({
+      component: PopupConfirmComponent,
+      componentProps: {
+        message: "האם אתה בטוח שברצונך להחליף את הקובץ הקיים?",
+        buttonTextConfirm: "כן, החלף",
+        buttonTextCancel: "ביטול"
+      },
+      cssClass: 'vatReport-modal'
+    }))
+      .pipe(
+        switchMap((modal) => from(modal.present()).pipe(
+          switchMap(() => from(modal.onWillDismiss()))
+        )),
+        tap((res) => {
+          if (res.data) {
+            // User confirmed - trigger file input click to select new file
+            // We'll handle the replacement in the onFileChange method
+            const fileInput = document.querySelector(`input[type="file"]`) as HTMLInputElement;
+            if (fileInput) {
+              // Store the row ID for replacement
+              (fileInput as any).__replacementRowId = row.id;
+              fileInput.click();
+            }
+          }
+        }),
+        catchError((err) => {
+          console.error("Error in edit confirmation:", err);
+          return EMPTY;
+        })
+      )
+      .subscribe();
   }
 
 }

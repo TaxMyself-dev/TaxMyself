@@ -1,4 +1,4 @@
-<p-dialog header="הוצאות מוכרות שלא אושרו" [modal]="true" [(visible)]="dialogVisible" [style]="{ width: '90vw', height: '90%' }"  >
+<p-dialog header="הוצאות מוכרות שלא אושרו" (onHide)="closeDialog()" [modal]="true" [(visible)]="dialogVisible" [style]="{ width: '90vw', height: '90%' }"  >
     <div class="inner-dialog">
 
         <p >רגע לפני שנעבור להפקת הדוח, מצאנו {{arrayLength()}} הוצאות שלא אושרו</p>

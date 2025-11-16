@@ -464,176 +464,176 @@ export class TransactionsService {
 
 
   async classifyTransaction(
-  classifyDto: ClassifyTransactionDto,
-  userId: string,
-): Promise<void> {
-  const {
-    id,
-    isSingleUpdate,
-    name,
-    billName,
-    category,
-    subCategory,
-    taxPercent,
-    vatPercent,
-    reductionPercent,
-    isEquipment,
-    isRecognized,
-    startDate,
-    endDate,
-    minSum,
-    maxSum,
-    comment,          // user-entered text
-    matchType = 'equals', // new field for match behavior
-  } = classifyDto;
+    classifyDto: ClassifyTransactionDto,
+    userId: string,
+  ): Promise<void> {
+    const {
+      id,
+      isSingleUpdate,
+      name,
+      billName,
+      category,
+      subCategory,
+      taxPercent,
+      vatPercent,
+      reductionPercent,
+      isEquipment,
+      isRecognized,
+      startDate,
+      endDate,
+      minSum,
+      maxSum,
+      comment,          // user-entered text
+      matchType = 'equals', // new field for match behavior
+    } = classifyDto;
 
-  console.log('classifyDto is ', classifyDto);
+    console.log('classifyDto is ', classifyDto);
 
-  // ✅ Case 1: Single update
-  if (isSingleUpdate) {
-    const transaction = await this.transactionsRepo.findOne({
-      where: { id, userId },
-    });
+    // ✅ Case 1: Single update
+    if (isSingleUpdate) {
+      const transaction = await this.transactionsRepo.findOne({
+        where: { id, userId },
+      });
 
-    if (!transaction) {
-      throw new NotFoundException(`Transaction with ID ${id} not found`);
+      if (!transaction) {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+
+      transaction.category = category;
+      transaction.subCategory = subCategory;
+      transaction.taxPercent = taxPercent;
+      transaction.vatPercent = vatPercent;
+      transaction.reductionPercent = reductionPercent;
+      transaction.isEquipment = isEquipment;
+      transaction.isRecognized = isRecognized ?? false;
+
+      await this.transactionsRepo.save(transaction);
+      return;
     }
 
-    transaction.category = category;
-    transaction.subCategory = subCategory;
-    transaction.taxPercent = taxPercent;
-    transaction.vatPercent = vatPercent;
-    transaction.reductionPercent = reductionPercent;
-    transaction.isEquipment = isEquipment;
-    transaction.isRecognized = isRecognized ?? false;
-
-    await this.transactionsRepo.save(transaction);
-    return;
-  }
-
-  // ✅ Case 2: Bulk update
-  const subCategoryDetails = await this.findSubCategoryDetails(
-    userId,
-    category,
-    subCategory,
-  );
-
-  if (!subCategoryDetails) {
-    throw new NotFoundException(
-      `Subcategory "${subCategory}" under category "${category}" not found.`,
+    // ✅ Case 2: Bulk update
+    const subCategoryDetails = await this.findSubCategoryDetails(
+      userId,
+      category,
+      subCategory,
     );
-  }
 
-  // ✅ Build dynamic query
-  const query = this.transactionsRepo
-    .createQueryBuilder('t')
-    .where('t.userId = :userId', { userId })
-    .andWhere('t.name = :name', { name })
-    .andWhere('t.billName = :billName', { billName })
-    .andWhere(subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0');
-
-  // Optional date filter
-  if (startDate && endDate) {
-    query.andWhere('t.billDate BETWEEN :start AND :end', {
-      start: startDate,
-      end: endDate,
-    });
-  }
-
-  // Optional sum range filter
-  if (minSum != null && maxSum != null) {
-    query.andWhere('ABS(t.sum) BETWEEN :minSum AND :maxSum', { minSum, maxSum });
-  } else if (minSum != null) {
-    query.andWhere('ABS(t.sum) >= :minSum', { minSum });
-  } else if (maxSum != null) {
-    query.andWhere('ABS(t.sum) <= :maxSum', { maxSum });
-  }
-
-  // Optional comment filter (depending on match type)
-  if (comment) {
-    if (matchType === 'equals') {
-      query.andWhere('t.note2 = :comment', { comment });
-    } else if (matchType === 'contains') {
-      query.andWhere('t.note2 LIKE :comment', { comment: `%${comment}%` });
+    if (!subCategoryDetails) {
+      throw new NotFoundException(
+        `Subcategory "${subCategory}" under category "${category}" not found.`,
+      );
     }
-  }
 
-  const transactions = await query.getMany();
+    // ✅ Build dynamic query
+    const query = this.transactionsRepo
+      .createQueryBuilder('t')
+      .where('t.userId = :userId', { userId })
+      .andWhere('t.name = :name', { name })
+      .andWhere('t.billName = :billName', { billName })
+      .andWhere(subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0');
 
-  if (!transactions.length) {
-    throw new NotFoundException(
-      `No matching transactions found for "${name}" (${billName})`,
-    );
-  }
+    // Optional date filter
+    if (startDate && endDate) {
+      query.andWhere('t.billDate BETWEEN :start AND :end', {
+        start: startDate,
+        end: endDate,
+      });
+    }
 
-  // ✅ Update all matched transactions
-  transactions.forEach((t) => {
-    t.category = subCategoryDetails.categoryName;
-    t.subCategory = subCategoryDetails.subCategoryName;
-    t.taxPercent = subCategoryDetails.taxPercent;
-    t.vatPercent = subCategoryDetails.vatPercent;
-    t.reductionPercent = subCategoryDetails.reductionPercent;
-    t.isEquipment = subCategoryDetails.isEquipment;
-    t.isRecognized = subCategoryDetails.isRecognized ?? false;
-  });
+    // Optional sum range filter
+    if (minSum != null && maxSum != null) {
+      query.andWhere('ABS(t.sum) BETWEEN :minSum AND :maxSum', { minSum, maxSum });
+    } else if (minSum != null) {
+      query.andWhere('ABS(t.sum) >= :minSum', { minSum });
+    } else if (maxSum != null) {
+      query.andWhere('ABS(t.sum) <= :maxSum', { maxSum });
+    }
 
-  await this.transactionsRepo.save(transactions);
+    // Optional comment filter (depending on match type)
+    if (comment) {
+      if (matchType === 'equals') {
+        query.andWhere('t.note2 = :comment', { comment });
+      } else if (matchType === 'contains') {
+        query.andWhere('t.note2 LIKE :comment', { comment: `%${comment}%` });
+      }
+    }
 
-  // ✅ Update or create entry in ClassifiedTransactions
-  let classified = await this.classifiedTransactionsRepo.findOne({
-    where: {
-      userId,
-      transactionName: name,
-      billName,
-      isExpense: subCategoryDetails.isExpense ?? false,
-      startDate: startDate ?? null,
-      endDate: endDate ?? null,
-      minAbsSum: minSum ?? null,
-      maxAbsSum: maxSum ?? null,
-      commentPattern: comment ?? null,
-      commentMatchType: matchType ?? 'equals',
-    },
-  });
+    const transactions = await query.getMany();
 
-  if (!classified) {
-    classified = this.classifiedTransactionsRepo.create({
-      userId,
-      transactionName: name,
-      billName,
-      category: subCategoryDetails.categoryName,
-      subCategory: subCategoryDetails.subCategoryName,
-      taxPercent: subCategoryDetails.taxPercent,
-      vatPercent: subCategoryDetails.vatPercent,
-      reductionPercent: subCategoryDetails.reductionPercent,
-      isEquipment: subCategoryDetails.isEquipment,
-      isRecognized: subCategoryDetails.isRecognized ?? false,
-      isExpense: subCategoryDetails.isExpense ?? false,
-      startDate: startDate ?? null,
-      endDate: endDate ?? null,
-      minAbsSum: minSum ?? null,
-      maxAbsSum: maxSum ?? null,
-      commentPattern: comment ?? null,
-      commentMatchType: matchType ?? 'equals',
+    if (!transactions.length) {
+      throw new NotFoundException(
+        `No matching transactions found for "${name}" (${billName})`,
+      );
+    }
+
+    // ✅ Update all matched transactions
+    transactions.forEach((t) => {
+      t.category = subCategoryDetails.categoryName;
+      t.subCategory = subCategoryDetails.subCategoryName;
+      t.taxPercent = subCategoryDetails.taxPercent;
+      t.vatPercent = subCategoryDetails.vatPercent;
+      t.reductionPercent = subCategoryDetails.reductionPercent;
+      t.isEquipment = subCategoryDetails.isEquipment;
+      t.isRecognized = subCategoryDetails.isRecognized ?? false;
     });
-  } else {
-    classified.category = subCategoryDetails.categoryName;
-    classified.subCategory = subCategoryDetails.subCategoryName;
-    classified.taxPercent = subCategoryDetails.taxPercent;
-    classified.vatPercent = subCategoryDetails.vatPercent;
-    classified.reductionPercent = subCategoryDetails.reductionPercent;
-    classified.isEquipment = subCategoryDetails.isEquipment;
-    classified.isRecognized = subCategoryDetails.isRecognized ?? false;
-    classified.isExpense = subCategoryDetails.isExpense ?? false;
-    classified.startDate = startDate ?? null;
-    classified.endDate = endDate ?? null;
-    classified.minAbsSum = minSum ?? null;
-    classified.maxAbsSum = maxSum ?? null;
-    classified.commentPattern = comment ?? null;
-    classified.commentMatchType = matchType ?? 'equals';
-  }
 
-  await this.classifiedTransactionsRepo.save(classified);
-}
+    await this.transactionsRepo.save(transactions);
+
+    // ✅ Update or create entry in ClassifiedTransactions
+    let classified = await this.classifiedTransactionsRepo.findOne({
+      where: {
+        userId,
+        transactionName: name,
+        billName,
+        isExpense: subCategoryDetails.isExpense ?? false,
+        startDate: startDate ?? null,
+        endDate: endDate ?? null,
+        minAbsSum: minSum ?? null,
+        maxAbsSum: maxSum ?? null,
+        commentPattern: comment ?? null,
+        commentMatchType: matchType ?? 'equals',
+      },
+    });
+
+    if (!classified) {
+      classified = this.classifiedTransactionsRepo.create({
+        userId,
+        transactionName: name,
+        billName,
+        category: subCategoryDetails.categoryName,
+        subCategory: subCategoryDetails.subCategoryName,
+        taxPercent: subCategoryDetails.taxPercent,
+        vatPercent: subCategoryDetails.vatPercent,
+        reductionPercent: subCategoryDetails.reductionPercent,
+        isEquipment: subCategoryDetails.isEquipment,
+        isRecognized: subCategoryDetails.isRecognized ?? false,
+        isExpense: subCategoryDetails.isExpense ?? false,
+        startDate: startDate ?? null,
+        endDate: endDate ?? null,
+        minAbsSum: minSum ?? null,
+        maxAbsSum: maxSum ?? null,
+        commentPattern: comment ?? null,
+        commentMatchType: matchType ?? 'equals',
+      });
+    } else {
+      classified.category = subCategoryDetails.categoryName;
+      classified.subCategory = subCategoryDetails.subCategoryName;
+      classified.taxPercent = subCategoryDetails.taxPercent;
+      classified.vatPercent = subCategoryDetails.vatPercent;
+      classified.reductionPercent = subCategoryDetails.reductionPercent;
+      classified.isEquipment = subCategoryDetails.isEquipment;
+      classified.isRecognized = subCategoryDetails.isRecognized ?? false;
+      classified.isExpense = subCategoryDetails.isExpense ?? false;
+      classified.startDate = startDate ?? null;
+      classified.endDate = endDate ?? null;
+      classified.minAbsSum = minSum ?? null;
+      classified.maxAbsSum = maxSum ?? null;
+      classified.commentPattern = comment ?? null;
+      classified.commentMatchType = matchType ?? 'equals';
+    }
+
+    await this.classifiedTransactionsRepo.save(classified);
+  }
 
 
 
@@ -661,7 +661,7 @@ export class TransactionsService {
   //   } = classifyDto;
 
   //   console.log("classifyDto is ", classifyDto);
-    
+
 
   //   // ✅ Case 1: Single update
   //   if (isSingleUpdate) {
@@ -1294,7 +1294,8 @@ export class TransactionsService {
           billDate: Between(startDate, endDate),
           isRecognized: true,
           sum: LessThan(0),
-          businessNumber: businessNumber
+          businessNumber: businessNumber,
+          confirmed: false
         },
       ]
     });
@@ -1446,8 +1447,8 @@ export class TransactionsService {
       }
 
       // Save the updated transaction
-      transaction.vatReportingDate = expense.vatReportingDate;
-      await this.transactionsRepo.save(transaction);
+      // transaction.vatReportingDate = expense.vatReportingDate;
+      // await this.transactionsRepo.save(transaction);
 
       expenses.push(expense);
     }
@@ -1456,6 +1457,11 @@ export class TransactionsService {
     if (expenses.length > 0) {
       await this.expenseRepo.save(expenses);
     }
+
+    await this.transactionsRepo.update(
+      { id: In(transactionIds), userId },
+      { confirmed: true }
+    );
 
     const message = `Successfully converted ${expenses.length} transactions to expenses. ${skippedTransactions} transactions were skipped because they already exist as expenses.`;
 

@@ -273,7 +273,7 @@ export class ModalExpensesComponent {
           }
           //this.openPopoverMessage(this.errorString)
           if (filePath !== '') {
-            this.fileService.deleteFile(filePath);
+            this.fileService.deleteFileFromFirebase(filePath);
           }
           return EMPTY;
         })
@@ -321,14 +321,14 @@ export class ModalExpensesComponent {
         catchError((err) => {
           alert('Something Went Wrong in second catchError ' + err.error.message)
           if (this.selectedFile) {
-            this.fileService.deleteFile(filePath);
+            this.fileService.deleteFileFromFirebase(filePath);
           }
           return EMPTY;
         })
       ).subscribe((res) => {
         if (previousFile !== "") {
           if (this.selectedFile) {
-            this.fileService.deleteFile(previousFile);
+            this.fileService.deleteFileFromFirebase(previousFile);
           }
         }
         if (res) { // TODO: why returning this object from BE?

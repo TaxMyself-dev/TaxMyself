@@ -351,7 +351,7 @@ export class FlowReportPage implements OnInit {
           console.log("err in send transaction to server: ", err);
           this.chosenTrans.forEach((tran) => {
             if (tran.file) {
-              this.fileService.deleteFile(tran.file as string);
+              this.fileService.deleteFileFromFirebase(tran.file as string);
               console.log("file: ", tran.file, "is delete");
             }
           })

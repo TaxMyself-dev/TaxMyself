@@ -41,8 +41,12 @@
   @if (vatReportDataTable?.length > 0) {
     <app-generic-table 
       (fileChange)="onFileChange($event)"
+      (filePreview)="onPreviewFile($event)"
+      (fileDelete)="onDeleteFile($event)"
+      (fileEdit)="onEditFile($event)"
       [attachment]="true"
-      [filesAttached]="filesAttachedMap()" 
+      [filesAttached]="filesAttachedMap()"
+      [immediateFileOperation]="false"
       class="expenses-table"
       [placeholderSearch]="'חיפוש לפי שם עסק'" 
       [title]="'הוצאות'" 
@@ -59,4 +63,9 @@
 @if (transToConfirmData?.length > 0 && visibleConfirmTransDialog()) {
   <app-confirm-trans-dialog  (confirmArraySelected)="confirmTrans($event)" (isVisibleChange)="closeDialogWithoutConfirm($event)" [isLoadingButton]="isLoadingButtonConfirmDialog()"
   [isVisible]="visibleConfirmTransDialog()" [data]="transToConfirmData" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()" [arrayLength]="arrayLength()"></app-confirm-trans-dialog>
+}
+@if (isRequestSent() && this.rows.length === 0) {
+  <div>
+    <p>לא קיימות הוצאות מוכרות עבור עסק זה בתאריכים אלו</p>
+  </div>
 }

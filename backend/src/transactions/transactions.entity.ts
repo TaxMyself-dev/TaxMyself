@@ -1,7 +1,7 @@
-import { 
-    Entity, 
-    Column, 
-    PrimaryGeneratedColumn,
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
 } from 'typeorm'
 import { DualMonthReport, ExpenseNecessity, SingleMonthReport } from 'src/enum';
 
@@ -46,7 +46,7 @@ export class Transactions {
 
   @Column({ type: 'varchar', nullable: true, default: null })
   subCategory: string | null;
-  
+
   @Column({ type: 'boolean', nullable: true, default: false })
   isRecognized: boolean | null;
 
@@ -69,4 +69,6 @@ export class Transactions {
   })
   vatReportingDate: SingleMonthReport | DualMonthReport | null;
 
+  @Column({ type: 'boolean', default: false })
+  confirmed: boolean;
 }

@@ -342,7 +342,7 @@ export class FilesService {
 
 
 
-  public async deleteFile(urlFile: string): Promise<void> {
+  public async deleteFileFromFirebase (urlFile: string): Promise<void> {
     const storage = getStorage();
     const delRef = ref(storage, urlFile);
     await deleteObject(delRef).then(() => {
@@ -547,7 +547,7 @@ export class FilesService {
    */
   deleteMultipleFiles(filePaths: string[]): Observable<void> {
     const deleteObservables = filePaths.map(path => 
-      this.deleteFile(path).then(() => {
+      this.deleteFileFromFirebase(path).then(() => {
         console.log("Deleted file:", path);
       }).catch(err => {
         console.error("Failed to delete file:", path, err);

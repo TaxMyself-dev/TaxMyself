@@ -61,6 +61,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   title = input<string>();
   attachment = input<boolean>(false);
   filesAttached = input<Map<number, File>>(new Map());
+  immediateFileOperation = input<boolean>(false); // If true, file operations happen immediately
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   incomeMode = input<boolean>(false);
@@ -105,6 +106,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   onQuickClassifyClicked = output<boolean>();
 
 fileChange = output<FileChangeEvent>();
+filePreview = output<IRowDataTable>();
+fileDelete = output<{ row: IRowDataTable, deleteFromServer: boolean }>();
+fileEdit = output<IRowDataTable>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -385,6 +389,50 @@ onFileChange(event: Event, row: IRowDataTable) {
   }
 
 }
+
+  getFileName(row: IRowDataTable): string {
+    // First check if there's a newly attached file in the map
+    const attachedFile = this.filesAttached().get(row.id as number);
+    if (attachedFile) {
+      return attachedFile.name;
+    }
+    // Otherwise, return the fileName from the row data (existing file)
+    return row['fileName'] as string || 'קובץ מצורף';
+  }
+
+  onPreviewFile(row: IRowDataTable): void {
+    this.filePreview.emit(row);
+  }
+
+  onDeleteFile(row: IRowDataTable): void {
+    // Check if this is a server file that needs to be deleted
+    const deleteFromServer = !!(row['file'] && row['file'] !== '' && row['file'] !== null);
+    this.fileDelete.emit({ row, deleteFromServer });
+  }
+
+  onEditFile(row: IRowDataTable): void {
+    this.fileEdit.emit(row);
+  }
+
+  canPreviewFile(row: IRowDataTable): boolean {
+    // Can preview if there's an existing file on the server (row.file)
+    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
+  }
+
+  canDeleteFile(row: IRowDataTable): boolean {
+    // Can delete if there's a server file
+    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
+  }
+
+  canEditFile(row: IRowDataTable): boolean {
+    // Can edit (replace) if there's an existing file on the server
+    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
+  }
+
+  showAttachButton(row: IRowDataTable): boolean {
+    // Show attach button if there's no server file (only for new attachments)
+    return !(row['file'] && row['file'] !== '' && row['file'] !== null);
+  }
 
   hasFileAttached(row: IRowDataTable): boolean {
     const hasInMap = this.filesAttached().has(row.id as number);

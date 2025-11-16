@@ -105,31 +105,62 @@
           }
           @if (attachment()) {
             <td style="text-align: center;">
-              <input 
-                #fileInput
-                type="file" 
-                style="display: none;"
-                (change)="onFileChange($event, row)"
-                accept=".pdf,.jpg,.jpeg,.png"
-              />
-              @if (hasFileAttached(row)) {
-                <i class="pi pi-file" 
-                   style="font-size: 1.2rem; cursor: pointer; color: #10b981;"
-                   (click)="fileInput.click()"
-                   pTooltip="שנה קובץ"
-                   tooltipPosition="top"></i>
-                <i class="pi pi-check-circle" 
-                   style="font-size: 0.8rem; color: #10b981; margin-right: -0.5rem; margin-top: -0.8rem;"></i>
-              } @else {
-                <i class="pi pi-paperclip" 
-                   style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
-                   (click)="fileInput.click()"
-                   pTooltip="צרף קובץ"
-                   tooltipPosition="top"></i>
-              }
-              @if (row['attachmentCount'] && row['attachmentCount'] > 0) {
-                <span style="margin-left: 0.3rem; font-size: 0.85rem; color: #6b7280;">({{ row['attachmentCount'] }})</span>
-              }
+              <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                <input 
+                  #fileInput
+                  type="file" 
+                  style="display: none;"
+                  (change)="onFileChange($event, row)"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                />
+                
+                <!-- If file exists on server: show preview, edit, delete -->
+                @if (canPreviewFile(row)) {
+                  <!-- Preview button -->
+                  <i class="pi pi-eye" 
+                     style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
+                     (click)="onPreviewFile(row)"
+                     [pTooltip]="'צפה בקובץ: ' + getFileName(row)"
+                     tooltipPosition="top"></i>
+                  
+                  <!-- Edit button (replace file) -->
+                  <i class="pi pi-pencil" 
+                     style="font-size: 1.2rem; cursor: pointer; color: #f59e0b;"
+                     (click)="onEditFile(row)"
+                     pTooltip="ערוך קובץ (החלף)"
+                     tooltipPosition="top"></i>
+                  
+                  <!-- Delete button -->
+                  <i class="pi pi-trash" 
+                     style="font-size: 1.2rem; cursor: pointer; color: #ef4444;"
+                     (click)="onDeleteFile(row)"
+                     pTooltip="מחק קובץ"
+                     tooltipPosition="top"></i>
+                } @else {
+                  <!-- No file exists: show attach button -->
+                  @if (hasFileAttached(row)) {
+                    <!-- File selected but not uploaded yet -->
+                    <i class="pi pi-file" 
+                       style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
+                       (click)="fileInput.click()"
+                       [pTooltip]="'שנה קובץ: ' + getFileName(row)"
+                       tooltipPosition="top"></i>
+                    <i class="pi pi-check-circle" 
+                       style="font-size: 0.8rem; color: #10b981; margin-right: -0.5rem; margin-top: -0.8rem;"></i>
+                  } @else {
+                    <!-- No file at all: show attach button -->
+                    <i class="pi pi-paperclip" 
+                       style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
+                       (click)="fileInput.click()"
+                       pTooltip="צרף קובץ"
+                       tooltipPosition="top"></i>
+                  }
+                }
+                
+                @if (row['attachmentCount'] && row['attachmentCount'] > 0) {
+                  <span style="margin-left: 0.3rem; font-size: 0.85rem; color: #6b7280;">({{ row['attachmentCount'] }})</span>
+                }
+              </div>
             </td>
           }
         </tr>

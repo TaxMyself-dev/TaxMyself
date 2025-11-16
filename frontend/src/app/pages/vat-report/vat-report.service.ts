@@ -42,4 +42,13 @@ export class VatReportService {
 
   }
 
+  deleteFileFromDB(expenseId: number): Observable<any> {
+    const token = localStorage.getItem('token');
+    const url = `${environment.apiUrl}expenses/delete-file-from-expense/${expenseId}`;
+    const headers = {
+      'token': token
+    }
+    return this.http.patch<any>(url, {}, {headers: headers})
+  }
+
 }

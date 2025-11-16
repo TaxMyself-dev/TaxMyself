@@ -82,7 +82,7 @@ export class ConfirmTransDialogComponent implements OnInit {
   }
 
   closeDialog(): void {
-    this.dialogVisible = false;
+    // this.dialogVisible = false;
     this.isVisibleChange.emit(false);
   }
 

@@ -240,7 +240,7 @@ export class MyStoragePage implements OnInit {
         console.log("The expense can not be deleted", err);
         return EMPTY;
       }),
-      switchMap((res) => this.filesService.deleteFile(res?.['file'])),
+      switchMap((res) => this.filesService.deleteFileFromFirebase(res?.['file'])),
       tap((res) => {
         console.log("in tap");
         
