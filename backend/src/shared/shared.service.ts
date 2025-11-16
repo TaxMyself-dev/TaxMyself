@@ -23,7 +23,7 @@ export class SharedService {
         private readonly transactionRepository: Repository<Transactions>,
         @InjectRepository(SettingDocuments)
         private readonly settingDocumentsRepo: Repository<SettingDocuments>,
-    ) {}
+    ) { }
 
 
     async findEntities<T>(entity: EntityTarget<T>, conditions: any): Promise<T[]> {
@@ -62,23 +62,23 @@ export class SharedService {
         if (yearStr === undefined || monthStr === undefined) {
             return { startDate: null, endDate: null };
         }
-    
+
         isSingleMonth = typeof isSingleMonth === 'string' ? isSingleMonth === 'true' : isSingleMonth;
-    
+
         const year = parseInt(yearStr, 10);
         const month = parseInt(monthStr, 10) - 1;
-    
+
         // Start date: first day of the specified month at 00:00:00 UTC
         const startDate = new Date(Date.UTC(year, month, 1));
-    
+
         // End date: last day of the month or the following month at 23:59:59 UTC
         const endDate = isSingleMonth
             ? new Date(Date.UTC(year, month + 1, 0, 23, 59, 59)) // Last day of the specified month
             : new Date(Date.UTC(year, month + 2, 0, 23, 59, 59)); // Last day of the next month
-    
+
         return { startDate, endDate };
     }
-    
+
 
     getDayOfYearFromDate(date: Date): number {
         // Assuming the input format is "DD.MM.YYYY"
@@ -110,11 +110,11 @@ export class SharedService {
         const year = date.getFullYear();
 
         let result: SingleMonthReport | DualMonthReport | null = null;
-    
+
         if (vatReportingType === VATReportingType.SINGLE_MONTH_REPORT) {
-        result = `${month}/${year}` as SingleMonthReport;
-        console.log("SingleMonthReport - result is ", result);
-        
+            result = `${month}/${year}` as SingleMonthReport;
+            console.log("SingleMonthReport - result is ", result);
+
         }
         else if (vatReportingType === VATReportingType.DUAL_MONTH_REPORT) {
             const dualMonthPairs = {
@@ -130,53 +130,75 @@ export class SharedService {
                 10: `9-10/${year}`,
                 11: `11-12/${year}`,
                 12: `11-12/${year}`,
-            };  
+            };
             result = dualMonthPairs[month] as DualMonthReport;
             console.log("DualMonthReport - result is ", result);
         }
         else {
             result = null;
             console.log("null - result is ", result);
-        }        
+        }
 
         return result;
-    
+
     }
 
 
-    convertStringToDateObject(dateString): Date {        
-
-        const parts = dateString.split('/'); // Split the input string by '/'
+    convertStringToDateObject(dateString: string): Date {
+        const parts = dateString.split('/');
         if (parts.length !== 3) {
-            throw new Error("Invalid date format. Please use 'dd/MM/yyyy'.");
+            throw new Error("Invalid date format. Expected 'dd/MM/yyyy'.");
         }
-        
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1; // JavaScript months are zero-indexed
-        const year = parseInt(parts[2], 10);
-    
-        // Validate that day, month (adjusted for zero-index), and year are numeric and in valid ranges
-        if (!Number.isInteger(day) || !Number.isInteger(month + 1) || !Number.isInteger(year)) {
-            throw new Error("Date components must be numeric and within correct ranges.");
-        }
-    
-        // Creating a date in UTC
-        const date = new Date(Date.UTC(year, month, day));
-        //console.log("check: ", date.toISOString());  // Outputs "2024-01-01T00:00:00.000Z"
 
-        // Check if the constructed date matches the input parts to catch invalid dates like February 30
-        if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
-            throw new Error("Invalid date: The date does not exist on the calendar.");
+        const day = Number(parts[0]);
+        const month = Number(parts[1]) - 1; // zero-index
+        const year = Number(parts[2]);
+
+        // Basic numeric validation
+        if (!Number.isInteger(day) || !Number.isInteger(month + 1) || !Number.isInteger(year)) {
+            throw new Error("Invalid numeric values in date.");
         }
-    
+
+        // Range validation BEFORE creating Date
+        if (day < 1 || day > 31) throw new Error(`Invalid day '${day}'.`);
+        if (month < 0 || month > 11) throw new Error(`Invalid month '${month + 1}'.`);
+        if (year < 1000 || year > 9999) throw new Error(`Invalid year '${year}'.`);
+
+        // Create UTC date
+        const date = new Date(Date.UTC(year, month, day));
+
+        // Validate real calendar date (catches 31/02, 29/02 non-leap-year, etc.)
+        if (
+            date.getUTCFullYear() !== year ||
+            date.getUTCMonth() !== month ||
+            date.getUTCDate() !== day
+        ) {
+            throw new Error("Invalid date: does not exist on the calendar.");
+        }
+
         return date;
     }
+
+    normalizeToMySqlDate(input: any): string | null {
+        if (!input) return null;
+
+        const d = new Date(input);
+
+        if (isNaN(d.getTime())) {
+            return null; // invalid date
+        }
+
+        return d.toISOString().split('T')[0]; // YYYY-MM-DD
+    }
+
+
+
 
 
     getParameters(year: number) {
         const parameters = annualParams[year];
         if (!parameters) {
-          throw new Error(`Parameters for year ${year} are not defined.`);
+            throw new Error(`Parameters for year ${year} are not defined.`);
         }
         return parameters;
     }
@@ -191,11 +213,11 @@ export class SharedService {
     getVatRateByYear(date: Date): number {
         const year = date.getFullYear();
         const vatRate = VAT_RATES[year];
-    
+
         if (vatRate === undefined) {
-          throw new InternalServerErrorException(`VAT rate for year ${year} not found`);
+            throw new InternalServerErrorException(`VAT rate for year ${year} not found`);
         }
-    
+
         return vatRate;
     }
 
@@ -207,7 +229,7 @@ export class SharedService {
     //         docType: DocumentType.JOURNAL_ENTRY,
     //         },
     //     });
-        
+
     //     if (!setting) {
     //         // Create initial setting with default index
     //         setting = this.settingDocumentsRepo.create({
@@ -216,10 +238,10 @@ export class SharedService {
     //         initialIndex: 10000000,
     //         currentIndex: 10000000,
     //         });
-        
+
     //         await this.settingDocumentsRepo.save(setting);
     //     }
-        
+
     //     return setting.currentIndex;
     // }
 
@@ -231,17 +253,17 @@ export class SharedService {
 
         let setting = await repo.findOne({
             where: {
-            userId,
-            docType: DocumentType.JOURNAL_ENTRY,
+                userId,
+                docType: DocumentType.JOURNAL_ENTRY,
             },
         });
 
         if (!setting) {
             setting = repo.create({
-            userId,
-            docType: DocumentType.JOURNAL_ENTRY,
-            initialIndex: 10000000,
-            currentIndex: 10000000,
+                userId,
+                docType: DocumentType.JOURNAL_ENTRY,
+                initialIndex: 10000000,
+                currentIndex: 10000000,
             });
 
             await repo.save(setting);
@@ -258,7 +280,7 @@ export class SharedService {
     //         docType: DocumentType.JOURNAL_ENTRY,
     //       },
     //     });
-      
+
     //     setting.currentIndex += 1;
     //     await this.settingDocumentsRepo.save(setting);
     // }
@@ -271,8 +293,8 @@ export class SharedService {
 
         const setting = await repo.findOneOrFail({
             where: {
-            userId,
-            docType: DocumentType.JOURNAL_ENTRY,
+                userId,
+                docType: DocumentType.JOURNAL_ENTRY,
             },
         });
 

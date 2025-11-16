@@ -507,7 +507,7 @@ export class DocumentsService {
       // 6. Bookkeeping entry
       await this.bookkeepingService.createJournalEntry({
         issuerBusinessNumber: data.docData.issuerBusinessNumber,
-        date: data.docData.docDate,
+        date: this.sharedService.normalizeToMySqlDate(data.docData.documentDate),
         referenceType: data.docData.docType,
         referenceId: parseInt(data.docData.docNumber),
         description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
@@ -773,13 +773,7 @@ export class DocumentsService {
 
       const payments = data.map(item => {
         // Normalize date to YYYY-MM-DD for MySQL DATE column
-        let paymentDate: string | null = null;
-        if (item.paymentDate) {
-          const d = new Date(item.paymentDate);
-          if (!isNaN(d.getTime())) {
-            paymentDate = d.toISOString().split('T')[0];
-          }
-        }
+          const paymentDate = this.sharedService.normalizeToMySqlDate(item.paymentDate);
 
         // Map paymentSum (from frontend) to paymentAmount (DB column)
         const paymentAmount = item.paymentAmount ?? item.paymentSum ?? 0;
