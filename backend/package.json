@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "-": "^0.0.1",
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/cli": "^9.5.0",
     "@nestjs/common": "^10.3.7",
     "@nestjs/config": "^3.2.2",
@@ -32,7 +33,7 @@
     "@nestjs/typeorm": "^10.0.0",
     "@types/cookie-session": "^2.0.44",
     "archiver": "^7.0.1",
-    "axios": "^1.7.8",
+    "axios": "^1.13.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "cookie-session": "^2.0.0",

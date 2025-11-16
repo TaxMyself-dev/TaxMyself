@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 //Modules
+import { HttpModule } from '@nestjs/axios';
 import { ClientsModule } from './clients/clients.module';
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
@@ -96,7 +97,7 @@ import { BusinessModule } from './business/business.module';
       Child
     ]),
     ScheduleModule.forRoot(),
-    UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
   controllers: [AppController],
   providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
 })
