@@ -90,6 +90,9 @@ export class BookkeepingService {
 
 
 async createJournalEntry(input: JournalEntryInput, manager?: EntityManager): Promise<void> {
+
+  console.log("input is ", input);
+  
   const {
     issuerBusinessNumber,
     date,
@@ -114,7 +117,7 @@ async createJournalEntry(input: JournalEntryInput, manager?: EntityManager): Pro
       : this.defaultBookingAccountRepo;
 
     // 1. Get journal entry index
-    const entryId = await this.sharedService.getJournalEntryCurrentIndex(issuerBusinessNumber, manager);
+    const entryId = await this.sharedService.getJournalEntryCurrentIndex(issuerBusinessNumber, manager);    
 
     // 2. Save journal entry
     const journalEntry = await journalEntryRepo.save({

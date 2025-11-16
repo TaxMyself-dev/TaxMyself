@@ -1,4 +1,4 @@
-import { Component, computed, OnDestroy, OnInit, Signal, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
 import { BusinessMode, CardCompany, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
@@ -43,6 +43,12 @@ interface PaymentFieldConfig {
   standalone: false
 })
 export class DocCreatePage implements OnInit, OnDestroy {
+
+  private gs = inject(GenericService);
+
+  // reactive bindings
+  businessOptions = computed(() => this.gs.businesses());
+  isLoading = computed(() => this.gs.isLoadingBusinesses());
 
   paymentsDetailsForm: FormGroup;
   myForm: FormGroup;
@@ -179,7 +185,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
 
-  ngOnInit() {
+  async ngOnInit() {
+    await this.gs.loadBusinesses();
+    //console.log("businessOption is ", this.businessOptions());
+    
     this.createForms();
     this.generalDetailsForm.statusChanges.subscribe(() => {
       this.generalFormIsValidSignal.set(this.generalDetailsForm.valid);

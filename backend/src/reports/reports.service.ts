@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
@@ -25,6 +25,7 @@ import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
+import { Business } from 'src/business/business.entity';
 
 
 @Injectable()
@@ -46,6 +47,8 @@ export class ReportsService {
     private expenseRepo: Repository<Expense>,
     @InjectRepository(Transactions)
     private transactionsRepo: Repository<Transactions>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
     @InjectRepository(Documents)
     private documentsRepo: Repository<Documents>,
     @InjectRepository(DocLines)
@@ -225,6 +228,78 @@ export class ReportsService {
       
       return report;
       
+  }
+
+
+  async getIncomeBeforeVat(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number> {
+
+    // 1️⃣ Get the business and its type
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber },
+    });
+
+    if (!business) {
+      throw new NotFoundException('Business not found');
+    }
+
+    // 2️⃣ Filter by business type
+    const { businessType } = business;
+
+    // Base condition for all businesses
+    const baseQb = this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false');
+
+    // 3️⃣ Logic by type
+    if (businessType === BusinessType.EXEMPT) {
+      // 🟢 Exempt (עוסק פטור)
+      // Income is based on RECEIPTs (sumAftDisBefVAT)
+      const result = await baseQb
+        .andWhere('doc.docType = :type', { type: 'RECEIPT' })
+        .andWhere('doc.valueDate BETWEEN :start AND :end', {
+          start: startDate,
+          end: endDate,
+        })
+        .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+        .getRawOne<{ total: string }>();
+
+      return Number(result.total);
+    }
+
+    // 🟣 Licensed / Company (עוסק מורשה / חברה)
+    // Income before VAT = (TAX_INVOICE + TAX_INVOICE_RECEIPT) - CREDIT_INVOICE
+    const regularInvoices = await baseQb
+      .andWhere('doc.docType IN (:...types)', {
+        types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT'],
+      })
+      .andWhere('doc.docDate BETWEEN :start AND :end', {
+        start: startDate,
+        end: endDate,
+      })
+      .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+      .getRawOne<{ total: string }>();
+
+    const creditInvoices = await this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false')
+      .andWhere('doc.docType = :type', { type: 'CREDIT_INVOICE' })
+      .andWhere('doc.docDate BETWEEN :start AND :end', {
+        start: startDate,
+        end: endDate,
+      })
+      .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+      .getRawOne<{ total: string }>();
+
+    const totalIncome =
+      Number(regularInvoices.total) - Number(creditInvoices.total);
+
+    return totalIncome;
   }
         
 
