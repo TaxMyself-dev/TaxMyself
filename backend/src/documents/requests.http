@@ -3,6 +3,11 @@ GET  http://localhost:3000/documents/get-setting-doc-by-type/1
 content-type: application/json
 
 ###
+GET  https://api.bigdatacloud.net/data/client-info
+content-type: application/json
+
+
+###
 PATCH   http://localhost:3000/documents/update-setting-doc-by-type/1
 content-type: application/json
 
