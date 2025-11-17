@@ -4,7 +4,7 @@ import { catchError, EMPTY, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { FileChangeEvent, IColumnDataTable, IRowDataTable, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
 import { AsyncPipe, NgStyle } from '@angular/common';
 import { TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
@@ -89,15 +89,10 @@ export class ConfirmTransDialogComponent implements OnInit {
   onChecked(event :IRowDataTable[]): void {
     this.selectedArray = event;    
   }
-onFileChange(e: FileChangeEvent) {
+onFileChange(e: {row: IRowDataTable, file?: File}) {
   const updated = new Map(this.filesAttachedMap());
-  if (e.type === 'set') {
-    updated.set(e.row.id as number, e.file);
-    this.arrayFile = [...this.arrayFile.filter(x => x.id !== e.row.id), { id: e.row.id as number, file: e.file }];
-  } else {
-    updated.delete(e.row.id as number);
-    this.arrayFile = this.arrayFile.filter(x => x.id !== e.row.id);
-  }
+  updated.set(e.row.id as number, e.file);
+  this.arrayFile = [...this.arrayFile.filter(x => x.id !== e.row.id), { id: e.row.id as number, file: e.file }];
   this.filesAttachedMap.set(updated);
 }
 

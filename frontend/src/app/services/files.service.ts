@@ -8,7 +8,7 @@ import { EMPTY, Observable, catchError, finalize, from, map, of, switchMap, tap,
 import { environment } from 'src/environments/environment';
 import * as Tesseract from 'tesseract.js';
 import { GenericService } from './generic.service';
-import { ICreateDataDoc } from '../shared/interface';
+import { ICreateDataDoc, IRowDataTable } from '../shared/interface';
 
 export interface IFileUploadItem {
   id: number;
@@ -342,15 +342,29 @@ export class FilesService {
 
 
 
-  public async deleteFileFromFirebase (urlFile: string): Promise<void> {
+  // public async deleteFileFromFirebase(urlFile: string): Promise<void> {
+  //   const storage = getStorage();
+  //   const delRef = ref(storage, urlFile);
+  //   await deleteObject(delRef).then(() => {
+  //     console.log("delete file: ", urlFile);
+  //   }).catch((error) => {
+  //     console.log(error);
+  //     console.log("delete file is faild: ", urlFile);
+  //   });
+  // }
+
+  public deleteFileFromFirebase(urlFile: string): Observable<void> {
     const storage = getStorage();
     const delRef = ref(storage, urlFile);
-    await deleteObject(delRef).then(() => {
-      console.log("delete file: ", urlFile);
-    }).catch((error) => {
-      console.log(error);
-      console.log("delete file is faild: ", urlFile);
-    });
+
+    return from(deleteObject(delRef)).pipe(
+      tap(() => {
+      }),
+      catchError((error) => {
+        console.error(error);
+        return throwError(() => error);
+      })
+    );
   }
 
   uploadFileViaFront(file: File): Observable<any> {
@@ -475,29 +489,13 @@ export class FilesService {
     return file;
   }
 
+  createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<any> {
+    const url = `${environment.apiUrl}reports/create-uniform-file`;
+    const body = { startDate, endDate, businessNumber };
 
+    return this.http.post<any>(url, body);
+  }
 
-
-    // createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable<Blob> {
-    //   const url = `${environment.apiUrl}reports/create-uniform-file`;
-    //   const body = { startDate, endDate, businessNumber };
-
-    //   // Make a POST request to get the ZIP file from the backend
-    //   return this.http.post(url, body, { responseType: 'blob' });
-    // }
-
-    createUniformFile(startDate: string, endDate: string, businessNumber: string): Observable < any > {
-      const url = `${environment.apiUrl}reports/create-uniform-file`;
-      const body = { startDate, endDate, businessNumber };
-
-      return this.http.post<any>(url, body);
-    }
-
-  /**
-   * Uploads multiple files to Firebase with progress tracking
-   * @param files Array of file upload items
-   * @returns Observable of upload results
-   */
   uploadFilesToFirebaseBatch(files: IFileUploadItem[]): Observable<IUploadResult[]> {
     const totalFiles = files.length;
     let filesUploaded = 0;
@@ -540,42 +538,11 @@ export class FilesService {
     );
   }
 
-  /**
-   * Deletes multiple files from Firebase
-   * @param filePaths Array of file paths to delete
-   * @returns Observable that completes when all deletions are done
-   */
-  deleteMultipleFiles(filePaths: string[]): Observable<void> {
-    const deleteObservables = filePaths.map(path => 
-      this.deleteFileFromFirebase(path).then(() => {
-        console.log("Deleted file:", path);
-      }).catch(err => {
-        console.error("Failed to delete file:", path, err);
-      })
-    );
-
-    return new Observable(observer => {
-      Promise.all(deleteObservables)
-        .then(() => {
-          observer.next();
-          observer.complete();
-        })
-        .catch(err => {
-          observer.error(err);
-        });
-    });
+  deleteMultipleFiles(filePaths: string[]): void {
+    filePaths.map(path => this.deleteFileFromFirebase(path).subscribe());
   }
 
-  /**
-   * Upload files and send to server with automatic rollback on failure
-   * @param files Array of file upload items
-   * @param serverSaveFunction Function to save file paths to server
-   * @returns Observable that completes when upload and server save succeed
-   */
-  uploadAndSaveToServer<T>(
-    files: IFileUploadItem[],
-    serverSaveFunction: (uploadedFiles: IFileUploadItem[]) => Observable<T>
-  ): Observable<T> {
+  uploadAndSaveMultipleFilesToServer<T>(files: IFileUploadItem[], serverSaveFunction: (uploadedFiles: IFileUploadItem[]) => Observable<T>): Observable<T> {
     let uploadedFilePaths: string[] = [];
 
     return this.uploadFilesToFirebaseBatch(files).pipe(
@@ -594,10 +561,7 @@ export class FilesService {
           catchError((err) => {
             console.error("Server save failed, rolling back uploads:", err);
             // Rollback: delete all uploaded files
-            this.deleteMultipleFiles(uploadedFilePaths).subscribe({
-              next: () => console.log("Rollback complete: all files deleted"),
-              error: (deleteErr) => console.error("Rollback failed:", deleteErr)
-            });
+            this.deleteMultipleFiles(uploadedFilePaths)
             throw err;
           })
         );
@@ -605,4 +569,62 @@ export class FilesService {
     );
   }
 
+  uploadAndSaveSingleFileToServer<T>(fileItem: IFileUploadItem, serverSaveFunction: (uploadedFile: IFileUploadItem) => Observable<T>
+  ): Observable<T> {
+
+    return this.uploadFileViaFront(fileItem.file as File).pipe( // <-- single file upload
+      switchMap((result) => {
+        const uploadedFilePath = result.metadata.fullPath;
+
+        const updatedFile: IFileUploadItem = {
+          id: result.id,
+          file: result.metadata.fullPath
+        };
+
+        return serverSaveFunction(updatedFile).pipe(
+          catchError(err => {
+            console.error("Server save failed, rollback upload:", err);
+
+            // rollback delete
+            this.deleteFileFromFirebase(uploadedFilePath).subscribe()
+
+            throw err;
+          })
+        );
+      })
+    );
   }
+
+  saveFilesToServer<T>(files: IFileUploadItem[], serverPath: string, fromTransactions: boolean = false): Observable<T> {
+    console.log("🚀 ~ FilesService ~ saveFilesToServer ~ files:", files)
+    const url = `${environment.apiUrl}${serverPath}`;
+    return this.http.patch<any>(url, { files, fromTransactions })
+  }
+
+   addFileToExpense(row: IRowDataTable, file?: File, serverPath: string = "expenses/add-file-to-expense"): Observable<any> {
+    return this.uploadFileViaFront(file as File).pipe(
+      switchMap((result) => {
+        const updatedFile: IFileUploadItem = {
+          id: row.id as number,
+          file: result.metadata.fullPath
+        };
+        return this.saveFilesToServer([updatedFile], serverPath)
+          .pipe(
+            catchError(err => {
+              console.error("Server save failed, rollback upload:", err);
+              return throwError(() => err);
+            }),
+            tap(() => {
+              console.log("File saved successfully");
+            }),
+            switchMap(() => {
+              if (row.file) {
+                return this.deleteFileFromFirebase(row.file as string);
+              }
+              return of(null);
+            })
+          )
+      })
+    )
+  }
+}

@@ -36,6 +36,7 @@
     </app-p-button>
     
   }
+  <!-- (fileEdit)="onEditFile($event)" -->
 
   @let vatReportDataTable = dataTable | async;
   @if (vatReportDataTable?.length > 0) {
@@ -43,8 +44,7 @@
       (fileChange)="onFileChange($event)"
       (filePreview)="onPreviewFile($event)"
       (fileDelete)="onDeleteFile($event)"
-      (fileEdit)="onEditFile($event)"
-      [attachment]="true"
+      [actions]="true"
       [filesAttached]="filesAttachedMap()"
       [immediateFileOperation]="false"
       class="expenses-table"

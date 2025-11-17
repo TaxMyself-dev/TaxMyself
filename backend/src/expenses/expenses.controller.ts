@@ -81,11 +81,12 @@ export class ExpensesController {
 
 
   @Patch('add-file-to-expense')
-  async addFileToExpense(@Headers('token') token: string,
-    @Body() body: { formData: { id: number; file: string | null }[]; fromTransactions: boolean }) {
-      const { formData, fromTransactions } = body; 
-      const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-     return await this.expensesService.saveFileToExpenses(formData, firebaseId, fromTransactions);
+  @UseGuards(FirebaseAuthGuard)
+  async addFileToExpense(@Req() request: AuthenticatedRequest,
+    @Body() body: { files: { id: number; file: string | null }[]; fromTransactions: boolean }) {      
+      const { files, fromTransactions } = body; 
+      const firebaseId = request.user?.firebaseId;
+     return await this.expensesService.saveFileToExpenses(files, firebaseId, fromTransactions);
 
     }
 

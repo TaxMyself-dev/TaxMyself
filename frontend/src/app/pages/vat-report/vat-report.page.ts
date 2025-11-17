@@ -2,14 +2,14 @@ import { Component, computed, inject, Input, OnInit, signal } from '@angular/cor
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
+import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap, throwError } from 'rxjs';
 import { BusinessMode, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
-import { FileChangeEvent, IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
-import { FilesService } from 'src/app/services/files.service';
+import { FilesService, IFileUploadItem } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confirm.component';
 import { GenericService } from 'src/app/services/generic.service';
@@ -245,27 +245,25 @@ export class VatReportPage implements OnInit {
         console.error("Error in getTransToConfirm:", err);
         return EMPTY;
       }),
-        tap((data: IRowDataTable[]) => {
-          if (!data?.length) {
-            this.closeDialogWithoutConfirm(false);
-          }
+      tap((data: IRowDataTable[]) => {
+        if (!data?.length) {
+          this.closeDialogWithoutConfirm(false);
+        }
         console.log("🚀 ~ tap ~ data:", data)
         this.arrayLength.set(data?.length);
       }),
       map(data => {
-        console.log("🚀 ~ VatReportPage ~ getTransToConfirm ~ data:", data);
-
         return data?.map(row => ({
-            ...row,
-            sum: this.genericService.addComma(Math.abs(row.sum as number)),
-            isRecognized: row.isRecognized ? 'כן' : 'לא',
-            businessNumber: row?.businessNumber === this.userData.businessNumber
-              ? this.userData.businessName
-              : this.userData.spouseBusinessName
-          }))
+          ...row,
+          sum: this.genericService.addComma(Math.abs(row.sum as number)),
+          isRecognized: row.isRecognized ? 'כן' : 'לא',
+          businessNumber: row?.businessNumber === this.userData.businessNumber
+            ? this.userData.businessName
+            : this.userData.spouseBusinessName
+        }))
       }
       ),
-    
+
     )
 
     // .subscribe(res => {
@@ -406,7 +404,7 @@ export class VatReportPage implements OnInit {
           // Step 2: If files were attached, upload and attach them
           if (event.files && event.files.length > 0) {
             console.log(`Uploading ${event.files.length} files for confirmed transactions...`);
-            return this.filesService.uploadAndSaveToServer(
+            return this.filesService.uploadAndSaveMultipleFilesToServer(
               event.files,
               (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles, true)
             ).pipe(
@@ -584,71 +582,17 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  // onFileChange(data: FileChangeEvent): void {
-  //   console.log("🚀 ~ VatReportPage ~ onFileSelected ~ file:", data.file)
-  //   console.log("File selected for row:", data.row.id, "file:", data.file.name);
-
-  //   // Update or add to arrayFile (store locally, no upload yet)
-  //   const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
-  //   if (existingIndex !== -1) {
-  //     this.arrayFile[existingIndex].file = data.file; // Update existing file
-  //   } else {
-  //     this.arrayFile.push({ id: data.row.id as number, file: data.file });
-  //   }
-
-  //   // Update the filesAttachedMap for UI feedback (icon changes immediately)
-  //   const updatedMap = new Map(this.filesAttachedMap());
-  //   updatedMap.set(data.row.id as number, data.file);
-  //   this.filesAttachedMap.set(updatedMap);
-
-  //   // Show feedback to user
-  //   this.genericService.showToast(`קובץ ${data.file.name} נבחר. לחץ על אישור לשליחה`, "success");
-  // }
-  onFileChange(e: FileChangeEvent) {
-  const updated = new Map(this.filesAttachedMap());
-  if (e.type === 'set') {
-    updated.set(e.row.id as number, e.file);
-    this.arrayFile = [...this.arrayFile.filter(x => x.id !== e.row.id), { id: e.row.id as number, file: e.file }];
-  } else {
-    updated.delete(e.row.id as number);
-    this.arrayFile = this.arrayFile.filter(x => x.id !== e.row.id);
+  onFileChange(e: { row: IRowDataTable, file?: File }) {
+    console.log("onFileChange event: ", e);
+    this.addFileToExpense(e)
   }
-  this.filesAttachedMap.set(updated);
-}
+  
 
-  /**
-   * Upload files to Firebase and save to server with automatic rollback on failure
-   * Call this method when user confirms/submits the form
-   */
-  addFileToExpense(): void {
-    if (this.arrayFile.length === 0) {
-      console.log("No files to upload");
-      return;
-    }
-
-    const totalFiles = this.arrayFile.length;
-
-    // Use the enhanced FilesService with automatic rollback
-    this.filesService.uploadAndSaveToServer(
-      this.arrayFile,
-      (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles)
-    ).pipe(
-      catchError((err) => {
-        console.error("Failed to upload and save files:", err);
-        this.genericService.showToast("אירעה שגיאה בהעלאת הקבצים", "error");
-        return EMPTY;
-      })
-    ).subscribe(() => {
-      console.log("All files uploaded and saved successfully");
-      this.genericService.showToast(`${totalFiles} קבצים הועלו בהצלחה`, "success");
-
-      // Clear the arrays and map
-      this.arrayFile = [];
-      this.filesAttachedMap.set(new Map());
-
-      // Refresh table data
+  addFileToExpense(e: { row: IRowDataTable, file?: File }): void {
+    this.filesService.addFileToExpense(e.row, e.file)
+    .subscribe((res) => {
       this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-    });
+    })
   }
 
   onChange(event: string): void {
@@ -670,7 +614,7 @@ export class VatReportPage implements OnInit {
   onDeleteFile(event: { row: IRowDataTable, deleteFromServer: boolean }): void {
     console.log("Delete file for row:", event);
     const { row, deleteFromServer } = event;
-    
+
     if (deleteFromServer) {
       // Delete from server and Firebase
       from(this.modalController.create({
@@ -690,7 +634,7 @@ export class VatReportPage implements OnInit {
             if (res.data) {
               // User confirmed deletion
               this.genericService.getLoader().subscribe();
-              
+
               // First delete from Firebase
               return from(this.filesService.deleteFileFromFirebase(row['file'] as string)).pipe(
                 switchMap(() => {
@@ -725,47 +669,10 @@ export class VatReportPage implements OnInit {
       const updatedMap = new Map(this.filesAttachedMap());
       updatedMap.delete(row.id as number);
       this.filesAttachedMap.set(updatedMap);
-      
+
       this.arrayFile = this.arrayFile.filter(item => item.id !== row.id);
       this.genericService.showToast("קובץ הוסר מהרשימה", "success");
     }
-  }
-
-  onEditFile(row: IRowDataTable): void {
-    console.log("Edit file for row:", row);
-    
-    // Confirm the user wants to replace the file
-    from(this.modalController.create({
-      component: PopupConfirmComponent,
-      componentProps: {
-        message: "האם אתה בטוח שברצונך להחליף את הקובץ הקיים?",
-        buttonTextConfirm: "כן, החלף",
-        buttonTextCancel: "ביטול"
-      },
-      cssClass: 'vatReport-modal'
-    }))
-      .pipe(
-        switchMap((modal) => from(modal.present()).pipe(
-          switchMap(() => from(modal.onWillDismiss()))
-        )),
-        tap((res) => {
-          if (res.data) {
-            // User confirmed - trigger file input click to select new file
-            // We'll handle the replacement in the onFileChange method
-            const fileInput = document.querySelector(`input[type="file"]`) as HTMLInputElement;
-            if (fileInput) {
-              // Store the row ID for replacement
-              (fileInput as any).__replacementRowId = row.id;
-              fileInput.click();
-            }
-          }
-        }),
-        catchError((err) => {
-          console.error("Error in edit confirmation:", err);
-          return EMPTY;
-        })
-      )
-      .subscribe();
   }
 
 }

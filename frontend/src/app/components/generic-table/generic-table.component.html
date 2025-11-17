@@ -65,7 +65,7 @@
           <th style="position: sticky; top: 0;" *ngFor="let col of columns" class="columns-header">
             {{ col.value }}
           </th>
-          @if (attachment()) {
+          @if (actions()) {
             <th style="position: sticky; top: 0; width: 4rem; text-align: center;" class="columns-header">
               צרופות
             </th>
@@ -103,7 +103,7 @@
             </span>
           </td>
           }
-          @if (attachment()) {
+          @if (actions()) {
             <td style="text-align: center;">
               <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                 <input 
@@ -126,7 +126,7 @@
                   <!-- Edit button (replace file) -->
                   <i class="pi pi-pencil" 
                      style="font-size: 1.2rem; cursor: pointer; color: #f59e0b;"
-                     (click)="onEditFile(row)"
+                     (click)="onEditFile(row, fileInput)"
                      pTooltip="ערוך קובץ (החלף)"
                      tooltipPosition="top"></i>
                   
