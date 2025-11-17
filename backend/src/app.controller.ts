@@ -13,9 +13,38 @@ export class AppController {
   }
 
   @Get('getIP')
-  async getExternalIP(): Promise<{ data: any }> {
+  async getExternalIP(
+    body: any,
+  ): Promise<{ data: any }> {
+    
+    //get the api url as a url param and fetch the data from there
     
     
+    try {
+      const data1 = await axios.get('https://cloudflare.com/cdn-cgi/trace');
+       const ipMatch = data1.data.match(/ip=([^\n]+)/);
+        if (ipMatch && ipMatch[1]) {
+          const ipAddress = ipMatch[1];
+          console.log('===========================================');
+          console.log('🚀 External IP detected via Cloudflare:', ipAddress);
+          console.log('===========================================');
+          return { data: ipAddress };
+        }
+    } catch (error) {
+      console.log('Failed to fetch from Cloudflare:', error.message);
+    }
+
+    try {
+      const data0 = await axios.get('https://api.ipify.org?format=json');
+      console.log('===========================================');
+      console.log('🚀 External IP detected via ipify:', data0.data.ip);
+      console.log('===========================================');
+      return { data: data0.data.ip };
+      
+    } catch (error) {
+      console.log('Failed to fetch from ipify:', error.message);
+    }
+
       try {
         const { data } = await
           axios.get('https://api.bigdatacloud.net/data/client-info')
