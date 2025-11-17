@@ -17,24 +17,24 @@ async function bootstrap() {
   // -----------------------------
   // 🚀 Fetch SERVER external IP automatically on startup
   // -----------------------------
-  const httpService = app.get(HttpService);
+  // const httpService = app.get(HttpService);
 
-  try {
-    const { data } = await firstValueFrom(
-      httpService.get('https://api.bigdatacloud.net/data/client-info')
-    );
+  // try {
+  //   const { data } = await firstValueFrom(
+  //     httpService.get('https://api.bigdatacloud.net/data/client-info')
+  //   );
 
-    console.log('===========================================');
-    console.log('🚀 External IP detected:', data.ipString);
-    console.log('===========================================');
+  //   console.log('===========================================');
+  //   console.log('🚀 External IP detected:', data.ipString);
+  //   console.log('===========================================');
 
-    // You can add:
-    // - save to DB
-    // - email yourself
-    // - send to Slack
-  } catch (err) {
-    console.error('❌ Failed to fetch external IP:', err.message);
-  }
+  //   // You can add:
+  //   // - save to DB
+  //   // - email yourself
+  //   // - send to Slack
+  // } catch (err) {
+  //   console.error('❌ Failed to fetch external IP:', err.message);
+  // }
 
   await app.listen(parseInt(process.env.PORT) || 8080);
 

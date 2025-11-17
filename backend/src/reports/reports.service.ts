@@ -158,7 +158,12 @@ export class ReportsService {
 
       // Get total income
       let totalIncome : number = 0;
-      totalIncome = await this.transactionsService.getTaxableIncomefromTransactions(firebaseId, businessNumber, startDate, endDate);
+      //totalIncome = await this.transactionsService.getTaxableIncomefromTransactions(firebaseId, businessNumber, startDate, endDate);
+      totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
+
+      console.log("businessNumber is ", businessNumber);
+      console.log("totalIncome is ", totalIncome);
+      
 
       if (user.businessType === BusinessType.LICENSED || user.businessType === BusinessType.COMPANY) {
         totalIncome = totalIncome / (1 + vatPercent);
@@ -238,6 +243,9 @@ export class ReportsService {
   ): Promise<number> {
 
     // 1️⃣ Get the business and its type
+
+    console.log("businessNumber is ", businessNumber);
+    
     const business = await this.businessRepo.findOne({
       where: { businessNumber },
     });
