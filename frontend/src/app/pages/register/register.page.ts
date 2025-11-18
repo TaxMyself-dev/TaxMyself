@@ -146,7 +146,7 @@ matchRegisterImage = computed(() => {
         null, Validators.required,
       ),
       [RegisterFormControls.CITY]: new FormControl(
-        '', this.requierdField ? Validators.required : null,
+        '', null,
       ),
       [RegisterFormControls.FAMILYSTATUS]: new FormControl(
         null, Validators.required,
