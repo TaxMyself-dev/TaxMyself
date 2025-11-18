@@ -107,8 +107,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   fileChange = output<{ row: IRowDataTable, file?: File }>();
   filePreview = output<IRowDataTable>();
-  fileDelete = output<{ row: IRowDataTable, deleteFromServer: boolean }>();
+  fileDelete = output<IRowDataTable>();
   fileEdit = output<{ row: IRowDataTable, confirm: boolean }>();
+  fileDownload = output<IRowDataTable>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -404,10 +405,24 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.filePreview.emit(row);
   }
 
+  onDownloadFile(row: IRowDataTable): void {
+    this.fileDownload.emit(row);
+  }
+
   onDeleteFile(row: IRowDataTable): void {
-    // Check if this is a server file that needs to be deleted
-    const deleteFromServer = !!(row['file'] && row['file'] !== '' && row['file'] !== null);
-    this.fileDelete.emit({ row, deleteFromServer });
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך למחוק את הקובץ?',
+      header: 'Danger Zone',
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'בטל',
+      accept: () => {
+        this.fileDelete.emit(row);
+      },
+      reject: () => {
+        console.log('reject delete file');
+      },
+    });
   }
 
   onEditFile(row: IRowDataTable, fileInput: HTMLInputElement): void {
@@ -415,6 +430,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
       message: 'אתה בטוח שאתה רוצה להחליף את הקובץ הקיים?',
       header: 'Danger Zone',
       icon: 'pi pi-info-circle',
+      acceptLabel: 'החלף',
+      rejectLabel: 'בטל',
       accept: () => {
         fileInput.click();
         this.fileEdit.emit({ row, confirm: true });

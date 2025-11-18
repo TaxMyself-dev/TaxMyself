@@ -90,6 +90,16 @@ export class ExpensesController {
 
     }
 
+  @Patch('delete-file-from-expense/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteFileFromExpense(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') expenseId: string
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    return await this.expensesService.deleteFileFromExpense(Number(expenseId), firebaseId);
+  }
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////               Categories            /////////////////////////////

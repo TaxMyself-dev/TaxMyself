@@ -123,6 +123,13 @@
                      [pTooltip]="'צפה בקובץ: ' + getFileName(row)"
                      tooltipPosition="top"></i>
                   
+                  <!-- Download button -->
+                  <i class="pi pi-download" 
+                     style="font-size: 1.2rem; cursor: pointer; color: #10b981;"
+                     (click)="onDownloadFile(row)"
+                     pTooltip="הורד קובץ"
+                     tooltipPosition="top"></i>
+                  
                   <!-- Edit button (replace file) -->
                   <i class="pi pi-pencil" 
                      style="font-size: 1.2rem; cursor: pointer; color: #f59e0b;"

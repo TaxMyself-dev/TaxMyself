@@ -354,16 +354,34 @@ export class FilesService {
   // }
 
   public deleteFileFromFirebase(urlFile: string): Observable<void> {
+    if (!urlFile) {
+      return of(null);
+    }
     const storage = getStorage();
     const delRef = ref(storage, urlFile);
 
     return from(deleteObject(delRef)).pipe(
-      tap(() => {
-      }),
       catchError((error) => {
-        console.error(error);
+        console.error("Error deleting file from Firebase:", error);
         return throwError(() => error);
       })
+    );
+  }
+
+  deleteFileFromExpense(expenseId: number): Observable<any> {
+    const url = `${environment.apiUrl}expenses/delete-file-from-expense/${expenseId}`;
+    return this.http.patch<any>(url, {});
+  }
+
+  deleteFileCompletely(expenseId: number, firebasePath: string): Observable<any> {
+    this.genericService.getLoader().subscribe();
+
+    // First delete from Firebase, then from database
+    return this.deleteFileFromFirebase(firebasePath).pipe(
+      switchMap(() => {
+        // After Firebase deletion, delete from database
+        return this.deleteFileFromExpense(expenseId);
+      }),
     );
   }
 
@@ -596,12 +614,11 @@ export class FilesService {
   }
 
   saveFilesToServer<T>(files: IFileUploadItem[], serverPath: string, fromTransactions: boolean = false): Observable<T> {
-    console.log("🚀 ~ FilesService ~ saveFilesToServer ~ files:", files)
     const url = `${environment.apiUrl}${serverPath}`;
     return this.http.patch<any>(url, { files, fromTransactions })
   }
 
-   addFileToExpense(row: IRowDataTable, file?: File, serverPath: string = "expenses/add-file-to-expense"): Observable<any> {
+  addFileToExpense(row: IRowDataTable, file?: File, serverPath: string = "expenses/add-file-to-expense"): Observable<any> {
     return this.uploadFileViaFront(file as File).pipe(
       switchMap((result) => {
         const updatedFile: IFileUploadItem = {
@@ -619,7 +636,13 @@ export class FilesService {
             }),
             switchMap(() => {
               if (row.file) {
-                return this.deleteFileFromFirebase(row.file as string);
+                return this.deleteFileFromFirebase(row.file as string)
+                  .pipe(
+                    catchError(err => {
+                      console.error("File deletion failed:", err);
+                      return throwError(() => err);
+                    })
+                  );
               }
               return of(null);
             })

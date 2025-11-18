@@ -41,7 +41,7 @@ export class Expense {
   @Column({ nullable: true })
   note: string;
 
-  @Column()
+  @Column({ nullable: true, default: null })
   file: string;
 
   @Column('boolean')

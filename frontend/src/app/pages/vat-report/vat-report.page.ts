@@ -589,10 +589,17 @@ export class VatReportPage implements OnInit {
   
 
   addFileToExpense(e: { row: IRowDataTable, file?: File }): void {
+    this.genericService.getLoader().subscribe();
     this.filesService.addFileToExpense(e.row, e.file)
-    .subscribe((res) => {
-      this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-    })
+    .pipe(
+      tap(() => {
+        this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+      }),
+      finalize(() => {
+        this.genericService.dismissLoader();
+      })
+    )
+    .subscribe()
   }
 
   onChange(event: string): void {
@@ -611,68 +618,35 @@ export class VatReportPage implements OnInit {
     this.onPreviewFileClicked(row);
   }
 
-  onDeleteFile(event: { row: IRowDataTable, deleteFromServer: boolean }): void {
-    console.log("Delete file for row:", event);
-    const { row, deleteFromServer } = event;
-
-    if (deleteFromServer) {
-      // Delete from server and Firebase
-      from(this.modalController.create({
-        component: PopupConfirmComponent,
-        componentProps: {
-          message: "האם אתה בטוח שברצונך למחוק את הקובץ?",
-          buttonTextConfirm: "כן, מחק",
-          buttonTextCancel: "ביטול"
-        },
-        cssClass: 'vatReport-modal'
-      }))
-        .pipe(
-          switchMap((modal) => from(modal.present()).pipe(
-            switchMap(() => from(modal.onWillDismiss()))
-          )),
-          switchMap((res) => {
-            if (res.data) {
-              // User confirmed deletion
-              this.genericService.getLoader().subscribe();
-
-              // First delete from Firebase
-              return from(this.filesService.deleteFileFromFirebase(row['file'] as string)).pipe(
-                switchMap(() => {
-                  // Then delete from server
-                  return this.vatReportService.deleteFileFromDB(row.id as number);
-                }),
-                tap(() => {
-                  this.genericService.showToast("קובץ נמחק בהצלחה", "success");
-                  // Refresh the table
-                  this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-                }),
-                catchError((err) => {
-                  console.error("Error deleting file:", err);
-                  this.genericService.showToast("שגיאה במחיקת הקובץ", "error");
-                  return EMPTY;
-                }),
-                finalize(() => {
-                  this.genericService.dismissLoader();
-                })
-              );
-            }
-            return EMPTY;
-          }),
-          catchError((err) => {
-            console.error("Error in delete confirmation:", err);
-            return EMPTY;
-          })
-        )
-        .subscribe();
-    } else {
-      // Just remove from local arrays (newly attached file not yet uploaded)
-      const updatedMap = new Map(this.filesAttachedMap());
-      updatedMap.delete(row.id as number);
-      this.filesAttachedMap.set(updatedMap);
-
-      this.arrayFile = this.arrayFile.filter(item => item.id !== row.id);
-      this.genericService.showToast("קובץ הוסר מהרשימה", "success");
-    }
+  onDeleteFile(row: IRowDataTable): void {
+    this.filesService.deleteFileCompletely(row.id as number, row.file as string)
+      .pipe(
+        tap(() => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'קובץ נמחק בהצלחה',
+            life: 5000,
+            key: 'br'
+          });
+          this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+        }),
+        catchError((error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'שגיאה במחיקת הקובץ, אנא נסה/י שנית',
+            life: 5000,
+            key: 'br'
+          });
+          console.error("Error deleting file:", error);
+          return of(null);
+        }),
+        finalize(() => {
+          this.genericService.dismissLoader();
+        })
+      )
+      .subscribe();
   }
 
 }
