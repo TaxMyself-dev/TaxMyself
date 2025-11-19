@@ -11,17 +11,14 @@ import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { FileChangeEvent, IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
-import { AccountAssociationDialogComponent } from "../account-association-dialog/account-association-dialog.component";
-import { FilterPanelComponent } from "../filter-panel/filter-panell.component";
-import { FormGroup } from '@angular/forms';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 
 
 @Component({
@@ -38,28 +35,32 @@ import { MessageService } from 'primeng/api';
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
   imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe],
+  providers: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
 })
 export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements OnInit {
 
-  
+
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
+
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-    
+
     if (!clickedInside && !clickedFilterButton && this.visibleFilterPannel()) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
   }
-  
+
   messageService = inject(MessageService);
   transactionService = inject(TransactionsService);
-
+  confirmationService = inject(ConfirmationService);
   title = input<string>();
-  attachment = input<boolean>(false);
+  fileActions = input<ITableRowAction[]>([]);
+  immediateActions = input<boolean>(true);
   filesAttached = input<Map<number, File>>(new Map());
   immediateFileOperation = input<boolean>(false); // If true, file operations happen immediately
   arrayFilters = input<any>();
@@ -88,7 +89,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   selectedTrans: IRowDataTable[] = [];
   // isAllChecked = signal<boolean>(false);
 
-  
+
 
 
   readonly buttonSize = ButtonSize;
@@ -105,10 +106,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   onQuickClassifyClicked = output<boolean>();
 
-fileChange = output<FileChangeEvent>();
-filePreview = output<IRowDataTable>();
-fileDelete = output<{ row: IRowDataTable, deleteFromServer: boolean }>();
-fileEdit = output<IRowDataTable>();
+  fileChange = output<{ row: IRowDataTable, file?: File }>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -122,9 +120,9 @@ fileEdit = output<IRowDataTable>();
     return filter ? [filter] : [];
   });
 
-    
 
-  constructor() { 
+
+  constructor() {
     effect(() => {
       const filters = this.arrayFilters();
       console.log('printFilters', filters);
@@ -132,8 +130,8 @@ fileEdit = output<IRowDataTable>();
   }
 
   ngOnInit() {
-    
-    
+
+
     if (this.defaultSelectedValue()) {
       this.selectedTrans = [...this.dataTable()];
       this.rowsChecked.emit(this.selectedTrans);
@@ -154,7 +152,7 @@ fileEdit = output<IRowDataTable>();
       ANNUAL: "שנתי",
       DATE_RANGE: "טווח תאריכים",
     };
-  
+
     const monthNames: Record<number, string> = {
       1: 'ינואר',
       2: 'פברואר',
@@ -169,7 +167,7 @@ fileEdit = output<IRowDataTable>();
       11: 'נובמבר',
       12: 'דצמבר',
     };
-  
+
     const bimonthNames: Record<number, string> = {
       1: 'ינואר-פברואר',
       2: 'מרץ-אפריל',
@@ -178,7 +176,7 @@ fileEdit = output<IRowDataTable>();
       5: 'ספטמבר-אוקטובר',
       6: 'נובמבר-דצמבר',
     };
-  
+
     const formatDate = (dateStr?: string): string => {
       if (!dateStr) return '';
       const date = new Date(dateStr);
@@ -187,46 +185,46 @@ fileEdit = output<IRowDataTable>();
       const year = date.getFullYear();
       return `${day}/${month}/${year}`;
     };
-  
+
     const type = filter.periodType;
     const label = periodLabels[type] || type;
-  
+
     switch (type) {
       case 'MONTHLY':
         return `זמן: ${label} - ${monthNames[filter.month ?? 0] || ''}, ${filter.year ?? ''}`;
-  
+
       case 'BIMONTHLY':
         return `זמן: ${label} - ${bimonthNames[filter.bimonth ?? 0] || ''}, ${filter.year ?? ''}`;
-  
+
       case 'ANNUAL':
         return `זמן: ${label} - ${filter.year ?? ''}`;
-  
+
       case 'DATE_RANGE':
         const from = formatDate(filter.startDate);
         const to = formatDate(filter.endDate);
         return `זמן: ${label} - מתאריך ${from} עד ${to}`;
-  
+
       default:
         return '';
     }
   }
-  
+
   formatNames(list: { name: string }[]): string {
     const maxVisible = 4;
-  
+
     if (!list || list.length === 0) return '';
-  
+
     const visible = list.slice(0, maxVisible).map(item => item.name);
     const remaining = list.length - maxVisible;
-  
+
     let result = visible.join(', ');
     if (remaining > 0) {
       result += ` ועוד (${remaining})`;
     }
-  
+
     return result;
   }
-  
+
   redefineFilters(event: string) {
     console.log('redefineFilters', event);
     //this.arrayFilters.set(event);
@@ -237,13 +235,13 @@ fileEdit = output<IRowDataTable>();
     this.isAllChecked.emit(this.selectedTrans.length === this.dataTable().length);
     this.rowsChecked.emit(this.selectedTrans);
   }
-  
+
   // onAllSelect($event: any) {
   //   console.log('onAllSelect');
   //   console.log('$event:', $event);
   //   // this.isAllChecked.emit($event.checked);
   //   console.log('Selected Rows:', this.selectedTrans);
-    
+
   // }
 
   // get isHoveringAnywhere() {
@@ -252,7 +250,7 @@ fileEdit = output<IRowDataTable>();
 
   checkClearHover() {
     const notHovering = !this.isRowHovered() && !this.isFloatingHovered();
-  
+
     if (notHovering) {
       this.isSlideIn.set(false); // hide with animation
       setTimeout(() => {
@@ -264,37 +262,37 @@ fileEdit = output<IRowDataTable>();
     }
   }
 
-onFloatingEnter() {
-  clearTimeout(this.hoverTimeout);
-  this.isFloatingHovered.set(true);
-}
+  onFloatingEnter() {
+    clearTimeout(this.hoverTimeout);
+    this.isFloatingHovered.set(true);
+  }
 
-onFloatingLeave() {
-  this.hoverTimeout = setTimeout(() => {
-    this.isFloatingHovered.set(false);
-    this.checkClearHover();
-    this.hoveredRowInfo.set(null);
-  }, 100); // small delay to avoid flicker
-}
+  onFloatingLeave() {
+    this.hoverTimeout = setTimeout(() => {
+      this.isFloatingHovered.set(false);
+      this.checkClearHover();
+      this.hoveredRowInfo.set(null);
+    }, 100); // small delay to avoid flicker
+  }
 
-onRowLeave() {
-  this.hoverTimeout = setTimeout(() => {
-    this.isRowHovered.set(false);
-    this.checkClearHover();
-    this.hoveredRowInfo.set(null);
-  }, 100);
-}
+  onRowLeave() {
+    this.hoverTimeout = setTimeout(() => {
+      this.isRowHovered.set(false);
+      this.checkClearHover();
+      this.hoveredRowInfo.set(null);
+    }, 100);
+  }
 
-onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
-  clearTimeout(this.hoverTimeout);
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  this.hoveredRowInfo.set({ row, top: rect.top + window.scrollY });
-  this.isRowHovered.set(true);
-  this.isSlideIn.set(false);
-  setTimeout(() => {
-    this.isSlideIn.set(true);
-  }, 100); // small delay to avoid flicker
-}
+  onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
+    clearTimeout(this.hoverTimeout);
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.hoveredRowInfo.set({ row, top: rect.top + window.scrollY });
+    this.isRowHovered.set(true);
+    this.isSlideIn.set(false);
+    setTimeout(() => {
+      this.isSlideIn.set(true);
+    }, 100); // small delay to avoid flicker
+  }
 
   isExpanded(rowData: any): boolean {
     return this.expandedRows.has(rowData.id);
@@ -349,48 +347,56 @@ onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
   quickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
     this.transactionService.quickClassify(row.id as number)
-    .pipe(
-      catchError((err) => {
-        console.log("error in quick classify", err);
+      .pipe(
+        catchError((err) => {
+          console.log("error in quick classify", err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: "סיווג ההוצאה נכשל אנא נסה/י שנית",
+            sticky: true,
+            life: 3000,
+            key: 'br'
+          })
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.isLoadingQuickClassify.set(false);
+        })
+      )
+      .subscribe(() => {
+        this.onQuickClassifyClicked.emit(true);
         this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail:"סיווג ההוצאה נכשל אנא נסה/י שנית",
-          sticky: true,
+          severity: 'success',
+          summary: 'Success',
+          detail: "סיווג מהיר הצליח",
           life: 3000,
           key: 'br'
         })
-        return EMPTY;
-      }),
-      finalize(() => {
-        this.isLoadingQuickClassify.set(false);
-      })
-    )
-    .subscribe(() => {
-      this.onQuickClassifyClicked.emit(true);
-      this.messageService.add({
-        severity: 'success',
-        summary: 'Success',
-        detail:"סיווג מהיר הצליח",
-        life: 3000,
-        key: 'br'
-      })
-    });
+      });
   }
 
-onFileChange(event: Event, row: IRowDataTable) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0] ?? null;
+  onFileChange(event: Event, row?: IRowDataTable) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
 
-  if (file) {
-    this.fileChange.emit({ row: row, type: 'set', file });
-  } else {
-    this.fileChange.emit({ row: row, type: 'clear' });
+    if (!file) {
+      return;
+    }
+
+    // Use provided row or get from hoveredRowInfo
+    const targetRow = row || this.hoveredRowInfo()?.row;
+    if (!targetRow) {
+      return;
+    }
+
+    this.fileChange.emit({ row: targetRow, file });
+    input.value = "";
   }
 
-}
-
-  getFileName(row: IRowDataTable): string {
+  getFileName(row?: IRowDataTable): string {
+    if (!row) return 'קובץ מצורף';
+    
     // First check if there's a newly attached file in the map
     const attachedFile = this.filesAttached().get(row.id as number);
     if (attachedFile) {
@@ -400,33 +406,23 @@ onFileChange(event: Event, row: IRowDataTable) {
     return row['fileName'] as string || 'קובץ מצורף';
   }
 
-  onPreviewFile(row: IRowDataTable): void {
-    this.filePreview.emit(row);
+  executeAction(action: ITableRowAction, row: IRowDataTable, fileInput?: HTMLInputElement): void {
+    if (action.action) {
+      // Use provided fileInput or fallback to ViewChild reference
+      const inputElement = fileInput || this.fileInput?.nativeElement;
+      // For actions that need file input (like edit)
+      if (action.name === 'edit' && inputElement) {
+        action.action(inputElement, row);
+      } else {
+        action.action(null, row);
+      }
+    }
   }
 
-  onDeleteFile(row: IRowDataTable): void {
-    // Check if this is a server file that needs to be deleted
-    const deleteFromServer = !!(row['file'] && row['file'] !== '' && row['file'] !== null);
-    this.fileDelete.emit({ row, deleteFromServer });
-  }
-
-  onEditFile(row: IRowDataTable): void {
-    this.fileEdit.emit(row);
-  }
-
-  canPreviewFile(row: IRowDataTable): boolean {
-    // Can preview if there's an existing file on the server (row.file)
-    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
-  }
-
-  canDeleteFile(row: IRowDataTable): boolean {
-    // Can delete if there's a server file
-    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
-  }
-
-  canEditFile(row: IRowDataTable): boolean {
-    // Can edit (replace) if there's an existing file on the server
-    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
+  triggerFileInput(): void {
+    if (this.fileInput?.nativeElement) {
+      this.fileInput.nativeElement.click();
+    }
   }
 
   showAttachButton(row: IRowDataTable): boolean {
@@ -434,7 +430,9 @@ onFileChange(event: Event, row: IRowDataTable) {
     return !(row['file'] && row['file'] !== '' && row['file'] !== null);
   }
 
-  hasFileAttached(row: IRowDataTable): boolean {
+  hasFileAttached(row?: IRowDataTable): boolean {
+    if (!row) return false;
+    
     const hasInMap = this.filesAttached().has(row.id as number);
     const hasCount = row['attachmentCount'] && Number(row['attachmentCount']) > 0;
     const result = hasInMap || hasCount;
