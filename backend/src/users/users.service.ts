@@ -110,11 +110,7 @@ export class UsersService {
       console.log("signup_new - end");
       return savedUser;
     }
-    console.log("signup_new - end");
-    return savedUser;
-  }
-
-
+  
 
 
   async signup({ personal, spouse, children, business }: any) {
