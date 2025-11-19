@@ -2,7 +2,7 @@ import { Component, computed, inject, Input, OnInit, signal } from '@angular/cor
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap, throwError } from 'rxjs';
+import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, fromEvent, map, of, switchMap, take, tap, throwError } from 'rxjs';
 import { BusinessMode, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
@@ -19,7 +19,7 @@ import { log } from 'console';
 //import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
-import { MessageService } from 'primeng/api';
+import { MessageService, ConfirmationService } from 'primeng/api';
 
 
 @Component({
@@ -31,6 +31,7 @@ import { MessageService } from 'primeng/api';
 export class VatReportPage implements OnInit {
 
   private gs = inject(GenericService);
+  confirmationService = inject(ConfirmationService);
 
   // reactive bindings
   businessOptions = computed(() => this.gs.businesses());
@@ -57,6 +58,7 @@ export class VatReportPage implements OnInit {
   displayExpenses: boolean = false;
   //vatReportForm: FormGroup;
   tableActions: ITableRowAction[];
+  fileActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
   filesAttachedMap = signal<Map<number, File>>(new Map());
   previousFile: string;
@@ -113,6 +115,7 @@ export class VatReportPage implements OnInit {
 
 
   async ngOnInit() {
+    this.setFileActions();
     this.userData = this.authService.getUserDataFromLocalStorage();
     //this.gs.clearBusinesses();
     await this.gs.loadBusinesses();
@@ -453,8 +456,6 @@ export class VatReportPage implements OnInit {
       })
   }
 
-
-
   // updateIncome(event: any) {
   //   console.log("updateIncome event: ", event);
 
@@ -517,34 +518,6 @@ export class VatReportPage implements OnInit {
 
   }
 
-  // // Get the data from server and update items
-  // setRowsData(): void {
-  //   //const formData = this.vatReportForm.value;
-
-  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-
-  //   this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate, formData.businessNumber)
-  //     .pipe(
-  //       map((data) => {
-  //         const rows = [];
-  //         console.log("data of table in vat report: ", data);
-
-  //         data.forEach(row => {
-  //           const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-  //           if (row.file != undefined && row.file != null && row.file != "") {
-  //             tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
-  //           }
-  //           tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
-  //           tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
-  //           tableData.sum = this.genericService.addComma(tableData.sum as string);
-  //           rows.push(tableData);
-  //         })
-  //         this.rows = rows;
-  //         return rows
-  //       })
-  //     )
-  // }
-
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
@@ -586,20 +559,28 @@ export class VatReportPage implements OnInit {
     console.log("onFileChange event: ", e);
     this.addFileToExpense(e)
   }
-  
+
 
   addFileToExpense(e: { row: IRowDataTable, file?: File }): void {
     this.genericService.getLoader().subscribe();
     this.filesService.addFileToExpense(e.row, e.file)
-    .pipe(
-      tap(() => {
-        this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-      }),
-      finalize(() => {
-        this.genericService.dismissLoader();
+      .pipe(
+        tap(() => {
+          this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+        }),
+        finalize(() => {
+          this.genericService.dismissLoader();
+        })
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'קובץ הועלה בהצלחה',
+          life: 5000,
+          key: 'br'
+        });
       })
-    )
-    .subscribe()
   }
 
   onChange(event: string): void {
@@ -611,11 +592,6 @@ export class VatReportPage implements OnInit {
     console.log("in show");
 
     this.visibleConfirmTransDialog.set(true);
-  }
-
-  onPreviewFile(row: IRowDataTable): void {
-    console.log("Preview file for row:", row);
-    this.onPreviewFileClicked(row);
   }
 
   onDeleteFile(row: IRowDataTable): void {
@@ -647,6 +623,78 @@ export class VatReportPage implements OnInit {
         })
       )
       .subscribe();
+  }
+
+  onDownloadFile(row: IRowDataTable): void {
+    console.log("Download file for row:", row);
+    this.filesService.downloadFirebaseFile(row.file as string)
+  }
+
+  private setFileActions(): void {
+    this.fileActions = [
+      {
+        name: 'preview',
+        icon: 'pi pi-eye',
+        title: 'צפה בקובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.onPreviewFileClicked(row);
+        }
+      },
+      {
+        name: 'download',
+        icon: 'pi pi-download',
+        title: 'הורד קובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.onDownloadFile(row);
+        }
+      },
+      {
+        name: 'edit',
+        icon: 'pi pi-pencil',
+        title: 'ערוך קובץ (החלף)',
+        action: (fileInput: HTMLInputElement, row: IRowDataTable) => {
+          this.confirmationService.confirm({
+            message: 'האם אתה בטוח שאתה רוצה להחליף את הקובץ הקיים?',
+            header: 'החלפת קובץ',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'החלף',
+            rejectLabel: 'לא',
+            accept: () => {
+              fileInput.value = '';
+              fromEvent(fileInput, 'change').pipe(
+                take(1),
+                map(() => fileInput.files?.[0] || null),
+                filter((file): file is File => !!file)
+              )
+                .subscribe((file) => {
+                  this.addFileToExpense({ row, file });
+                });
+
+              fileInput.click();
+            },
+            reject: () => { }
+          });
+        }
+      },
+      {
+        name: 'delete',
+        icon: 'pi pi-trash',
+        title: 'מחק קובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.confirmationService.confirm({
+            message: 'האם אתה בטוח שאתה רוצה למחוק את הקובץ?',
+            header: 'מחיקת קובץ',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'מחק',
+            rejectLabel: 'לא',
+            accept: () => {
+              this.onDeleteFile(row);
+            },
+            reject: () => { }
+          });
+        }
+      },
+    ];
   }
 
 }

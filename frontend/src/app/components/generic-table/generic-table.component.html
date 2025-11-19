@@ -3,82 +3,73 @@
 
     <div class="input-title-container">
       @if (title()) {
-        <p class="table-title">{{title()}}</p>
+      <p class="table-title">{{title()}}</p>
       }
       @if (placeholderSearch()) {
-        <p-iconfield class="table-input-search">
-          <input class="input-icon" type="text" pInputText [placeholder]="placeholderSearch()"
+      <p-iconfield class="table-input-search">
+        <input class="input-icon" type="text" pInputText [placeholder]="placeholderSearch()"
           (input)="updateSearchTerm($event)" />
-          <p-inputicon styleClass="pi pi-search" />
-        </p-iconfield>
+        <p-inputicon styleClass="pi pi-search" />
+      </p-iconfield>
       }
     </div>
     <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
-      <!-- <div> -->
-        @let filters = arrayFilters();
-        @if(filters) {
-          <div class="show-filters-container">
-            @if(filters.periodType) {
-              <div class="filter-header">
-                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('time')"></app-p-button>
-                <p class="filter-header-text">{{ getFullPeriodDisplay(filters) }}</p>
-              </div>
-            }
-            @if(filters?.account?.length > 0) {
-              <div class="filter-header">
-                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('account')"></app-p-button>
-                <p class="filter-header-text">חשבונות: {{ formatNames(filters.account) }}</p>
-              </div>
-            }
-            @if(filters?.category?.length > 0) {
-              <div class="filter-header">
-                <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO" [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'" (onButtonClicked)="redefineFilters('category')"></app-p-button>
-                <p class="filter-header-text">קטגוריות: {{ formatNames(filters.category) }}</p>
-              </div>
-            }
-        </div>
-      }
-        <!-- </div> -->
-      <!-- } -->
-    <!-- @if (filterButtonDisplay()) {
-      <div class="sort-button">
-        <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
-        [iconOnly]="true" [icon]="'pi pi-filter-fill'"
-        variant="outlined" [buttonText]="'סינון טבלה'" [buttonColor]="ButtonColor.WHITE"
-        [buttonSize]="buttonSize.ICON" ></app-p-button>
+    <!-- <div> -->
+    @let filters = arrayFilters();
+    @if(filters) {
+    <div class="show-filters-container">
+      @if(filters.periodType) {
+      <div class="filter-header">
+        <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'"
+          (onButtonClicked)="redefineFilters('time')"></app-p-button>
+        <p class="filter-header-text">{{ getFullPeriodDisplay(filters) }}</p>
       </div>
-    } -->
+      }
+      @if(filters?.account?.length > 0) {
+      <div class="filter-header">
+        <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'"
+          (onButtonClicked)="redefineFilters('account')"></app-p-button>
+        <p class="filter-header-text">חשבונות: {{ formatNames(filters.account) }}</p>
+      </div>
+      }
+      @if(filters?.category?.length > 0) {
+      <div class="filter-header">
+        <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'"
+          (onButtonClicked)="redefineFilters('category')"></app-p-button>
+        <p class="filter-header-text">קטגוריות: {{ formatNames(filters.category) }}</p>
+      </div>
+      }
+    </div>
+    }
   </div>
-  <!-- <div class="filter-panel-container" #filterPanelRef>
-    <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"></app-filter-panel>
-  </div> -->
   <div class="table">
-    <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()" (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)" (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()" loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()" [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false"
-      [virtualScrollItemSize]="76">
+    <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
+      (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
+      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()"
+      loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()"
+      [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">
       <ng-template pTemplate="header" let-columns>
         <tr>
           @if (showCheckbox()) {
-            <th style="width: 3rem">
-              <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
-            </th>
+          <th style="width: 3rem">
+            <p-tableHeaderCheckbox></p-tableHeaderCheckbox>
+          </th>
           }
           <th style="position: sticky; top: 0;" *ngFor="let col of columns" class="columns-header">
             {{ col.value }}
           </th>
-          @if (actions()) {
-            <th style="position: sticky; top: 0; width: 4rem; text-align: center;" class="columns-header">
-              צרופות
-            </th>
-          }
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row let-columns="columns" let-rowIndex="rowIndex">
         <tr [style.height]="isExpanded(row) ? 'auto' : '76px'" class="table-row"
           (mouseenter)="onRowEnter(rowIndex, row, $event)" (mouseleave)="onRowLeave()">
           @if (showCheckbox()) {
-            <td>
-              <p-tableCheckbox [value]="row"></p-tableCheckbox>
-            </td>
+          <td>
+            <p-tableCheckbox [value]="row"></p-tableCheckbox>
+          </td>
           }
           @for(col of columns; track col.name; let i = $index) {
           <td>
@@ -103,110 +94,69 @@
             </span>
           </td>
           }
-          @if (actions()) {
-            <td style="text-align: center;">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                <input 
-                  #fileInput
-                  type="file" 
-                  style="display: none;"
-                  (change)="onFileChange($event, row)"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                />
-                
-                <!-- If file exists on server: show preview, edit, delete -->
-                @if (canPreviewFile(row)) {
-                  <!-- Preview button -->
-                  <i class="pi pi-eye" 
-                     style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
-                     (click)="onPreviewFile(row)"
-                     [pTooltip]="'צפה בקובץ: ' + getFileName(row)"
-                     tooltipPosition="top"></i>
-                  
-                  <!-- Download button -->
-                  <i class="pi pi-download" 
-                     style="font-size: 1.2rem; cursor: pointer; color: #10b981;"
-                     (click)="onDownloadFile(row)"
-                     pTooltip="הורד קובץ"
-                     tooltipPosition="top"></i>
-                  
-                  <!-- Edit button (replace file) -->
-                  <i class="pi pi-pencil" 
-                     style="font-size: 1.2rem; cursor: pointer; color: #f59e0b;"
-                     (click)="onEditFile(row, fileInput)"
-                     pTooltip="ערוך קובץ (החלף)"
-                     tooltipPosition="top"></i>
-                  
-                  <!-- Delete button -->
-                  <i class="pi pi-trash" 
-                     style="font-size: 1.2rem; cursor: pointer; color: #ef4444;"
-                     (click)="onDeleteFile(row)"
-                     pTooltip="מחק קובץ"
-                     tooltipPosition="top"></i>
-                } @else {
-                  <!-- No file exists: show attach button -->
-                  @if (hasFileAttached(row)) {
-                    <!-- File selected but not uploaded yet -->
-                    <i class="pi pi-file" 
-                       style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
-                       (click)="fileInput.click()"
-                       [pTooltip]="'שנה קובץ: ' + getFileName(row)"
-                       tooltipPosition="top"></i>
-                    <i class="pi pi-check-circle" 
-                       style="font-size: 0.8rem; color: #10b981; margin-right: -0.5rem; margin-top: -0.8rem;"></i>
-                  } @else {
-                    <!-- No file at all: show attach button -->
-                    <i class="pi pi-paperclip" 
-                       style="font-size: 1.2rem; cursor: pointer; color: #3b82f6;"
-                       (click)="fileInput.click()"
-                       pTooltip="צרף קובץ"
-                       tooltipPosition="top"></i>
-                  }
-                }
-                
-                @if (row['attachmentCount'] && row['attachmentCount'] > 0) {
-                  <span style="margin-left: 0.3rem; font-size: 0.85rem; color: #6b7280;">({{ row['attachmentCount'] }})</span>
-                }
-              </div>
-            </td>
-          }
         </tr>
       </ng-template>
       <!-- Empty Data -->
       <ng-template pTemplate="emptymessage">
         <tr>
           <td colspan="100%" style="text-align: center; padding: 2rem;">
-            <img src="../../../assets/not_data.svg" alt="No Data"
-              style="width: 300px; height: 300px;" />
+            <img src="../../../assets/not_data.svg" alt="No Data" style="width: 300px; height: 300px;" />
           </td>
         </tr>
       </ng-template>
     </p-table>
 
-    @if (hoveredRowInfo() && showButtons()) {
+    @if (hoveredRowInfo() && (showButtons() || fileActions().length > 0)) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
       [style.top.px]="hoveredRowInfo()?.top" [@slideInFromLeft]="'visible'" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
+
+      <!-- Hidden file input for file actions -->
+      @if (fileActions().length > 0) {
+      <input #fileInput type="file" style="display: none;" (change)="onFileChange($event)"
+        accept=".pdf,.jpg,.jpeg,.png" />
+      }
+
+      <!-- File Actions Section -->
+      @if (fileActions().length > 0) {
+      <!-- If file exists on server: show action buttons -->
+      @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
+      !== null) {
+      @for (action of fileActions(); track action.name) {
+      <app-p-button [icon]="action.icon" [iconOnly]="true"
+        (onButtonClicked)="executeAction(action, hoveredRowInfo()?.row)" [buttonText]="action.title || action.name"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+      }
+      } @else {
+      <!-- No file exists: show attach button -->
+      <app-p-button [iconOnly]="true" [icon]="'pi pi-paperclip'" (onButtonClicked)="triggerFileInput()"
+        [buttonText]="hasFileAttached(hoveredRowInfo()?.row) ? 'שנה קובץ: ' + getFileName(hoveredRowInfo()?.row) : 'צרף קובץ'"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+      }
+      }
+
+      <!-- Classification Buttons Section -->
+      @if (showButtons()) {
       @if (hoveredRowInfo()?.row?.billName === 'לא שוייך') {
       <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(hoveredRowInfo()?.row)"
         [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
-    }
+      }
       @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
-        <app-p-button
-        (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג תנועה'"
+      <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג תנועה'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
-    }
-    @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
-    <app-p-button
-        (onButtonClicked)="quickClassify(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
+      }
+      @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
+      <app-p-button (onButtonClicked)="quickClassify(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
       </app-p-button>
-    }
+      }
+      }
     </div>
     }
 
   </div>
 </div>
-

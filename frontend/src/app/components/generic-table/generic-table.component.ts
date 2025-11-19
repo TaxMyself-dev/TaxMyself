@@ -11,7 +11,7 @@ import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -43,6 +43,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
@@ -58,7 +59,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   transactionService = inject(TransactionsService);
   confirmationService = inject(ConfirmationService);
   title = input<string>();
-  actions = input<boolean>(false);
+  fileActions = input<ITableRowAction[]>([]);
   immediateActions = input<boolean>(true);
   filesAttached = input<Map<number, File>>(new Map());
   immediateFileOperation = input<boolean>(false); // If true, file operations happen immediately
@@ -106,10 +107,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   onQuickClassifyClicked = output<boolean>();
 
   fileChange = output<{ row: IRowDataTable, file?: File }>();
-  filePreview = output<IRowDataTable>();
-  fileDelete = output<IRowDataTable>();
-  fileEdit = output<{ row: IRowDataTable, confirm: boolean }>();
-  fileDownload = output<IRowDataTable>();
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -379,7 +376,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
       });
   }
 
-  onFileChange(event: Event, row: IRowDataTable) {
+  onFileChange(event: Event, row?: IRowDataTable) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
 
@@ -387,11 +384,19 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
       return;
     }
 
-    this.fileChange.emit({ row, file });
+    // Use provided row or get from hoveredRowInfo
+    const targetRow = row || this.hoveredRowInfo()?.row;
+    if (!targetRow) {
+      return;
+    }
+
+    this.fileChange.emit({ row: targetRow, file });
     input.value = "";
   }
 
-  getFileName(row: IRowDataTable): string {
+  getFileName(row?: IRowDataTable): string {
+    if (!row) return 'קובץ מצורף';
+    
     // First check if there's a newly attached file in the map
     const attachedFile = this.filesAttached().get(row.id as number);
     if (attachedFile) {
@@ -401,60 +406,23 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     return row['fileName'] as string || 'קובץ מצורף';
   }
 
-  onPreviewFile(row: IRowDataTable): void {
-    this.filePreview.emit(row);
+  executeAction(action: ITableRowAction, row: IRowDataTable, fileInput?: HTMLInputElement): void {
+    if (action.action) {
+      // Use provided fileInput or fallback to ViewChild reference
+      const inputElement = fileInput || this.fileInput?.nativeElement;
+      // For actions that need file input (like edit)
+      if (action.name === 'edit' && inputElement) {
+        action.action(inputElement, row);
+      } else {
+        action.action(null, row);
+      }
+    }
   }
 
-  onDownloadFile(row: IRowDataTable): void {
-    this.fileDownload.emit(row);
-  }
-
-  onDeleteFile(row: IRowDataTable): void {
-    this.confirmationService.confirm({
-      message: 'האם אתה בטוח שברצונך למחוק את הקובץ?',
-      header: 'Danger Zone',
-      icon: 'pi pi-info-circle',
-      acceptLabel: 'מחק',
-      rejectLabel: 'בטל',
-      accept: () => {
-        this.fileDelete.emit(row);
-      },
-      reject: () => {
-        console.log('reject delete file');
-      },
-    });
-  }
-
-  onEditFile(row: IRowDataTable, fileInput: HTMLInputElement): void {
-    this.confirmationService.confirm({
-      message: 'אתה בטוח שאתה רוצה להחליף את הקובץ הקיים?',
-      header: 'Danger Zone',
-      icon: 'pi pi-info-circle',
-      acceptLabel: 'החלף',
-      rejectLabel: 'בטל',
-      accept: () => {
-        fileInput.click();
-        this.fileEdit.emit({ row, confirm: true });
-      },
-      reject: () => {
-        console.log('reject edit file');
-      },
-    });
-  }
-
-  canPreviewFile(row: IRowDataTable): boolean {
-    // Can preview if there's an existing file on the server (row.file)
-    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
-  }
-
-  canDeleteFile(row: IRowDataTable): boolean {
-    // Can delete if there's a server file
-    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
-  }
-
-  canEditFile(row: IRowDataTable): boolean {
-    // Can edit (replace) if there's an existing file on the server
-    return !!(row['file'] && row['file'] !== '' && row['file'] !== null);
+  triggerFileInput(): void {
+    if (this.fileInput?.nativeElement) {
+      this.fileInput.nativeElement.click();
+    }
   }
 
   showAttachButton(row: IRowDataTable): boolean {
@@ -462,7 +430,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     return !(row['file'] && row['file'] !== '' && row['file'] !== null);
   }
 
-  hasFileAttached(row: IRowDataTable): boolean {
+  hasFileAttached(row?: IRowDataTable): boolean {
+    if (!row) return false;
+    
     const hasInMap = this.filesAttached().has(row.id as number);
     const hasCount = row['attachmentCount'] && Number(row['attachmentCount']) > 0;
     const result = hasInMap || hasCount;

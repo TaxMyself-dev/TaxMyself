@@ -42,9 +42,7 @@
   @if (vatReportDataTable?.length > 0) {
     <app-generic-table 
       (fileChange)="onFileChange($event)"
-      (filePreview)="onPreviewFile($event)"
-      (fileDelete)="onDeleteFile($event)"
-      [actions]="true"
+      [fileActions]="fileActions"
       [filesAttached]="filesAttachedMap()"
       [immediateFileOperation]="false"
       class="expenses-table"
