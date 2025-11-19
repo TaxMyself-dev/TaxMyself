@@ -4,7 +4,6 @@
         <p >רגע לפני שנעבור להפקת הדוח, מצאנו {{arrayLength()}} הוצאות שלא אושרו</p>
         
         <app-generic-table 
-            [actions]="true" 
             (fileChange)="onFileChange($event)"
             [filesAttached]="filesAttachedMap()"
             (isAllChecked)="onAllChecked($event)" 

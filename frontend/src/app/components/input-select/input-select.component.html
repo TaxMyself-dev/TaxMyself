@@ -15,7 +15,7 @@
     <p-multiselect #multi (onChange)="onChange($event)" [dropdownIcon]="icon()" [selectedItemsLabel]="stringMessage()"
       [tooltip]="'good'" [panelStyle]="{ 'width': 'auto', 'min-width': '170px' }" [options]="items()"
       [styleClass]="inputClasses()" [filter]="true" optionLabel="name" [placeholder]="placeholder()"
-      [maxSelectedLabels]="0" [formControlName]="controlName()" [showToggleAll]="true">
+      [maxSelectedLabels]="0" [formControlName]="controlName()" [showToggleAll]="true" appendTo="body" >
       <ng-template #footer>
         <div class="multiselect-footer">
 
@@ -42,7 +42,7 @@
     </label>
     }
 
-    <p-select [showClear]="true" [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()"
+    <p-select appendTo="body" [showClear]="true" [group]="group()" [ariaLabel]="ariaLabel()" [formControlName]="controlName()" [options]="items()"
       optionValue="value" optionLabel="name"
       [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')" [filter]="filter()"
       [virtualScroll]="virtualScroll()" [disabled]="disabled()" [styleClass]="inputClasses()"
