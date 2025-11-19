@@ -1367,6 +1367,14 @@ export class TransactionsService {
 
     const user = await this.userRepo.findOne({ where: { firebaseId: userId } });
 
+    // const business = await this.businessRepo.findOne({
+    //   where: { businessNumber, firebaseId }
+    // });
+
+    // if (!business) {
+    //   throw new BadRequestException("Business not found or not owned by user");
+    // }
+
     // Extract IDs from the transactionData array
     const transactionIds = transactionData.map(td => td.id);
 
@@ -1418,7 +1426,7 @@ export class TransactionsService {
       expense.taxPercent = transaction.taxPercent;
       expense.vatPercent = transaction.vatPercent;
       expense.date = transaction.billDate;
-      expense.vatReportingDate = this.sharedService.getVATReportingDate(new Date(expense.date), user.vatReportingType);
+      //expense.vatReportingDate = this.sharedService.getVATReportingDate(new Date(expense.date), user.vatReportingType);
       expense.note = '';
       expense.file = transactionFile;
       expense.isEquipment = transaction.isEquipment;

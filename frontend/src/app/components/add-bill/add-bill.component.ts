@@ -13,6 +13,7 @@ import { catchError, EMPTY, finalize } from 'rxjs';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { GenericService } from 'src/app/services/generic.service';
+import { BusinessStatus } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-add-bill2',
@@ -41,6 +42,8 @@ export class AddBillComponent implements OnInit {
   bussinesesList: ISelectItem[] = [];
   userData: IUserData;
 
+  BusinessStatus = BusinessStatus;
+
   buttonSize = ButtonSize;
   inputsSize = inputsSize;
   myForm: FormGroup;
@@ -59,17 +62,6 @@ export class AddBillComponent implements OnInit {
   async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     await this.gs.loadBusinesses();
-
-    // if (this.userData.isTwoBusinessOwner) {
-    //   this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
-    //   this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-    //   this.myForm.get('businessNumber')?.setValidators([Validators.required]);
-    // }
-    // else {
-    //   this.myForm.patchValue({
-    //     businessNumber: this.userData.businessNumber,
-    //   });
-    // }
   }
 
   onVisibleChange(visible: boolean) {

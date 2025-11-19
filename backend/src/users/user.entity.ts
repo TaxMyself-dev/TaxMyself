@@ -5,7 +5,7 @@ import {
     OneToMany
  } from 'typeorm';
 import { Bill } from '../transactions/bill.entity';
-import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName, Gender } from '../enum';
+import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatus, EmploymentType, PayStatus, ModuleName, Gender, BusinessStatus } from '../enum';
 
 
 @Entity()
@@ -66,8 +66,13 @@ export class User {
     @OneToMany(() => Bill, (bill) => bill.user)
     bills: Bill[];
 
-    @Column()
-    isTwoBusinessOwner: boolean;
+    @Column({
+      type: 'enum',
+      enum: BusinessStatus,
+      enumName: 'BusinessStatus',
+      default: BusinessStatus.NO_BUSINESS
+    })
+    businessStatus: BusinessStatus;
 
     @Column({
       type: 'simple-array',
@@ -147,98 +152,98 @@ export class User {
     ////////  Buisness 1 details  //////
     ////////////////////////////////////
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    businessName: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // businessName: string | null;
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    businessField: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // businessField: string | null;
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    businessNumber: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // businessNumber: string | null;
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    businessAddress: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // businessAddress: string | null;
 
-    @Column({
-      type: 'enum',
-      enum: BusinessType,
-      enumName: 'BusinessType',
-      nullable: true,
-      default: BusinessType.EXEMPT
-    })
-    businessType: BusinessType | null;
+    // @Column({
+    //   type: 'enum',
+    //   enum: BusinessType,
+    //   enumName: 'BusinessType',
+    //   nullable: true,
+    //   default: BusinessType.EXEMPT
+    // })
+    // businessType: BusinessType | null;
 
-    @Column({ type: 'boolean', nullable: true, default: null })
-    businessInventory: boolean | null;
+    // @Column({ type: 'boolean', nullable: true, default: null })
+    // businessInventory: boolean | null;
 
-    @Column({ type: 'date', nullable: true, default: null })
-    businessDate: Date | null;
+    // @Column({ type: 'date', nullable: true, default: null })
+    // businessDate: Date | null;
 
-    @Column({
-      type: 'enum',
-      enum: VATReportingType,
-      enumName: 'VATReportingType',
-      nullable: true,
-      default: VATReportingType.NOT_REQUIRED
-    })
-    vatReportingType: VATReportingType | null;
+    // @Column({
+    //   type: 'enum',
+    //   enum: VATReportingType,
+    //   enumName: 'VATReportingType',
+    //   nullable: true,
+    //   default: VATReportingType.NOT_REQUIRED
+    // })
+    // vatReportingType: VATReportingType | null;
 
-    @Column({
-      type: 'enum',
-      enum: TaxReportingType,
-      enumName: 'TaxReportingType',
-      nullable: true,
-      default: TaxReportingType.NOT_REQUIRED
-    })
-    taxReportingType: TaxReportingType | null;
+    // @Column({
+    //   type: 'enum',
+    //   enum: TaxReportingType,
+    //   enumName: 'TaxReportingType',
+    //   nullable: true,
+    //   default: TaxReportingType.NOT_REQUIRED
+    // })
+    // taxReportingType: TaxReportingType | null;
 
     ////////////////////////////////////
     ////////  Buisness 2 details  //////
     ///////////////////////////////////
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    spouseBusinessName: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // spouseBusinessName: string | null;
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    spouseBusinessField: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // spouseBusinessField: string | null;
 
-    @Column({ type: 'varchar', nullable: true, default: null })
-    spouseBusinessNumber: string | null;
+    // @Column({ type: 'varchar', nullable: true, default: null })
+    // spouseBusinessNumber: string | null;
 
-     @Column({ type: 'varchar', nullable: true, default: null })
-    spouseBusinessAddress: string | null;
+    //  @Column({ type: 'varchar', nullable: true, default: null })
+    // spouseBusinessAddress: string | null;
 
-    @Column({
-      type: 'enum',
-      enum: BusinessType,
-      enumName: 'BusinessType',
-      nullable: true,
-      default: BusinessType.EXEMPT
-    })
-    spouseBusinessType: BusinessType | null;
+    // @Column({
+    //   type: 'enum',
+    //   enum: BusinessType,
+    //   enumName: 'BusinessType',
+    //   nullable: true,
+    //   default: BusinessType.EXEMPT
+    // })
+    // spouseBusinessType: BusinessType | null;
 
-    @Column({ type: 'boolean', nullable: true, default: null })
-    spouseBusinessInventory: boolean | null;
+    // @Column({ type: 'boolean', nullable: true, default: null })
+    // spouseBusinessInventory: boolean | null;
 
-    @Column({ type: 'date', nullable: true, default: null })
-    spouseBusinessDate: Date | null;
+    // @Column({ type: 'date', nullable: true, default: null })
+    // spouseBusinessDate: Date | null;
 
-    @Column({
-      type: 'enum',
-      enum: VATReportingType,
-      enumName: 'VATReportingType',
-      nullable: true,
-      default: VATReportingType.NOT_REQUIRED
-    })
-    spouseVatReportingType: VATReportingType | null;
+    // @Column({
+    //   type: 'enum',
+    //   enum: VATReportingType,
+    //   enumName: 'VATReportingType',
+    //   nullable: true,
+    //   default: VATReportingType.NOT_REQUIRED
+    // })
+    // spouseVatReportingType: VATReportingType | null;
 
-    @Column({
-      type: 'enum',
-      enum: TaxReportingType,
-      enumName: 'TaxReportingType',
-      nullable: true,
-      default: TaxReportingType.NOT_REQUIRED
-    })
-    spouseTaxReportingType: TaxReportingType | null;
+    // @Column({
+    //   type: 'enum',
+    //   enum: TaxReportingType,
+    //   enumName: 'TaxReportingType',
+    //   nullable: true,
+    //   default: TaxReportingType.NOT_REQUIRED
+    // })
+    // spouseTaxReportingType: TaxReportingType | null;
 
 }

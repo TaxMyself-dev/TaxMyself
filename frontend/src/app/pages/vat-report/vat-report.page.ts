@@ -3,7 +3,7 @@ import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { EMPTY, Observable, catchError, finalize, forkJoin, from, map, of, switchMap, tap } from 'rxjs';
-import { BusinessMode, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
+import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
@@ -67,8 +67,8 @@ export class VatReportPage implements OnInit {
   isSkip: boolean = false;
   userData: IUserData;
   businessNamesList: ISelectItem[] = [];
-  BusinessMode = BusinessMode;
-  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
   // dataTable = Observable<IRowDataTable[]>;
@@ -117,15 +117,15 @@ export class VatReportPage implements OnInit {
     //this.gs.clearBusinesses();
     await this.gs.loadBusinesses();
 
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       console.log("two business owner");
-      this.businessMode = BusinessMode.TWO_BUSINESS;
+      this.businessStatus = BusinessStatus.MULTI_BUSINESS;
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
     }
     else {
       console.log("one business owner");
-      this.businessMode = BusinessMode.ONE_BUSINESS;
+      this.businessStatus = BusinessStatus.SINGLE_BUSINESS;
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
     }
   }
@@ -221,11 +221,13 @@ export class VatReportPage implements OnInit {
   }
 
   onSubmit(event: any): void {
+    console.log("event in onSubmit is ", event);
+    
     this.isLoadingStatePeryodSelectButton.set(true);
     const year = event.year;
     const month = event.month;
     const reportingPeriodType = event.periodMode;
-    this.businessNumber.set(event.business);
+    this.businessNumber.set(event.businessNumber);
     const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
     this.startDate.set(startDate);
     this.endDate.set(endDate);
@@ -235,6 +237,8 @@ export class VatReportPage implements OnInit {
 
   getTransToConfirm(): void {
     this.visibleConfirmTransDialog.set(true);
+
+    console.log("business number in getTransToConfirm:", this.businessNumber());
 
     this.transToConfirm = this.transactionService.getTransToConfirm(
       this.startDate(),

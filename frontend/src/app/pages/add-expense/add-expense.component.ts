@@ -39,7 +39,7 @@ export class AddExpenseComponent implements OnInit {
   ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData?.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       // const businessNumberFieldExists = this.columnsList.find(
       //   (column) => column.name === ExpenseFormColumns.BUSINESS_NUMBER
       // );
@@ -86,7 +86,7 @@ export class AddExpenseComponent implements OnInit {
       [ExpenseFormColumns.BUSINESS_NUMBER]: [data?.businessNumber || ''],
     });
 
-    if (this.userData?.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.addExpenseForm?.get('businessNumber').setValidators([Validators.required]);
     }
     // this.initialForm = cloneDeep(this.addExpenseForm);

@@ -70,6 +70,7 @@ import { BusinessModule } from './business/business.module';
         Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
+      //logging: true
     }),
     TypeOrmModule.forFeature([
       User,

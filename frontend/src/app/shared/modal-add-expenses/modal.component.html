@@ -44,7 +44,7 @@
                     class="modal-input-30" [controlName]="expenseFormColumns.SUPPLIER" [items]="displaySuppliersList"
                     [parentForm]="addExpenseForm" [title]="'ספק'"></app-multi-input> -->
                   <app-generic-select
-                    *ngIf="userData?.isTwoBusinessOwner && col.name === expenseFormColumns.BUSINESS_NUMBER"
+                    *ngIf="userData?.businessStatus === BusinessStatus.MULTI_BUSINESS"
                     class="modal-input-30" [parentForm]="addExpenseForm"
                     [controlName]="expenseFormColumns.BUSINESS_NUMBER" [title]="expenseFormHebrewColumns.businessNumber"
                     [items]="businessList"></app-generic-select>

@@ -2,7 +2,7 @@ import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, Writabl
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
-import { bunnerImagePosition, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { bunnerImagePosition, BusinessStatus, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
@@ -105,7 +105,7 @@ isInPrimeOverlay(e: Event): boolean {
 
   fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
     const onlyHide = this.isOnlyEmployer();
-    const addBiz = this.isTwoBusinessOwner();
+    const addBiz = this.businessStatus();
 
     // start from a fresh copy
     let cols = [...this.allFieldsNamesExpenses];
@@ -136,7 +136,7 @@ isInPrimeOverlay(e: Event): boolean {
 
   fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
     const onlyHide = this.isOnlyEmployer();
-    const addBiz = this.isTwoBusinessOwner();
+    const addBiz = this.businessStatus();
 
     // start from a fresh copy
     let cols = [...this.allFieldsNamesExpenses];
@@ -186,7 +186,7 @@ isInPrimeOverlay(e: Event): boolean {
   filteredIncomesData = signal<IRowDataTable[]>(null);
   visibleFilterPannel = signal(false);
   isOnlyEmployer = signal<boolean>(false);
-  isTwoBusinessOwner = signal<boolean>(false);
+  businessStatus = signal<BusinessStatus>(BusinessStatus.NO_BUSINESS);
 
 
   // visibleAddSubCategory: WritableSignal<boolean> = signal<boolean>(false);
@@ -308,9 +308,11 @@ isInPrimeOverlay(e: Event): boolean {
     if (this.userData.employmentStatus === 'employee' && this.userData.spouseEmploymentStatus === 'employee' || null) {
       this.isOnlyEmployer.set(true);
     }
-    if (this.userData.isTwoBusinessOwner) {
-      this.isTwoBusinessOwner.set(true);
-      console.log("in this.userData.isTwoBusinessOwner: ", this.userData.isTwoBusinessOwner);
+    if (this.userData.businessStatus === BusinessStatus.MULTI_BUSINESS) {
+      this.businessStatus.set(BusinessStatus.MULTI_BUSINESS);
+    }
+    else if (this.userData.businessStatus === BusinessStatus.SINGLE_BUSINESS) {
+      this.businessStatus.set(BusinessStatus.SINGLE_BUSINESS);
     }
 
     this.transactionService.getAllBills();

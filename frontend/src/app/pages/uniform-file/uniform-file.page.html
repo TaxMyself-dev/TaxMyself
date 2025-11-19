@@ -46,6 +46,6 @@
   <form class="generic-search-bar-content" [formGroup]="uniformFileForm">
     <app-sort-date [controlName]="'startDate'" [parentForm]="uniformFileForm" class="input-search-bar"[inputLabel]="'מתאריך'"></app-sort-date>
     <app-sort-date [controlName]="'endDate'" [parentForm]="uniformFileForm" class="input-search-bar" [inputLabel]="'עד תאריך'" [minDate]="this.uniformFileForm.get('startDate').value"></app-sort-date>
-    <app-generic-select class="pnl-report-search-bar-input" *ngIf="userData.isTwoBusinessOwner" [items]="businessNames" [parentForm]="uniformFileForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
+    <app-generic-select class="pnl-report-search-bar-input" *ngIf="userData.businessStatus === BusinessStatus.MULTI_BUSINESS" [items]="businessNames" [parentForm]="uniformFileForm" [title]="'בחר עסק'" [controlName]="'businessNumber'"></app-generic-select> 
   </form>
 </ng-template>

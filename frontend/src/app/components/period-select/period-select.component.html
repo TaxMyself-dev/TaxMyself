@@ -109,7 +109,7 @@
 
   <!-- BUSINESS SELECT -->
   <app-input-select
-    *ngIf="businessMode === BusinessMode.TWO_BUSINESS"
+    *ngIf="businessStatus === BusinessStatus.MULTI_BUSINESS"
     [parentForm]="form"
     controlName="businessNumber"
     placeholder="מספר עוסק"

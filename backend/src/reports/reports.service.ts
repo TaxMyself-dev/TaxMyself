@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
@@ -156,6 +156,14 @@ export class ReportsService {
       const year = startDate.getFullYear();
       const vatPercent = this.sharedService.getVatPercent(year);
 
+      const business = await this.businessRepo.findOne({
+        where: { businessNumber, firebaseId }
+      });
+
+      if (!business) {
+        throw new BadRequestException("Business not found or not owned by user");
+      }
+
       // Get total income
       let totalIncome : number = 0;
       //totalIncome = await this.transactionsService.getTaxableIncomefromTransactions(firebaseId, businessNumber, startDate, endDate);
@@ -164,8 +172,7 @@ export class ReportsService {
       console.log("businessNumber is ", businessNumber);
       console.log("totalIncome is ", totalIncome);
       
-
-      if (user.businessType === BusinessType.LICENSED || user.businessType === BusinessType.COMPANY) {
+      if ([BusinessType.LICENSED, BusinessType.COMPANY].includes(business.businessType)) {
         totalIncome = totalIncome / (1 + vatPercent);
       }
       

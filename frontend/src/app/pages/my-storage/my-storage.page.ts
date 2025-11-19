@@ -98,7 +98,7 @@ export class MyStoragePage implements OnInit {
       { name:  'מסמכים שהעלתי', link: "/pnl-report", image: "../../../assets/p&l_report.svg", id: '1', index: 'one', content: ""}, 
     ];
 
-    if (this.userData?.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.storageForm?.get('businessNumber').setValidators([Validators.required]);
       this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -182,7 +182,7 @@ export class MyStoragePage implements OnInit {
         formData.startDate,
         formData.endDate
       ));
-      if (this.userData.isTwoBusinessOwner) {
+      if (this.userData.businessStatus === 'MULTI_BUSINESS') {
         businessNumber = formData.businessNumber;
       }
       else {

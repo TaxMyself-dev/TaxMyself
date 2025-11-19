@@ -102,6 +102,12 @@ export enum TransactionsOutcomesColumns {
   NOTE = 'note2'
 }
 
+export enum BusinessStatus {
+  NO_BUSINESS = 'NO_BUSINESS',
+  SINGLE_BUSINESS = 'SINGLE_BUSINESS',
+  MULTI_BUSINESS = 'MULTI_BUSINESS'
+}
+
 export enum TransactionsOutcomesHebrewColumns {
   id = 'מספר עסקה',
   businessNumber = 'שייך לעסק',
@@ -493,9 +499,9 @@ export enum inputsSize {
   AUTO = 'auto'
 }
 
-export enum BusinessMode {
-  NO_BUSINESS    = 'noBusiness',
-  ONE_BUSINESS   = 'oneBusiness',
-  MULTI_BUSINESS = 'oneBusiness',
-  TWO_BUSINESS = 'twoBusiness',
-}
+// export enum BusinessMode {
+//   NO_BUSINESS    = 'noBusiness',
+//   ONE_BUSINESS   = 'oneBusiness',
+//   MULTI_BUSINESS = 'oneBusiness',
+//   TWO_BUSINESS = 'twoBusiness',
+// }

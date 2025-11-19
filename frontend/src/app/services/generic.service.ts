@@ -4,9 +4,9 @@ import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom
 import { BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
-import { BusinessMode } from '../shared/enums';
 import { environment } from 'src/environments/environment';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { BusinessStatus } from '../shared/enums';
 
 @Injectable( {providedIn: 'root'})
 export class GenericService {
@@ -74,12 +74,12 @@ export class GenericService {
   }
 
 
-  getBusinessData(user: IUserData): { mode: BusinessMode; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
+  getBusinessData(user: IUserData): { mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
   } {
 
     const fullList: BusinessInfo[] = [];
 
-    if (user.isTwoBusinessOwner) {
+    if (user.businessStatus === 'MULTI_BUSINESS') {
       fullList.push({
         name: user.businessName,
         value: user.businessNumber,
@@ -99,7 +99,7 @@ export class GenericService {
       });
 
       return {
-        mode: BusinessMode.TWO_BUSINESS,
+        mode: BusinessStatus.MULTI_BUSINESS,
         uiList: fullList.map(b => ({ name: b.name, value: b.value })),
         fullList,
         showSelector: true
@@ -116,7 +116,7 @@ export class GenericService {
     });
 
     return {
-      mode: BusinessMode.ONE_BUSINESS,
+      mode: BusinessStatus.SINGLE_BUSINESS,
       uiList: fullList.map(b => ({ name: b.name, value: b.value })),
       fullList,
       showSelector: false

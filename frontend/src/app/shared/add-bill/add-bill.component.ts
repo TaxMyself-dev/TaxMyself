@@ -7,6 +7,7 @@ import { ISelectItem, IUserData } from '../interface';
 import { paymentIdentifierType } from '../enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { BusinessStatus } from '../enums';
 
 @Component({
     selector: 'app-add-bill',
@@ -28,6 +29,8 @@ export class AddBillComponent implements OnInit {
   businessNames: ISelectItem[] = [];
   userData: IUserData;
 
+  BusinessStatus = BusinessStatus;
+
   constructor(private formBuilider: FormBuilder, private transactionsService: TransactionsService, private modalCtrl: ModalController, public authService: AuthService, private genericService: GenericService) {
     this.addBillForm = this.formBuilider.group({
       billName: new FormControl(
@@ -41,7 +44,7 @@ export class AddBillComponent implements OnInit {
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.businessNames.push({name: this.userData.businessName, value: this.userData.businessNumber});
       this.businessNames.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
       this.addBillForm.get('businessNumber')?.setValidators([Validators.required]);

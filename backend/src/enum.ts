@@ -32,6 +32,12 @@ export enum FamilyStatus {
   DIVORCED = 'DIVORCED'
 }
 
+export enum BusinessStatus {
+  NO_BUSINESS = 'NO_BUSINESS',
+  SINGLE_BUSINESS = 'SINGLE_BUSINESS',
+  MULTI_BUSINESS = 'MULTI_BUSINESS'
+}
+
 export enum Gender {
   MALE = 'MALE',
   FEMALE = 'FEMALE'

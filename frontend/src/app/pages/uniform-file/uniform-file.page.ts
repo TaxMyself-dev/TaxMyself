@@ -5,8 +5,9 @@ import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, firstValueFrom, map, tap, throwError } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
-import { BusinessMode, FormTypes, ReportingPeriodType, UniformFileDocumentSummaryColumns, UniformFileDocumentSummaryHebrewColumns, UniformFileListSummaryColumns, UniformFileListSummaryHebrewColumns } from 'src/app/shared/enums';
+import { FormTypes, ReportingPeriodType, UniformFileDocumentSummaryColumns, UniformFileDocumentSummaryHebrewColumns, UniformFileListSummaryColumns, UniformFileListSummaryHebrewColumns } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
+import { BusinessStatus } from 'src/app/shared/enums';
 
 export interface ReportDetails {
   businessNumber: string;
@@ -44,12 +45,12 @@ export class UniformFilePage implements OnInit {
   reportDetails: ReportDetails | null = null;
 
   // Business-related properties
-  BusinessMode = BusinessMode;
-  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
   showBusinessSelector = false;
   businessUiList: ISelectItem[] = [];
   businessFullList: BusinessInfo[] = [];
 
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
 
   uniformFileDocumentSummary: any;
 
@@ -87,12 +88,12 @@ export class UniformFilePage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     const businessData = this.genericService.getBusinessData(this.userData);
-    this.businessMode = businessData.mode;
+    this.businessStatus = businessData.mode;
     this.businessUiList = businessData.uiList;
     this.businessFullList = businessData.fullList;
     this.showBusinessSelector = businessData.showSelector;
 
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.businessNames.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessNames.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
       this.uniformFileForm.get('businessNumber')?.setValidators([Validators.required]);

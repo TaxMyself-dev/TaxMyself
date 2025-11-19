@@ -7,7 +7,7 @@ import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
-import { BusinessMode, ReportingPeriodType } from 'src/app/shared/enums';
+import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { DocCreateService } from '../doc-create/doc-create.service';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
@@ -36,8 +36,8 @@ export class PnLReportPage implements OnInit {
   totalExpense: number = 0;
   businessNames: ISelectItem[] = [];
   businessNamesList: ISelectItem[] = [];
-  BusinessMode = BusinessMode;
-  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
 
   reportingPeriodType = ReportingPeriodType;
 
@@ -52,13 +52,13 @@ export class PnLReportPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.gs.clearBusinesses();
     await this.gs.loadBusinesses();
-    if (this.userData.isTwoBusinessOwner) {
-      this.businessMode = BusinessMode.TWO_BUSINESS;
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
+      this.businessStatus = BusinessStatus.MULTI_BUSINESS;
       this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
       this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
     }
     else {
-      this.businessMode = BusinessMode.ONE_BUSINESS;
+      this.businessStatus = BusinessStatus.SINGLE_BUSINESS;
       this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
     }
   }

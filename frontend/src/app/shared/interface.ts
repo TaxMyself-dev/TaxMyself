@@ -1,5 +1,5 @@
 import { RegisterFormModules } from "../pages/register/regiater.enum";
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
+import { BusinessStatus, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
 
 export interface IUserData {
     businessDate: string;
@@ -18,7 +18,7 @@ export interface IUserData {
     firebaseId: string;
     id: string;
     index: number;
-    isTwoBusinessOwner: boolean;
+    businessStatus: BusinessStatus;
     lName: string;
     phone: string;
     role: string;

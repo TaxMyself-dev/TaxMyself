@@ -12,7 +12,7 @@
     </p>
   </div>
   <app-period-select class="vat-report-search-bar-input"
-    [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessMode]="businessMode" [businessOptions]="businessOptions()" (formSubmit)="onSubmit($event)" [isLoadingStateButton]="isLoadingStatePeryodSelectButton()">
+    [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessStatus]="businessStatus" [businessOptions]="businessOptions()" (formSubmit)="onSubmit($event)" [isLoadingStateButton]="isLoadingStatePeryodSelectButton()">
   </app-period-select> 
 
   @if (vatReportData()) {

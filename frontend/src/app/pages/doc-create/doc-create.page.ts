@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
-import { BusinessMode, CardCompany, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { BusinessStatus, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
@@ -84,8 +84,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   paymentSectionName: SectionKeysEnum;
 
   // Business-related properties
-  BusinessMode = BusinessMode;
-  businessMode: BusinessMode = BusinessMode.ONE_BUSINESS;
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   showBusinessSelector = false;
   businessUiList: ISelectItem[] = [];
   businessFullList: BusinessInfo[] = [];
@@ -199,12 +199,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.userData = this.authService.getUserDataFromLocalStorage();
     const businessData = this.genericService.getBusinessData(this.userData);
 
-    this.businessMode = businessData.mode;
+    this.businessStatus = businessData.mode;
     this.businessUiList = businessData.uiList; // for the selector
     this.businessFullList = businessData.fullList; // for internal details
     this.showBusinessSelector = businessData.showSelector;
 
-    if (this.businessMode === BusinessMode.ONE_BUSINESS) {
+    if (this.businessStatus === BusinessStatus.SINGLE_BUSINESS) {
 
       const b = this.businessFullList[0];
       this.setSelectedBusiness(b);

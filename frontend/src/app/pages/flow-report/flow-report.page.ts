@@ -78,7 +78,7 @@ export class FlowReportPage implements OnInit {
 
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.fieldsNames.push({ name: TransactionsOutcomesColumns.BUSINESS_NAME, value: TransactionsOutcomesHebrewColumns.businessName, type: FormTypes.TEXT });
       this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.NAME, 1.2);
       this.COLUMNS_WIDTH.set(TransactionsOutcomesColumns.CATEGORY, 1.2);

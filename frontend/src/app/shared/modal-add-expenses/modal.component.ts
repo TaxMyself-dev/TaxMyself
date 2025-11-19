@@ -17,6 +17,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
+import { BusinessStatus } from '../enums';
 
 @Component({
     selector: 'app-modal',
@@ -129,6 +130,8 @@ export class ModalExpensesComponent {
   originalFileName: string = "";
   currentFileName: string = "";
 
+  BusinessStatus = BusinessStatus;
+
   constructor(private fileService: FilesService, private formBuilder: FormBuilder, private expenseDataServise: ExpenseDataService, private modalCtrl: ModalController, private loadingController: LoadingController, private sanitizer: DomSanitizer, private authService: AuthService, private genericService: GenericService, private router: Router, private popoverController: PopoverController) {
     this.safePdfBase64String = this.sanitizer.bypassSecurityTrustResourceUrl('');
   }
@@ -136,7 +139,7 @@ export class ModalExpensesComponent {
   ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData?.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       const businessNumberFieldExists = this.columnsList.find(
         (column) => column.name === ExpenseFormColumns.BUSINESS_NUMBER
       );
@@ -179,7 +182,7 @@ export class ModalExpensesComponent {
       [ExpenseFormColumns.BUSINESS_NUMBER]: [data?.businessNumber || ''],
     });
 
-    if (this.userData?.isTwoBusinessOwner) {
+    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.addExpenseForm?.get('businessNumber').setValidators([Validators.required]);
     }
     this.initialForm = cloneDeep(this.addExpenseForm);
@@ -440,7 +443,7 @@ export class ModalExpensesComponent {
   setFormData(filePath: string, token: string) {
     const formData = this.addExpenseForm.value;
     console.log("form in set form", formData);
-    if (!this.userData?.isTwoBusinessOwner) {
+    if (this.userData?.businessStatus != 'MULTI_BUSINESS') { 
       formData.businessNumber = this.userData?.businessNumber;
     }
     formData.taxPercent = +formData.taxPercent;

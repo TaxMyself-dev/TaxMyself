@@ -2,7 +2,7 @@
 
   <div class="content" content>
    <app-input-text [labelText]="'שם החשבון'" [placeholder]="'בחר שם לחשבון'" [parentForm]="myForm" [controlName]="'accountName'" [size]="inputsSize.MEDIUM"></app-input-text>
-   @if (userData?.isTwoBusinessOwner) {
+   @if (userData?.businessStatus === BusinessStatus.MULTI_BUSINESS) {
    <app-input-select [labelText]="'שייך לעסק'" [ariaLabel]="'בחר מרשימת העסקים'" [placeholder]="'בחר מרשימת העסקים'" [controlName]="'businessNumber'" [parentForm]="myForm" [size]="inputsSize.MEDIUM" [items]="businessOptions()"></app-input-select>
   }
   </div>
