@@ -111,7 +111,7 @@ export class AppModule {
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         privateKey: (process.env.FIREBASE_PRIVATE_KEY || '')
           .replace(/\\n/g, '\n')
-          .replace(/^"|"$/g, ''),  // מסיר גרשיים עוטפים אם נשמרו כך בטעות
+          .replace(/^"|"$/g, ''),
       }),
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     });

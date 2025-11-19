@@ -23,6 +23,8 @@ import { TopNavComponent } from "./components/topNav/topNav.component";
 import { ButtonComponent } from "./components/button/button.component";
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
+import { ConfirmDialog } from "primeng/confirmdialog";
+import { ConfirmationService } from 'primeng/api';
 
 
 @NgModule({
@@ -43,7 +45,8 @@ import { ToastModule } from 'primeng/toast';
     SharedModule,
     TopNavComponent,
     ButtonComponent,
-    ToastModule
+    ToastModule,
+    ConfirmDialog
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),
@@ -51,6 +54,7 @@ import { ToastModule } from 'primeng/toast';
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     provideHttpClient(withInterceptorsFromDi()),
     MessageService,
+    ConfirmationService
   ],
 })
 export class AppModule {}

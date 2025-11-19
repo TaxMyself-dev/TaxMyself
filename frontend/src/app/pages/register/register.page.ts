@@ -287,30 +287,34 @@ matchRegisterImage = computed(() => {
   }
 
   gelAllCities(): void {
-    this.registerService.getCities().pipe(
-      takeUntil(this.ngUnsubscribe),
-      startWith([]),
-      map((cities) => {
-        console.log("🚀 ~ map ~ cities:", cities)
-        return cities.map((city) => ({
-          name: city.name,
-          value: city.name
-        }))
-      }),
-      tap((res) => {
-        console.log(res);
+  this.registerService.getCities().pipe(
+    takeUntil(this.ngUnsubscribe),
+    startWith([]),
+    map((cities) => {
+      console.log("🚀 ~ map ~ cities:", cities);
 
-        if (res.length) {
-          this.cities.set(res.slice(1));
-        }
-        else {
-          this.cities.set([]);
-        }
+      const mapped = cities.map((city) => ({
+        name: city['שם_ישוב'],
+        value: city['שם_ישוב']
+      }));
+
+      // ⭐ מיון לפי א״ב בעברית:
+      return mapped.sort((a, b) =>
+        a.name.localeCompare(b.name, 'he')
+      );
+    }),
+    tap((res) => {
+      console.log(res);
+
+      if (res.length) {
+        this.cities.set(res.slice(1));
+      } else {
+        this.cities.set([]);
       }
-      ),
-    )
-      .subscribe();
-  }
+    }),
+  ).subscribe();
+}
+
 
 
   // addBusiness() {

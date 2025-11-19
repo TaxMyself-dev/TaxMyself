@@ -1,5 +1,5 @@
 //General
-import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
 //Entities
@@ -133,6 +133,32 @@ export class ExpensesService {
 
         return { message };
 
+    }
+
+    async deleteFileFromExpense(expenseId: number, userId: string): Promise<{ message: string, file: string | null }> {
+        // Find the expense by ID
+        const expense = await this.expense_repo.findOne({ where: { id: expenseId } });
+
+        if (!expense) {
+            throw new NotFoundException(`Expense with ID ${expenseId} not found.`);
+        }
+
+        // Verify the expense belongs to the user
+        if (expense.userId !== userId) {
+            throw new ForbiddenException(`You don't have permission to delete this file.`);
+        }
+
+        // Store the file path before deletion (in case needed for cleanup)
+        const deletedFilePath = expense.file;
+
+        // Remove the file reference from the expense
+        expense.file = null;
+        await this.expense_repo.save(expense);
+
+        return { 
+            message: 'File deleted successfully',
+            file: deletedFilePath 
+        };
     }
 
 

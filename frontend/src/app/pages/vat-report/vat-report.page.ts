@@ -7,9 +7,9 @@ import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodTy
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from 'src/app/shared/enums';
-import { FileChangeEvent, IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction, IUserData, IVatReportData } from 'src/app/shared/interface';
 import { Router } from '@angular/router';
-import { FilesService } from 'src/app/services/files.service';
+import { FilesService, IFileUploadItem } from 'src/app/services/files.service';
 import { ModalController } from '@ionic/angular';
 import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confirm.component';
 import { GenericService } from 'src/app/services/generic.service';
@@ -19,7 +19,7 @@ import { log } from 'console';
 //import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
-import { MessageService } from 'primeng/api';
+import { MessageService, ConfirmationService } from 'primeng/api';
 
 
 @Component({
@@ -31,6 +31,7 @@ import { MessageService } from 'primeng/api';
 export class VatReportPage implements OnInit {
 
   private gs = inject(GenericService);
+  confirmationService = inject(ConfirmationService);
 
   // reactive bindings
   businessOptions = computed(() => this.gs.businesses());
@@ -57,6 +58,7 @@ export class VatReportPage implements OnInit {
   displayExpenses: boolean = false;
   //vatReportForm: FormGroup;
   tableActions: ITableRowAction[];
+  fileActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
   filesAttachedMap = signal<Map<number, File>>(new Map());
   previousFile: string;
@@ -113,6 +115,7 @@ export class VatReportPage implements OnInit {
 
 
   async ngOnInit() {
+    this.setFileActions();
     this.userData = this.authService.getUserDataFromLocalStorage();
     //this.gs.clearBusinesses();
     await this.gs.loadBusinesses();
@@ -249,27 +252,25 @@ export class VatReportPage implements OnInit {
         console.error("Error in getTransToConfirm:", err);
         return EMPTY;
       }),
-        tap((data: IRowDataTable[]) => {
-          if (!data?.length) {
-            this.closeDialogWithoutConfirm(false);
-          }
+      tap((data: IRowDataTable[]) => {
+        if (!data?.length) {
+          this.closeDialogWithoutConfirm(false);
+        }
         console.log("🚀 ~ tap ~ data:", data)
         this.arrayLength.set(data?.length);
       }),
       map(data => {
-        console.log("🚀 ~ VatReportPage ~ getTransToConfirm ~ data:", data);
-
         return data?.map(row => ({
-            ...row,
-            sum: this.genericService.addComma(Math.abs(row.sum as number)),
-            isRecognized: row.isRecognized ? 'כן' : 'לא',
-            businessNumber: row?.businessNumber === this.userData.businessNumber
-              ? this.userData.businessName
-              : this.userData.spouseBusinessName
-          }))
+          ...row,
+          sum: this.genericService.addComma(Math.abs(row.sum as number)),
+          isRecognized: row.isRecognized ? 'כן' : 'לא',
+          businessNumber: row?.businessNumber === this.userData.businessNumber
+            ? this.userData.businessName
+            : this.userData.spouseBusinessName
+        }))
       }
       ),
-    
+
     )
 
     // .subscribe(res => {
@@ -410,7 +411,7 @@ export class VatReportPage implements OnInit {
           // Step 2: If files were attached, upload and attach them
           if (event.files && event.files.length > 0) {
             console.log(`Uploading ${event.files.length} files for confirmed transactions...`);
-            return this.filesService.uploadAndSaveToServer(
+            return this.filesService.uploadAndSaveMultipleFilesToServer(
               event.files,
               (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles, true)
             ).pipe(
@@ -458,8 +459,6 @@ export class VatReportPage implements OnInit {
         this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
       })
   }
-
-
 
   // updateIncome(event: any) {
   //   console.log("updateIncome event: ", event);
@@ -523,34 +522,6 @@ export class VatReportPage implements OnInit {
 
   }
 
-  // // Get the data from server and update items
-  // setRowsData(): void {
-  //   //const formData = this.vatReportForm.value;
-
-  //   const { startDate, endDate } = this.dateService.getStartAndEndDates(formData.reportingPeriodType, formData.year, formData.month, formData.startDate, formData.endDate);
-
-  //   this.items$ = this.expenseDataService.getExpenseForVatReport(startDate, endDate, formData.businessNumber)
-  //     .pipe(
-  //       map((data) => {
-  //         const rows = [];
-  //         console.log("data of table in vat report: ", data);
-
-  //         data.forEach(row => {
-  //           const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
-  //           if (row.file != undefined && row.file != null && row.file != "") {
-  //             tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
-  //           }
-  //           tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
-  //           tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
-  //           tableData.sum = this.genericService.addComma(tableData.sum as string);
-  //           rows.push(tableData);
-  //         })
-  //         this.rows = rows;
-  //         return rows
-  //       })
-  //     )
-  // }
-
   showExpenses() {
     this.displayExpenses = !this.displayExpenses
   }
@@ -588,71 +559,32 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  // onFileChange(data: FileChangeEvent): void {
-  //   console.log("🚀 ~ VatReportPage ~ onFileSelected ~ file:", data.file)
-  //   console.log("File selected for row:", data.row.id, "file:", data.file.name);
-
-  //   // Update or add to arrayFile (store locally, no upload yet)
-  //   const existingIndex = this.arrayFile.findIndex(item => item.id === data.row.id);
-  //   if (existingIndex !== -1) {
-  //     this.arrayFile[existingIndex].file = data.file; // Update existing file
-  //   } else {
-  //     this.arrayFile.push({ id: data.row.id as number, file: data.file });
-  //   }
-
-  //   // Update the filesAttachedMap for UI feedback (icon changes immediately)
-  //   const updatedMap = new Map(this.filesAttachedMap());
-  //   updatedMap.set(data.row.id as number, data.file);
-  //   this.filesAttachedMap.set(updatedMap);
-
-  //   // Show feedback to user
-  //   this.genericService.showToast(`קובץ ${data.file.name} נבחר. לחץ על אישור לשליחה`, "success");
-  // }
-  onFileChange(e: FileChangeEvent) {
-  const updated = new Map(this.filesAttachedMap());
-  if (e.type === 'set') {
-    updated.set(e.row.id as number, e.file);
-    this.arrayFile = [...this.arrayFile.filter(x => x.id !== e.row.id), { id: e.row.id as number, file: e.file }];
-  } else {
-    updated.delete(e.row.id as number);
-    this.arrayFile = this.arrayFile.filter(x => x.id !== e.row.id);
+  onFileChange(e: { row: IRowDataTable, file?: File }) {
+    console.log("onFileChange event: ", e);
+    this.addFileToExpense(e)
   }
-  this.filesAttachedMap.set(updated);
-}
 
-  /**
-   * Upload files to Firebase and save to server with automatic rollback on failure
-   * Call this method when user confirms/submits the form
-   */
-  addFileToExpense(): void {
-    if (this.arrayFile.length === 0) {
-      console.log("No files to upload");
-      return;
-    }
 
-    const totalFiles = this.arrayFile.length;
-
-    // Use the enhanced FilesService with automatic rollback
-    this.filesService.uploadAndSaveToServer(
-      this.arrayFile,
-      (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles)
-    ).pipe(
-      catchError((err) => {
-        console.error("Failed to upload and save files:", err);
-        this.genericService.showToast("אירעה שגיאה בהעלאת הקבצים", "error");
-        return EMPTY;
+  addFileToExpense(e: { row: IRowDataTable, file?: File }): void {
+    this.genericService.getLoader().subscribe();
+    this.filesService.addFileToExpense(e.row, e.file)
+      .pipe(
+        tap(() => {
+          this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+        }),
+        finalize(() => {
+          this.genericService.dismissLoader();
+        })
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'קובץ הועלה בהצלחה',
+          life: 5000,
+          key: 'br'
+        });
       })
-    ).subscribe(() => {
-      console.log("All files uploaded and saved successfully");
-      this.genericService.showToast(`${totalFiles} קבצים הועלו בהצלחה`, "success");
-
-      // Clear the arrays and map
-      this.arrayFile = [];
-      this.filesAttachedMap.set(new Map());
-
-      // Refresh table data
-      this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-    });
   }
 
   onChange(event: string): void {
@@ -666,110 +598,107 @@ export class VatReportPage implements OnInit {
     this.visibleConfirmTransDialog.set(true);
   }
 
-  onPreviewFile(row: IRowDataTable): void {
-    console.log("Preview file for row:", row);
-    this.onPreviewFileClicked(row);
-  }
-
-  onDeleteFile(event: { row: IRowDataTable, deleteFromServer: boolean }): void {
-    console.log("Delete file for row:", event);
-    const { row, deleteFromServer } = event;
-    
-    if (deleteFromServer) {
-      // Delete from server and Firebase
-      from(this.modalController.create({
-        component: PopupConfirmComponent,
-        componentProps: {
-          message: "האם אתה בטוח שברצונך למחוק את הקובץ?",
-          buttonTextConfirm: "כן, מחק",
-          buttonTextCancel: "ביטול"
-        },
-        cssClass: 'vatReport-modal'
-      }))
-        .pipe(
-          switchMap((modal) => from(modal.present()).pipe(
-            switchMap(() => from(modal.onWillDismiss()))
-          )),
-          switchMap((res) => {
-            if (res.data) {
-              // User confirmed deletion
-              this.genericService.getLoader().subscribe();
-              
-              // First delete from Firebase
-              return from(this.filesService.deleteFileFromFirebase(row['file'] as string)).pipe(
-                switchMap(() => {
-                  // Then delete from server
-                  return this.vatReportService.deleteFileFromDB(row.id as number);
-                }),
-                tap(() => {
-                  this.genericService.showToast("קובץ נמחק בהצלחה", "success");
-                  // Refresh the table
-                  this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
-                }),
-                catchError((err) => {
-                  console.error("Error deleting file:", err);
-                  this.genericService.showToast("שגיאה במחיקת הקובץ", "error");
-                  return EMPTY;
-                }),
-                finalize(() => {
-                  this.genericService.dismissLoader();
-                })
-              );
-            }
-            return EMPTY;
-          }),
-          catchError((err) => {
-            console.error("Error in delete confirmation:", err);
-            return EMPTY;
-          })
-        )
-        .subscribe();
-    } else {
-      // Just remove from local arrays (newly attached file not yet uploaded)
-      const updatedMap = new Map(this.filesAttachedMap());
-      updatedMap.delete(row.id as number);
-      this.filesAttachedMap.set(updatedMap);
-      
-      this.arrayFile = this.arrayFile.filter(item => item.id !== row.id);
-      this.genericService.showToast("קובץ הוסר מהרשימה", "success");
-    }
-  }
-
-  onEditFile(row: IRowDataTable): void {
-    console.log("Edit file for row:", row);
-    
-    // Confirm the user wants to replace the file
-    from(this.modalController.create({
-      component: PopupConfirmComponent,
-      componentProps: {
-        message: "האם אתה בטוח שברצונך להחליף את הקובץ הקיים?",
-        buttonTextConfirm: "כן, החלף",
-        buttonTextCancel: "ביטול"
-      },
-      cssClass: 'vatReport-modal'
-    }))
+  onDeleteFile(row: IRowDataTable): void {
+    this.filesService.deleteFileCompletely(row.id as number, row.file as string)
       .pipe(
-        switchMap((modal) => from(modal.present()).pipe(
-          switchMap(() => from(modal.onWillDismiss()))
-        )),
-        tap((res) => {
-          if (res.data) {
-            // User confirmed - trigger file input click to select new file
-            // We'll handle the replacement in the onFileChange method
-            const fileInput = document.querySelector(`input[type="file"]`) as HTMLInputElement;
-            if (fileInput) {
-              // Store the row ID for replacement
-              (fileInput as any).__replacementRowId = row.id;
-              fileInput.click();
-            }
-          }
+        tap(() => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'קובץ נמחק בהצלחה',
+            life: 5000,
+            key: 'br'
+          });
+          this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
         }),
-        catchError((err) => {
-          console.error("Error in edit confirmation:", err);
-          return EMPTY;
+        catchError((error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'שגיאה במחיקת הקובץ, אנא נסה/י שנית',
+            life: 5000,
+            key: 'br'
+          });
+          console.error("Error deleting file:", error);
+          return of(null);
+        }),
+        finalize(() => {
+          this.genericService.dismissLoader();
         })
       )
       .subscribe();
+  }
+
+  onDownloadFile(row: IRowDataTable): void {
+    console.log("Download file for row:", row);
+    this.filesService.downloadFirebaseFile(row.file as string)
+  }
+
+  private setFileActions(): void {
+    this.fileActions = [
+      {
+        name: 'preview',
+        icon: 'pi pi-eye',
+        title: 'צפה בקובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.onPreviewFileClicked(row);
+        }
+      },
+      {
+        name: 'download',
+        icon: 'pi pi-download',
+        title: 'הורד קובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.onDownloadFile(row);
+        }
+      },
+      {
+        name: 'edit',
+        icon: 'pi pi-pencil',
+        title: 'ערוך קובץ (החלף)',
+        action: (fileInput: HTMLInputElement, row: IRowDataTable) => {
+          this.confirmationService.confirm({
+            message: 'האם אתה בטוח שאתה רוצה להחליף את הקובץ הקיים?',
+            header: 'החלפת קובץ',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'החלף',
+            rejectLabel: 'לא',
+            accept: () => {
+              fileInput.value = '';
+              fromEvent(fileInput, 'change').pipe(
+                take(1),
+                map(() => fileInput.files?.[0] || null),
+                filter((file): file is File => !!file)
+              )
+                .subscribe((file) => {
+                  this.addFileToExpense({ row, file });
+                });
+
+              fileInput.click();
+            },
+            reject: () => { }
+          });
+        }
+      },
+      {
+        name: 'delete',
+        icon: 'pi pi-trash',
+        title: 'מחק קובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.confirmationService.confirm({
+            message: 'האם אתה בטוח שאתה רוצה למחוק את הקובץ?',
+            header: 'מחיקת קובץ',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'מחק',
+            rejectLabel: 'לא',
+            accept: () => {
+              this.onDeleteFile(row);
+            },
+            reject: () => { }
+          });
+        }
+      },
+    ];
   }
 
 }
