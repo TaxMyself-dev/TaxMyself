@@ -34,8 +34,8 @@ export class VatReportPage implements OnInit {
   confirmationService = inject(ConfirmationService);
 
   // reactive bindings
-  businessOptions = computed(() => this.gs.businesses());
-  isLoading = computed(() => this.gs.isLoadingBusinesses());
+  businessOptions = this.gs.businessSelectItems;
+  //businessOptions = computed(() => this.gs.businesses());
 
   visibleConfirmTransDialog = signal<boolean>(false);
 

@@ -1,5 +1,5 @@
 import { RegisterFormModules } from "../pages/register/regiater.enum";
-import { BusinessStatus, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer } from "./enums";
+import { BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
 
 export interface IUserData {
     businessDate: string;
@@ -404,4 +404,19 @@ export interface BusinessInfo {
   type: string;
   phone: string;
   email: string
+}
+
+export interface Business {
+  firebaseId: string;
+  businessName: string | null;
+  businessField: string | null;
+  businessNumber: string | null;
+  businessAddress: string | null;
+  businessPhone: string | null;
+  businessEmail: string | null;
+  businessType: BusinessType | null;
+  businessInventory: boolean | null;
+  businessDate: string | null;
+  vatReportingType: VATReportingType | null;
+  taxReportingType: TaxReportingType | null;
 }
