@@ -8,8 +8,8 @@ import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { SharedService } from 'src/shared/shared.service';
-import { CityDto } from './dtos/city.dto';
-import axios from 'axios';
+import { CityDto } from '../cities/city.dto';
+import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
 
 
@@ -29,88 +29,88 @@ export class UsersService {
   }
 
 
-    async signup_new({ personal, spouse, children, business }: any) {
+  async signup_new({ personal, spouse, children, business }: any) {
 
-      console.log("signup_new - start");
+    console.log("signup_new - start");
 
-      console.log("🧍 personal:", personal);
-      console.log("🤝 spouse:", spouse);
-      console.log("👶 children:", children);
-      console.log("🏢 business:", business);
+    console.log("🧍 personal:", personal);
+    console.log("🤝 spouse:", spouse);
+    console.log("👶 children:", children);
+    console.log("🏢 business:", business);
 
-      // ✅ 1️⃣ Extract arrays correctly (in case frontend sends wrapped data)
-      const newChildren = children?.childrenArray ?? [];
-      const newBusinesses: Partial<Business>[] = business?.businessArray ?? [];
+    // ✅ 1️⃣ Extract arrays correctly (in case frontend sends wrapped data)
+    const newChildren = children?.childrenArray ?? [];
+    const newBusinesses: Partial<Business>[] = business?.businessArray ?? [];
 
-      // ✅ 2️⃣ Create base user object (no business fields here)
-      const newUser = {
-        ...personal,
-        ...spouse,
-        role: [UserRole.REGULAR],
-        finsiteId: 0,
-        createdAt: new Date(),
-        subscriptionEndDate: new Date(),
-        payStatus: PayStatus.TRIAL,
-        modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
-      };
+    // ✅ 2️⃣ Create base user object (no business fields here)
+    const newUser = {
+      ...personal,
+      ...spouse,
+      role: [UserRole.REGULAR],
+      finsiteId: 0,
+      createdAt: new Date(),
+      subscriptionEndDate: new Date(),
+      payStatus: PayStatus.TRIAL,
+      modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
+    };
 
-      newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
+    newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
 
-      // ✅ 4️⃣ Determine two-business owner flag
-      if (newBusinesses.length === 0) {
-        newUser.businessStatus = BusinessStatus.NO_BUSINESS;
-      } else if (newBusinesses.length === 1) {
-        newUser.businessStatus = BusinessStatus.SINGLE_BUSINESS;
-      } else {
-        newUser.businessStatus = BusinessStatus.MULTI_BUSINESS; 
+    // ✅ 4️⃣ Determine two-business owner flag
+    if (newBusinesses.length === 0) {
+      newUser.businessStatus = BusinessStatus.NO_BUSINESS;
+    } else if (newBusinesses.length === 1) {
+      newUser.businessStatus = BusinessStatus.SINGLE_BUSINESS;
+    } else {
+      newUser.businessStatus = BusinessStatus.MULTI_BUSINESS;
+    }
+
+    // ✅ 5️⃣ Save user first
+    const user = this.user_repo.create(newUser);
+    const savedUser = await this.user_repo.save(user);
+
+    // ✅ 6️⃣ Save all children (if any)
+    for (const child of newChildren) {
+      const newChild = this.child_repo.create({
+        ...child,
+        parentUserID: personal.firebaseId,
+      });
+      await this.child_repo.save(newChild);
+    }
+
+    // ✅ 7️⃣ Save all businesses (if any)
+    for (const biz of newBusinesses) {
+      if (!biz) continue;
+
+      const newBusiness = this.business_repo.create({
+        ...biz,
+        firebaseId: personal.firebaseId,
+      });
+
+      // Apply VAT & tax logic per business type
+      switch (newBusiness.businessType) {
+        case BusinessType.EXEMPT:
+          newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
+          newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+          break;
+        case BusinessType.LICENSED:
+        case BusinessType.COMPANY:
+          newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+          newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+          break;
+        default:
+          newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
+          newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
+          break;
       }
 
-      // ✅ 5️⃣ Save user first
-      const user = this.user_repo.create(newUser);
-      const savedUser = await this.user_repo.save(user);
-
-        // ✅ 6️⃣ Save all children (if any)
-        for (const child of newChildren) {
-          const newChild = this.child_repo.create({
-            ...child,
-            parentUserID: personal.firebaseId,
-          });
-          await this.child_repo.save(newChild);
-        }
-
-      // ✅ 7️⃣ Save all businesses (if any)
-      for (const biz of newBusinesses) {
-        if (!biz) continue;
-
-        const newBusiness = this.business_repo.create({
-          ...biz,
-          firebaseId: personal.firebaseId,
-        });
-
-        // Apply VAT & tax logic per business type
-        switch (newBusiness.businessType) {
-          case BusinessType.EXEMPT:
-            newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
-            newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-            break;
-          case BusinessType.LICENSED:
-          case BusinessType.COMPANY:
-            newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-            newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-            break;
-          default:
-            newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
-            newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
-            break;
-        }
-
-          await this.business_repo.save(newBusiness);
-        }
-
-      console.log("signup_new - end");
-      return savedUser;
+      await this.business_repo.save(newBusiness);
     }
-  
+
+    console.log("signup_new - end");
+    return savedUser;
+  }
+
 
 
   async signup({ personal, spouse, children, business }: any) {
@@ -204,11 +204,11 @@ export class UsersService {
     return this.user_repo.save(user);
   }
 
-                    
-    async signin(firebaseId: string) {
-        const user = await this.findFireUser(firebaseId);
-        return user;
-    }
+
+  async signin(firebaseId: string) {
+    const user = await this.findFireUser(firebaseId);
+    return user;
+  }
 
 
   async updateUser(userId: string, updateUserDto: UpdateUserDto): Promise<User> {
@@ -310,33 +310,9 @@ export class UsersService {
     }
   }
 
-
-  async fetchCities(): Promise<CityDto[]> {
-    const url = 'https://data.gov.il/api/3/action/datastore_search';
-
-    try {
-      const response = await axios.get<any>(url, {
-        params: {
-          resource_id: '5c78e9fa-c2e2-4771-93ff-7f400a12f7ba',
-          limit: 2000,
-        },
-      });
-
-      if (!response.data?.success) {
-        throw new Error('Data.gov.il returned success = false');
-      }
-
-      const records = response.data.result.records || [];
-
-      return records;
-    } catch (error: any) {
-      console.error('Error fetching cities from data.gov.il:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      throw new InternalServerErrorException('Failed to fetch cities data');
-    }
+   getCities(): CityDto[] {
+    console.log("in get cities: ", cities);
+    return cities;
   }
 
 

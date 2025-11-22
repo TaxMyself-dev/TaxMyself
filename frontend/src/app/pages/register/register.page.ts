@@ -294,8 +294,8 @@ matchRegisterImage = computed(() => {
       console.log("🚀 ~ map ~ cities:", cities);
 
       const mapped = cities.map((city) => ({
-        name: city['שם_ישוב'],
-        value: city['שם_ישוב']
+        name: city.name,
+        value: city.name
       }));
 
       // ⭐ מיון לפי א״ב בעברית:

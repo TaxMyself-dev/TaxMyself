@@ -55,7 +55,7 @@ export class UsersController {
 
     @Get('get-cities')
     async getCities() {
-      return this.userService.fetchCities();
+      return this.userService.getCities();
     }
 
 }
