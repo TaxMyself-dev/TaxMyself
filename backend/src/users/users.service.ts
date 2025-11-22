@@ -8,8 +8,8 @@ import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
 import { SharedService } from 'src/shared/shared.service';
-import { CityDto } from './dtos/city.dto';
-import axios from 'axios';
+import { CityDto } from '../cities/city.dto';
+import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
 
 
@@ -30,7 +30,7 @@ export class UsersService {
   }
 
 
-  async signup({ personal, spouse, children, business }: any) {
+  async signup_new({ personal, spouse, children, business }: any) {
 
     console.log("signup_new - start");
 
@@ -63,21 +63,21 @@ export class UsersService {
     } else if (newBusinesses.length === 1) {
       newUser.businessStatus = BusinessStatus.SINGLE_BUSINESS;
     } else {
-      newUser.businessStatus = BusinessStatus.MULTI_BUSINESS; 
+      newUser.businessStatus = BusinessStatus.MULTI_BUSINESS;
     }
 
     // ✅ 5️⃣ Save user first
     const user = this.user_repo.create(newUser);
     const savedUser = await this.user_repo.save(user);
 
-      // ✅ 6️⃣ Save all children (if any)
-      for (const child of newChildren) {
-        const newChild = this.child_repo.create({
-          ...child,
-          parentUserID: personal.firebaseId,
-        });
-        await this.child_repo.save(newChild);
-      }
+    // ✅ 6️⃣ Save all children (if any)
+    for (const child of newChildren) {
+      const newChild = this.child_repo.create({
+        ...child,
+        parentUserID: personal.firebaseId,
+      });
+      await this.child_repo.save(newChild);
+    }
 
     // ✅ 7️⃣ Save all businesses (if any)
     for (const biz of newBusinesses) {
@@ -105,18 +105,110 @@ export class UsersService {
           break;
       }
 
-        await this.business_repo.save(newBusiness);
-      }
+      await this.business_repo.save(newBusiness);
+    }
 
     console.log("signup_new - end");
     return savedUser;
-
   }
 
-                  
+
+
+  async signup({ personal, spouse, children, business }: any) {
+
+    console.log("signup - start");
+
+    const newChildren = children?.children;
+
+    let newUser = {
+      ...personal,
+      ...spouse,
+      ...business,
+      role: [UserRole.REGULAR], // Add the REGULAR role by default
+    };
+
+    if (newChildren.length > 0) {
+      for (let i = 0; i < newChildren.length; i++) {
+        const child: Child = newChildren[i];
+        const newChild = this.child_repo.create(child);
+        newChild.parentUserID = personal.firebaseId;
+        const addChild = await this.child_repo.save(newChild);
+      }
+    }
+
+    // Set the new user others fields
+    if ((newUser.employmentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.employmentStatus == EmploymentType.BOTH)) {
+      if (newUser.businessType == BusinessType.EXEMPT) {
+        newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
+        newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+      }
+      else if (newUser.businessType == BusinessType.LICENSED) {
+        newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+        newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+      }
+      else if (newUser.businessType == BusinessType.COMPANY) {
+        newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+        newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+      }
+      else {
+        console.log("newUser.businessType is none of the option, is ", newUser.businessType);
+        //throw new Error('User business type is not valid');
+      }
+    } else if (newUser.employmentStatus == EmploymentType.EMPLOYEE) {
+      newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
+      newUser.taxReportingType = TaxReportingType.NOT_REQUIRED;
+    }
+
+    // Set the new user spouse others fields
+    if ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH)) {
+      if (newUser.spouseBusinessType == BusinessType.EXEMPT) {
+        newUser.spouseVatReportingType = VATReportingType.NOT_REQUIRED;
+        newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+      }
+      else if (newUser.spouseBusinessType == BusinessType.LICENSED) {
+        newUser.spouseVatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+        newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+      }
+      else if (newUser.spouseBusinessType == BusinessType.COMPANY) {
+        newUser.spouseVatReportingType = VATReportingType.DUAL_MONTH_REPORT;
+        newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
+      }
+      else {
+        console.log("newUser.spouseBusinessType is none of the option, is ", newUser.spouseBusinessType);
+        //throw new Error('User business type is not valid');
+      }
+    } else if (newUser.spouseEmploymentStatus == EmploymentType.EMPLOYEE) {
+      newUser.spouseVatReportingType = VATReportingType.NOT_REQUIRED;
+      newUser.spouseTaxReportingType = TaxReportingType.NOT_REQUIRED;
+    }
+
+    if (((newUser.employmentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.employmentStatus == EmploymentType.BOTH)) &&
+      ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH))) {
+      newUser.isTwoBusinessOwner = true;
+    }
+    else {
+      newUser.isTwoBusinessOwner = false;
+    }
+
+    newUser.finsiteId = 0;
+    newUser.createdAt = new Date();
+    newUser.subscriptionEndDate = new Date(newUser.createdAt);
+    newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
+    newUser.payStatus = PayStatus.TRIAL;
+    newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
+
+    console.log("signup - end");
+
+    // console.log("newUser is: ", newUser);
+
+    const user = this.user_repo.create(newUser);
+    return this.user_repo.save(user);
+  }
+
+
   async signin(firebaseId: string) {
-      const user = await this.findFireUser(firebaseId);
-      return user;
+    const user = await this.findFireUser(firebaseId);
+    return user;
   }
 
 
@@ -219,33 +311,9 @@ export class UsersService {
     }
   }
 
-
-  async fetchCities(): Promise<CityDto[]> {
-    const url = 'https://data.gov.il/api/3/action/datastore_search';
-
-    try {
-      const response = await axios.get<any>(url, {
-        params: {
-          resource_id: '5c78e9fa-c2e2-4771-93ff-7f400a12f7ba',
-          limit: 2000,
-        },
-      });
-
-      if (!response.data?.success) {
-        throw new Error('Data.gov.il returned success = false');
-      }
-
-      const records = response.data.result.records || [];
-
-      return records;
-    } catch (error: any) {
-      console.error('Error fetching cities from data.gov.il:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      throw new InternalServerErrorException('Failed to fetch cities data');
-    }
+   getCities(): CityDto[] {
+    console.log("in get cities: ", cities);
+    return cities;
   }
 
 
