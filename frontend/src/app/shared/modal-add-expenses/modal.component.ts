@@ -293,7 +293,7 @@ export class ModalExpensesComponent {
   }
 
   getFileData(): Observable<any> {//Checks if a file is selected and if so returns his firebase path. if not returns null
-    return this.fileToUpload ? this.fileService.uploadFileViaFront(this.fileToUpload) : of(null);
+    return this.fileToUpload ? this.fileService.uploadFileViaFront(this.fileToUpload, '314719279') : of(null);
   }
 
   update(): void {

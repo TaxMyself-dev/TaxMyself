@@ -311,7 +311,7 @@ export class FlowReportPage implements OnInit {
     // Create an array of observables for each file upload
     const fileUploadObservables = this.chosenTrans.map((tran) => {
       if (tran.file) {
-        return this.fileService.uploadFileViaFront(tran.file as File).pipe(
+        return this.fileService.uploadFileViaFront(tran.file as File, '314719279').pipe(
           finalize(() => {
             this.genericService.dismissLoader();
             this.genericService.updateLoaderMessage("please wait...");

@@ -15,6 +15,7 @@ import { log } from 'console';
 import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
 import * as admin from 'firebase-admin';
+import { randomUUID } from 'crypto';
 
 
 @Injectable()
@@ -106,6 +107,7 @@ export class DocumentsService {
     issuerBusinessNumber: string,
     generalDocIndex: string,
     docType: string,
+    fileName: string,
     fileType: 'original' | 'copy'
   ): Promise<string> {
     console.log('Bucketttttttttttttttttt:', process.env.FIREBASE_STORAGE_BUCKET);
@@ -118,8 +120,9 @@ export class DocumentsService {
       console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
       console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
 
-      const fileName = `documents/${issuerBusinessNumber}/${docType}/${generalDocIndex}_${fileType}.pdf`;
-      const file = bucket.file(fileName);
+      const uniqueId = randomUUID();
+      const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
+      const file = bucket.file(filePath);
       console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
@@ -127,7 +130,7 @@ export class DocumentsService {
         },
       });
 
-      return fileName; // Return the fullPath
+      return filePath; // Return the fullPath
     } catch (error) {
       console.log('Error uploading to Firebase:', error);
       throw new HttpException(
@@ -478,7 +481,7 @@ export class DocumentsService {
 
     try {
 
-      console.log("date is ", data.docData.date);
+      console.log("data is ", data);
       
 
       // 1. Increment general index (use manager for DB operation)
@@ -550,14 +553,16 @@ export class DocumentsService {
             data.docData.issuerBusinessNumber,
             data.docData.generalDocIndex,
             data.docData.docType,
+            data.docData.docDescription,
             'original'
           );
-
+          
           copyFilePath = await this.uploadToFirebase(
             copyBuffer,
             data.docData.issuerBusinessNumber,
             data.docData.generalDocIndex,
             data.docData.docType,
+            data.docData.docDescription,
             'copy'
           );
 
