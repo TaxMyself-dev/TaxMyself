@@ -1,12 +1,13 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { LoadingController, PopoverController } from '@ionic/angular';
 import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom, from, map, switchMap, tap } from 'rxjs';
-import { BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
+import { Business, BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
 import { environment } from 'src/environments/environment';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BusinessStatus } from '../shared/enums';
+
 
 @Injectable( {providedIn: 'root'})
 export class GenericService {
@@ -24,41 +25,72 @@ export class GenericService {
   ) { }
 
   // --- signals (state) ---
-  private _businesses = signal<ISelectItem[] | null>(null);
+  private _businesses = signal<Business[] | null>(null);
   readonly businesses = computed(() => this._businesses() ?? []);
-  readonly isLoadingBusinesses = signal(false);
+
+  readonly businessSelectItems = computed<ISelectItem[]>(() =>
+    (this._businesses() ?? []).map(b => ({
+      name: b.businessName,
+      value: b.businessNumber,
+    }))
+  );
+  // private _businesses = signal<ISelectItem[] | null>(null);
+  // readonly businesses = computed(() => this._businesses() ?? []);
+  //readonly isLoadingBusinesses = signal(false);
 
   private _bills = signal<[] | null>(null);
   readonly bills = computed(() => this._bills() ?? []);
   readonly isLoadingBills = signal(false);
 
 
-  // --- load once (cached) ---
   async loadBusinesses(): Promise<void> {
-    // ✅ if already loaded, skip HTTP call
-    if (this._businesses()) {
-      console.log("already fetch: ", this._businesses());
-      return;
-    }
 
-    this.isLoadingBusinesses.set(true);
-
-    try {
-      const res = await firstValueFrom(this.http.get<any[]>(`${environment.apiUrl}business/get-businesses`));
-      const mapped: ISelectItem[] = (res ?? []).map(b => ({
-        name: b.businessName,
-        value: b.businessNumber,
-      }));
-      this._businesses.set(mapped);
-      console.log("get from backend ", this._businesses());
-      
-    } catch (err) {
-      console.error('❌ loadBusinesses failed', err);
-      this._businesses.set([]); // safe fallback
-    } finally {
-      this.isLoadingBusinesses.set(false);
-    }
+  if (this._businesses()) {
+    console.log("already loaded:", this._businesses());
+    return;
   }
+
+  try {
+    const res = await firstValueFrom(
+      this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
+    );
+
+    this._businesses.set(res ?? []);
+    console.log("loaded businesses:", this._businesses());
+
+  } catch (err) {
+    console.error("❌ loadBusinesses failed", err);
+    this._businesses.set([]); 
+  }
+}
+
+
+  // // --- load once (cached) ---
+  // async loadBusinesses(): Promise<void> {
+  //   // ✅ if already loaded, skip HTTP call
+  //   if (this._businesses()) {
+  //     console.log("already fetch: ", this._businesses());
+  //     return;
+  //   }
+
+  //   //this.isLoadingBusinesses.set(true);
+
+  //   try {
+  //     const res = await firstValueFrom(this.http.get<any[]>(`${environment.apiUrl}business/get-businesses`));
+  //     const mapped: ISelectItem[] = (res ?? []).map(b => ({
+  //       name: b.businessName,
+  //       value: b.businessNumber,
+  //     }));
+  //     this._businesses.set(mapped);
+  //     console.log("get from backend ", this._businesses());
+      
+  //   } catch (err) {
+  //     console.error('❌ loadBusinesses failed', err);
+  //     this._businesses.set([]); // safe fallback
+  //   } finally {
+  //     //this.isLoadingBusinesses.set(false);
+  //   }
+  // }
 
 
   // --- manual refresh ---

@@ -30,7 +30,8 @@ export class AddBillComponent implements OnInit {
   private gs = inject(GenericService);
   
   // reactive bindings
-  businessOptions = computed(() => this.gs.businesses());
+  // businessOptions = computed(() => this.gs.businesses());
+  businessOptions = this.gs.businessSelectItems;  
 
   formBuilder = inject(FormBuilder);
   isVisible = input<boolean>(false);

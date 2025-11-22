@@ -499,9 +499,14 @@ export enum inputsSize {
   AUTO = 'auto'
 }
 
-// export enum BusinessMode {
-//   NO_BUSINESS    = 'noBusiness',
-//   ONE_BUSINESS   = 'oneBusiness',
-//   MULTI_BUSINESS = 'oneBusiness',
-//   TWO_BUSINESS = 'twoBusiness',
-// }
+export enum VATReportingType {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  MONTHLY_REPORT = 'MONTHLY_REPORT',
+  DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
+}
+
+export enum TaxReportingType {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  MONTHLY_REPORT = 'MONTHLY_REPORT',
+  DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
+}

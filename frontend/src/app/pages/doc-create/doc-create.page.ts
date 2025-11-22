@@ -3,7 +3,7 @@ import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@ang
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
 import { BusinessStatus, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
-import { BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
+import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
@@ -47,16 +47,14 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private gs = inject(GenericService);
 
   // reactive bindings
-  businessOptions = computed(() => this.gs.businesses());
-  isLoading = computed(() => this.gs.isLoadingBusinesses());
+  businesses = this.gs.businesses;
+  businessOptions = this.gs.businessSelectItems;
 
   paymentsDetailsForm: FormGroup;
   myForm: FormGroup;
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
   paymentDetailsFields: ICreateDocField<FieldsCreateDocName | fieldLineDocName, FieldsCreateDocValue | fieldLineDocValue>[] = [];
   generalDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
-  // showUserDetailsCard: boolean = false;
-  // showPatmentDetailsCard: boolean = false;
   serialNumberFile: ISettingDoc;
   DocumentType = DocumentType;
   DocCreateFields = DocCreateFields;
@@ -87,8 +85,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   showBusinessSelector = false;
-  businessUiList: ISelectItem[] = [];
-  businessFullList: BusinessInfo[] = [];
   selectedBusinessNumber!: string;
   selectedBusinessName!: string;
   selectedBusinessAddress!: string;
@@ -186,8 +182,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   async ngOnInit() {
+
+    this.userData = this.authService.getUserDataFromLocalStorage();
     await this.gs.loadBusinesses();
-    //console.log("businessOption is ", this.businessOptions());
     
     this.createForms();
     this.generalDetailsForm.statusChanges.subscribe(() => {
@@ -196,20 +193,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.userDetailsForm.statusChanges.subscribe(() => {
       this.userFormIsValidSignal.set(this.userDetailsForm.valid);
     });
-    this.userData = this.authService.getUserDataFromLocalStorage();
-    const businessData = this.genericService.getBusinessData(this.userData);
+  
+    this.showBusinessSelector = this.userData.businessStatus === BusinessStatus.MULTI_BUSINESS;
 
-    this.businessStatus = businessData.mode;
-    this.businessUiList = businessData.uiList; // for the selector
-    this.businessFullList = businessData.fullList; // for internal details
-    this.showBusinessSelector = businessData.showSelector;
-
-    if (this.businessStatus === BusinessStatus.SINGLE_BUSINESS) {
-
-      const b = this.businessFullList[0];
-      this.setSelectedBusiness(b);
-      this.generalDetailsForm?.get('businessNumber')?.setValue(b.value);
-    }
   }
 
   ngOnDestroy() {
@@ -228,35 +214,42 @@ export class DocCreatePage implements OnInit, OnDestroy {
     return this.myForm.get('UserDetails') as FormGroup;
   }
 
+
   get lineDetailsForm(): FormGroup {
     return this.myForm.get('LineDetails') as FormGroup;
   }
+
 
   get lineDetailsColumns(): any[] {
     return this.docCreateBuilderService.lineDetailsColumns;
   }
 
 
-  onBusinessSelection(event: string): void {
-    this.selectedBusinessNumber = event;
+  onBusinessSelection(selectedBusinessNumber: string): void {
+    
+    const selected = this.genericService.businesses().find(
+      b => b.businessNumber === selectedBusinessNumber
+    );
 
-    const selected = this.businessFullList.find(b => b.value === this.selectedBusinessNumber);
-
-    if (selected) {
-      // throw new Error(`Business number ${this.selectedBusinessNumber} not found.`);
-      this.setSelectedBusiness(selected);
+    if (!selected) {
+      console.error(`❌ Business number ${selectedBusinessNumber} not found`);
+      return;
     }
 
+    console.log("selected is ", selected);
+    
+
+    this.setSelectedBusiness(selected);
   }
 
 
-  setSelectedBusiness(business: BusinessInfo): void {
-    this.selectedBusinessNumber = business.value;
-    this.selectedBusinessName = business.name;
-    this.selectedBusinessAddress = business.address;
-    this.selectedBusinessType = business.type;
-    this.selectedBusinessPhone = business.phone;
-    this.selectedBusinessEmail = business.email;
+  setSelectedBusiness(business: Business): void {
+    this.selectedBusinessNumber = business.businessNumber;
+    this.selectedBusinessName = business.businessName;
+    this.selectedBusinessAddress = business.businessAddress;
+    this.selectedBusinessType = business.businessType;
+    this.selectedBusinessPhone = business.businessPhone;
+    this.selectedBusinessEmail = business.businessEmail;
   }
 
 
@@ -293,60 +286,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
-
-  // Function for creating the doc and downloading it
-  // createDoc(): void {
-
-  //   this.createPDFIsLoading.set(true);
-  //   const data = this.buildDocPayload();
-
-  //   this.docCreateService.createDoc(data)
-  //     .pipe(
-  //       finalize(() => {
-  //         this.createPDFIsLoading.set(false);
-  //       }),
-  //       catchError((err) => {
-  //         console.error("Error in createPDF (Create):", err);
-  //         return EMPTY;
-  //       })
-  //     )
-  //     .subscribe((res) => {
-  //       console.log("Update current index result:", res);
-  //       const file = this.fileService.convertBlobToFile(res);
-  //       this.fileService.uploadFileViaFront(file).pipe(
-  //         finalize(() => {
-  //           this.createPDFIsLoading.set(false);
-  //         }),
-  //         catchError((err) => {
-  //           console.error("Error in createPDF (Create):", err);
-  //           return EMPTY;
-  //         })
-  //       ).subscribe((res) => {
-  //         console.log("Update current index result:", res);
-  //         this.resetDocFormsAndDrafts();
-  //       });
-  //       // this.fileService.downloadFile("my pdf", res);
-
-  //       // ✅ Reset all forms
-  //       // this.generalDetailsForm.reset({ [DocCreateFields.DOC_VAT_RATE]: 18, [FieldsCreateDocValue.DOCUMENT_DATE]: new Date() });
-  //       // this.userDetailsForm.reset();
-  //       // this.lineDetailsForm.reset({
-  //       //   [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-  //       //   [FieldsCreateDocValue.DISCOUNT]: 0
-  //       // });
-  //       // this.initialIndexForm.reset();
-  //       // this.paymentInputForm.reset({[fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('documentDate')?.value});
-
-  //       // // ✅ Clear local draft arrays
-  //       // this.lineItemsDraft.set([]);
-  //       // this.paymentsDraft.set([]);
-
-  //       // this.fileSelected = null;
-  //       // this.HebrewNameFileSelected = null;
-
-  //     });
-
-  // }
 
   createDoc(): void {
   this.createPDFIsLoading.set(true);
@@ -789,6 +728,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   handleDocIndexes(docType: DocumentType): void {
+    console.log("selectedBusinessNumber is ", this.selectedBusinessNumber);
+    
     this.docCreateService.getDocIndexes(docType, this.selectedBusinessNumber)
       .pipe(
         catchError(err => {

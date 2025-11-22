@@ -23,8 +23,8 @@ export class PnLReportPage implements OnInit {
   private gs = inject(GenericService);
 
   // reactive bindings
-  businessOptions = computed(() => this.gs.businesses());
-  isLoadingBusiness = computed(() => this.gs.isLoadingBusinesses());
+  // businessOptions = computed(() => this.gs.businesses());
+  businessOptions = this.gs.businessSelectItems;
 
   pnlReportForm: FormGroup;
   pnlReport: IPnlReportData;

@@ -526,7 +526,8 @@ isInPrimeOverlay(e: Event): boolean {
 
   handleTableData(data: ITransactionData[]) {
     const rows = [];
-    const businesses = this.genericService.businesses();
+    //const businesses = this.genericService.businesses();
+    const businesses = this.genericService.businessSelectItems();
 
     if (data.length) {
 

@@ -23,6 +23,7 @@ import { ButtonComponent } from '../button/button.component';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { input } from '@angular/core';
+import { GenericService } from 'src/app/services/generic.service';
 
 
 @Component({
@@ -41,6 +42,8 @@ import { input } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PeriodSelectComponent {
+
+  private gs = inject(GenericService);
 
   /* ===========================
         Inputs

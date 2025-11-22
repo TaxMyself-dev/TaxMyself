@@ -23,6 +23,12 @@ export class Business {
   @Column({ type: 'varchar', nullable: true, default: null })
   businessAddress: string | null;
 
+  @Column({ type: 'varchar', nullable: true, default: null })
+  businessPhone: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  businessEmail: string | null;
+
   @Column({
     type: 'enum',
     enum: BusinessType,
