@@ -10,11 +10,12 @@
   }
 
    <p-datepicker
+   [touchUI]="true"
   [inputStyleClass]="inputClasses()"
   [formControlName]="controlName()"
   [placeholder]="placeholder()"
   [iconDisplay]="'input'"
-  appendTo="body"
+  [appendTo]="'body'"
   [dateFormat]="'yy-mm-dd'"
   [dataType]="'string'"
   [showIcon]="showIcon()"
