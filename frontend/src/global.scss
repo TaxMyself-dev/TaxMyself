@@ -369,6 +369,7 @@ app-root {
 
 .p-overlay {
   right: auto !important;
+  z-index: 9999 !important;
 }
 
 .p-select,

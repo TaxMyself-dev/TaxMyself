@@ -465,7 +465,7 @@ export class VatReportPage implements OnInit {
           if (event.files && event.files.length > 0) {
             console.log(`Uploading ${event.files.length} files for confirmed transactions...`);
             return this.filesService.uploadAndSaveMultipleFilesToServer(
-              event.files,
+              event.files, this.businessNumber(),
               (uploadedFiles) => this.vatReportService.addFileToExpenses(uploadedFiles, true)
             ).pipe(
               tap(() => {
@@ -620,7 +620,7 @@ export class VatReportPage implements OnInit {
 
   addFileToExpense(e: { row: IRowDataTable, file?: File }): void {
     this.genericService.getLoader().subscribe();
-    this.filesService.addFileToExpense(e.row, e.file)
+    this.filesService.addFileToExpense(e.row, this.businessNumber(), e.file)
       .pipe(
         tap(() => {
           this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());

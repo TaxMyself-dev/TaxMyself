@@ -385,7 +385,7 @@ export class FilesService {
     );
   }
 
-  uploadFileViaFront(file: File): Observable<any> {
+  uploadFileViaFront(file: File, businessNumber: string): Observable<any> {
     this.fileName = file.name;
     console.log("fileName: ", this.fileName);
 
@@ -395,7 +395,7 @@ export class FilesService {
         throw err;
       }),
       switchMap((base64: string) => {
-        return this.uploadBase64(base64);  // Return the observable from uploadBase64
+        return this.uploadBase64(base64, businessNumber);  // Return the observable from uploadBase64
       }),
       catchError((error) => {
         console.error('Error during file upload:', error);
@@ -404,13 +404,14 @@ export class FilesService {
     );
   }
 
-  uploadBase64(base64String: string): Observable<any> {
+  uploadBase64(base64String: string, businessNumber: string): Observable<any> {
     const tempA = localStorage.getItem('firebaseUserData');
     const tempB = JSON.parse(tempA)
     const uid = tempB.uid;
     this.uniqueIdFile = nanoid();
     const storage = getStorage(); // bucket root
-    const fileRef = ref(storage, `users/${uid}/${this.uniqueIdFile}${this.fileName}`); // full path relative to bucket's root
+    // const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
+    const fileRef = ref(storage, `usersUploads/${businessNumber}/${this.uniqueIdFile}${this.fileName}`); // full path relative to bucket's root
     return from(uploadString(fileRef, base64String, 'data_url'));
   }
 
@@ -514,7 +515,7 @@ export class FilesService {
     return this.http.post<any>(url, body);
   }
 
-  uploadFilesToFirebaseBatch(files: IFileUploadItem[]): Observable<IUploadResult[]> {
+  uploadFilesToFirebaseBatch(files: IFileUploadItem[], businessNumber: string): Observable<IUploadResult[]> {
     const totalFiles = files.length;
     let filesUploaded = 0;
 
@@ -523,7 +524,7 @@ export class FilesService {
 
     const fileUploadObservables = files.map((item) => {
       if (item.file instanceof File) {
-        return this.uploadFileViaFront(item.file).pipe(
+        return this.uploadFileViaFront(item.file, businessNumber).pipe(
           tap((res) => {
             filesUploaded++;
             const progress = Math.round((filesUploaded / totalFiles) * 100);
@@ -560,10 +561,10 @@ export class FilesService {
     filePaths.map(path => this.deleteFileFromFirebase(path).subscribe());
   }
 
-  uploadAndSaveMultipleFilesToServer<T>(files: IFileUploadItem[], serverSaveFunction: (uploadedFiles: IFileUploadItem[]) => Observable<T>): Observable<T> {
+  uploadAndSaveMultipleFilesToServer<T>(files: IFileUploadItem[], businessNumber: string, serverSaveFunction: (uploadedFiles: IFileUploadItem[]) => Observable<T>): Observable<T> {
     let uploadedFilePaths: string[] = [];
 
-    return this.uploadFilesToFirebaseBatch(files).pipe(
+    return this.uploadFilesToFirebaseBatch(files, businessNumber).pipe(
       tap((results) => {
         uploadedFilePaths = results.map(r => r.filePath);
       }),
@@ -587,39 +588,39 @@ export class FilesService {
     );
   }
 
-  uploadAndSaveSingleFileToServer<T>(fileItem: IFileUploadItem, serverSaveFunction: (uploadedFile: IFileUploadItem) => Observable<T>
-  ): Observable<T> {
+  // uploadAndSaveSingleFileToServer<T>(fileItem: IFileUploadItem, serverSaveFunction: (uploadedFile: IFileUploadItem) => Observable<T>
+  // ): Observable<T> {
 
-    return this.uploadFileViaFront(fileItem.file as File).pipe( // <-- single file upload
-      switchMap((result) => {
-        const uploadedFilePath = result.metadata.fullPath;
+  //   return this.uploadFileViaFront(fileItem.file as File).pipe( // <-- single file upload
+  //     switchMap((result) => {
+  //       const uploadedFilePath = result.metadata.fullPath;
 
-        const updatedFile: IFileUploadItem = {
-          id: result.id,
-          file: result.metadata.fullPath
-        };
+  //       const updatedFile: IFileUploadItem = {
+  //         id: result.id,
+  //         file: result.metadata.fullPath
+  //       };
 
-        return serverSaveFunction(updatedFile).pipe(
-          catchError(err => {
-            console.error("Server save failed, rollback upload:", err);
+  //       return serverSaveFunction(updatedFile).pipe(
+  //         catchError(err => {
+  //           console.error("Server save failed, rollback upload:", err);
 
-            // rollback delete
-            this.deleteFileFromFirebase(uploadedFilePath).subscribe()
+  //           // rollback delete
+  //           this.deleteFileFromFirebase(uploadedFilePath).subscribe()
 
-            throw err;
-          })
-        );
-      })
-    );
-  }
+  //           throw err;
+  //         })
+  //       );
+  //     })
+  //   );
+  // }
 
   saveFilesToServer<T>(files: IFileUploadItem[], serverPath: string, fromTransactions: boolean = false): Observable<T> {
     const url = `${environment.apiUrl}${serverPath}`;
     return this.http.patch<any>(url, { files, fromTransactions })
   }
 
-  addFileToExpense(row: IRowDataTable, file?: File, serverPath: string = "expenses/add-file-to-expense"): Observable<any> {
-    return this.uploadFileViaFront(file as File).pipe(
+  addFileToExpense(row: IRowDataTable, businessNumber: string, file?: File, serverPath: string = "expenses/add-file-to-expense"): Observable<any> {
+    return this.uploadFileViaFront(file as File, businessNumber).pipe(
       switchMap((result) => {
         const updatedFile: IFileUploadItem = {
           id: row.id as number,
