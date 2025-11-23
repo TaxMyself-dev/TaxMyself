@@ -11,9 +11,17 @@
       הגשת דו"ח מע"מ בקלות ובמהירות   
     </p>
   </div>
-  <app-period-select class="vat-report-search-bar-input"
+
+  <!-- FILTER TAB -->
+  <app-filter-tab
+    [config]="filterConfig"
+    [form]="form"
+    (apply)="onSubmit($event)">
+  </app-filter-tab>
+
+  <!-- <app-period-select class="vat-report-search-bar-input"
     [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessStatus]="businessStatus" [businessOptions]="businessOptions()" (formSubmit)="onSubmit($event)" [isLoadingStateButton]="isLoadingStatePeryodSelectButton()">
-  </app-period-select> 
+  </app-period-select>  -->
 
   @if (vatReportData()) {
     <div class="wrap-output-report">

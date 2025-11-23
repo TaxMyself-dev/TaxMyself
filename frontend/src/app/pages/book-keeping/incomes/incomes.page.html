@@ -1,6 +1,20 @@
-<p>Hello</p>
-
 <div class="table-block">
-    <p class="block-title">התנועות הלא מסווגות שלי</p>
-    <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="documentsTableFields" [dataTable]="myDocuments | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+
+    <!-- FILTER TAB -->
+    <app-filter-tab
+        [config]="filterConfig"
+        [form]="form"
+        (apply)="onSubmit($event)">
+    </app-filter-tab>
+
+    <!-- DOCUMENTS TABLE -->
+    <app-generic-table
+        class="table"
+        [isLoadingState]="isLoadingDataTable()"
+        [columnsTitle]="documentsTableFields"
+        [dataTable]="myDocuments | async"
+        [selectionModeCheckBox]="null"
+        [tableHeight]="'500px'">
+    </app-generic-table>
+
 </div>

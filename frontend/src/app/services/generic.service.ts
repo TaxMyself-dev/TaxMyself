@@ -34,9 +34,6 @@ export class GenericService {
       value: b.businessNumber,
     }))
   );
-  // private _businesses = signal<ISelectItem[] | null>(null);
-  // readonly businesses = computed(() => this._businesses() ?? []);
-  //readonly isLoadingBusinesses = signal(false);
 
   private _bills = signal<[] | null>(null);
   readonly bills = computed(() => this._bills() ?? []);
@@ -44,6 +41,9 @@ export class GenericService {
 
 
   async loadBusinesses(): Promise<void> {
+
+    console.log("loaded businesses start:", this._businesses());
+
 
   if (this._businesses()) {
     console.log("already loaded:", this._businesses());

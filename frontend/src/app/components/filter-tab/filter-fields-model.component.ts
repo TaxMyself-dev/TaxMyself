@@ -1,0 +1,24 @@
+import { Signal } from '@angular/core';
+import { ISelectItem } from 'src/app/shared/interface';
+
+export type FilterFieldType =
+  | 'select'
+  | 'date'
+  | 'date-range'
+  | 'period'
+  | 'text'
+  | 'number';
+
+export interface FilterField {
+  type: FilterFieldType;
+  controlName: string;
+
+  label?: string;
+  placeholder?: string;
+
+  // Supports static arrays OR signals
+  options?: ISelectItem[] | Signal<ISelectItem[]>;
+
+  required?: boolean;
+  defaultValue?: any;
+}

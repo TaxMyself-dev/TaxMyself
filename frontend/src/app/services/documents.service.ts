@@ -31,6 +31,9 @@ export class DocumentsService implements OnInit{
         endDate?: string,
         docType?: string
         ): Observable<IRowDataTable[]> {
+
+        console.log("getDocuments - start");
+        
         const url = `${environment.apiUrl}documents/get-docs`;
 
         let params = new HttpParams().set('issuerBusinessNumber', businessNumber);

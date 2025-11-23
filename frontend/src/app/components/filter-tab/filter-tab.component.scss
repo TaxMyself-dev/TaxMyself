@@ -1,0 +1,10 @@
+.filter-tab {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  padding: 8px 0;
+
+  > * {
+    width: 100%;
+  }
+}

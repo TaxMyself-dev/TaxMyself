@@ -20,6 +20,7 @@ import { log } from 'console';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 
 
 @Component({
@@ -31,11 +32,20 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 export class VatReportPage implements OnInit {
 
   private gs = inject(GenericService);
+  private fb = inject(FormBuilder);
+
   confirmationService = inject(ConfirmationService);
 
   // reactive bindings
   businessOptions = this.gs.businessSelectItems;
-  //businessOptions = computed(() => this.gs.businesses());
+
+  // Form managed by FilterTab
+  form: FormGroup = this.fb.group({
+    businessNumber: [null],
+    // ❗ DO NOT add "period" here → FilterTab will create it automatically
+  });
+
+  filterConfig: FilterField[] = [];
 
   visibleConfirmTransDialog = signal<boolean>(false);
 
@@ -56,7 +66,6 @@ export class VatReportPage implements OnInit {
   isRequestSent = signal<boolean>(false);
   businessNumber = signal<string>("");
   displayExpenses: boolean = false;
-  //vatReportForm: FormGroup;
   tableActions: ITableRowAction[];
   fileActions: ITableRowAction[];
   arrayFile: { id: number, file: File | string }[] = [];
@@ -115,10 +124,29 @@ export class VatReportPage implements OnInit {
 
 
   async ngOnInit() {
+
     this.setFileActions();
+
     this.userData = this.authService.getUserDataFromLocalStorage();
-    //this.gs.clearBusinesses();
+    this.businessStatus = this.userData.businessStatus;
+
     await this.gs.loadBusinesses();
+    
+    // Now config can be set safely
+    this.filterConfig = [
+      {
+        type: 'select',
+        controlName: 'businessNumber',
+        label: 'בחר עסק',
+        required: true,
+        options: this.gs.businessSelectItems
+      },
+      {
+        type: 'period',
+        controlName: 'period',
+        required: true
+      },
+    ];
 
     if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       console.log("two business owner");
@@ -223,15 +251,38 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  onSubmit(event: any): void {
-    console.log("event in onSubmit is ", event);
+  //onSubmit(event: any): void {
+
+  onSubmit(formValues: any): void {
+
+    console.log("Submitted filter:", formValues);
+
+    // period object
+    const period = formValues.period;
+    const {
+      periodMode,
+      year,
+      month,
+      startDate: localStartDate,
+      endDate: localEndDate
+    } = period;
+
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(
+      periodMode,
+      year,
+      month,
+      localStartDate,
+      localEndDate
+    );
+
+    // console.log("event in onSubmit is ", event);
     
     this.isLoadingStatePeryodSelectButton.set(true);
-    const year = event.year;
-    const month = event.month;
-    const reportingPeriodType = event.periodMode;
-    this.businessNumber.set(event.businessNumber);
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
+    // const year = event.year;
+    // const month = event.month;
+    // const reportingPeriodType = event.periodMode;
+    this.businessNumber.set(formValues.businessNumber);
+    // const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
@@ -273,9 +324,6 @@ export class VatReportPage implements OnInit {
 
     )
 
-    // .subscribe(res => {
-    //   console.log("Filtered & transformed transactions:", res);
-    // });
   }
 
 
@@ -283,6 +331,11 @@ export class VatReportPage implements OnInit {
     console.log("in get vat report data");
     // this.isLoading.set(true);
     // this.genericService.getLoader().subscribe();
+
+    console.log("startDate is ", startDate);
+    console.log("endDate is ", endDate);
+    console.log("businessNumber is ", businessNumber);
+    
     this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
       .pipe(
         finalize(() => this.isLoadingStatePeryodSelectButton.set(false)),

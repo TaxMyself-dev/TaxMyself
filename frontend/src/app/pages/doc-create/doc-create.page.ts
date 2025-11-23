@@ -46,9 +46,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   private gs = inject(GenericService);
 
-  // reactive bindings
-  businesses = this.gs.businesses;
+  // Business-related properties
+  // businesses = this.gs.businesses;
   businessOptions = this.gs.businessSelectItems;
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
 
   paymentsDetailsForm: FormGroup;
   myForm: FormGroup;
@@ -81,9 +83,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
   paymentsArray: IDocCreateFieldData[] = [];
   paymentSectionName: SectionKeysEnum;
 
-  // Business-related properties
-  BusinessStatus = BusinessStatus;
-  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   showBusinessSelector = false;
   selectedBusinessNumber!: string;
   selectedBusinessName!: string;
@@ -99,7 +98,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
   readonly formTypes = FormTypes;
   readonly FieldsCreateDocValue = FieldsCreateDocValue;
   paymentMethodOptions = paymentMethodOptions;
-  // UISummaryTotals = this.docCreateBuilderService.UISummaryTotals
 
   showGeneralMoreFields = false;
   showUserMoreFields = false;
@@ -112,12 +110,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
   totalAmount = signal(0);
   totalDiscount: number = 0;
   totalPayments = signal(0);
-  // lineItems: LineItem[] = [];
   isDocWithPayments = signal<boolean>(false);
   lineItemsDraft = signal<PartialLineItem[]>([]);
   initiallinesDocFormValues: FormGroup;
   showInitialIndexDialog = true;
-  // private initialIndexSubject?: Subject<number>;
 
   activePaymentMethod: MenuItem = this.paymentMethodOptions[0]; // default selected
 
@@ -164,9 +160,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
   });
 
 
-
-
-
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
 
 
@@ -185,18 +178,36 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     await this.gs.loadBusinesses();
-    
+
     this.createForms();
+
+    const allBusinesses = this.gs.businesses();  // Business[]
+    console.log("full businesses: ", allBusinesses);
+
+    if (allBusinesses.length === 1) {
+      const selected = allBusinesses[0];
+
+      this.generalDetailsForm.patchValue({
+        businessNumber: selected.businessNumber
+      });
+
+      this.setSelectedBusiness(selected);
+
+      this.showBusinessSelector = false;
+    } else {
+      this.showBusinessSelector = true;
+    }
+
     this.generalDetailsForm.statusChanges.subscribe(() => {
       this.generalFormIsValidSignal.set(this.generalDetailsForm.valid);
     });
+
     this.userDetailsForm.statusChanges.subscribe(() => {
       this.userFormIsValidSignal.set(this.userDetailsForm.valid);
     });
-  
-    this.showBusinessSelector = this.userData.businessStatus === BusinessStatus.MULTI_BUSINESS;
 
   }
+
 
   ngOnDestroy() {
     if (this.dialogRef) {
@@ -263,8 +274,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('documentDate')?.value);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
-
   }
+  
 
   onSelectionChange(field: string, event: any): void {
     console.log("field: ", field);

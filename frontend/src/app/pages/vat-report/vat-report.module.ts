@@ -15,6 +15,7 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextComponent } from "../../components/input-text/input-text.component";
 import { ConfirmTransDialogComponent } from "../../components/confirm-trans-dialog/confirm-trans-dialog.component";
+import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 
 @NgModule({
   imports: [
@@ -30,7 +31,8 @@ import { ConfirmTransDialogComponent } from "../../components/confirm-trans-dial
     GenericTableComponent,
     InputTextModule,
     InputTextComponent,
-    ConfirmTransDialogComponent
+    ConfirmTransDialogComponent,
+    FilterTabComponent
 ],
   declarations: [VatReportPage]
 })

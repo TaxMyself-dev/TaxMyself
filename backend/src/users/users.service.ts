@@ -32,7 +32,7 @@ export class UsersService {
 
   async signup({ personal, spouse, children, business }: any) {
 
-    console.log("signup_new - start");
+    console.log("signup - start");
 
     console.log("🧍 personal:", personal);
     console.log("🤝 spouse:", spouse);

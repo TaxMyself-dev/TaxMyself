@@ -1,22 +1,5 @@
 <div class="page-wrapper">
 
-  <!-- בחירת עסק -->
-  <!-- <p-dialog header="בחירת עסק" [(visible)]="showBusinessSelector" [modal]="true" [closable]="false"
-    [dismissableMask]="false" [rtl]="true" [style]="{ width: '400px' }">
-    <div class="p-fluid">
-      <p>היי! זיהינו שיש לך יותר מעסק אחד .<br />באיזה עסק תרצה להפיק את המסמך?</p>
-      <div *ngFor="let business of businessUiList">
-        <p-radioButton name="businessSelection" [value]="business.value" [(ngModel)]="selectedBusinessNumber"
-          inputId="{{ business.value }}"></p-radioButton>
-        <label [for]="business.value" class="ml-2">{{ business.name }}</label>
-      </div>
-      <div class="p-mt-3">
-        <app-p-button [buttonText]="'אישור'" [buttonSize]="buttonSize.AUTO" [disabled]="!selectedBusinessNumber"
-          (onButtonClicked)="onConfirmBusinessSelection()"></app-p-button>
-      </div>
-    </div>
-  </p-dialog> -->
-  <!-- Dialog for initial index -->
   @if (isInitial) {
   <p-dialog header="הגדרת מספור" [(visible)]="showInitialIndexDialog" [modal]="true" [rtl]="true"
     [style]="{ width: '400px' }">

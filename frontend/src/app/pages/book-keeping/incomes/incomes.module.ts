@@ -7,6 +7,8 @@ import { SharedModule } from '../../../shared/shared.module';
 import { CardNavigateComponent } from "src/app/components/card-navigate/card-navigate.component";
 import { TabMenu } from "primeng/tabmenu";
 import { GenericTableComponent } from "src/app/components/generic-table/generic-table.component";
+import { PeriodSelectComponent } from "src/app/components/period-select/period-select.component";
+import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 
 @NgModule({
   imports: [
@@ -17,7 +19,9 @@ import { GenericTableComponent } from "src/app/components/generic-table/generic-
     SharedModule,
     CardNavigateComponent,
     TabMenu,
-    GenericTableComponent
+    GenericTableComponent,
+    PeriodSelectComponent,
+    FilterTabComponent
 ],
   declarations: [IncomesPage]
 })

@@ -26,7 +26,7 @@ export class BusinessService {
       order: { id: 'ASC' },
     });
 
-    console.log("businesses are ", businesses);
+    // console.log("businesses are ", businesses);
     
     return businesses;
   }

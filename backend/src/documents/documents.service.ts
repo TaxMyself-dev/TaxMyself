@@ -47,40 +47,137 @@ export class DocumentsService {
   isGeneralIncrement: boolean = false;
 
 
-  async getDocuments(issuerBusinessNumber: string, startDate?: string, endDate?: string, docType?: DocumentType): Promise<Documents[]> {
+  async getDocuments(
+    issuerBusinessNumber: string,
+    startDate?: string,
+    endDate?: string,
+    docType?: DocumentType
+  ): Promise<Documents[]> {
 
+    console.log("issuerBusinessNumber is ", issuerBusinessNumber);
+    console.log("startDate is ", startDate);
+    console.log("endDate is ", endDate);
+    console.log("docType is ", docType);
 
+    // -------------------------------
+    // 1) Guards + conversion to Date
+    // -------------------------------
+    let startDateSql: Date | null = null;
+    let endDateSql: Date | null = null;
+
+    if (startDate && typeof startDate === 'string') {
+      try {
+        startDateSql = this.sharedService.convertStringToDateObject(startDate);
+      } catch (e) {
+        console.warn("Invalid startDate format:", startDate);
+        startDateSql = null;
+      }
+    }
+
+    if (endDate && typeof endDate === 'string') {
+      try {
+        endDateSql = this.sharedService.convertStringToDateObject(endDate);
+      } catch (e) {
+        console.warn("Invalid endDate format:", endDate);
+        endDateSql = null;
+      }
+    }
+
+    console.log("startDateSql →", startDateSql);
+    console.log("endDateSql   →", endDateSql);
+
+    // -------------------------------
+    // 2) Base Query
+    // -------------------------------
     const query = this.documentsRepo
-    .createQueryBuilder('doc')
-    .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
 
+    // Filtering by docType if provided
     if (docType) {
       query.andWhere('doc.docType = :docType', { docType });
     }
 
-    if (startDate && endDate) {
-      query.andWhere('doc.docDate BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate,
+    // -------------------------------
+    // 3) Handle date filters safely
+    // -------------------------------
+    if (startDateSql && endDateSql) {
+      query.andWhere('doc.docDate BETWEEN :start AND :end', {
+        start: startDateSql,
+        end: endDateSql,
       });
-    } else if (startDate) {
-      query.andWhere('doc.docDate >= :startDate', { startDate });
-    } else if (endDate) {
-      query.andWhere('doc.docDate <= :endDate', { endDate });
-    } else {
-      // Default: start of year → today
+    }
+    else if (startDateSql) {
+      query.andWhere('doc.docDate >= :start', { start: startDateSql });
+    }
+    else if (endDateSql) {
+      query.andWhere('doc.docDate <= :end', { end: endDateSql });
+    }
+    else {
+      // Default → Start of year until now
       const now = new Date();
-      const startOfYear = new Date(now.getFullYear(), 0, 1); // Jan 1st
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+
       query.andWhere('doc.docDate BETWEEN :start AND :end', {
         start: startOfYear,
         end: now,
       });
     }
 
-    query.orderBy('doc.docDate', 'DESC');
+    // -------------------------------
+    // 4) Fetch results
+    // -------------------------------
+    const docs = await query.getMany();
+    console.log("Fetched documents:", docs);
 
-    return await query.getMany();
+    return docs;
   }
+
+
+
+  // async getDocuments(issuerBusinessNumber: string, startDate?: string, endDate?: string, docType?: DocumentType): Promise<Documents[]> {
+
+  //   const startDateSql = this.sharedService.convertStringToDateObject(startDate);
+  //   const endDateSql = this.sharedService.convertStringToDateObject(endDate);
+
+  //   console.log("issuerBusinessNumber is ", issuerBusinessNumber);
+  //   console.log("startDateSql is ", startDateSql);
+  //   console.log("endDateSql is ", endDateSql);
+  //   console.log("docType is ", docType);
+    
+
+  //   const query = this.documentsRepo
+  //   .createQueryBuilder('doc')
+  //   .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
+
+  //   if (docType) {
+  //     query.andWhere('doc.docType = :docType', { docType });
+  //   }
+
+  //   if (startDateSql && endDateSql) {
+  //     query.andWhere('doc.docDate BETWEEN :startDate AND :endDateSql', {
+  //       startDateSql,
+  //       endDateSql,
+  //     });
+  //   } else if (startDateSql) {
+  //     query.andWhere('doc.docDate >= :startDateSql', { startDateSql });
+  //   } else if (endDateSql) {
+  //     query.andWhere('doc.docDate <= :endDateSql', { endDateSql });
+  //   } else {
+  //     // Default: start of year → today
+  //     const now = new Date();
+  //     const startOfYear = new Date(now.getFullYear(), 0, 1); // Jan 1st
+  //     query.andWhere('doc.docDate BETWEEN :start AND :end', {
+  //       start: startOfYear,
+  //       end: now,
+  //     });
+  //   }
+
+  //   const docs = await query.getMany();
+  //   console.log("Fetched documents:", docs);
+  //   return docs;
+
+  // }
 
 
   async getSettingDocByType(userId: string, docType: DocumentType) {

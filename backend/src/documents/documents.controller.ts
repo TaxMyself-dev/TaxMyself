@@ -1,8 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType } from 'src/enum';
-
-
 import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -15,7 +13,6 @@ import { log } from 'node:console';
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
-    // private userService: UsersService,
   ) { }
 
 

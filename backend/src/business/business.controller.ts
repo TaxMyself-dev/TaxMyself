@@ -15,7 +15,6 @@ export class BusinessController {
   @UseGuards(FirebaseAuthGuard)
   async getBusinessesByUser(@Req() request: AuthenticatedRequest) {
     const firebaseId = request.user?.firebaseId;
-    console.log("firebaseId is ", firebaseId);
     return this.businessService.getUserBusinesses(firebaseId);
   }
 
