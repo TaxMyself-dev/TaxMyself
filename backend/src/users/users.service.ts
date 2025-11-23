@@ -30,7 +30,7 @@ export class UsersService {
   }
 
 
-  async signup_new({ personal, spouse, children, business }: any) {
+  async signup({ personal, spouse, children, business }: any) {
 
     console.log("signup - start");
 
@@ -39,14 +39,31 @@ export class UsersService {
     console.log("👶 children:", children);
     console.log("🏢 business:", business);
 
-    // ✅ 1️⃣ Extract arrays correctly (in case frontend sends wrapped data)
-    const newChildren = children?.childrenArray ?? [];
-    const newBusinesses: Partial<Business>[] = business?.businessArray ?? [];
+    // -------------------------------------------------------
+    // 1️⃣ SAFE NORMALIZATION
+    // -------------------------------------------------------
 
-    // ✅ 2️⃣ Create base user object (no business fields here)
+    // spouse may be null/undefined → fix
+    const safeSpouse = spouse ?? {};
+
+    // children may be undefined → fix
+    const newChildren = Array.isArray(children?.childrenArray)
+      ? children.childrenArray
+      : [];
+
+    // businesses may be undefined → fix
+    const newBusinesses: Partial<Business>[] = Array.isArray(
+      business?.businessArray,
+    )
+      ? business.businessArray
+      : [];
+
+    // -------------------------------------------------------
+    // 2️⃣ Create the user object (safe spread)
+    // -------------------------------------------------------
     const newUser = {
       ...personal,
-      ...spouse,
+      ...safeSpouse,
       role: [UserRole.REGULAR],
       finsiteId: 0,
       createdAt: new Date(),
@@ -55,9 +72,13 @@ export class UsersService {
       modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
     };
 
-    newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
+    newUser.subscriptionEndDate.setMonth(
+      newUser.subscriptionEndDate.getMonth() + 2,
+    );
 
-    // ✅ 4️⃣ Determine two-business owner flag
+    // -------------------------------------------------------
+    // 3️⃣ Business status logic (now safe)
+    // -------------------------------------------------------
     if (newBusinesses.length === 0) {
       newUser.businessStatus = BusinessStatus.NO_BUSINESS;
     } else if (newBusinesses.length === 1) {
@@ -66,20 +87,27 @@ export class UsersService {
       newUser.businessStatus = BusinessStatus.MULTI_BUSINESS;
     }
 
-    // ✅ 5️⃣ Save user first
+    // -------------------------------------------------------
+    // 4️⃣ Save user
+    // -------------------------------------------------------
     const user = this.user_repo.create(newUser);
     const savedUser = await this.user_repo.save(user);
 
-    // ✅ 6️⃣ Save all children (if any)
+    // -------------------------------------------------------
+    // 5️⃣ Save children
+    // -------------------------------------------------------
     for (const child of newChildren) {
       const newChild = this.child_repo.create({
         ...child,
         parentUserID: personal.firebaseId,
       });
+
       await this.child_repo.save(newChild);
     }
 
-    // ✅ 7️⃣ Save all businesses (if any)
+    // -------------------------------------------------------
+    // 6️⃣ Save businesses
+    // -------------------------------------------------------
     for (const biz of newBusinesses) {
       if (!biz) continue;
 
@@ -88,17 +116,19 @@ export class UsersService {
         firebaseId: personal.firebaseId,
       });
 
-      // Apply VAT & tax logic per business type
+      // VAT & tax logic
       switch (newBusiness.businessType) {
         case BusinessType.EXEMPT:
           newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
           newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
           break;
+
         case BusinessType.LICENSED:
         case BusinessType.COMPANY:
           newBusiness.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
           newBusiness.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
           break;
+
         default:
           newBusiness.vatReportingType = VATReportingType.NOT_REQUIRED;
           newBusiness.taxReportingType = TaxReportingType.NOT_REQUIRED;
@@ -108,101 +138,8 @@ export class UsersService {
       await this.business_repo.save(newBusiness);
     }
 
-    console.log("signup_new - end");
-    return savedUser;
-  }
-
-
-
-  async signup({ personal, spouse, children, business }: any) {
-
-    console.log("signup - start");
-
-    const newChildren = children?.children;
-
-    let newUser = {
-      ...personal,
-      ...spouse,
-      ...business,
-      role: [UserRole.REGULAR], // Add the REGULAR role by default
-    };
-
-    if (newChildren.length > 0) {
-      for (let i = 0; i < newChildren.length; i++) {
-        const child: Child = newChildren[i];
-        const newChild = this.child_repo.create(child);
-        newChild.parentUserID = personal.firebaseId;
-        const addChild = await this.child_repo.save(newChild);
-      }
-    }
-
-    // Set the new user others fields
-    if ((newUser.employmentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.employmentStatus == EmploymentType.BOTH)) {
-      if (newUser.businessType == BusinessType.EXEMPT) {
-        newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
-        newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-      }
-      else if (newUser.businessType == BusinessType.LICENSED) {
-        newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-        newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-      }
-      else if (newUser.businessType == BusinessType.COMPANY) {
-        newUser.vatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-        newUser.taxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-      }
-      else {
-        console.log("newUser.businessType is none of the option, is ", newUser.businessType);
-        //throw new Error('User business type is not valid');
-      }
-    } else if (newUser.employmentStatus == EmploymentType.EMPLOYEE) {
-      newUser.vatReportingType = VATReportingType.NOT_REQUIRED;
-      newUser.taxReportingType = TaxReportingType.NOT_REQUIRED;
-    }
-
-    // Set the new user spouse others fields
-    if ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH)) {
-      if (newUser.spouseBusinessType == BusinessType.EXEMPT) {
-        newUser.spouseVatReportingType = VATReportingType.NOT_REQUIRED;
-        newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-      }
-      else if (newUser.spouseBusinessType == BusinessType.LICENSED) {
-        newUser.spouseVatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-        newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-      }
-      else if (newUser.spouseBusinessType == BusinessType.COMPANY) {
-        newUser.spouseVatReportingType = VATReportingType.DUAL_MONTH_REPORT;
-        newUser.spouseTaxReportingType = TaxReportingType.DUAL_MONTH_REPORT;
-      }
-      else {
-        console.log("newUser.spouseBusinessType is none of the option, is ", newUser.spouseBusinessType);
-        //throw new Error('User business type is not valid');
-      }
-    } else if (newUser.spouseEmploymentStatus == EmploymentType.EMPLOYEE) {
-      newUser.spouseVatReportingType = VATReportingType.NOT_REQUIRED;
-      newUser.spouseTaxReportingType = TaxReportingType.NOT_REQUIRED;
-    }
-
-    if (((newUser.employmentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.employmentStatus == EmploymentType.BOTH)) &&
-      ((newUser.spouseEmploymentStatus == EmploymentType.SELF_EMPLOYED) || (newUser.spouseEmploymentStatus == EmploymentType.BOTH))) {
-      newUser.isTwoBusinessOwner = true;
-    }
-    else {
-      newUser.isTwoBusinessOwner = false;
-    }
-
-    newUser.finsiteId = 0;
-    newUser.createdAt = new Date();
-    newUser.subscriptionEndDate = new Date(newUser.createdAt);
-    newUser.subscriptionEndDate.setMonth(newUser.subscriptionEndDate.getMonth() + 2);
-    newUser.payStatus = PayStatus.TRIAL;
-    newUser.modulesAccess = [ModuleName.INVOICES, ModuleName.OPEN_BANKING];
-
     console.log("signup - end");
-
-    // console.log("newUser is: ", newUser);
-
-    const user = this.user_repo.create(newUser);
-    return this.user_repo.save(user);
+    return savedUser;
   }
 
 
