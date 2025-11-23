@@ -166,7 +166,6 @@ export class ReportsService {
 
       // Get total income
       let totalIncome : number = 0;
-      //totalIncome = await this.transactionsService.getTaxableIncomefromTransactions(firebaseId, businessNumber, startDate, endDate);
       totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
 
       console.log("businessNumber is ", businessNumber);
@@ -241,6 +240,61 @@ export class ReportsService {
       return report;
       
   }
+
+
+
+  async getIncomeForVatReport(
+  businessNumber: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<{
+  vatableIncome: number;
+  nonVatableIncome: number;
+}> {
+  const business = await this.businessRepo.findOne({
+    where: { businessNumber },
+  });
+
+  if (!business) {
+    throw new NotFoundException('Business not found');
+  }
+
+  // Base for all doc types relevant to income
+  const baseQb = this.documentsRepo
+    .createQueryBuilder('doc')
+    .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+    .andWhere('doc.isCancelled = false')
+    .andWhere('doc.docDate BETWEEN :start AND :end', {
+      start: startDate,
+      end: endDate,
+    })
+    .andWhere('doc.docType IN (:...types)', {
+      types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE', 'RECEIPT'],
+    });
+
+  // 1️⃣ VATABLE income (VAT > 0) – only from invoices, not receipts
+  const vatable = await baseQb
+    .clone()
+    .andWhere('(doc.vatPercent > 0)')
+    .andWhere('doc.docType != :receipt', { receipt: 'RECEIPT' })
+    .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+    .getRawOne<{ total: string }>();
+
+  // 2️⃣ NON-VATABLE income (VAT = 0) – includes receipts
+  const nonVatable = await baseQb
+    .clone()
+    .andWhere('doc.vatPercent = 0')
+    .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+    .getRawOne<{ total: string }>();
+
+  return {
+    vatableIncome: Number(vatable.total),
+    nonVatableIncome: Number(nonVatable.total),
+  };
+}
+
+
+
 
 
   async getIncomeBeforeVat(

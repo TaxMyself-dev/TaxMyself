@@ -1,9 +1,9 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
-import { EMPTY } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
+import { EMPTY, fromEvent } from 'rxjs';
+import { catchError, filter, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   DocumentsTableColumns,
@@ -12,9 +12,11 @@ import {
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { DateService } from 'src/app/services/date.service';
+import { FilesService } from 'src/app/services/files.service';
 import { DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { log } from 'console';
 
 @Component({
   selector: 'app-incomes',
@@ -31,6 +33,7 @@ export class IncomesPage implements OnInit {
   private authService = inject(AuthService);
   private dateService = inject(DateService);
   private documentsService = inject(DocumentsService);
+  private filesService = inject(FilesService);
   private fb = inject(FormBuilder);
 
   // ===========================
@@ -52,6 +55,7 @@ export class IncomesPage implements OnInit {
 
   isLoadingDataTable = signal<boolean>(false);
   myDocuments: any;
+  fileActions = signal<ITableRowAction[]>([]);
 
   // ===========================
   // Table config
@@ -76,6 +80,7 @@ export class IncomesPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
+    this.setFileActions();
 
     // Load businesses BEFORE config
     await this.gs.loadBusinesses();
@@ -108,6 +113,7 @@ export class IncomesPage implements OnInit {
 
     // Load initial data: default business for user
     this.fetchDocuments(this.userData.businessNumber);
+    
   }
 
   // ===========================
@@ -174,6 +180,50 @@ export class IncomesPage implements OnInit {
             sum: this.gs.addComma(Math.abs(row.sum as number)),
           }))
         )
-      );
+      ).subscribe((data) => {
+        this.myDocuments = data;
+        console.log("Fetched documents:", this.myDocuments);
+      })
+
   }
+
+
+  private setFileActions(): void {
+    this.fileActions.set([
+      {
+        name: 'preview',
+        icon: 'pi pi-eye',
+        title: 'צפה בקובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.onPreviewFileClicked(row);
+        }
+      },
+      {
+        name: 'download',
+        icon: 'pi pi-download',
+        title: 'הורד קובץ',
+        action: (event: any, row: IRowDataTable) => {
+          this.onDownloadFile(row);
+        }
+      },
+    ]);
+  }
+
+
+  onPreviewFileClicked(expense: IRowDataTable): void {
+    if (!(expense.file === undefined || expense.file === "" || expense.file === null)) {
+      this.filesService.previewFile(expense.file as string).subscribe();
+
+    }
+    else {
+      alert("לא נשמר קובץ עבור הוצאה זו")
+    }
+  }
+
+
+  onDownloadFile(row: IRowDataTable): void {
+    console.log("Download file for row:", row);
+    this.filesService.downloadFirebaseFile(row.file as string)
+  }
+  
 }

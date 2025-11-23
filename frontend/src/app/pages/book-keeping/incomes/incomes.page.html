@@ -12,7 +12,8 @@
         class="table"
         [isLoadingState]="isLoadingDataTable()"
         [columnsTitle]="documentsTableFields"
-        [dataTable]="myDocuments | async"
+        [dataTable]="myDocuments"
+        [fileActions]="fileActions()"
         [selectionModeCheckBox]="null"
         [tableHeight]="'500px'">
     </app-generic-table>

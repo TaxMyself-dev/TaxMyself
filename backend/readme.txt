@@ -4,7 +4,7 @@ gcloud config set run/region me-west1
 
 #deploy to google cloudrun: 
 
-gcloud run deploy taxmys16elf-prod --source . --no-cache
+gcloud run deploy taxmys16elf-prod --source .
 
 
 https://www.tomray.dev/deploy-nestjs-cloud-run
