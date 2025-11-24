@@ -10,6 +10,13 @@
       </p>
     </div>
 
+     <!-- FILTER TAB -->
+    <app-filter-tab
+      [config]="filterConfig"
+      [form]="form"
+      (apply)="onSubmit($event)">
+    </app-filter-tab>
+
     <!-- <app-period-select class="pnl-report-search-bar-input"
       [businessStatus]="businessStatus" [businessOptions]="businessOptions()" (formSubmit)="onSubmit($event)">
     </app-period-select>  -->

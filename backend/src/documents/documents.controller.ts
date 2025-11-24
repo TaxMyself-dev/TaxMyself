@@ -86,6 +86,7 @@ export class DocumentsController {
   @Post('create-doc')
   @UseGuards(FirebaseAuthGuard)
   async createDoc(@Body() body: any, @Req() request: AuthenticatedRequest) {
+    console.log("createDoc in controller - start");
     const userId = request.user?.firebaseId;
     const result = await this.documentsService.createDoc(body, userId);
     return result;

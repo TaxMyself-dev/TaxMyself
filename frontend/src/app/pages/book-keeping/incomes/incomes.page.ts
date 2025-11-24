@@ -39,6 +39,10 @@ export class IncomesPage implements OnInit {
   // Global state
   // ===========================
   userData!: IUserData;
+
+  // Business related
+  businessNumber = signal<string>("");
+  BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.businessSelectItems;
 
@@ -77,9 +81,18 @@ export class IncomesPage implements OnInit {
   // ===========================
   async ngOnInit() {
 
+    this.setFileActions();
+
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
-    this.setFileActions();
+    const businesses = this.gs.businesses();
+
+    if (businesses.length === 1) {
+      // 1️⃣ Set the signal
+      this.businessNumber.set(businesses[0].businessNumber);
+      // 2️⃣ Set the form so FilterTab works
+      this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
+    }
 
     // Now config can be set safely
     this.filterConfig = [
@@ -108,7 +121,7 @@ export class IncomesPage implements OnInit {
     ];
 
     // Load initial data: default business for user
-    this.fetchDocuments(this.userData.businessNumber);
+    this.fetchDocuments(this.businessNumber());
     
   }
 

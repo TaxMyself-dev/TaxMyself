@@ -153,6 +153,7 @@ export class LoginPage implements OnInit {
           localStorage.setItem('userData', JSON.stringify(res));
           console.log('Sign-in response:', res);
           // 🔥 Load businesses right after successful login
+          this.genericService.clearBusinesses
           this.genericService.loadBusinesses();
           console.log("after login");
           

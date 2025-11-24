@@ -15,8 +15,6 @@ import { PopupConfirmComponent } from 'src/app/shared/popup-confirm/popup-confir
 import { GenericService } from 'src/app/services/generic.service';
 import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
-import { log } from 'console';
-//import { l } from '@angular/core/navigation_types.d-u4EOrrdZ';
 import { ButtonColor } from 'src/app/components/button/button.enum';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
@@ -36,16 +34,20 @@ export class VatReportPage implements OnInit {
 
   confirmationService = inject(ConfirmationService);
 
-  // reactive bindings
+  // Business related
+  businessNumber = signal<string>("");
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.businessSelectItems;
 
-  // Form managed by FilterTab
+  // Filter related
   form: FormGroup = this.fb.group({
     businessNumber: [null],
     // ❗ DO NOT add "period" here → FilterTab will create it automatically
   });
-
   filterConfig: FilterField[] = [];
+  startDate = signal<string>("");
+  endDate = signal<string>("");
 
   visibleConfirmTransDialog = signal<boolean>(false);
 
@@ -58,13 +60,10 @@ export class VatReportPage implements OnInit {
 
   years: number[] = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
   vatReportData = signal<IVatReportData>(null);
-  startDate = signal<string>("");
   arrayLength = signal<number>(0);
-  endDate = signal<string>("");
   isLoadingButtonConfirmDialog = signal<boolean>(false);
   isLoadingStatePeryodSelectButton = signal<boolean>(false);
   isRequestSent = signal<boolean>(false);
-  businessNumber = signal<string>("");
   displayExpenses: boolean = false;
   tableActions: ITableRowAction[];
   fileActions: ITableRowAction[];
@@ -77,12 +76,9 @@ export class VatReportPage implements OnInit {
   rows: IRowDataTable[] = [];
   isSkip: boolean = false;
   userData: IUserData;
-  businessNamesList: ISelectItem[] = [];
-  BusinessStatus = BusinessStatus;
-  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
+  
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
-  // dataTable = Observable<IRowDataTable[]>;
   transToConfirm: Observable<IRowDataTable[]>;
   dataTable: Observable<IRowDataTable[]>;
 
@@ -129,6 +125,14 @@ export class VatReportPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
+    const businesses = this.gs.businesses();  // always updated after refresh
+
+    if (businesses.length === 1) {
+      // 1️⃣ Set the signal
+      this.businessNumber.set(businesses[0].businessNumber);
+      // 2️⃣ Set the form so FilterTab works
+      this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
+    }
     
     // Now config can be set safely
     this.filterConfig = [
@@ -146,26 +150,11 @@ export class VatReportPage implements OnInit {
       },
     ];
 
-    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
-      console.log("two business owner");
-      this.businessStatus = BusinessStatus.MULTI_BUSINESS;
-      this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
-      this.businessNamesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-    }
-    else {
-      console.log("one business owner");
-      this.businessStatus = BusinessStatus.SINGLE_BUSINESS;
-      this.businessNamesList.push({ name: this.userData.businessName, value: this.userData.businessNumber });
-    }
   }
 
   beforeSelectFile(event): void {
-    console.log("in beforeSelectFile");
-    console.log("skip: ", this.isSkip);
-
 
     if (!this.isSkip && event.data.file != "") {
-      console.log("in if beforeSelectFile");
       this.isSkip = true;
       event.event.preventDefault()
       from(this.modalController.create({
@@ -272,15 +261,9 @@ export class VatReportPage implements OnInit {
       localStartDate,
       localEndDate
     );
-
-    // console.log("event in onSubmit is ", event);
     
     this.isLoadingStatePeryodSelectButton.set(true);
-    // const year = event.year;
-    // const month = event.month;
-    // const reportingPeriodType = event.periodMode;
     this.businessNumber.set(formValues.businessNumber);
-    // const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, "", "");
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();

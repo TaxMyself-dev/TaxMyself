@@ -5,8 +5,18 @@
     <!-- =======================
          SELECT FIELD
     ======================== -->
-    <app-input-select
+    <!-- <app-input-select
       *ngIf="field.type === 'select'"
+      [parentForm]="form()"
+      [controlName]="field.controlName"
+      [placeholder]="field.label || field.placeholder"
+      [items]="resolveOptions(field)">
+    </app-input-select> -->
+
+    <app-input-select
+      *ngIf="field.type === 'select' 
+        && !(field.controlName === 'businessNumber' 
+            && resolveOptions(field)?.length === 1)"
       [parentForm]="form()"
       [controlName]="field.controlName"
       [placeholder]="field.label || field.placeholder"

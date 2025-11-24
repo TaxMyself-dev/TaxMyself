@@ -10,6 +10,7 @@ import { PnLReportPage } from './pnl-report.page';
 import { SharedModule } from '../../shared/shared.module';
 import { PeriodSelectComponent } from 'src/app/components/period-select/period-select.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
+import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 
 @NgModule({
   imports: [
@@ -20,8 +21,9 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
     ReactiveFormsModule,
     SharedModule,
     PeriodSelectComponent,
-    ButtonComponent
-  ],
+    ButtonComponent,
+    FilterTabComponent
+],
   declarations: [PnLReportPage]
 })
 export class PnLReportPageModule {}

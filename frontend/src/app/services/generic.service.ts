@@ -44,31 +44,23 @@ export class GenericService {
 
     console.log("loaded businesses start:", this._businesses());
 
+    if (this._businesses()) {
+      console.log("already loaded:", this._businesses());
+      return;
+    }
 
-  if (this._businesses()) {
-    console.log("already loaded:", this._businesses());
-    return;
-  }
+    try {
+      const res = await firstValueFrom(
+        this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
+      );
 
-  try {
-    const res = await firstValueFrom(
-      this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
-    );
+      this._businesses.set(res ?? []);
+      console.log("loaded businesses:", this._businesses());
 
-    this._businesses.set(res ?? []);
-    console.log("loaded businesses:", this._businesses());
-
-  } catch (err) {
-    console.error("❌ loadBusinesses failed", err);
-    this._businesses.set([]); 
-  }
-}
-
-
-  // --- manual refresh ---
-  async refreshBusinesses(): Promise<void> {
-    this._businesses.set(null);
-    await this.loadBusinesses();
+    } catch (err) {
+      console.error("❌ loadBusinesses failed", err);
+      this._businesses.set([]); 
+    }
   }
 
 

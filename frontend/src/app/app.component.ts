@@ -66,9 +66,10 @@ export class AppComponent implements OnInit {
   constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) {
   };
   showTopNav = signal(true);
+  
   ngOnInit() {
     this.hideTopNav();
-    //this.userData = this.authService.getUserDataFromLocalStorage();
+
     this.restoreSessionAfterRefresh();
     if (this.userData?.role[0] === 'ADMIN') {
       this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
@@ -204,7 +205,10 @@ export class AppComponent implements OnInit {
   async restoreSessionAfterRefresh() {
     const userData = this.authService.getUserDataFromLocalStorage();
 
+    console.log("userData is ", userData);
+    
     if (userData) {
+      console.log("call to business");
       this.userData = userData;
       await this.genericService.loadBusinesses();
     }

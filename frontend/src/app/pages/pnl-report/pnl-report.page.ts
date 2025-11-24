@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ICreateDataDoc, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
@@ -10,6 +10,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { DocCreateService } from '../doc-create/doc-create.service';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 
 
 @Component({
@@ -20,24 +21,32 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 })
 export class PnLReportPage implements OnInit {
 
+  // Services
   private gs = inject(GenericService);
+  private fb = inject(FormBuilder);
 
-  // reactive bindings
+  // Business related
+  businessNumber = signal<string>("");
+  businessNamesList: ISelectItem[] = [];
+  BusinessStatus = BusinessStatus;
+  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.businessSelectItems;
+
+  // Filter related
+  form: FormGroup = this.fb.group({
+    businessNumber: [null],
+    // ❗ DO NOT add "period" here → FilterTab will create it automatically
+  });
+  filterConfig: FilterField[] = [];
+  startDate = signal<string>("");
+  endDate = signal<string>("");
 
   pnlReportForm: FormGroup;
   pnlReport: IPnlReportData;
   userData: IUserData;
   displayExpenses: boolean = false;
   isLoading: boolean = false;
-  startDate: string;
-  endDate: string;
   totalExpense: number = 0;
-  businessNames: ISelectItem[] = [];
-  businessNamesList: ISelectItem[] = [];
-  BusinessStatus = BusinessStatus;
-  businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
-
   reportingPeriodType = ReportingPeriodType;
 
   buttonSize = ButtonSize;
@@ -48,35 +57,65 @@ export class PnLReportPage implements OnInit {
 
 
   async ngOnInit() {
+
     this.userData = this.authService.getUserDataFromLocalStorage();
-    this.gs.clearBusinesses();
-    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
-      this.businessStatus = BusinessStatus.MULTI_BUSINESS;
-      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
-      this.businessNamesList.push({name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber});
+
+    this.businessStatus = this.userData.businessStatus;
+    const businesses = this.gs.businesses();
+
+    if (businesses.length === 1) {
+      // 1️⃣ Set the signal
+      this.businessNumber.set(businesses[0].businessNumber);
+      // 2️⃣ Set the form so FilterTab works
+      this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
     }
-    else {
-      this.businessStatus = BusinessStatus.SINGLE_BUSINESS;
-      this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});
-    }
+    
+    // Now config can be set safely
+    this.filterConfig = [
+      {
+        type: 'select',
+        controlName: 'businessNumber',
+        label: 'בחר עסק',
+        required: true,
+        options: this.gs.businessSelectItems
+      },
+      {
+        type: 'period',
+        controlName: 'period',
+        required: true
+      },
+    ];
+
   }
 
 
-  onSubmit(event: any): void {
+  onSubmit(formValues: any): void {
 
-    console.log("event is ", event);
+    console.log("Submitted filter:", formValues);
 
-    const year = event.year;
-    const month = event.month;
-    const reportingPeriodType = event.periodMode;
-    const localStartDate = event.startDate;
-    const localEndDate = event.endDate;
-    const businessNumber = event.businessNumber;
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(reportingPeriodType, year, month, localStartDate, localEndDate);
-    this.startDate = startDate;
-    this.endDate = endDate;
+    // period object
+    const period = formValues.period;
+    const {
+      periodMode,
+      year,
+      month,
+      startDate: localStartDate,
+      endDate: localEndDate
+    } = period;
 
-    this.getPnLReportData(startDate, endDate, businessNumber);
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(
+      periodMode,
+      year,
+      month,
+      localStartDate,
+      localEndDate
+    );
+    
+    this.businessNumber.set(formValues.businessNumber);
+    this.startDate.set(startDate);
+    this.endDate.set(endDate);
+
+    this.getPnLReportData(startDate, endDate, this.businessNumber());
 
   }
 

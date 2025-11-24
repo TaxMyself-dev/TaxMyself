@@ -572,6 +572,8 @@ export class DocumentsService {
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
+    console.log("createDoc in servce - start");
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -579,30 +581,32 @@ export class DocumentsService {
     try {
 
       console.log("data is ", data);
-      
 
       // 1. Increment general index (use manager for DB operation)
       await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
+      console.log(new Date().toLocaleTimeString(), "Step 1 complete - General index incremented");
 
       // 2. Increment document-specific index
-      console.log("🚀 ~ DocumentsService ~ createDoc ~ data.docData:", data.docData)
-
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
       if (!docDetails) {
         throw new HttpException('Error in update currentIndex', HttpStatus.INTERNAL_SERVER_ERROR);
       }
+      console.log(new Date().toLocaleTimeString(), "Step 2 complete - Current index incremented");
 
       // 3. Save main document info
       const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
       if (!newDoc) {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
-      }
+      }            
+      console.log(new Date().toLocaleTimeString(), "Step 3 complete - Document info saved");
 
       // 4. Save line items
       await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
+      console.log(new Date().toLocaleTimeString(), "Step 4 complete - Lines info saved");
 
       // 5. Save payments
       await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
+      console.log(new Date().toLocaleTimeString(), "Step 5 complete - Payments info saved");
 
       // 6. Bookkeeping entry
       await this.bookkeepingService.createJournalEntry({
@@ -616,6 +620,7 @@ export class DocumentsService {
           { accountCode: '2400', credit: data.docData.vatSum },
         ]
       }, queryRunner.manager);
+      console.log(new Date().toLocaleTimeString(), "Step 6 complete - BookKeeping info saved");
 
       // 7. Generate both PDFs (original and copy)
       let originalFilePath: string | null = null;
@@ -643,6 +648,7 @@ export class DocumentsService {
             throw new Error("Copy PDF generation failed");
           }
           const copyBuffer = Buffer.from(copyPdfBlob as any);
+          console.log(new Date().toLocaleTimeString(), "Step 7 complete - PDFs generated");
 
           // 8. Upload both PDFs to Firebase
           originalFilePath = await this.uploadToFirebase(
@@ -653,6 +659,7 @@ export class DocumentsService {
             data.docData.docDescription,
             'original'
           );
+          console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Original PDF uploaded");
           
           copyFilePath = await this.uploadToFirebase(
             copyBuffer,
@@ -662,12 +669,14 @@ export class DocumentsService {
             data.docData.docDescription,
             'copy'
           );
+          console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Copy PDF uploaded");
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);
           newDoc.file = originalFilePath;
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
+          console.log(new Date().toLocaleTimeString(), "Step 9 complete - files paths saved to document");
 
         } catch (uploadError) {
           // If upload fails, delete any uploaded files
@@ -679,6 +688,7 @@ export class DocumentsService {
           }
           throw uploadError;
         }
+
       }
 
       // ✅ All good – commit the transaction
