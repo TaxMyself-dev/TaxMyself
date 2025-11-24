@@ -177,7 +177,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
   async ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-    await this.gs.loadBusinesses();
 
     this.createForms();
 

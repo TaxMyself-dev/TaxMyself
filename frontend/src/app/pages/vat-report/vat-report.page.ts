@@ -129,8 +129,6 @@ export class VatReportPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
-
-    await this.gs.loadBusinesses();
     
     // Now config can be set safely
     this.filterConfig = [

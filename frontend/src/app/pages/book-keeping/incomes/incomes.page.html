@@ -12,7 +12,7 @@
         class="table"
         [isLoadingState]="isLoadingDataTable()"
         [columnsTitle]="documentsTableFields"
-        [dataTable]="myDocuments"
+        [dataTable]="myDocuments | async"
         [fileActions]="fileActions()"
         [selectionModeCheckBox]="null"
         [tableHeight]="'500px'">

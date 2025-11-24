@@ -136,17 +136,17 @@ export enum TransactionsOutcomesHebrewColumns {
 export enum DocumentsTableColumns {
   DOC_DATE = 'docDate',
   DOC_TYPE = 'docType',
-  DOC_SUM = 'docSum',
+  DOC_SUM = 'sumAftDisWithVAT',
   DOC_NUMBER = 'docNumber',
-  CLIENT_NAME = 'clientName',
+  RECIPIENT_NAME = 'recipientName',
 }
 
 export enum DocumentsTableHebrewColumns {
   docDate = 'תאריך מסמך',
   docType = 'סוג מסמך',
-  docSum = 'סכום',
+  sumAftDisWithVAT = 'סכום',
   docNumber = 'מספר מסמך',
-  clientName = 'שם לקוח',
+  recipientName = 'שם לקוח',
 }
 
 export enum UniformFileDocumentSummaryColumns {

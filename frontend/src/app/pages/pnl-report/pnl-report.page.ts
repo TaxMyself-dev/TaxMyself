@@ -50,7 +50,6 @@ export class PnLReportPage implements OnInit {
   async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.gs.clearBusinesses();
-    await this.gs.loadBusinesses();
     if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.businessStatus = BusinessStatus.MULTI_BUSINESS;
       this.businessNamesList.push({name: this.userData.businessName, value: this.userData.businessNumber});

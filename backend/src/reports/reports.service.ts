@@ -115,13 +115,21 @@ export class ReportsService {
       const year = startDate.getFullYear();
 
       // Get income for vat report
-      ({ vatableIncome: vatReport.vatableTurnover, noneVatableIncome: vatReport.nonVatableTurnover } =
-        await this.transactionsService.getTaxableIncomefromTransactionsForVatReport(
-          firebaseId,
+      // ({ vatableIncome: vatReport.vatableTurnover, noneVatableIncome: vatReport.nonVatableTurnover } =
+      //   await this.transactionsService.getTaxableIncomefromTransactionsForVatReport(
+      //     firebaseId,
+      //     businessNumber,
+      //     startDate,
+      //     endDate
+      // ));
+
+      ({ vatableIncome: vatReport.vatableTurnover, nonVatableIncome: vatReport.nonVatableTurnover } =
+        await this.getVatIncomeFromLines(
           businessNumber,
           startDate,
           endDate
       ));
+
   
       // Step 1: Fetch expenses using the function we wrote based on monthReport
       const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);        
@@ -243,7 +251,7 @@ export class ReportsService {
 
 
 
-  async getIncomeForVatReport(
+  async getVatIncomeFromLines(
   businessNumber: string,
   startDate: Date,
   endDate: Date,
@@ -251,40 +259,33 @@ export class ReportsService {
   vatableIncome: number;
   nonVatableIncome: number;
 }> {
-  const business = await this.businessRepo.findOne({
-    where: { businessNumber },
-  });
 
-  if (!business) {
-    throw new NotFoundException('Business not found');
-  }
-
-  // Base for all doc types relevant to income
-  const baseQb = this.documentsRepo
-    .createQueryBuilder('doc')
-    .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
-    .andWhere('doc.isCancelled = false')
-    .andWhere('doc.docDate BETWEEN :start AND :end', {
+  const qb = this.docLinesRepo
+    .createQueryBuilder('dl')
+    .innerJoin(Documents, 'd', 'dl.generalDocIndex = d.generalDocIndex')
+    .where('dl.issuerBusinessNumber = :businessNumber', { businessNumber })
+    .andWhere('d.isCancelled = false')
+    .andWhere('d.docDate BETWEEN :start AND :end', {
       start: startDate,
       end: endDate,
-    })
-    .andWhere('doc.docType IN (:...types)', {
-      types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE', 'RECEIPT'],
     });
 
-  // 1️⃣ VATABLE income (VAT > 0) – only from invoices, not receipts
-  const vatable = await baseQb
+  // 1️⃣ VATABLE Income (vatRate > 0) AND only taxable doc types
+  const vatable = await qb
     .clone()
-    .andWhere('(doc.vatPercent > 0)')
-    .andWhere('doc.docType != :receipt', { receipt: 'RECEIPT' })
-    .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+    .andWhere('dl.vatRate > 0')
+    .andWhere('dl.docType IN (:...types)', {
+      types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE'],
+    })
+    .select('COALESCE(SUM(dl.sumAftDisBefVatPerLine), 0)', 'total')
     .getRawOne<{ total: string }>();
 
-  // 2️⃣ NON-VATABLE income (VAT = 0) – includes receipts
-  const nonVatable = await baseQb
+  // 2️⃣ NON-VATABLE Income (vatRate = 0)
+  // includes RECEIPT with 0 VAT (e.g., grants)
+  const nonVatable = await qb
     .clone()
-    .andWhere('doc.vatPercent = 0')
-    .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+    .andWhere('dl.vatRate = 0')
+    .select('COALESCE(SUM(dl.sumAftDisBefVatPerLine), 0)', 'total')
     .getRawOne<{ total: string }>();
 
   return {
@@ -292,8 +293,6 @@ export class ReportsService {
     nonVatableIncome: Number(nonVatable.total),
   };
 }
-
-
 
 
 

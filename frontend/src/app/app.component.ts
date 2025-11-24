@@ -10,6 +10,7 @@ import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
 import { catchError, EMPTY, finalize, from, map, Observable, Subject, switchMap } from 'rxjs';
 import { filter, pairwise, takeUntil } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
+import { GenericService } from './services/generic.service';
 
 
 
@@ -21,6 +22,8 @@ import { MessageService } from 'primeng/api';
 
 })
 export class AppComponent implements OnInit {
+
+  private genericService = inject(GenericService);
 
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
@@ -65,7 +68,8 @@ export class AppComponent implements OnInit {
   showTopNav = signal(true);
   ngOnInit() {
     this.hideTopNav();
-    this.userData = this.authService.getUserDataFromLocalStorage();
+    //this.userData = this.authService.getUserDataFromLocalStorage();
+    this.restoreSessionAfterRefresh();
     if (this.userData?.role[0] === 'ADMIN') {
       this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
       this.menuItems.push({ label: 'כניסה', routerLink: '/login' });
@@ -195,6 +199,15 @@ export class AppComponent implements OnInit {
       key: 'br',
       life
     });
+  }
+
+  async restoreSessionAfterRefresh() {
+    const userData = this.authService.getUserDataFromLocalStorage();
+
+    if (userData) {
+      this.userData = userData;
+      await this.genericService.loadBusinesses();
+    }
   }
 
 }

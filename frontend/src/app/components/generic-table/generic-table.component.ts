@@ -131,8 +131,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   ngOnInit() {
 
-    console.log("fileActions is ", this.fileActions());
-    
     if (this.defaultSelectedValue()) {
       this.selectedTrans = [...this.dataTable()];
       this.rowsChecked.emit(this.selectedTrans);

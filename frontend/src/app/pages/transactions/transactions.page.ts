@@ -297,7 +297,6 @@ isInPrimeOverlay(e: Event): boolean {
 
 
   async ngOnInit(): Promise<void> {
-    await this.genericService.loadBusinesses();
     this.filterData = this.transactionService.filterData;
     this.getTransactions(null);
     this.userData = this.authService.getUserDataFromLocalStorage();

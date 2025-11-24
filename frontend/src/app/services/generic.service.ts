@@ -65,34 +65,6 @@ export class GenericService {
 }
 
 
-  // // --- load once (cached) ---
-  // async loadBusinesses(): Promise<void> {
-  //   // ✅ if already loaded, skip HTTP call
-  //   if (this._businesses()) {
-  //     console.log("already fetch: ", this._businesses());
-  //     return;
-  //   }
-
-  //   //this.isLoadingBusinesses.set(true);
-
-  //   try {
-  //     const res = await firstValueFrom(this.http.get<any[]>(`${environment.apiUrl}business/get-businesses`));
-  //     const mapped: ISelectItem[] = (res ?? []).map(b => ({
-  //       name: b.businessName,
-  //       value: b.businessNumber,
-  //     }));
-  //     this._businesses.set(mapped);
-  //     console.log("get from backend ", this._businesses());
-      
-  //   } catch (err) {
-  //     console.error('❌ loadBusinesses failed', err);
-  //     this._businesses.set([]); // safe fallback
-  //   } finally {
-  //     //this.isLoadingBusinesses.set(false);
-  //   }
-  // }
-
-
   // --- manual refresh ---
   async refreshBusinesses(): Promise<void> {
     this._businesses.set(null);

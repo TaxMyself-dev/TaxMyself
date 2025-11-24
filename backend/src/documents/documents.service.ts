@@ -275,8 +275,8 @@ export class DocumentsService {
       const docType = doc.docType;
 
       // Delete Firebase files if they exist (best-effort)
-      if (doc.originalFile) {
-        await this.deleteFromFirebase(doc.originalFile);
+      if (doc.file) {
+        await this.deleteFromFirebase(doc.file);
       }
       if (doc.copyFile) {
         await this.deleteFromFirebase(doc.copyFile);
@@ -665,7 +665,7 @@ export class DocumentsService {
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);
-          newDoc.originalFile = originalFilePath;
+          newDoc.file = originalFilePath;
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
 
@@ -690,7 +690,7 @@ export class DocumentsService {
         message: 'Document created successfully',
         generalDocIndex: data.docData.generalDocIndex,
         docNumber: data.docData.docNumber,
-        originalFile: originalFilePath,
+        file: originalFilePath,
         copyFile: copyFilePath
       };
 

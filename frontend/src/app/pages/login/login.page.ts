@@ -31,9 +31,7 @@ export class LoginPage implements OnInit {
 
   isLoading = signal(false);
   isLoadingStateResetPassword = signal(false);
-  // emailVerify: boolean = true;
   userEmailForReset: string = "";
-  //userCredential: UserCredential;
   loginForm: FormGroup;
   resetForm: FormGroup;
   displayError: string;
@@ -43,8 +41,6 @@ export class LoginPage implements OnInit {
   passwordForResendAuthMail: string = "";
   isVisibleDialogRegisterMessage: boolean = false;
   showModal = false;
-
-  // isLoading = false;
 
   constructor(private location: Location, private messageService: MessageService, private route: ActivatedRoute, private genericService: GenericService, private router: Router, private formBuilder: FormBuilder, public authService: AuthService, private loadingController: LoadingController) {
 
@@ -156,6 +152,10 @@ export class LoginPage implements OnInit {
         tap((res) => {
           localStorage.setItem('userData', JSON.stringify(res));
           console.log('Sign-in response:', res);
+          // 🔥 Load businesses right after successful login
+          this.genericService.loadBusinesses();
+          console.log("after login");
+          
           this.router.navigate(['my-account']);
           // this.isLoadingfalse;
           // this.genericService.dismissLoader();// TODO: why finlize is not called after succeeded

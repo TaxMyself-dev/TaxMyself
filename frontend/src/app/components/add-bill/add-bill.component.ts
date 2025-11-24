@@ -62,7 +62,6 @@ export class AddBillComponent implements OnInit {
 
   async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    await this.gs.loadBusinesses();
   }
 
   onVisibleChange(visible: boolean) {

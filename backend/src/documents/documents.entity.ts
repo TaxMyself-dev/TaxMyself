@@ -133,7 +133,7 @@ export class Documents {
   parentBranchCode: string; //  מספר הסניף בו הופק המסמך האב
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  originalFile: string; // Firebase storage path for original document (מקור)
+  file: string; // Firebase storage path for original document (מקור)
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   copyFile: string; // Firebase storage path for certified copy (העתק נאמן למקור)

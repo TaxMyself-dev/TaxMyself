@@ -13,10 +13,9 @@ import {
 import { AuthService } from 'src/app/services/auth.service';
 import { DateService } from 'src/app/services/date.service';
 import { FilesService } from 'src/app/services/files.service';
-import { DocumentType } from '../../doc-create/doc-cerate.enum';
+import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { log } from 'console';
 
 @Component({
   selector: 'app-incomes',
@@ -64,8 +63,8 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.DOC_DATE, value: DocumentsTableHebrewColumns.docDate, type: FormTypes.DATE },
     { name: DocumentsTableColumns.DOC_TYPE, value: DocumentsTableHebrewColumns.docType, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_NUMBER, value: DocumentsTableHebrewColumns.docNumber, type: FormTypes.TEXT },
-    { name: DocumentsTableColumns.CLIENT_NAME, value: DocumentsTableHebrewColumns.clientName, type: FormTypes.TEXT },
-    { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.docSum, type: FormTypes.NUMBER },
+    { name: DocumentsTableColumns.RECIPIENT_NAME, value: DocumentsTableHebrewColumns.recipientName, type: FormTypes.TEXT },
+    { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
   ];
 
   // ===========================
@@ -81,9 +80,6 @@ export class IncomesPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
     this.setFileActions();
-
-    // Load businesses BEFORE config
-    await this.gs.loadBusinesses();
 
     // Now config can be set safely
     this.filterConfig = [
@@ -167,23 +163,39 @@ export class IncomesPage implements OnInit {
     this.isLoadingDataTable.set(true);
 
     this.myDocuments = this.documentsService
-      .getDocuments(businessNumber, startDate, endDate, docType)
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching documents:', err);
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingDataTable.set(false)),
-        map((rows: any[]) =>
-          rows.map(row => ({
-            ...row,
-            sum: this.gs.addComma(Math.abs(row.sum as number)),
-          }))
-        )
-      ).subscribe((data) => {
-        this.myDocuments = data;
-        console.log("Fetched documents:", this.myDocuments);
-      })
+  .getDocuments(businessNumber, startDate, endDate, docType)
+  .pipe(
+    map((rows: any[]) => {
+      console.log("📄 Documents fetched:", rows); // 👈 REAL PRINT HERE
+      return rows.map(row => ({
+        ...row,
+        sum: this.gs.addComma(Math.abs(row.sum as number)),
+        docType: DocTypeDisplayName[row.docType] ?? row.docType,
+      }));
+    }),
+    catchError(err => {
+      console.error("Error fetching documents:", err);
+      return EMPTY;
+    }),
+    finalize(() => this.isLoadingDataTable.set(false))
+  );
+
+
+    // this.myDocuments = this.documentsService
+    //   .getDocuments(businessNumber, startDate, endDate, docType)
+    //   .pipe(
+    //     catchError(err => {
+    //       console.error('Error fetching documents:', err);
+    //       return EMPTY;
+    //     }),
+    //     finalize(() => this.isLoadingDataTable.set(false)),
+    //     map((rows: any[]) =>
+    //       rows.map(row => ({
+    //         ...row,
+    //         sum: this.gs.addComma(Math.abs(row.sum as number)),
+    //       }))
+    //     )
+    //   )
 
   }
 
