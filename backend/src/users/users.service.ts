@@ -249,7 +249,6 @@ export class UsersService {
   }
 
    getCities(): CityDto[] {
-    console.log("in get cities: ", cities);
     return cities;
   }
 

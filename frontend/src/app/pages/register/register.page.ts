@@ -478,6 +478,14 @@ matchRegisterImage = computed(() => {
   handleFormRegister() {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
+    
+    // Remove empty child rows before submission
+    if (formData.children?.childrenArray) {
+      formData.children.childrenArray = formData.children.childrenArray.filter((child: any) => {
+        return child.childFName && child.childLName && child.childDate;
+      });
+    }
+    
     formData.validation = { password: formData?.personal?.password };
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
@@ -681,7 +689,7 @@ matchRegisterImage = computed(() => {
       gender: 'male',
       email: 'test@example.com',
       phone: '0501234567',
-      dateOfBirth: '01/01/1990',
+      dateOfBirth: '1990-01-01',
       employmentStatus: 'SELF_EMPLOYED',
       city: 'Tel Aviv',
       familyStatus: 'SINGLE',
@@ -704,7 +712,7 @@ matchRegisterImage = computed(() => {
     this.childrenArray.at(0).patchValue({
       childFName: 'Noam',
       childLName: 'Harel',
-      childDate: '01/09/2020',
+      childDate: '2020-01-01',
     });
 
     // Business array example (if you use dynamic businesses)
