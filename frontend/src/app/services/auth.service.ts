@@ -16,13 +16,10 @@ import { IUserData } from '../shared/interface';
 })
 export class AuthService {
 
-  //userData: any; // Save logged in user data
   token: string;
   private userDetails: IUserData = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
-
-  // userDetailsObs$: Observable<IUserDate> = this.userDetails$.asObservable();
 
 
   constructor(
@@ -35,70 +32,16 @@ export class AuthService {
   ) { }
 
   public isLoggedIn$ = new BehaviorSubject<string>("");
-  // public error$ = new BehaviorSubject<string>("");
   public error = signal<string>("");
   public isVerfyEmail$ = new BehaviorSubject<boolean>(false);
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
 
-  // startTokenRefresh() {
-
-  //   if (this.tokenListenerInitialized) return; // Avoid multiple listeners
-  //   this.tokenListenerInitialized = true;
-
-  //   // Firebase listener for ID token changes
-  //   this.afAuth.onIdTokenChanged(async (user) => {
-  //     if (user) {
-  //       // Fetch the latest token
-  //       const idToken = await user.getIdToken();
-  //       const currentTime = new Date().toLocaleString(); // Human-readable time
-  //       // console.log(`Token refreshed at ${currentTime}:`, idToken);
-  //       console.log("user is ", user);
-
-  //       // Store the token in local storage for easy access
-  //       localStorage.setItem('token', idToken);
-
-  //       // Optionally, send the token to the backend for verification
-  //     } else {
-  //       // User is logged out or the token is invalid
-  //       console.log('User is signed out or token has expired');
-  //       localStorage.removeItem('token');
-  //     }
-  //   });
-  // }
-
-
-  // stopTokenRefresh(): void {
-  //   if (this.refreshInterval) {
-  //     clearInterval(this.refreshInterval);
-  //   }
-  // }
-
-
   logout(): void {
     this.afAuth.signOut().then(() => {
       localStorage.clear();
-      //this.stopTokenRefresh(); // Stop refreshing tokens
-      console.log('User logged out and token refresh stopped');
     });
-  }
-
-
-  userVerify(email: string, password: string): Observable<UserCredential> {
-    return from(this.afAuth.signInWithEmailAndPassword(email, password))
-      .pipe(
-        catchError((err) => {
-          console.log("Error in sign in with email: ", err);
-          this.error.set("user");
-          // this.handleErrorLogin(err.code);
-          return throwError(() => err);
-        }),
-        tap((user) => {
-          // Store the user information locally after successful login
-          localStorage.setItem('firebaseUserData', JSON.stringify(user.user));
-        })
-      );
   }
 
 
@@ -120,30 +63,13 @@ export class AuthService {
     console.log("err string: ", err);
     if (err === "auth/user-not-found" || err === "auth/invalid-email" || err === 'auth/invalid-login-credentials' || err === "auth/wrong-password" || err === "auth/invalid-credential") {
       this.error.set("user");
-      // this.error$.next("user");
     }
   }
 
 
-  signIn(user: UserCredential): any {
-    const url = `${environment.apiUrl}auth/signin`
-    return from(user.user.getIdToken(true))
-      .pipe(
-        catchError((err) => {
-          console.log("err in get id token: ", err);
-          return throwError(() => err);
-        }),
-        tap((token) => {
-          localStorage.setItem('token', token);
-        }),
-        switchMap(() => this.http.post(url, {})),
-        catchError((err) => {
-          this.error.set("error");
-          // this.error$.next("error");
-          console.log("err in post request: ", err);
-          return throwError(() => err);
-        }),
-      )
+  signIn(): any {
+    const url = `${environment.apiUrl}auth/signin`;
+    return this.http.get(url);
   }
 
 
@@ -208,35 +134,6 @@ export class AuthService {
   }
 
 
-  // SendVerificationMail(): Observable<any> {
-  //   const user = this.afAuth.currentUser;
-
-  //   console.log("🚀 ~ AuthService ~ SendVerificationMail ~ user:", user)
-  //   return from(this.afAuth.currentUser)
-  //   .pipe(
-  //       catchError((err) => {
-  //         console.log("err in send email verify", err);
-  //         return throwError(() => err);
-  //       }),
-  //       tap((res) => res.sendEmailVerification()),
-  //     )
-  // }
-
-  // SendVerificationMail(mailAddress?: string): Observable<any> {
-  //   return from(this.afAuth.currentUser).pipe(
-  //     switchMap((user) => {
-  //       if (!user) {
-  //         return throwError(() => new Error('User not found'));
-  //       }
-  //       return from(user.sendEmailVerification());
-  //     }),
-  //     catchError((err) => {
-  //       console.log("err in send email verify", err);
-  //       return throwError(() => err);
-  //     })
-  //   );
-  // }
-
   SendVerificationMail(mailAddress?: string, password?: string): Observable<any> {
     return from(this.afAuth.currentUser).pipe(
       switchMap((user) => {
@@ -279,16 +176,14 @@ export class AuthService {
     return from(this.afAuth.sendPasswordResetEmail(passwordResetEmail));
   }
 
-  // Returns true when user is looged in and email is verified
+
   get isLoggedIn(): boolean {
-    const user = JSON.parse(localStorage.getItem('firebaseUserData')!);
-    return user !== null && user.emailVerified !== false ? true : false;
+    return sessionStorage.getItem('isLoggedIn') ? true : false;
   }
 
 
   updateUser(updatedData: any): Observable<any> {
     console.log("updatedData is ", updatedData);
-
     const token = localStorage.getItem('token');  // Assuming you have a token stored
     const headers = { 'token': token };  // Add the token to the headers
     const url = `${environment.apiUrl}auth/update-user`;  // Backend endpoint for updating user
@@ -299,8 +194,6 @@ export class AuthService {
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('userData');
-      localStorage.removeItem('firebaseUserData');
-      localStorage.removeItem('token');
       this.router.navigate(['login']);
     });
   }

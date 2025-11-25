@@ -405,12 +405,8 @@ export class FilesService {
   }
 
   uploadBase64(base64String: string, businessNumber: string): Observable<any> {
-    const tempA = localStorage.getItem('firebaseUserData');
-    const tempB = JSON.parse(tempA)
-    const uid = tempB.uid;
     this.uniqueIdFile = nanoid();
     const storage = getStorage(); // bucket root
-    // const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
     const fileRef = ref(storage, `usersUploads/${businessNumber}/${this.uniqueIdFile}${this.fileName}`); // full path relative to bucket's root
     return from(uploadString(fileRef, base64String, 'data_url'));
   }

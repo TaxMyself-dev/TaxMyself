@@ -210,7 +210,7 @@ export class DocumentsService {
     console.log('Bucketttttttttttttttttt:', process.env.FIREBASE_STORAGE_BUCKET);
 
     try {
-      const bucket = admin.storage().bucket('taxmyself-5d8a0.appspot.com');
+      const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
       console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
       console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
       console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
@@ -245,7 +245,7 @@ export class DocumentsService {
    */
   private async deleteFromFirebase(fullPath: string): Promise<void> {
     try {
-      const bucket = admin.storage().bucket('taxmyself-5d8a0.appspot.com');
+      const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
       await bucket.file(fullPath).delete();
       console.log(`Deleted Firebase file: ${fullPath}`);
     } catch (error) {

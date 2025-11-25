@@ -6,7 +6,6 @@ import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 
 @Controller('auth')
-// @Serialize(UserDto)
 export class UsersController {
 
     constructor(
@@ -22,7 +21,7 @@ export class UsersController {
     }
 
 
-    @Post('/signin')
+    @Get('/signin')
     @UseGuards(FirebaseAuthGuard)
     async signin(@Req() request: AuthenticatedRequest) { 
         const userId = request.user?.firebaseId;    
