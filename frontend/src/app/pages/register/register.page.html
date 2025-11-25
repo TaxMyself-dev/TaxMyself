@@ -181,7 +181,7 @@
                         placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)" [customStyle]="'register'"></app-input-date>
 
                     <div class="wrap-add-remove-child-button">
-                      @if (childrenArray.controls.length > 1) {
+                      @if (canDeleteChild(i)) {
                       <app-p-button [buttonText]="'-'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW"
                         (onButtonClicked)="removeChild(i)"></app-p-button>
                       }
@@ -190,8 +190,6 @@
                 </div>
                 }
               </div>
-              <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW"
-                (onButtonClicked)="addChild()"></app-p-button>
             </form>
           </div>
           }

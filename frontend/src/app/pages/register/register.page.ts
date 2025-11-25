@@ -389,7 +389,10 @@ matchRegisterImage = computed(() => {
       // switch turned ON
       console.log('User has children – add child or show fields');
       this.hasChildren.set(true);
-      this.addChild(); // for example
+      // Add first row only if there are no rows
+      if (this.childrenArray.length === 0) {
+        this.addChild();
+      }
     } else {
       // switch turned OFF
       console.log('User disabled children section');
@@ -400,22 +403,70 @@ matchRegisterImage = computed(() => {
 
   addChild() {
     const items = this.myForm.get(RegisterFormModules.CHILDREN).get("childrenArray") as FormArray;
-    items.push(
-      this.formBuilder.group({
-        [RegisterFormControls.CHILD_FIRST_NAME]: new FormControl(
-          '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
-        ),
-        [RegisterFormControls.CHILD_LAST_NAME]: new FormControl(
-          '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
-        ),
-        // [RegisterFormControls.CHILD_ID]: new FormControl(
-        //   '', [Validators.required, Validators.pattern(/^\d{9}$/)]
-        // ),
-        [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
-          '', Validators.required,
-        )
-      })
-    );
+    const childGroup = this.formBuilder.group({
+      [RegisterFormControls.CHILD_FIRST_NAME]: new FormControl(
+        '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
+      ),
+      [RegisterFormControls.CHILD_LAST_NAME]: new FormControl(
+        '', [Validators.required, Validators.pattern(/^[A-Za-zא-ת ]+$/)]
+      ),
+      [RegisterFormControls.CHILD_DATE_OF_BIRTH]: new FormControl(
+        '', Validators.required,
+      )
+    });
+    
+    // Listen to changes in the child row
+    childGroup.valueChanges.pipe(
+      takeUntil(this.ngUnsubscribe)
+    ).subscribe(() => {
+      this.handleChildRowChange();
+    });
+    
+    items.push(childGroup);
+  }
+
+  // Check if a new row should be added automatically
+  private handleChildRowChange(): void {
+    if (this.childrenArray.length === 0) return;
+    
+    const lastIndex = this.childrenArray.length - 1;
+    const lastChild = this.childrenArray.at(lastIndex);
+    
+    // If the last row is valid and filled, add a new row
+    if (lastChild.valid && this.isChildRowFilled(lastChild)) {
+      this.addChild();
+    }
+  }
+
+  // Check if a child row is filled (not necessarily valid)
+  private isChildRowFilled(childGroup: AbstractControl): boolean {
+    const firstName = childGroup.get(RegisterFormControls.CHILD_FIRST_NAME)?.value;
+    const lastName = childGroup.get(RegisterFormControls.CHILD_LAST_NAME)?.value;
+    const dateOfBirth = childGroup.get(RegisterFormControls.CHILD_DATE_OF_BIRTH)?.value;
+    
+    return !!(firstName && lastName && dateOfBirth);
+  }
+
+  // Check if a child row is completely empty
+  private isChildRowEmpty(childGroup: AbstractControl): boolean {
+    const firstName = childGroup.get(RegisterFormControls.CHILD_FIRST_NAME)?.value;
+    const lastName = childGroup.get(RegisterFormControls.CHILD_LAST_NAME)?.value;
+    const dateOfBirth = childGroup.get(RegisterFormControls.CHILD_DATE_OF_BIRTH)?.value;
+    
+    return !firstName && !lastName && !dateOfBirth;
+  }
+
+  // Check if a child row can be deleted
+  canDeleteChild(index: number): boolean {
+    // Cannot delete if there's only one row
+    if (this.childrenArray.length <= 1) return false;
+    
+    // Can delete only if it's not the last row, or if the last row is filled
+    const isLastRow = index === this.childrenArray.length - 1;
+    if (!isLastRow) return true;
+    
+    const lastChild = this.childrenArray.at(index);
+    return this.isChildRowFilled(lastChild);
   }
 
   removeChild(index: number) {
@@ -427,6 +478,14 @@ matchRegisterImage = computed(() => {
   handleFormRegister() {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
+    
+    // Remove empty child rows before submission
+    if (formData.children?.childrenArray) {
+      formData.children.childrenArray = formData.children.childrenArray.filter((child: any) => {
+        return child.childFName && child.childLName && child.childDate;
+      });
+    }
+    
     formData.validation = { password: formData?.personal?.password };
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
@@ -523,7 +582,7 @@ matchRegisterImage = computed(() => {
       case RegisterFormModules.PERSONAL:
         return this.personalForm.valid;
       case RegisterFormModules.CHILDREN:
-        return this.childrenForm.valid;
+        return this.isChildrenFormValidForSubmission();
       case RegisterFormModules.SPOUSE:
         return this.spouseForm.valid;
       case RegisterFormModules.BUSINESS:
@@ -531,6 +590,38 @@ matchRegisterImage = computed(() => {
       default:
         return false;
     }
+  }
+
+  // Special validation for children form that ignores an empty last row
+  private isChildrenFormValidForSubmission(): boolean {
+    // If no children at all and toggle is off, it's valid
+    if (!this.hasChildren() || this.childrenArray.length === 0) {
+      return true;
+    }
+
+    // Check all rows except the last one if it's empty
+    for (let i = 0; i < this.childrenArray.length; i++) {
+      const childGroup = this.childrenArray.at(i);
+      const isLastRow = i === this.childrenArray.length - 1;
+      
+      // If this is the last row and it's completely empty - skip it
+      if (isLastRow && this.isChildRowEmpty(childGroup)) {
+        continue;
+      }
+      
+      // Otherwise the row must be valid
+      if (!childGroup.valid) {
+        return false;
+      }
+    }
+    
+    // At least one valid child must exist (not just an empty row)
+    const hasAtLeastOneValidChild = this.childrenArray.controls.some((child, index) => {
+      const isLastRow = index === this.childrenArray.length - 1;
+      return child.valid && !(isLastRow && this.isChildRowEmpty(child));
+    });
+    
+    return hasAtLeastOneValidChild;
   }
 
   confirmPasswordValidator(): ValidatorFn {
@@ -598,7 +689,7 @@ matchRegisterImage = computed(() => {
       gender: 'male',
       email: 'test@example.com',
       phone: '0501234567',
-      dateOfBirth: '01/01/1990',
+      dateOfBirth: '1990-01-01',
       employmentStatus: 'SELF_EMPLOYED',
       city: 'Tel Aviv',
       familyStatus: 'SINGLE',
@@ -621,7 +712,7 @@ matchRegisterImage = computed(() => {
     this.childrenArray.at(0).patchValue({
       childFName: 'Noam',
       childLName: 'Harel',
-      childDate: '01/09/2020',
+      childDate: '2020-01-01',
     });
 
     // Business array example (if you use dynamic businesses)
