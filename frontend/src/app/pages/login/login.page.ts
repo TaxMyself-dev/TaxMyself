@@ -149,7 +149,8 @@ export class LoginPage implements OnInit {
           console.log("error in sign-in of login page: ", err);
           return EMPTY;
         }),
-        tap((res) => {
+        tap((res: any) => {
+          localStorage.setItem('token', res.token);
           localStorage.setItem('userData', JSON.stringify(res));
           console.log('Sign-in response:', res);
           // 🔥 Load businesses right after successful login
