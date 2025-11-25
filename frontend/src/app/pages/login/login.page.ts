@@ -104,51 +104,110 @@ export class LoginPage implements OnInit {
   }
 
   onEnterKeyPressed(): void {
-    this.login2();
+    this.login();
   }
 
-  login2(): void {
 
-    this.isLoading.set(true);
-    this.authService.error.set(null);
-    const formData = this.loginForm.value;
+  login(): void {
 
-    from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
-      .pipe(
-        catchError((err) => {
-          console.log("err in user verify in sign in", err);
-          return EMPTY;
-        }),
-        filter((res) => {
-          if (!res?.user?.emailVerified) {
-            console.log("res in email error", res);
-            this.authService.error.set("email");
-          }
-          return res?.user?.emailVerified;
-        }),
-        switchMap((res) => this.authService.signIn()),
-        catchError((err) => {
-          console.log("error in sign-in of login page: ", err);
-          return EMPTY;
-        }),
-        tap((res: any) => {
-          sessionStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('userData', JSON.stringify(res));
-          console.log('Sign-in response:', res);
-          // 🔥 Load businesses right after successful login
-          //this.genericService.clearBusinesses
-          //this.genericService.loadBusinesses();
-          console.log("after login");
+  this.isLoading.set(true);
+  this.authService.error.set(null);
+  const formData = this.loginForm.value;
+
+  from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
+    .pipe(
+      catchError((err) => {
+        console.log("❌ Firebase login error:", err);
+        return EMPTY;
+      }),
+
+      // 1️⃣ Validate email
+      filter((res) => {
+        if (!res?.user?.emailVerified) {
+          this.authService.error.set("email");
+        }
+        return res?.user?.emailVerified;
+      }),
+
+      // 2️⃣ Call your backend signIn()
+      switchMap(() => this.authService.signIn()),
+
+      catchError((err) => {
+        console.log("❌ Backend sign-in error:", err);
+        return EMPTY;
+      }),
+
+      // 3️⃣ Save user data
+      tap((res: any) => {
+        sessionStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userData', JSON.stringify(res));
+      }),
+
+      // 4️⃣ Load businesses from server
+      switchMap(() =>
+        from(this.genericService.loadBusinessesFromServer())
+      ),
+
+      // 5️⃣ After businesses loaded → navigate
+      tap(() => {
+        console.log("Businesses loaded → navigate");
+        this.router.navigate(['my-account']);
+      }),
+
+      finalize(() => this.isLoading.set(false))
+    )
+    .subscribe();
+}
+
+
+
+
+  //   async login(): Promise<void> {
+
+
+  //   this.isLoading.set(true);
+  //   this.authService.error.set(null);
+  //   const formData = this.loginForm.value;
+
+  //   from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
+  //     .pipe(
+  //       catchError((err) => {
+  //         console.log("err in user verify in sign in", err);
+  //         return EMPTY;
+  //       }),
+  //       filter((res) => {
+  //         if (!res?.user?.emailVerified) {
+  //           console.log("res in email error", res);
+  //           this.authService.error.set("email");
+  //         }
+  //         return res?.user?.emailVerified;
+  //       }),
+  //       switchMap((res) => this.authService.signIn()),
+  //       catchError((err) => {
+  //         console.log("error in sign-in of login page: ", err);
+  //         return EMPTY;
+  //       }),
+  //       tap((res: any) => {
+  //         sessionStorage.setItem('isLoggedIn', 'true');
+  //         localStorage.setItem('userData', JSON.stringify(res));
+  //         console.log('Sign-in response:', res);
+
+  //          // 🚀 Load businesses immediately after login
+  //         await this.genericService.loadBusinessesFromServer();
+  //         // 🔥 Load businesses right after successful login
+  //         //this.genericService.clearBusinesses
+  //         //this.genericService.loadBusinesses();
+  //         console.log("after login");
           
-          this.router.navigate(['my-account']);
-        }),
-        finalize(() => {
-          console.log("Finalize called - Dismissing loader");
-          this.isLoading.set(false);
-        })
-      )
-      .subscribe()
-  }
+  //         this.router.navigate(['my-account']);
+  //       }),
+  //       finalize(() => {
+  //         console.log("Finalize called - Dismissing loader");
+  //         this.isLoading.set(false);
+  //       })
+  //     )
+  //     .subscribe()
+  // }
 
 
   sendVerficaitonEmail(): void {

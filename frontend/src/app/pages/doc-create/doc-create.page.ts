@@ -314,7 +314,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         rtl: true,
         data: {
           docNumber: response.docNumber,
-          originalFile: response.originalFile,
+          file: response.file,
           copyFile: response.copyFile,
           docType: this.getHebrewNameDoc(response.docType)
         }

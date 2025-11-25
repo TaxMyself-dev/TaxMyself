@@ -22,7 +22,14 @@ export class GenericService {
     private loader: LoadingController, 
     private popoverController: PopoverController,
     private http: HttpClient,
-  ) { }
+  ) { 
+     // Load from localStorage on app refresh
+    const saved = localStorage.getItem('businesses');
+    if (saved) {
+      this._businesses.set(JSON.parse(saved));
+      console.log("📦 Businesses restored from localStorage");
+    }
+  }
 
   // --- signals (state) ---
   private _businesses = signal<Business[] | null>(null);
@@ -40,34 +47,57 @@ export class GenericService {
   readonly isLoadingBills = signal(false);
 
 
-  async loadBusinesses(): Promise<void> {
-
-    console.log("loaded businesses start:", this._businesses());
-
-    if (this._businesses()) {
-      console.log("already loaded:", this._businesses());
-      return;
-    }
+  async loadBusinessesFromServer(): Promise<void> {
 
     try {
       const res = await firstValueFrom(
         this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
       );
 
-      this._businesses.set(res ?? []);
-      console.log("loaded businesses:", this._businesses());
+      this.saveBusinesses(res ?? []);
+      console.log("📦 Businesses loaded:", res);
 
     } catch (err) {
       console.error("❌ loadBusinesses failed", err);
-      this._businesses.set([]); 
     }
   }
 
 
-  // --- clear on logout ---
-  clearBusinesses(): void {
-    this._businesses.set(null);
+  /** Save to both signal + localStorage */
+  private saveBusinesses(data: Business[]) {
+    this._businesses.set(data);
+    localStorage.setItem('businesses', JSON.stringify(data));
   }
+
+
+  // async loadBusinesses(): Promise<void> {
+
+  //   console.log("loaded businesses start:", this._businesses());
+
+  //   if (this._businesses()) {
+  //     console.log("already loaded:", this._businesses());
+  //     return;
+  //   }
+
+  //   try {
+  //     const res = await firstValueFrom(
+  //       this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
+  //     );
+
+  //     this._businesses.set(res ?? []);
+  //     console.log("loaded businesses:", this._businesses());
+
+  //   } catch (err) {
+  //     console.error("❌ loadBusinesses failed", err);
+  //     this._businesses.set([]); 
+  //   }
+  // }
+
+
+  // // --- clear on logout ---
+  // clearBusinesses(): void {
+  //   this._businesses.set(null);
+  // }
 
 
   getBusinessData(user: IUserData): { mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;

@@ -51,7 +51,7 @@
               <hr class="line" />
             </div>
 
-            <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login2()">
+            <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login()">
               <div class="inputs-wrap">
                 <p-iconfield iconPosition="right">
                   <p-inputicon styleClass="pi pi-envelope" />
@@ -102,7 +102,7 @@
 
               <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"
                 [buttonColor]="buttonColor.YELLOW" [disabled]="loginForm.invalid" [buttonSize]="buttonSize.BIG"
-                (onButtonClicked)="login2()" [isLoading]="isLoading()"></app-p-button>
+                (onButtonClicked)="login()" [isLoading]="isLoading()"></app-p-button>
 
             </form>
           </div>

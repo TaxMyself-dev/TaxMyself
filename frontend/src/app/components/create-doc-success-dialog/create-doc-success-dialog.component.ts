@@ -22,7 +22,7 @@ export class DocSuccessDialogComponent {
   ) {
     
     this.docNumber = this.config.data?.docNumber;
-    this.originalFile = this.config.data?.originalFile;
+    this.originalFile = this.config.data?.file;
     this.copyFile = this.config.data?.copyFile;
     this.docType = this.config.data?.docType;
   }
