@@ -263,7 +263,7 @@ export class VatReportPage implements OnInit {
     );
     
     this.isLoadingStatePeryodSelectButton.set(true);
-    this.businessNumber.set(formValues.businessNumber);
+    this.businessNumber.set(this.form.get('businessNumber')?.value);
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
