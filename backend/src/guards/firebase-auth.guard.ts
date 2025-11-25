@@ -20,13 +20,20 @@ export class FirebaseAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+
+    //console.log("🔥 FirebaseAuthGuard triggered");
+
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>(); // ✅ Use the custom request type
+
+    //console.log("👉 Headers received:", request.headers);
 
     // ✅ Extract the token from Authorization header
     const authHeader = request.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('No valid authorization token provided');
     }
+
+    //console.log("🔐 Authorization header:", authHeader);
 
     const token = authHeader.split(' ')[1]; // ✅ Extract only the token part
 
@@ -72,100 +79,3 @@ export class FirebaseAuthGuard implements CanActivate {
     }
   }
 }
-
-
-
-// @Injectable()
-// export class FirebaseAuthGuard implements CanActivate {
-//   constructor(
-//     @InjectRepository(Delegation)
-//     private readonly delegationRepository: Repository<Delegation>,
-//   ) {}
-
-//   async canActivate(context: ExecutionContext): Promise<boolean> {
-//     const request = context.switchToHttp().getRequest<Request>();
-
-//     // Extract the token from the Authorization header
-//     const authHeader = request.headers.authorization;
-
-    // if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    //   throw new UnauthorizedException('No authorization token provided');
-    // }
-
-    // console.log("authHeader is ", authHeader);
-    
-    // const token = authHeader.split(' ')[1]; // Extract token
-
-    // console.log("token is ", token);
-
-    // // Validate the token and get Firebase UID
-    // const decodedToken = await this.validateToken(token);
-    // const authenticatedFirebaseId = decodedToken.uid;
-
-    // console.log("decodedToken is ", decodedToken);
-    // console.log("authenticatedFirebaseId is ", authenticatedFirebaseId);
-
-
-    // // Check if it's an accountant request (object containing `token` and `userId`)
-    // const clientUserId = request.headers['x-client-user-id'][0]; // Get client ID from custom header (if exists)
-    // console.log("clientUserId is ", clientUserId);
-
-    // if (!clientUserId) {
-    //   // Regular user accessing their own data → Allow access
-    //   return true;
-    // }
-
-    // // Accountant trying to access a client's data → Check permission
-    // const hasPermission = await this.delegationRepository.findOne({
-    //   where: { userId: clientUserId, agentId: authenticatedFirebaseId },
-    // });
-
-    // if (!hasPermission) {
-    //   throw new ForbiddenException(
-    //     'You do not have permission to access this user’s data',
-    //   );
-    // }
-
-  //   return true;
-  // }
-
-  // private async validateToken(token: string): Promise<admin.auth.DecodedIdToken> {
-  //   try {
-  //     return await admin.auth().verifyIdToken(token);
-  //   } catch (error) {
-  //     throw new UnauthorizedException('Invalid authorization token');
-  //   }
-  // }
-//}
-
-
-
-// import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-// import * as admin from 'firebase-admin';
-// import { Observable } from 'rxjs';
-
-// @Injectable()
-// export class FirebaseAuthGuard implements CanActivate {
-//   canActivate(
-//     context: ExecutionContext,
-//   ): boolean | Promise<boolean> | Observable<boolean> {
-//     const request = context.switchToHttp().getRequest();
-    
-//     let token = request.body.token;
-
-//     if (!token) {
-//       throw new UnauthorizedException('No authorization token provided');
-//     }
-
-//     return this.validateToken(token);
-//   }
-
-//   async validateToken(token: string): Promise<boolean> {
-//     try {
-//       await admin.auth().verifyIdToken(token);
-//       return true;
-//     } catch (error) {
-//       throw new UnauthorizedException('Invalid authorization token');
-//     }
-//   }
-// }

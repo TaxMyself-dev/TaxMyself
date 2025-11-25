@@ -229,8 +229,6 @@ export class UsersService {
   }
 
 
-  // users.service.ts
-
   async updateExpiredTrials(): Promise<void> {
     const today = new Date();
 
@@ -251,8 +249,6 @@ export class UsersService {
    getCities(): CityDto[] {
     return cities;
   }
-
-
 
 
 }

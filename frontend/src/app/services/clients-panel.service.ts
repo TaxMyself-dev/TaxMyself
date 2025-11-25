@@ -45,12 +45,12 @@ export class ClientPanelService {
     }
 
     const token = localStorage.getItem('token');
-    const agent = localStorage.getItem('firebaseUserData');
-    const agentId = JSON.parse(agent).uid;
-  
-    console.log("🔄 Fetching clients for agentId:", agentId);
-  
-    const url = `${environment.apiUrl}delegations/users-for-agent/${agentId}`;
+
+    // TBD: need to undersand from where to get agent id since we dont want to save the firebaseUserData in local storage
+    //const agent = localStorage.getItem('firebaseUserData');
+    //const agentId = JSON.parse(agent).uid;
+    
+    const url = `${environment.apiUrl}delegations/users-for-agent/${"agentId"}`;
     const headers = {
       Authorization: `Bearer ${token}`
     };

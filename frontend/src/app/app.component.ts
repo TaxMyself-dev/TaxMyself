@@ -207,11 +207,11 @@ export class AppComponent implements OnInit {
 
     console.log("userData is ", userData);
     
-    if (userData) {
-      console.log("call to business");
-      this.userData = userData;
-      await this.genericService.loadBusinesses();
-    }
+    // if (userData) {
+    //   console.log("call to business");
+    //   this.userData = userData;
+    //   await this.genericService.loadBusinesses();
+    // }
   }
 
 }
