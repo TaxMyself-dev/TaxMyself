@@ -15,7 +15,7 @@ import { IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
-import { MenuItem } from 'primeng/api';
+import { ConfirmationService, MenuItem } from 'primeng/api';
 import { DocumentType } from './doc-cerate.enum';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -45,6 +45,8 @@ interface PaymentFieldConfig {
 export class DocCreatePage implements OnInit, OnDestroy {
 
   private gs = inject(GenericService);
+    confirmationService = inject(ConfirmationService);
+  
 
   // Business-related properties
   // businesses = this.gs.businesses;
@@ -294,6 +296,22 @@ export class DocCreatePage implements OnInit, OnDestroy {
       default:
         break;
     }
+  }
+
+  confirmCreateDoc(): void {
+   this.confirmationService.confirm({
+            message: 'האם אתה בטוח שברצונך להפיק את המסמך?\nהמסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
+            header: 'אישור הפקת מסמך',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'הפק',
+            rejectLabel: 'ביטול',
+            accept: () => {
+              this.createDoc();
+            },
+            reject: () => {
+              this.createPDFIsLoading.set(false);
+            }
+          });
   }
 
 

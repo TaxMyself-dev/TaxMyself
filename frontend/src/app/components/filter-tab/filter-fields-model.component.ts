@@ -1,4 +1,5 @@
 import { Signal } from '@angular/core';
+import { ReportingPeriodType } from 'src/app/shared/enums';
 import { ISelectItem } from 'src/app/shared/interface';
 
 export type FilterFieldType =
@@ -21,4 +22,5 @@ export interface FilterField {
 
   required?: boolean;
   defaultValue?: any;
+  allowedPeriodModes?: ReportingPeriodType[];
 }

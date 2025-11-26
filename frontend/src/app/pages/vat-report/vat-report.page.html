@@ -1,7 +1,4 @@
 <div class="vat-report-wrap-screen">
-   <!-- <div style="border: 5px solid; background-color: aqua; width: 200px;">
-
-  </div> -->
   <div class="vat-report-header">
     <div class="icon-title">
       <img src="../../../assets/vat_report.svg" alt="VAT Report" class="icon" />
@@ -15,13 +12,9 @@
   <!-- FILTER TAB -->
   <app-filter-tab
     [config]="filterConfig"
-    [form]="form"
+    [parentForm]="form"
     (apply)="onSubmit($event)">
   </app-filter-tab>
-
-  <!-- <app-period-select class="vat-report-search-bar-input"
-    [allowedPeriodModes]="[reportingPeriodType.MONTHLY, reportingPeriodType.BIMONTHLY]" [businessStatus]="businessStatus" [businessOptions]="businessOptions()" (formSubmit)="onSubmit($event)" [isLoadingStateButton]="isLoadingStatePeryodSelectButton()">
-  </app-period-select>  -->
 
   @if (vatReportData()) {
     <div class="wrap-output-report">

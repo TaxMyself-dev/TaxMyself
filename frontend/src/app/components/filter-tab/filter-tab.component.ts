@@ -1,29 +1,13 @@
-import {
-  Component,
-  input,
-  output,
-  inject,
-  Signal,
-  model
-} from '@angular/core';
-
-import {
-  FormBuilder,
-  FormGroup,
-  Validators,
-  ReactiveFormsModule
-} from '@angular/forms';
-
+import { Component, input, output, inject, Signal } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { FilterField } from './filter-fields-model.component';
-
 import { InputSelectComponent } from '../input-select/input-select.component';
-import { InputDateComponent } from '../input-date/input-date.component';
 import { PeriodSelectComponent } from '../period-select/period-select.component';
 import { ButtonComponent } from '../button/button.component';
-
 import { ISelectItem } from 'src/app/shared/interface';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
+import { inputsSize } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-filter-tab',
@@ -34,65 +18,55 @@ import { ButtonColor, ButtonSize } from '../button/button.enum';
     CommonModule,
     ReactiveFormsModule,
     InputSelectComponent,
-    InputDateComponent,
     PeriodSelectComponent,
     ButtonComponent,
   ]
 })
 export class FilterTabComponent {
 
-  // The filter field configuration
-  config = input<FilterField[]>([]);
-
-  // Parent can pass a form — OR we create internally
-  form = model<FormGroup | null>(null);
-
-  // Emits the final form result
-  apply = output<any>();
-
   private fb = inject(FormBuilder);
 
   buttonSize = ButtonSize;
+  inputSize = inputsSize
   buttonColor = ButtonColor;
+  
+  // The filter field configuration
+  config = input<FilterField[]>([]);
+
+  // Parent form
+  parentForm = input.required<FormGroup>();
+
+  // Emits the final form result
+  apply = output<any>();
+    
+
 
   ngOnInit() {
-    // Parent did NOT pass a form → build internal
-    if (!this.form()) {
-      this.form.set(this.buildForm());
-    }
+    this.buildForm();
   }
 
+
   /** Build dynamic form structure */
-  private buildForm(): FormGroup {
-    const group: Record<string, any> = {};
+  private buildForm(): void {
+    const form = this.parentForm();
 
     for (const field of this.config()) {
 
-      // Special case: PERIOD FIELD = nested FormGroup
+      // period controls building in period select component
       if (field.type === 'period') {
-        group[field.controlName] = this.fb.group({
-          periodMode: [null, Validators.required],
-          year: [null],
-          month: [null],
-          startDate: [null],
-          endDate: [null]
-        });
         continue;
       }
-
-      // Regular fields
-      group[field.controlName] = [
-        field.defaultValue ?? null,
+      form.addControl(field.controlName, new FormControl(
+        field.defaultValue ?? '',
         field.required ? Validators.required : []
-      ];
+      ));
     }
-
-    return this.fb.group(group);
   }
 
   /** Emit form data when user clicks Apply */
   onApply() {
-    this.apply.emit(this.form()!.value);
+    console.log(this.parentForm());
+    // this.apply.emit(this.parentForm()?.value);
   }
 
   /** Resolve select dropdown items (supports arrays and signals) */

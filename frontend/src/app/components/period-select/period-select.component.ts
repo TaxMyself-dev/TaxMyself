@@ -1,10 +1,7 @@
 import {
   Component,
-  Input,
-  Output,
-  EventEmitter,
-  inject,
-  input
+  input,
+  inject
 } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
@@ -18,12 +15,12 @@ import {
 import {
   ReportingPeriodType,
   doubleMonthsList,
+  inputsSize,
   singleMonthsList
 } from 'src/app/shared/enums';
 
 import { InputSelectComponent } from '../input-select/input-select.component';
 import { InputDateComponent } from '../input-date/input-date.component';
-import { ButtonComponent } from '../button/button.component';
 import { ISelectItem } from 'src/app/shared/interface';
 import { ButtonSize, ButtonColor } from '../button/button.enum';
 
@@ -37,69 +34,82 @@ import { ButtonSize, ButtonColor } from '../button/button.enum';
     ReactiveFormsModule,
     InputSelectComponent,
     InputDateComponent,
-    ButtonComponent
   ]
 })
 export class PeriodSelectComponent {
 
-  /** Parent form → embedded mode */
-  parentForm = input<FormGroup | null>(null);
+  /** Parent form - component always receives form from parent */
+  parentForm = input.required<FormGroup>();
 
-  /** Control name inside parent form in embedded mode */
-  controlName = input<string>('');
-
-  /** Event for standalone mode */
-  @Output() formSubmit = new EventEmitter<any>();
+  /** Allowed period modes to display */
+  allowedPeriodModes = input<ReportingPeriodType[]>([
+    ReportingPeriodType.MONTHLY,
+    ReportingPeriodType.BIMONTHLY,
+    ReportingPeriodType.ANNUAL,
+    ReportingPeriodType.DATE_RANGE
+  ]);
 
   private fb = inject(FormBuilder);
 
-  /** Internal form for standalone mode */
-  private internalForm = this.fb.group({
-    periodMode: [null, Validators.required],
-    year: [null],
-    month: [null],
-    startDate: [null],
-    endDate: [null]
-  });
-
-  /** UI enums for button */
   ButtonColor = ButtonColor;
   ButtonSize = ButtonSize;
+  inputSize = inputsSize
 
-  /** If true → embedded inside filter component */
-  get isEmbedded(): boolean {
-    return !!this.parentForm();
-  }
-
-  /** Returns correct active FormGroup */
   get form(): FormGroup {
-    return this.isEmbedded
-      ? (this.parentForm()!.get(this.controlName()) as FormGroup)
-      : this.internalForm;
+    return this.parentForm();
   }
 
   ngOnInit() {
-    if (this.isEmbedded) {
-      // Parent form must have nested group "period"
-      if (!this.parentForm()!.get(this.controlName())) {
-        this.parentForm()!.addControl(
-          this.controlName(),
-          this.internalForm
-        );
+    console.log("this.parentForm()", this.parentForm());
+    const form = this.parentForm();
+    
+    // Add only periodMode control initially
+    if (!form?.get('periodMode')) {
+      console.log("periodMode control not found");
+      form.addControl('periodMode', this.fb.control(null, Validators.required));
+    }
+
+    // Listen to periodMode changes and add/remove controls dynamically
+    form.get('periodMode')?.valueChanges.subscribe((mode: ReportingPeriodType) => {
+      this.updateFormControls(mode);
+    });
+  }
+
+  private updateFormControls(mode: ReportingPeriodType) {
+    console.log("this.parentForm()", this.parentForm());
+    const form = this.parentForm();
+
+    // Remove all period-related controls first
+    ['year', 'month', 'startDate', 'endDate'].forEach(controlName => {
+      if (form.get(controlName)) {
+        form.removeControl(controlName);
       }
+    });
+
+    // Add controls based on selected mode
+    if (mode === ReportingPeriodType.MONTHLY || mode === ReportingPeriodType.BIMONTHLY) {
+      form.addControl('year', this.fb.control(null, Validators.required));
+      form.addControl('month', this.fb.control(null, Validators.required));
+    } else if (mode === ReportingPeriodType.ANNUAL) {
+      form.addControl('year', this.fb.control(null, Validators.required));
+    } else if (mode === ReportingPeriodType.DATE_RANGE) {
+      form.addControl('startDate', this.fb.control(null, Validators.required));
+      form.addControl('endDate', this.fb.control(null, Validators.required));
     }
   }
 
-  /* ---------------------------
-     Logic used by the template
-  ----------------------------*/
   getPeriodModeOptions(): ISelectItem[] {
-    return [
+    const allOptions = [
       { name: 'חודשי', value: ReportingPeriodType.MONTHLY },
       { name: 'דו-חודשי', value: ReportingPeriodType.BIMONTHLY },
       { name: 'שנתי', value: ReportingPeriodType.ANNUAL },
       { name: 'טווח תאריכים', value: ReportingPeriodType.DATE_RANGE },
     ];
+    
+    // Filter by allowed period modes
+    return allOptions.filter(option => 
+      this.allowedPeriodModes()?.includes(option.value)
+    );
   }
 
   generateYears(): ISelectItem[] {
@@ -115,11 +125,5 @@ export class PeriodSelectComponent {
     return mode === ReportingPeriodType.BIMONTHLY
       ? doubleMonthsList
       : singleMonthsList;
-  }
-
-  onSubmitStandalone() {
-    if (!this.isEmbedded) {
-      this.formSubmit.emit(this.internalForm.value);
-    }
   }
 }
