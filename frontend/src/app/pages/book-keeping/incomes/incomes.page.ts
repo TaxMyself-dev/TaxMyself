@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject, viewChild } from '@angular/core';
 import { EMPTY, fromEvent } from 'rxjs';
 import { catchError, filter, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
@@ -16,6 +16,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { Popover } from 'primeng/popover';
 
 @Component({
   selector: 'app-incomes',
@@ -70,11 +71,15 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.RECIPIENT_NAME, value: DocumentsTableHebrewColumns.recipientName, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
   ];
+  showMiniMenu = signal(false);
+  // Holds the selected row for download
+  selectedRowForDownload = signal<IRowDataTable | null>(null);
 
   // ===========================
   // Filter config (used by FilterTab)
   // ===========================
   filterConfig: FilterField[] = [];
+
 
   // ===========================
   // Init
@@ -228,10 +233,50 @@ export class IncomesPage implements OnInit {
         icon: 'pi pi-download',
         title: 'הורד קובץ',
         action: (event: any, row: IRowDataTable) => {
-          this.onDownloadFile(row);
+          // this.showDownloadMenu(event, row);
+          // this.onDownloadFile(row);
+          this.openDownloadMenu(row);
         }
       },
     ]);
+  }
+
+
+  // -----------------------------------------------------
+  // Called when user clicks the download icon in the table
+  // -----------------------------------------------------
+  openDownloadMenu(row: IRowDataTable) {
+    console.log("🔥 openDownloadMenu fired!", row);
+    this.selectedRowForDownload.set(row);
+    this.showMiniMenu.set(true);
+  }
+
+  // -----------------------------------------------------
+  // Original file download
+  // -----------------------------------------------------
+  downloadOriginal() {
+    const row = this.selectedRowForDownload();
+    if (!row?.file) {
+      console.error("Original file missing on row:", row);
+      return;
+    }
+
+    this.filesService.downloadFirebaseFile(row.file as string);
+    this.showMiniMenu.set(false);
+  }
+
+  // -----------------------------------------------------
+  // Copy file download
+  // -----------------------------------------------------
+  downloadCopy() {
+    const row = this.selectedRowForDownload();
+    if (!row?.copyFile) {
+      console.error("Copy file missing on row:", row);
+      return;
+    }
+
+    this.filesService.downloadFirebaseFile(row.copyFile as string);
+    this.showMiniMenu.set(false);
   }
 
 
@@ -246,9 +291,9 @@ export class IncomesPage implements OnInit {
   }
 
 
-  onDownloadFile(row: IRowDataTable): void {
-    console.log("Download file for row:", row);
-    this.filesService.downloadFirebaseFile(row.file as string)
-  }
+  // onDownloadFile(row: IRowDataTable): void {
+  //   console.log("Download file for row:", row);
+  //   this.filesService.downloadFirebaseFile(row.file as string)
+  // }
   
 }

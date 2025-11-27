@@ -9,6 +9,9 @@ import { TabMenu } from "primeng/tabmenu";
 import { GenericTableComponent } from "src/app/components/generic-table/generic-table.component";
 import { PeriodSelectComponent } from "src/app/components/period-select/period-select.component";
 import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
+// import { Overlay } from "../../../../../node_modules/primeng/overlay/overlay";
+import { PopoverModule } from 'primeng/popover';
+
 
 @NgModule({
   imports: [
@@ -21,7 +24,9 @@ import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.com
     TabMenu,
     GenericTableComponent,
     PeriodSelectComponent,
-    FilterTabComponent
+    FilterTabComponent,
+    // Overlay,
+    PopoverModule
 ],
   declarations: [IncomesPage]
 })

@@ -19,3 +19,23 @@
     </app-generic-table>
 
 </div>
+
+@if (showMiniMenu()) {
+  <div class="mini-menu-wrapper">
+    <div class="mini-menu-content">
+
+      <div class="option" (click)="downloadOriginal()">
+        📄 הורד קובץ מקורי
+      </div>
+
+      <div class="option" (click)="downloadCopy()">
+        📑 הורד קובץ עותק
+      </div>
+
+    </div>
+  </div>
+}
+
+
+
+

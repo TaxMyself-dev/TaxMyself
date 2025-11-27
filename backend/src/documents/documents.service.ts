@@ -61,7 +61,7 @@ export class DocumentsService {
     console.log("docType is ", docType);
 
     // -------------------------------
-    // 1) Guards + conversion to Date
+    // 1) Convert dates safely
     // -------------------------------
     let startDateSql: Date | null = null;
     let endDateSql: Date | null = null;
@@ -69,18 +69,16 @@ export class DocumentsService {
     if (startDate && typeof startDate === 'string') {
       try {
         startDateSql = this.sharedService.convertStringToDateObject(startDate);
-      } catch (e) {
+      } catch {
         console.warn("Invalid startDate format:", startDate);
-        startDateSql = null;
       }
     }
 
     if (endDate && typeof endDate === 'string') {
       try {
         endDateSql = this.sharedService.convertStringToDateObject(endDate);
-      } catch (e) {
+      } catch {
         console.warn("Invalid endDate format:", endDate);
-        endDateSql = null;
       }
     }
 
@@ -94,14 +92,18 @@ export class DocumentsService {
       .createQueryBuilder('doc')
       .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
 
-    // Filtering by docType if provided
+    // docType filter
     if (docType) {
       query.andWhere('doc.docType = :docType', { docType });
     }
 
     // -------------------------------
-    // 3) Handle date filters safely
+    // 3) Date logic
     // -------------------------------
+    const hasDateFilter = !!startDateSql || !!endDateSql;
+    const hasDocTypeFilter = !!docType;
+
+    // Case 1: User provided real date filters
     if (startDateSql && endDateSql) {
       query.andWhere('doc.docDate BETWEEN :start AND :end', {
         start: startDateSql,
@@ -115,70 +117,31 @@ export class DocumentsService {
       query.andWhere('doc.docDate <= :end', { end: endDateSql });
     }
     else {
-      // Default → Start of year until now
-      const now = new Date();
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      // Case 2: NO DATES PROVIDED
+      if (!hasDocTypeFilter) {
+        // --------- ⭐ RETURN ALL DOCS ⭐ ---------
+        console.log("No dates & no docType → returning ALL docs");
+        // Do NOT add any date filter
+      } else {
+        // Case 3: No dates but YES docType → default range
+        const now = new Date();
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-      query.andWhere('doc.docDate BETWEEN :start AND :end', {
-        start: startOfYear,
-        end: now,
-      });
+        query.andWhere('doc.docDate BETWEEN :start AND :end', {
+          start: startOfYear,
+          end: now,
+        });
+      }
     }
 
     // -------------------------------
-    // 4) Fetch results
+    // 4) Execute
     // -------------------------------
     const docs = await query.getMany();
     console.log("Fetched documents:", docs);
 
     return docs;
   }
-
-
-
-  // async getDocuments(issuerBusinessNumber: string, startDate?: string, endDate?: string, docType?: DocumentType): Promise<Documents[]> {
-
-  //   const startDateSql = this.sharedService.convertStringToDateObject(startDate);
-  //   const endDateSql = this.sharedService.convertStringToDateObject(endDate);
-
-  //   console.log("issuerBusinessNumber is ", issuerBusinessNumber);
-  //   console.log("startDateSql is ", startDateSql);
-  //   console.log("endDateSql is ", endDateSql);
-  //   console.log("docType is ", docType);
-    
-
-  //   const query = this.documentsRepo
-  //   .createQueryBuilder('doc')
-  //   .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
-
-  //   if (docType) {
-  //     query.andWhere('doc.docType = :docType', { docType });
-  //   }
-
-  //   if (startDateSql && endDateSql) {
-  //     query.andWhere('doc.docDate BETWEEN :startDate AND :endDateSql', {
-  //       startDateSql,
-  //       endDateSql,
-  //     });
-  //   } else if (startDateSql) {
-  //     query.andWhere('doc.docDate >= :startDateSql', { startDateSql });
-  //   } else if (endDateSql) {
-  //     query.andWhere('doc.docDate <= :endDateSql', { endDateSql });
-  //   } else {
-  //     // Default: start of year → today
-  //     const now = new Date();
-  //     const startOfYear = new Date(now.getFullYear(), 0, 1); // Jan 1st
-  //     query.andWhere('doc.docDate BETWEEN :start AND :end', {
-  //       start: startOfYear,
-  //       end: now,
-  //     });
-  //   }
-
-  //   const docs = await query.getMany();
-  //   console.log("Fetched documents:", docs);
-  //   return docs;
-
-  // }
 
 
   async getSettingDocByType(userId: string, docType: DocumentType) {

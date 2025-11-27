@@ -6,3 +6,42 @@
   overflow: auto;
   align-items: center;
 }
+
+.mini-menu-wrapper {
+  all: unset;                      // ← מנקה כל CSS גלובלי
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  z-index: 999999999;
+}
+
+.mini-menu-content {
+  all: unset;                      // ← מנקה CSS שיורד על div
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 12px;
+  width: 200px;                    // ← קובע רוחב שלא יקרוס
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  direction: rtl;
+  font-family: inherit;
+}
+
+.option {
+  all: unset;                      // ← מנקה כפתור גלובלי
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f7f7f7;
+  font-size: 15px;
+  text-align: right;
+  transition: 0.2s;
+}
+
+.option:hover {
+  background: #e8e8e8;
+}
+
