@@ -4,3 +4,8 @@ backend/src/auth/firebaseServiceAccount.json
 
 backend/src/auth/firebaseServiceAccount-*.json
 backend/src/auth/firebaseServiceAccount.json
+
+prod-keys/
+keys/
+*.key
+*.pem

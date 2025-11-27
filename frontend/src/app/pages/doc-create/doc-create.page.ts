@@ -903,32 +903,4 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
 
-  // getDropdownItems(controlValue: string): ISelectItem[] {
-  //   switch (controlValue) {
-  //     case FieldsCreateDocValue.CURRENCY:
-  //     // return this.currencyList;
-  //     // case fieldLineDocValue.PAYMENT_METHOD:
-  //     // return this.paymentMethodOptions;
-  //     case fieldLineDocValue.VAT_OPTIONS:
-  //       return vatOptions;
-  //     case fieldLineDocValue.UNIT_TYPE:
-  //       return this.UnitOfMeasureList;
-  //     case fieldLineDocValue.CARD_COMPANY:
-  //       return this.CardCompanyList;
-  //     case fieldLineDocValue.CREDIT_TRANS_TYPE:
-  //       return this.CreditTransactionTypeList;
-  //     default:
-  //       return [];
-  //   }
-  // }
-
-
-  // isDocWithPayments(): boolean {
-  //   return [
-  //     DocumentType.RECEIPT,
-  //     DocumentType.TAX_INVOICE_RECEIPT,
-  //   ].includes(this.fileSelected);
-  // }
-
-
 }

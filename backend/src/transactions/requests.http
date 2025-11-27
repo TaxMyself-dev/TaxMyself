@@ -1,3 +1,16 @@
+# Integration ENVIRONMENT: lgs-integ01
+# Production ENVIRONMENT: lgs-prod
+# curl --location --request POST 'https://{ENVIRONMENT}.feezback.cloud/link' \
+# --header 'Content-Type: application/json' \
+# --data-raw '{"token":
+# "{GENERATED_TOKEN_FROM_PREVIOUS_STEP}"
+# }'
+
+
+###
+
+
+
 ###
 POST  http://localhost:3000/transactions/get-trans
 content-type: application/json
