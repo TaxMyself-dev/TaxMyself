@@ -42,7 +42,8 @@ export class IncomesPage implements OnInit {
   userData!: IUserData;
 
   // Business related
-  businessNumber = signal<string>("");
+  selectedBusinessNumber = signal<string>("");
+  selectedBusinessName = signal<string>("");
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.businessSelectItems;
@@ -92,14 +93,14 @@ export class IncomesPage implements OnInit {
     this.businessStatus = this.userData.businessStatus;
     const businesses = this.gs.businesses();
 
-    if (businesses.length === 1) {
-      // 1️⃣ Set the signal
-      this.businessNumber.set(businesses[0].businessNumber);
-      // 2️⃣ Set the form so FilterTab works
-      this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
-    }
+    // 1️⃣ Set the signal
+    this.selectedBusinessNumber.set(businesses[0].businessNumber);
+    this.selectedBusinessName.set(businesses[0].businessName);
 
-    // Now config can be set safely
+    // 2️⃣ Set the form initial value
+    this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
+
+    // 3️⃣ Now config can be set safely
     this.filterConfig = [
       {
         type: 'select',
@@ -125,10 +126,23 @@ export class IncomesPage implements OnInit {
       }
     ];
 
-    // Load initial data: default business for user
-    this.fetchDocuments(this.businessNumber());
-    
+    this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
+      if (!businessNumber) return;
+
+      const business = this.gs.businesses().find(
+        b => b.businessNumber === businessNumber
+      );
+
+      this.selectedBusinessName.set(business?.businessName ?? '');
+
+      // Auto-fetch only when business changes
+      this.fetchDocuments(businessNumber);
+    });
+
+    // 5️⃣ Fetch initial data
+    this.fetchDocuments(this.selectedBusinessNumber());
   }
+
 
   // ===========================
   // Handle filter submit
@@ -137,7 +151,9 @@ export class IncomesPage implements OnInit {
 
     console.log("Submitted filter:", formValues);
 
-    const businessNumber = formValues.businessNumber;
+    this.selectedBusinessNumber.set(formValues.businessNumber);
+
+    // const businessNumber = formValues.businessNumber;
     const docType = formValues.docType;
 
     // period object
@@ -163,7 +179,7 @@ export class IncomesPage implements OnInit {
     this.startDate = startDate;
     this.endDate = endDate;
 
-    this.fetchDocuments(businessNumber, startDate, endDate, docType);
+    this.fetchDocuments(this.selectedBusinessNumber(), startDate, endDate, docType);
   }
 
   // ===========================

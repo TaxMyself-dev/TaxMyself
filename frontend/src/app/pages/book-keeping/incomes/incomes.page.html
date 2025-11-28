@@ -7,6 +7,12 @@
         (apply)="onSubmit($event)">
     </app-filter-tab>
 
+    <!-- PAGE TITLE -->
+     <h2 class="table-title">
+        מסמכים שהפקתי עבור העסק:
+        <span class="business-name">{{ selectedBusinessName() }}</span>
+    </h2>
+
     <!-- DOCUMENTS TABLE -->
     <app-generic-table
         class="table"

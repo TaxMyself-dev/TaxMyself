@@ -7,6 +7,20 @@
   align-items: center;
 }
 
+/* Wrap the content */
+.table-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 10px;
+}
+
+.business-name {
+  margin-right: 6px; /* space between the words */
+  font-weight: 600;  /* optional: bold the business name */
+}
+
 .mini-menu-wrapper {
   all: unset;                      // ← מנקה כל CSS גלובלי
   position: fixed;
