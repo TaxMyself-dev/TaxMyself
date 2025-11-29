@@ -23,7 +23,7 @@ export class DocPayments {
   @Column({ type: 'varchar' })
   paymentMethod: string;
 
-  @Column({ type: 'varchar', length: 10, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   hebrewBankName: string;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
