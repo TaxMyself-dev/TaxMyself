@@ -13,7 +13,7 @@
      <!-- FILTER TAB -->
     <app-filter-tab
       [config]="filterConfig"
-      [form]="form"
+      [parentForm]="form"
       (apply)="onSubmit($event)">
     </app-filter-tab>
 
@@ -24,7 +24,7 @@
     <ng-container *ngIf="pnlReport">
       <div class="pnl-report-title">
         <p>
-          דו"ח רווח והפסד לתקופה {{ endDate }} - {{ startDate }}
+          דו"ח רווח והפסד לתקופה {{ endDate() }} - {{ startDate() }}
         </p>
         <p>
           עבור: {{ userData.businessName }} מ.ע {{ userData.businessNumber }}

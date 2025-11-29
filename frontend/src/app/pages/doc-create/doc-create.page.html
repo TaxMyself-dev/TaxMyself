@@ -352,13 +352,13 @@
     <!-- @if (fileSelected) { -->
     <div class="buttons-container">
       <div>
-        <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.SMALL"
+        <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!createDocIsValid()" (onButtonClicked)="previewDoc()" [isLoading]="createPreviewPDFIsLoading()">
         </app-p-button>
       </div>
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'צור מסמך'" [buttonSize]="buttonSize.SMALL"
-          [disabled]="!createDocIsValid()" [isLoading]="createPDFIsLoading()" (onButtonClicked)="createDoc()" [buttonColor]="buttonColor.BLACK">
+          [disabled]="!createDocIsValid()" [isLoading]="createPDFIsLoading()" (onButtonClicked)="confirmCreateDoc()" [buttonColor]="buttonColor.BLACK">
         </app-p-button>
       </div>
 

@@ -41,10 +41,11 @@ export class VatReportPage implements OnInit {
   businessOptions = this.gs.businessSelectItems;
 
   // Filter related
-  form: FormGroup = this.fb.group({
-    businessNumber: [null],
-    // ❗ DO NOT add "period" here → FilterTab will create it automatically
-  });
+  form: FormGroup = this.fb.group({});
+  // form: FormGroup = this.fb.group({
+  //   // businessNumber: [null],
+  //   // ❗ DO NOT add "period" here → FilterTab will create it automatically
+  // });
   filterConfig: FilterField[] = [];
   startDate = signal<string>("");
   endDate = signal<string>("");
@@ -146,7 +147,8 @@ export class VatReportPage implements OnInit {
       {
         type: 'period',
         controlName: 'period',
-        required: true
+        required: true,
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE]
       },
     ];
 
@@ -238,21 +240,14 @@ export class VatReportPage implements OnInit {
     }
   }
 
-  //onSubmit(event: any): void {
-
   onSubmit(formValues: any): void {
 
     console.log("Submitted filter:", formValues);
-
-    // period object
-    const period = formValues.period;
-    const {
-      periodMode,
-      year,
-      month,
-      startDate: localStartDate,
-      endDate: localEndDate
-    } = period;
+    const periodMode = this.form.get('periodMode')?.value;
+    const year = this.form.get('year')?.value;
+    const month = this.form.get('month')?.value;
+    const localStartDate = this.form.get('startDate')?.value;
+    const localEndDate = this.form.get('endDate')?.value;
 
     const { startDate, endDate } = this.dateService.getStartAndEndDates(
       periodMode,
@@ -263,7 +258,7 @@ export class VatReportPage implements OnInit {
     );
 
     this.isLoadingStatePeryodSelectButton.set(true);
-    this.businessNumber.set(formValues.businessNumber);
+    this.businessNumber.set(this.form?.get('businessNumber')?.value);
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
@@ -272,9 +267,6 @@ export class VatReportPage implements OnInit {
 
   getTransToConfirm(): void {
     this.visibleConfirmTransDialog.set(true);
-
-    console.log("business number in getTransToConfirm:", this.businessNumber());
-
     this.transToConfirm = this.transactionService.getTransToConfirm(
       this.startDate(),
       this.endDate(),

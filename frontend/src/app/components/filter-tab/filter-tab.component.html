@@ -1,100 +1,50 @@
-<form [formGroup]="form()" class="filter-tab">
+<form [formGroup]="parentForm()" class="filter-tab">
 
   <ng-container *ngFor="let field of config()">
 
     <!-- =======================
          SELECT FIELD
     ======================== -->
-    <!-- <app-input-select
-      *ngIf="field.type === 'select'"
-      [parentForm]="form()"
-      [controlName]="field.controlName"
-      [placeholder]="field.label || field.placeholder"
-      [items]="resolveOptions(field)">
-    </app-input-select> -->
 
-    <app-input-select
-      *ngIf="field.type === 'select' 
-        && !(field.controlName === 'businessNumber' 
-            && resolveOptions(field)?.length === 1)"
-      [parentForm]="form()"
-      [controlName]="field.controlName"
-      [placeholder]="field.label || field.placeholder"
-      [items]="resolveOptions(field)">
+    <!-- if businessNumber is the only option, don't show the select -->
+    @if (field.type === 'select' && !(field.controlName === 'businessNumber' && resolveOptions(field)?.length === 1)) {
+    <app-input-select [parentForm]="parentForm()" [controlName]="field.controlName" [size]="inputSize.MEDIUM"
+      [placeholder]="field.label || field.placeholder" [items]="resolveOptions(field)">
     </app-input-select>
-
-
-    <!-- =======================
-         DATE FIELD
-    ======================== -->
-    <app-input-date
-      *ngIf="field.type === 'date'"
-      [parentForm]="form()"
-      [controlName]="field.controlName"
-      [placeholder]="field.label || field.placeholder">
-    </app-input-date>
-
+    }
 
     <!-- =======================
          PERIOD FIELD
     ======================== -->
-    <app-period-select
-      *ngIf="field.type === 'period'"
-      [parentForm]="form()"
-      [controlName]="field.controlName">
+    @if (field.type === 'period') {
+    <app-period-select [parentForm]="parentForm()" [allowedPeriodModes]="field.allowedPeriodModes">
     </app-period-select>
-
-
-    <!-- =======================
-         DATE RANGE FIELD
-    ======================== -->
-    <ng-container *ngIf="field.type === 'date-range'">
-      <app-input-date
-        [parentForm]="form()"
-        [controlName]="field.controlName + '_start'"
-        placeholder="מתאריך">
-      </app-input-date>
-
-      <app-input-date
-        [parentForm]="form()"
-        [controlName]="field.controlName + '_end'"
-        placeholder="עד תאריך">
-      </app-input-date>
-    </ng-container>
+    }
 
 
     <!-- =======================
          TEXT FIELD
     ======================== -->
-    <input
-      *ngIf="field.type === 'text'"
-      class="txt-input"
-      [placeholder]="field.label || field.placeholder"
-      [formControlName]="field.controlName" />
+    @if (field.type === 'text') {
+    <input class="txt-input" [placeholder]="field.label || field.placeholder" [formControlName]="field.controlName" />
+    }
 
 
     <!-- =======================
          NUMBER FIELD
     ======================== -->
-    <input
-      *ngIf="field.type === 'number'"
-      type="number"
-      class="num-input"
-      [placeholder]="field.label || field.placeholder"
+    @if (field.type === 'number') {
+    <input type="number" class="num-input" [placeholder]="field.label || field.placeholder"
       [formControlName]="field.controlName" />
+    }
 
   </ng-container>
 
   <!-- =======================
        APPLY BUTTON
   ======================== -->
-  <app-p-button
-    buttonText="הצג"
-    [buttonColor]="buttonColor.BLACK"
-    [buttonSize]="buttonSize.X_SMALL"
-    (onButtonClicked)="onApply()"
-    [disabled]="form()?.invalid"
-  >
+  <app-p-button buttonText="הצג" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.X_SMALL"
+    (onButtonClicked)="onApply()" [disabled]="parentForm()?.invalid">
   </app-p-button>
 
 </form>

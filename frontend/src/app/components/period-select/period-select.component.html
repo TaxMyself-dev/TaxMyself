@@ -5,59 +5,63 @@
     [parentForm]="form"
     controlName="periodMode"
     placeholder="בחר תקופת דיווח"
-    [items]="getPeriodModeOptions()">
+    [items]="getPeriodModeOptions()"
+    [size]="inputSize.MEDIUM">
   </app-input-select>
 
   <!-- MONTHLY + BIMONTHLY -->
-  @if (form.get('periodMode')?.value === 'MONTHLY' || form.get('periodMode')?.value === 'BIMONTHLY') {
+  @if (form?.get('periodMode')?.value === 'MONTHLY' || form?.get('periodMode')?.value === 'BIMONTHLY') {
     <app-input-select
       [parentForm]="form"
       controlName="year"
       placeholder="בחר שנה"
-      [items]="generateYears()">
+      [items]="generateYears()"
+       [size]="inputSize.MEDIUM">
     </app-input-select>
 
     <app-input-select
       [parentForm]="form"
       controlName="month"
       placeholder="בחר חודש"
-      [items]="monthList">
+      [items]="monthList"
+       [size]="inputSize.MEDIUM">
     </app-input-select>
   }
 
   <!-- ANNUAL -->
-  @if (form.get('periodMode')?.value === 'ANNUAL') {
+  @if (form?.get('periodMode')?.value === 'ANNUAL') {
     <app-input-select
       [parentForm]="form"
       controlName="year"
       placeholder="בחר שנה"
-      [items]="generateYears()">
+      [items]="generateYears()"
+       [size]="inputSize.MEDIUM">
     </app-input-select>
   }
 
   <!-- DATE RANGE -->
-  @if (form.get('periodMode')?.value === 'DATE_RANGE') {
+  @if (form?.get('periodMode')?.value === 'DATE_RANGE') {
     <app-input-date
       [parentForm]="form"
       controlName="startDate"
-      placeholder="מתאריך">
+      placeholder="מתאריך"
+      [size]="inputSize.MEDIUM">
     </app-input-date>
 
     <app-input-date
       [parentForm]="form"
       controlName="endDate"
-      placeholder="עד תאריך">
+      placeholder="עד תאריך"
+      [size]="inputSize.MEDIUM">
     </app-input-date>
   }
 
-  <!-- Standalone button ONLY when not embedded -->
-  @if (!isEmbedded) {
-    <app-p-button
-      buttonText="הצג"
-      [buttonColor]="ButtonColor.BLACK"
-      [buttonSize]="ButtonSize.X_SMALL"
-      (onButtonClicked)="onSubmitStandalone()">
-    </app-p-button>
-  }
+  <!-- Submit button -->
+  <!-- <app-p-button
+    buttonText="הצג"
+    [buttonColor]="ButtonColor.BLACK"
+    [buttonSize]="ButtonSize.X_SMALL"
+    (onButtonClicked)="onSubmit()">
+  </app-p-button> -->
 
 </form>
