@@ -32,39 +32,26 @@ export class ReportsController {
     @UsePipes(new ValidationPipe({ transform: true }))
     async getVatReport(
         @Req() request: AuthenticatedRequest,
-
-        // @Headers('token') token: string,
         @Query() query: VatReportRequestDto,
     ): Promise<VatReportDto> {
-
-        console.log("reports.controller - vat-report start");
         const firebaseId = request.user?.firebaseId;
-        // const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
-
-        console.log("vatReport is ", vatReport);
-
         return vatReport;
     }
 
 
     @Get('pnl-report')
+    @UseGuards(FirebaseAuthGuard)
     async getPnLReport(
-        @Headers('token') token: string,
+        @Req() request: AuthenticatedRequest,
         @Query() query: any,
     ): Promise<PnLReportDto> {
-
-        console.log("reports.controller - pnl-report start");
-
-        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
-        console.log("firebaseId is ", firebaseId);
-        
+        const firebaseId = request.user?.firebaseId;
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         const pnlReport = await this.reportsService.createPnLReport(firebaseId, query.businessNumber, startDate, endDate);
-
         return pnlReport;
     }
 

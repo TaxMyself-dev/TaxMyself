@@ -26,35 +26,46 @@ export class ExpensesController {
     private usersService: UsersService,
     private sharedService: SharedService) {}
 
+
   @Post('add-expense')
-  async addExpense(@Body() body: CreateExpenseDto) {
-      const userId = await this.usersService.getFirbsaeIdByToken(body.token);
-      const res = await this.expensesService.addExpense(body, userId);
+  @UseGuards(FirebaseAuthGuard)
+  async addExpense(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: CreateExpenseDto) {
+      const firebaseId = request.user?.firebaseId;
+      const res = await this.expensesService.addExpense(body, firebaseId);
       return res;
   }
 
 
   @Patch('update-expense/:id')
-  async updateExpense(@Param('id') id: number, @Body() body: any) {
-    console.log("in update");
-    
-    const userId = await this.usersService.getFirbsaeIdByToken(body.token)
-    console.log("controller update expense - Start");
-    console.log("body of update expense :", body);
-    return this.expensesService.updateExpense(id, userId, body);
+  @UseGuards(FirebaseAuthGuard)
+  async updateExpense(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number, 
+    @Body() body: any) {
+    const firebaseId = request.user?.firebaseId; 
+    return this.expensesService.updateExpense(id, firebaseId, body);
   }
 
 
   @Delete('delete-expense/:id')
-  async deleteExpense(@Param('id') id: number, @Headers('token') token: string) {
+  @UseGuards(FirebaseAuthGuard)
+  async deleteExpense(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number) {
     console.log("controller delete expense - Start");
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.expensesService.deleteExpense(id, userId);
+    const firebaseId = request.user?.firebaseId;
+    return this.expensesService.deleteExpense(id, firebaseId);
   }
+  
 
   @Get('get_by_userID')
-  async getExpensesByUserID(@Headers('token') token: string, @Query() query: GetExpensesDto): Promise<Expense[]> {
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);  
+  @UseGuards(FirebaseAuthGuard)
+  async getExpensesByUserID(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: GetExpensesDto): Promise<Expense[]> {
+    const firebaseId = request.user?.firebaseId;
     let startDate: Date;
     let endDate: Date;
     
@@ -69,11 +80,12 @@ export class ExpensesController {
 
 
   @Get('get-expenses-for-vat-report')
+  @UseGuards(FirebaseAuthGuard)
   async getExpensesByMonthReport(
-    @Headers('token') token: string,
+    @Req() request: AuthenticatedRequest,
     @Query() query: any,
   ) {
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);    
+    const firebaseId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     return await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
@@ -82,7 +94,8 @@ export class ExpensesController {
 
   @Patch('add-file-to-expense')
   @UseGuards(FirebaseAuthGuard)
-  async addFileToExpense(@Req() request: AuthenticatedRequest,
+  async addFileToExpense(
+    @Req() request: AuthenticatedRequest,
     @Body() body: { files: { id: number; file: string | null }[]; fromTransactions: boolean }) {      
       const { files, fromTransactions } = body; 
       const firebaseId = request.user?.firebaseId;
@@ -107,26 +120,25 @@ export class ExpensesController {
 
 
   @Post('add-user-category')
-    @UseGuards(FirebaseAuthGuard)
+  @UseGuards(FirebaseAuthGuard)
   async addUserCategory(
-  @Headers('token') token: string,
   @Req() request: AuthenticatedRequest,
   @Body() createUserCategoryDto: CreateUserCategoryDto) {
-    console.log("controller: add-user-category");
-    // const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
     const firebaseId = request.user?.firebaseId;
-
     return this.expensesService.addUserCategory(firebaseId, createUserCategoryDto);
   }
 
 
   @Get('get-categories')
+  @UseGuards(FirebaseAuthGuard)
   async getCategories(
-    @Headers('token') token: string,
+    @Req() request: AuthenticatedRequest,
     @Query('isDefault') isDefault: string,
     @Query('isExpense') isExpense: string,
   ): Promise<any[]> {
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    const firebaseId = request.user?.firebaseId;
+
+    // Convert isDefault to boolean or null
     const isDefaultValue = isDefault === 'true' ? true : isDefault === 'false' ? false : null;
     const isExpenseValue = isExpense === 'true' ? true : isExpense === 'false' ? false : null;
 
@@ -135,14 +147,15 @@ export class ExpensesController {
 
 
   @Get('get-sub-categories')
+  @UseGuards(FirebaseAuthGuard)
   async getSubCategories(
-    @Headers('token') token: string,
+    @Req() request: AuthenticatedRequest,
     @Query('isEquipment') isEquipment: string,
     @Query('isExpense') isExpense: string,
     @Query('categoryName') categoryName: string
   ): Promise<any[]> {
 
-    const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+    const firebaseId = request.user?.firebaseId;
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
@@ -159,42 +172,55 @@ export class ExpensesController {
 
 
   @Post('add-supplier')
-  async addSupplier(@Body() body: any, @Headers('token') token: string) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return await this.expensesService.addSupplier(body, userId); 
+  @UseGuards(FirebaseAuthGuard)
+  async addSupplier(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: any) {
+    const firebaseId = request.user?.firebaseId;
+    return await this.expensesService.addSupplier(body, firebaseId); 
   } 
 
 
   @Patch('update-supplier/:id')
-  async updateSupplier(@Param('id') id: number, @Headers('token') token: string, @Body() body: UpdateSupplierDto) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.expensesService.updateSupplier(id, userId, body);
+  @UseGuards(FirebaseAuthGuard)
+  async updateSupplier(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number,
+    @Body() body: UpdateSupplierDto) {
+    const firebaseId = request.user?.firebaseId;
+    return this.expensesService.updateSupplier(id, firebaseId, body);
   }
 
 
   @Delete('delete-supplier/:id')
-  async deleteSupplier(@Param('id') id: number, @Query('token') token: string) {
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.expensesService.deleteSupplier(id, userId);
+  @UseGuards(FirebaseAuthGuard)
+  async deleteSupplier(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number) {
+    const firebaseId = request.user?.firebaseId;
+    return this.expensesService.deleteSupplier(id, firebaseId);
   }
 
 
   @Get('get-suppliers-list')
-  async getSupplierNamesByUserId(@Headers('token') token: string): Promise<SupplierResponseDto[]> {
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.expensesService.getSupplierNamesByUserId(userId);
+  @UseGuards(FirebaseAuthGuard)
+  async getSupplierNamesByUserId(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<SupplierResponseDto[]> {
+    const firebaseId = request.user?.firebaseId;
+    return this.expensesService.getSupplierNamesByUserId(firebaseId);
   }
 
 
   @Get('get-supplier/:id')
-  async getSupplierById(@Param('id') id: number, @Headers('token') token: string, @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
-    const userId = await this.usersService.getFirbsaeIdByToken(token)
-    return this.expensesService.getSupplierById(id, userId);
+  @UseGuards(FirebaseAuthGuard)
+  async getSupplierById(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: number, 
+    @Body() body: UpdateSupplierDto): Promise<SupplierResponseDto> {
+    const firebaseId = request.user?.firebaseId;
+    return this.expensesService.getSupplierById(id, firebaseId);
   }
-
-
-
-
 
  
 }

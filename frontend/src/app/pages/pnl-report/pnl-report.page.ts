@@ -33,10 +33,7 @@ export class PnLReportPage implements OnInit {
   businessOptions = this.gs.businessSelectItems;
 
   // Filter related
-  form: FormGroup = this.fb.group({
-    businessNumber: [null],
-    // ❗ DO NOT add "period" here → FilterTab will create it automatically
-  });
+  form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
   startDate = signal<string>("");
   endDate = signal<string>("");
@@ -82,7 +79,8 @@ export class PnLReportPage implements OnInit {
       {
         type: 'period',
         controlName: 'period',
-        required: true
+        required: true,
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE]
       },
     ];
 
@@ -92,26 +90,26 @@ export class PnLReportPage implements OnInit {
   onSubmit(formValues: any): void {
 
     console.log("Submitted filter:", formValues);
+    const periodMode = this.form.get('periodMode')?.value;
+    const year = this.form.get('year')?.value;
+    const month = this.form.get('month')?.value;
+    const localStartDate = this.form.get('startDate')?.value;
+    const localEndDate = this.form.get('endDate')?.value;
 
-    // period object
-    const period = formValues.period;
-    const {
-      periodMode,
-      year,
-      month,
-      startDate: localStartDate,
-      endDate: localEndDate
-    } = period;
+    // // period object
+    // const period = formValues.period;
+    // const {
+    //   periodMode,
+    //   year,
+    //   month,
+    //   startDate: localStartDate,
+    //   endDate: localEndDate
+    // } = period;
 
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
-    );
+    const { startDate, endDate } = this.dateService.getStartAndEndDates(periodMode, year, month, localStartDate, localEndDate);
     
-    this.businessNumber.set(formValues.businessNumber);
+    // this.businessNumber.set(formValues.businessNumber);
+    this.businessNumber.set(this.form?.get('businessNumber')?.value);
     this.startDate.set(startDate);
     this.endDate.set(endDate);
 
