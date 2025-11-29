@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata} from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata, UsePipes} from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from '../shared/shared.service';
@@ -21,20 +21,25 @@ import { ModuleName } from 'src/enum';
 @Controller('reports')
 export class ReportsController {
 
-    constructor(private reportsService: ReportsService,
-        private sharedService: SharedService,
-        private usersService: UsersService) { }
+    constructor(
+      private reportsService: ReportsService,
+      private sharedService: SharedService,
+      private usersService: UsersService) { }
 
 
     @Get('vat-report')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
     async getVatReport(
-        @Headers('token') token: string,
+        @Req() request: AuthenticatedRequest,
+
+        // @Headers('token') token: string,
         @Query() query: VatReportRequestDto,
     ): Promise<VatReportDto> {
 
         console.log("reports.controller - vat-report start");
-
-        const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
+        const firebaseId = request.user?.firebaseId;
+        // const firebaseId = await this.usersService.getFirbsaeIdByToken(token);
         const startDate = this.sharedService.convertStringToDateObject(query.startDate);
         const endDate = this.sharedService.convertStringToDateObject(query.endDate);
         const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);

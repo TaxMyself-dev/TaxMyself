@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType } from 'src/enum';
 import { DocumentsService } from './documents.service';
@@ -17,7 +17,9 @@ export class DocumentsController {
 
 
   @Get('get-docs')
+  @UseGuards(FirebaseAuthGuard)
   async getFilteredDocs(
+    @Req() request: AuthenticatedRequest,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('docType') docType?: DocumentType,

@@ -8,47 +8,29 @@ import { environment } from 'src/environments/environment';
 })
 export class VatReportService {
 
-  token: string;
+  constructor(private http: HttpClient) {};
 
-  constructor(private http: HttpClient) {
-    this.setUserId();
-   };
-
-  private setUserId(): void {
-    this.token = localStorage.getItem('token');
-  }
 
   getVatReportData(startDate: string, endDate: string, businessNumber: string): Observable<any> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}reports/vat-report`;
     const params = new HttpParams()
     .set('startDate', startDate)
     .set('endDate', endDate)
     .set('businessNumber', businessNumber)  
-    const headers = {
-      'token': token
-    }
-   
-    return this.http.get<any>(url, { params: params, headers: headers})
+    return this.http.get<any>(url, { params: params})
   }
+
 
   addFileToExpenses(formData: {id:number, file: string | File}[], fromTransactions: boolean = false): Observable<any> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-file-to-expense`;
-    const headers = {
-      'token': token
-    }
-    return this.http.patch<any>(url, {formData, fromTransactions}, {headers: headers})
+    return this.http.patch<any>(url, {formData, fromTransactions})
 
   }
 
+
   deleteFileFromDB(expenseId: number): Observable<any> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/delete-file-from-expense/${expenseId}`;
-    const headers = {
-      'token': token
-    }
-    return this.http.patch<any>(url, {}, {headers: headers})
+    return this.http.patch<any>(url, {})
   }
 
 }

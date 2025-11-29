@@ -76,7 +76,7 @@ export class VatReportPage implements OnInit {
   rows: IRowDataTable[] = [];
   isSkip: boolean = false;
   userData: IUserData;
-  
+
   optionsTypesList = [{ value: ReportingPeriodType.MONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.MONTHLY] },
   { value: ReportingPeriodType.BIMONTHLY, name: ReportingPeriodTypeLabels[ReportingPeriodType.BIMONTHLY] }];
   transToConfirm: Observable<IRowDataTable[]>;
@@ -133,7 +133,7 @@ export class VatReportPage implements OnInit {
       // 2️⃣ Set the form so FilterTab works
       this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
     }
-    
+
     // Now config can be set safely
     this.filterConfig = [
       {
@@ -261,7 +261,7 @@ export class VatReportPage implements OnInit {
       localStartDate,
       localEndDate
     );
-    
+
     this.isLoadingStatePeryodSelectButton.set(true);
     this.businessNumber.set(formValues.businessNumber);
     this.startDate.set(startDate);
@@ -316,7 +316,7 @@ export class VatReportPage implements OnInit {
     console.log("startDate is ", startDate);
     console.log("endDate is ", endDate);
     console.log("businessNumber is ", businessNumber);
-    
+
     this.vatReportService.getVatReportData(startDate, endDate, businessNumber)
       .pipe(
         finalize(() => this.isLoadingStatePeryodSelectButton.set(false)),

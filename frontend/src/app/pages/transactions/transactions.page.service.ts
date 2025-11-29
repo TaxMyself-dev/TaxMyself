@@ -12,7 +12,6 @@ import { ca } from 'date-fns/locale';
 })
 export class TransactionsService implements OnInit{
 
-  token:string;
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
   
@@ -25,23 +24,12 @@ export class TransactionsService implements OnInit{
 
   ngOnInit(): void {
     console.log("in on init trans service");
-    this.setUserId();
   }
 
-  //   ngOnDestroy(): void {
-  //     this.transactionsService.accountsList$.unsubscribe();
-  // }
-
-
-  setUserId(): void {
-    console.log("in set token");
-    this.token = localStorage.getItem('token');
-  }
 
   getTransToConfirm(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}transactions/get-transaction-to-confirm-and-add-to-expenses`;
     const params = new HttpParams()
-    // .set('billId', 'ALL_BILLS')
     .set('startDate', startDate)
     .set('endDate', endDate)
     .set('businessNumber', businessNumber);
@@ -138,48 +126,29 @@ export class TransactionsService implements OnInit{
   }
   
   addSource(billId: number, source: string, type: string): Observable<any> {
-    //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
-    // const headers = {
-    //   'token': token
-    // }
-    //return this.http.post<any[]>(url,{sourceName: source, sourceType: type},{headers:headers});
     return this.http.post<any[]>(url,{sourceName: source, sourceType: type});
   }
 
   addBill(billName: string, businessNumber: string): Observable<any> {
-    //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/add-bill`;
-    // const headers = {
-    //   'token': token
-    // }
-    //return this.http.post<any[]>(url,{billName, businessNumber},{headers:headers});
     return this.http.post<any[]>(url,{billName, businessNumber});
   }
   
   uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
     console.log("file buffer in service: ", fileBuffer);
-    //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/load-file`;
     const formData = new FormData();
     const blob = new Blob([fileBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     console.log("blob: ", blob);
     formData.append('file', blob, 'file.xlsx');
     console.log("form data: ", formData.get('file'));
-    // const headers = {
-    //   'token': token
-    // }
-    //return this.http.post<any>(url, formData,{headers: headers});
     return this.http.post<any>(url, formData);
   }
  
   addClassifiction(formData: IClassifyTrans | IClassifyTransMinimal, date?: any): Observable<any> {
-    console.log("in add classificaion");
     console.log("form data of classify trans: ",formData);
     const url = `${environment.apiUrl}transactions/classify-trans`;
-    // const params = new HttpParams()
-    // .set('startDate', date.startDate)
-    // .set('endDate', date.endDate)
     return this.http.post<any>(url,formData);
   }
 
@@ -191,14 +160,8 @@ export class TransactionsService implements OnInit{
   }
 
   updateRow(formData: any): Observable<any> {
-    // updateRow(formData: IClassifyTrans): Observable<any> {
     console.log("in update row service");
-    //const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}transactions/update-trans`;
-    // const headers = {
-    //   'token':
-    //    token
-    // }
     return this.http.patch<any>(url, formData)
   }
 
@@ -209,17 +172,12 @@ export class TransactionsService implements OnInit{
   }
 
   getCategories(isDefault?: boolean, isExpense: boolean = true): Observable<ISelectItem[]> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-categories`;
-    const headers = {
-      'token': token
-    }
     const param = new HttpParams()
       .set('isDefault', isDefault)
       .set('isExpense', isExpense)
-    return this.http.get<ISelectItem[]>(url, { params: param, headers: headers })
+    return this.http.get<ISelectItem[]>(url, { params: param })
     .pipe(
-      // takeUntil(this.destroy$),
       catchError((err) => {
         console.log("error in get category", err);
         return EMPTY;
