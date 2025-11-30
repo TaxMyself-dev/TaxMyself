@@ -419,4 +419,9 @@ export interface Business {
   businessDate: string | null;
   vatReportingType: VATReportingType | null;
   taxReportingType: TaxReportingType | null;
+//   bankBeneficiary: string | null;
+//   bankName: string | null;
+//   bankBranch: string | null;
+//   bankAccount: string | null;
+//   bankIban: string | null;
 }

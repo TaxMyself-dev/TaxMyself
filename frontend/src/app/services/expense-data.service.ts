@@ -66,146 +66,114 @@ export class ExpenseDataService {
   public isToastOpen$: Subject<boolean> = new Subject();
 
 
-
-
   getColomnsOrder(): string[] {
     return this.columnsAddExpenseOrder;
   }
 
+
   getExpenseByUser(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
-    const token = localStorage.getItem('token');
     const pagination = 1;
     const url = `${environment.apiUrl}expenses/get_by_userID`;
-    const headers = {
-      'token': token
-    }
     const params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber)
       .set('pagination', pagination)
-    return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers });
+    return this.http.get<IRowDataTable[]>(url, { params: params });
   }
+
 
   getExpenseForVatReport(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}expenses/get-expenses-for-vat-report`;
-    const token = localStorage.getItem('token');
-    const headers = {
-      'token': token
-    }
     const params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber)
-    return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
+    return this.http.get<IRowDataTable[]>(url, { params: params })
   }
+
 
   getTaxableIncome(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}transactions/get-taxable-income`;
-    const token = localStorage.getItem('token');
-    const headers = {
-      'token': token
-    }
     const params = new HttpParams()
       .set('startDate', startDate)
       .set('endDate', endDate)
       .set('businessNumber', businessNumber)
-    return this.http.get<IRowDataTable[]>(url, { params: params, headers: headers })
+    return this.http.get<IRowDataTable[]>(url, { params: params })
   }
+
 
   getShowExpenseColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsDisplayExpense;
   }
 
+
   getAddExpenseColumns(): IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] {
     return this.columnsAddExpense;
   }
 
+  
   getSubCategory(categoryName: string, isEquipment: boolean, isExpense: boolean): Observable<any> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-sub-categories`;
-    const headers = {
-      'token': token
-    }
     const params = new HttpParams()
       .set('isEquipment', isEquipment)
       .set('isExpense', isExpense)
       .set('categoryName', categoryName);
-    return this.http.get<any>(url, { params: params, headers: headers });
+    return this.http.get<any>(url, { params: params });
   }
 
+
   getcategry(isDefault?: boolean, isExpense: boolean = true): Observable<any[]> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-categories`;
-    const headers = {
-      'token': token
-    }
     const param = new HttpParams()
       .set('isDefault', isDefault)
       .set('isExpense', isExpense)
-    return this.http.get<any>(url, { params: param, headers: headers })
+    return this.http.get<any>(url, { params: param })
   }
+
 
   getAllSuppliers(): Observable<IGetSupplier[]> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/get-suppliers-list`;
-    const headers = {
-      'token': token
-    }
-    return this.http.get<IGetSupplier[]>(url, { headers })
+    return this.http.get<IGetSupplier[]>(url)
   }
+
 
   addSupplier(formData: any): Observable<any> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-supplier`;
-    const headers = {
-      'token':
-        token
-    }
-    return this.http.post(url, formData, { headers });
+    return this.http.post(url, formData);
   }
+
 
   editSupplier(formData: any, id: number): Observable<any> {
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/update-supplier/` + id;
-    const headers = {
-      'token': token
-    }
-    return this.http.patch(url, formData, { headers });
+    return this.http.patch(url, formData);
   }
+
 
   deleteSupplier(id: number): Observable<any> {
-    //TODO: change token to headers
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/delete-supplier/` + id;
-    const param = new HttpParams()
-      .set('token', token);
-    return this.http.delete(url, { params: param });
+    return this.http.delete(url);
   }
 
+
   addExpenseData(data: any): Observable<any> {
-    //TODO: change token to headers
-    const token = localStorage.getItem('token');
     const url = `${environment.apiUrl}expenses/add-expense`;
-    console.log("form data in send", data);
     return this.http.post(url, data);
-    // return this.http.post(`${environment.apiUrl}expenses/add-expense`, data);
   }
+
 
   deleteExpense(id: number): Observable<any> {
     const url = `${environment.apiUrl}expenses/delete-expense/` + id;
-    const headers = {
-      'token': localStorage.getItem('token')
-    }
     console.log("id in del expense", id);
-    return this.http.delete(url, { headers });
+    return this.http.delete(url);
   }
 
+
   updateExpenseData(data: any, id: number): Observable<any> {
-    //TODO: change token to headers
     const url = `${environment.apiUrl}expenses/update-expense/${id}`;
     return this.http.patch(url, data);
   }
+
 
   openModalAddExpense(data?: IRowDataTable, editMode: boolean = false): Observable<any> {
     return from(this.modalController.create({

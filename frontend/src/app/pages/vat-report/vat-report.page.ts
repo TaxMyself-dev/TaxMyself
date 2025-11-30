@@ -42,10 +42,6 @@ export class VatReportPage implements OnInit {
 
   // Filter related
   form: FormGroup = this.fb.group({});
-  // form: FormGroup = this.fb.group({
-  //   // businessNumber: [null],
-  //   // ❗ DO NOT add "period" here → FilterTab will create it automatically
-  // });
   filterConfig: FilterField[] = [];
   startDate = signal<string>("");
   endDate = signal<string>("");
@@ -148,7 +144,7 @@ export class VatReportPage implements OnInit {
         type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE]
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY]
       },
     ];
 
@@ -263,8 +259,10 @@ export class VatReportPage implements OnInit {
     this.endDate.set(endDate);
     this.getTransToConfirm();
     this.isRequestSent.set(true);
+
   }
 
+  
   getTransToConfirm(): void {
     this.visibleConfirmTransDialog.set(true);
     this.transToConfirm = this.transactionService.getTransToConfirm(

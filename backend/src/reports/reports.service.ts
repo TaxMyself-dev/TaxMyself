@@ -176,12 +176,11 @@ export class ReportsService {
       let totalIncome : number = 0;
       totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
 
-      console.log("businessNumber is ", businessNumber);
       console.log("totalIncome is ", totalIncome);
       
-      if ([BusinessType.LICENSED, BusinessType.COMPANY].includes(business.businessType)) {
-        totalIncome = totalIncome / (1 + vatPercent);
-      }
+      // if ([BusinessType.LICENSED, BusinessType.COMPANY].includes(business.businessType)) {
+      //   totalIncome = totalIncome / (1 + vatPercent);
+      // }
       
       //Get expenses
       const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDate);
@@ -563,7 +562,7 @@ export class ReportsService {
       const f_1003 = this.formatField(businessNumber, 9, '0');
       const f_1004 = this.formatField(uniqueId, 15, '0');
       const f_1005 = this.formatField("&OF1.31&", 8, '');
-      const f_1006 = this.formatField("1", 8, '0'); // מספר רישום התוכנה ברשות המיסים
+      const f_1006 = this.formatField("258001", 8, '0'); // מספר רישום התוכנה ברשות המיסים
       const f_1007 = this.formatField("KEEPINTAX", 20, '-');
       const f_1008 = this.formatField("version-001", 20, '-');
       const f_1009 = this.formatField("517134789", 9, "0"); // KEEPINTAX מספר עוסק של

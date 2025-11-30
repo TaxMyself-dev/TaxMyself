@@ -20,6 +20,7 @@ import { DocumentType } from './doc-cerate.enum';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
+import { log } from 'console';
 
 interface DocPayload {
   docData: any[];
@@ -93,7 +94,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
   selectedBusinessType!: string;
   selectedBusinessPhone!: string;
   selectedBusinessEmail!: string;
-
+  // selectedBankBeneficiary: string;
+  // selectedBankName: string;
+  // selectedBankBranch: string;
+  // selectedBankAccount: string;
+  // selectedBankIban: string;
 
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
@@ -208,6 +213,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
         businessNumber: selected.businessNumber
       });
 
+      console.log("ngoninit selected is ", selected);
+
       this.setSelectedBusiness(selected);
 
       this.showBusinessSelector = false;
@@ -278,6 +285,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.selectedBusinessType = business.businessType;
     this.selectedBusinessPhone = business.businessPhone;
     this.selectedBusinessEmail = business.businessEmail;
+    // this.selectedBankBeneficiary = business.bankBeneficiary;
+    // this.selectedBankName = business.bankName;
+    // this.selectedBankBranch = business.bankBranch;
+    // this.selectedBankAccount = business.bankAccount;
+    // this.selectedBankIban = business.bankIban;
   }
 
 
@@ -459,6 +471,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const issuerAddress = this.selectedBusinessAddress;
     const issuerPhone = this.selectedBusinessPhone;
     const issuerEmail = this.selectedBusinessEmail;
+
+    console.log("issuerBusinessNumber is ", issuerBusinessNumber);
+    
 
     const docNumber = this.docIndexes.docIndex;
     console.log("docNumber: ", docNumber);
