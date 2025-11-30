@@ -743,11 +743,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.lineItemsDraft.update(items => items.filter((_, i) => i !== index));
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
+    this.setSumInPaymentForm();
   }
 
   deletePayment(index: number): void {
     this.paymentsDraft.update(items => items.filter((_, i) => i !== index));
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
+    this.setSumInPaymentForm();
   }
 
 

@@ -382,6 +382,7 @@ export class DocumentsService {
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
     const docType = data.docData.docType;
+    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'סה"כ ללא מע"מ';
 
     switch (templateType) {
       case 'createDoc':
@@ -406,24 +407,24 @@ export class DocumentsService {
           // issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
           // ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          subTotal: `₪${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat}`,
-          totalWithoutVat: `₪${data.docData.sumWithoutVat}`,
-          totalDiscount: `₪${data.docData.disSum}`,
-          totalTax: `₪${data.docData.vatSum}`,
-          total: `₪${data.docData.sumAftDisWithVAT}`,
+          totalWithoutVatLabel: withoutVatLabel,
+          totalWithoutVat: `${data.docData.sumWithoutVat} ש"ח`,
+          totalDiscountLabel: "הנחה",
+          totalDiscount: `${data.docData.disSum} ש"ח`,
+          totalLabel: 'סה"כ לתשלום',
+          total: `${data.docData.sumAftDisWithVAT} ש"ח`,
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
-          // issuerBankDetails: [
-          //   data.docData.issuerBankName        ? `שם בנק:  ${data.docData.bankName}` : null,
-          //   data.docData.issuerBankBranch      ? `סניף:  ${data.docData.bankBranch}` : null,
-          //   data.docData.issuerBankAccount     ? `חשבון:  ${data.docData.bankAccount}` : null,
-          //   data.docData.issuerBankBeneficiary ? `שם המוטב:  ${data.docData.bankBeneficiary}` : null,
-          //   data.docData.issuerBankIban        ? `IBAN:  ${data.docData.bankIban}` : null,
-          // ].filter(Boolean).join('\n'),
         };
 
-        console.log("prefill data is ", prefill_data);
-        
+        // Add VAT-related fields only for non-receipts
+        const isReceipt = docType === 'RECEIPT';
+        if (!isReceipt) {
+          prefill_data.subTotalLabel = 'חייב במע"מ';
+          prefill_data.subTotal = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
+          prefill_data.totalVatLabel = 'סה"כ מע"מ';
+          prefill_data.totalVat = `${data.docData.vatSum} ש"ח`;
+        }
 
         if (data.paymentData && data.paymentData.length > 0) {
           prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
