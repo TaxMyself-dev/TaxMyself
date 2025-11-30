@@ -1,8 +1,8 @@
 import { Injectable } from "@angular/core";
 import { CardCompany, CreateDocFields, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
-import { ICreateDocSectionData, IDocCreateFieldData, SectionKeysEnum } from "./doc-create.interface";
+import { ICreateDocSectionData, IDocCreateFieldData, ILineItemColumn, ISummaryItem, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
-import { DocTypeDisplayName, DocCreateFields, bankOptionsList } from "./doc-cerate.enum";
+import { DocTypeDisplayName, DocCreateFields, bankOptionsList, DocumentTotals } from "./doc-cerate.enum";
 import { ISelectItem } from "src/app/shared/interface";
 
 const CardCompanyHebrewLabels: Record<CardCompany, string> = {
@@ -35,13 +35,78 @@ export class DocCreateBuilderService {
         { value: Currency.EUR, name: CurrencyHebrew.EUR },
     ];
 
-    lineDetailsColumns = [
-        { field: FieldsCreateDocValue.LINE_DESCRIPTION, header: 'תיאור'},
-        { field: FieldsCreateDocValue.UNIT_AMOUNT, header: 'כמות'},
-        { field: FieldsCreateDocValue.VAT_OPTIONS, header: 'מע"מ'},
-        { field: FieldsCreateDocValue.SUM, header: 'סכום'},
-        { field: FieldsCreateDocValue.DISCOUNT, header: 'הנחה (ש"ח)'},
-        { field: 'action', header: ''}
+    // united columns configuration for both input form and display
+    lineItemColumns: ILineItemColumn[] = [
+        { 
+            formField: FieldsCreateDocValue.LINE_DESCRIPTION, 
+            dataField: 'description', 
+            header: 'תיאור', 
+            excludeForReceipt: false 
+        },
+        { 
+            formField: FieldsCreateDocValue.UNIT_AMOUNT, 
+            dataField: 'unitQuantity', 
+            header: 'כמות', 
+            excludeForReceipt: false 
+        },
+        { 
+            formField: FieldsCreateDocValue.VAT_OPTIONS, 
+            dataField: 'vatOpts', 
+            header: 'מע"מ', 
+            excludeForReceipt: true 
+        },
+        { 
+            formField: FieldsCreateDocValue.SUM, 
+            dataField: 'sum', 
+            header: 'סכום', 
+            excludeForReceipt: false 
+        },
+        { 
+            formField: FieldsCreateDocValue.DISCOUNT, 
+            dataField: 'discount', 
+            header: 'הנחה (ש"ח)', 
+            excludeForReceipt: false 
+        },
+        { 
+            formField: 'action', 
+            dataField: 'actions', 
+            header: '', 
+            excludeForReceipt: false 
+        }
+    ];
+
+    // Summary items configuration
+    summaryItems: ISummaryItem[] = [
+        {
+            key: 'subjectToVat',
+            label: 'חייב במע"מ',
+            valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
+            excludeForReceipt: true
+        },
+        {
+            key: 'withoutVat',
+            label: 'ללא מע"מ',
+            valueGetter: (totals: DocumentTotals) => totals.sumWithoutVat,
+            excludeForReceipt: true
+        },
+        {
+            key: 'vatSum',
+            label: 'מע"מ',
+            valueGetter: (totals: DocumentTotals) => totals.vatSum,
+            excludeForReceipt: true
+        },
+        {
+            key: 'discount',
+            label: 'הנחה (ש"ח)',
+            valueGetter: (totals: DocumentTotals) => totals.disSum,
+            excludeForReceipt: false
+        },
+        {
+            key: 'totalPayment',
+            label: 'סה"כ לתשלום',
+            valueGetter: (totals: DocumentTotals) => totals.sumAftDisWithVat,
+            excludeForReceipt: false
+        }
     ];
 
 
@@ -289,7 +354,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.min(0), Validators.required, Validators.pattern(/^\d+$/)]
+            validators: [Validators.min(0), Validators.required]
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
             //name: fieldLineDocName.line_description,
@@ -713,13 +778,18 @@ export class DocCreateBuilderService {
         });
     }
 
-    getBaseFieldsBySection(section: SectionKeysEnum): IDocCreateFieldData[] {
+    getBaseFieldsBySection(section: SectionKeysEnum, isReceipt: boolean = false): IDocCreateFieldData[] {
         const sectionData = this.docCreateBuilderSectionsData[section];
         if (!sectionData) {
             return [];
         }
 
-        const baseFields = sectionData.baseFields.map((field: string) => this.docCreateBuilderData[field]);
+        let baseFields = sectionData.baseFields.map((field: string) => this.docCreateBuilderData[field]);
+
+        // Filter out VAT_OPTIONS for receipts in LineDetails section
+        if (isReceipt && section === 'LineDetails') {
+            baseFields = baseFields.filter(field => field.value !== FieldsCreateDocValue.VAT_OPTIONS);
+        }
 
         return [...baseFields];
     }
@@ -761,6 +831,31 @@ export class DocCreateBuilderService {
             return enumValueFields ? [...baseFields, ...expandedFields, ...enumValueFields] : [...baseFields, ...expandedFields]; // For case there are no enumValueFields
         }
         return enumValueFields ? [...baseFields, ...enumValueFields] : [...baseFields];
+    }
+
+    getLineDetailsColumns(isReceipt: boolean = false) {
+        const filtered = isReceipt 
+            ? this.lineItemColumns.filter(col => !col.excludeForReceipt)
+            : this.lineItemColumns;
+        
+        // Return in legacy format for p-table compatibility
+        return filtered.map(col => ({
+            field: col.formField,
+            header: col.header,
+            excludeForReceipt: col.excludeForReceipt
+        }));
+    }
+
+    getLineItemsDisplayColumns(isReceipt: boolean = false): ILineItemColumn[] {
+        return isReceipt 
+            ? this.lineItemColumns.filter(col => !col.excludeForReceipt)
+            : this.lineItemColumns;
+    }
+
+    getSummaryItems(isReceipt: boolean = false): ISummaryItem[] {
+        return isReceipt 
+            ? this.summaryItems.filter(item => !item.excludeForReceipt)
+            : this.summaryItems;
     }
 
 }

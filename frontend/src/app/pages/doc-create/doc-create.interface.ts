@@ -22,3 +22,17 @@ export interface IDocCreateFieldData {
     validators?: ValidatorFn[];   
     initialValue?: any;     
 }
+
+export interface ILineItemColumn {
+    formField: string;      // Field name for form control (e.g., 'vatOptions')
+    dataField: string;      // Field name in line item data (e.g., 'vatOpts')
+    header: string;         // Display header
+    excludeForReceipt?: boolean; // If true, this column is hidden for receipts
+}
+
+export interface ISummaryItem {
+    key: string;
+    label: string;
+    valueGetter: (totals: any) => number;
+    excludeForReceipt?: boolean; // If true, this item is hidden for receipts
+}

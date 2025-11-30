@@ -65,7 +65,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   isFileSelected = signal(false); // For HTML template
   generalFormIsValidSignal = signal(false);
   userFormIsValidSignal = signal(false);
-  fileSelected: DocumentType; // For get type of file
+  // fileSelected: DocumentType; // For get type of file
+  fileSelected = signal<DocumentType>(DocumentType.RECEIPT); // For get type of file
   HebrewNameFileSelected: string;
   isInitial: boolean = false;
   docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
@@ -134,6 +135,21 @@ export class DocCreatePage implements OnInit, OnDestroy {
     sumAftDisWithVat: 0,
     sumWithoutVat: 0,
   });
+
+  // Computed signals for filtered arrays based on document type
+  isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
+  
+  filteredLineDetailsColumns = computed(() => 
+    this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument())
+  );
+  
+  filteredLineItemsDisplayColumns = computed(() => 
+    this.docCreateBuilderService.getLineItemsDisplayColumns(this.isReceiptDocument())
+  );
+  
+  filteredSummaryItems = computed(() => 
+    this.docCreateBuilderService.getSummaryItems(this.isReceiptDocument())
+  );
 
   visibleDocumentTotals = computed(() => {
     const totals = this.documentTotals();
@@ -233,7 +249,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   get lineDetailsColumns(): any[] {
-    return this.docCreateBuilderService.lineDetailsColumns;
+    return this.filteredLineDetailsColumns();
   }
 
 
@@ -267,10 +283,33 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   onSelectedDoc(event: any): void {
     this.isDocWithPayments.set(event === DocumentType.RECEIPT || event === DocumentType.TAX_INVOICE_RECEIPT);
-    this.fileSelected = event;
-    this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected);
-    this.handleDocIndexes(this.fileSelected);
-    this.lineDetailsForm?.reset({ [FieldsCreateDocValue.UNIT_AMOUNT]: 1, [FieldsCreateDocValue.DISCOUNT]: 0 });
+    this.fileSelected.set(event);
+    this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected());
+    this.handleDocIndexes(this.fileSelected());
+    
+    // For receipts, automatically set VAT to 'WITHOUT' and remove VAT control from form
+    const defaultValues: any = { 
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1, 
+      [FieldsCreateDocValue.DISCOUNT]: 0 
+    };
+    
+    if (event === DocumentType.RECEIPT) {
+      // For receipts, remove VAT_OPTIONS from form and set value to 'WITHOUT' in the line items
+      if (this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
+        this.lineDetailsForm.removeControl(FieldsCreateDocValue.VAT_OPTIONS);
+      }
+    } else {
+      // For other document types, ensure VAT_OPTIONS control exists
+      if (!this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
+        this.lineDetailsForm?.addControl(
+          FieldsCreateDocValue.VAT_OPTIONS, 
+          new FormControl('', [Validators.required])
+        );
+      }
+      defaultValues[FieldsCreateDocValue.VAT_OPTIONS] = '';
+    }
+    
+    this.lineDetailsForm?.reset(defaultValues);
     this.paymentInputForm?.reset();
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('documentDate')?.value);
     this.paymentsDraft.set([]);
@@ -425,7 +464,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     console.log("docNumber: ", docNumber);
     
     const generalDocIndex = this.docIndexes.generalIndex;
-    const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected);
+    const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected());
 
     docPayload = {
       docData: {
@@ -463,6 +502,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
+    
+    // For receipts, vatOptions won't exist in the form, so set it to 'WITHOUT'
+    const vatOpts = this.fileSelected() === DocumentType.RECEIPT ? 'WITHOUT' : formData.vatOptions;
 
     const newLine: PartialLineItem = {
       issuerBusinessNumber: this.selectedBusinessNumber,
@@ -472,7 +514,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       unitQuantity: formData.unitAmount,
       sum: formData.sum,
       discount: formData.discount ? Number(formData.discount.toString().replace(/^0+(?!\.)/, '')) : null,
-      vatOpts: formData.vatOptions,
+      vatOpts: vatOpts,
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
       docType: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value,
       transType: transType,
@@ -731,7 +773,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   setInitialIndex(): void {
     console.log("🚀 ~ DocCreatePage ~ setInitialIndex ~ this.busoneselectedBusinessNumberss:", this.selectedBusinessNumber)
-    this.docCreateService.setInitialDocDetails(this.fileSelected, this.docIndexes.docIndex, this.selectedBusinessNumber)
+    this.docCreateService.setInitialDocDetails(this.fileSelected(), this.docIndexes.docIndex, this.selectedBusinessNumber)
       .pipe(
         catchError(err => {
           console.log('Error setting initial index:', err);

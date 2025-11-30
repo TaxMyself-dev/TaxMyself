@@ -66,7 +66,7 @@ export class FilterTabComponent {
   /** Emit form data when user clicks Apply */
   onApply() {
     console.log(this.parentForm());
-    // this.apply.emit(this.parentForm()?.value);
+    this.apply.emit(this.parentForm()?.value);
   }
 
   /** Resolve select dropdown items (supports arrays and signals) */
