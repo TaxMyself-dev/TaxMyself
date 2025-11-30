@@ -12,7 +12,7 @@ export const DocTypeDisplayName = {
   [DocumentType.RECEIPT]: 'קבלה',
   [DocumentType.TAX_INVOICE]: 'חשבונית מס',
   [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
-  [DocumentType.TRANSACTION_INVOICE]: 'חשבונית עסקה',
+  [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
   [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
 };
 
@@ -23,13 +23,6 @@ export const DocTypeDefaultStart: Record<DocumentType, number> = {
   [DocumentType.TRANSACTION_INVOICE]: 90001,
   [DocumentType.CREDIT_INVOICE]: 80001,
 };
-
-// export enum DocumentTotalsField {
-//   TOTAL_BEFORE_VAT = 'totalBeforeVat',
-//   TOTAL_VAT = 'totalVat',
-//   TOTAL_WITHOUT_VAT = 'totalWithoutVat',
-//   TOTAL_AFTER_VAT = 'totalAfterVat',
-// }
 
 export type DocumentTotals = {
   sumBefDisBefVat: number;

@@ -61,5 +61,20 @@ export class Business {
     default: TaxReportingType.NOT_REQUIRED
   })
   taxReportingType: TaxReportingType | null;
+
+  // @Column({ type: 'varchar', nullable: true, default: null })
+  // bankBeneficiary: string | null;
+
+  // @Column({ type: 'varchar', nullable: true, default: null })
+  // bankName: string | null;
+
+  // @Column({ type: 'varchar', nullable: true, default: null })
+  // bankBranch: string | null;
+
+  // @Column({ type: 'varchar', nullable: true, default: null })
+  // bankAccount: string | null;
+
+  // @Column({ type: 'varchar', nullable: true, default: null })
+  // bankIban: string | null;
   
 }

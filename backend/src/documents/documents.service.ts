@@ -374,6 +374,8 @@ export class DocumentsService {
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
+    console.log("data is ", data);
+
     let fid: string;
     let prefill_data: any;
 
@@ -390,25 +392,38 @@ export class DocumentsService {
           recipientTaxNumber: data.docData.recipientId,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docDate: this.formatDateToDDMMYYYY(data.docData.documentDate),
+          issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
+          issuerDetails: [
+            data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:  ${data.docData.issuerBusinessNumber}` : null,
+            data.docData.issuerPhone          ? `טלפון:  ${data.docData.issuerPhone}` : null,
+            data.docData.issuerEmail          ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
+            data.docData.issuerAddress        ? `כתובת:  ${data.docData.issuerAddress}` : null,
+          ].filter(Boolean).join('\n'),
           // issuerDetails: [
-          issuerName: data.docData.issuerName ? `שם העסק:           ${data.docData.issuerName}` : null,
-          issuerBusinessNumber: data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:         ${data.docData.issuerBusinessNumber}` : null,
-          issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
-          issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
-          issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
+          // issuerBusinessNumber: data.docData.businessNumber ? `מ.ע. / ח.פ.:         ${data.docData.businessNumber}` : null,
+          // issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
+          // issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
+          // issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
           // ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           subTotal: `₪${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat}`,
-          // subTotal: data.docData.sumAftDisBefVAT,
           totalWithoutVat: `₪${data.docData.sumWithoutVat}`,
           totalDiscount: `₪${data.docData.disSum}`,
           totalTax: `₪${data.docData.vatSum}`,
-          //totalTax: data.docData.vatSum,
           total: `₪${data.docData.sumAftDisWithVAT}`,
-          //total: data.docData.sumAftDisWithVAT,
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
+          // issuerBankDetails: [
+          //   data.docData.issuerBankName        ? `שם בנק:  ${data.docData.bankName}` : null,
+          //   data.docData.issuerBankBranch      ? `סניף:  ${data.docData.bankBranch}` : null,
+          //   data.docData.issuerBankAccount     ? `חשבון:  ${data.docData.bankAccount}` : null,
+          //   data.docData.issuerBankBeneficiary ? `שם המוטב:  ${data.docData.bankBeneficiary}` : null,
+          //   data.docData.issuerBankIban        ? `IBAN:  ${data.docData.bankIban}` : null,
+          // ].filter(Boolean).join('\n'),
         };
+
+        console.log("prefill data is ", prefill_data);
+        
 
         if (data.paymentData && data.paymentData.length > 0) {
           prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
@@ -452,19 +467,6 @@ export class DocumentsService {
     if (!response.data) {
       throw new Error('Failed to generate PDF');
     }
-
-    // if (templateType === 'createDoc') {
-    //   try {
-    //     const payloadCopy = {
-    //       ...payload,
-    //       prefill_data: { ...prefill_data, documentType: 'העתק נאמן למקור' },
-    //     };
-    //     await axios.post<Blob>(url, payloadCopy, {
-    //       headers,
-    //       responseType: 'arraybuffer',
-    //     });
-    //   } catch (e) { }
-    // }
 
     return response.data;
   }

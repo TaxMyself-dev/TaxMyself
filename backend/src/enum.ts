@@ -104,7 +104,7 @@ export enum DocumentType {
   RECEIPT = 'RECEIPT', // קבלה
   TAX_INVOICE = 'TAX_INVOICE', // חשבונית מס
   TAX_INVOICE_RECEIPT = 'TAX_INVOICE_RECEIPT', // חשבונית מס קבלה
-  TRANSACTION_INVOICE = 'TRANSACTION_INVOICE', // חשבונית עסקה
+  TRANSACTION_INVOICE = 'TRANSACTION_INVOICE', // חשבון עסקה
   CREDIT_INVOICE = 'CREDIT_INVOICE', // חשבונית זיכוי
   JOURNAL_ENTRY = 'JOURNAL_ENTRY', //  פקודת יומן
 }
@@ -142,7 +142,7 @@ export const UniformFileTypeCodeMap: Partial<Record<DocumentType | JournalRefere
 };
 
 export const DOC_TYPE_INFO: Partial<Record<DocumentType, { docNumber: number; docDescription: string }>> = {
-  [DocumentType.TRANSACTION_INVOICE]: { docNumber: 300, docDescription: 'חשבונית עסקה' },
+  [DocumentType.TRANSACTION_INVOICE]: { docNumber: 300, docDescription: 'חשבון עסקה' },
   [DocumentType.TAX_INVOICE]:         { docNumber: 305, docDescription: 'חשבונית מס' },
   [DocumentType.TAX_INVOICE_RECEIPT]: { docNumber: 320, docDescription: 'חשבונית מס קבלה' },
   [DocumentType.CREDIT_INVOICE]:      { docNumber: 330, docDescription: 'חשבונית זיכוי' },
