@@ -1,0 +1,32 @@
+### TEST 1 — Proxy → httpbin.org (GET)
+GET https://proxy-146140406969.me-west1.run.app/proxy/feezback/get
+
+###
+
+### TEST 2 — Proxy → httpbin.org (POST)
+POST https://proxy-146140406969.me-west1.run.app/proxy/feezback/post
+Content-Type: application/json
+
+{
+  "hello": "proxy test"
+}
+
+###
+
+### TEST 3 — Proxy → Feezback (should return 403 for now)
+POST https://proxy-146140406969.me-west1.run.app/proxy/feezback/link
+Content-Type: application/json
+
+{
+  "token": "dummy"
+}
+
+
+### Test Feezback Consent Link
+POST http://localhost:3000/feezback/consent-link
+Content-Type: application/json
+Authorization: Bearer <PASTE_YOUR_FIREBASE_TOKEN_HERE>
+
+{
+  "context": "dev-test-1"
+}
