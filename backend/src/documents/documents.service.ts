@@ -382,7 +382,7 @@ export class DocumentsService {
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
     const docType = data.docData.docType;
-    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'סה"כ ללא מע"מ';
+    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'פטור ממע"מ';
 
     switch (templateType) {
       case 'createDoc':
@@ -420,10 +420,10 @@ export class DocumentsService {
         // Add VAT-related fields only for non-receipts
         const isReceipt = docType === 'RECEIPT';
         if (!isReceipt) {
-          prefill_data.subTotalLabel = 'חייב במע"מ';
-          prefill_data.subTotal = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
-          prefill_data.totalVatLabel = 'סה"כ מע"מ';
-          prefill_data.totalVat = `${data.docData.vatSum} ש"ח`;
+          prefill_data.vatableAmountLabel = 'חייב במע"מ';
+          prefill_data.vatableAmount = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
+          prefill_data.vatLabel = 'מע"מ';
+          prefill_data.vat = `${data.docData.vatSum} ש"ח`;
         }
 
         if (data.paymentData && data.paymentData.length > 0) {
@@ -476,7 +476,7 @@ export class DocumentsService {
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
       'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
-      'מחיר': `₪${Number(line.sumAftDisBefVatPerLine).toFixed(2)}`,
+      'מחיר': `₪${Number(line.sumBefVatPerUnit).toFixed(2)}`,
       'כמות': String(line.unitQuantity),
       'פירוט': line.description || ""
     }));

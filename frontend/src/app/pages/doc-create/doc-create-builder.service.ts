@@ -78,9 +78,10 @@ export class DocCreateBuilderService {
     // Summary items configuration
     summaryItems: ISummaryItem[] = [
         {
-            key: 'subjectToVat',
+            key: 'sumBefDisBefVat',
             label: 'חייב במע"מ',
-            valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
+            valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat,
+            // valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
             excludeForReceipt: true
         },
         {

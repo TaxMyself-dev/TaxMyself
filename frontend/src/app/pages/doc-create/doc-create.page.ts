@@ -459,7 +459,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   buildDocPayload(): DocPayload {
-
     if (!this.createDocIsValid()) {
       throw new Error('Cannot collect document data: forms are invalid or incomplete.');
     }
@@ -625,9 +624,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     for (const line of this.lineItemsDraft()) {
       if (line.vatOpts === 'WITHOUT') {
-        totals.sumWithoutVat += Number(line.sumBefVatPerUnit ?? 0);
+        totals.sumWithoutVat += Number((line.sumBefVatPerUnit ?? 0) * line.unitQuantity);
       }
-      totals.sumBefDisBefVat += Number(line.sumBefVatPerUnit ?? 0);
+      else {
+        totals.sumBefDisBefVat += Number((line.sumBefVatPerUnit ?? 0) * line.unitQuantity);
+      }
       totals.disSum += Number(line.disBefVatPerLine ?? 0);
       totals.sumAftDisBefVat += Number(line.sumAftDisBefVatPerLine ?? 0);
       totals.vatSum += Number(line.vatPerLine ?? 0);
