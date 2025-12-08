@@ -86,9 +86,9 @@ export class DocCreateBuilderService {
         },
         {
             key: 'withoutVat',
-            label: 'ללא מע"מ',
+            label: 'סה"כ',
             valueGetter: (totals: DocumentTotals) => totals.sumWithoutVat,
-            excludeForReceipt: true
+            excludeForReceipt: false,
         },
         {
             key: 'vatSum',
@@ -411,7 +411,7 @@ export class DocCreateBuilderService {
             initialValue: 0,
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.min(0), Validators.required]
+            validators: [Validators.min(0), Validators.pattern(/^(0|[1-9]\d*)(\.\d+)?$/)]
         },
         [fieldLineDocValue.LINE_NUMBER]: {
             //name: fieldLineDocName.lineNumber,

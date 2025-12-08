@@ -302,7 +302,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // For receipts, automatically set VAT to 'WITHOUT' and remove VAT control from form
     const defaultValues: any = { 
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1, 
-      [FieldsCreateDocValue.DISCOUNT]: 0 
+      // [FieldsCreateDocValue.DISCOUNT]: 0 
     };
     
     if (event === DocumentType.RECEIPT) {
@@ -416,7 +416,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   this.lineDetailsForm.reset({
     [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-    [FieldsCreateDocValue.DISCOUNT]: 0
+    // [FieldsCreateDocValue.DISCOUNT]: 0
   });
 
   this.initialIndexForm.reset();
@@ -527,7 +527,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       description: formData.description,
       unitQuantity: formData.unitAmount,
       sum: formData.sum,
-      discount: formData.discount ? Number(formData.discount.toString().replace(/^0+(?!\.)/, '')) : null,
+      discount: formData.discount ?? 0,
       vatOpts: vatOpts,
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
       docType: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value,
@@ -541,7 +541,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.updateDocumentTotalsFromLines();
     this.lineDetailsForm.reset({
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-      [FieldsCreateDocValue.DISCOUNT]: 0
+      // [FieldsCreateDocValue.DISCOUNT]: 0
     });
     this.calcTotals();
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
