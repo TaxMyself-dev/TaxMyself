@@ -652,7 +652,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       else {
         this.amountSubjectToVAT += line.sumBefVatPerUnit * line.unitQuantity;
       }
-      this.totalDiscount += line.disBefVatPerLine * line.unitQuantity;
+      this.totalDiscount += line.disBefVatPerLine;
       this.totalVatAmount += line.vatPerLine;
     }
     // this.totalVatAmount = this.amountSubjectToVAT * (this.vatRate / 100);

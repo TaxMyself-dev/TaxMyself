@@ -218,6 +218,9 @@
                 @else if (col.dataField === 'sum') {
                   {{ line.sum | currency:'ILS' }}
                 }
+                @else if (col.dataField === 'total') {
+                  {{ line.sum * line.unitQuantity | currency:'ILS' }}
+                }
                 @else if (col.dataField === 'discount') {
                   {{ line.discount || '-' }}
                 }
