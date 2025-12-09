@@ -188,6 +188,7 @@ export enum CurrencyHebrew {
 }
 
 export enum FieldsCreateDocValue {
+  TOTAL = 'total',
   BUSINESS_NUMBER = 'businessNumber',
   DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
