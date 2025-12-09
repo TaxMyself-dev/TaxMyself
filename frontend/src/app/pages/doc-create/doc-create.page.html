@@ -175,10 +175,27 @@
                 }
 
                 @case ('action') {
-                <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף שורה'" [variant]="'text'" [severity]="'info'"
-                  [buttonSize]="buttonSize.AUTO" [disabled]="!lineDetailsForm.valid"
-                  (onButtonClicked)="addLineDetails()">
-                </app-p-button>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <app-p-button 
+                    class="pnl-pdf-button" 
+                    [buttonText]="editingLineIndex() !== null ? 'עדכן שורה' : 'הוסף שורה'" 
+                    [variant]="'text'" 
+                    [severity]="'info'"
+                    [buttonSize]="buttonSize.AUTO" 
+                    [disabled]="!lineDetailsForm.valid"
+                    (onButtonClicked)="addLineDetails()">
+                  </app-p-button>
+                  @if (editingLineIndex() !== null) {
+                    <app-p-button 
+                      class="pnl-pdf-button" 
+                      [buttonText]="'ביטול'" 
+                      [variant]="'text'" 
+                      [severity]="'secondary'"
+                      [buttonSize]="buttonSize.AUTO"
+                      (onButtonClicked)="cancelEdit()">
+                    </app-p-button>
+                  }
+                </div>
                 }
 
                 @default {
@@ -204,7 +221,8 @@
           </ng-template>
           
           <ng-template pTemplate="body" let-line let-columns="columns" let-rowIndex="rowIndex">
-            <tr>
+            <tr [style.background-color]="editingLineIndex() === rowIndex ? '#e3f2fd' : 'transparent'"
+                >
               <td *ngFor="let col of columns">
                 @if (col.dataField === 'description') {
                   {{ line.description }}
@@ -225,7 +243,28 @@
                   {{ line.discount || '-' }}
                 }
                 @else if (col.dataField === 'actions') {
-                  <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true" [icon]="'pi pi-trash'" (onButtonClicked)="deleteLine(rowIndex)"></app-p-button>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <app-p-button 
+                      [buttonColor]="buttonColor.TRANSPARET" 
+                      [buttonSize]="buttonSize.ICON" 
+                      [iconOnly]="true" 
+                      [severity]="'info'"
+                      [variant]="'text'"
+                      [icon]="'pi pi-pen-to-square'" 
+                      (onButtonClicked)="editLine(rowIndex)"
+                      title="עריכה">
+                    </app-p-button>
+                    <app-p-button 
+                      [buttonColor]="buttonColor.TRANSPARET" 
+                      [buttonSize]="buttonSize.ICON" 
+                      [iconOnly]="true" 
+                      [severity]="'info'"
+                      [variant]="'text'"
+                      [icon]="'pi pi-trash'" 
+                      (onButtonClicked)="deleteLine(rowIndex)"
+                      title="מחיקה">
+                    </app-p-button>
+                  </div>
                 }
               </td>
             </tr>

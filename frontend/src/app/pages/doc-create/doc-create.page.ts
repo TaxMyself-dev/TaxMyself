@@ -122,6 +122,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   lineItemsDraft = signal<PartialLineItem[]>([]);
   initiallinesDocFormValues: FormGroup;
   showInitialIndexDialog = true;
+  editingLineIndex = signal<number | null>(null); // Track which line is being edited
 
   activePaymentMethod: MenuItem = this.paymentMethodOptions[0]; // default selected
 
@@ -512,8 +513,30 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   addLineDetails(): void {
     const formData = this.lineDetailsForm.value;
-    console.log("Adding line with form value:", formData);
+    const editingIndex = this.editingLineIndex();
+    
+    if (editingIndex !== null) {
+      // Update existing line
+      console.log("Updating line at index:", editingIndex);
+      this.updateLine(editingIndex, formData);
+    } else {
+      // Add new line
+      console.log("Adding new line with form value:", formData);
+      this.addNewLine(formData);
+    }
+    
+    this.updateDocumentTotalsFromLines();
+    this.lineDetailsForm.reset({
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+    });
+    this.editingLineIndex.set(null); // Reset editing state
+    this.calcTotals();
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
+    this.setSumInPaymentForm();
+  }
 
+  private addNewLine(formData: any): void {
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
     
@@ -535,18 +558,31 @@ export class DocCreatePage implements OnInit, OnDestroy {
     };
 
     this.lineItemsDraft.update(items => [...items, newLine]);
-    console.log("🚀 ~ DocCreatePage ~ addLineDetails ~ this.lineItemsDraft", this.lineItemsDraft());
+    console.log("🚀 ~ DocCreatePage ~ addNewLine ~ this.lineItemsDraft", this.lineItemsDraft());
 
     this.calculateVatFieldsForLine(lineIndex);
-    this.updateDocumentTotalsFromLines();
-    this.lineDetailsForm.reset({
-      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-      // [FieldsCreateDocValue.DISCOUNT]: 0
-    });
-    this.calcTotals();
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
-    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
-    this.setSumInPaymentForm();
+  }
+
+  private updateLine(index: number, formData: any): void {
+    const transType = "3";
+    const vatOpts = this.fileSelected() === DocumentType.RECEIPT ? 'WITHOUT' : formData.vatOptions;
+
+    const updatedLine: PartialLineItem = {
+      ...this.lineItemsDraft()[index], // Keep existing properties like calculated VAT fields
+      description: formData.description,
+      unitQuantity: formData.unitAmount,
+      sum: formData.sum,
+      discount: formData.discount ?? 0,
+      vatOpts: vatOpts,
+      vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
+    };
+
+    this.lineItemsDraft.update(items => 
+      items.map((item, i) => i === index ? updatedLine : item)
+    );
+    
+    this.calculateVatFieldsForLine(index);
+    console.log("🚀 ~ DocCreatePage ~ updateLine ~ updated line", this.lineItemsDraft()[index]);
   }
 
 
@@ -740,7 +776,49 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
 
+  editLine(index: number): void {
+    const line = this.lineItemsDraft()[index];
+    console.log("Editing line at index:", index, line);
+    
+    // Populate the form with the line data
+    this.lineDetailsForm.patchValue({
+      [FieldsCreateDocValue.LINE_DESCRIPTION]: line.description,
+      [FieldsCreateDocValue.UNIT_AMOUNT]: line.unitQuantity,
+      [FieldsCreateDocValue.SUM]: line.sum,
+      [FieldsCreateDocValue.DISCOUNT]: line.discount || 0,
+      ...(this.fileSelected() !== DocumentType.RECEIPT && {
+        [FieldsCreateDocValue.VAT_OPTIONS]: line.vatOpts
+      })
+    });
+    
+    // Set the editing index
+    this.editingLineIndex.set(index);
+    
+    // Optional: scroll to the form for better UX
+    setTimeout(() => {
+      const formElement = document.querySelector('.line-details-form');
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  }
+
+  cancelEdit(): void {
+    this.editingLineIndex.set(null);
+    this.lineDetailsForm.reset({
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+    });
+  }
+
   deleteLine(index: number): void {
+    // If we're deleting the line being edited, reset editing state
+    if (this.editingLineIndex() === index) {
+      this.cancelEdit();
+    } else if (this.editingLineIndex() !== null && this.editingLineIndex()! > index) {
+      // Adjust the editing index if we're deleting a line before it
+      this.editingLineIndex.set(this.editingLineIndex()! - 1);
+    }
+    
     this.lineItemsDraft.update(items => items.filter((_, i) => i !== index));
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
