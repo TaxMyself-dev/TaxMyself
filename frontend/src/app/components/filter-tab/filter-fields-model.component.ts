@@ -10,6 +10,14 @@ export type FilterFieldType =
   | 'text'
   | 'number';
 
+export interface PeriodDefaults {
+  periodMode?: ReportingPeriodType;
+  year?: number;
+  month?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
 export interface FilterField {
   type: FilterFieldType;
   controlName: string;
@@ -23,4 +31,5 @@ export interface FilterField {
   required?: boolean;
   defaultValue?: any;
   allowedPeriodModes?: ReportingPeriodType[];
+  periodDefaults?: PeriodDefaults;
 }
