@@ -132,6 +132,10 @@ export class VatReportPage implements OnInit {
     }
 
     // Now config can be set safely
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
+    
     this.filterConfig = [
       {
         type: 'select',
@@ -144,7 +148,12 @@ export class VatReportPage implements OnInit {
         type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY]
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY],
+        periodDefaults: {
+          periodMode: ReportingPeriodType.BIMONTHLY,
+          year: currentYear,
+          month: currentMonth
+        }
       },
     ];
 
