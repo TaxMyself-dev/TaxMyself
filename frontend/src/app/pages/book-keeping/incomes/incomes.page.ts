@@ -1,6 +1,6 @@
-import { Component, OnInit, signal, inject, viewChild } from '@angular/core';
-import { EMPTY, fromEvent } from 'rxjs';
-import { catchError, filter, finalize, map, take } from 'rxjs/operators';
+import { Component, OnInit, signal, inject } from '@angular/core';
+import { EMPTY } from 'rxjs';
+import { catchError, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
@@ -16,7 +16,6 @@ import { FilesService } from 'src/app/services/files.service';
 import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { Popover } from 'primeng/popover';
 
 @Component({
   selector: 'app-incomes',
