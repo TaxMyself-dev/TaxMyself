@@ -779,6 +779,11 @@ export class DocumentsService {
       const minutes = now.getMinutes().toString().padStart(2, '0');
       const issueHour = `${hours}${minutes}`;
 
+      const autoClosedTypes = [
+        DocumentType.RECEIPT,
+        DocumentType.TAX_INVOICE_RECEIPT
+      ];
+
       // Default values set on the server
       const serverGeneratedValues = {
         issueDate: new Date(),
@@ -787,6 +792,7 @@ export class DocumentsService {
         issueHour,
         isCancelled: data.isCancelled ?? false,
         docNumber: data.docNumber.toString(),
+        docStatus: autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN',
       };
 
       // Merge all values

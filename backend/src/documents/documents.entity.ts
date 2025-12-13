@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert } from 'typeorm';
-import { Currency, DocumentType } from 'src/enum';
+import { Currency, DocumentStatusType, DocumentType } from 'src/enum';
 
 
 @Entity()
@@ -112,6 +112,9 @@ export class Documents {
 
   @Column({ default: false })
   isCancelled: boolean; // האם המסמך בוטל
+
+  @Column({ type: 'enum', enum: DocumentStatusType })
+  docStatus: DocumentStatusType;
 
   @Column({ type: 'varchar', length: 7, nullable: true })
   branchCode: string; // מספר הסניף בו הופק המסמך

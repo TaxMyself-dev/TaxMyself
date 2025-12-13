@@ -139,6 +139,7 @@ export enum DocumentsTableColumns {
   DOC_SUM = 'sumAftDisWithVAT',
   DOC_NUMBER = 'docNumber',
   RECIPIENT_NAME = 'recipientName',
+  DOC_STATUS = 'docStatus',
 }
 
 export enum DocumentsTableHebrewColumns {
@@ -147,6 +148,7 @@ export enum DocumentsTableHebrewColumns {
   sumAftDisWithVAT = 'סכום',
   docNumber = 'מספר מסמך',
   recipientName = 'שם לקוח',
+  docStatus = 'סטטוס מסמך',
 }
 
 export enum UniformFileDocumentSummaryColumns {

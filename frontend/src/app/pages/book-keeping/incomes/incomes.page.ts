@@ -71,6 +71,7 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.DOC_NUMBER, value: DocumentsTableHebrewColumns.docNumber, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.RECIPIENT_NAME, value: DocumentsTableHebrewColumns.recipientName, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
+    { name: DocumentsTableColumns.DOC_STATUS, value: DocumentsTableHebrewColumns.docStatus, type: FormTypes.TEXT },
   ];
   showMiniMenu = signal(false);
   // Holds the selected row for download
@@ -205,6 +206,7 @@ export class IncomesPage implements OnInit {
         ...row,
         sum: this.gs.addComma(Math.abs(row.sum as number)),
         docType: DocTypeDisplayName[row.docType] ?? row.docType,
+        docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
       }));
     }),
     catchError(err => {

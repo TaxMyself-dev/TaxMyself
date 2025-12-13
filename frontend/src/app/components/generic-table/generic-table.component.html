@@ -85,8 +85,8 @@
               <span [innerHTML]="row[columnSearch()] | highlight: searchTerm()"></span>
               }
               <!-- Default row -->
-              @else if (col.name === 'billDate' || col.name === 'payDate') {
-              {{ row[col.name] | dateFormat }}
+              @else if (col.name?.toLowerCase().includes('date')) {
+                {{ row[col.name] | dateFormat }}
               }
               @else {
               {{ row[col.name] }}
