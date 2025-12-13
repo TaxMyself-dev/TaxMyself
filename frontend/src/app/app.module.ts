@@ -25,6 +25,7 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialog } from "primeng/confirmdialog";
 import { ConfirmationService } from 'primeng/api';
+import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
 
 
 @NgModule({
@@ -52,6 +53,8 @@ import { ConfirmationService } from 'primeng/api';
     providePrimeNG({theme: {preset: Aura}}),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
+    { provide: HTTP_INTERCEPTORS, useClass: AuthErrorInterceptor, multi: true },
+
     provideHttpClient(withInterceptorsFromDi()),
     MessageService,
     ConfirmationService
