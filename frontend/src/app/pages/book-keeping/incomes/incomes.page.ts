@@ -90,9 +90,30 @@ export class IncomesPage implements OnInit {
     this.selectedBusinessNumber.set(businesses[0].businessNumber);
     this.selectedBusinessName.set(businesses[0].businessName);
 
+    // Create the form with essential controls early
+    this.form = this.fb.group({
+      businessNumber: [this.selectedBusinessNumber()],
+    });
+
+    this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
+      if (!businessNumber) return;
+
+      const business = this.gs.businesses().find(
+        b => b.businessNumber === businessNumber
+      );
+
+      this.selectedBusinessNumber.set(business?.businessNumber ?? '');
+      this.selectedBusinessName.set(business?.businessName ?? '');
+
+      console.log("Change: business number is ", this.selectedBusinessNumber());
+      
+
+      // Auto-fetch only when business changes
+      this.fetchDocuments(this.selectedBusinessNumber());
+    });
+
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-
 
     this.filterConfig = [
       {
@@ -123,29 +144,6 @@ export class IncomesPage implements OnInit {
         ]
       }
     ];
-
-    const ctrl = this.form.get('businessNumber');
-    console.log('CTRL:', ctrl);
-    ctrl?.valueChanges.subscribe(value => {
-      console.log('Business number changed:', value);
-    });
-
-    this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
-      if (!businessNumber) return;
-
-      const business = this.gs.businesses().find(
-        b => b.businessNumber === businessNumber
-      );
-
-      this.selectedBusinessNumber.set(business?.businessNumber ?? '');
-      this.selectedBusinessName.set(business?.businessName ?? '');
-
-      console.log("Change: business number is ", this.selectedBusinessNumber());
-      
-
-      // Auto-fetch only when business changes
-      this.fetchDocuments(this.selectedBusinessNumber());
-    });
 
     // 5️⃣ Fetch initial data
     this.fetchDocuments(this.selectedBusinessNumber());
