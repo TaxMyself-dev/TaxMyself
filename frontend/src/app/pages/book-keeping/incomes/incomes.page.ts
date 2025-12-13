@@ -8,7 +8,8 @@ import {
   BusinessStatus,
   DocumentsTableColumns,
   DocumentsTableHebrewColumns,
-  FormTypes
+  FormTypes,
+  ReportingPeriodType
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { DateService } from 'src/app/services/date.service';
@@ -47,13 +48,6 @@ export class IncomesPage implements OnInit {
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.businessSelectItems;
 
-  // Form managed by FilterTab
-  form: FormGroup = this.fb.group({
-    businessNumber: [null],
-    docType: [null]
-    // ❗ DO NOT add "period" here → FilterTab will create it automatically
-  });
-
   startDate!: string;
   endDate!: string;
 
@@ -79,6 +73,7 @@ export class IncomesPage implements OnInit {
   // ===========================
   // Filter config (used by FilterTab)
   // ===========================
+  form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
 
 
@@ -92,27 +87,30 @@ export class IncomesPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
     const businesses = this.gs.businesses();
-
-    // 1️⃣ Set the signal
     this.selectedBusinessNumber.set(businesses[0].businessNumber);
     this.selectedBusinessName.set(businesses[0].businessName);
 
-    // 2️⃣ Set the form initial value
-    this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
 
-    // 3️⃣ Now config can be set safely
+
     this.filterConfig = [
       {
         type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems
+        options: this.gs.businessSelectItems,
+        defaultValue: this.selectedBusinessNumber()
       },
       {
         type: 'period',
         controlName: 'period',
-        required: true
+        required: true,
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
+        periodDefaults: {
+          year: currentYear,
+        }
       },
       {
         type: 'select',
@@ -126,6 +124,12 @@ export class IncomesPage implements OnInit {
       }
     ];
 
+    const ctrl = this.form.get('businessNumber');
+    console.log('CTRL:', ctrl);
+    ctrl?.valueChanges.subscribe(value => {
+      console.log('Business number changed:', value);
+    });
+
     this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
       if (!businessNumber) return;
 
@@ -133,10 +137,14 @@ export class IncomesPage implements OnInit {
         b => b.businessNumber === businessNumber
       );
 
+      this.selectedBusinessNumber.set(business?.businessNumber ?? '');
       this.selectedBusinessName.set(business?.businessName ?? '');
 
+      console.log("Change: business number is ", this.selectedBusinessNumber());
+      
+
       // Auto-fetch only when business changes
-      this.fetchDocuments(businessNumber);
+      this.fetchDocuments(this.selectedBusinessNumber());
     });
 
     // 5️⃣ Fetch initial data
@@ -153,27 +161,14 @@ export class IncomesPage implements OnInit {
 
     this.selectedBusinessNumber.set(formValues.businessNumber);
 
-    // const businessNumber = formValues.businessNumber;
     const docType = formValues.docType;
 
-    // period object
-    const period = formValues.period;
-    const {
-
-      periodMode,
-      year,
-      month,
-      startDate: localStartDate,
-      endDate: localEndDate
-
-    } = period;
-
     const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
+      formValues.periodMode,
+      formValues.year,
+      formValues.month,
+      formValues.startDate,
+      formValues.endDate
     );
 
     this.startDate = startDate;
@@ -181,6 +176,7 @@ export class IncomesPage implements OnInit {
 
     this.fetchDocuments(this.selectedBusinessNumber(), startDate, endDate, docType);
   }
+
 
   // ===========================
   // Fetch documents from server

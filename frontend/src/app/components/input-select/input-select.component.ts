@@ -48,20 +48,6 @@ export class InputSelectComponent implements OnInit {
   inputClasses = signal<string>("");
   stringMessage = signal<string>("");
 
-
-  // selectedItemsLabel = coed(() => {
-  //   const selected = this.selectedItemsSignal();
-  //   console.log("🚀 ~ InputSelectComponent ~ selectedItemsLabel=computed ~ selected :", selected )
-  //   const allItems = this.items() || [];
-
-  //   if (selected.length === allItems.length && allItems.length > 0) {
-  //     return 'כל האפשרויות נבחרו';
-  //   }
-
-  //   return `נבחרו ${selected.length}`;
-  // });
-
-
   constructor() { }
 
   ngOnInit() {
