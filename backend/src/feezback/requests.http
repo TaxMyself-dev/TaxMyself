@@ -1,3 +1,29 @@
+### Get Feezback JWT (debug)
+POST http://localhost:3000/feezback/debug-token
+Content-Type: application/json
+
+{
+  "context": "dev-test-1"
+}
+
+
+### TEST: Proxy → Feezback /link with dummy token
+
+GET https://proxy-146140406969.me-west1.run.app/proxy/feezback/ip
+Content-Type: application/json
+
+
+
+### TEST: Proxy → Feezback /link with dummy token
+POST https://proxy-146140406969.me-west1.run.app/proxy/feezback/link
+Content-Type: application/json
+
+{
+  "token": "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzb21lVXNlciIsImlzcyI6InRwcC9LTkNBWG53WGsxIiwic3J2IjoiYWlzL3VzZXIiLCJpYXQiOjE1MTYyMzkwMjIsImV4cCI6MjUxNjIzOTAyMiwidHRsIjo2MDAsImZsb3ciOnsiaWQiOiJkZWZhdWx0IiwiZGF0YUJhc2tldHMiOlsiQUNDT1VOVFMiLCJCQUxBTkNFUyIsIlRSQU5TQUNUSU9OUyJdLCJhY2NvdW50VHlwZXMiOlsiQ0FDQyIsIkNBUkQiLCJTVkdTIiwiTE9BTiIsIlNDVFMiXSwibWFuZGF0b3J5RGF0YUJhc2tldHMiOlsiQUNDT1VOVFMiLCJCQUxBTkNFUyJdLCJ0aW1lUGVyaW9kcyI6WyJPTkVfREFZIiwiVEhSRUVfTU9OVEhTIiwiU0lYX01PTlRIUyIsIlRXRUxWRV9NT05USFMiXSwiZGVmYXVsdFRpbWVQZXJpb2QiOiJPTkVfREFZIiwidXNlcklkZW50aWZpZXIiOnsidHlwZSI6IklEIiwidmFsdWUiOiIwMDAwMDAwMTgiLCJlZGl0YWJsZSI6ZmFsc2V9LCJjb250ZXh0IjoiMTExMSJ9fQ.KnkwyMuLGtNIeSEvmHIE6zhw1n9A72SDxw-5wNS3Ef_qnZ6EpDxSSeGcR-8ed2z7KH9kfI2vdhIdqSDmAoDproQzX_fsAqOp0-SbWPFqLgYoJo8_i8Wcrnfgp6d2M5-3gO04UGYCfgFNU3xc2zFBxhFPlwY9M7SprGCUD3sxntzfHoGDxmVD28fR9HOd3AjguuRHkZ0Y8XiSiAywGTg7HiDqexu7G2I0Y3YqFxqxjcRBEDKvHKL1NcAyXlU_LnorWdDV8dJjdPmoTt5UElNd71zXMtYDDKQwrHSc0CAT0oBc6pi7QX83YOFz0FDCv_4dcfzDcwVGvWmrqEfQSAy9sxuqsb3TV9uEIGXupwECYSS42FHQWoo1Q8UtEGTxl19EfQehXxYvySzTJFf5U5h1sFYUo8G2Cd3pBDtAsqBtBUzhgZXs3Sevpc3pDxB3gYmUAeYLwaaeJuej2QTJrHvzkQOJBjTPGbHsNbdY_oH7y84uOFXNi-73oWGbZEzShJkYSDNu5CErC0YcpRuqHL2fbhpjJeQKAG-7f73nzxFpn48ucyDIocVwpnX47qQZ4_sjypkpW0ETNxyFHWOzcx5G9Oi2Nq5JyGbBz0bnCp2tz15vlLJoXgoIaUubUdjpb-hYL1VcE4jFWFV9h8O1e583D_mFa_3pqY2dlPlW_tsq1vY"
+}
+
+
+
 ### TEST 1 — Proxy → httpbin.org (GET)
 GET https://proxy-146140406969.me-west1.run.app/proxy/feezback/get
 
