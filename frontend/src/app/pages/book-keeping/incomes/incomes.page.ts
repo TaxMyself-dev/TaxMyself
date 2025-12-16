@@ -67,10 +67,10 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.DOC_DATE, value: DocumentsTableHebrewColumns.docDate, type: FormTypes.DATE },
     { name: DocumentsTableColumns.DOC_TYPE, value: DocumentsTableHebrewColumns.docType, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_NUMBER, value: DocumentsTableHebrewColumns.docNumber, type: FormTypes.TEXT },
+    { name: DocumentsTableColumns.PARENT_DOC, value: DocumentsTableHebrewColumns.parentDoc, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.RECIPIENT_NAME, value: DocumentsTableHebrewColumns.recipientName, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
     { name: DocumentsTableColumns.DOC_STATUS, value: DocumentsTableHebrewColumns.docStatus, type: FormTypes.TEXT },
-    { name: DocumentsTableColumns.PARENT_DOC, value: DocumentsTableHebrewColumns.parentDoc, type: FormTypes.TEXT },
   ];
   showMiniMenu = signal(false);
   // Holds the selected row for download
@@ -221,6 +221,7 @@ export class IncomesPage implements OnInit {
           sum: this.gs.addComma(Math.abs(row.sum as number)),
           docType: DocTypeDisplayName[row.docType] ?? row.docType,
           docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
+          docStatusOriginal: row.docStatus, // Keep original value for conditional checks
           parentDoc: parentDoc, // Add parent doc formatted string with HTML
         };
       });

@@ -222,17 +222,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const prefilled = this.prefillFromOppositeDoc(allBusinesses);
 
     if (!prefilled) {
+      const selected = allBusinesses[0];
+      this.generalDetailsForm.patchValue({
+        businessNumber: selected.businessNumber
+      });
+      console.log("ngoninit selected is ", selected);
+      this.setSelectedBusiness(selected);
       if (allBusinesses.length === 1) {
-        const selected = allBusinesses[0];
-
-        this.generalDetailsForm.patchValue({
-          businessNumber: selected.businessNumber
-        });
-
-        console.log("ngoninit selected is ", selected);
-
-        this.setSelectedBusiness(selected);
-
         this.showBusinessSelector = false;
       } else {
         this.showBusinessSelector = true;
@@ -942,21 +938,37 @@ export class DocCreatePage implements OnInit, OnDestroy {
       }
     }
     
-    const sourceDocNumber = payload.sourceDoc?.docNumber ?? '';
+    // Extract docNumber - try multiple possible field names
+    const sourceDocNumber = payload.sourceDoc?.docNumber ?? 
+                           payload.sourceDoc?.doc_number ?? 
+                           (payload.sourceDoc as any)?.docNumber ?? 
+                           '';
     console.log("🔥 prefillFromOppositeDoc - sourceDocNumber:", sourceDocNumber);
+    console.log("🔥 prefillFromOppositeDoc - payload.sourceDoc keys:", Object.keys(payload.sourceDoc || {}));
     
     const sourceDocHebrewName = sourceDocType ? 
                                this.getHebrewNameDoc(sourceDocType) :
                                (payload.sourceDoc?.docTypeName || '');
     const targetDocHebrewName = this.getHebrewNameDoc(targetDocType);
     
+    console.log("🔥 prefillFromOppositeDoc - sourceDocHebrewName:", sourceDocHebrewName);
+    console.log("🔥 prefillFromOppositeDoc - targetDocHebrewName:", targetDocHebrewName);
+    
     // Store parent document fields in class variables (will be saved in buildDocPayload)
-    // Only set if we have a valid enum value
-    if (sourceDocType && sourceDocNumber) {
-      this.parentDocType = sourceDocType;
-      this.parentDocNumber = sourceDocNumber;
+    // Set subtitle if we have source doc info (even if enum is not found, use Hebrew name)
+    if (sourceDocNumber && sourceDocHebrewName) {
+      // Only set parentDocType and parentDocNumber if we have a valid enum value
+      if (sourceDocType) {
+        this.parentDocType = sourceDocType;
+        this.parentDocNumber = String(sourceDocNumber);
+      } else {
+        // If no enum found, set to null (but still create subtitle)
+        this.parentDocType = null;
+        this.parentDocNumber = null;
+      }
       
       // Set subtitle: "קבלה עבור חשבון עסקה מספר 12345"
+      // Format: [target doc name] עבור [source doc name] מספר [source doc number]
       this.docSubtitle = `${targetDocHebrewName} עבור ${sourceDocHebrewName} מספר ${sourceDocNumber}`;
       console.log("🔥 prefillFromOppositeDoc - SET parentDocType:", this.parentDocType);
       console.log("🔥 prefillFromOppositeDoc - SET parentDocNumber:", this.parentDocNumber);
@@ -967,11 +979,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       this.parentDocNumber = null;
       this.docSubtitle = null;
       console.log("🔥 prefillFromOppositeDoc - RESET (invalid values)");
+      console.log("🔥 prefillFromOppositeDoc - sourceDocNumber:", sourceDocNumber, "sourceDocHebrewName:", sourceDocHebrewName);
     }
 
     // Client info (best-effort)
     this.userDetailsForm.patchValue({
       [FieldsCreateDocValue.RECIPIENT_NAME]: payload.sourceDoc?.recipientName ?? payload.sourceDoc?.clientName ?? '',
+      [FieldsCreateDocValue.RECIPIENT_ID]: payload.sourceDoc?.recipientId ?? '',
       [FieldsCreateDocValue.RECIPIENT_EMAIL]: payload.sourceDoc?.recipientEmail ?? '',
       [FieldsCreateDocValue.RECIPIENT_PHONE]: payload.sourceDoc?.recipientPhone ?? '',
     });

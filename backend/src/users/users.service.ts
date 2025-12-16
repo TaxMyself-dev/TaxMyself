@@ -43,15 +43,15 @@ export class UsersService {
     // 1️⃣ SAFE NORMALIZATION
     // -------------------------------------------------------
 
-    // spouse may be null/undefined → fix
+    // spouse may be null/undefined
     const safeSpouse = spouse ?? {};
 
-    // children may be undefined → fix
+    // children may be undefined
     const newChildren = Array.isArray(children?.childrenArray)
       ? children.childrenArray
       : [];
 
-    // businesses may be undefined → fix
+    // businesses may be undefined
     const newBusinesses: Partial<Business>[] = Array.isArray(
       business?.businessArray,
     )
@@ -59,7 +59,7 @@ export class UsersService {
       : [];
 
     // -------------------------------------------------------
-    // 2️⃣ Create the user object (safe spread)
+    // 2️⃣ Create the user object
     // -------------------------------------------------------
     const newUser = {
       ...personal,
@@ -77,7 +77,7 @@ export class UsersService {
     );
 
     // -------------------------------------------------------
-    // 3️⃣ Business status logic (now safe)
+    // 3️⃣ Business status logic
     // -------------------------------------------------------
     if (newBusinesses.length === 0) {
       newUser.businessStatus = BusinessStatus.NO_BUSINESS;
@@ -115,6 +115,52 @@ export class UsersService {
         ...biz,
         firebaseId: personal.firebaseId,
       });
+
+      // Fill null business fields from personal or spouse data
+      // Check if businessNumber matches personal.id or spouse.id
+      const businessNumber = newBusiness.businessNumber;
+      const personalId = personal?.id;
+      const spouseId = safeSpouse?.spouseId || safeSpouse?.id;
+
+      if (businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
+        // Determine source: personal or spouse
+        const isPersonalMatch = businessNumber === personalId;
+
+        // Fill null business fields from source
+        if (!newBusiness.businessPhone) {
+          if (isPersonalMatch && personal?.phone) {
+            newBusiness.businessPhone = personal.phone;
+          } else if (!isPersonalMatch && safeSpouse?.spousePhone) {
+            newBusiness.businessPhone = safeSpouse.spousePhone;
+          }
+        }
+
+        if (!newBusiness.businessEmail) {
+          if (isPersonalMatch && personal?.email) {
+            newBusiness.businessEmail = personal.email;
+          } else if (!isPersonalMatch && safeSpouse?.spouseEmail) {
+            newBusiness.businessEmail = safeSpouse.spouseEmail;
+          }
+        }
+
+        // For address, use city if available
+        if (!newBusiness.businessAddress) {
+          if (isPersonalMatch && personal?.city) {
+            newBusiness.businessAddress = personal.city;
+          } else if (!isPersonalMatch && safeSpouse?.city) {
+            newBusiness.businessAddress = safeSpouse.city;
+          }
+        }
+
+        // For business name, use person's name if not provided
+        if (!newBusiness.businessName) {
+          if (isPersonalMatch && personal?.fName && personal?.lName) {
+            newBusiness.businessName = `${personal.fName} ${personal.lName}`;
+          } else if (!isPersonalMatch && safeSpouse?.spouseFName && safeSpouse?.spouseLName) {
+            newBusiness.businessName = `${safeSpouse.spouseFName} ${safeSpouse.spouseLName}`;
+          }
+        }
+      }
 
       // VAT & tax logic
       switch (newBusiness.businessType) {
