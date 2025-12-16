@@ -62,6 +62,9 @@ export class Documents {
   @Column({ type: 'varchar', nullable: true })
   docDescription: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  docSubtitle: string; // כותרת משנה
+
   @Column({ type: 'varchar', length: 20 })
   docNumber: string;
 

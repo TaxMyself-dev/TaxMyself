@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
+import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions } from 'src/enum';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
@@ -141,6 +141,35 @@ export class DocumentsService {
     console.log("Fetched documents:", docs);
 
     return docs;
+  }
+
+  async getDocLinesByDocNumber(
+    issuerBusinessNumber: string,
+    docNumber: string,
+  ): Promise<DocLines[]> {
+    if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+      throw new BadRequestException('issuerBusinessNumber is required');
+    }
+    if (!docNumber || !docNumber.trim()) {
+      throw new BadRequestException('docNumber is required');
+    }
+
+    const doc = await this.documentsRepo.findOne({
+      where: { issuerBusinessNumber, docNumber },
+      select: ['generalDocIndex'],
+    });
+
+    if (!doc?.generalDocIndex) {
+      throw new NotFoundException('Document not found for given issuer and docNumber');
+    }
+
+    return this.docLinesRepo.find({
+      where: {
+        issuerBusinessNumber,
+        generalDocIndex: doc.generalDocIndex,
+      },
+      order: { lineNumber: 'ASC' },
+    });
   }
 
 
@@ -643,6 +672,27 @@ export class DocumentsService {
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
           console.log(new Date().toLocaleTimeString(), "Step 9 complete - files paths saved to document");
+
+          // 10. Update parent document status to CLOSE if this is a closing document (RECEIPT or TAX_INVOICE_RECEIPT) for TRANSACTION_INVOICE
+          if (data.docData.parentDocType && data.docData.parentDocNumber) {
+            const closingDocTypes = [DocumentType.RECEIPT, DocumentType.TAX_INVOICE_RECEIPT];
+            // Only update status if closing a TRANSACTION_INVOICE (חשבון עסקה)
+            if (closingDocTypes.includes(data.docData.docType) && data.docData.parentDocType === DocumentType.TRANSACTION_INVOICE) {
+              const parentDoc = await documentsRepo.findOne({
+                where: {
+                  issuerBusinessNumber: data.docData.issuerBusinessNumber,
+                  docType: data.docData.parentDocType,
+                  docNumber: data.docData.parentDocNumber,
+                }
+              });
+              
+              if (parentDoc && parentDoc.docStatus === DocumentStatusType.OPEN) {
+                parentDoc.docStatus = DocumentStatusType.CLOSE;
+                await documentsRepo.save(parentDoc);
+                console.log(new Date().toLocaleTimeString(), "Step 10 complete - Parent document status updated to CLOSE");
+              }
+            }
+          }
 
         } catch (uploadError) {
           // If upload fails, delete any uploaded files

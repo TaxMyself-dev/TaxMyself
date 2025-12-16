@@ -45,5 +45,16 @@ export class DocumentsService implements OnInit{
         return this.http.get<IRowDataTable[]>(url, { params });
     }
 
+    getDocLines(
+        issuerBusinessNumber: string,
+        docNumber: string
+        ): Observable<any[]> {
+        const url = `${environment.apiUrl}documents/get-doc-lines`;
+        const params = new HttpParams()
+            .set('issuerBusinessNumber', issuerBusinessNumber)
+            .set('docNumber', docNumber);
+        return this.http.get<any[]>(url, { params });
+    }
+
 
 }

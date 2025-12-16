@@ -1,11 +1,12 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
-import { EMPTY } from 'rxjs';
+import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
+  BusinessType,
   DocumentsTableColumns,
   DocumentsTableHebrewColumns,
   FormTypes,
@@ -17,6 +18,8 @@ import { FilesService } from 'src/app/services/files.service';
 import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { ConfirmationService } from 'primeng/api';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-incomes',
@@ -34,7 +37,9 @@ export class IncomesPage implements OnInit {
   private dateService = inject(DateService);
   private documentsService = inject(DocumentsService);
   private filesService = inject(FilesService);
+  private confirmationService = inject(ConfirmationService);
   private fb = inject(FormBuilder);
+  private router = inject(Router);
 
   // ===========================
   // Global state
@@ -65,10 +70,17 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.RECIPIENT_NAME, value: DocumentsTableHebrewColumns.recipientName, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
     { name: DocumentsTableColumns.DOC_STATUS, value: DocumentsTableHebrewColumns.docStatus, type: FormTypes.TEXT },
+    { name: DocumentsTableColumns.PARENT_DOC, value: DocumentsTableHebrewColumns.parentDoc, type: FormTypes.TEXT },
   ];
   showMiniMenu = signal(false);
   // Holds the selected row for download
   selectedRowForDownload = signal<IRowDataTable | null>(null);
+
+  // Mapping of original doc → opposite doc type + label
+  private oppositeDocMap: Record<string, { docType: DocumentType; label: string }> = {
+    'חשבונית מס': { docType: DocumentType.CREDIT_INVOICE, label: 'חשבונית זיכוי' },
+    'חשבון עסקה': { docType: DocumentType.RECEIPT, label: 'קבלה' }, // default; overridden by business type
+  };
 
   // ===========================
   // Filter config (used by FilterTab)
@@ -195,12 +207,23 @@ export class IncomesPage implements OnInit {
   .pipe(
     map((rows: any[]) => {
       console.log("📄 Documents fetched:", rows); // 👈 REAL PRINT HERE
-      return rows.map(row => ({
-        ...row,
-        sum: this.gs.addComma(Math.abs(row.sum as number)),
-        docType: DocTypeDisplayName[row.docType] ?? row.docType,
-        docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
-      }));
+      return rows.map(row => {
+        // Format parent document: type + number (if exists)
+        // Use HTML with <br> for multi-line display
+        let parentDoc = '';
+        if (row.parentDocType && row.parentDocNumber) {
+          const parentDocTypeName = DocTypeDisplayName[row.parentDocType] ?? row.parentDocType;
+          parentDoc = `${parentDocTypeName}<br>${row.parentDocNumber}`;
+        }
+        
+        return {
+          ...row,
+          sum: this.gs.addComma(Math.abs(row.sum as number)),
+          docType: DocTypeDisplayName[row.docType] ?? row.docType,
+          docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
+          parentDoc: parentDoc, // Add parent doc formatted string with HTML
+        };
+      });
     }),
     catchError(err => {
       console.error("Error fetching documents:", err);
@@ -244,9 +267,23 @@ export class IncomesPage implements OnInit {
         icon: 'pi pi-download',
         title: 'הורד קובץ',
         action: (event: any, row: IRowDataTable) => {
-          // this.showDownloadMenu(event, row);
-          // this.onDownloadFile(row);
           this.openDownloadMenu(row);
+        }
+      },
+      {
+        name: 'cancel',
+        icon: 'pi pi-times',
+        title: 'ביטול',
+        action: (event: any, row: IRowDataTable) => {
+          this.confirmCancelDoc(row);
+        }
+      },
+      {
+        name: 'close',
+        icon: 'pi pi-lock',
+        title: 'הפק מסמך נגדי',
+        action: (event: any, row: IRowDataTable) => {
+          this.confirmCancelDoc(row);
         }
       },
     ]);
@@ -302,9 +339,139 @@ export class IncomesPage implements OnInit {
   }
 
 
-  // onDownloadFile(row: IRowDataTable): void {
-  //   console.log("Download file for row:", row);
-  //   this.filesService.downloadFirebaseFile(row.file as string)
-  // }
+  // -----------------------------------------------------
+  // Called when user clicks the download icon in the table
+  // -----------------------------------------------------
+  confirmCancelDoc(row: IRowDataTable): void {
+    const opposite = this.getOppositeDoc(row);
+
+    // If we don't have a mapped opposite doc yet, keep the old message (no action)
+    if (!opposite) {
+      this.confirmationService.confirm({
+        message: 'לא ניתן לבטל מסמך לאחר שהופק.',
+        header: 'ביטול מסמך',
+        icon: 'pi pi-exclamation-triangle',
+        rejectLabel: 'סגור',
+        acceptVisible: false,
+      });
+      return;
+    }
+
+    const msg = `האם לסגור מסמך זה באמצעות ${opposite.label}?`;
+    const header = (typeof row.docType === 'string' && row.docType === 'חשבון עסקה')
+      ? 'סגירת מסמך'
+      : 'ביטול מסמך';
+
+    this.confirmationService.confirm({
+      message: msg,
+      header,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: `צור ${opposite.label}`,
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.redirectToOppositeDoc(row, opposite.docType);
+      },
+      reject: () => {
+        console.log("User cancelled opposite document creation.");
+      }
+    });
+  }
+
+  private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType) {
+    const businessNumber = this.selectedBusinessNumber();
+    
+    // Find the original docType enum from the Hebrew name
+    const hebrewDocType = row.docType as string;
+    console.log("🔥 redirectToOppositeDoc - hebrewDocType:", hebrewDocType);
+    
+    // Check if row.docType is already an enum value
+    let originalDocType: DocumentType | null = null;
+    if (Object.values(DocumentType).includes(hebrewDocType as DocumentType)) {
+      // Already an enum value
+      originalDocType = hebrewDocType as DocumentType;
+      console.log("🔥 redirectToOppositeDoc - docType is already enum:", originalDocType);
+    } else {
+      // Try to find enum from Hebrew name
+      const originalDocTypeEntry = Object.entries(DocTypeDisplayName).find(
+        ([_, name]) => name === hebrewDocType
+      );
+      originalDocType = originalDocTypeEntry ? (originalDocTypeEntry[0] as DocumentType) : null;
+      console.log("🔥 redirectToOppositeDoc - found enum from Hebrew name:", originalDocType);
+    }
+    
+    // Try to fetch lines; if fails, navigate with base payload
+    const docNumber = (row as any)?.docNumber ?? (row as any)?.doc_number;
+    console.log("🔥 redirectToOppositeDoc - docNumber:", docNumber);
+    
+    const basePayload = {
+      docType: oppositeDocType,
+      sourceDoc: {
+        ...row,
+        docType: originalDocType, // Use enum if found, otherwise null (will be handled in prefillFromOppositeDoc)
+        docTypeName: hebrewDocType, // Keep Hebrew name for display
+        docNumber: docNumber ? String(docNumber) : undefined, // Add docNumber if it exists
+      },
+      businessNumber,
+      businessName: this.selectedBusinessName(),
+    };
+    
+    console.log("🔥 redirectToOppositeDoc - basePayload.sourceDoc:", basePayload.sourceDoc);
+    
+    if (!docNumber) {
+      this.navigateToDocCreate(basePayload);
+      return;
+    }
+
+    this.documentsService.getDocLines(businessNumber, String(docNumber))
+      .pipe(
+        take(1),
+        catchError(err => {
+          console.error('Failed to fetch doc lines, proceeding without them', err);
+          return of(null);
+        })
+      )
+      .subscribe(lines => {
+        const payloadWithLines = lines ? { 
+          ...basePayload, 
+          sourceDoc: { 
+            ...basePayload.sourceDoc, // Keep all fields from basePayload.sourceDoc
+            linesData: lines 
+          } 
+        } : basePayload;
+        this.navigateToDocCreate(payloadWithLines);
+      });
+
+    this.showMiniMenu.set(false);
+  }
+
+  private navigateToDocCreate(payload: any) {
+    this.router.navigate(['/doc-create'], {
+      state: { oppositeDocPayload: payload },
+    });
+  }
+
+  /**
+   * Resolve opposite doc type/label, including business-type rules for חשבון עסקה.
+   */
+  private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
+    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+
+    if (docTypeKey === 'חשבון עסקה') {
+      const businessType = this.getSelectedBusinessType();
+      const isExempt = businessType === BusinessType.EXEMPT;
+      return {
+        docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
+        label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
+      };
+    }
+
+    return this.oppositeDocMap[docTypeKey];
+  }
+
+  private getSelectedBusinessType(): BusinessType | null {
+    const biz = this.gs.businesses().find(b => b.businessNumber === this.selectedBusinessNumber());
+    return biz?.businessType ?? null;
+  }
+
   
 }

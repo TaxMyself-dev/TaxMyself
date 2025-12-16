@@ -140,6 +140,7 @@ export enum DocumentsTableColumns {
   DOC_NUMBER = 'docNumber',
   RECIPIENT_NAME = 'recipientName',
   DOC_STATUS = 'docStatus',
+  PARENT_DOC = 'parentDoc',
 }
 
 export enum DocumentsTableHebrewColumns {
@@ -149,6 +150,7 @@ export enum DocumentsTableHebrewColumns {
   docNumber = 'מספר מסמך',
   recipientName = 'שם לקוח',
   docStatus = 'סטטוס מסמך',
+  parentDoc = 'מסמך אב',
 }
 
 export enum UniformFileDocumentSummaryColumns {
