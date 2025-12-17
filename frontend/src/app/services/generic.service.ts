@@ -6,7 +6,7 @@ import { PopupMessageComponent } from '../shared/popup-message/popup-message.com
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
 import { environment } from 'src/environments/environment';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { BusinessStatus } from '../shared/enums';
+import { BusinessStatus, doubleMonthsList, ReportingPeriodType, singleMonthsList } from '../shared/enums';
 
 
 @Injectable( {providedIn: 'root'})
@@ -225,6 +225,7 @@ export class GenericService {
     return number.toLocaleString();
   }
 
+
   convertStringToNumber(value: string): number {
     console.log("convertStringToNumber value: ", value);
 
@@ -234,16 +235,8 @@ export class GenericService {
     return Number(value.replace(/,/g, ''));
   }
 
-  //  orderColumns(columns: [], desiredOrder: string[]): string[] {
-
-  //     return columns = [...columns].sort((a, b) => {
-  //       return desiredOrder.indexOf(a.name) - desiredOrder.indexOf(b.name);
-  //     });
-
-  //   }
 
   columnsOrderByFunc(a, b, columns: string[]): number {
-
 
     const indexA = columns.indexOf(a.key);
     const indexB = columns.indexOf(b.key);
@@ -322,6 +315,26 @@ export class GenericService {
                 })
               ))
           )))
+  }
+
+
+  getDefaultMonthValue(
+    currentMonth: number,
+    periodMode: ReportingPeriodType
+  ): string {
+    if (periodMode === ReportingPeriodType.MONTHLY) {
+      return currentMonth.toString();
+    }
+
+    // for BIMONTHLY mode
+    const biMonthlyPairs = [1, 3, 5, 7, 9, 11];
+    for (const start of biMonthlyPairs) {
+      if (currentMonth === start || currentMonth === start + 1) {
+        return start.toString(); // must be string because of optionValue="value"
+      }
+    }
+
+    return '11'; // fallback for Nov–Dec
   }
 
 

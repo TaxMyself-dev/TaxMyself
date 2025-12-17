@@ -109,6 +109,11 @@ export enum DocumentType {
   JOURNAL_ENTRY = 'JOURNAL_ENTRY', //  פקודת יומן
 }
 
+export enum DocumentStatusType {
+  OPEN = 'OPEN', 
+  CLOSE = 'CLOSE',
+}
+
 export enum JournalReferenceType {
   RECEIPT = 'RECEIPT',
   TAX_INVOICE = 'TAX_INVOICE',

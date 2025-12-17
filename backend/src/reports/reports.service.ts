@@ -276,8 +276,19 @@ export class ReportsService {
     .andWhere('dl.docType IN (:...types)', {
       types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT', 'CREDIT_INVOICE'],
     })
-    .select('COALESCE(SUM(dl.sumAftDisBefVatPerLine), 0)', 'total')
+    .select(`
+    COALESCE(SUM(
+      CASE 
+        WHEN dl.docType = 'CREDIT_INVOICE' 
+        THEN -dl.sumAftDisBefVatPerLine 
+        ELSE dl.sumAftDisBefVatPerLine 
+      END
+    ), 0)
+    `, 'total')
     .getRawOne<{ total: string }>();
+
+    // .select('COALESCE(SUM(dl.sumAftDisBefVatPerLine), 0)', 'total')
+    // .getRawOne<{ total: string }>();
 
   // 2️⃣ NON-VATABLE Income (vatRate = 0)
   // includes RECEIPT with 0 VAT (e.g., grants)

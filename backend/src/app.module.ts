@@ -15,6 +15,7 @@ import { SharedModule } from './shared/shared.module';
 import { FinsiteModule } from './finsite/finsite.module';
 import { DelegationModule } from './delegation/delegation.module';
 import { BookkeepingModule } from './bookkeeping/bookkeeping.module';
+import { FeezbackModule } from './feezback/feezback.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -98,7 +99,7 @@ import { BusinessModule } from './business/business.module';
       Child
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule],
   controllers: [AppController],
   providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
 })

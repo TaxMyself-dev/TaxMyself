@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
+import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions } from 'src/enum';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
@@ -143,6 +143,35 @@ export class DocumentsService {
     return docs;
   }
 
+  async getDocLinesByDocNumber(
+    issuerBusinessNumber: string,
+    docNumber: string,
+  ): Promise<DocLines[]> {
+    if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+      throw new BadRequestException('issuerBusinessNumber is required');
+    }
+    if (!docNumber || !docNumber.trim()) {
+      throw new BadRequestException('docNumber is required');
+    }
+
+    const doc = await this.documentsRepo.findOne({
+      where: { issuerBusinessNumber, docNumber },
+      select: ['generalDocIndex'],
+    });
+
+    if (!doc?.generalDocIndex) {
+      throw new NotFoundException('Document not found for given issuer and docNumber');
+    }
+
+    return this.docLinesRepo.find({
+      where: {
+        issuerBusinessNumber,
+        generalDocIndex: doc.generalDocIndex,
+      },
+      order: { lineNumber: 'ASC' },
+    });
+  }
+
 
   async getSettingDocByType(userId: string, docType: DocumentType) {
 
@@ -174,16 +203,16 @@ export class DocumentsService {
 
     try {
       const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
-      console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
-      console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
-      console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
-      console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
-      console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
+      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
+      // console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
+      // console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
+      // console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
+      // console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
 
       const uniqueId = randomUUID();
       const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
       const file = bucket.file(filePath);
-      console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
+      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
           contentType: 'application/pdf',
@@ -376,6 +405,8 @@ export class DocumentsService {
 
     console.log("data is ", data);
 
+    //fid for dev - 95gqltPdeC
+
     let fid: string;
     let prefill_data: any;
 
@@ -390,8 +421,11 @@ export class DocumentsService {
         fid = ['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType) ? 'RVxpym2O68' : ['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType) ? 'AKmqQkevbM' : 'UNKNOWN FID';
         prefill_data = {
           recipientName: data.docData.recipientName,
-          recipientTaxNumber: data.docData.recipientId,
+          recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
+          // recipientTaxNumber: data.docData.recipientId,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
+          docSubtitle: data.docData.docSubtitle ?? null,
+          allocationNum: data.docData.allocationNum ?? null,
           docDate: this.formatDateToDDMMYYYY(data.docData.documentDate),
           issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
           issuerDetails: [
@@ -574,19 +608,30 @@ export class DocumentsService {
       await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 5 complete - Payments info saved");
 
-      // 6. Bookkeeping entry
-      await this.bookkeepingService.createJournalEntry({
-        issuerBusinessNumber: data.docData.issuerBusinessNumber,
-        date: this.sharedService.normalizeToMySqlDate(data.docData.documentDate),
-        referenceType: data.docData.docType,
-        referenceId: parseInt(data.docData.docNumber),
-        description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
-        lines: [
-          { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
-          { accountCode: '2400', credit: data.docData.vatSum },
-        ]
-      }, queryRunner.manager);
-      console.log(new Date().toLocaleTimeString(), "Step 6 complete - BookKeeping info saved");
+      // 6. Bookkeeping entry - only for specific document types
+      const docTypesWithJournalEntry = [
+        DocumentType.TAX_INVOICE,           // חשבונית מס
+        DocumentType.TAX_INVOICE_RECEIPT,   // חשבונית מס קבלה
+        DocumentType.RECEIPT,                // קבלה
+        DocumentType.CREDIT_INVOICE,        // חשבונית זיכוי
+      ];
+
+      if (docTypesWithJournalEntry.includes(data.docData.docType)) {
+        await this.bookkeepingService.createJournalEntry({
+          issuerBusinessNumber: data.docData.issuerBusinessNumber,
+          date: this.sharedService.normalizeToMySqlDate(data.docData.documentDate),
+          referenceType: data.docData.docType,
+          referenceId: parseInt(data.docData.docNumber),
+          description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
+          lines: [
+            { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
+            { accountCode: '2400', credit: data.docData.vatSum },
+          ]
+        }, queryRunner.manager);
+        console.log(new Date().toLocaleTimeString(), "Step 6 complete - BookKeeping info saved");
+      } else {
+        console.log(new Date().toLocaleTimeString(), "Step 6 skipped - Document type does not require journal entry");
+      }
 
       // 7. Generate both PDFs (original and copy)
       let originalFilePath: string | null = null;
@@ -643,6 +688,27 @@ export class DocumentsService {
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
           console.log(new Date().toLocaleTimeString(), "Step 9 complete - files paths saved to document");
+
+          // 10. Update parent document status to CLOSE if this is a closing document (RECEIPT or TAX_INVOICE_RECEIPT) for TRANSACTION_INVOICE
+          if (data.docData.parentDocType && data.docData.parentDocNumber) {
+            const closingDocTypes = [DocumentType.RECEIPT, DocumentType.TAX_INVOICE_RECEIPT];
+            // Only update status if closing a TRANSACTION_INVOICE (חשבון עסקה)
+            if (closingDocTypes.includes(data.docData.docType) && data.docData.parentDocType === DocumentType.TRANSACTION_INVOICE) {
+              const parentDoc = await documentsRepo.findOne({
+                where: {
+                  issuerBusinessNumber: data.docData.issuerBusinessNumber,
+                  docType: data.docData.parentDocType,
+                  docNumber: data.docData.parentDocNumber,
+                }
+              });
+              
+              if (parentDoc && parentDoc.docStatus === DocumentStatusType.OPEN) {
+                parentDoc.docStatus = DocumentStatusType.CLOSE;
+                await documentsRepo.save(parentDoc);
+                console.log(new Date().toLocaleTimeString(), "Step 10 complete - Parent document status updated to CLOSE");
+              }
+            }
+          }
 
         } catch (uploadError) {
           // If upload fails, delete any uploaded files
@@ -779,6 +845,11 @@ export class DocumentsService {
       const minutes = now.getMinutes().toString().padStart(2, '0');
       const issueHour = `${hours}${minutes}`;
 
+      const autoClosedTypes = [
+        DocumentType.RECEIPT,
+        DocumentType.TAX_INVOICE_RECEIPT
+      ];
+
       // Default values set on the server
       const serverGeneratedValues = {
         issueDate: new Date(),
@@ -787,6 +858,7 @@ export class DocumentsService {
         issueHour,
         isCancelled: data.isCancelled ?? false,
         docNumber: data.docNumber.toString(),
+        docStatus: autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN',
       };
 
       // Merge all values

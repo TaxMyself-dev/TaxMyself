@@ -35,6 +35,13 @@ interface PaymentFieldConfig {
   options?: any[];
 }
 
+interface OppositeDocPayload {
+  docType: DocumentType;
+  sourceDoc: any;
+  businessNumber: string;
+  businessName: string;
+}
+
 
 
 @Component({
@@ -94,6 +101,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
   selectedBusinessType!: string;
   selectedBusinessPhone!: string;
   selectedBusinessEmail!: string;
+  
+  // Parent document info (for opposite doc flow)
+  parentDocType: DocumentType | null = null;
+  parentDocNumber: string | null = null;
+  docSubtitle: string | null = null;
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
   // selectedBankBranch: string;
@@ -207,20 +219,20 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const allBusinesses = this.gs.businesses();  // Business[]
     console.log("full businesses: ", allBusinesses);
 
-    if (allBusinesses.length === 1) {
-      const selected = allBusinesses[0];
+    const prefilled = this.prefillFromOppositeDoc(allBusinesses);
 
+    if (!prefilled) {
+      const selected = allBusinesses[0];
       this.generalDetailsForm.patchValue({
         businessNumber: selected.businessNumber
       });
-
       console.log("ngoninit selected is ", selected);
-
       this.setSelectedBusiness(selected);
-
-      this.showBusinessSelector = false;
-    } else {
-      this.showBusinessSelector = true;
+      if (allBusinesses.length === 1) {
+        this.showBusinessSelector = false;
+      } else {
+        this.showBusinessSelector = true;
+      }
     }
 
     this.generalDetailsForm.statusChanges.subscribe(() => {
@@ -350,20 +362,23 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
+
   confirmCreateDoc(): void {
-   this.confirmationService.confirm({
-            message: 'האם אתה בטוח שברצונך להפיק את המסמך?\nהמסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
-            header: 'אישור הפקת מסמך',
-            icon: 'pi pi-exclamation-triangle',
-            acceptLabel: 'הפק',
-            rejectLabel: 'ביטול',
-            accept: () => {
-              this.createDoc();
-            },
-            reject: () => {
-              this.createPDFIsLoading.set(false);
-            }
-          });
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך להפיק את המסמך?\nהמסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
+      header: 'אישור הפקת מסמך',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'הפק',
+      rejectLabel: 'ביטול',
+      acceptVisible: true,
+      rejectVisible: true,
+      accept: () => {
+        this.createDoc();
+      },
+      reject: () => {
+        this.createPDFIsLoading.set(false);
+      }
+    });
   }
 
 
@@ -432,6 +447,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   this.isFileSelected.set(false);
   // this.HebrewNameFileSelected = null;
+  
+  // Reset parent document info
+  this.parentDocType = null;
+  this.parentDocNumber = null;
+  this.docSubtitle = null;
 }
 
 
@@ -481,30 +501,47 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const generalDocIndex = this.docIndexes.generalIndex;
     const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected());
 
+    // Build docData object, only including parent fields if they exist
+    const docData: any = {
+      ...this.generalDetailsForm.value,
+      ...this.userDetailsForm.value,
+      issuerBusinessNumber,
+      issuerName,
+      issuerAddress,
+      issuerPhone,
+      issuerEmail,
+      docNumber,
+      generalDocIndex,
+      hebrewNameDoc,
+      sumWithoutVat: Number(this.documentTotals().sumWithoutVat.toFixed(2)),
+      sumBefDisBefVat: Number(this.documentTotals().sumBefDisBefVat.toFixed(2)),
+      disSum: Number(this.documentTotals().disSum.toFixed(2)),
+      sumAftDisBefVAT: Number(this.documentTotals().sumAftDisBefVat.toFixed(2)),
+      vatSum: Number(this.documentTotals().vatSum.toFixed(2)),
+      sumAftDisWithVAT: Number(this.documentTotals().sumAftDisWithVat.toFixed(2)),
+    };
+
+    // Only add parent fields if they exist (not null)
+    if (this.docSubtitle) {
+      docData.docSubtitle = this.docSubtitle;
+    }
+    if (this.parentDocType) {
+      docData.parentDocType = this.parentDocType;
+    }
+    if (this.parentDocNumber) {
+      docData.parentDocNumber = this.parentDocNumber;
+    }
+
     docPayload = {
-      docData: {
-        ...this.generalDetailsForm.value,
-        ...this.userDetailsForm.value,
-        issuerBusinessNumber,
-        issuerName,
-        issuerAddress,
-        issuerPhone,
-        issuerEmail,
-        docNumber,
-        generalDocIndex,
-        hebrewNameDoc,
-        sumWithoutVat: Number(this.documentTotals().sumWithoutVat.toFixed(2)),
-        sumBefDisBefVat: Number(this.documentTotals().sumBefDisBefVat.toFixed(2)),
-        disSum: Number(this.documentTotals().disSum.toFixed(2)),
-        sumAftDisBefVAT: Number(this.documentTotals().sumAftDisBefVat.toFixed(2)),
-        vatSum: Number(this.documentTotals().vatSum.toFixed(2)),
-        sumAftDisWithVAT: Number(this.documentTotals().sumAftDisWithVat.toFixed(2)),
-      },
+      docData,
       linesData: this.lineItemsDraft(),
       paymentData: this.paymentsDraft(),
     };
 
     console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
+    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ parentDocType:", this.parentDocType);
+    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ parentDocNumber:", this.parentDocNumber);
+    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docSubtitle:", this.docSubtitle);
 
     return docPayload;
 
@@ -831,6 +868,297 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.setSumInPaymentForm();
   }
 
+
+  /**
+   * Prefill the form when navigating from an opposite-doc action (e.g., from incomes list)
+   */
+  private prefillFromOppositeDoc(allBusinesses: Business[]): boolean {
+    
+    const nav = this.router.getCurrentNavigation();
+    const payload = (nav?.extras.state as any)?.oppositeDocPayload ?? (history.state as any)?.oppositeDocPayload as OppositeDocPayload | undefined;
+
+    if (!payload) {
+      return false;
+    }
+
+    const targetDocType = payload.docType ?? DocumentType.CREDIT_INVOICE;
+
+    // Set business context
+    const selectedBusiness = allBusinesses.find(b => b.businessNumber === payload.businessNumber)
+      ?? allBusinesses[0];
+
+    if (selectedBusiness) {
+      this.setSelectedBusiness(selectedBusiness);
+      this.generalDetailsForm.patchValue({ businessNumber: selectedBusiness.businessNumber });
+      this.showBusinessSelector = false;
+    }
+
+    // Set doc type and trigger existing doc-type setup
+    this.generalDetailsForm.patchValue({ docType: targetDocType });
+    this.onSelectedDoc(targetDocType);
+
+    // Dates
+    const docDate = payload.sourceDoc?.docDate ? new Date(payload.sourceDoc.docDate) : new Date();
+    this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.setValue(docDate);
+
+    // Set parent document info and subtitle
+    // sourceDoc.docType should be the enum, but fallback to docTypeName (Hebrew) if needed
+    console.log("🔥 prefillFromOppositeDoc - payload.sourceDoc:", payload.sourceDoc);
+    console.log("🔥 prefillFromOppositeDoc - payload.sourceDoc.docType:", payload.sourceDoc?.docType);
+    console.log("🔥 prefillFromOppositeDoc - payload.sourceDoc.docTypeName:", payload.sourceDoc?.docTypeName);
+    console.log("🔥 prefillFromOppositeDoc - payload.sourceDoc.docNumber:", payload.sourceDoc?.docNumber);
+    
+    let sourceDocType: DocumentType | null = null;
+    
+    // First, try to use the docType from sourceDoc (should be enum)
+    if (payload.sourceDoc?.docType) {
+      const docTypeValue = payload.sourceDoc.docType;
+      console.log("🔥 prefillFromOppositeDoc - checking docType:", docTypeValue);
+      console.log("🔥 prefillFromOppositeDoc - DocumentType values:", Object.values(DocumentType));
+      
+      if (Object.values(DocumentType).includes(docTypeValue as DocumentType)) {
+        sourceDocType = docTypeValue as DocumentType;
+        console.log("🔥 prefillFromOppositeDoc - found valid enum:", sourceDocType);
+      } else {
+        console.log("🔥 prefillFromOppositeDoc - docType is not a valid enum, trying Hebrew name");
+      }
+    }
+    
+    if (!sourceDocType && payload.sourceDoc?.docTypeName) {
+      // If not found, try to find enum from Hebrew name
+      console.log("🔥 prefillFromOppositeDoc - searching for enum from Hebrew name:", payload.sourceDoc.docTypeName);
+      const found = Object.entries(DocTypeDisplayName).find(
+        ([_, name]) => name === payload.sourceDoc.docTypeName
+      );
+      if (found) {
+        sourceDocType = found[0] as DocumentType;
+        console.log("🔥 prefillFromOppositeDoc - found enum from Hebrew name:", sourceDocType);
+      } else {
+        console.log("🔥 prefillFromOppositeDoc - could not find enum from Hebrew name");
+      }
+    }
+    
+    // Extract docNumber - try multiple possible field names
+    const sourceDocNumber = payload.sourceDoc?.docNumber ?? 
+                           payload.sourceDoc?.doc_number ?? 
+                           (payload.sourceDoc as any)?.docNumber ?? 
+                           '';
+    console.log("🔥 prefillFromOppositeDoc - sourceDocNumber:", sourceDocNumber);
+    console.log("🔥 prefillFromOppositeDoc - payload.sourceDoc keys:", Object.keys(payload.sourceDoc || {}));
+    
+    const sourceDocHebrewName = sourceDocType ? 
+                               this.getHebrewNameDoc(sourceDocType) :
+                               (payload.sourceDoc?.docTypeName || '');
+    const targetDocHebrewName = this.getHebrewNameDoc(targetDocType);
+    
+    console.log("🔥 prefillFromOppositeDoc - sourceDocHebrewName:", sourceDocHebrewName);
+    console.log("🔥 prefillFromOppositeDoc - targetDocHebrewName:", targetDocHebrewName);
+    
+    // Store parent document fields in class variables (will be saved in buildDocPayload)
+    // Set subtitle if we have source doc info (even if enum is not found, use Hebrew name)
+    if (sourceDocNumber && sourceDocHebrewName) {
+      // Only set parentDocType and parentDocNumber if we have a valid enum value
+      if (sourceDocType) {
+        this.parentDocType = sourceDocType;
+        this.parentDocNumber = String(sourceDocNumber);
+      } else {
+        // If no enum found, set to null (but still create subtitle)
+        this.parentDocType = null;
+        this.parentDocNumber = null;
+      }
+      
+      // Set subtitle: "קבלה עבור חשבון עסקה מספר 12345"
+      // Format: [target doc name] עבור [source doc name] מספר [source doc number]
+      this.docSubtitle = `${targetDocHebrewName} עבור ${sourceDocHebrewName} מספר ${sourceDocNumber}`;
+      console.log("🔥 prefillFromOppositeDoc - SET parentDocType:", this.parentDocType);
+      console.log("🔥 prefillFromOppositeDoc - SET parentDocNumber:", this.parentDocNumber);
+      console.log("🔥 prefillFromOppositeDoc - SET docSubtitle:", this.docSubtitle);
+    } else {
+      // Reset if invalid
+      this.parentDocType = null;
+      this.parentDocNumber = null;
+      this.docSubtitle = null;
+      console.log("🔥 prefillFromOppositeDoc - RESET (invalid values)");
+      console.log("🔥 prefillFromOppositeDoc - sourceDocNumber:", sourceDocNumber, "sourceDocHebrewName:", sourceDocHebrewName);
+    }
+
+    // Client info (best-effort)
+    this.userDetailsForm.patchValue({
+      [FieldsCreateDocValue.RECIPIENT_NAME]: payload.sourceDoc?.recipientName ?? payload.sourceDoc?.clientName ?? '',
+      [FieldsCreateDocValue.RECIPIENT_ID]: payload.sourceDoc?.recipientId ?? '',
+      [FieldsCreateDocValue.RECIPIENT_EMAIL]: payload.sourceDoc?.recipientEmail ?? '',
+      [FieldsCreateDocValue.RECIPIENT_PHONE]: payload.sourceDoc?.recipientPhone ?? '',
+    });
+
+    // Prefill lines: use all available source lines if provided; otherwise use a single aggregate line
+    const sourceLines = this.extractSourceLines(payload.sourceDoc);
+
+    if (Array.isArray(sourceLines) && sourceLines.length > 0) {
+      // Clear any existing draft and add all lines
+      this.lineItemsDraft.set([]);
+      sourceLines.forEach((ln: any, idx: number) => {
+        const mapped = this.mapSourceLineToForm(ln, idx, targetDocType);
+        this.lineDetailsForm.patchValue(mapped);
+        this.addPrefilledLine(mapped);
+        // Reset the form after each line is added to clear the draft
+        this.lineDetailsForm.reset({
+          [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+        });
+      });
+    } else {
+      // Fallback to a single aggregate line (gross sum)
+      const rawSum = payload.sourceDoc?.sumAftDisWithVAT ?? payload.sourceDoc?.sum ?? 0;
+      const numericSum = Number(String(rawSum).replace(/,/g, '')) || 0;
+
+      const linePatch: any = {
+        [FieldsCreateDocValue.LINE_DESCRIPTION]: `זיכוי עבור מסמך ${payload.sourceDoc?.docNumber ?? ''}`.trim(),
+        [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+        [FieldsCreateDocValue.SUM]: numericSum,
+      };
+
+      if (this.lineDetailsForm.get(FieldsCreateDocValue.VAT_OPTIONS)) {
+        // The source sum is gross (includes VAT), so mark it as INCLUDE
+        linePatch[FieldsCreateDocValue.VAT_OPTIONS] = 'INCLUDE';
+      }
+
+      this.lineDetailsForm.patchValue(linePatch);
+      this.addPrefilledLine(linePatch);
+    }
+
+    // Ensure validation signals reflect current values
+    this.generalDetailsForm.updateValueAndValidity();
+    this.userDetailsForm.updateValueAndValidity();
+    this.generalFormIsValidSignal.set(this.generalDetailsForm.valid);
+    this.userFormIsValidSignal.set(this.userDetailsForm.valid);
+
+    // Mark as selected doc type (so UI allows creation)
+    this.isFileSelected.set(!this.isInitial);
+
+    return true;
+  }
+
+  /**
+   * Adds a prefilled line to the draft and recalculates totals.
+   */
+  private addPrefilledLine(formData: any): void {
+    this.addNewLine(formData);
+    this.updateDocumentTotalsFromLines();
+    this.calcTotals();
+    this.setSumInPaymentForm();
+  }
+
+  /**
+   * Extract source lines from various possible payload shapes.
+   */
+  private extractSourceLines(sourceDoc: any): any[] | null {
+    if (!sourceDoc) return null;
+    const directKeys = [
+      'linesData',
+      'lines',
+      'lineItems',
+      'docLines',
+      'items',
+      'details',
+      'line_items',
+      'lineItemsData',
+    ];
+    for (const key of directKeys) {
+      const arr = (sourceDoc as any)?.[key];
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+    }
+
+    // Fallback: find first array of objects with description/sum-ish fields
+    const candidate = Object.values(sourceDoc).find(
+      (v: any) =>
+        Array.isArray(v) &&
+        v.some(
+          (x: any) =>
+            x && typeof x === 'object' &&
+            ('description' in x ||
+              'lineDescription' in x ||
+              'sum' in x ||
+              'sumAftDisWithVAT' in x ||
+              'sumAftDisWithVat' in x)
+        )
+    );
+    return Array.isArray(candidate) && candidate.length > 0 ? candidate as any[] : null;
+  }
+
+  /**
+   * Map a source document line (from opposite-doc payload) to line form values.
+   */
+  private mapSourceLineToForm(line: any, idx: number, targetDocType?: DocumentType): any {
+    const description = line?.description ?? line?.lineDescription ?? '';
+    const qty = Number(line?.unitQuantity ?? line?.unitAmount ?? line?.quantity ?? 1);
+
+    // Determine the target document type to know if we need VAT
+    const docType = targetDocType ?? this.fileSelected();
+    const isReceipt = docType === DocumentType.RECEIPT;
+    
+    // For receipts: we need the total WITH VAT (sumAftDisWithVat) divided by quantity
+    // For tax invoices: we need the price before VAT (sumBefVatPerUnit or calculated)
+    let unitPrice = 0;
+    
+    if (isReceipt) {
+      // Receipts are always WITHOUT VAT in the form, but we need to use the total WITH VAT from source
+      // because the receipt should show the same total amount as the original invoice
+      // So we take sumAftDisWithVat (total with VAT) and divide by quantity
+      const totalWithVat = line?.sumAftDisWithVat ?? line?.sumAftDisWithVAT ?? 
+                          (line?.sumAftDisBefVatPerLine && line?.vatPerLine ? 
+                            Number(line.sumAftDisBefVatPerLine) + Number(line.vatPerLine) : null) ??
+                          line?.sum ?? 0;
+      const numericTotal = Number(String(totalWithVat).replace(/,/g, '')) || 0;
+      unitPrice = qty > 0 ? numericTotal / qty : numericTotal;
+    } else {
+      // For tax invoices: use price before VAT
+      if (line?.sumBefVatPerUnit != null) {
+        // Best case: we have the unit price before VAT directly
+        unitPrice = Number(line.sumBefVatPerUnit);
+      } else if (line?.sumAftDisBefVatPerLine != null && qty > 0) {
+        // Second best: total before VAT after discount, divide by quantity
+        unitPrice = Number(line.sumAftDisBefVatPerLine) / qty;
+      } else {
+        // Fallback: try to extract from total sum
+        const rawSumCandidates = [
+          line?.sumAftDisBefVatPerLine,    // before VAT but after discount (preferred)
+          line?.sum,                        // generic sum
+          line?.sumAftDisWithVAT,          // exact field name from backend (includes VAT)
+          line?.sumAftDisWithVat,          // casing variant (includes VAT)
+          line?.total,
+        ].filter((v) => v !== undefined && v !== null);
+        
+        const rawSum = rawSumCandidates.length > 0 ? rawSumCandidates[0] : 0;
+        const numericSum = Number(String(rawSum).replace(/,/g, '')) || 0;
+        unitPrice = qty > 0 ? numericSum / qty : numericSum;
+      }
+    }
+
+    // Determine VAT options based on the target document type
+    let vatOptions: any = null;
+    if (isReceipt) {
+      // Receipts are always WITHOUT VAT
+      vatOptions = 'WITHOUT';
+    } else {
+      // For tax invoices, use the source line's VAT options or determine from vatPerLine
+      vatOptions = line?.vatOpts ?? line?.vatOptions ?? null;
+      if (!vatOptions) {
+        const vatPerLine = Number(line?.vatPerLine ?? 0);
+        vatOptions = vatPerLine === 0 ? 'EXCLUDE' : 'INCLUDE';
+      }
+    }
+
+    const formData: any = {
+      [FieldsCreateDocValue.LINE_DESCRIPTION]: description || `שורה ${idx + 1}`,
+      [FieldsCreateDocValue.UNIT_AMOUNT]: qty,
+      [FieldsCreateDocValue.SUM]: unitPrice,
+    };
+
+    if (this.lineDetailsForm.get(FieldsCreateDocValue.VAT_OPTIONS)) {
+      formData[FieldsCreateDocValue.VAT_OPTIONS] = vatOptions;
+    }
+
+    return formData;
+  }
 
   getVatLabel(type: VatType): string {
     switch (type) {
