@@ -112,6 +112,8 @@ export enum DocumentType {
 export enum DocumentStatusType {
   OPEN = 'OPEN', 
   CLOSE = 'CLOSE',
+  DRAFT = 'DRAFT',
+  CANCELLED = 'CANCELLED',
 }
 
 export enum JournalReferenceType {

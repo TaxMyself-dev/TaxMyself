@@ -6,6 +6,7 @@ import { UniformFilePageRoutingModule } from './uniform-file-routing.module';
 import { UniformFilePage } from './uniform-file.page';
 import { SharedModule } from '../../shared/shared.module';
 import { GenericTableComponent } from "src/app/components/generic-table/generic-table.component";
+import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.component";
 
 @NgModule({
   imports: [
@@ -15,7 +16,8 @@ import { GenericTableComponent } from "src/app/components/generic-table/generic-
     UniformFilePageRoutingModule,
     ReactiveFormsModule,
     SharedModule,
-    GenericTableComponent
+    GenericTableComponent,
+    FilterTabComponent
 ],
   declarations: [UniformFilePage]
 })

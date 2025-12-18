@@ -9,6 +9,7 @@ import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
 import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions } from 'src/enum';
+import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
@@ -41,6 +42,8 @@ export class DocumentsService {
     private journalLineRepo: Repository<JournalLine>,
     @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
     private dataSource: DataSource
   ) { }
 
@@ -405,7 +408,23 @@ export class DocumentsService {
 
     console.log("data is ", data);
 
-    //fid for dev - 95gqltPdeC
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // FID mapping based on environment and document type
+    const fidMap = {
+      // Production FIDs
+      prod: {
+        // receipt: 'RVxpym2O68',           // RECEIPT, TAX_INVOICE_RECEIPT
+        receipt: 'JzEIejsTuY',
+        // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
+        invoice: 'BUFw7FKiJn'
+      },
+      // Development FIDs
+      dev: {
+        receipt: '95gqltPdeC',          // RECEIPT, TAX_INVOICE_RECEIPT (with payments)
+        invoice: 'zjnzfjd1K3',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE (no payments)
+      }
+    };
 
     let fid: string;
     let prefill_data: any;
@@ -418,11 +437,17 @@ export class DocumentsService {
     switch (templateType) {
       case 'createDoc':
       case 'previewDoc':
-        fid = ['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType) ? 'RVxpym2O68' : ['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType) ? 'AKmqQkevbM' : 'UNKNOWN FID';
+        const envFids = isProduction ? fidMap.prod : fidMap.dev;
+        if (['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType)) {
+          fid = envFids.receipt;
+        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType)) {
+          fid = envFids.invoice;
+        } else {
+          fid = 'UNKNOWN FID';
+        }
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
-          // recipientTaxNumber: data.docData.recipientId,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docSubtitle: data.docData.docSubtitle ?? null,
           allocationNum: data.docData.allocationNum ?? null,
@@ -434,19 +459,14 @@ export class DocumentsService {
             data.docData.issuerEmail          ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
             data.docData.issuerAddress        ? `כתובת:  ${data.docData.issuerAddress}` : null,
           ].filter(Boolean).join('\n'),
-          // issuerDetails: [
-          // issuerBusinessNumber: data.docData.businessNumber ? `מ.ע. / ח.פ.:         ${data.docData.businessNumber}` : null,
-          // issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
-          // issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
-          // issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
-          // ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          totalWithoutVatLabel: withoutVatLabel,
-          totalWithoutVat: `${data.docData.sumWithoutVat} ש"ח`,
-          totalDiscountLabel: "הנחה",
-          totalDiscount: `${data.docData.disSum} ש"ח`,
-          totalLabel: 'סה"כ לתשלום',
-          total: `${data.docData.sumAftDisWithVAT} ש"ח`,
+          sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
+          // totalWithoutVatLabel: withoutVatLabel,
+          // totalWithoutVat: `₪${Number(data.docData.sumWithoutVat).toFixed(2)}`,
+          // totalDiscountLabel: "הנחה",
+          // totalDiscount: `₪${Number(data.docData.disSum).toFixed(2)}`,
+          // totalLabel: 'סה"כ לתשלום',
+          // total: `₪${Number(data.docData.sumAftDisWithVAT).toFixed(2)}`,
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
         };
@@ -504,6 +524,89 @@ export class DocumentsService {
     }
 
     return response.data;
+  }
+
+
+  async transformSumsToSumTable(docData: any, issuerBusinessNumber: string): Promise<any[]> {
+    
+    // Get businessType from database
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber: issuerBusinessNumber },
+      select: ['businessType'],
+    });
+
+    const businessType = business?.businessType || null;
+    const docType = docData.docType;
+    const sumBefDisBefVat = Number(docData.sumWithoutVat || 0);
+    const disSum = Number(docData.disSum || 0);
+    const sumAftDisWithVAT = Number(docData.sumAftDisWithVAT || 0);
+    const sumAftDisBefVAT = Number(docData.sumAftDisBefVAT || 0);
+    const vatSum = Number(docData.vatSum || 0);
+    const sumWithoutVat = Number(docData.sumWithoutVat || 0);
+
+    const sumTable: any[] = [];
+
+    // For EXEMPT (עוסק פטור)
+    if (businessType === 'EXEMPT') {
+      // If discount is 0, show only total; otherwise show all fields
+      if (disSum > 0) {
+        // Show: סה"כ לפני הנחה
+        sumTable.push({
+          'תיאור': 'סה"כ לפני הנחה:',
+          'סכום': `₪${sumBefDisBefVat.toFixed(2)}`,
+        });
+
+        // Show: הנחה
+        sumTable.push({
+          'תיאור': 'הנחה:',
+          'סכום': `₪${disSum.toFixed(2)}`,
+        });
+      }
+
+      // Always show: סה"כ 
+      sumTable.push({
+        'תיאור': 'סה"כ:',
+        'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+      });
+    } else {
+      // For LICENSED (עוסק מורשה) or COMPANY (חברה)
+      // For TAX_INVOICE and TAX_INVOICE_RECEIPT
+      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT) {
+        // סה"כ חייב במע"מ
+        sumTable.push({
+          'תיאור': 'סה"כ חייב במע"מ:',
+          'סכום': `₪${sumAftDisBefVAT.toFixed(2)}`,
+        });
+
+        // מע"מ
+        sumTable.push({
+          'תיאור': 'מע"מ:',
+          'סכום': `₪${vatSum.toFixed(2)}`,
+        });
+
+        // סה"כ ללא מע"מ (רק אם שונה מאפס)
+        if (sumWithoutVat > 0) {
+          sumTable.push({
+            'תיאור': 'סה"כ ללא מע"מ:',
+            'סכום': `₪${sumWithoutVat.toFixed(2)}`,
+          });
+        }
+
+        // סה"כ
+        sumTable.push({
+          'תיאור': 'סה"כ:',
+          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+        });
+      } else {
+        // For other document types, return default structure
+        sumTable.push({
+          'תיאור': 'סה"כ:',
+          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+        });
+      }
+    }
+
+    return sumTable;
   }
 
 

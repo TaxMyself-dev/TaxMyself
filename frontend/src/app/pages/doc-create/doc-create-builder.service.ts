@@ -234,7 +234,7 @@ export class DocCreateBuilderService {
             //name: FieldsCreateDocName.recipientEmail,
             value: FieldsCreateDocValue.RECIPIENT_EMAIL,
             labelText: 'כתובת אימייל',
-            placeHolder: 'name@gamil.com',
+            placeHolder: 'name@gmail.com',
             type: FormTypes.EMAIL,
             initialValue: '',
             enumValues: [],

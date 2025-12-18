@@ -8,6 +8,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { FormTypes, ReportingPeriodType, UniformFileDocumentSummaryColumns, UniformFileDocumentSummaryHebrewColumns, UniformFileListSummaryColumns, UniformFileListSummaryHebrewColumns } from 'src/app/shared/enums';
 import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus } from 'src/app/shared/enums';
+import { FilterField, FilterFieldType } from 'src/app/components/filter-tab/filter-fields-model.component';
 
 export interface ReportDetails {
   businessNumber: string;
@@ -52,6 +53,10 @@ export class UniformFilePage implements OnInit {
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
 
+  // Filter config (used by FilterTab)
+  form: FormGroup = this.formBuilder.group({});
+  filterConfig: FilterField[] = [];
+
   uniformFileDocumentSummary: any;
 
   uniformFileDocumentSummaryTitles: IColumnDataTable<UniformFileDocumentSummaryColumns, UniformFileDocumentSummaryHebrewColumns>[] = [
@@ -69,7 +74,7 @@ export class UniformFilePage implements OnInit {
     { name: UniformFileListSummaryColumns.LIST_TOTAL, value: UniformFileListSummaryHebrewColumns.listTotal, type: FormTypes.TEXT },
   ];
 
-  constructor(private formBuilder: FormBuilder, public authService: AuthService, private fileService: FilesService, private genericService: GenericService) {
+  constructor(private formBuilder: FormBuilder, public authService: AuthService, private fileService: FilesService, private genericService: GenericService, private dateService: DateService) {
     this.uniformFileForm = this.formBuilder.group({
       startDate: new FormControl(
         Date,
@@ -93,6 +98,35 @@ export class UniformFilePage implements OnInit {
     this.businessFullList = businessData.fullList;
     this.showBusinessSelector = businessData.showSelector;
 
+    // Initialize filter form
+    this.form = this.formBuilder.group({
+      businessNumber: [this.userData.businessStatus === 'MULTI_BUSINESS' ? '' : this.userData.id],
+    });
+
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+
+    // Initialize filter config
+    this.filterConfig = [
+      ...(this.userData.businessStatus === 'MULTI_BUSINESS' ? [{
+        type: 'select' as FilterFieldType,
+        controlName: 'businessNumber',
+        label: 'בחר עסק',
+        required: true,
+        options: this.genericService.businessSelectItems,
+        defaultValue: ''
+      }] : []),
+      {
+        type: 'period' as FilterFieldType,
+        controlName: 'period',
+        required: true,
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
+        periodDefaults: {
+          year: currentYear,
+        }
+      }
+    ];
+
     if (this.userData.businessStatus === 'MULTI_BUSINESS') {
       this.businessNames.push({ name: this.userData.businessName, value: this.userData.businessNumber });
       this.businessNames.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
@@ -105,26 +139,50 @@ export class UniformFilePage implements OnInit {
   }
 
 
-  async onSubmit() {
-
+  async onSubmit(formValues?: any) {
 
     this.generatedAt = new Date();
 
-    const formData = this.uniformFileForm.value;
+    // Use formValues from filter-tab if provided, otherwise use uniformFileForm
+    let formData: any;
+    let startDate: string;
+    let endDate: string;
+    let businessNumber: string;
+
+    if (formValues) {
+      // Handle period values from filter-tab
+      const { startDate: periodStartDate, endDate: periodEndDate } = this.dateService.getStartAndEndDates(
+        formValues.periodMode,
+        formValues.year,
+        formValues.month,
+        formValues.startDate,
+        formValues.endDate
+      );
+      startDate = periodStartDate;
+      endDate = periodEndDate;
+      businessNumber = formValues.businessNumber || this.userData.id;
+    } else {
+      // Use uniformFileForm values
+      formData = this.uniformFileForm.value;
+      startDate = formData.startDate;
+      endDate = formData.endDate;
+      businessNumber = formData.businessNumber || this.userData.id;
+    }
+
     this.reportClick = false;
 
-    const selectedBusiness = this.businessFullList.find(b => b.value === formData.businessNumber);
+    const selectedBusiness = this.businessFullList.find(b => b.value === businessNumber);
 
     this.reportDetails = {
-      businessNumber: selectedBusiness?.value ?? '',
+      businessNumber: selectedBusiness?.value ?? businessNumber,
       businessName: selectedBusiness?.name ?? '',
-      startDate: formData.startDate,
-      endDate: formData.endDate,
+      startDate: startDate,
+      endDate: endDate,
       downloadLink: '',
     };
 
     const { document_summary, list_summary, filePath } =
-    await this.createUniformFile(formData.startDate, formData.endDate, this.reportDetails.businessNumber);
+    await this.createUniformFile(startDate, endDate, this.reportDetails.businessNumber);
 
     this.uniformFileDocumentSummary = document_summary;
     this.uniformFileListSummary = list_summary;

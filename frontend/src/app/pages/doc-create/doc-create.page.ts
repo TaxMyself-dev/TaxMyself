@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
-import { BusinessStatus, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
 import { DocCreateService } from './doc-create.service';
@@ -98,7 +98,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   selectedBusinessNumber!: string;
   selectedBusinessName!: string;
   selectedBusinessAddress!: string;
-  selectedBusinessType!: string;
+  // selectedBusinessType!: string;
+  selectedBusinessType = signal<BusinessType>(BusinessType.EXEMPT);
   selectedBusinessPhone!: string;
   selectedBusinessEmail!: string;
   
@@ -156,17 +157,18 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   // Computed signals for filtered arrays based on document type
   isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
+  isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
   
   filteredLineDetailsColumns = computed(() => 
-    this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument())
+    this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument() || this.isExemptBusiness())
   );
   
   filteredLineItemsDisplayColumns = computed(() => 
-    this.docCreateBuilderService.getLineItemsDisplayColumns(this.isReceiptDocument())
+    this.docCreateBuilderService.getLineItemsDisplayColumns(this.isReceiptDocument() || this.isExemptBusiness())
   );
   
   filteredSummaryItems = computed(() => 
-    this.docCreateBuilderService.getSummaryItems(this.isReceiptDocument())
+    this.docCreateBuilderService.getSummaryItems(this.isReceiptDocument() || this.isExemptBusiness())
   );
 
   visibleDocumentTotals = computed(() => {
@@ -295,7 +297,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.selectedBusinessNumber = business.businessNumber;
     this.selectedBusinessName = business.businessName;
     this.selectedBusinessAddress = business.businessAddress;
-    this.selectedBusinessType = business.businessType;
+    this.selectedBusinessType.set(business.businessType);
     this.selectedBusinessPhone = business.businessPhone;
     this.selectedBusinessEmail = business.businessEmail;
     // this.selectedBankBeneficiary = business.bankBeneficiary;
@@ -317,12 +319,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1, 
       // [FieldsCreateDocValue.DISCOUNT]: 0 
     };
-    
-    if (event === DocumentType.RECEIPT) {
-      // For receipts, remove VAT_OPTIONS from form and set value to 'WITHOUT' in the line items
+
+    if (this.selectedBusinessType() === BusinessType.EXEMPT) {
+      console.log("selectedBusinessType is EXEMPT");
+      console.log("lineDetailsForm is ", this.lineDetailsForm);
+      
+      
       if (this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
         this.lineDetailsForm.removeControl(FieldsCreateDocValue.VAT_OPTIONS);
       }
+      defaultValues[FieldsCreateDocValue.VAT_OPTIONS] = 'WITHOUT';
     } else {
       // For other document types, ensure VAT_OPTIONS control exists
       if (!this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
@@ -333,6 +339,22 @@ export class DocCreatePage implements OnInit, OnDestroy {
       }
       defaultValues[FieldsCreateDocValue.VAT_OPTIONS] = '';
     }
+    
+    // if (event === DocumentType.RECEIPT) {
+    //   // For receipts, remove VAT_OPTIONS from form and set value to 'WITHOUT' in the line items
+    //   if (this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
+    //     this.lineDetailsForm.removeControl(FieldsCreateDocValue.VAT_OPTIONS);
+    //   }
+    // } else {
+    //   // For other document types, ensure VAT_OPTIONS control exists
+    //   if (!this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
+    //     this.lineDetailsForm?.addControl(
+    //       FieldsCreateDocValue.VAT_OPTIONS, 
+    //       new FormControl('', [Validators.required])
+    //     );
+    //   }
+    //   defaultValues[FieldsCreateDocValue.VAT_OPTIONS] = '';
+    // }
     
     this.lineDetailsForm?.reset(defaultValues);
     this.paymentInputForm?.reset();
@@ -493,7 +515,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const issuerEmail = this.selectedBusinessEmail;
 
     console.log("issuerBusinessNumber is ", issuerBusinessNumber);
-    
 
     const docNumber = this.docIndexes.docIndex;
     console.log("docNumber: ", docNumber);
@@ -577,8 +598,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
     
-    // For receipts, vatOptions won't exist in the form, so set it to 'WITHOUT'
-    const vatOpts = this.fileSelected() === DocumentType.RECEIPT ? 'WITHOUT' : formData.vatOptions;
+    // For receipts or EXEMPT businesses, vatOptions won't exist in the form, so set it to 'WITHOUT'
+    const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
+    const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
+    const vatOpts = (isExempt || isReceipt) 
+      ? 'WITHOUT' 
+      : (formData.vatOptions ?? 'WITHOUT');
 
     const newLine: PartialLineItem = {
       issuerBusinessNumber: this.selectedBusinessNumber,
@@ -602,7 +627,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   private updateLine(index: number, formData: any): void {
     const transType = "3";
-    const vatOpts = this.fileSelected() === DocumentType.RECEIPT ? 'WITHOUT' : formData.vatOptions;
+    const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
+    const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
+    const vatOpts = (isExempt || isReceipt) 
+      ? 'WITHOUT' 
+      : (formData.vatOptions ?? 'WITHOUT');
 
     const updatedLine: PartialLineItem = {
       ...this.lineItemsDraft()[index], // Keep existing properties like calculated VAT fields
@@ -698,14 +727,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
     for (const line of this.lineItemsDraft()) {
       if (line.vatOpts === 'WITHOUT') {
         totals.sumWithoutVat += Number((line.sumBefVatPerUnit ?? 0) * line.unitQuantity);
+        totals.sumAftDisWithVat += Number((line.sumBefVatPerUnit ?? 0) * line.unitQuantity);      
+
       }
       else {
         totals.sumBefDisBefVat += Number((line.sumBefVatPerUnit ?? 0) * line.unitQuantity);
+        totals.sumAftDisBefVat += Number(line.sumAftDisBefVatPerLine ?? 0);
+        totals.vatSum += Number(line.vatPerLine ?? 0);
+        totals.sumAftDisWithVat += Number(line.sumAftDisWithVat ?? 0);      
       }
       totals.disSum += Number(line.disBefVatPerLine ?? 0);
-      totals.sumAftDisBefVat += Number(line.sumAftDisBefVatPerLine ?? 0);
-      totals.vatSum += Number(line.vatPerLine ?? 0);
-      totals.sumAftDisWithVat += Number(line.sumAftDisWithVat ?? 0);
     }
 
     this.documentTotals.set(totals);
