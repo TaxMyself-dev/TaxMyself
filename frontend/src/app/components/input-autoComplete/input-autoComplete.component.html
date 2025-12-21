@@ -7,12 +7,36 @@
     <label class="input-label" [for]="controlName()">
       {{ labelText() }}
       @if (isRequired) {
-        <span class="required">*</span>
+      <span class="required">*</span>
       }
     </label>
     }
-    
-    <p-autoComplete
+    <p-autocomplete  [formControlName]="controlName()" [suggestions]="items()" (completeMethod)="onComplete($event)"
+      (onSelect)="onSelect($event)" [placeholder]="placeholder()" [disabled]="disabled()" [optionLabel]="optionLabel()">
+      @if (showAddNew()) {
+      <ng-template #footer>
+        <div class="px-3 py-3">
+          <p-button 
+            [label]="addNewLabel()" 
+            fluid 
+            severity="secondary" 
+            text 
+            size="small" 
+            icon="pi pi-plus"
+            (onClick)="handleAddNew(ctrl.value)" />
+        </div>
+      </ng-template>
+      }
+      <!-- empty template -->
+      <ng-template pTemplate="empty">
+        <div>
+          <span>{{ emptyString() }}</span>
+        </div>
+      </ng-template>
+    </p-autocomplete>
+
+
+    <!-- <p-autoComplete
       [formControlName]="controlName()"
       [suggestions]="filteredItems()"
       (completeMethod)="onComplete($event)"
@@ -45,19 +69,19 @@
         </div>
       </ng-template>
       }
-    </p-autoComplete>
+    </p-autoComplete> -->
   </div>
 
   @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
-    <span class="error-text" style="color: red;">
-      @if (ctrl.hasError('required')) {
-        שדה חובה
-      } @else if (ctrl.hasError('pattern')) {
-        {{ errorText() || (labelText()) }}
-      } @else {
-        {{ errorText() }}
-      }
-    </span>
+  <span class="error-text" style="color: red;">
+    @if (ctrl.hasError('required')) {
+    שדה חובה
+    } @else if (ctrl.hasError('pattern')) {
+    {{ errorText() || (labelText()) }}
+    } @else {
+    {{ errorText() }}
+    }
+  </span>
   }
 </form>
 }

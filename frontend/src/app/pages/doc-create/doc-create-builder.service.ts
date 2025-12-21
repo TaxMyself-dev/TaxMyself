@@ -202,7 +202,7 @@ export class DocCreateBuilderService {
             value: FieldsCreateDocValue.RECIPIENT_NAME,
             labelText: 'שם הלקוח',
             placeHolder: 'לדוגמא: א.ב. צינורות',
-            type: FormTypes.TEXT,
+            type: FormTypes.AUTOCOMPLETE,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},

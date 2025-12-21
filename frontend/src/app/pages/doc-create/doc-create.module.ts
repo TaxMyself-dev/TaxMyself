@@ -22,6 +22,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { TabMenuModule } from 'primeng/tabmenu';
 import { TableModule } from 'primeng/table';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
+import { InputAutoCompleteComponent } from "src/app/components/input-autoComplete/input-autoComplete.component";
 
 
 @NgModule({
@@ -43,7 +44,8 @@ import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success
     DynamicDialogModule,
     TabMenuModule,
     TableModule,
-    DocSuccessDialogComponent
+    DocSuccessDialogComponent,
+    InputAutoCompleteComponent
 ],
   declarations: [DocCreatePage, ],
   providers: [DialogService]

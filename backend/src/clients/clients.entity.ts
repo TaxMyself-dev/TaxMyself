@@ -11,7 +11,6 @@ export class Clients {
     @Column()
     userId: string;
 
-
     //@PrimaryColumn()
     @Column()
     name: string;
@@ -23,6 +22,20 @@ export class Clients {
     email: string;
 
     @Column()
-    address: string;
+    city: string;
 
+     @Column()
+    state: string;
+
+     @Column()
+    street: string;
+
+     @Column()
+    homeNumber: string;
+
+     @Column()
+    postalCode: string;
+
+     @Column()
+    stateCode: string;
 }

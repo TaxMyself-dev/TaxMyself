@@ -36,3 +36,16 @@ export interface ISummaryItem {
     valueGetter: (totals: any) => number;
     excludeForReceipt?: boolean; // If true, this item is hidden for receipts
 }
+
+export interface IClient {
+    name: string;
+    phone?: string;
+    email?: string;
+    city?: string;
+    state?: string;
+    street?: string;
+    homeNumber?: string;
+    postalCode?: string;
+    stateCode?: string;
+    id?: number;
+}

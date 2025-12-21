@@ -15,7 +15,8 @@ export enum FormTypes {
   NUMBER = 'number',
   EMAIL = 'email',
   PASSWORD = 'password',
-  TELEPHONE = 'tel'
+  TELEPHONE = 'tel',
+  AUTOCOMPLETE = 'autocomplete'
 }
 
 export enum displayColumnsExpense {

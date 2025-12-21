@@ -34,9 +34,10 @@ export class InputAutoCompleteComponent implements OnInit {
   optionLabel = input<string>('name');
   dropdown = input<boolean>(true);
   forceSelection = input<boolean>(false);
-  showAddNew = input<boolean>(false);
-  addNewLabel = input<string>('+ הוסף חדש');
+  showAddNew = input<boolean>(true);
+  addNewLabel = input<string>('הוסף חדש');
   headerText = input<string>('');
+  emptyString = input<string>('אין תוצאות');
 
   // Output signals
   onCompleteMethod = output<AutoCompleteCompleteEvent>();
@@ -67,11 +68,13 @@ export class InputAutoCompleteComponent implements OnInit {
   }
 
   onComplete(event: AutoCompleteCompleteEvent): void {
+    console.log("🚀 ~ InputAutoCompleteComponent ~ onComplete ~ event:", event)
     // Emit to parent for custom filtering
     this.onCompleteMethod.emit(event);
   }
 
   onSelect(event: any): void {
+    console.log("🚀 ~ InputAutoCompleteComponent ~ onSelect ~ event:", event)
     this.onItemSelect.emit(event);
   }
 
