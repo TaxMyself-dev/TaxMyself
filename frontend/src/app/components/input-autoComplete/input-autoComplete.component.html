@@ -1,0 +1,87 @@
+@if (parentForm()) {
+<form [formGroup]="parentForm()">
+  @let ctrl = parentForm().get(controlName())!;
+
+  <div class="input-autocomplete-wrapper" [class]="inputClasses()">
+    @if (labelText()) {
+    <label class="input-label" [for]="controlName()">
+      {{ labelText() }}
+      @if (isRequired) {
+      <span class="required">*</span>
+      }
+    </label>
+    }
+    <p-autocomplete #acInput  [formControlName]="controlName()" [suggestions]="items()" (completeMethod)="onComplete($event)"
+      (onSelect)="onSelect($event)" [placeholder]="placeholder()" [disabled]="disabled()" [optionLabel]="optionLabel()">
+      @if (showAddNew()) {
+      <ng-template #footer>
+        <div class="px-3 py-3">
+          <p-button 
+            [label]="addNewLabel()" 
+            fluid 
+            severity="secondary" 
+            text 
+            size="small" 
+            icon="pi pi-plus"
+            (onClick)="handleAddNew(ctrl.value, acInput)" />
+        </div>
+      </ng-template>
+      }
+      <!-- empty template -->
+      <ng-template pTemplate="empty">
+        <div>
+          <span>{{ emptyString() }}</span>
+        </div>
+      </ng-template>
+    </p-autocomplete>
+
+
+    <!-- <p-autoComplete
+      [formControlName]="controlName()"
+      [suggestions]="filteredItems()"
+      (completeMethod)="onComplete($event)"
+      (onSelect)="onSelect($event)"
+      [optionLabel]="optionLabel()"
+      [placeholder]="placeholder()"
+      [dropdown]="dropdown()"
+      [forceSelection]="forceSelection()"
+      [disabled]="disabled()"
+      [style]="{ width: '100%' }"
+      styleClass="w-full">
+      
+      @if (headerText()) {
+      <ng-template #header>
+        <div class="font-medium px-3 py-2">{{ headerText() }}</div>
+      </ng-template>
+      }
+      
+      @if (showAddNew()) {
+      <ng-template #footer>
+        <div class="px-3 py-3">
+          <p-button 
+            [label]="addNewLabel()" 
+            fluid 
+            severity="secondary" 
+            text 
+            size="small" 
+            icon="pi pi-plus"
+            (onClick)="handleAddNew(ctrl.value)" />
+        </div>
+      </ng-template>
+      }
+    </p-autoComplete> -->
+  </div>
+
+  @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
+  <span class="error-text" style="color: red;">
+    @if (ctrl.hasError('required')) {
+    שדה חובה
+    } @else if (ctrl.hasError('pattern')) {
+    {{ errorText() || (labelText()) }}
+    } @else {
+    {{ errorText() }}
+    }
+  </span>
+  }
+</form>
+}

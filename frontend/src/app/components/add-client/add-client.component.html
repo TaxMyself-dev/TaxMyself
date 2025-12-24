@@ -1,0 +1,16 @@
+<div class="client-container">
+  <form [formGroup]="addClientForm" class="client-form">
+    @for (field of addClientService.addClientFields | keyvalue:preserveOrder; track field.key) {
+    <app-input-text [parentForm]="addClientForm" [controlName]="field.key" [labelText]="field.value.labelText"
+      [placeholder]="field.value.placeHolder" [type]="field.value.type === 'number' ? 'number' : 'text'" [size]="inputSize.MEDIUM">
+    </app-input-text>
+    }
+  </form>
+  <div>
+    <app-p-button [disabled]="addClientForm.invalid" (onButtonClicked)="saveClient()" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [buttonText]="'שמור לקוח חדש'"></app-p-button>
+  </div>
+  @if(clients.hasValue()) {
+  <app-generic-table [title]="'רשימת הלקוחות הקיימים'" [dataTable]="clients.value()"
+    [columnsTitle]="clientsTableFields"> </app-generic-table>
+  }
+</div>

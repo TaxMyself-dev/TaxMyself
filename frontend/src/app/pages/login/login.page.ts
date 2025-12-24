@@ -134,6 +134,7 @@ export class LoginPage implements OnInit {
 
       catchError((err) => {
         console.log("❌ Backend sign-in error:", err);
+        this.authService.error.set("user");
         return EMPTY;
       }),
 

@@ -36,13 +36,6 @@ export class DocCreateService {
     return this.http.post<any>(url, { initialIndex, issuerBusinessNumber });
   }
 
-
-  saveClientDetails(data: any): Observable<any> {
-    const url = `${environment.apiUrl}clients/add-client`;
-    return this.http.post<any>(url, data);
-  }
-
-
   getClients(): Observable<any> {
     const url = `${environment.apiUrl}clients/get-clients`;
     return this.http.get<any[]>(url);

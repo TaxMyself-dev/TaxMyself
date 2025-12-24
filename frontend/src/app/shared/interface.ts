@@ -1,3 +1,4 @@
+import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
 import { BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
 
@@ -44,6 +45,16 @@ export interface IUserData {
 
 export interface IRowDataTable {
     [key: string]: string | number | Date | boolean | ISelectItem | File;
+}
+
+export interface IBaseFieldData {
+    value: string;
+    labelText: string;
+    placeHolder: string;
+    type: FormTypes; 
+    enumValues: ISelectItem[] | null;
+    validators?: ValidatorFn[];   
+    initialValue?: any;     
 }
 
 export interface IPnlReportData {
