@@ -21,6 +21,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { log } from 'console';
+import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 
 interface DocPayload {
   docData: any[];
@@ -299,6 +300,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
       [FieldsCreateDocValue.RECIPIENT_NAME]: name
     });
     
+          this.dialogRef = this.dialogService.open(AddClientComponent, {
+          header: 'יצירת לקוח חדש',       
+          width: '1000px',
+          rtl: true,
+          closable: true,
+          dismissableMask: true,
+          modal: true,
+          data: {
+
+          }
+        });
     // Optionally: Open a dialog or modal to add full client details
     // For now, just allow the user to continue filling the form
     console.log('Adding new client:', name);
@@ -1359,32 +1371,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
     if (this.isUserExpanded()) {
       this.fillExpandedClientFields(clientData);
     }
-  }
-
-
-  saveClient() {
-    const { [FieldsCreateDocValue.RECIPIENT_NAME]: name, [FieldsCreateDocValue.RECIPIENT_EMAIL]: email, [FieldsCreateDocValue.RECIPIENT_PHONE]: phone } = this.userDetailsForm.value;
-    const clientData = {
-      name,
-      email,
-      phone,
-    };
-    this.docCreateService.saveClientDetails(clientData)
-      .pipe(
-        catchError((err) => {
-          console.log("err in save client: ", err);
-          if (err.status === 409) {
-            this.genericService.openPopupMessage("כבר קיים לקוח בשם זה, אנא בחר שם שונה. אם ברצונך לערוך לקוח זה אנא  לחץ על כפתור עריכה דרך הרשימה .");
-          }
-          else {
-            this.genericService.showToast("אירעה שגיאה לא ניתן לשמור לקוח אנא נסה מאוחר יותר", "error");
-          }
-          return EMPTY;
-        })
-      )
-      .subscribe((res) => {
-        console.log("res in save client: ", res);
-      })
   }
 
 

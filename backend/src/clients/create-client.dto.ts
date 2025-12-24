@@ -10,8 +10,8 @@ import {
 export class CreateClientDto {
 
     @IsString()
-    userId: string;
-
+    id: string;
+   
     @IsString()
     name: string;
 
@@ -22,5 +22,20 @@ export class CreateClientDto {
     email: string;
 
     @IsString()
-    address: string;
+    city: string;
+
+    @IsString()
+    state: string;
+
+    @IsString()
+    street: string;
+
+    @IsString()
+    homeNumber: string;
+
+    @IsString()
+    postalCode: string;
+
+    @IsString()
+    stateCode: string;
 }

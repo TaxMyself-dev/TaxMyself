@@ -11,7 +11,7 @@
       }
     </label>
     }
-    <p-autocomplete  [formControlName]="controlName()" [suggestions]="items()" (completeMethod)="onComplete($event)"
+    <p-autocomplete #acInput  [formControlName]="controlName()" [suggestions]="items()" (completeMethod)="onComplete($event)"
       (onSelect)="onSelect($event)" [placeholder]="placeholder()" [disabled]="disabled()" [optionLabel]="optionLabel()">
       @if (showAddNew()) {
       <ng-template #footer>
@@ -23,7 +23,7 @@
             text 
             size="small" 
             icon="pi pi-plus"
-            (onClick)="handleAddNew(ctrl.value)" />
+            (onClick)="handleAddNew(ctrl.value, acInput)" />
         </div>
       </ng-template>
       }

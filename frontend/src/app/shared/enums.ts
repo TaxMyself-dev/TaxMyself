@@ -516,3 +516,29 @@ export enum TaxReportingType {
   MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
+
+export enum ClientsTableColumns {
+  CITY = 'city',
+  STREET = 'street',
+  STATE = 'state',
+  STATE_CODE = 'stateCode',
+  POSTAL_CODE = 'postalCode',
+  NAME = 'name',
+  PHONE = 'phone',
+  EMAIL = 'email',
+  HOME_NUMBER = 'homeNumber',
+  ID = 'id',
+}
+
+export enum ClientsTableHebrewColumns {
+  city = 'עיר',
+  street = 'רחוב',
+  state = 'מדינה',
+  stateCode = 'קוד מדינה',
+  postalCode = 'מיקוד',
+  name = 'שם הלקוח',
+  phone = 'טלפון',
+  email = 'אימייל',
+  homeNumber = 'מספר בית',
+  id = 'ת.ז. / ח.פ.',
+}

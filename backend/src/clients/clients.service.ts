@@ -13,17 +13,24 @@ export class ClientsService {
   ) { }
 
   async addClient(clientData: CreateClientDto, userId: string) {
+    console.log("🚀 ~ ClientsService ~ addClient ~ clientData", clientData);
+    
     const newClient = this.clientsRepo.create(clientData);
     newClient.userId = userId;
+    console.log("🚀 ~ ClientsService ~ addClient ~ newClient:", newClient)
     try {
       const client = await this.clientsRepo.findOne({ where: { userId: userId, name: clientData.name } });
+      console.log("🚀 ~ ClientsService ~ addClient ~ client:", client)
       
       if (client) {
         throw new HttpException('Client already exists', HttpStatus.CONFLICT);
       }
       
       const savedClient = await this.clientsRepo.insert(newClient);
+      console.log("🚀 ~ ClientsService ~ addClient ~ savedClient", savedClient)
       if (!savedClient) {
+        console.log("🚀 ~ ClientsService ~ addClient ~ savedClient2222", savedClient);
+        
         throw new HttpException('Something went wrong. Client not saved', HttpStatus.INTERNAL_SERVER_ERROR);
       }
       return savedClient
@@ -52,7 +59,7 @@ export class ClientsService {
     }
   }
 
-  async deleteClient(userId: string, clientId: number) {
+  async deleteClient(userId: string, clientId: string) {
     try {
       const client = await this.clientsRepo.findOne({ where: { userId, id: clientId } });
 

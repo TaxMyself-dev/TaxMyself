@@ -78,7 +78,8 @@ export class InputAutoCompleteComponent implements OnInit {
     this.onItemSelect.emit(event);
   }
 
-  handleAddNew(query: string): void {
+  handleAddNew(query: string, acInput: any): void {
+    acInput.hide?.(); // For closing the dropdown
     this.onAddNew.emit(query);
   }
 
