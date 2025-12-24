@@ -1,0 +1,63 @@
+{
+  "timestamp": "2025-12-23T21:47:42.669924+00:00",
+  "payload": {
+    "user": "AxFm5xBcYlMTV5kb5OAnde5Rbh62_sub@KNCAXnwXk1",
+    "consent": "10-ad7ab8ea-d89f-4398-a99d-1ae1a609ccac",
+    "flow": "default@KNCAXnwXk1",
+    "fetchedAccounts": [
+      {
+        "currency": "ILS",
+        "iban": "IL190106800000004484442",
+        "cashAccountType": "CACC",
+        "ownerName": "אלעזר הראל, אוריה הראל",
+        "name": "680-44844/42"
+      },
+      {
+        "currency": "ILS",
+        "iban": "IL840106800000005881915",
+        "cashAccountType": "CACC",
+        "ownerName": "אלעזר הראל",
+        "name": "680-58819/15"
+      },
+      {
+        "currency": "ILS",
+        "maskedPan": "458039xxxxxx3724",
+        "cashAccountType": "CARD",
+        "ownerName": "הראל אוריה",
+        "name": "ויזה 3724"
+      },
+      {
+        "currency": "ILS",
+        "maskedPan": "539213xxxxxx3572",
+        "cashAccountType": "CARD",
+        "ownerName": "הראל אלעזר",
+        "name": "מאסטרקארד 3572"
+      },
+      {
+        "currency": "ILS",
+        "maskedPan": "552517xxxxxx1082",
+        "cashAccountType": "CARD",
+        "ownerName": "הראל אלעזר",
+        "name": "מאסטרקארד 1082"
+      },
+      {
+        "currency": "ILS",
+        "maskedPan": "552517xxxxxx1220",
+        "cashAccountType": "CARD",
+        "ownerName": "הראל אלעזר",
+        "name": "מאסטרקארד 1220"
+      },
+      {
+        "currency": "ILS",
+        "maskedPan": "458039xxxxxx5182",
+        "cashAccountType": "CARD",
+        "ownerName": "הראל אוריה",
+        "name": "ויזה 5182"
+      }
+    ],
+    "failedToFetchAccounts": [],
+    "context": "AxFm5xBcYlMTV5kb5OAnde5Rbh62_context",
+    "tpp": "KNCAXnwXk1"
+  },
+  "event": "UserDataIsAvailable"
+}

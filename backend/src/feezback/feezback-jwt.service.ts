@@ -1,32 +1,79 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as jwt from 'jsonwebtoken';
+import { User } from '../users/user.entity';
 
 @Injectable()
 export class FeezbackJwtService {
-
+  private readonly logger = new Logger(FeezbackJwtService.name);
   private readonly privateKey: string;
+  private readonly baseRedirectUrl: string;
 
-  constructor() {
-    const keyPath =process.env.FEEZBACK_PRIVATE_KEY_PATH;
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {
+    const keyPath = process.env.FEEZBACK_PRIVATE_KEY_PATH;
     console.log(`Loading Feezback private key from: ${keyPath}`);
     this.privateKey = fs.readFileSync(keyPath, 'utf8');
+    
+    // Base URL for redirects - should be your frontend URL
+    this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL || 
+      process.env.FRONTEND_URL || 
+      'http://localhost:4200';
   }
 
-  generateConsentJwt(userId: string, context: string): string {
+  /**
+   * Builds redirect URLs for Feezback consent flow
+   * @param flowId - The flow ID (default: "default")
+   * @param context - The context identifier (firebaseId)
+   * @returns Object with success, failure, and ttlExpired redirect URLs
+   */
+  private buildRedirectUrls(flowId: string, context: string): {
+    success: string;
+    failure: string;
+    ttlExpired: string;
+  } {
+    const baseUrl = this.baseRedirectUrl.endsWith('/') 
+      ? this.baseRedirectUrl.slice(0, -1) 
+      : this.baseRedirectUrl;
 
-    const payload: any =  {
-      "sub": "someUser",
+    return {
+      success: `${baseUrl}/feezback/success/${flowId}?context=${context}`,
+      failure: `${baseUrl}/feezback/failure/${flowId}?context=${context}`,
+      ttlExpired: `${baseUrl}/feezback/expired/${flowId}?context=${context}`,
+    };
+  }
+
+  async generateConsentJwt(firebaseId: string): Promise<string> {
+    const flowId = 'default'; // קבוע
+    const context = firebaseId; // context = firebaseId
+    const redirects = this.buildRedirectUrls(flowId, context);
+
+    // Get user from database to retrieve the ID
+    const user = await this.userRepository.findOne({ 
+      where: { firebaseId } 
+    });
+
+    if (!user) {
+      throw new Error(`User with firebaseId ${firebaseId} not found`);
+    }
+
+    const userId = user.id; // Get the user's ID from database
+
+    const payload: any = {
+      "sub": firebaseId + "_sub",
+      "encrypt": true,
       "iss": "tpp/KNCAXnwXk1",
       "srv": "ais/user",
-      // "iat": Math.floor(Date.now() / 1000),
-      "iat": 1516239022,
-      // "exp": Math.floor(Date.now() / 1000) + 600,
-      "exp": 2516239022,
+      "iat": Math.floor(Date.now() / 1000),
+      "exp": Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
       "ttl": 600,
       "flow": {
-        "id": "default",
+        "id": flowId, // "default"
         "dataBaskets": [
           "ACCOUNTS",
           "BALANCES",
@@ -34,15 +81,18 @@ export class FeezbackJwtService {
         ],
         "accountTypes": [
           "CACC",
-          "CARD",
-          "SVGS",
-          "LOAN",
-          "SCTS"
+          "CARD"
         ],
         "mandatoryDataBaskets": [
           "ACCOUNTS",
           "BALANCES"
         ],
+        "flags": {
+          "displaySuccessScreen": true,
+          "splitDataBasketsAndTimePeriodsScreen": false,
+          "hideDataBaskets": false,
+          "autoFillAspsp": false
+        },
         "timePeriods": [
           "ONE_DAY",
           "THREE_MONTHS",
@@ -52,146 +102,56 @@ export class FeezbackJwtService {
         "defaultTimePeriod": "ONE_DAY",
         "userIdentifier": {
           "type": "ID",
-          "value": "000000018",
+          "value": userId,
           "editable": false
         },
-        "context": "1111"
+        "context": firebaseId + "_context",
+        "redirects": redirects,
+        "route": "onboarding",
+        "userWasAuthenticated": true
       }
-    }
+    };
 
-    // const payload: any = {
-    //   sub: "someUser",
-    //   iss: "tpp/KNCAXnwXk1",
-    //   srv: "ais/user",
-    //   iat: nowSec,
-    //   exp: nowSec + 60 * 10, // תוקף 10 דקות
-    //   ttl: 600,
-
-    //   flow: {
-    //     id: 'default',
-    //     dataBaskets: ['ACCOUNTS', 'BALANCES', 'TRANSACTIONS'],
-    //     accountTypes: ['CACC', 'CARD'],
-    //     mandatoryDataBaskets: ['ACCOUNTS', 'BALANCES'],
-    //     flags: {
-    //       displaySuccessScreen: true,
-    //       splitDataBasketsAndTimePeriodsScreen: false,
-    //       hideDataBaskets: false,
-    //       autoFillAspsp: false,
-    //     },
-    //     timePeriods: ['ONE_DAY', 'THREE_MONTHS', 'SIX_MONTHS', 'TWELVE_MONTHS'],
-    //     defaultTimePeriod: 'ONE_DAY',
-
-    //     // לפי פרטי המוק שקיבלת מהם
-    //     userIdentifier: {
-    //       type: 'ID',
-    //       value: '216139683', // המזהה מהמייל שלהם
-    //       editable: false,
-    //     },
-
-    //     context: context || 'dev-test',
-
-    //     redirects: {
-    //       success: process.env.FEEZBACK_REDIRECT_OK,
-    //       failure: process.env.FEEZBACK_REDIRECT_NOK,
-    //       ttlExpired: process.env.FEEZBACK_REDIRECT_EXP,
-    //     },
-
-    //     route: 'onboarding',
-    //     userWasAuthenticated: true,
-    //   },
-    // };
+    console.log("private key is ", this.privateKey);
+    console.log("Redirect URLs:", JSON.stringify(redirects, null, 2));
+    console.log(`User ID for firebaseId ${firebaseId}: ${userId}`);
 
     const token = jwt.sign(payload, this.privateKey, {
       algorithm: 'RS512', 
     });
 
-    console.log(`Generated Feezback JWT for user ${userId}`);
+    console.log(`Generated Feezback JWT for user ${firebaseId}`);
+    return token;
+  }
+
+  /**
+   * Generates a JWT token for accessing user data from Feezback
+   * @param sub - User identifier (from webhook: user field without @TPP_ID)
+   * @returns Signed JWT token
+   */
+  generateAccessToken(sub: string): string {
+    const tppId = 'KNCAXnwXk1'; // TPP ID
+    const currentTime = Math.floor(Date.now() / 1000);
+    const expirationTime = currentTime + 3600; // 1 hour
+    const ttl = 600; // 10 minutes
+
+    this.logger.debug(`Generating access token for sub: ${sub}`);
+
+    const payload: any = {
+      "sub": sub, // רק ה-sub, בלי @TPP_ID (זה מתווסף ב-URL)
+      "iss": `tpp/${tppId}`,
+      "srv": "ais/tpp",
+      "iat": currentTime,
+      "exp": expirationTime,
+      "ttl": ttl,
+      "encrypt": true
+    };
+
+    const token = jwt.sign(payload, this.privateKey, {
+      algorithm: 'RS512',
+    });
+
+    this.logger.debug(`Generated access token JWT`);
     return token;
   }
 }
-
-
-
-
-
-// import { Injectable, Logger } from '@nestjs/common';
-// import * as fs from 'fs';
-// import * as jwt from 'jsonwebtoken';
-
-// @Injectable()
-// export class FeezbackJwtService {
-//   private readonly logger = new Logger(FeezbackJwtService.name);
-//   private privateKey: string;
-
-//   constructor() {
-//     const isProd = process.env.NODE_ENV === 'production';
-
-//     if (isProd) {
-//       // 🔐 Production — load from environment variable
-//       this.logger.log('Loading Feezback private key from ENV (production mode)');
-
-//       if (!process.env.FEEZBACK_PRIVATE_KEY) {
-//         this.logger.error('❌ FEEZBACK_PRIVATE_KEY is missing in ENV variables!');
-//         throw new Error('Missing Feezback private key in ENV');
-//       }
-
-//       // חשוב מאוד — להמיר '\n' לשורה אמיתית
-//       this.privateKey = process.env.FEEZBACK_PRIVATE_KEY.replace(/\\n/g, '\n');
-//     } else {
-//       // 💻 Development — load from local file
-//       // C:\Users\harel\Elazar Harel\taxmyself\eharel-branch-0\global\keys\private.key
-//       const keyPath = '../global/keys/private.key';
-//       // const keyPath = './keys/dev/feezback_private.key';
-//       this.logger.log(`Loading Feezback private key from file: ${keyPath}`);
-
-//       if (!fs.existsSync(keyPath)) {
-//         this.logger.error(`❌ Private key not found at ${keyPath}`);
-//         throw new Error(`Private key file is missing: ${keyPath}`);
-//       }
-
-//       this.privateKey = fs.readFileSync(keyPath, 'utf8');
-//     }
-//   }
-
-//   /**
-//    * Generate a JWT token for Feezback AIS consent creation
-//    */
-//   generateConsentToken(userId: string, context: string = 'default'): string {
-//     const now = Math.floor(Date.now() / 1000); // שניות, לא מילישניות
-
-//     // זה ה-Payload לפי הדרישות של Feezback
-//     const payload: any = {
-//       sub: userId,
-//       encrypt: true,
-//       iss: process.env.FEEZBACK_ISS || 'tpp/test',
-//       srv: process.env.FEEZBACK_SRV || 'ais/user',
-//       iat: now,
-//       exp: now + 600, // 10 דקות תוקף
-//       ttl: 600,
-//       flow: {
-//         id: 'default',
-//         dataBaskets: ['ACCOUNTS', 'BALANCES', 'TRANSACTIONS'],
-//         context: context,
-//         redirects: {
-//           success: process.env.FEEZBACK_REDIRECT_OK,
-//           failure: process.env.FEEZBACK_REDIRECT_NOK,
-//           ttlExpired: process.env.FEEZBACK_REDIRECT_EXP,
-//         },
-//         userWasAuthenticated: true,
-//       },
-//     };
-
-//     this.logger.debug(`Generating Feezback JWT for user: ${userId}`);
-
-//     try {
-//       const token = jwt.sign(payload, this.privateKey, {
-//         algorithm: 'RS256',
-//       });
-
-//       return token;
-//     } catch (err) {
-//       this.logger.error('❌ Failed to sign JWT for Feezback', err);
-//       throw err;
-//     }
-//   }
-// }

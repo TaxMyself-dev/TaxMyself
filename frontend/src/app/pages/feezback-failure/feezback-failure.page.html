@@ -1,0 +1,31 @@
+<div class="feezback-result-page">
+  <div class="result-card">
+    <div class="result-icon failure">
+      <i class="pi pi-times-circle"></i>
+    </div>
+    
+    <h1 class="result-title">החיבור נכשל</h1>
+    
+    <p class="result-message">
+      לא הצלחנו לחבר את חשבון הבנק שלך.<br>
+      ייתכן שהתהליך בוטל או שאירעה שגיאה.
+    </p>
+
+    <div class="result-actions">
+      <app-p-button 
+        [buttonText]="'נסה שוב'" 
+        [buttonSize]="buttonSize.BIG"
+        [buttonColor]="buttonColor.YELLOW"
+        (onButtonClicked)="tryAgain()">
+      </app-p-button>
+      
+      <app-p-button 
+        [buttonText]="'חזרה לדף הבית'" 
+        [buttonSize]="buttonSize.BIG"
+        [severity]="'secondary'"
+        (onButtonClicked)="navigateToHome()">
+      </app-p-button>
+    </div>
+  </div>
+</div>
+

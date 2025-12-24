@@ -1,25 +1,36 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { FeezbackJwtService } from './feezback-jwt.service';
 
 @Injectable()
 export class FeezbackService {
   private readonly logger = new Logger(FeezbackService.name);
   private readonly lgsUrl: string;
+  private readonly tokenUrl: string;
+  private readonly tppApiUrl: string;
+  private readonly tppId: string = 'KNCAXnwXk1';
 
   constructor(
     private readonly http: HttpService,
     private readonly feezbackJwtService: FeezbackJwtService,
   ) {
-    this.lgsUrl =
-      process.env.FEEZBACK_LGS_URL || 'https://lgs-integ01.feezback.cloud/link';
+
+    this.lgsUrl = 'https://proxy-146140406969.me-west1.run.app/proxy/feezback/link';
+    // For production: use 'https://lgs-prod.feezback.cloud/token' and 'https://prod-tpp.feezback.cloud'
+    this.tokenUrl = 'https://proxy-146140406969.me-west1.run.app/proxy/feezback/token';
+    this.tppApiUrl = 'https://proxy-146140406969.me-west1.run.app/proxy/feezback';
     this.logger.log(`Feezback LGS URL: ${this.lgsUrl}`);
+    this.logger.log(`Feezback Token URL: ${this.tokenUrl}`);
+    this.logger.log(`Feezback TPP API URL: ${this.tppApiUrl}`);
+
   }
 
-  async createConsentLink(userId: string, context: string) {
+  async createConsentLink(firebaseId: string) {
     try {
-      const token = this.feezbackJwtService.generateConsentJwt(userId, context);
+      const token = await this.feezbackJwtService.generateConsentJwt(firebaseId);
+      console.log("firebaseId: ", firebaseId);
+      console.log("token: ", token);
 
       this.logger.debug(`Sending token to Feezback LGS URL: ${this.lgsUrl}`);
 
@@ -42,6 +53,126 @@ export class FeezbackService {
 
       throw error;
     }
+  }
+
+  /**
+   * Gets an access token from Feezback for accessing user data
+   * @param sub - User identifier (e.g., "AxFm5xBcYlMTV5kb5OAnde5Rbh62_sub")
+   * @returns Access token string
+   */
+  async getAccessToken(sub: string): Promise<string> {
+    try {
+      // Generate JWT token for accessing user data
+      const jwtToken = this.feezbackJwtService.generateAccessToken(sub);
+
+      this.logger.debug(`Requesting access token from: ${this.tokenUrl}`);
+
+      // Request access token from Feezback
+      const response$ = this.http.post(this.tokenUrl, { token: jwtToken });
+      const { data } = await firstValueFrom(response$);
+
+      this.logger.debug(`Access token response: ${JSON.stringify(data)}`);
+
+      // Extract token from response
+      const accessToken = data?.token || data;
+      
+      if (!accessToken || typeof accessToken !== 'string') {
+        throw new Error('Invalid access token response format');
+      }
+
+      return accessToken;
+    } catch (error: any) {
+      this.logger.error(
+        `Error getting access token: ${error?.message}`,
+        error?.stack,
+      );
+
+      if (error?.response?.data) {
+        this.logger.error(
+          `Feezback error response: ${JSON.stringify(error.response.data)}`,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Gets user accounts data from Feezback
+   * @param sub - User identifier (e.g., "AxFm5xBcYlMTV5kb5OAnde5Rbh62_sub")
+   * @returns User accounts data
+   */
+  async getUserAccounts(sub: string): Promise<any> {
+    try {
+      this.logger.log(`Getting user accounts for sub: ${sub}`);
+      
+      // Get access token first
+      const accessToken = await this.getAccessToken(sub);
+      this.logger.log(`Access token received (length: ${accessToken.length})`);
+      
+      // Build the user identifier with TPP ID
+      // Format: {sub}@TPP_ID (e.g., "AxFm5xBcYlMTV5kb5OAnde5Rbh62_sub@KNCAXnwXk1")
+      const userIdentifier = `${sub}@${this.tppId}`;
+      const accountsUrl = `${this.tppApiUrl}/tpp/v1/users/${userIdentifier}/accounts`;
+
+      this.logger.log(`Requesting accounts from URL: ${accountsUrl}`);
+      this.logger.log(`User identifier: ${userIdentifier}`);
+
+      // Request user accounts with timeout
+      this.logger.debug(`Making POST request to: ${accountsUrl}`);
+      this.logger.debug(`Authorization header: Bearer ${accessToken.substring(0, 20)}...`);
+      
+      const response$ = this.http.post(accountsUrl, {}, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        timeout: 60000, // 60 seconds timeout (configured in axios)
+      }).pipe(
+        timeout(90000) // 90 seconds timeout (rxjs timeout as backup)
+      );
+      
+      this.logger.debug(`Waiting for response...`);
+      const { data } = await firstValueFrom(response$);
+
+      this.logger.debug(`User accounts response: ${JSON.stringify(data)}`);
+      return data;
+    } catch (error: any) {
+      this.logger.error(
+        `Error getting user accounts: ${error?.message}`,
+        error?.stack,
+      );
+
+      if (error?.response?.data) {
+        this.logger.error(
+          `Feezback error response: ${JSON.stringify(error.response.data)}`,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Extracts firebaseId from context string
+   * @param context - Context string (e.g., "AxFm5xBcYlMTV5kb5OAnde5Rbh62_context")
+   * @returns Firebase ID
+   */
+  extractFirebaseIdFromContext(context: string): string {
+    if (context.endsWith('_context')) {
+      return context.replace('_context', '');
+    }
+    return context;
+  }
+
+  /**
+   * Extracts sub from user identifier
+   * @param user - User identifier (e.g., "AxFm5xBcYlMTV5kb5OAnde5Rbh62_sub@KNCAXnwXk1")
+   * @returns Sub identifier
+   */
+  extractSubFromUser(user: string): string {
+    // Remove @TPP_ID part
+    const parts = user.split('@');
+    return parts[0];
   }
 }
 

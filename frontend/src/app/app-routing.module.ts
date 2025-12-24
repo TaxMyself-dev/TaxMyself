@@ -92,6 +92,18 @@ const routes: Routes = [
     path: 'add-expense',
     loadComponent: () => import('./pages/add-expense/add-expense.component').then( m => m.AddExpenseComponent)
   },
+  {
+    path: 'feezback/success/:flowId',
+    loadChildren: () => import('./pages/feezback-success/feezback-success.module').then(m => m.FeezbackSuccessPageModule)
+  },
+  {
+    path: 'feezback/failure/:flowId',
+    loadChildren: () => import('./pages/feezback-failure/feezback-failure.module').then(m => m.FeezbackFailurePageModule)
+  },
+  {
+    path: 'feezback/expired/:flowId',
+    loadChildren: () => import('./pages/feezback-expired/feezback-expired.module').then(m => m.FeezbackExpiredPageModule)
+  },
  
 ];
 

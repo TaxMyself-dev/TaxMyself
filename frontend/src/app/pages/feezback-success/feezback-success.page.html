@@ -1,0 +1,24 @@
+<div class="feezback-result-page">
+  <div class="result-card">
+    <div class="result-icon success">
+      <i class="pi pi-check-circle"></i>
+    </div>
+    
+    <h1 class="result-title">החיבור הושלם בהצלחה!</h1>
+    
+    <p class="result-message">
+      חשבון הבנק שלך חובר בהצלחה למערכת.<br>
+      כעת תוכל לראות את המידע הפיננסי שלך במערכת.
+    </p>
+
+    <div class="result-actions">
+      <app-p-button 
+        [buttonText]="'חזרה לדף הבית'" 
+        [buttonSize]="buttonSize.BIG"
+        [buttonColor]="buttonColor.YELLOW"
+        (onButtonClicked)="navigateToHome()">
+      </app-p-button>
+    </div>
+  </div>
+</div>
+

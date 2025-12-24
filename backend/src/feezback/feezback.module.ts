@@ -1,11 +1,20 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { FeezbackController } from './feezback.controller';
 import { FeezbackService } from './feezback.service';
 import { FeezbackJwtService } from './feezback-jwt.service';
+import { Delegation } from '../delegation/delegation.entity';
+import { User } from '../users/user.entity';
 
 @Module({
-  imports: [HttpModule],
+  imports: [
+    HttpModule.register({
+      timeout: 90000, // 90 seconds timeout for all requests
+      maxRedirects: 5,
+    }),
+    TypeOrmModule.forFeature([Delegation, User]),
+  ],
   controllers: [FeezbackController],
   providers: [FeezbackService, FeezbackJwtService],
   exports: [FeezbackService],

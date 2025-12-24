@@ -29,6 +29,16 @@ p.block-title {
     // border: solid 1px green;
 }
 
+.user-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.feezback-connect-button {
+    white-space: nowrap;
+}
+
 .nevigation-block {
   display: flex;
   flex-direction: column;

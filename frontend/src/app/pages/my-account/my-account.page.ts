@@ -7,6 +7,8 @@ import { TransactionsService } from '../transactions/transactions.page.service';
 import { catchError, EMPTY, finalize, map } from 'rxjs';
 import { GenericService } from 'src/app/services/generic.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { FeezbackService } from 'src/app/services/feezback.service';
+import { MessageService } from 'primeng/api';
 
 @Component({
     selector: 'app-my-account',
@@ -19,8 +21,12 @@ export class MyAccountPage implements OnInit {
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
   expenseService = inject(ExpenseDataService);
+  feezbackService = inject(FeezbackService);
+  messageService = inject(MessageService);
 
   isLoadingDataTable = signal<boolean>(false);
+  isLoadingFeezback = signal<boolean>(false);
+  isLoadingUserAccounts = signal<boolean>(false);
 
   userData: IUserData;
   transToClassify: any;
@@ -90,6 +96,88 @@ export class MyAccountPage implements OnInit {
 
 openAddExpensesPage(): void {
 
+}
+
+connectToOpenBanking(): void {
+  this.isLoadingFeezback.set(true);
+  
+  this.feezbackService.createConsentLink()
+    .pipe(
+      catchError(err => {
+        console.error('Error creating Feezback consent link:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא הצלחנו ליצור קישור לחיבור. אנא נסה שוב מאוחר יותר.',
+          life: 5000,
+          key: 'br'
+        });
+        return EMPTY;
+      }),
+      finalize(() => this.isLoadingFeezback.set(false))
+    )
+    .subscribe(response => {
+      // The response should contain a link property
+      const link = response?.link || response?.url || response;
+      
+      if (link && typeof link === 'string') {
+        // Open the link in a new window/tab
+        window.open(link, '_blank');
+      } else {
+        console.error('Unexpected response format:', response);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'תגובה לא צפויה מהשרת. אנא נסה שוב.',
+          life: 5000,
+          key: 'br'
+        });
+      }
+    });
+}
+
+fetchUserAccounts(): void {
+  this.isLoadingUserAccounts.set(true);
+  
+  this.feezbackService.getUserAccounts()
+    .pipe(
+      catchError(err => {
+        console.error('Error fetching user accounts:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא הצלחנו לטעון את נתוני החשבונות. אנא נסה שוב מאוחר יותר.',
+          life: 5000,
+          key: 'br'
+        });
+        return EMPTY;
+      }),
+      finalize(() => this.isLoadingUserAccounts.set(false))
+    )
+    .subscribe(response => {
+      console.log('User accounts data:', response);
+      
+      if (response?.accounts && Array.isArray(response.accounts)) {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: `נטענו ${response.accounts.length} חשבונות בהצלחה`,
+          life: 3000,
+          key: 'br'
+        });
+        
+        // כאן תוכל לעשות משהו עם הנתונים - למשל לשמור ב-DB או להציג בטבלה
+        // TODO: Process and store the accounts data
+      } else {
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'התראה',
+          detail: 'לא נמצאו חשבונות או שהפורמט לא צפוי',
+          life: 5000,
+          key: 'br'
+        });
+      }
+    });
 }
 
 // openModalAddExpenses(): void {

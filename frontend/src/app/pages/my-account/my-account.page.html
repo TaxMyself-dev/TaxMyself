@@ -7,10 +7,30 @@
             <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
             <span class="avatar-text">שלום {{ userData.fName }} {{ userData.lName }}</span>
         </div>
-        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-      [link]="'/add-expense'">
-            <i class="pi pi-plus"></i>
-        </app-p-button>
+        <div class="user-actions">
+            <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+          [link]="'/add-expense'">
+                <i class="pi pi-plus"></i>
+            </app-p-button>
+            <app-p-button 
+                class="feezback-connect-button" 
+                [buttonText]="'התחבר לבנקאות פתוחה'" 
+                [buttonColor]="buttonColor.YELLOW" 
+                [buttonSize]="buttonSize.AUTO"
+                [isLoading]="isLoadingFeezback()"
+                (onButtonClicked)="connectToOpenBanking()">
+                <i class="pi pi-link"></i>
+            </app-p-button>
+            <app-p-button 
+                class="feezback-fetch-button" 
+                [buttonText]="'טען נתוני חשבונות'" 
+                [buttonColor]="buttonColor.BLACK" 
+                [buttonSize]="buttonSize.AUTO"
+                [isLoading]="isLoadingUserAccounts()"
+                (onButtonClicked)="fetchUserAccounts()">
+                <i class="pi pi-download"></i>
+            </app-p-button>
+        </div>
         <!-- <app-p-button class="vat-report-payment-button" [buttonText]="'פתח'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
         [link]="'/add-expense'" (onButtonClicked)="openModalAddExpenses()">
               <i class="pi pi-plus"></i>
