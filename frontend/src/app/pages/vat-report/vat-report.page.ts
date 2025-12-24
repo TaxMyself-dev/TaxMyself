@@ -122,29 +122,35 @@ export class VatReportPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
-    const businesses = this.gs.businesses();  // always updated after refresh
-
-    if (businesses.length === 1) {
-      // 1️⃣ Set the signal
-      this.businessNumber.set(businesses[0].businessNumber);
-      // 2️⃣ Set the form so FilterTab works
-      this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
-    }
+    const businesses = this.gs.businesses();
+    this.businessNumber.set(businesses[0].businessNumber);
 
     // Now config can be set safely
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
+    const defaultPeriodMode = ReportingPeriodType.BIMONTHLY;
+    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, defaultPeriodMode);
+    
     this.filterConfig = [
       {
         type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems
+        options: this.gs.businessSelectItems,
+        defaultValue: this.businessNumber(),
       },
       {
         type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY]
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY],
+        periodDefaults: {
+          periodMode: ReportingPeriodType.BIMONTHLY,
+          year: currentYear,
+          month: defaultMonthValue
+        }
       },
     ];
 

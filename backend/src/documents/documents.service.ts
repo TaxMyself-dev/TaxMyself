@@ -8,7 +8,8 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, PaymentMethodType, VatOptions } from 'src/enum';
+import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions } from 'src/enum';
+import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { log } from 'console';
@@ -41,6 +42,8 @@ export class DocumentsService {
     private journalLineRepo: Repository<JournalLine>,
     @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
     private dataSource: DataSource
   ) { }
 
@@ -143,6 +146,35 @@ export class DocumentsService {
     return docs;
   }
 
+  async getDocLinesByDocNumber(
+    issuerBusinessNumber: string,
+    docNumber: string,
+  ): Promise<DocLines[]> {
+    if (!issuerBusinessNumber || !issuerBusinessNumber.trim()) {
+      throw new BadRequestException('issuerBusinessNumber is required');
+    }
+    if (!docNumber || !docNumber.trim()) {
+      throw new BadRequestException('docNumber is required');
+    }
+
+    const doc = await this.documentsRepo.findOne({
+      where: { issuerBusinessNumber, docNumber },
+      select: ['generalDocIndex'],
+    });
+
+    if (!doc?.generalDocIndex) {
+      throw new NotFoundException('Document not found for given issuer and docNumber');
+    }
+
+    return this.docLinesRepo.find({
+      where: {
+        issuerBusinessNumber,
+        generalDocIndex: doc.generalDocIndex,
+      },
+      order: { lineNumber: 'ASC' },
+    });
+  }
+
 
   async getSettingDocByType(userId: string, docType: DocumentType) {
 
@@ -174,16 +206,16 @@ export class DocumentsService {
 
     try {
       const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
-      console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
-      console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
-      console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
-      console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
-      console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
+      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
+      // console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
+      // console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
+      // console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
+      // console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
 
       const uniqueId = randomUUID();
       const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
       const file = bucket.file(filePath);
-      console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
+      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
           contentType: 'application/pdf',
@@ -376,22 +408,49 @@ export class DocumentsService {
 
     console.log("data is ", data);
 
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // FID mapping based on environment and document type
+    const fidMap = {
+      // Production FIDs
+      prod: {
+        // receipt: 'RVxpym2O68',           // RECEIPT, TAX_INVOICE_RECEIPT
+        receipt: 'JzEIejsTuY',
+        // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
+        invoice: 'BUFw7FKiJn'
+      },
+      // Development FIDs
+      dev: {
+        receipt: '95gqltPdeC',          // RECEIPT, TAX_INVOICE_RECEIPT (with payments)
+        invoice: 'zjnzfjd1K3',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE (no payments)
+      }
+    };
+
     let fid: string;
     let prefill_data: any;
 
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
     const docType = data.docData.docType;
-    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'סה"כ ללא מע"מ';
+    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'פטור ממע"מ';
 
     switch (templateType) {
       case 'createDoc':
       case 'previewDoc':
-        fid = ['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType) ? 'RVxpym2O68' : ['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType) ? 'AKmqQkevbM' : 'UNKNOWN FID';
+        const envFids = isProduction ? fidMap.prod : fidMap.dev;
+        if (['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType)) {
+          fid = envFids.receipt;
+        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType)) {
+          fid = envFids.invoice;
+        } else {
+          fid = 'UNKNOWN FID';
+        }
         prefill_data = {
           recipientName: data.docData.recipientName,
-          recipientTaxNumber: data.docData.recipientId,
+          recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
           docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
+          docSubtitle: data.docData.docSubtitle ?? null,
+          allocationNum: data.docData.allocationNum ?? null,
           docDate: this.formatDateToDDMMYYYY(data.docData.documentDate),
           issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
           issuerDetails: [
@@ -400,19 +459,14 @@ export class DocumentsService {
             data.docData.issuerEmail          ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
             data.docData.issuerAddress        ? `כתובת:  ${data.docData.issuerAddress}` : null,
           ].filter(Boolean).join('\n'),
-          // issuerDetails: [
-          // issuerBusinessNumber: data.docData.businessNumber ? `מ.ע. / ח.פ.:         ${data.docData.businessNumber}` : null,
-          // issuerPhone: data.docData.issuerPhone ? `טלפון:                 ${data.docData.issuerPhone}` : null,
-          // issuerEmail: data.docData.issuerEmail ? `כתובת מייל:         ${data.docData.issuerEmail}` : null,
-          // issuerAddress: data.docData.issuerAddress ? `כתובת:              ${data.docData.issuerAddress}` : null,
-          // ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
-          totalWithoutVatLabel: withoutVatLabel,
-          totalWithoutVat: `${data.docData.sumWithoutVat} ש"ח`,
-          totalDiscountLabel: "הנחה",
-          totalDiscount: `${data.docData.disSum} ש"ח`,
-          totalLabel: 'סה"כ לתשלום',
-          total: `${data.docData.sumAftDisWithVAT} ש"ח`,
+          sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
+          // totalWithoutVatLabel: withoutVatLabel,
+          // totalWithoutVat: `₪${Number(data.docData.sumWithoutVat).toFixed(2)}`,
+          // totalDiscountLabel: "הנחה",
+          // totalDiscount: `₪${Number(data.docData.disSum).toFixed(2)}`,
+          // totalLabel: 'סה"כ לתשלום',
+          // total: `₪${Number(data.docData.sumAftDisWithVAT).toFixed(2)}`,
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
         };
@@ -420,10 +474,10 @@ export class DocumentsService {
         // Add VAT-related fields only for non-receipts
         const isReceipt = docType === 'RECEIPT';
         if (!isReceipt) {
-          prefill_data.subTotalLabel = 'חייב במע"מ';
-          prefill_data.subTotal = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
-          prefill_data.totalVatLabel = 'סה"כ מע"מ';
-          prefill_data.totalVat = `${data.docData.vatSum} ש"ח`;
+          prefill_data.vatableAmountLabel = 'חייב במע"מ';
+          prefill_data.vatableAmount = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
+          prefill_data.vatLabel = 'מע"מ';
+          prefill_data.vat = `${data.docData.vatSum} ש"ח`;
         }
 
         if (data.paymentData && data.paymentData.length > 0) {
@@ -473,10 +527,93 @@ export class DocumentsService {
   }
 
 
+  async transformSumsToSumTable(docData: any, issuerBusinessNumber: string): Promise<any[]> {
+    
+    // Get businessType from database
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber: issuerBusinessNumber },
+      select: ['businessType'],
+    });
+
+    const businessType = business?.businessType || null;
+    const docType = docData.docType;
+    const sumBefDisBefVat = Number(docData.sumWithoutVat || 0);
+    const disSum = Number(docData.disSum || 0);
+    const sumAftDisWithVAT = Number(docData.sumAftDisWithVAT || 0);
+    const sumAftDisBefVAT = Number(docData.sumAftDisBefVAT || 0);
+    const vatSum = Number(docData.vatSum || 0);
+    const sumWithoutVat = Number(docData.sumWithoutVat || 0);
+
+    const sumTable: any[] = [];
+
+    // For EXEMPT (עוסק פטור)
+    if (businessType === 'EXEMPT') {
+      // If discount is 0, show only total; otherwise show all fields
+      if (disSum > 0) {
+        // Show: סה"כ לפני הנחה
+        sumTable.push({
+          'תיאור': 'סה"כ לפני הנחה:',
+          'סכום': `₪${sumBefDisBefVat.toFixed(2)}`,
+        });
+
+        // Show: הנחה
+        sumTable.push({
+          'תיאור': 'הנחה:',
+          'סכום': `₪${disSum.toFixed(2)}`,
+        });
+      }
+
+      // Always show: סה"כ 
+      sumTable.push({
+        'תיאור': 'סה"כ:',
+        'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+      });
+    } else {
+      // For LICENSED (עוסק מורשה) or COMPANY (חברה)
+      // For TAX_INVOICE and TAX_INVOICE_RECEIPT
+      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT) {
+        // סה"כ חייב במע"מ
+        sumTable.push({
+          'תיאור': 'סה"כ חייב במע"מ:',
+          'סכום': `₪${sumAftDisBefVAT.toFixed(2)}`,
+        });
+
+        // מע"מ
+        sumTable.push({
+          'תיאור': 'מע"מ:',
+          'סכום': `₪${vatSum.toFixed(2)}`,
+        });
+
+        // סה"כ ללא מע"מ (רק אם שונה מאפס)
+        if (sumWithoutVat > 0) {
+          sumTable.push({
+            'תיאור': 'סה"כ ללא מע"מ:',
+            'סכום': `₪${sumWithoutVat.toFixed(2)}`,
+          });
+        }
+
+        // סה"כ
+        sumTable.push({
+          'תיאור': 'סה"כ:',
+          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+        });
+      } else {
+        // For other document types, return default structure
+        sumTable.push({
+          'תיאור': 'סה"כ:',
+          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+        });
+      }
+    }
+
+    return sumTable;
+  }
+
+
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
       'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
-      'מחיר': `₪${Number(line.sumAftDisBefVatPerLine).toFixed(2)}`,
+      'מחיר': `₪${Number(line.sumBefVatPerUnit).toFixed(2)}`,
       'כמות': String(line.unitQuantity),
       'פירוט': line.description || ""
     }));
@@ -574,19 +711,30 @@ export class DocumentsService {
       await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 5 complete - Payments info saved");
 
-      // 6. Bookkeeping entry
-      await this.bookkeepingService.createJournalEntry({
-        issuerBusinessNumber: data.docData.issuerBusinessNumber,
-        date: this.sharedService.normalizeToMySqlDate(data.docData.documentDate),
-        referenceType: data.docData.docType,
-        referenceId: parseInt(data.docData.docNumber),
-        description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
-        lines: [
-          { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
-          { accountCode: '2400', credit: data.docData.vatSum },
-        ]
-      }, queryRunner.manager);
-      console.log(new Date().toLocaleTimeString(), "Step 6 complete - BookKeeping info saved");
+      // 6. Bookkeeping entry - only for specific document types
+      const docTypesWithJournalEntry = [
+        DocumentType.TAX_INVOICE,           // חשבונית מס
+        DocumentType.TAX_INVOICE_RECEIPT,   // חשבונית מס קבלה
+        DocumentType.RECEIPT,                // קבלה
+        DocumentType.CREDIT_INVOICE,        // חשבונית זיכוי
+      ];
+
+      if (docTypesWithJournalEntry.includes(data.docData.docType)) {
+        await this.bookkeepingService.createJournalEntry({
+          issuerBusinessNumber: data.docData.issuerBusinessNumber,
+          date: this.sharedService.normalizeToMySqlDate(data.docData.documentDate),
+          referenceType: data.docData.docType,
+          referenceId: parseInt(data.docData.docNumber),
+          description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
+          lines: [
+            { accountCode: '4000', credit: data.docData.sumAftDisBefVAT },
+            { accountCode: '2400', credit: data.docData.vatSum },
+          ]
+        }, queryRunner.manager);
+        console.log(new Date().toLocaleTimeString(), "Step 6 complete - BookKeeping info saved");
+      } else {
+        console.log(new Date().toLocaleTimeString(), "Step 6 skipped - Document type does not require journal entry");
+      }
 
       // 7. Generate both PDFs (original and copy)
       let originalFilePath: string | null = null;
@@ -643,6 +791,27 @@ export class DocumentsService {
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
           console.log(new Date().toLocaleTimeString(), "Step 9 complete - files paths saved to document");
+
+          // 10. Update parent document status to CLOSE if this is a closing document (RECEIPT or TAX_INVOICE_RECEIPT) for TRANSACTION_INVOICE
+          if (data.docData.parentDocType && data.docData.parentDocNumber) {
+            const closingDocTypes = [DocumentType.RECEIPT, DocumentType.TAX_INVOICE_RECEIPT];
+            // Only update status if closing a TRANSACTION_INVOICE (חשבון עסקה)
+            if (closingDocTypes.includes(data.docData.docType) && data.docData.parentDocType === DocumentType.TRANSACTION_INVOICE) {
+              const parentDoc = await documentsRepo.findOne({
+                where: {
+                  issuerBusinessNumber: data.docData.issuerBusinessNumber,
+                  docType: data.docData.parentDocType,
+                  docNumber: data.docData.parentDocNumber,
+                }
+              });
+              
+              if (parentDoc && parentDoc.docStatus === DocumentStatusType.OPEN) {
+                parentDoc.docStatus = DocumentStatusType.CLOSE;
+                await documentsRepo.save(parentDoc);
+                console.log(new Date().toLocaleTimeString(), "Step 10 complete - Parent document status updated to CLOSE");
+              }
+            }
+          }
 
         } catch (uploadError) {
           // If upload fails, delete any uploaded files
@@ -779,6 +948,11 @@ export class DocumentsService {
       const minutes = now.getMinutes().toString().padStart(2, '0');
       const issueHour = `${hours}${minutes}`;
 
+      const autoClosedTypes = [
+        DocumentType.RECEIPT,
+        DocumentType.TAX_INVOICE_RECEIPT
+      ];
+
       // Default values set on the server
       const serverGeneratedValues = {
         issueDate: new Date(),
@@ -787,6 +961,7 @@ export class DocumentsService {
         issueHour,
         isCancelled: data.isCancelled ?? false,
         docNumber: data.docNumber.toString(),
+        docStatus: autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN',
       };
 
       // Merge all values

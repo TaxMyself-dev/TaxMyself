@@ -18,6 +18,7 @@ import {
   inputsSize,
   singleMonthsList
 } from 'src/app/shared/enums';
+import { PeriodDefaults } from '../filter-tab/filter-fields-model.component';
 
 import { InputSelectComponent } from '../input-select/input-select.component';
 import { InputDateComponent } from '../input-date/input-date.component';
@@ -49,6 +50,9 @@ export class PeriodSelectComponent {
     ReportingPeriodType.DATE_RANGE
   ]);
 
+  /** Default values for period fields */
+  periodDefaults = input<PeriodDefaults>();
+
   private fb = inject(FormBuilder);
 
   ButtonColor = ButtonColor;
@@ -62,11 +66,18 @@ export class PeriodSelectComponent {
   ngOnInit() {
     console.log("this.parentForm()", this.parentForm());
     const form = this.parentForm();
+    const defaults = this.periodDefaults();
     
-    // Add only periodMode control initially
+    // Add only periodMode control initially with default value
     if (!form?.get('periodMode')) {
       console.log("periodMode control not found");
-      form.addControl('periodMode', this.fb.control(null, Validators.required));
+      const defaultPeriodMode = defaults?.periodMode || null;
+      form.addControl('periodMode', this.fb.control(defaultPeriodMode, Validators.required));
+      
+      // If default periodMode exists, initialize the corresponding controls
+      if (defaultPeriodMode) {
+        this.updateFormControls(defaultPeriodMode);
+      }
     }
 
     // Listen to periodMode changes and add/remove controls dynamically
@@ -78,6 +89,7 @@ export class PeriodSelectComponent {
   private updateFormControls(mode: ReportingPeriodType) {
     console.log("this.parentForm()", this.parentForm());
     const form = this.parentForm();
+    const defaults = this.periodDefaults();
 
     // Remove all period-related controls first
     ['year', 'month', 'startDate', 'endDate'].forEach(controlName => {
@@ -86,15 +98,15 @@ export class PeriodSelectComponent {
       }
     });
 
-    // Add controls based on selected mode
+    // Add controls based on selected mode with default values
     if (mode === ReportingPeriodType.MONTHLY || mode === ReportingPeriodType.BIMONTHLY) {
-      form.addControl('year', this.fb.control(null, Validators.required));
-      form.addControl('month', this.fb.control(null, Validators.required));
+      form.addControl('year', this.fb.control(defaults?.year || null, Validators.required));
+      form.addControl('month', this.fb.control(defaults?.month || null, Validators.required));
     } else if (mode === ReportingPeriodType.ANNUAL) {
-      form.addControl('year', this.fb.control(null, Validators.required));
+      form.addControl('year', this.fb.control(defaults?.year || null, Validators.required));
     } else if (mode === ReportingPeriodType.DATE_RANGE) {
-      form.addControl('startDate', this.fb.control(null, Validators.required));
-      form.addControl('endDate', this.fb.control(null, Validators.required));
+      form.addControl('startDate', this.fb.control(defaults?.startDate || null, Validators.required));
+      form.addControl('endDate', this.fb.control(defaults?.endDate || null, Validators.required));
     }
   }
 

@@ -21,19 +21,20 @@ export class DocCreateService {
     const params = new HttpParams().set('issuerBusinessNumber', issuerBusinessNumber);
     return this.http.get<IDocIndexes>(url, { params });
   }
+
+  getDocLines(issuerBusinessNumber: string, docNumber: string): Observable<any[]> {
+    const url = `${environment.apiUrl}documents/get-doc-lines`;
+    const params = new HttpParams()
+      .set('issuerBusinessNumber', issuerBusinessNumber)
+      .set('docNumber', docNumber);
+    return this.http.get<any[]>(url, { params });
+  }
   
 
   setInitialDocDetails(docType: string, initialIndex: number, issuerBusinessNumber: string): Observable<any> {
     const url = `${environment.apiUrl}documents/setting-initial-index/${docType}`;
     return this.http.post<any>(url, { initialIndex, issuerBusinessNumber });
   }
-
-
-  saveClientDetails(data: any): Observable<any> {
-    const url = `${environment.apiUrl}clients/add-client`;
-    return this.http.post<any>(url, data);
-  }
-
 
   getClients(): Observable<any> {
     const url = `${environment.apiUrl}clients/get-clients`;

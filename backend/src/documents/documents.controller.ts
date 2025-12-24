@@ -35,6 +35,16 @@ export class DocumentsController {
     return this.documentsService.getDocuments(issuerBusinessNumber, startDate, endDate, docType);
   }
 
+  @Get('get-doc-lines')
+  @UseGuards(FirebaseAuthGuard)
+  async getDocLines(
+    @Query('issuerBusinessNumber') issuerBusinessNumber: string,
+    @Query('docNumber') docNumber: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    return this.documentsService.getDocLinesByDocNumber(issuerBusinessNumber, docNumber);
+  }
+
 
   @Get('get-setting-doc-by-type/:typeDoc')
   @UseGuards(FirebaseAuthGuard)

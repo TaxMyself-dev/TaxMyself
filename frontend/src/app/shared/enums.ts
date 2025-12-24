@@ -15,7 +15,8 @@ export enum FormTypes {
   NUMBER = 'number',
   EMAIL = 'email',
   PASSWORD = 'password',
-  TELEPHONE = 'tel'
+  TELEPHONE = 'tel',
+  AUTOCOMPLETE = 'autocomplete'
 }
 
 export enum displayColumnsExpense {
@@ -139,6 +140,8 @@ export enum DocumentsTableColumns {
   DOC_SUM = 'sumAftDisWithVAT',
   DOC_NUMBER = 'docNumber',
   RECIPIENT_NAME = 'recipientName',
+  DOC_STATUS = 'docStatus',
+  PARENT_DOC = 'parentDoc',
 }
 
 export enum DocumentsTableHebrewColumns {
@@ -147,6 +150,8 @@ export enum DocumentsTableHebrewColumns {
   sumAftDisWithVAT = 'סכום',
   docNumber = 'מספר מסמך',
   recipientName = 'שם לקוח',
+  docStatus = 'סטטוס מסמך',
+  parentDoc = 'מסמך אב',
 }
 
 export enum UniformFileDocumentSummaryColumns {
@@ -188,6 +193,7 @@ export enum CurrencyHebrew {
 }
 
 export enum FieldsCreateDocValue {
+  TOTAL = 'total',
   BUSINESS_NUMBER = 'businessNumber',
   DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
@@ -509,4 +515,30 @@ export enum TaxReportingType {
   NOT_REQUIRED = 'NOT_REQUIRED',
   MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
+}
+
+export enum ClientsTableColumns {
+  CITY = 'city',
+  STREET = 'street',
+  STATE = 'state',
+  STATE_CODE = 'stateCode',
+  POSTAL_CODE = 'postalCode',
+  NAME = 'name',
+  PHONE = 'phone',
+  EMAIL = 'email',
+  HOME_NUMBER = 'homeNumber',
+  ID = 'id',
+}
+
+export enum ClientsTableHebrewColumns {
+  city = 'עיר',
+  street = 'רחוב',
+  state = 'מדינה',
+  stateCode = 'קוד מדינה',
+  postalCode = 'מיקוד',
+  name = 'שם הלקוח',
+  phone = 'טלפון',
+  email = 'אימייל',
+  homeNumber = 'מספר בית',
+  id = 'ת.ז. / ח.פ.',
 }

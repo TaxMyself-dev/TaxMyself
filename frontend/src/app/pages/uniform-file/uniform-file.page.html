@@ -1,8 +1,25 @@
 <ion-content [fullscreen]="true">
   <div class="wrap-screen">
-    <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="uniformFileTemplate"
+    <div class="uniform-file-header">
+      <div class="icon-title">
+        <img src="../../../assets/uniform_structure.svg" alt="Uniform File" class="icon" />
+        <span class="title">הפקת קבצים במבנה אחיד</span>
+      </div>
+      <p class="text-header">
+        הפקת קבצים במבנה אחיד בקלות ובמהירות
+      </p>
+    </div>
+
+    <!-- FILTER TAB -->
+    <app-filter-tab
+      [config]="filterConfig"
+      [parentForm]="form"
+      (apply)="onSubmit($event)">
+    </app-filter-tab>
+
+    <!-- <app-search-bar class="generic-searchbar-wrapper" (onSearchClick)="onSubmit()" [customTemplate]="uniformFileTemplate"
       [isDisabled]="uniformFileForm.invalid">
-    </app-search-bar>
+    </app-search-bar> -->
 
     @if (reportDetails) {
       <div class="report-details-card">

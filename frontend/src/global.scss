@@ -30,6 +30,7 @@
   font-weight: 900;
   font-style: normal;
 }
+
 // Plus imports for other components in your app.
 
 // Include the common styles for Angular Material. We include this here so that you only
@@ -89,7 +90,8 @@ $app-theme: mat.m2-define-light-theme((color: (primary: $app-primary,
 @import "primeicons/primeicons.css";
 
 
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
   margin: 0;
@@ -506,21 +508,24 @@ app-root {
 
 input.p-inputtext::placeholder {
   color: gray !important;
-  /* your desired color */
   opacity: 1;
-  /* ensure full opacity if needed */
 }
 
 .p-autocomplete-input {
-  padding-inline: var(--p-inputtext-padding-x) !important;
-  border-radius: 26px !important;
-  background-color: #e0e0e054 !important;
-  border: 1px solid #ebe8e8 !important;
+  // padding-inline: var(--p-inputtext-padding-x) !important;
+  // border-radius: 26px !important;
+  // // background-color: #e0e0e054 !important;
+  // border: 1px solid #ebe8e8 !important;
+  border-color: rgb(245 242 242) !important;
+  border: none !important;
+  padding-inline: 0 !important;
+  border-bottom: 1px solid #ebe8e8 !important;
+  border-radius: 0px !important;
 
-  &.dirty {
-    border: 1px solid #204F56 !important;
-    background-color: white !important;
-  }
+  // &.dirty {
+  //   border: 1px solid #204F56 !important;
+  //   background-color: white !important;
+  // }
 }
 
 .p-dialog-header {
@@ -556,7 +561,7 @@ input.p-inputtext::placeholder {
 }
 
 .p-datatable-table-container {
-  overflow-x: auto !important; 
+  overflow-x: auto !important;
   overflow-y: auto !important;
 
   /* ===== Chrome, Safari, Opera ===== */
@@ -593,9 +598,14 @@ input.p-inputtext::placeholder {
 
 :root {
   --ion-font-family: 'Simpler', 'Open Sans Hebrew', 'Roboto', Arial, Helvetica, sans-serif;
-  --app-header-h: 64px; /* adjust to your actual top nav height */
+  --app-header-h: 64px;
+  /* adjust to your actual top nav height */
 }
 
-html, body, ion-app, ion-content, .mat-typography {
+html,
+body,
+ion-app,
+ion-content,
+.mat-typography {
   font-family: var(--ion-font-family) !important;
 }

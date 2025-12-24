@@ -1,14 +1,16 @@
-import { Component, OnInit, signal, inject, viewChild } from '@angular/core';
-import { EMPTY, fromEvent } from 'rxjs';
-import { catchError, filter, finalize, map, take } from 'rxjs/operators';
+import { Component, OnInit, signal, inject } from '@angular/core';
+import { EMPTY, of } from 'rxjs';
+import { catchError, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
+  BusinessType,
   DocumentsTableColumns,
   DocumentsTableHebrewColumns,
-  FormTypes
+  FormTypes,
+  ReportingPeriodType
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { DateService } from 'src/app/services/date.service';
@@ -16,7 +18,8 @@ import { FilesService } from 'src/app/services/files.service';
 import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { Popover } from 'primeng/popover';
+import { ConfirmationService } from 'primeng/api';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-incomes',
@@ -34,7 +37,9 @@ export class IncomesPage implements OnInit {
   private dateService = inject(DateService);
   private documentsService = inject(DocumentsService);
   private filesService = inject(FilesService);
+  private confirmationService = inject(ConfirmationService);
   private fb = inject(FormBuilder);
+  private router = inject(Router);
 
   // ===========================
   // Global state
@@ -47,13 +52,6 @@ export class IncomesPage implements OnInit {
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
   businessOptions = this.gs.businessSelectItems;
-
-  // Form managed by FilterTab
-  form: FormGroup = this.fb.group({
-    businessNumber: [null],
-    docType: [null]
-    // ❗ DO NOT add "period" here → FilterTab will create it automatically
-  });
 
   startDate!: string;
   endDate!: string;
@@ -69,16 +67,25 @@ export class IncomesPage implements OnInit {
     { name: DocumentsTableColumns.DOC_DATE, value: DocumentsTableHebrewColumns.docDate, type: FormTypes.DATE },
     { name: DocumentsTableColumns.DOC_TYPE, value: DocumentsTableHebrewColumns.docType, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_NUMBER, value: DocumentsTableHebrewColumns.docNumber, type: FormTypes.TEXT },
+    { name: DocumentsTableColumns.PARENT_DOC, value: DocumentsTableHebrewColumns.parentDoc, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.RECIPIENT_NAME, value: DocumentsTableHebrewColumns.recipientName, type: FormTypes.TEXT },
     { name: DocumentsTableColumns.DOC_SUM, value: DocumentsTableHebrewColumns.sumAftDisWithVAT, type: FormTypes.NUMBER },
+    { name: DocumentsTableColumns.DOC_STATUS, value: DocumentsTableHebrewColumns.docStatus, type: FormTypes.TEXT },
   ];
   showMiniMenu = signal(false);
   // Holds the selected row for download
   selectedRowForDownload = signal<IRowDataTable | null>(null);
 
+  // Mapping of original doc → opposite doc type + label
+  private oppositeDocMap: Record<string, { docType: DocumentType; label: string }> = {
+    'חשבונית מס': { docType: DocumentType.CREDIT_INVOICE, label: 'חשבונית זיכוי' },
+    'חשבון עסקה': { docType: DocumentType.RECEIPT, label: 'קבלה' }, // default; overridden by business type
+  };
+
   // ===========================
   // Filter config (used by FilterTab)
   // ===========================
+  form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
 
 
@@ -92,27 +99,51 @@ export class IncomesPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
     const businesses = this.gs.businesses();
-
-    // 1️⃣ Set the signal
     this.selectedBusinessNumber.set(businesses[0].businessNumber);
     this.selectedBusinessName.set(businesses[0].businessName);
 
-    // 2️⃣ Set the form initial value
-    this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
+    // Create the form with essential controls early
+    this.form = this.fb.group({
+      businessNumber: [this.selectedBusinessNumber()],
+    });
 
-    // 3️⃣ Now config can be set safely
+    this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
+      if (!businessNumber) return;
+
+      const business = this.gs.businesses().find(
+        b => b.businessNumber === businessNumber
+      );
+
+      this.selectedBusinessNumber.set(business?.businessNumber ?? '');
+      this.selectedBusinessName.set(business?.businessName ?? '');
+
+      console.log("Change: business number is ", this.selectedBusinessNumber());
+      
+
+      // Auto-fetch only when business changes
+      this.fetchDocuments(this.selectedBusinessNumber());
+    });
+
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+
     this.filterConfig = [
       {
         type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems
+        options: this.gs.businessSelectItems,
+        defaultValue: this.selectedBusinessNumber()
       },
       {
         type: 'period',
         controlName: 'period',
-        required: true
+        required: true,
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
+        periodDefaults: {
+          year: currentYear,
+        }
       },
       {
         type: 'select',
@@ -125,19 +156,6 @@ export class IncomesPage implements OnInit {
         ]
       }
     ];
-
-    this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
-      if (!businessNumber) return;
-
-      const business = this.gs.businesses().find(
-        b => b.businessNumber === businessNumber
-      );
-
-      this.selectedBusinessName.set(business?.businessName ?? '');
-
-      // Auto-fetch only when business changes
-      this.fetchDocuments(businessNumber);
-    });
 
     // 5️⃣ Fetch initial data
     this.fetchDocuments(this.selectedBusinessNumber());
@@ -153,27 +171,14 @@ export class IncomesPage implements OnInit {
 
     this.selectedBusinessNumber.set(formValues.businessNumber);
 
-    // const businessNumber = formValues.businessNumber;
     const docType = formValues.docType;
 
-    // period object
-    const period = formValues.period;
-    const {
-
-      periodMode,
-      year,
-      month,
-      startDate: localStartDate,
-      endDate: localEndDate
-
-    } = period;
-
     const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
+      formValues.periodMode,
+      formValues.year,
+      formValues.month,
+      formValues.startDate,
+      formValues.endDate
     );
 
     this.startDate = startDate;
@@ -181,6 +186,7 @@ export class IncomesPage implements OnInit {
 
     this.fetchDocuments(this.selectedBusinessNumber(), startDate, endDate, docType);
   }
+
 
   // ===========================
   // Fetch documents from server
@@ -201,11 +207,24 @@ export class IncomesPage implements OnInit {
   .pipe(
     map((rows: any[]) => {
       console.log("📄 Documents fetched:", rows); // 👈 REAL PRINT HERE
-      return rows.map(row => ({
-        ...row,
-        sum: this.gs.addComma(Math.abs(row.sum as number)),
-        docType: DocTypeDisplayName[row.docType] ?? row.docType,
-      }));
+      return rows.map(row => {
+        // Format parent document: type + number (if exists)
+        // Use HTML with <br> for multi-line display
+        let parentDoc = '';
+        if (row.parentDocType && row.parentDocNumber) {
+          const parentDocTypeName = DocTypeDisplayName[row.parentDocType] ?? row.parentDocType;
+          parentDoc = `${parentDocTypeName}<br>${row.parentDocNumber}`;
+        }
+        
+        return {
+          ...row,
+          sum: this.gs.addComma(Math.abs(row.sum as number)),
+          docType: DocTypeDisplayName[row.docType] ?? row.docType,
+          docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
+          docStatusOriginal: row.docStatus, // Keep original value for conditional checks
+          parentDoc: parentDoc, // Add parent doc formatted string with HTML
+        };
+      });
     }),
     catchError(err => {
       console.error("Error fetching documents:", err);
@@ -249,9 +268,23 @@ export class IncomesPage implements OnInit {
         icon: 'pi pi-download',
         title: 'הורד קובץ',
         action: (event: any, row: IRowDataTable) => {
-          // this.showDownloadMenu(event, row);
-          // this.onDownloadFile(row);
           this.openDownloadMenu(row);
+        }
+      },
+      {
+        name: 'cancel',
+        icon: 'pi pi-times',
+        title: 'ביטול',
+        action: (event: any, row: IRowDataTable) => {
+          this.confirmCancelDoc(row);
+        }
+      },
+      {
+        name: 'close',
+        icon: 'pi pi-lock',
+        title: 'הפק מסמך נגדי',
+        action: (event: any, row: IRowDataTable) => {
+          this.confirmCancelDoc(row);
         }
       },
     ]);
@@ -307,9 +340,139 @@ export class IncomesPage implements OnInit {
   }
 
 
-  // onDownloadFile(row: IRowDataTable): void {
-  //   console.log("Download file for row:", row);
-  //   this.filesService.downloadFirebaseFile(row.file as string)
-  // }
+  // -----------------------------------------------------
+  // Called when user clicks the download icon in the table
+  // -----------------------------------------------------
+  confirmCancelDoc(row: IRowDataTable): void {
+    const opposite = this.getOppositeDoc(row);
+
+    // If we don't have a mapped opposite doc yet, keep the old message (no action)
+    if (!opposite) {
+      this.confirmationService.confirm({
+        message: 'לא ניתן לבטל מסמך לאחר שהופק.',
+        header: 'ביטול מסמך',
+        icon: 'pi pi-exclamation-triangle',
+        rejectLabel: 'סגור',
+        acceptVisible: false,
+      });
+      return;
+    }
+
+    const msg = `האם לסגור מסמך זה באמצעות ${opposite.label}?`;
+    const header = (typeof row.docType === 'string' && row.docType === 'חשבון עסקה')
+      ? 'סגירת מסמך'
+      : 'ביטול מסמך';
+
+    this.confirmationService.confirm({
+      message: msg,
+      header,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: `צור ${opposite.label}`,
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.redirectToOppositeDoc(row, opposite.docType);
+      },
+      reject: () => {
+        console.log("User cancelled opposite document creation.");
+      }
+    });
+  }
+
+  private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType) {
+    const businessNumber = this.selectedBusinessNumber();
+    
+    // Find the original docType enum from the Hebrew name
+    const hebrewDocType = row.docType as string;
+    console.log("🔥 redirectToOppositeDoc - hebrewDocType:", hebrewDocType);
+    
+    // Check if row.docType is already an enum value
+    let originalDocType: DocumentType | null = null;
+    if (Object.values(DocumentType).includes(hebrewDocType as DocumentType)) {
+      // Already an enum value
+      originalDocType = hebrewDocType as DocumentType;
+      console.log("🔥 redirectToOppositeDoc - docType is already enum:", originalDocType);
+    } else {
+      // Try to find enum from Hebrew name
+      const originalDocTypeEntry = Object.entries(DocTypeDisplayName).find(
+        ([_, name]) => name === hebrewDocType
+      );
+      originalDocType = originalDocTypeEntry ? (originalDocTypeEntry[0] as DocumentType) : null;
+      console.log("🔥 redirectToOppositeDoc - found enum from Hebrew name:", originalDocType);
+    }
+    
+    // Try to fetch lines; if fails, navigate with base payload
+    const docNumber = (row as any)?.docNumber ?? (row as any)?.doc_number;
+    console.log("🔥 redirectToOppositeDoc - docNumber:", docNumber);
+    
+    const basePayload = {
+      docType: oppositeDocType,
+      sourceDoc: {
+        ...row,
+        docType: originalDocType, // Use enum if found, otherwise null (will be handled in prefillFromOppositeDoc)
+        docTypeName: hebrewDocType, // Keep Hebrew name for display
+        docNumber: docNumber ? String(docNumber) : undefined, // Add docNumber if it exists
+      },
+      businessNumber,
+      businessName: this.selectedBusinessName(),
+    };
+    
+    console.log("🔥 redirectToOppositeDoc - basePayload.sourceDoc:", basePayload.sourceDoc);
+    
+    if (!docNumber) {
+      this.navigateToDocCreate(basePayload);
+      return;
+    }
+
+    this.documentsService.getDocLines(businessNumber, String(docNumber))
+      .pipe(
+        take(1),
+        catchError(err => {
+          console.error('Failed to fetch doc lines, proceeding without them', err);
+          return of(null);
+        })
+      )
+      .subscribe(lines => {
+        const payloadWithLines = lines ? { 
+          ...basePayload, 
+          sourceDoc: { 
+            ...basePayload.sourceDoc, // Keep all fields from basePayload.sourceDoc
+            linesData: lines 
+          } 
+        } : basePayload;
+        this.navigateToDocCreate(payloadWithLines);
+      });
+
+    this.showMiniMenu.set(false);
+  }
+
+  private navigateToDocCreate(payload: any) {
+    this.router.navigate(['/doc-create'], {
+      state: { oppositeDocPayload: payload },
+    });
+  }
+
+  /**
+   * Resolve opposite doc type/label, including business-type rules for חשבון עסקה.
+   */
+  private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
+    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+
+    if (docTypeKey === 'חשבון עסקה') {
+      const businessType = this.getSelectedBusinessType();
+      const isExempt = businessType === BusinessType.EXEMPT;
+      return {
+        docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
+        label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
+      };
+    }
+
+    return this.oppositeDocMap[docTypeKey];
+  }
+
+  private getSelectedBusinessType(): BusinessType | null {
+    const biz = this.gs.businesses().find(b => b.businessNumber === this.selectedBusinessNumber());
+    return biz?.businessType ?? null;
+  }
+
   
 }

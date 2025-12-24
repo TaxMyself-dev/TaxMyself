@@ -38,11 +38,11 @@
 
         @case (formTypes.DDL) {
         @if (item.value !== FieldsCreateDocValue.BUSINESS_NUMBER || showBusinessSelector) {
-          <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-            [items]="item.labelText === 'עסק' ? businessOptions() : item.enumValues" [parentForm]="generalDetailsForm"
-            [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
+        <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+          [items]="item.labelText === 'עסק' ? businessOptions() : item.enumValues" [parentForm]="generalDetailsForm"
+          [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
     item.value === 'docType' && !generalDetailsForm.get('businessNumber')?.value">
-          </app-input-select>
+        </app-input-select>
         }
         }
 
@@ -83,6 +83,14 @@
         <div class="user-details-section">
           @for (item of userArray; track item.value) {
           @switch (item.type) {
+          @case (formTypes.AUTOCOMPLETE) {
+          <app-input-autocomplete [labelText]="item.labelText" [parentForm]="userDetailsForm" [controlName]="item.value"
+            [placeholder]="item.placeHolder" [items]="filteredClients()" optionLabel="name"
+            (onCompleteMethod)="filterClients($event)" (onItemSelect)="onClientSelect($event)" [showAddNew]="true"
+            addNewLabel="הוסף לקוח חדש" (onAddNew)="onAddNewClient($event)" headerText="בחר לקוח קיים"
+          [forceSelection]="false" [size]="inputsSize.BETWEEN">
+          </app-input-autocomplete>
+          }
 
           @case (formTypes.DDL) {
           <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
@@ -109,7 +117,7 @@
           }
         </div>
         <div>
-          <app-p-button class="pnl-pdf-button" [buttonText]="isUserExpanded ? 'הסתר שדות' : 'הצג שדות נוספים'"
+          <app-p-button class="pnl-pdf-button" [buttonText]="isUserExpanded() ? 'הסתר שדות' : 'הצג שדות נוספים'"
             [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
             (onButtonClicked)="expandUserDetails()">
           </app-p-button>
@@ -128,12 +136,11 @@
         <p-table [columns]="lineDetailsColumns" [value]="[{}]" [tableStyle]="{ 'min-width': '50rem' }">
           <ng-template pTemplate="header" let-columns>
             <tr>
-              <th *ngFor="let col of columns" 
-                style="color: gray;"
+              <th *ngFor="let col of columns" style="color: gray;"
                 [ngStyle]="col.field === FieldsCreateDocValue.VAT_OPTIONS ? { 'padding-right': '40px' } : {}">
                 {{ col.header }}
                 @if (col.header) {
-                  <span style="color: red; margin-right: 4px;">*</span>
+                <span style="color: red; margin-right: 4px;">*</span>
                 }
               </th>
             </tr>
@@ -175,10 +182,18 @@
                 }
 
                 @case ('action') {
-                <app-p-button class="pnl-pdf-button" [buttonText]="'הוסף שורה'" [variant]="'text'" [severity]="'info'"
-                  [buttonSize]="buttonSize.AUTO" [disabled]="!lineDetailsForm.valid"
-                  (onButtonClicked)="addLineDetails()">
-                </app-p-button>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <app-p-button class="pnl-pdf-button"
+                    [buttonText]="editingLineIndex() !== null ? 'עדכן שורה' : 'הוסף שורה'" [variant]="'text'"
+                    [severity]="'info'" [buttonSize]="buttonSize.AUTO" [disabled]="!lineDetailsForm.valid"
+                    (onButtonClicked)="addLineDetails()">
+                  </app-p-button>
+                  @if (editingLineIndex() !== null) {
+                  <app-p-button class="pnl-pdf-button" [buttonText]="'ביטול'" [variant]="'text'"
+                    [severity]="'secondary'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="cancelEdit()">
+                  </app-p-button>
+                  }
+                </div>
                 }
 
                 @default {
@@ -202,27 +217,39 @@
               <th *ngFor="let col of columns" style="background-color: #dcdbdb;">{{ col.header }}</th>
             </tr>
           </ng-template>
-          
+
           <ng-template pTemplate="body" let-line let-columns="columns" let-rowIndex="rowIndex">
-            <tr>
+            <tr [style.background-color]="editingLineIndex() === rowIndex ? '#e3f2fd' : 'transparent'">
               <td *ngFor="let col of columns">
                 @if (col.dataField === 'description') {
-                  {{ line.description }}
+                {{ line.description }}
                 }
                 @else if (col.dataField === 'unitQuantity') {
-                  {{ line.unitQuantity }}
+                {{ line.unitQuantity }}
                 }
                 @else if (col.dataField === 'vatOpts') {
-                  {{ getVatLabel(line.vatOpts) }}
+                {{ getVatLabel(line.vatOpts) }}
                 }
                 @else if (col.dataField === 'sum') {
-                  {{ line.sum | currency:'ILS' }}
+                {{ line.sum | currency:'ILS' }}
+                }
+                @else if (col.dataField === 'total') {
+                {{ line.sum * line.unitQuantity | currency:'ILS' }}
                 }
                 @else if (col.dataField === 'discount') {
-                  {{ line.discount || '-' }}
+                {{ line.discount || '-' }}
                 }
                 @else if (col.dataField === 'actions') {
-                  <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true" [icon]="'pi pi-trash'" (onButtonClicked)="deleteLine(rowIndex)"></app-p-button>
+                <div style="display: flex; gap: 0.5rem;">
+                  <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true"
+                    [severity]="'info'" [variant]="'text'" [icon]="'pi pi-pen-to-square'"
+                    (onButtonClicked)="editLine(rowIndex)" title="עריכה">
+                  </app-p-button>
+                  <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true"
+                    [severity]="'info'" [variant]="'text'" [icon]="'pi pi-trash'"
+                    (onButtonClicked)="deleteLine(rowIndex)" title="מחיקה">
+                  </app-p-button>
+                </div>
                 }
               </td>
             </tr>
@@ -232,12 +259,12 @@
         <div class="totals-summary">
           <div class="keys-summary">
             @for (item of filteredSummaryItems(); track item.key) {
-              <p class="content-summary">{{ item.label }}</p>
+            <p class="content-summary">{{ item.label }}</p>
             }
           </div>
           <div class="values-summary">
             @for (item of filteredSummaryItems(); track item.key) {
-              <p class="content-summary">{{ item.valueGetter(documentTotals()) | number:'1.2-2' }} ש"ח</p>
+            <p class="content-summary">{{ item.valueGetter(documentTotals()) | number:'1.2-2' }} ש"ח</p>
             }
           </div>
         </div>
@@ -289,7 +316,8 @@
             }
             @default {
             <app-input-text [controlName]="item.value" [placeholder]="item.placeHolder" [parentForm]="paymentInputForm"
-              [type]="item.type === formTypes.NUMBER ? 'number' : 'text'" [min]="1" [size]="inputsSize.SMALL"></app-input-text>
+              [type]="item.type === formTypes.NUMBER ? 'number' : 'text'" [min]="1"
+              [size]="inputsSize.SMALL"></app-input-text>
             }
             }
             }
@@ -333,8 +361,9 @@
             }}
           </div>
           }
-            <div class="actions">
-            <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true" [icon]="'pi pi-trash'" (onButtonClicked)="deletePayment($index)"></app-p-button>
+          <div class="actions">
+            <app-p-button [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.ICON" [iconOnly]="true"
+              [icon]="'pi pi-trash'" (onButtonClicked)="deletePayment($index)"></app-p-button>
           </div>
         </div>
         }
@@ -342,25 +371,27 @@
       }
 
       @if (chargesPaymentsDifference() !== 0) {
-        <div>
-          <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
-          <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }}
-              <span class="amount-value">{{ chargesPaymentsDifference() | number:'1.2-2' }}</span>
-              <span class="currency">ש"ח</span>
-          </p>
-        </div>
-        }
+      <div>
+        <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
+        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} <span
+            class="amount-value">{{ chargesPaymentsDifference() | number:'1.2-2' }}</span>
+            <span class="currency">ש"ח</span>
+        </p>
+      </div>
+      }
     </div>
     }
     <div class="buttons-container">
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.AUTO"
-          [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!createDocIsValid()" (onButtonClicked)="previewDoc()" [isLoading]="createPreviewPDFIsLoading()">
+          [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!createDocIsValid()" (onButtonClicked)="previewDoc()"
+          [isLoading]="createPreviewPDFIsLoading()">
         </app-p-button>
       </div>
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'צור מסמך'" [buttonSize]="buttonSize.SMALL"
-          [disabled]="!createDocIsValid()" [isLoading]="createPDFIsLoading()" (onButtonClicked)="confirmCreateDoc()" [buttonColor]="buttonColor.BLACK">
+          [disabled]="!createDocIsValid()" [isLoading]="createPDFIsLoading()" (onButtonClicked)="confirmCreateDoc()"
+          [buttonColor]="buttonColor.BLACK">
         </app-p-button>
       </div>
 

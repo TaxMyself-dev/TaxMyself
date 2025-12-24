@@ -14,10 +14,11 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { DocPayments } from './doc-payments.entity';
+import { Business } from 'src/business/business.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Delegation, JournalEntry, JournalLine, DefaultBookingAccount])],
+  imports: [TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount])],
   controllers: [DocumentsController],
   providers: [
     DocumentsService,

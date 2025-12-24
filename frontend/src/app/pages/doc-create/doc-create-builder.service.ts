@@ -17,11 +17,11 @@ const CardCompanyHebrewLabels: Record<CardCompany, string> = {
 };
 
 export const creditTransactionTypeOptions: ISelectItem[] = [
-  { name: 'רגיל', value: 'REGULAR' },
-  { name: 'תשלומים', value: 'INSTALLMENTS' },
-  { name: 'קרדיט', value: 'CREDIT' },
-  { name: 'חיוב נדחה', value: 'DEFERRED_CHARGE' },
-  { name: 'אחר', value: 'OTHER' },
+    { name: 'רגיל', value: 'REGULAR' },
+    { name: 'תשלומים', value: 'INSTALLMENTS' },
+    { name: 'קרדיט', value: 'CREDIT' },
+    { name: 'חיוב נדחה', value: 'DEFERRED_CHARGE' },
+    { name: 'אחר', value: 'OTHER' },
 ];
 
 @Injectable({
@@ -37,57 +37,64 @@ export class DocCreateBuilderService {
 
     // united columns configuration for both input form and display
     lineItemColumns: ILineItemColumn[] = [
-        { 
-            formField: FieldsCreateDocValue.LINE_DESCRIPTION, 
-            dataField: 'description', 
-            header: 'תיאור', 
-            excludeForReceipt: false 
+        {
+            formField: FieldsCreateDocValue.LINE_DESCRIPTION,
+            dataField: 'description',
+            header: 'תיאור',
+            excludeForReceipt: false
         },
-        { 
-            formField: FieldsCreateDocValue.UNIT_AMOUNT, 
-            dataField: 'unitQuantity', 
-            header: 'כמות', 
-            excludeForReceipt: false 
+        {
+            formField: FieldsCreateDocValue.UNIT_AMOUNT,
+            dataField: 'unitQuantity',
+            header: 'כמות',
+            excludeForReceipt: false
         },
-        { 
-            formField: FieldsCreateDocValue.VAT_OPTIONS, 
-            dataField: 'vatOpts', 
-            header: 'מע"מ', 
-            excludeForReceipt: true 
+        {
+            formField: FieldsCreateDocValue.SUM,
+            dataField: 'sum',
+            header: 'מחיר',
+            excludeForReceipt: false
         },
-        { 
-            formField: FieldsCreateDocValue.SUM, 
-            dataField: 'sum', 
-            header: 'סכום', 
-            excludeForReceipt: false 
+        {
+            formField: FieldsCreateDocValue.VAT_OPTIONS,
+            dataField: 'vatOpts',
+            header: 'מע"מ',
+            excludeForReceipt: true
         },
-        { 
-            formField: FieldsCreateDocValue.DISCOUNT, 
-            dataField: 'discount', 
-            header: 'הנחה (ש"ח)', 
-            excludeForReceipt: false 
+        {
+            formField: FieldsCreateDocValue.TOTAL,
+            dataField: 'total',
+            header: 'סה"כ',
+            excludeForReceipt: false
         },
-        { 
-            formField: 'action', 
-            dataField: 'actions', 
-            header: '', 
-            excludeForReceipt: false 
+        {
+            formField: FieldsCreateDocValue.DISCOUNT,
+            dataField: 'discount',
+            header: 'הנחה (ש"ח)',
+            excludeForReceipt: false
+        },
+        {
+            formField: 'action',
+            dataField: 'actions',
+            header: '',
+            excludeForReceipt: false
         }
     ];
 
     // Summary items configuration
     summaryItems: ISummaryItem[] = [
         {
-            key: 'subjectToVat',
+            key: 'sumBefDisBefVat',
             label: 'חייב במע"מ',
-            valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
+            valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat,
+            // valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
             excludeForReceipt: true
         },
         {
             key: 'withoutVat',
-            label: 'ללא מע"מ',
+            label: 'סה"כ',
             valueGetter: (totals: DocumentTotals) => totals.sumWithoutVat,
-            excludeForReceipt: true
+            excludeForReceipt: false,
         },
         {
             key: 'vatSum',
@@ -112,7 +119,7 @@ export class DocCreateBuilderService {
 
     readonly docCreateBuilderData: Record<CreateDocFields, IDocCreateFieldData> = {
         // General Details 
-          [FieldsCreateDocValue.BUSINESS_NUMBER]: {
+        [FieldsCreateDocValue.BUSINESS_NUMBER]: {
             //name: FieldsCreateDocName.typeFile,
             value: FieldsCreateDocValue.BUSINESS_NUMBER,
             labelText: 'עסק',
@@ -122,6 +129,17 @@ export class DocCreateBuilderService {
             enumValues: [],
             editFormBasedOnValue: {},
             validators: [Validators.required]
+        },
+          [FieldsCreateDocValue.TOTAL]: {
+            //name: FieldsCreateDocName.typeFile,
+            value: FieldsCreateDocValue.TOTAL,
+            labelText: 'סה"כ',
+            placeHolder: 'סה"כ',
+            type: FormTypes.NUMBER,
+            initialValue: 0,
+            enumValues: [],
+            editFormBasedOnValue: {},
+            validators: []
         },
         [FieldsCreateDocValue.DOC_TYPE]: {
             //name: FieldsCreateDocName.typeFile,
@@ -184,7 +202,7 @@ export class DocCreateBuilderService {
             value: FieldsCreateDocValue.RECIPIENT_NAME,
             labelText: 'שם הלקוח',
             placeHolder: 'לדוגמא: א.ב. צינורות',
-            type: FormTypes.TEXT,
+            type: FormTypes.AUTOCOMPLETE,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
@@ -216,7 +234,7 @@ export class DocCreateBuilderService {
             //name: FieldsCreateDocName.recipientEmail,
             value: FieldsCreateDocValue.RECIPIENT_EMAIL,
             labelText: 'כתובת אימייל',
-            placeHolder: 'name@gamil.com',
+            placeHolder: 'name@gmail.com',
             type: FormTypes.EMAIL,
             initialValue: '',
             enumValues: [],
@@ -410,7 +428,7 @@ export class DocCreateBuilderService {
             initialValue: 0,
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.min(0), Validators.required]
+            validators: [Validators.min(0), Validators.pattern(/^(0|[1-9]\d*)(\.\d+)?$/)]
         },
         [fieldLineDocValue.LINE_NUMBER]: {
             //name: fieldLineDocName.lineNumber,
@@ -489,7 +507,7 @@ export class DocCreateBuilderService {
         //     editFormBasedOnValue: {},
         //     validators: [],
         // },
-          [fieldLineDocValue.PAYMENT_SUM]: {
+        [fieldLineDocValue.PAYMENT_SUM]: {
             //name: fieldLineDocName.paymentCheckDate,
             value: fieldLineDocValue.PAYMENT_SUM,
             labelText: 'סכום',
@@ -834,12 +852,12 @@ export class DocCreateBuilderService {
     }
 
     getLineDetailsColumns(isReceipt: boolean = false) {
-        const filtered = isReceipt 
+        const filtered = isReceipt
             ? this.lineItemColumns.filter(col => !col.excludeForReceipt)
             : this.lineItemColumns;
-        
+
         // Return in legacy format for p-table compatibility
-        return filtered.map(col => ({
+        return filtered.filter(col => col.formField !== FieldsCreateDocValue.TOTAL).map(col => ({
             field: col.formField,
             header: col.header,
             excludeForReceipt: col.excludeForReceipt
@@ -847,13 +865,13 @@ export class DocCreateBuilderService {
     }
 
     getLineItemsDisplayColumns(isReceipt: boolean = false): ILineItemColumn[] {
-        return isReceipt 
+        return isReceipt
             ? this.lineItemColumns.filter(col => !col.excludeForReceipt)
             : this.lineItemColumns;
     }
 
     getSummaryItems(isReceipt: boolean = false): ISummaryItem[] {
-        return isReceipt 
+        return isReceipt
             ? this.summaryItems.filter(item => !item.excludeForReceipt)
             : this.summaryItems;
     }
