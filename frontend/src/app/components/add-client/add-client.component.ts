@@ -11,6 +11,8 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { catchError, EMPTY } from 'rxjs';
 import { MessageService } from 'primeng/api';
+import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
 
 @Component({
   selector: 'app-add-client',
@@ -23,6 +25,7 @@ import { MessageService } from 'primeng/api';
 export class AddClientComponent {
   addClientService = inject(AddClientService);
   messageService = inject(MessageService);
+  dialogRef = inject(DynamicDialogRef);
 
   inputSize = inputsSize;
   buttonColor = ButtonColor;
@@ -57,7 +60,6 @@ export class AddClientComponent {
         catchError((err) => {
           console.log("err in save client: ", err);
           if (err.status === 409) {
-            // this.genericService.openPopupMessage("כבר קיים לקוח בשם זה, אנא בחר שם שונה. אם ברצונך לערוך לקוח זה אנא  לחץ על כפתור עריכה דרך הרשימה .");
             this.messageService.add({
               severity: 'error',
               summary: 'Error',
@@ -82,6 +84,7 @@ export class AddClientComponent {
         })
       )
       .subscribe((res) => {
+        this.clients.reload()
         console.log("res in save client: ", res);
         this.messageService.add({
           severity: 'success',
@@ -90,6 +93,11 @@ export class AddClientComponent {
           life: 3000,
           key: 'br'
         })
+        this.cancel(clientData)
       })
+  }
+
+    cancel(data?: IClient) {
+    this.dialogRef.close(data); // או בלי פרמטר
   }
 }

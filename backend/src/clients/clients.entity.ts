@@ -1,17 +1,20 @@
-import { Entity, Column, PrimaryGeneratedColumn, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, PrimaryColumn, Unique } from 'typeorm';
 
 @Entity()
+@Unique('uq_user_clientId', ['userId', 'id'])
+
 export class Clients {
 
-    @Column({ type: 'varchar', length: 255, default: '' })
+    @PrimaryGeneratedColumn('increment')
+    clientRowId: number;
+
+    @Column({ type: 'varchar', length: 9, default: '' })
     id: string;
 
-    //@PrimaryColumn()
-    @PrimaryColumn({ type: 'varchar', length: 9 })
+    @Column({ type: 'varchar', length: 255 })
     userId: string;
 
-    //@PrimaryColumn()
-    @PrimaryColumn({ type: 'varchar', length: 255 })
+    @Column({ type: 'varchar', length: 255 })
     name: string;
 
     @Column({ type: 'varchar', length: 255, default: '' })

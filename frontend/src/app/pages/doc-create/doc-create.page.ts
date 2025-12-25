@@ -313,6 +313,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
           }
         });
+
+        this.dialogRef.onClose.subscribe((res) => {
+          if (res) {
+            this.fillClientDetails(res);
+          }
+          this.loadClients();
+        })
     // Optionally: Open a dialog or modal to add full client details
     // For now, just allow the user to continue filling the form
     console.log('Adding new client:', name);

@@ -51,7 +51,8 @@ export class AddClientService {
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
-      validators: []
+      validators: [Validators.pattern(/^\d{9}$/)
+]
     },
     [ClientsTableColumns.CITY]: {
       value: ClientsTableColumns.CITY,
