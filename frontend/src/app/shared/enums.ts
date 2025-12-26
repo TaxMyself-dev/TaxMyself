@@ -19,6 +19,19 @@ export enum FormTypes {
   AUTOCOMPLETE = 'autocomplete'
 }
 
+export type FormType =
+  | 'checkbox'
+  | 'text'
+  | 'ddl'
+  | 'file'
+  | 'date'
+  | 'number'
+  | 'email'
+  | 'password'
+  | 'tel'
+  | 'autocomplete';
+
+
 export enum displayColumnsExpense {
   supplier = 'ספק',
   date = 'תאריך',
@@ -209,8 +222,6 @@ export enum FieldsCreateDocValue {
   RECIPIENT_STREET = 'recipientStreet',
   RECIPIENT_HOME_NUMBER = 'recipientHomeNumber',
   RECIPIENT_POSTAL_CODE = 'recipientPostalCode',
-  RECIPIENT_STATE = 'recipientState',
-  RECIPIENT_STATE_CODE = 'recipientStateCode',
   SUM_AFTER_DIS_BEF_VAT = 'sumAfterDisBefVat',
   SUM_AFTER_DIS_WITH_VAT = 'sumAfterDisWithVat',
   SUM_BEF_DIS_BEF_VAT = 'sumBefDisBefVat',
@@ -520,8 +531,6 @@ export enum TaxReportingType {
 export enum ClientsTableColumns {
   CITY = 'city',
   STREET = 'street',
-  STATE = 'state',
-  STATE_CODE = 'stateCode',
   POSTAL_CODE = 'postalCode',
   NAME = 'name',
   PHONE = 'phone',
@@ -533,8 +542,6 @@ export enum ClientsTableColumns {
 export enum ClientsTableHebrewColumns {
   city = 'עיר',
   street = 'רחוב',
-  state = 'מדינה',
-  stateCode = 'קוד מדינה',
   postalCode = 'מיקוד',
   name = 'שם הלקוח',
   phone = 'טלפון',

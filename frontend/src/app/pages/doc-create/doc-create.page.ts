@@ -280,11 +280,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     if (!query) {
       this.filteredClients.set([...this.clients()]);
     } else {
-      const filtered = this.clients().filter(client => 
-        client.name?.toLowerCase().includes(query) ||
-        client.email?.toLowerCase().includes(query) ||
-        client.phone?.toLowerCase().includes(query)
-      );
+      const filtered = this.clients().filter(client => client.name?.toLowerCase().includes(query));
       this.filteredClients.set(filtered);
     }
   }
@@ -1483,11 +1479,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private fillExpandedClientFields(clientData: IClient): void {
     const expandField = {
       [FieldsCreateDocValue.RECIPIENT_CITY]: clientData.city,
-      [FieldsCreateDocValue.RECIPIENT_STATE]: clientData.state,
       [FieldsCreateDocValue.RECIPIENT_STREET]: clientData.street,
       [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: clientData.homeNumber,
       [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: clientData.postalCode,
-      [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: clientData.stateCode,
     }
     if (this.isUserExpanded()) {
       this.userDetailsForm.patchValue(expandField);

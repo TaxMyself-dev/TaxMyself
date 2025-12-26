@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, input, OnInit, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
-import { inputsSize } from 'src/app/shared/enums';
+import { FormType, inputsSize } from 'src/app/shared/enums';
 @Component({
   selector: 'app-input-text',
   templateUrl: './input-text.component.html',
@@ -26,7 +26,7 @@ export class InputTextComponent  implements OnInit {
   min = input<number>(null);
   max = input<number>(null);
   disabled = input<boolean>(false);
-  type = input<'text' | 'number'>('text');
+  type = input<FormType>('text');
   onInputText = output<string>();
 
   inputClasses = signal<string>("");

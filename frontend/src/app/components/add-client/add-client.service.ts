@@ -89,25 +89,7 @@ export class AddClientService {
       initialValue: '',
       enumValues: [],
       validators: []
-    },
-    [ClientsTableColumns.STATE]: {
-      value: ClientsTableColumns.STATE,
-      labelText: 'מדינה',
-      placeHolder: 'מדינה',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.STATE_CODE]: {
-      value: ClientsTableColumns.STATE_CODE,
-      labelText: 'קוד מדינה',
-      placeHolder: 'קוד מדינה',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
+    }
   }
 
   /**
@@ -140,7 +122,7 @@ export class AddClientService {
   }));
 
 
-    saveClientDetails(data: IClient): Observable<any> {
+    saveClientDetails(data: Partial<IClient>): Observable<any> {
       const url = `${environment.apiUrl}clients/add-client`;
       return this.http.post<any>(url, data);
     }

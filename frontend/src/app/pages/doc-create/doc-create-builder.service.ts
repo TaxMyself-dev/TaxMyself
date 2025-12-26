@@ -285,31 +285,9 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: []
         },
-        [FieldsCreateDocValue.RECIPIENT_STATE]: {
-            //name: FieldsCreateDocName.recipientState,
-            value: FieldsCreateDocValue.RECIPIENT_STATE,
-            labelText: 'מדינה',
-            placeHolder: 'מדינה',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
-        [FieldsCreateDocValue.RECIPIENT_STATE_CODE]: {
-            //name: FieldsCreateDocName.recipientStateCode,
-            value: FieldsCreateDocValue.RECIPIENT_STATE_CODE,
-            labelText: 'קוד מדינה',
-            placeHolder: 'קוד מדינה',
-            type: FormTypes.NUMBER,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
         [FieldsCreateDocValue.SUM_AFTER_DIS_BEF_VAT]: {
             //name: FieldsCreateDocName.sumAfterDisBefVat,
-            value: FieldsCreateDocValue.RECIPIENT_STATE_CODE,
+            value: FieldsCreateDocValue.SUM_AFTER_DIS_BEF_VAT,
             labelText: '',
             placeHolder: '',
             type: FormTypes.NUMBER,
@@ -678,7 +656,7 @@ export class DocCreateBuilderService {
             key: 'UserDetails',
             baseFields: [FieldsCreateDocValue.RECIPIENT_NAME, FieldsCreateDocValue.RECIPIENT_ID, FieldsCreateDocValue.RECIPIENT_PHONE, FieldsCreateDocValue.RECIPIENT_EMAIL],
             expandable: true,
-            expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE, FieldsCreateDocValue.RECIPIENT_STATE, FieldsCreateDocValue.RECIPIENT_STATE_CODE]
+            expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]
         },
         'LineDetails': {
             key: 'LineDetails',

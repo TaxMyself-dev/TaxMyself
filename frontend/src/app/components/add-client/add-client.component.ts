@@ -54,7 +54,17 @@ export class AddClientComponent {
   clients = this.addClientService.clients;
 
   saveClient() {
-    const clientData = this.addClientForm.value;
+    const raw = this.addClientForm.getRawValue() as Partial<IClient>;
+
+    const clientData = Object.entries(raw).reduce((acc, [key, value]) => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        (acc as any)[key] = trimmed === '' ? null : trimmed;
+        return acc;
+      }
+      (acc as any)[key] = value ?? null;
+      return acc;
+    }, {} as Partial<IClient>);
     this.addClientService.saveClientDetails(clientData)
       .pipe(
         catchError((err) => {
@@ -70,7 +80,6 @@ export class AddClientComponent {
             })
           }
           else {
-            // this.genericService.showToast("אירעה שגיאה לא ניתן לשמור לקוח אנא נסה מאוחר יותר", "error");
             this.messageService.add({
               severity: 'error',
               summary: 'Error',
@@ -97,7 +106,7 @@ export class AddClientComponent {
       })
   }
 
-    cancel(data?: IClient) {
+  cancel(data?: Partial<IClient>) {
     this.dialogRef.close(data); // או בלי פרמטר
   }
 }
