@@ -461,12 +461,6 @@ export class DocumentsService {
           ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
-          // totalWithoutVatLabel: withoutVatLabel,
-          // totalWithoutVat: `₪${Number(data.docData.sumWithoutVat).toFixed(2)}`,
-          // totalDiscountLabel: "הנחה",
-          // totalDiscount: `₪${Number(data.docData.disSum).toFixed(2)}`,
-          // totalLabel: 'סה"כ לתשלום',
-          // total: `₪${Number(data.docData.sumAftDisWithVAT).toFixed(2)}`,
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
         };
@@ -527,6 +521,18 @@ export class DocumentsService {
   }
 
 
+  /**
+   * Format a number with commas as thousand separators and 2 decimal places
+   * @param num - The number to format
+   * @returns Formatted string (e.g., "1,000.00")
+   */
+  private formatNumberWithCommas(num: number): string {
+    return num.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   async transformSumsToSumTable(docData: any, issuerBusinessNumber: string): Promise<any[]> {
     
     // Get businessType from database
@@ -553,20 +559,20 @@ export class DocumentsService {
         // Show: סה"כ לפני הנחה
         sumTable.push({
           'תיאור': 'סה"כ לפני הנחה:',
-          'סכום': `₪${sumBefDisBefVat.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumBefDisBefVat)}`,
         });
 
         // Show: הנחה
         sumTable.push({
           'תיאור': 'הנחה:',
-          'סכום': `₪${disSum.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(disSum)}`,
         });
       }
 
       // Always show: סה"כ 
       sumTable.push({
         'תיאור': 'סה"כ:',
-        'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+        'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
       });
     } else {
       // For LICENSED (עוסק מורשה) or COMPANY (חברה)
@@ -575,33 +581,33 @@ export class DocumentsService {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
-          'סכום': `₪${sumAftDisBefVAT.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisBefVAT)}`,
         });
 
         // מע"מ
         sumTable.push({
           'תיאור': 'מע"מ:',
-          'סכום': `₪${vatSum.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(vatSum)}`,
         });
 
         // סה"כ ללא מע"מ (רק אם שונה מאפס)
         if (sumWithoutVat > 0) {
           sumTable.push({
             'תיאור': 'סה"כ ללא מע"מ:',
-            'סכום': `₪${sumWithoutVat.toFixed(2)}`,
+            'סכום': `₪${this.formatNumberWithCommas(sumWithoutVat)}`,
           });
         }
 
         // סה"כ
         sumTable.push({
           'תיאור': 'סה"כ:',
-          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
         });
       } else {
         // For other document types, return default structure
         sumTable.push({
           'תיאור': 'סה"כ:',
-          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
         });
       }
     }
@@ -612,8 +618,10 @@ export class DocumentsService {
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
-      'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
-      'מחיר': `₪${Number(line.sumBefVatPerUnit).toFixed(2)}`,
+      // 'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
+      'סה"כ': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit * line.unitQuantity)}`,
+      // 'מחיר': `₪${Number(line.sumBefVatPerUnit).toFixed(2)}`,
+      'מחיר': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit)}`,
       'כמות': String(line.unitQuantity),
       'פירוט': line.description || ""
     }));
@@ -662,15 +670,13 @@ export class DocumentsService {
       }
 
       return {
-        "סכום": `₪${Number(line.paymentSum).toFixed(2)}`,
-        // "תאריך": line.paymentDate,
+        "סכום": `₪${this.formatNumberWithCommas(line.paymentSum)}`,
         "תאריך": this.formatDateToDDMMYYYY(line.paymentDate),
         "פירוט": details,
         "אמצעי תשלום": paymentMethodHebrew
       };
     });
   }
-
 
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
@@ -1253,6 +1259,36 @@ export class DocumentsService {
     const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero-based
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
+  }
+
+  /**
+   * Update document status
+   */
+  async updateDocStatus(
+    issuerBusinessNumber: string,
+    docNumber: string,
+    docType: DocumentType,
+    status: DocumentStatusType
+  ): Promise<{ success: boolean; message: string }> {
+    const doc = await this.documentsRepo.findOne({
+      where: {
+        issuerBusinessNumber,
+        docNumber,
+        docType,
+      },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Document not found');
+    }
+
+    doc.docStatus = status;
+    await this.documentsRepo.save(doc);
+
+    return {
+      success: true,
+      message: 'Document status updated successfully',
+    };
   }
 
 

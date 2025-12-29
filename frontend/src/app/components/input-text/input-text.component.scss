@@ -10,3 +10,9 @@
 .required {
     color: red;
 }
+
+// Fix for number inputs - make them LTR so minus sign appears on the left
+input[type="number"] {
+    direction: ltr;
+    text-align: right; // Keep text alignment to the right for RTL layout
+}

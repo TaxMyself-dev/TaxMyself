@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { Response } from 'express';
-import { DocumentType } from 'src/enum';
+import { DocumentType, DocumentStatusType } from 'src/enum';
 import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -135,6 +135,19 @@ export class DocumentsController {
   @Post('generate-multiple')
   async generateMultipleDocuments(@Body() body: { userId: string }) {
     return this.documentsService.generateMultipleDocs(body.userId);
+  }
+
+  @Patch('update-status')
+  @UseGuards(FirebaseAuthGuard)
+  async updateDocStatus(
+    @Body() body: { issuerBusinessNumber: string; docNumber: string; docType: DocumentType; status: DocumentStatusType },
+    @Req() request: AuthenticatedRequest
+  ) {
+    const { issuerBusinessNumber, docNumber, docType, status } = body;
+    if (!issuerBusinessNumber || !docNumber || !docType || !status) {
+      throw new BadRequestException('issuerBusinessNumber, docNumber, docType, and status are required');
+    }
+    return this.documentsService.updateDocStatus(issuerBusinessNumber, docNumber, docType, status);
   }
 
 

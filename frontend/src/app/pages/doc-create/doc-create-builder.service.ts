@@ -372,7 +372,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.min(0), Validators.required]
+            validators: [Validators.required]
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
             //name: fieldLineDocName.line_description,

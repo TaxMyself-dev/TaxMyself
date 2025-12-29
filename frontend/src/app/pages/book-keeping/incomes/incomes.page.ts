@@ -276,7 +276,7 @@ export class IncomesPage implements OnInit {
         icon: 'pi pi-times',
         title: 'ביטול',
         action: (event: any, row: IRowDataTable) => {
-          this.confirmCancelDoc(row);
+          this.cancelDoc(row);
         }
       },
       {
@@ -284,7 +284,7 @@ export class IncomesPage implements OnInit {
         icon: 'pi pi-lock',
         title: 'הפק מסמך נגדי',
         action: (event: any, row: IRowDataTable) => {
-          this.confirmCancelDoc(row);
+          this.closeDoc(row);
         }
       },
     ]);
@@ -341,12 +341,67 @@ export class IncomesPage implements OnInit {
 
 
   // -----------------------------------------------------
-  // Called when user clicks the download icon in the table
+  // Called when user clicks the cancel icon in the table
   // -----------------------------------------------------
-  confirmCancelDoc(row: IRowDataTable): void {
-    const opposite = this.getOppositeDoc(row);
+  cancelDoc(row: IRowDataTable): void {
+    
+    const businessType = this.getSelectedBusinessType();
+    const isExempt = businessType === BusinessType.EXEMPT;
+    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
 
-    // If we don't have a mapped opposite doc yet, keep the old message (no action)
+    console.log("❌ cancelDoc - businessType:", businessType, "isExempt:", isExempt, "docTypeKey:", docTypeKey);
+
+    // For EXEMPT business only
+    if (isExempt) {
+      // Check if it's חשבון עסקה (TRANSACTION_INVOICE)
+      const isTransactionInvoice = docTypeKey === 'חשבון עסקה' || 
+                                   docTypeKey === DocumentType.TRANSACTION_INVOICE ||
+                                   DocTypeDisplayName[DocumentType.TRANSACTION_INVOICE] === docTypeKey;
+      
+      if (isTransactionInvoice) {
+        // For חשבון עסקה: Ask if user wants to mark as closed
+        this.confirmationService.confirm({
+          message: 'לא ניתן לבטל מסמך שהופק.<br>האם ברצונך לסמן את המסמך כסגור?',
+          header: 'ביטול מסמך',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'כן, סמן כסגור',
+          rejectLabel: 'ביטול',
+          accept: () => {
+            this.updateDocStatusToClose(row);
+          },
+          reject: () => {
+            console.log("User cancelled status update.");
+          }
+        });
+        return;
+      } 
+      
+      // Check if it's קבלה (RECEIPT)
+      const isReceipt = docTypeKey === 'קבלה' || 
+                        docTypeKey === DocumentType.RECEIPT ||
+                        DocTypeDisplayName[DocumentType.RECEIPT] === docTypeKey;
+      
+      if (isReceipt) {
+        // For קבלה: Ask if user wants to create negative receipt
+        this.confirmationService.confirm({
+          message: 'לא ניתן לבטל מסמך שהופק.<br>במידת הצורך, ניתן להפיק קבלה במינוס לצורך תיקון או החזרת תשלום',
+          header: 'ביטול מסמך',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'הפק קבלה במינוס',
+          rejectLabel: 'ביטול',
+          accept: () => {
+            this.redirectToOppositeDoc(row, DocumentType.RECEIPT);
+          },
+          reject: () => {
+            console.log("User cancelled negative receipt creation.");
+          }
+        });
+        return;
+      }
+    }
+
+    // For non-EXEMPT or other document types, keep old behavior
+    const opposite = this.getOppositeDoc(row);
     if (!opposite) {
       this.confirmationService.confirm({
         message: 'לא ניתן לבטל מסמך לאחר שהופק.',
@@ -377,6 +432,100 @@ export class IncomesPage implements OnInit {
       }
     });
   }
+
+
+   // -----------------------------------------------------
+  // Called when user clicks the lock icon in the table
+  // -----------------------------------------------------
+  closeDoc(row: IRowDataTable): void {
+    const businessType = this.getSelectedBusinessType();
+    const isExempt = businessType === BusinessType.EXEMPT;
+    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+    const docStatus = (row as any)?.docStatusOriginal?.toUpperCase();
+
+    console.log("🔒 closeDoc - businessType:", businessType, "isExempt:", isExempt, "docTypeKey:", docTypeKey, "docStatus:", docStatus);
+
+    // Check if document is already closed
+    if (docStatus === 'CLOSE') {
+      this.confirmationService.confirm({
+        message: 'המסמך כבר סגור.',
+        header: 'סגירת מסמך',
+        icon: 'pi pi-info-circle',
+        rejectLabel: 'סגור',
+        acceptVisible: false,
+      });
+      return;
+    }
+
+    // For EXEMPT business only
+    if (isExempt) {
+      // Check if it's חשבון עסקה (TRANSACTION_INVOICE)
+      const isTransactionInvoice = docTypeKey === 'חשבון עסקה' || 
+                                   docTypeKey === DocumentType.TRANSACTION_INVOICE ||
+                                   DocTypeDisplayName[DocumentType.TRANSACTION_INVOICE] === docTypeKey;
+      
+      if (isTransactionInvoice) {
+        // For חשבון עסקה: Ask if user wants to close with receipt
+        this.confirmationService.confirm({
+          message: 'האם ברצונך לסגור את המסמך עם קבלה?',
+          header: 'סגירת מסמך',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'כן, צור קבלה',
+          rejectLabel: 'ביטול',
+          accept: () => {
+            this.redirectToOppositeDoc(row, DocumentType.RECEIPT);
+          },
+          reject: () => {
+            console.log("User cancelled receipt creation.");
+          }
+        });
+        return;
+      } else if (docTypeKey === 'קבלה' || docTypeKey === DocumentType.RECEIPT || DocTypeDisplayName[DocumentType.RECEIPT] === docTypeKey) {
+        // For קבלה: Not relevant (already closed)
+        this.confirmationService.confirm({
+          message: 'לא רלוונטי - המסמך כבר סגור.',
+          header: 'סגירת מסמך',
+          icon: 'pi pi-info-circle',
+          rejectLabel: 'סגור',
+          acceptVisible: false,
+        });
+        return;
+      }
+    }
+
+    // For non-EXEMPT or other document types, keep old behavior
+    const opposite = this.getOppositeDoc(row);
+    if (!opposite) {
+      this.confirmationService.confirm({
+        message: 'לא ניתן לבטל מסמך לאחר שהופק.',
+        header: 'ביטול מסמך',
+        icon: 'pi pi-exclamation-triangle',
+        rejectLabel: 'סגור',
+        acceptVisible: false,
+      });
+      return;
+    }
+
+    const msg = `האם לסגור מסמך זה באמצעות ${opposite.label}?`;
+    const header = (typeof row.docType === 'string' && row.docType === 'חשבון עסקה')
+      ? 'סגירת מסמך'
+      : 'ביטול מסמך';
+
+    this.confirmationService.confirm({
+      message: msg,
+      header,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: `צור ${opposite.label}`,
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.redirectToOppositeDoc(row, opposite.docType);
+      },
+      reject: () => {
+        console.log("User cancelled opposite document creation.");
+      }
+    });
+  }
+
 
   private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType) {
     const businessNumber = this.selectedBusinessNumber();
@@ -455,6 +604,7 @@ export class IncomesPage implements OnInit {
    * Resolve opposite doc type/label, including business-type rules for חשבון עסקה.
    */
   private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
+    
     const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
 
     if (docTypeKey === 'חשבון עסקה') {
@@ -472,6 +622,49 @@ export class IncomesPage implements OnInit {
   private getSelectedBusinessType(): BusinessType | null {
     const biz = this.gs.businesses().find(b => b.businessNumber === this.selectedBusinessNumber());
     return biz?.businessType ?? null;
+  }
+
+  /**
+   * Update document status to CLOSE
+   */
+  private updateDocStatusToClose(row: IRowDataTable): void {
+    const businessNumber = this.selectedBusinessNumber();
+    const docNumber = (row as any)?.docNumber ?? (row as any)?.doc_number;
+    const hebrewDocType = row.docType as string;
+    
+    // Find the original docType enum from the Hebrew name
+    let originalDocType: DocumentType | null = null;
+    if (Object.values(DocumentType).includes(hebrewDocType as DocumentType)) {
+      originalDocType = hebrewDocType as DocumentType;
+    } else {
+      const originalDocTypeEntry = Object.entries(DocTypeDisplayName).find(
+        ([_, name]) => name === hebrewDocType
+      );
+      originalDocType = originalDocTypeEntry ? (originalDocTypeEntry[0] as DocumentType) : null;
+    }
+
+    if (!originalDocType || !docNumber) {
+      console.error('Cannot update status: missing docType or docNumber', { originalDocType, docNumber });
+      return;
+    }
+
+    this.documentsService.updateDocStatus(
+      businessNumber,
+      String(docNumber),
+      originalDocType,
+      'CLOSE'
+    ).pipe(
+      take(1),
+      catchError(err => {
+        console.error('Failed to update document status', err);
+        alert('שגיאה בעדכון סטטוס המסמך');
+        return EMPTY;
+      })
+    ).subscribe(() => {
+      console.log('Document status updated to CLOSE');
+      // Refresh the documents list
+      this.fetchDocuments(businessNumber, this.startDate, this.endDate);
+    });
   }
 
   
