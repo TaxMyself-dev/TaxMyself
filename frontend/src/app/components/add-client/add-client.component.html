@@ -2,7 +2,7 @@
   <form [formGroup]="addClientForm" class="client-form">
     @for (field of addClientService.addClientFields | keyvalue:preserveOrder; track field.key) {
     <app-input-text [parentForm]="addClientForm" [controlName]="field.key" [labelText]="field.value.labelText"
-      [placeholder]="field.value.placeHolder" [type]="field.value.type === 'number' ? 'number' : 'text'" [size]="inputSize.MEDIUM">
+      [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
     </app-input-text>
     }
   </form>

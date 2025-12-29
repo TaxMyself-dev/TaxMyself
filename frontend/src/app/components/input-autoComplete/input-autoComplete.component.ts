@@ -3,6 +3,8 @@ import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validator
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
 import { inputsSize } from 'src/app/shared/enums';
+import { ButtonComponent } from "../button/button.component";
+import { ButtonSize } from '../button/button.enum';
 
 interface AutoCompleteCompleteEvent {
   originalEvent: Event;
@@ -13,13 +15,14 @@ interface AutoCompleteCompleteEvent {
   selector: 'app-input-autocomplete',
   templateUrl: './input-autoComplete.component.html',
   styleUrls: ['./input-autoComplete.component.scss'],
-  imports: [FormsModule, ReactiveFormsModule, AutoCompleteModule, ButtonModule],
+  imports: [FormsModule, ReactiveFormsModule, AutoCompleteModule, ButtonModule, ButtonComponent],
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class InputAutoCompleteComponent implements OnInit {
 
   inputsSize = inputsSize;
+  buttonSize = ButtonSize;
 
   // Input signals
   parentForm = input<FormGroup>(null);
