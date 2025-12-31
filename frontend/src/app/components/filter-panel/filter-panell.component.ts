@@ -8,7 +8,7 @@ import { CalendarModule } from 'primeng/calendar';
 import { ButtonModule } from 'primeng/button';
 import { ListboxModule } from 'primeng/listbox';
 import { ButtonComponent } from "../button/button.component";
-import { ButtonColor, ButtonSize, iconPosition } from '../button/button.enum';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { inputsSize } from 'src/app/shared/enums';
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { ISelectItem } from 'src/app/shared/interface';
@@ -119,7 +119,6 @@ export class FilterPanelComponent implements OnInit, AfterViewInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
   inputsSize = inputsSize;
-  iconPos = iconPosition;
 
   constructor() {
     this.form = this.fb.group({

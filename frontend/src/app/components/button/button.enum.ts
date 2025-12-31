@@ -18,9 +18,4 @@ export enum ButtonColor {
    TRANSPARET = 'transparent'
 }
 
-export enum iconPosition {
-    LEFT = 'left',
-    RIGHT = 'right',
-    BOTTOM = 'bottom',
-    TOP = 'top',
-}
+export type IconPosition = 'left' | 'right' | 'bottom' | 'top';

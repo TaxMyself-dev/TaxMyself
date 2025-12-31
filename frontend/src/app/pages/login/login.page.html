@@ -1,200 +1,134 @@
-<div class="login-wrap-screen">
-  <div class="custom-modal-backdrop" (click)="closeModal()" *ngIf="showModal">
-    <div class="custom-modal" (click)="$event.stopPropagation()">
-      <button class="close-button" (click)="closeModal()">×</button>
+<div class="custom-modal-backdrop" (click)="closeModal()" *ngIf="showModal">
+  <div class="custom-modal" (click)="$event.stopPropagation()">
+    <button class="close-button" (click)="closeModal()">×</button>
 
-      <div>
-        ✨ <strong>ההרשמה הסתיימה בהצלחה!✨</strong><br>
-        נותר רק צעד קטן אחרון – אישור המייל 🎉<br><br>
+    <div>
+      ✨ <strong>ההרשמה הסתיימה בהצלחה!✨</strong><br>
+      נותר רק צעד קטן אחרון – אישור המייל 🎉<br><br>
 
-        שלחנו אליך הודעת אימות לכתובת המייל שאיתה נרשמת.<br>
-        כדי להתחיל, פשוט פתח/י את ההודעה ולחץ/י על הקישור לאישור.<br><br>
+      שלחנו אליך הודעת אימות לכתובת המייל שאיתה נרשמת.<br>
+      כדי להתחיל, פשוט פתח/י את ההודעה ולחץ/י על הקישור לאישור.<br><br>
 
-        <strong>לא רואה את ההודעה?</strong><br>
-        כדאי לבדוק גם בתיקיית הספאם.<br>
-        ואם צריך – אפשר
-        <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>.
-      </div>
+      <strong>לא רואה את ההודעה?</strong><br>
+      כדאי לבדוק גם בתיקיית הספאם.<br>
+      ואם צריך – אפשר
+      <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>.
     </div>
   </div>
+</div>
 
-  <div class="login-screen">
-
-    <div class="login-card">
-      <div class="logo-title-row">
+<div class="login-page">
+  <div class="login-section">
+    <div class="login-top">
+      <div class="login-logo">
         <img class="top-nav-logo" src="../../../assets/login_logo.svg" alt="Logo" height="40">
       </div>
       <div class="login-content">
         <div class="wellcome-and-socisal-buttons">
-          <div class="welcome">
+          <div class="welcome-wrapper">
             <p class="welcome-title">ברוכים הבאים</p>
-            <p style="overflow-wrap: break-word; text-align: center;">בחרו איך תרצו ליצור חשבון או התחברו עם החשבון
-              הקיים שלכם</p>
+            <p class="welcome-text">בחרו איך תרצו ליצור חשבון או התחברו עם החשבון הקיים שלכם</p>
           </div>
 
           <div class="social-login-buttons">
-            <p-button label="התחברו עם פייסבוק" icon="pi pi-facebook" iconPos="right" class="social-btn fb-btn"
-              severity="secondary" [rounded]="true" variant="outlined"></p-button>
-            <p-button iconPos="right" class="social-btn google-btn" severity="secondary" [rounded]="true"
-              variant="outlined">
-              <ng-template pTemplate="content"><img src="../../../assets/icon/google-icon.png" class="google-icon"
-                  alt="Google" />התחברו עם גוגל</ng-template>
-            </p-button>
-          </div>
-        </div>
-
-        <div class="wrap-register-with-exist-account">
-          <div class="register-with-exist-account">
-            <div class="line-with-text">
-              <hr class="line" />
-              <p class="text">התחברות עם חשבון קיים</p>
-              <hr class="line" />
-            </div>
-
-            <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login()">
-              <div class="inputs-wrap">
-                <p-iconfield iconPosition="right">
-                  <p-inputicon styleClass="pi pi-envelope" />
-                  <input class="input-field" type="text" pInputText pSize="large" placeholder="אימייל"
-                    formControlName="userName" />
-                </p-iconfield>
-
-                <p-iconfield iconPosition="right">
-                  <p-inputicon styleClass="pi pi-lock" />
-                  <input class="input-field" pInputText [type]="showPassword ? 'text' : 'password'"
-                    formControlName="password" placeholder="סיסמה" />
-                  <p-inputicon [styleClass]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" (click)="togglePassword()"
-                    style="cursor: pointer;"></p-inputicon>
-                </p-iconfield>
-              </div>
-              @if (authService.error()){
-              @switch (authService.error()) {
-              @case ('email') {
-              <p class="text-error">
-                נשלח אליך בהרשמה מייל לאימות, אנא ודא שאישרת אותו
-                <br>
-                לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
-              </p>
-              }
-              @case ('user') {
-              <p class="text-error">
-                מייל או סיסמא לא תקינים.
-              </p>
-              }
-              @case ('error') {
-              <p class="text-error">
-                השירות אינו זמין כעת אנא נסה מאוחר יותר
-              </p>
-              }
-              @default {
-              <p class="text-error">
-                השירות אינו זמין כעת אנא נסה מאוחר יותר
-              </p>
-              }
-              }
-              }
-              <div class="forgot-password">
-                <span>שכחת את הסיסמה?</span>
-                <app-p-button [class]="'login'" [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
-                  [buttonSize]="buttonSize.AUTO" (onButtonClicked)="resetPassword()"
-                  [isLoading]="isLoadingStateResetPassword()"></app-p-button>
-              </div>
-
-              <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"
-                [buttonColor]="buttonColor.YELLOW" [disabled]="loginForm.invalid" [buttonSize]="buttonSize.BIG"
-                (onButtonClicked)="login()" [isLoading]="isLoading()"></app-p-button>
-
-            </form>
+            <app-p-button [buttonText]="'התחברו עם פייסבוק'" [buttonSize]="buttonSize.BETWEEN"
+              [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.AUTO" icon="pi pi-facebook"
+              iconPosition="right"></app-p-button>
+            <app-p-button [buttonText]="'התחברו עם גוגל'" [buttonSize]="buttonSize.BETWEEN"
+              [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.AUTO" icon="pi pi-google"
+              iconPosition="right"></app-p-button>
           </div>
         </div>
       </div>
+    </div>
 
+    <div class="login-center">
+      <div class="wrap-register-with-exist-account">
+        <div class="register-with-exist-account">
+          <div class="line-with-text">
+            <hr class="line" />
+            <p class="text">התחברות עם חשבון קיים</p>
+            <hr class="line" />
+          </div>
+          <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login()">
+            <div class="inputs-wrap">
+              <p-iconfield iconPosition="right">
+                <p-inputicon styleClass="pi pi-envelope" />
+                <input class="input-field" type="text" pInputText pSize="large" placeholder="אימייל"
+                  formControlName="userName" />
+              </p-iconfield>
+
+              <p-iconfield iconPosition="right">
+                <p-inputicon styleClass="pi pi-lock" />
+                <input class="input-field" pInputText [type]="showPassword ? 'text' : 'password'"
+                  formControlName="password" placeholder="סיסמה" />
+                <p-inputicon [styleClass]="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" (click)="togglePassword()"
+                  style="cursor: pointer;"></p-inputicon>
+              </p-iconfield>
+            </div>
+            <div class="error-slot">
+              @switch (authService.error()) {
+              @case ('email') {
+              <p class="text-error">
+                נשלח אליך בהרשמה מייל לאימות, אנא ודא שאישרת אותו<br>
+                לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span>
+                לשליחת מייל חדש לאימות
+              </p>
+              }
+              @case ('user') {
+              <p class="text-error">מייל או סיסמא לא תקינים.</p>
+              }
+              @case ('error') {
+              <p class="text-error">השירות אינו זמין כעת אנא נסה מאוחר יותר</p>
+              }
+              @default {
+              <p class="text-error">&nbsp;</p>
+              }
+              }
+            </div>
+
+            <div class="forgot-password">
+              <span>שכחת את הסיסמה?</span>
+              <app-p-button [class]="'login'" [buttonText]="'שחזור סיסמה'" [variant]="'text'" [severity]="'info'"
+                [buttonSize]="buttonSize.AUTO" (onButtonClicked)="resetPassword()"
+                [isLoading]="isLoadingStateResetPassword()"></app-p-button>
+            </div>
+
+            <app-p-button [buttonText]="'היכנסו עכשיו!'" [buttonSize]="buttonSize.BETWEEN"
+              [buttonColor]="buttonColor.YELLOW" [disabled]="loginForm.invalid" [buttonSize]="buttonSize.BIG"
+              (onButtonClicked)="login()" [isLoading]="isLoading()"></app-p-button>
+
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="login-bottom">
       <div class="register-link">
         <span>אין לכם חשבון?</span><br />
         <app-p-button [class]="'login'" [buttonText]="'הירשמו בקלות'" [variant]="'text'" [severity]="'info'"
           [buttonSize]="buttonSize.AUTO" (onButtonClicked)="navigateToRegister()"></app-p-button>
       </div>
-
-
-
     </div>
 
-    <div class="login-picture">
+
+
+  </div>
+  <!-- <div class="login-picture">
       <div class="image-text">
-        <h1 class="image-title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</h1>
+        <p class="image-title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</p>
         <p class="image-subtitle"></p>
       </div>
       <div>
       <img src="../../../assets/login_picture.png" alt="Login Image" class="login-image">
     </div>
-    </div>
+    </div> -->
+  <aside class="login-media" aria-hidden="true">
+    <img class="login-media__img" src="../../../assets/login_picture.png" alt="" />
 
-  </div>
-
+    <!-- <div class="login-media__overlay">
+      <p class="login-media__title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</p>
+      <p class="login-media__subtitle"></p>
+    </div> -->
+  </aside>
 </div>
-
-<!-- <ion-header class="login-header" [translucent]="true">
-  <ng-container *ngIf="authService.error$ | async as errorType">
-    <ng-container [ngSwitch]="errorType">
-      <ng-container *ngSwitchCase=" 'email' ">
-        <p class="text-error">
-         נשלח אליך בהרשמה מייל לאימות, אנא ודא שאישרת אותו
-          <br>
-          לחץ <span (click)="sendVerficaitonEmail()" class="blue-link">כאן</span> לשליחת מייל חדש לאימות
-        </p>
-      </ng-container>
-      <ng-container *ngSwitchCase=" 'user' ">
-        <p class="text-error">
-        משתמש או סיסמא לא תקינים.
-          <br>
-          אנא ודא שהכנסת מייל תקין או הירשם למערכת
-      </ng-container>
-      <ng-container *ngSwitchCase=" 'error' ">
-        <p class="text-error">
-          השירות אינו זמין כעת אנא נסה מאוחר יותר
-        </p>
-      </ng-container>
-    </ng-container>
-  </ng-container>
-</ion-header>
-<ion-content>
-  <form class="flex-center" [formGroup]="loginForm" (keyup.enter)="onEnterKeyPressed()">
-    <ion-card class="login-card">
-      <ion-card-header>
-        <ion-card-title class="custom-title"><b>עצמאי בעצמי</b></ion-card-title>
-      </ion-card-header>
-      <div class="line"></div>
-      <ion-card-header>
-        <ion-card-title class="custom-title"><b>להרוויח זמן - לחסוך כסף</b></ion-card-title>
-      </ion-card-header>
-
-      <ion-card-content class="login-card-content">
-        <ng-container *ngIf="!resetMode; else resetTemplate" (keyup.enter)="login2()">
-          <app-generic-input [inputType]="formTypes.EMAIL" inputLabel="אימייל" controlName="userName" className="wide"
-            [parentForm]="loginForm" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'"></app-generic-input>
-          <app-generic-input [inputType]="formTypes.PASSWORD" inputLabel="סיסמא" controlName="password"
-            [parentForm]="loginForm" [showAsterisk]="false" [showError]="false"></app-generic-input>
-          <app-button [isLoading]="isLoading" [buttonSize]="ButtonSize.SMALL" [disabled]="this.loginForm.invalid" buttonText="התחבר"
-            (onButtonClicked)="login2()"></app-button>
-        </ng-container>
-        <ng-template #resetTemplate>
-          <app-generic-input (keyup.enter)="resetPassword()" [inputType]="formTypes.EMAIL" inputLabel="אימייל"
-            className="wide" [showAsterisk]="false" [errorText]="'כתובת המייל אינה חוקית'" controlName="userName"
-            [parentForm]="resetForm" (onInputChange)="saveEmailForReset($event)"></app-generic-input>
-          <div class="reset-buttons">
-            <app-button [buttonSize]="ButtonSize.SMALL" buttonText="חזור"
-              (onButtonClicked)="switchMode(false)"></app-button>
-            <app-button [buttonSize]="ButtonSize.SMALL" [disabled]="this.resetForm.invalid" buttonText="שלח"
-              (onButtonClicked)="resetPassword()"></app-button>
-          </div>
-        </ng-template>
-        <p>
-          לחץ <span (click)="switchMode(true)" class="blue-link">כאן</span> לשליחת מייל לאיפוס סיסמא.
-        </p>
-        <p>
-          משתמש חדש? לחץ <span (click)="navigateToRegister()" class="blue-link">כאן</span> להרשמה.
-        </p>
-      </ion-card-content>
-    </ion-card>
-  </form>
-</ion-content> -->
