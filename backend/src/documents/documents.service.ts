@@ -17,7 +17,8 @@ import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
 import * as admin from 'firebase-admin';
 import { randomUUID } from 'crypto';
-
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class DocumentsService {
@@ -202,20 +203,12 @@ export class DocumentsService {
     fileName: string,
     fileType: 'original' | 'copy'
   ): Promise<string> {
-    console.log('Bucketttttttttttttttttt:', process.env.FIREBASE_STORAGE_BUCKET);
 
     try {
       const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
-      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
-      // console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
-      // console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
-      // console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
-      // console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
-
       const uniqueId = randomUUID();
       const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
       const file = bucket.file(filePath);
-      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
           contentType: 'application/pdf',
@@ -432,7 +425,20 @@ export class DocumentsService {
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
     const docType = data.docData.docType;
-    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'פטור ממע"מ';
+
+    // Read draft image and convert to base64 only for previewDoc
+    let draftImageBase64: string | null = null;
+    if (templateType === 'previewDoc') {
+      try {
+        // Path: backend/src/assets/draft.jpeg
+        // From compiled dist folder: __dirname is dist/documents, so go up to dist, then up to root, then into src/assets
+        const draftImagePath = path.join(__dirname, '..', '..', 'src', 'assets', 'draft.jpeg');
+        const imageBuffer = fs.readFileSync(draftImagePath);
+        draftImageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+      } catch (error) {
+        console.error('❌ Error reading draft image:', error);
+      }
+    }
 
     switch (templateType) {
       case 'createDoc':
@@ -463,8 +469,9 @@ export class DocumentsService {
           sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
+          draft_image: templateType === 'previewDoc' ? draftImageBase64 : null
         };
-
+        
         // Add VAT-related fields only for non-receipts
         const isReceipt = docType === 'RECEIPT';
         if (!isReceipt) {
@@ -577,7 +584,9 @@ export class DocumentsService {
     } else {
       // For LICENSED (עוסק מורשה) or COMPANY (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
-      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT) {
+      console.log("docType is ", docType);
+      
+      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE) {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
@@ -604,6 +613,7 @@ export class DocumentsService {
           'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
         });
       } else {
+        console.log("docType is ", docType);
         // For other document types, return default structure
         sumTable.push({
           'תיאור': 'סה"כ:',
@@ -618,9 +628,7 @@ export class DocumentsService {
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
-      // 'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
       'סה"כ': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit * line.unitQuantity)}`,
-      // 'מחיר': `₪${Number(line.sumBefVatPerUnit).toFixed(2)}`,
       'מחיר': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit)}`,
       'כמות': String(line.unitQuantity),
       'פירוט': line.description || ""
