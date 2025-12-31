@@ -3,7 +3,7 @@ import { ButtonComponent } from "../button/button.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { FormArray, FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ButtonColor, ButtonSize, iconPosition } from '../button/button.enum';
+import { ButtonColor, ButtonSize, IconPosition } from '../button/button.enum';
 import { inputsSize } from 'src/app/shared/enums';
 import { ISelectItem } from 'src/app/shared/interface';
 import { InputTextComponent } from "../input-text/input-text.component";
@@ -57,7 +57,6 @@ export class AddCategoryComponent implements OnInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
   inputsSize = inputsSize;
-  iconPos = iconPosition;
 
   // === Main form ===
   mainForm: FormGroup;

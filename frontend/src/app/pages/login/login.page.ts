@@ -117,6 +117,7 @@ export class LoginPage implements OnInit {
   from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
     .pipe(
       catchError((err) => {
+        this.authService.handleErrorLogin(err.code);
         console.log("❌ Firebase login error:", err);
         return EMPTY;
       }),

@@ -11,7 +11,7 @@
       }
     </label>
     }
-    <input [type]="type()" pInputText [formControlName]="controlName()"  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
+    <input [type]="type()" [dir]="type() === 'number' ? 'ltr' : 'rtl'" pInputText [formControlName]="controlName()"  [placeholder]="labelText() ? placeholder() : placeholder() + (isRequired ? ' *' : '')"
       [class]="inputClasses()" (input)="onInput($event)" [min]="type() === 'number' ? min() : null" [max]="type() === 'number' ? max() : null"/>
   </div>
 
