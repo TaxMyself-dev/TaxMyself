@@ -1,7 +1,7 @@
 import { Component, input, OnInit, output, signal } from '@angular/core';
 import { DrawerModule } from 'primeng/drawer';
 import { ButtonComponent } from "../button/button.component";
-import { ButtonColor, ButtonSize, iconPosition } from '../button/button.enum';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 @Component({
   selector: 'app-left-panel',
   templateUrl: './left-panel.component.html',
@@ -20,7 +20,6 @@ export class LeftPanelComponent  implements OnInit {
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
-  iconPos = iconPosition;
   constructor() { }
 
   ngOnInit() {}

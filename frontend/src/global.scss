@@ -97,14 +97,18 @@ body {
   margin: 0;
 }
 
+body {
+  min-height: 100svh;
+}
+
 // *, *::before, *::after {
 //   box-sizing: border-box;
 // }
 
 app-root {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
-  display: block;
+  // display: block;
 }
 
 .expense-modal {
