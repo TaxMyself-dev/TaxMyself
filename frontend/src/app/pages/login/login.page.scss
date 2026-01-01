@@ -207,25 +207,59 @@ input:-webkit-autofill {
 }
 
 .login-media {
-  flex: 1;
   position: relative;
+  width: 100%;
   overflow: hidden;
   display: flex;
-  align-items: stretch;
-  background: #f4f4f4;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-media__text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 40px;
+  z-index: 3;
+}
+
+.image-title {
+  max-width: 724px;
+  padding: 0 10px;
+  font-size: 4rem;
+  text-align: center;
+  color: white;
+  font-weight: 700;
 }
 
 .login-media__img {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 100vh;
-  object-fit: cover;
-  display: block;
-  object-position: left top;
+  height: 100%;
+  object-fit: contain;
 }
 
-@media (max-width: 1200px) {
+.login-media__bg {
+  z-index: 1;
+  object-fit: cover;
+}
+
+.login-media__el {
+  z-index: 2;
+  pointer-events: none;
+}
+
+
+
+@media (max-width: 1000px) {
   .login-page {
-   justify-content: center; 
+    justify-content: center;
   }
 
   .login-section {
@@ -237,4 +271,3 @@ input:-webkit-autofill {
     display: none;
   }
 }
-  
