@@ -81,6 +81,9 @@
               @case ('error') {
               <p class="text-error">השירות אינו זמין כעת אנא נסה מאוחר יותר</p>
               }
+               @case ('net') {
+              <p class="text-error">בעיית רשת אנא בדוק חיבורים ונסה שוב</p>
+              }
               @default {
               <p class="text-error">&nbsp;</p>
               }
