@@ -82,6 +82,12 @@ export class IncomesPage implements OnInit {
     'חשבון עסקה': { docType: DocumentType.RECEIPT, label: 'קבלה' }, // default; overridden by business type
   };
 
+  // Mapping of original doc → opposite doc type + label
+  private closeDocMap: Record<string, { docType: DocumentType; label: string }> = {
+    'חשבונית מס': { docType: DocumentType.RECEIPT, label: 'קבלה' },
+    'חשבון עסקה': { docType: DocumentType.TAX_INVOICE_RECEIPT, label: 'חשבונית מס קבלה' }, // default; overridden by business type
+  };
+
   // ===========================
   // Filter config (used by FilterTab)
   // ===========================
@@ -217,10 +223,10 @@ export class IncomesPage implements OnInit {
         }
         
         return {
-          ...row,
-          sum: this.gs.addComma(Math.abs(row.sum as number)),
-          docType: DocTypeDisplayName[row.docType] ?? row.docType,
-          docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
+        ...row,
+        sum: this.gs.addComma(Math.abs(row.sum as number)),
+        docType: DocTypeDisplayName[row.docType] ?? row.docType,
+        docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
           docStatusOriginal: row.docStatus, // Keep original value for conditional checks
           parentDoc: parentDoc, // Add parent doc formatted string with HTML
         };
@@ -344,22 +350,25 @@ export class IncomesPage implements OnInit {
   // Called when user clicks the cancel icon in the table
   // -----------------------------------------------------
   cancelDoc(row: IRowDataTable): void {
-    
-    const businessType = this.getSelectedBusinessType();
-    const isExempt = businessType === BusinessType.EXEMPT;
-    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
 
-    console.log("❌ cancelDoc - businessType:", businessType, "isExempt:", isExempt, "docTypeKey:", docTypeKey);
+    console.log("cancelDoc is called: row.docType is ", row.docType, "type of row.docType is ", typeof row.docType);
 
-    // For EXEMPT business only
-    if (isExempt) {
-      // Check if it's חשבון עסקה (TRANSACTION_INVOICE)
-      const isTransactionInvoice = docTypeKey === 'חשבון עסקה' || 
-                                   docTypeKey === DocumentType.TRANSACTION_INVOICE ||
-                                   DocTypeDisplayName[DocumentType.TRANSACTION_INVOICE] === docTypeKey;
-      
-      if (isTransactionInvoice) {
-        // For חשבון עסקה: Ask if user wants to mark as closed
+    const docType = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+    const docStatus = (row as any)?.docStatusOriginal?.toUpperCase();
+
+    switch (docType) {
+      case 'חשבון עסקה':
+        // Check if document is already closed
+        if (docStatus === 'CLOSE') {
+          this.confirmationService.confirm({
+            message: 'המסמך כבר סגור.',
+            header: 'סגירת מסמך',
+            icon: 'pi pi-info-circle',
+            rejectLabel: 'סגור',
+            acceptVisible: false,
+          });
+          break;
+        }
         this.confirmationService.confirm({
           message: 'לא ניתן לבטל מסמך שהופק.<br>האם ברצונך לסמן את המסמך כסגור?',
           header: 'ביטול מסמך',
@@ -373,64 +382,64 @@ export class IncomesPage implements OnInit {
             console.log("User cancelled status update.");
           }
         });
-        return;
-      } 
-      
-      // Check if it's קבלה (RECEIPT)
-      const isReceipt = docTypeKey === 'קבלה' || 
-                        docTypeKey === DocumentType.RECEIPT ||
-                        DocTypeDisplayName[DocumentType.RECEIPT] === docTypeKey;
-      
-      if (isReceipt) {
-        // For קבלה: Ask if user wants to create negative receipt
+        break;
+
+      case 'קבלה':
         this.confirmationService.confirm({
           message: 'לא ניתן לבטל מסמך שהופק.<br>במידת הצורך, ניתן להפיק קבלה במינוס לצורך תיקון או החזרת תשלום',
           header: 'ביטול מסמך',
           icon: 'pi pi-exclamation-triangle',
           acceptLabel: 'הפק קבלה במינוס',
           rejectLabel: 'ביטול',
+          acceptVisible: true,
           accept: () => {
-            this.redirectToOppositeDoc(row, DocumentType.RECEIPT);
+            this.redirectToOppositeDoc(row, DocumentType.RECEIPT, true); // true = isNegativeReceipt
           },
           reject: () => {
             console.log("User cancelled negative receipt creation.");
           }
         });
-        return;
-      }
+        break;
+
+      case 'חשבונית מס':
+        this.confirmationService.confirm({
+          message: 'לא ניתן לבטל מסמך שהופק.<br>במידת הצורך, ניתן להפיק חשבונית זיכוי לצורך תיקון או החזרת תשלום',
+          header: 'ביטול מסמך',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'הפק חשבונית זיכוי',
+          rejectLabel: 'ביטול',
+          acceptVisible: true,
+          accept: () => {
+            this.redirectToOppositeDoc(row, DocumentType.CREDIT_INVOICE, true);
+          },
+          reject: () => {
+            console.log("User cancelled negative receipt creation.");
+          }
+        });
+        break;
+
+      case 'חשבונית מס קבלה':
+        this.confirmationService.confirm({
+          message: 'לא ניתן לבטל מסמך שהופק.<br>במידת הצורך, יש להפיק חשבונית זיכוי וקבלה במינוס לצורך תיקון או החזרת תשלום',
+          header: 'ביטול מסמך',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'הפק חשבונית זיכוי',
+          rejectLabel: 'ביטול',
+          acceptVisible: true,
+          accept: () => {
+            this.redirectToOppositeDoc(row, DocumentType.CREDIT_INVOICE, true);
+          },
+          reject: () => {
+            console.log("User cancelled negative receipt creation.");
+          }
+        });
+        break;
+
+      default:
+        console.error(`סוג מסמך לא מזוהה: ${docType}`);
+        throw new Error(`סוג מסמך לא מזוהה: ${docType}`);
     }
 
-    // For non-EXEMPT or other document types, keep old behavior
-    const opposite = this.getOppositeDoc(row);
-    if (!opposite) {
-      this.confirmationService.confirm({
-        message: 'לא ניתן לבטל מסמך לאחר שהופק.',
-        header: 'ביטול מסמך',
-        icon: 'pi pi-exclamation-triangle',
-        rejectLabel: 'סגור',
-        acceptVisible: false,
-      });
-      return;
-    }
-
-    const msg = `האם לסגור מסמך זה באמצעות ${opposite.label}?`;
-    const header = (typeof row.docType === 'string' && row.docType === 'חשבון עסקה')
-      ? 'סגירת מסמך'
-      : 'ביטול מסמך';
-
-    this.confirmationService.confirm({
-      message: msg,
-      header,
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: `צור ${opposite.label}`,
-      rejectLabel: 'ביטול',
-      accept: () => {
-        this.redirectToOppositeDoc(row, opposite.docType);
-      },
-      reject: () => {
-        console.log("User cancelled opposite document creation.");
-      }
-    });
   }
 
 
@@ -438,12 +447,11 @@ export class IncomesPage implements OnInit {
   // Called when user clicks the lock icon in the table
   // -----------------------------------------------------
   closeDoc(row: IRowDataTable): void {
+
     const businessType = this.getSelectedBusinessType();
     const isExempt = businessType === BusinessType.EXEMPT;
-    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+    const docType = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
     const docStatus = (row as any)?.docStatusOriginal?.toUpperCase();
-
-    console.log("🔒 closeDoc - businessType:", businessType, "isExempt:", isExempt, "docTypeKey:", docTypeKey, "docStatus:", docStatus);
 
     // Check if document is already closed
     if (docStatus === 'CLOSE') {
@@ -457,77 +465,70 @@ export class IncomesPage implements OnInit {
       return;
     }
 
-    // For EXEMPT business only
-    if (isExempt) {
-      // Check if it's חשבון עסקה (TRANSACTION_INVOICE)
-      const isTransactionInvoice = docTypeKey === 'חשבון עסקה' || 
-                                   docTypeKey === DocumentType.TRANSACTION_INVOICE ||
-                                   DocTypeDisplayName[DocumentType.TRANSACTION_INVOICE] === docTypeKey;
-      
-      if (isTransactionInvoice) {
-        // For חשבון עסקה: Ask if user wants to close with receipt
+    switch (docType) {
+
+      case 'חשבון עסקה':
+        if (isExempt) {
+          this.confirmationService.confirm({
+            message: 'האם ברצונך לסגור את המסמך עם קבלה?',
+            header: 'סגירת מסמך',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'הפק קבלה',
+            rejectLabel: 'ביטול',
+            acceptVisible: true,
+            rejectVisible: true,
+            accept: () => {
+              this.redirectToOppositeDoc(row, DocumentType.RECEIPT);
+            },
+            reject: () => {
+              console.log("User cancelled status update.");
+            }
+          });
+        } else {
+          this.confirmationService.confirm({
+            message: 'האם ברצונך לסגור את המסמך עם חשבונית מס קבלה?',
+            header: 'סגירת מסמך',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'הפק חשבונית מס קבלה',
+            rejectLabel: 'ביטול',
+            acceptVisible: true,
+            rejectVisible: true,
+            accept: () => {
+              this.redirectToOppositeDoc(row, DocumentType.TAX_INVOICE_RECEIPT);
+            },
+            reject: () => {
+              console.log("User cancelled status update.");
+            }
+          });
+        }
+      break;
+
+      case 'חשבונית מס':
         this.confirmationService.confirm({
           message: 'האם ברצונך לסגור את המסמך עם קבלה?',
           header: 'סגירת מסמך',
           icon: 'pi pi-exclamation-triangle',
-          acceptLabel: 'כן, צור קבלה',
+          acceptLabel: 'הפק קבלה',
           rejectLabel: 'ביטול',
+          acceptVisible: true,
+          rejectVisible: true,
           accept: () => {
             this.redirectToOppositeDoc(row, DocumentType.RECEIPT);
           },
           reject: () => {
-            console.log("User cancelled receipt creation.");
+            console.log("User cancelled status update.");
           }
         });
-        return;
-      } else if (docTypeKey === 'קבלה' || docTypeKey === DocumentType.RECEIPT || DocTypeDisplayName[DocumentType.RECEIPT] === docTypeKey) {
-        // For קבלה: Not relevant (already closed)
-        this.confirmationService.confirm({
-          message: 'לא רלוונטי - המסמך כבר סגור.',
-          header: 'סגירת מסמך',
-          icon: 'pi pi-info-circle',
-          rejectLabel: 'סגור',
-          acceptVisible: false,
-        });
-        return;
-      }
+      break;
+
+      default:
+        console.error(`סוג מסמך לא מזוהה: ${docType}`);
+        throw new Error(`סוג מסמך לא מזוהה: ${docType}`);
     }
-
-    // For non-EXEMPT or other document types, keep old behavior
-    const opposite = this.getOppositeDoc(row);
-    if (!opposite) {
-      this.confirmationService.confirm({
-        message: 'לא ניתן לבטל מסמך לאחר שהופק.',
-        header: 'ביטול מסמך',
-        icon: 'pi pi-exclamation-triangle',
-        rejectLabel: 'סגור',
-        acceptVisible: false,
-      });
-      return;
-    }
-
-    const msg = `האם לסגור מסמך זה באמצעות ${opposite.label}?`;
-    const header = (typeof row.docType === 'string' && row.docType === 'חשבון עסקה')
-      ? 'סגירת מסמך'
-      : 'ביטול מסמך';
-
-    this.confirmationService.confirm({
-      message: msg,
-      header,
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: `צור ${opposite.label}`,
-      rejectLabel: 'ביטול',
-      accept: () => {
-        this.redirectToOppositeDoc(row, opposite.docType);
-      },
-      reject: () => {
-        console.log("User cancelled opposite document creation.");
-      }
-    });
   }
 
 
-  private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType) {
+  private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType, isNegativeReceipt: boolean = false) {
     const businessNumber = this.selectedBusinessNumber();
     
     // Find the original docType enum from the Hebrew name
@@ -563,6 +564,7 @@ export class IncomesPage implements OnInit {
       },
       businessNumber,
       businessName: this.selectedBusinessName(),
+      isNegativeReceipt, // Pass the flag to indicate if this is a negative receipt
     };
     
     console.log("🔥 redirectToOppositeDoc - basePayload.sourceDoc:", basePayload.sourceDoc);
@@ -600,11 +602,57 @@ export class IncomesPage implements OnInit {
     });
   }
 
-  /**
-   * Resolve opposite doc type/label, including business-type rules for חשבון עסקה.
-   */
-  private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
+  // /**
+  //  * Resolve opposite doc type/label, including business-type rules for חשבון עסקה.
+  //  */
+  // private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
     
+  //   const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+
+  //   if (docTypeKey === 'חשבון עסקה') {
+  //     const businessType = this.getSelectedBusinessType();
+  //     const isExempt = businessType === BusinessType.EXEMPT;
+  //     return {
+  //       docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
+  //       label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
+  //     };
+  //   }
+
+  //   return this.oppositeDocMap[docTypeKey];
+  // }
+
+
+  private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
+    const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
+    
+    // Handle חשבון עסקה - depends on business type
+    if (docTypeKey === 'חשבון עסקה') {
+      const businessType = this.getSelectedBusinessType();
+      const isExempt = businessType === BusinessType.EXEMPT;
+      return {
+        docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
+        label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
+      };
+    }
+    
+    // Handle חשבונית מס
+    if (docTypeKey === 'חשבונית מס') {
+      return {
+        docType: DocumentType.CREDIT_INVOICE,
+        label: 'חשבונית זיכוי',
+      };
+    }
+    
+    // Fallback for any other document types
+    return undefined;
+  }
+
+
+  /**
+  * Resolve close doc type/label, including business-type rules for חשבון עסקה.
+  */
+  private getCloseDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
+  
     const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
 
     if (docTypeKey === 'חשבון עסקה') {
@@ -618,6 +666,7 @@ export class IncomesPage implements OnInit {
 
     return this.oppositeDocMap[docTypeKey];
   }
+
 
   private getSelectedBusinessType(): BusinessType | null {
     const biz = this.gs.businesses().find(b => b.businessNumber === this.selectedBusinessNumber());

@@ -85,32 +85,32 @@ export class DocCreateBuilderService {
     summaryItems: ISummaryItem[] = [
         {
             key: 'sumBefDisBefVat',
-            label: 'חייב במע"מ',
+            label: 'חייב במע"מ:',
             valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat,
             // valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
             excludeForReceipt: true
         },
         {
             key: 'withoutVat',
-            label: 'סה"כ',
+            label: 'סה"כ:',
             valueGetter: (totals: DocumentTotals) => totals.sumWithoutVat,
             excludeForReceipt: false,
         },
         {
             key: 'vatSum',
-            label: 'מע"מ',
+            label: 'מע"מ:',
             valueGetter: (totals: DocumentTotals) => totals.vatSum,
             excludeForReceipt: true
         },
         {
             key: 'discount',
-            label: 'הנחה (ש"ח)',
+            label: 'הנחה (ש"ח):',
             valueGetter: (totals: DocumentTotals) => totals.disSum,
             excludeForReceipt: false
         },
         {
             key: 'totalPayment',
-            label: 'סה"כ לתשלום',
+            label: 'סה"כ לתשלום:',
             valueGetter: (totals: DocumentTotals) => totals.sumAftDisWithVat,
             excludeForReceipt: false
         }
