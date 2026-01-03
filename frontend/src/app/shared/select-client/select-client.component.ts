@@ -80,7 +80,7 @@ export class SelectClientComponent  implements OnInit {
   }
 
   getClients(): void {
-    this.docCreateService.getClients()
+    this.docCreateService.getClients("314719279")
       .pipe(
         catchError((err) => {
           console.log("err in get clients: ", err);

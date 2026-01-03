@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, OnInit } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
 import { Dialog } from "primeng/dialog";
 import { AddClientService } from './add-client.service';
@@ -11,7 +11,7 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { catchError, EMPTY } from 'rxjs';
 import { MessageService } from 'primeng/api';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
 
 @Component({
@@ -20,12 +20,13 @@ import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
   styleUrls: ['./add-client.component.scss'],
   standalone: true,
   imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent],
-
+ providers: [AddClientService]
 })
 export class AddClientComponent {
   addClientService = inject(AddClientService);
   messageService = inject(MessageService);
   dialogRef = inject(DynamicDialogRef);
+  dialogConfig = inject(DynamicDialogConfig);
 
   inputSize = inputsSize;
   buttonColor = ButtonColor;
@@ -39,19 +40,13 @@ export class AddClientComponent {
   clientsTableFields: IColumnDataTable<ClientsTableColumns, ClientsTableHebrewColumns>[] = [
     { name: ClientsTableColumns.NAME, value: ClientsTableHebrewColumns.name, type: FormTypes.TEXT },
     { name: ClientsTableColumns.PHONE, value: ClientsTableHebrewColumns.phone, type: FormTypes.TEXT },
+    { name: ClientsTableColumns.ID, value: ClientsTableHebrewColumns.id, type: FormTypes.TEXT },
     { name: ClientsTableColumns.EMAIL, value: ClientsTableHebrewColumns.email, type: FormTypes.TEXT },
     { name: ClientsTableColumns.CITY, value: ClientsTableHebrewColumns.city, type: FormTypes.TEXT },
     { name: ClientsTableColumns.STREET, value: ClientsTableHebrewColumns.street, type: FormTypes.TEXT },
   ];
 
-  constructor() {
-    effect(() => {
-      // this.clients = this.addClientService.clients();
-      console.log(this.clients.value());
-
-    });
-  }
-  clients = this.addClientService.clients;
+  clients = signal<IClient[]>(this.dialogConfig.data?.clients ?? []);
 
   saveClient() {
     const raw = this.addClientForm.getRawValue() as Partial<IClient>;
@@ -64,7 +59,9 @@ export class AddClientComponent {
       }
       (acc as any)[key] = value ?? null;
       return acc;
-    }, {} as Partial<IClient>);
+    }, {} as Partial<IClient>);    
+    clientData.businessNumber = this.dialogConfig.data?.businessNumber;
+
     this.addClientService.saveClientDetails(clientData)
       .pipe(
         catchError((err) => {
@@ -93,7 +90,6 @@ export class AddClientComponent {
         })
       )
       .subscribe((res) => {
-        this.clients.reload()
         console.log("res in save client: ", res);
         this.messageService.add({
           severity: 'success',
@@ -107,6 +103,6 @@ export class AddClientComponent {
   }
 
   cancel(data?: Partial<IClient>) {
-    this.dialogRef.close(data); // או בלי פרמטר
+    this.dialogRef.close(data); 
   }
 }

@@ -1,5 +1,5 @@
 import { HttpClient, httpResource } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
@@ -11,7 +11,6 @@ import { environment } from 'src/environments/environment';
   providedIn: 'root'
 })
 export class AddClientService {
-
 
   readonly addClientFields: Record<ClientsTableColumns, IBaseFieldData> = {
     // General Details 
@@ -52,7 +51,7 @@ export class AddClientService {
       initialValue: '',
       enumValues: [],
       validators: [Validators.pattern(/^\d{9}$/)
-]
+      ]
     },
     [ClientsTableColumns.CITY]: {
       value: ClientsTableColumns.CITY,
@@ -116,17 +115,12 @@ export class AddClientService {
 
   private http = inject(HttpClient);
 
-  clients = httpResource<IClient[]>(() => ({
-    url: `${environment.apiUrl}clients/get-clients`,
-    method: 'GET',
-  }));
 
+  saveClientDetails(data: Partial<IClient>): Observable<any> {
+    const url = `${environment.apiUrl}clients/add-client`;
+    return this.http.post<any>(url, data);
+  }
 
-    saveClientDetails(data: Partial<IClient>): Observable<any> {
-      const url = `${environment.apiUrl}clients/add-client`;
-      return this.http.post<any>(url, data);
-    }
-  
 }
 
 

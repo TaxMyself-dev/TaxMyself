@@ -229,8 +229,34 @@ export class UsersService {
   }
 
 
-  findFireUser(firebaseId: string) {
-    return this.user_repo.find({ where: { firebaseId } })
+  // async findFireUser(firebaseId: string) {
+  //   console.log("🚀 ~ UsersService ~ findFireUser ~ firebaseId:", firebaseId)
+  //   const x = await this.user_repo.findOne({ where: { firebaseId } })
+  //   console.log("🚀 ~ UsersService ~ findFireUser ~ x:", x)
+  //   return x
+  // }
+  async findFireUser(firebaseId: string) {
+    try {
+      const user = await this.user_repo.findOne({
+        where: { firebaseId },
+      });
+
+      if (!user) {
+        throw new NotFoundException(
+          `User with firebaseId ${firebaseId} not found`
+        );
+      }
+
+      return user;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Failed to fetch user'
+      );
+    }
   }
 
 
@@ -292,7 +318,7 @@ export class UsersService {
     }
   }
 
-   getCities(): CityDto[] {
+  getCities(): CityDto[] {
     return cities;
   }
 
