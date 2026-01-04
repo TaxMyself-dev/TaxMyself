@@ -314,6 +314,8 @@ export class ReportsService {
 
     // 1️⃣ Get the business and its type
 
+    console.log("startDate is ", startDate);
+    console.log("endDate is ", endDate);
     console.log("businessNumber is ", businessNumber);
     
     const business = await this.businessRepo.findOne({
@@ -343,7 +345,7 @@ export class ReportsService {
           start: startDate,
           end: endDate,
         })
-        .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+        .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'total')
         .getRawOne<{ total: string }>();
 
       return Number(result.total);
