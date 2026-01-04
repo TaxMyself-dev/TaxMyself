@@ -15,6 +15,9 @@ export class Clients {
     userId: string;
 
     @Column({ type: 'varchar', length: 255 })
+    businessNumber: string;
+
+    @Column({ type: 'varchar', length: 255 })
     name: string;
 
     @Column({ type: 'varchar', length: 255, default: '', nullable: true })

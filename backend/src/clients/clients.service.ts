@@ -3,33 +3,28 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Clients } from "./clients.entity";
 import { Repository } from "typeorm";
 import { CreateClientDto } from "./create-client.dto";
+import { User } from "src/users/user.entity";
 
 @Injectable()
 export class ClientsService {
 
   constructor(
-    @InjectRepository(Clients)
+    @InjectRepository(Clients,)
     private clientsRepo: Repository<Clients>,
   ) { }
 
   async addClient(clientData: CreateClientDto, userId: string) {
-    console.log("🚀 ~ ClientsService ~ addClient ~ clientData", clientData);
-    
     const newClient = this.clientsRepo.create(clientData);
     newClient.userId = userId;
-    console.log("🚀 ~ ClientsService ~ addClient ~ newClient:", newClient)
     try {
       const client = await this.clientsRepo.findOne({ where: { userId: userId, name: clientData.name } });
-      console.log("🚀 ~ ClientsService ~ addClient ~ client:", client)
       
       if (client) {
         throw new HttpException('Client already exists', HttpStatus.CONFLICT);
       }
       
       const savedClient = await this.clientsRepo.insert(newClient);
-      console.log("🚀 ~ ClientsService ~ addClient ~ savedClient", savedClient)
       if (!savedClient) {
-        console.log("🚀 ~ ClientsService ~ addClient ~ savedClient2222", savedClient);
         
         throw new HttpException('Something went wrong. Client not saved', HttpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -40,10 +35,9 @@ export class ClientsService {
     }
   }
 
-  async getClients(userId: string) {
+  async getClients(userId: string, businessNumber: string) {
     try {
-      const clients = await this.clientsRepo.find({ where: { userId } });
-      console.log("🚀 ~ ClientsService ~ getClients ~ clients", clients);
+      const clients = await this.clientsRepo.find({ where: { userId, businessNumber } });
 
       if (clients.length === 0) {
         throw new NotFoundException('No clients found');

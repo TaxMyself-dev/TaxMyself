@@ -98,19 +98,21 @@ body {
 }
 
 body {
-  min-height: 100svh;
+  min-height: 100vh;
+  // min-height: 100svh;
 }
 
-// *, *::before, *::after {
-//   box-sizing: border-box;
+// app-root {
+//   // min-height: 100%;
+//   width: 100%;
+//   display: block;
 // }
 
 app-root {
-  min-height: 100%;
+  height: 100%;
   width: 100%;
-  // display: block;
+  display: block;
 }
-
 .expense-modal {
   --width: 80%;
   --height: 70%;
@@ -595,9 +597,14 @@ input.p-inputtext::placeholder {
 
   /* Hide vertical scrollbar but keep scroll functional */
   &::-webkit-scrollbar:vertical {
-    width: 10px !important;
-    background: transparent !important;
+    width: 8px !important;
+    background: #f1f1f1 !important;
   }
+
+  &::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 6px;
+}
 }
 
 :root {

@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { ICreateDataDoc, IDataDocFormat, IDocIndexes, ISettingDoc } from 'src/app/shared/interface';
+import { IClient } from './doc-create.interface';
 
 @Injectable({
   providedIn: 'root'
@@ -36,9 +37,9 @@ export class DocCreateService {
     return this.http.post<any>(url, { initialIndex, issuerBusinessNumber });
   }
 
-  getClients(): Observable<any> {
-    const url = `${environment.apiUrl}clients/get-clients`;
-    return this.http.get<any[]>(url);
+  getClients(businessNumber: string): Observable<IClient[]> {
+    const url = `${environment.apiUrl}clients/get-clients/${businessNumber}`;
+    return this.http.get<IClient[]>(url);
   }
 
   

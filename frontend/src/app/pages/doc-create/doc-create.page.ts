@@ -261,7 +261,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
    loadClients(): void {
-    this.docCreateService.getClients()
+    this.docCreateService.getClients(this.selectedBusinessNumber)
       .pipe(
         catchError((err) => {
           console.error('Error loading clients:', err);
@@ -301,13 +301,14 @@ export class DocCreatePage implements OnInit, OnDestroy {
     
           this.dialogRef = this.dialogService.open(AddClientComponent, {
           header: 'יצירת לקוח חדש',       
-          width: '1000px',
+          width: '90%',
           rtl: true,
           closable: true,
           dismissableMask: true,
           modal: true,
           data: {
-
+            businessNumber: this.selectedBusinessNumber,
+            clients: this.clients()
           }
         });
 
@@ -426,7 +427,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
       case 'businessNumber':
         this.generalDetailsForm.get('docType')?.setValue(""); //To enable switching between businesses and selecting the same document
         this.isFileSelected.set(false);
+        this.userDetailsForm.reset();
         this.onBusinessSelection(event);
+        // this.clients.set([]);
+        this.loadClients();
         break;
       default:
         break;

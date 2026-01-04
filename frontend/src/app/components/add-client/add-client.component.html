@@ -9,8 +9,8 @@
   <div>
     <app-p-button [disabled]="addClientForm.invalid" (onButtonClicked)="saveClient()" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [buttonText]="'שמור לקוח חדש'"></app-p-button>
   </div>
-  @if(clients.hasValue()) {
-  <app-generic-table [title]="'רשימת הלקוחות הקיימים'" [dataTable]="clients.value()"
+  @if(clients().length > 0) {
+  <app-generic-table [title]="'רשימת הלקוחות הקיימים'" [dataTable]="clients()"
     [columnsTitle]="clientsTableFields"> </app-generic-table>
   }
 </div>

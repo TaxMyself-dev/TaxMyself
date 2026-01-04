@@ -81,6 +81,9 @@
               @case ('error') {
               <p class="text-error">השירות אינו זמין כעת אנא נסה מאוחר יותר</p>
               }
+               @case ('net') {
+              <p class="text-error">בעיית רשת אנא בדוק חיבורים ונסה שוב</p>
+              }
               @default {
               <p class="text-error">&nbsp;</p>
               }
@@ -114,21 +117,13 @@
 
 
   </div>
-  <!-- <div class="login-picture">
-      <div class="image-text">
-        <p class="image-title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</p>
-        <p class="image-subtitle"></p>
-      </div>
-      <div>
-      <img src="../../../assets/login_picture.png" alt="Login Image" class="login-image">
-    </div>
-    </div> -->
-  <aside class="login-media" aria-hidden="true">
-    <img class="login-media__img" src="../../../assets/login_picture.png" alt="" />
 
-    <!-- <div class="login-media__overlay">
-      <p class="login-media__title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</p>
-      <p class="login-media__subtitle"></p>
-    </div> -->
+  <aside class="login-media" aria-hidden="true">
+    <div class="login-media__text">
+      <p class="image-title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</p>
+    </div>
+    <img class="login-media__img login-media__bg" src="../../../assets/login_bg.svg" alt="" />
+
+    <img class="login-media__img login-media__el" src="../../../assets/login_el.svg" alt="" />
   </aside>
 </div>

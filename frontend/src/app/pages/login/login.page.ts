@@ -134,8 +134,18 @@ export class LoginPage implements OnInit {
       switchMap(() => this.authService.signIn()),
 
       catchError((err) => {
+        if (err.status === 0) {
+          this.authService.error.set("net");
+          
+        }
+        else if (err.status === 404) {
+          this.authService.error.set("user");
+        }
+        else {
+          this.authService.error.set("error");
+        }
+
         console.log("❌ Backend sign-in error:", err);
-        this.authService.error.set("user");
         return EMPTY;
       }),
 
