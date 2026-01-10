@@ -1,0 +1,15 @@
+<div class="stepper-container">
+    @if (showLabel()) {
+    <div class="stepper-label">
+      שלב {{ currentStep() }}
+    </div>
+  }
+  <div class="stepper-bars">
+    @for (step of steps(); track step) {
+      <div 
+        class="stepper-bar"
+        [class.completed]="isStepCompleted(step)">
+      </div>
+    }
+  </div>
+</div>

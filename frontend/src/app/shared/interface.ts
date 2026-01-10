@@ -103,7 +103,8 @@ export interface IDocIndexes {
 }  
 
 export interface IRegisterLoginImage {
-    src: string;
+    bg_img: string;
+    el_img: string;
     alt: string;
     title: string;
     subTitle: string;

@@ -1,0 +1,34 @@
+.stepper-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+}
+
+.stepper-bars {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+}
+
+.stepper-bar {
+  flex: 1;
+  height: 4px;
+  background-color: #57BC97;
+  border-radius: 2px;
+  transition: background-color 0.3s ease;
+  opacity: 30%;
+
+  &.completed {
+    opacity: 100%;
+  }
+}
+
+.stepper-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+  min-width: fit-content;
+}
