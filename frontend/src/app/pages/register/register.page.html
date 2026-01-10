@@ -6,7 +6,7 @@
       <div class="content">
         <div class="header">
           <img class="logo" src="../../../assets/login_logo.svg" alt="Logo" height="20">
-          <span class="level">{{ level() }}</span>
+          <app-stepper [totalSteps]="4" [currentStep]="currentStep()" />
           <div class="title">
             <span class="main-title">{{ mainTitle() }}</span>
             <span class="title">{{ subtitle() }}</span>
@@ -326,7 +326,7 @@
   </div>
 
   @let imgData = matchRegisterImage();
-  <div class="register-picture">
+  <!-- <div class="register-picture">
     <div [class]="imgData?.posText === 'top' ? 'image-text position-top' : 'image-text position-bottom'">
       <h1 class="image-title" [style.color]="imgData?.colorText">{{ imgData?.title }}</h1>
       <p class="image-subtitle" [style.color]="imgData?.colorText">
@@ -336,6 +336,15 @@
     <div>
       <img [src]="imgData?.src" [alt]="imgData?.alt" class="register-image" />
     </div>
-  </div>
+  </div> -->
+  <aside class="register-media" aria-hidden="true">
+    <div [class]="imgData?.posText === 'top' ? 'image-text position-top register-media__text' : 'image-text position-bottom register-media__text'">
+      <p class="image-title">{{ imgData?.title }}</p>
+      <p class="image-sub-title">{{ imgData?.subTitle }}</p>
+    </div>
+    <img class="register-media__img register-media__bg" [src]="imgData?.bg_img" [alt]="imgData?.alt" />
+
+    <img class="register-media__img register-media__el" [src]="imgData?.el_img" [alt]="imgData?.alt" />
+  </aside>
 
 </div>
