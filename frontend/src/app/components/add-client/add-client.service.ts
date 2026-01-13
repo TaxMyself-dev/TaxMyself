@@ -53,42 +53,15 @@ export class AddClientService {
       validators: [Validators.pattern(/^\d{9}$/)
       ]
     },
-    [ClientsTableColumns.CITY]: {
-      value: ClientsTableColumns.CITY,
-      labelText: 'עיר',
-      placeHolder: 'עיר',
+    [ClientsTableColumns.ADDRESS]: {
+      value: ClientsTableColumns.ADDRESS,
+      labelText: 'כתובת',
+      placeHolder: 'כתובת',
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
       validators: []
     },
-    [ClientsTableColumns.STREET]: {
-      value: ClientsTableColumns.STREET,
-      labelText: 'רחוב',
-      placeHolder: 'רחוב',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.HOME_NUMBER]: {
-      value: ClientsTableColumns.HOME_NUMBER,
-      labelText: 'מספר בית',
-      placeHolder: 'מספר בית',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.POSTAL_CODE]: {
-      value: ClientsTableColumns.POSTAL_CODE,
-      labelText: 'מיקוד',
-      placeHolder: 'מיקוד',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    }
   }
 
   /**

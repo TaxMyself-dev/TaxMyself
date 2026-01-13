@@ -27,14 +27,6 @@ export class Clients {
     email: string | null;
 
     @Column({ type: 'varchar', length: 255, default: '', nullable: true })
-    city: string | null;
+    address: string | null;
 
-    @Column({ type: 'varchar', length: 255, default: '', nullable: true })
-    state: string | null;
-
-    @Column({ type: 'varchar', length: 255, default: '', nullable: true })
-    street: string | null;
-
-    @Column({ type: 'varchar', length: 255, default: '', nullable: true })
-    homeNumber: string | null;
 }

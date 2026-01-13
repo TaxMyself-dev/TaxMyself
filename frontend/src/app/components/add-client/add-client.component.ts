@@ -42,8 +42,6 @@ export class AddClientComponent {
     { name: ClientsTableColumns.PHONE, value: ClientsTableHebrewColumns.phone, type: FormTypes.TEXT },
     { name: ClientsTableColumns.ID, value: ClientsTableHebrewColumns.id, type: FormTypes.TEXT },
     { name: ClientsTableColumns.EMAIL, value: ClientsTableHebrewColumns.email, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.CITY, value: ClientsTableHebrewColumns.city, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.STREET, value: ClientsTableHebrewColumns.street, type: FormTypes.TEXT },
   ];
 
   clients = signal<IClient[]>(this.dialogConfig.data?.clients ?? []);

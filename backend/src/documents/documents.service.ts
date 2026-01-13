@@ -411,9 +411,11 @@ export class DocumentsService {
       // Production FIDs
       prod: {
         // receipt: 'RVxpym2O68',           // RECEIPT, TAX_INVOICE_RECEIPT
-        receipt: 'JzEIejsTuY',
+        // receipt: 'JzEIejsTuY',
+        receipt: 'EaHjg6fsRL',
         // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
-        invoice: 'BUFw7FKiJn'
+        // invoice: 'BUFw7FKiJn'
+        invoice: 'TrBvfW6p6P'
       },
       // Development FIDs
       dev: {

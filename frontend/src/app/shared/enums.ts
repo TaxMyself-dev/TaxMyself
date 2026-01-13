@@ -518,23 +518,17 @@ export enum TaxReportingType {
 }
 
 export enum ClientsTableColumns {
-  CITY = 'city',
-  STREET = 'street',
-  POSTAL_CODE = 'postalCode',
   NAME = 'name',
   PHONE = 'phone',
   EMAIL = 'email',
-  HOME_NUMBER = 'homeNumber',
   ID = 'id',
+  ADDRESS = 'address',
 }
 
 export enum ClientsTableHebrewColumns {
-  city = 'עיר',
-  street = 'רחוב',
-  postalCode = 'מיקוד',
   name = 'שם הלקוח',
   phone = 'טלפון',
   email = 'אימייל',
-  homeNumber = 'מספר בית',
   id = 'ת.ז. / ח.פ.',
+  address = 'כתובת',
 }
