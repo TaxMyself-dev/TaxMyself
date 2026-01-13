@@ -1,5 +1,7 @@
 import { Component, computed, effect, OnDestroy, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl, ValidatorFn, ValidationErrors } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, FormGroup, Validators, FormControl, FormArray, AbstractControl, ValidatorFn, ValidationErrors, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { IonicModule } from '@ionic/angular';
 import { RegisterService } from './register.service';
 import { IRegisterLoginImage, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
@@ -12,17 +14,36 @@ import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { MessageService } from 'primeng/api';
+import { StepperComponent } from 'src/app/components/stepper/stepper.component';
+import { SharedModule } from 'src/app/shared/shared.module';
+import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
+import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
+import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
+import { ButtonComponent } from 'src/app/components/button/button.component';
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 @Component({
   selector: 'app-register',
   templateUrl: './register.page.html',
   styleUrls: ['./register.page.scss', '../../shared/shared-styling.scss'],
-  standalone: false
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    IonicModule,
+    StepperComponent,
+    SharedModule,
+    InputTextComponent,
+    InputDateComponent,
+    InputSelectComponent,
+    ButtonComponent,
+    RadioButtonModule,
+    ToggleSwitchModule
+  ]
 })
 export class RegisterPage implements OnInit, OnDestroy {
- 
-
-
   readonly inputsSize = inputsSize;
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
@@ -32,7 +53,8 @@ export class RegisterPage implements OnInit, OnDestroy {
 
   readonly registerImages: IRegisterLoginImage[] = [
     {
-      src: "assets/Signup_gallery_personal.svg",
+      bg_img: "assets/Signup_bg_personal.svg",
+      el_img: "assets/Signup_el_personal.svg",
       alt: 'תמונת רקע של פרטיים אישיים',
       title: "שמירת כל המסמכים בענן",
       subTitle: "כל תיעוד ההכנסות וההוצאות מגובה בענן מוכן לשליחה, הורדה, או סתם לומר שלום",
@@ -41,7 +63,8 @@ export class RegisterPage implements OnInit, OnDestroy {
       posText: 'top'
     },
         {
-      src: "assets/Signup_gallery_spouse.svg",
+      bg_img: "assets/Signup_bg_spouse.svg",
+      el_img: "assets/Signup_el_spouse.svg",
       alt: 'תמונת רקע של פרטי בן זוג ',
       title: "חיבור לחשבונות הבנק וכרטיסי האשראי",
       subTitle: "גם לשלוט בתזרים במקום אחד וגם להפריד בקלות בין העסק לבית כך שלא תפספסו אף הוצאה.",
@@ -50,7 +73,8 @@ export class RegisterPage implements OnInit, OnDestroy {
       posText: 'bottom'
     },
        {
-      src: "assets/Signup_gallery_children.svg",
+      bg_img: "assets/Signup_bg_children.svg",
+      el_img: "assets/Signup_el_children.svg",
       alt: 'תמונת רקע של פרטיים אישיים',
       title: "הפקת דוחות בקליק",
       subTitle: "הפלטפורמה מאפשרת לכם להפיק דוחות בקלות ובנוחות מתוך התזרים בקליק אחד ובלי מאמץ",
@@ -59,7 +83,8 @@ export class RegisterPage implements OnInit, OnDestroy {
       posText: 'top'
     },
         {
-      src: "assets/Signup_gallery_business.svg",
+      bg_img: "assets/Signup_bg_business.svg",
+      el_img: "assets/Signup_el_business.svg",
       alt: 'תמונת רקע של פרטי בן זוג ',
       title: "הפקת חשבוניות וקבלות בקלות",
       subTitle: "הפקת קבלות וחשבוניות לעסק בקלות וביעילות",
@@ -72,10 +97,10 @@ export class RegisterPage implements OnInit, OnDestroy {
 
   private ngUnsubscribe = new Subject();
 
+  currentStep = signal<number>(1);
   cities = signal<ISelectItem[]>([]);
   selectedFormModule = signal<RegisterFormModules>(this.registerFormModules.PERSONAL);
   hasChildren = signal<boolean>(false);
-  level = signal<string>("שלב 1");
   mainTitle = signal<string>("פרטים אישיים");
   subtitle = signal<string>("היי, אז נתחיל בהיכרות ראשונית...");
   isLoading = signal<boolean>(false);
@@ -98,22 +123,22 @@ matchRegisterImage = computed(() => {
       const currentModule = this.selectedFormModule();
       switch (currentModule) {
         case RegisterFormModules.PERSONAL:
-          this.level.set("שלב 1");
+          this.currentStep.set(1);
           this.mainTitle.set("פרטים אישיים");
           this.subtitle.set("היי, אז נתחיל בהיכרות ראשונית...");
           break;
         case RegisterFormModules.SPOUSE:
-          this.level.set("שלב 2");
+          this.currentStep.set(2);
           this.mainTitle.set("פרטי בן או בת זוג");
           this.subtitle.set("אוקי... אנחנו מתחילים להכיר באמת");
           break;
         case RegisterFormModules.CHILDREN:
-          this.level.set("שלב 3");
+          this.currentStep.set(3);
           this.mainTitle.set("ילדים");
           this.subtitle.set("אנחנו ממש בשלב הרציני כבר, אה?");
           break;
         case RegisterFormModules.BUSINESS:
-          this.level.set("שלב 4");
+          this.currentStep.set(4);
           this.mainTitle.set("פרטי העסק");
           this.subtitle.set("רק עוד קצת וסיימנו!");
           break;

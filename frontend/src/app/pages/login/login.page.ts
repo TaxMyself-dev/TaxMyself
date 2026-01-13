@@ -117,6 +117,7 @@ export class LoginPage implements OnInit {
   from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
     .pipe(
       catchError((err) => {
+        this.authService.handleErrorLogin(err.code);
         console.log("❌ Firebase login error:", err);
         return EMPTY;
       }),
@@ -133,13 +134,24 @@ export class LoginPage implements OnInit {
       switchMap(() => this.authService.signIn()),
 
       catchError((err) => {
+        if (err.status === 0) {
+          this.authService.error.set("net");
+          
+        }
+        else if (err.status === 404) {
+          this.authService.error.set("user");
+        }
+        else {
+          this.authService.error.set("error");
+        }
+
         console.log("❌ Backend sign-in error:", err);
-        this.authService.error.set("user");
         return EMPTY;
       }),
 
       // 3️⃣ Save user data
       tap((res: any) => {
+        console.log("res in login page: ", res);
         sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),

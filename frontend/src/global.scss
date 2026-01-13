@@ -97,16 +97,15 @@ body {
   margin: 0;
 }
 
-// *, *::before, *::after {
-//   box-sizing: border-box;
-// }
+body {
+  min-height: 100vh;
+}
 
 app-root {
   height: 100%;
   width: 100%;
   display: block;
 }
-
 .expense-modal {
   --width: 80%;
   --height: 70%;
@@ -342,7 +341,7 @@ app-root {
   &.filter {
     display: flex;
     justify-content: space-between;
-    font-size: larger;
+    font-size: large;
     height: 43px;
   }
 }
@@ -415,7 +414,7 @@ app-root {
 
 .p-select-label,
 .p-multiselect-label {
-  font-size: larger;
+  font-size: large;
   overflow: visible !important;
 }
 
@@ -485,7 +484,7 @@ app-root {
   }
 
   &.p-datepicker-input {
-    font-size: larger;
+    font-size: large;
     border: 1px solid !important;
     border-radius: 20px !important;
     border-color: rgb(186, 183, 183) !important;
@@ -591,9 +590,14 @@ input.p-inputtext::placeholder {
 
   /* Hide vertical scrollbar but keep scroll functional */
   &::-webkit-scrollbar:vertical {
-    width: 10px !important;
-    background: transparent !important;
+    width: 8px !important;
+    background: #f1f1f1 !important;
   }
+
+  &::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 6px;
+}
 }
 
 :root {

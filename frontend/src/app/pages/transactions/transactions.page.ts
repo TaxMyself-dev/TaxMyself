@@ -300,8 +300,8 @@ isInPrimeOverlay(e: Event): boolean {
     this.filterData = this.transactionService.filterData;
     this.getTransactions(null);
     this.userData = this.authService.getUserDataFromLocalStorage();
-    this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData.businessNumber });
-    this.bussinesesList.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
+    this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData?.businessNumber });
+    this.bussinesesList.push({ name: this.userData?.spouseBusinessName, value: this.userData?.spouseBusinessNumber });
     console.log(this.userData);
 
     if (this.userData.employmentStatus === 'employee' && this.userData.spouseEmploymentStatus === 'employee' || null) {

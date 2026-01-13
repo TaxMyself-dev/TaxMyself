@@ -221,8 +221,54 @@
 
 .values-summary {
   margin-left: 50px;
+  
+  // Fix minus sign position in summary values
+  .content-summary {
+    direction: ltr;
+    text-align: right;
+  }
 }
 
 .error-text {
   color: red;
+}// Fix minus sign position in line items table
+.line-items-table {
+  // Target cells that contain currency/number values
+  ::ng-deep td {
+    // For cells containing sum or total values
+    &:has(span:contains('₪')) {
+      direction: ltr;
+      text-align: right;
+    }
+  }
+  
+  // Alternative: target specific columns by their content
+  ::ng-deep p-table {
+    td {
+      // Apply LTR direction to numeric columns (sum, total, discount)
+      &:nth-child(n) {
+        // Check if content starts with minus or contains currency
+        direction: ltr;
+        text-align: right;
+      }
+    }
+  }
 }
+
+// Better approach: add a class to numeric cells in the template
+// Or use this CSS to target cells with currency pipe output
+.line-items-table ::ng-deep {
+  // PrimeNG table cells with currency values
+  td {
+    direction: ltr;
+    text-align: right;
+    
+    // Keep RTL for description and actions columns
+    &:first-child,
+    &:last-child {
+      direction: rtl;
+      text-align: right;
+    }
+  }
+}
+

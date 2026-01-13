@@ -84,9 +84,9 @@ export class MyAccountPage implements OnInit {
             ...row,
             sum: this.genericService.addComma(Math.abs(row.sum as number)),
             businessNumber:
-              row.businessNumber === this.userData.businessNumber
-                ? this.userData.businessName
-                : this.userData.spouseBusinessName
+              row?.businessNumber === this.userData?.businessNumber
+                ? this.userData?.businessName
+                : this.userData?.spouseBusinessName
           }))
       )
     );

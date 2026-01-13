@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, OnInit } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
 import { Dialog } from "primeng/dialog";
 import { AddClientService } from './add-client.service';
@@ -11,6 +11,8 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { catchError, EMPTY } from 'rxjs';
 import { MessageService } from 'primeng/api';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
 
 @Component({
   selector: 'app-add-client',
@@ -18,11 +20,13 @@ import { MessageService } from 'primeng/api';
   styleUrls: ['./add-client.component.scss'],
   standalone: true,
   imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent],
-
+ providers: [AddClientService]
 })
 export class AddClientComponent {
   addClientService = inject(AddClientService);
   messageService = inject(MessageService);
+  dialogRef = inject(DynamicDialogRef);
+  dialogConfig = inject(DynamicDialogConfig);
 
   inputSize = inputsSize;
   buttonColor = ButtonColor;
@@ -36,28 +40,31 @@ export class AddClientComponent {
   clientsTableFields: IColumnDataTable<ClientsTableColumns, ClientsTableHebrewColumns>[] = [
     { name: ClientsTableColumns.NAME, value: ClientsTableHebrewColumns.name, type: FormTypes.TEXT },
     { name: ClientsTableColumns.PHONE, value: ClientsTableHebrewColumns.phone, type: FormTypes.TEXT },
+    { name: ClientsTableColumns.ID, value: ClientsTableHebrewColumns.id, type: FormTypes.TEXT },
     { name: ClientsTableColumns.EMAIL, value: ClientsTableHebrewColumns.email, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.CITY, value: ClientsTableHebrewColumns.city, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.STREET, value: ClientsTableHebrewColumns.street, type: FormTypes.TEXT },
   ];
 
-  constructor() {
-    effect(() => {
-      // this.clients = this.addClientService.clients();
-      console.log(this.clients.value());
-
-    });
-  }
-  clients = this.addClientService.clients;
+  clients = signal<IClient[]>(this.dialogConfig.data?.clients ?? []);
 
   saveClient() {
-    const clientData = this.addClientForm.value;
+    const raw = this.addClientForm.getRawValue() as Partial<IClient>;
+
+    const clientData = Object.entries(raw).reduce((acc, [key, value]) => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        (acc as any)[key] = trimmed === '' ? null : trimmed;
+        return acc;
+      }
+      (acc as any)[key] = value ?? null;
+      return acc;
+    }, {} as Partial<IClient>);    
+    clientData.businessNumber = this.dialogConfig.data?.businessNumber;
+
     this.addClientService.saveClientDetails(clientData)
       .pipe(
         catchError((err) => {
           console.log("err in save client: ", err);
           if (err.status === 409) {
-            // this.genericService.openPopupMessage("כבר קיים לקוח בשם זה, אנא בחר שם שונה. אם ברצונך לערוך לקוח זה אנא  לחץ על כפתור עריכה דרך הרשימה .");
             this.messageService.add({
               severity: 'error',
               summary: 'Error',
@@ -68,7 +75,6 @@ export class AddClientComponent {
             })
           }
           else {
-            // this.genericService.showToast("אירעה שגיאה לא ניתן לשמור לקוח אנא נסה מאוחר יותר", "error");
             this.messageService.add({
               severity: 'error',
               summary: 'Error',
@@ -90,6 +96,11 @@ export class AddClientComponent {
           life: 3000,
           key: 'br'
         })
+        this.cancel(clientData)
       })
+  }
+
+  cancel(data?: Partial<IClient>) {
+    this.dialogRef.close(data); 
   }
 }

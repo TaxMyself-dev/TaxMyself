@@ -236,7 +236,6 @@ export class TransactionsController {
     @Req() request: AuthenticatedRequest,
     @Query() query: any,
   ): Promise<Transactions[]> {
-      console.log("get-trans-to-classify");
       const userId = request.user?.firebaseId;
       const startDate = query.startDate ? this.sharedService.convertStringToDateObject(query.startDate) : undefined;
       const endDate = query.endDate ? this.sharedService.convertStringToDateObject(query.endDate) : undefined;

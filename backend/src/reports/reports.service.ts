@@ -102,7 +102,14 @@ export class ReportsService {
       startDate: Date,
       endDate: Date
   ): Promise<VatReportDto> {
-      
+
+    try {
+      console.log("createVatReport - start");
+      console.log("firebaseId is ", firebaseId);
+      console.log("businessNumber is ", businessNumber);
+      console.log("startDate is ", startDate);
+      console.log("endDate is ", endDate);
+        
       const vatReport: VatReportDto = {
           vatableTurnover: 0,
           nonVatableTurnover: 0,
@@ -114,42 +121,50 @@ export class ReportsService {
 
       const year = startDate.getFullYear();
 
-      // Get income for vat report
-      // ({ vatableIncome: vatReport.vatableTurnover, noneVatableIncome: vatReport.nonVatableTurnover } =
-      //   await this.transactionsService.getTaxableIncomefromTransactionsForVatReport(
-      //     firebaseId,
-      //     businessNumber,
-      //     startDate,
-      //     endDate
-      // ));
-
+      console.log("Step 1: Getting VAT income from lines...");
       ({ vatableIncome: vatReport.vatableTurnover, nonVatableIncome: vatReport.nonVatableTurnover } =
         await this.getVatIncomeFromLines(
           businessNumber,
           startDate,
           endDate
       ));
+      console.log("Step 1 complete - vatableTurnover:", vatReport.vatableTurnover, "nonVatableTurnover:", vatReport.nonVatableTurnover);
 
-  
       // Step 1: Fetch expenses using the function we wrote based on monthReport
-      const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);        
+      console.log("Step 2: Fetching expenses...");
+      const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);
+      console.log("Step 2 complete - expenses count:", expenses?.length || 0);
   
       // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
+      console.log("Step 3: Filtering expenses...");
       const regularExpenses = expenses.filter(expense => !expense.isEquipment);
       const assetsExpenses = expenses.filter(expense => expense.isEquipment);
+      console.log("Step 3 complete - regularExpenses:", regularExpenses.length, "assetsExpenses:", assetsExpenses.length);
   
       // Step 3: Calculate VAT for regular expenses
+      console.log("Step 4: Calculating VAT refunds...");
       vatReport.vatRefundOnExpenses = regularExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
       
       // Step 4: Calculate VAT for assets (equipment)
       vatReport.vatRefundOnAssets = assetsExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
+      console.log("Step 4 complete - vatRefundOnExpenses:", vatReport.vatRefundOnExpenses, "vatRefundOnAssets:", vatReport.vatRefundOnAssets);
 
       // Step 5: Calculate VAT payment
-      vatReport.vatPayment = Math.round(vatReport.vatableTurnover * this.sharedService.getVatPercent(year)) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+      console.log("Step 5: Calculating VAT payment...");
+      const vatPercent = this.sharedService.getVatPercent(year);
+      console.log("vatPercent for year", year, "is", vatPercent);
+      vatReport.vatPayment = Math.round(vatReport.vatableTurnover * vatPercent) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
 
       vatReport.vatRate = this.sharedService.getVatRateByYear(startDate);
+      console.log("Step 5 complete - vatPayment:", vatReport.vatPayment, "vatRate:", vatReport.vatRate);
   
+      console.log("createVatReport - success, returning report");
       return vatReport;
+    } catch (error) {
+      console.error("❌ Error in createVatReport:", error);
+      console.error("Error stack:", error.stack);
+      throw error;
+    }
   }
 
 
@@ -314,6 +329,8 @@ export class ReportsService {
 
     // 1️⃣ Get the business and its type
 
+    console.log("startDate is ", startDate);
+    console.log("endDate is ", endDate);
     console.log("businessNumber is ", businessNumber);
     
     const business = await this.businessRepo.findOne({
@@ -343,7 +360,7 @@ export class ReportsService {
           start: startDate,
           end: endDate,
         })
-        .select('COALESCE(SUM(doc.sumAftDisBefVAT), 0)', 'total')
+        .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'total')
         .getRawOne<{ total: string }>();
 
       return Number(result.total);
@@ -508,6 +525,10 @@ export class ReportsService {
 
     async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ filePath: string; zipBuffer: Buffer; document_summary: DocumentSummaryRow[]; list_summary: ListSummaryRow[] }> {
 
+      // Reset recordSummary and totalLists to default values each time the user clicks "הצג"
+      this.recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
+      this.totalLists = 0;
+
       // Generate Unique Random Number (15 digits)
       const uniqueId = this.generateUniqueId();
       
@@ -551,7 +572,6 @@ export class ReportsService {
         archive.on('data', (chunk) => chunks.push(chunk));
         archive.on('end', () => {
           const zipBuffer = Buffer.concat(chunks);
-          // resolve({ fileName: zipFileName, zipBuffer, document_summary, list_summary});
           resolve({ filePath: `OPENFRMT/${filePath}`, zipBuffer, document_summary, list_summary});
         });
 
@@ -561,6 +581,12 @@ export class ReportsService {
 
 
     private async generateIniFileContent(businessNumber: string, uniqueId: string, filePath: string, startDate: string, endDate: string): Promise<string> {
+
+      console.log("startDate is ");
+
+      const startDateObj = this.sharedService.convertStringToDateObject(startDate);
+      const endDateObj = this.sharedService.convertStringToDateObject(endDate);
+      
 
       const currentDate = new Date();
       const formattedCurrentDate = `${currentDate.getFullYear()}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}`;
@@ -591,8 +617,8 @@ export class ReportsService {
       const f_1021 = this.formatField("!", 30, '!');
       const f_1022 = this.formatField("!", 8, '!');
       const f_1023 = this.formatField("!", 4, '!');
-      const f_1024 = this.formatField(startDate.replace(/-/g, ""), 8, '!');
-      const f_1025 = this.formatField(endDate.replace(/-/g, ""), 8, '!');
+      const f_1024 = this.formatField(this.formatDateYYYYMMDD(startDateObj), 8, '!');
+      const f_1025 = this.formatField(this.formatDateYYYYMMDD(endDateObj), 8, '!');
       const f_1026 = this.formatField(formattedCurrentDate, 8, '!');
       const f_1027 = this.formatField(currentTime, 4, '!');
       const f_1028 = this.formatField(0, 1, '0');
@@ -614,6 +640,11 @@ export class ReportsService {
       result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
      
       return result;
+    }
+
+
+    private removeDateSeparators(dateString: string): string {
+      return dateString.replace(/[-\/]/g, "");
     }
 
 
@@ -1002,15 +1033,23 @@ export class ReportsService {
       endDate: string | Date,
     ): Promise<DocumentSummaryRow[]> {
 
+      // ✅ Convert string dates to Date objects if they're strings
+      const startDateObj = typeof startDate === 'string' 
+      ? this.sharedService.convertStringToDateObject(startDate) 
+      : startDate;
+      const endDateObj = typeof endDate === 'string' 
+      ? this.sharedService.convertStringToDateObject(endDate) 
+      : endDate;
+
       const rows = await this.documentsRepo
-        .createQueryBuilder('d')
-        .select('d.docType', 'docType')
-        .addSelect('COUNT(*)', 'count')
-        .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
-        .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
-        .andWhere('d.docDate BETWEEN :from AND :to', { from: startDate, to: endDate })
-        .groupBy('d.docType')
-        .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
+      .createQueryBuilder('d')
+      .select('d.docType', 'docType')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
+      .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('d.docDate BETWEEN :from AND :to', { from: startDateObj, to: endDateObj }) // ✅ Use Date objects
+      .groupBy('d.docType')
+      .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
 
       const summary: DocumentSummaryRow[] = rows
       .filter(row => DOC_TYPE_INFO[row.docType]) // only known types
@@ -1171,13 +1210,24 @@ export class ReportsService {
 
     // Fetch documents by userId, businessNumber, startDate, and endDate
     async fetchDocuments(businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
+
+      const startDateObj = this.sharedService.convertStringToDateObject(startDate);
+      const endDateObj = this.sharedService.convertStringToDateObject(endDate);
+      
       return this.documentsRepo.find({
         where: {
-          issuerBusinessNumber: businessNumber, // Only fetch documents issued by this business
-          docDate: Between(new Date(startDate), new Date(endDate)),
+          issuerBusinessNumber: businessNumber,
+          docDate: Between(startDateObj, endDateObj), // ✅ Use properly converted Date objects
         },
         order: { docDate: 'ASC' },
       });
+      // return this.documentsRepo.find({
+      //   where: {
+      //     issuerBusinessNumber: businessNumber, // Only fetch documents issued by this business
+      //     docDate: Between(new Date(startDate), new Date(endDate)),
+      //   },
+      //   order: { docDate: 'ASC' },
+      // });
     }
 
     

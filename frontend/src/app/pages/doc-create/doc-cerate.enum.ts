@@ -24,13 +24,14 @@ export const DocTypeDefaultStart: Record<DocumentType, number> = {
   [DocumentType.CREDIT_INVOICE]: 80001,
 };
 
+
 export type DocumentTotals = {
   sumBefDisBefVat: number;
   disSum: number;
   sumAftDisBefVat: number;
   vatSum: number;
   sumAftDisWithVat: number;
-  sumWithoutVat: number;
+  // sumWithoutVat: number;
 };
 
 export const DocumentTotalsLabels: { field: keyof DocumentTotals; label: string }[] = [
@@ -39,6 +40,20 @@ export const DocumentTotalsLabels: { field: keyof DocumentTotals; label: string 
   { field: 'sumAftDisBefVat', label: 'סה״כ לאחר הנחה לפני מע״מ' },
   { field: 'vatSum', label: 'סה״כ מע״מ' },
   { field: 'sumAftDisWithVat', label: 'סה״כ לתשלום כולל מע״מ' },
+];
+
+export type DocumentSummary = {
+  totalVatApplicable : number;
+  totalWithoutVat : number;
+  totalDiscount : number;
+  totalVat : number;
+};
+
+export const DocumentSummaryLabels: { field: keyof DocumentSummary; label: string }[] = [
+  { field: 'totalVatApplicable', label: 'סה״כ לפני הנחה ולפני מע״מ' },
+  { field: 'totalWithoutVat', label: 'סה״כ ללא מע״מ' },
+  { field: 'totalDiscount', label: 'סה״כ הנחות' },
+  { field: 'totalVat', label: 'סה״כ מע״מ' },
 ];
 
 export enum DocCreateFields {

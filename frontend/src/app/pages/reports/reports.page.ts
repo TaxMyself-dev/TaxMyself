@@ -17,7 +17,8 @@ export class ReportsPage implements OnInit {
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
    this.itemsNavigate = [
-    { name: 'דו"ח מע"מ', link: "/vat-report", image: "../../../assets/vat_report.svg", id: '0', index: 'zero', disable: this.userData.businessType === "EXEMPT" ? true : false, content: 'דיווח ותשלום מע"מ'},
+    // { name: 'דו"ח מע"מ', link: "/vat-report", image: "../../../assets/vat_report.svg", id: '0', index: 'zero', disable: this.userData.businessType === "EXEMPT" ? true : false, content: 'דיווח ותשלום מע"מ'},
+    { name: 'דו"ח מע"מ', link: "/vat-report", image: "../../../assets/vat_report.svg", id: '0', index: 'zero', content: 'דיווח ותשלום מע"מ'},
     { name:  'דו"ח רווח והפסד', link: "/pnl-report", image: "../../../assets/p&l_report.svg", id: '1', index: 'one', content: 'צפייה בהכנסות והוצאות העסק לפי תקופה'}, 
     // { name: 'דו"ח שנתי', link: "/annual-report", image: "../../../assets/annual_report.svg", id:'2', index: 'two', content: 'הגשת דו"ח שנתי למס הכנסה'}, 
     { name: 'דו"ח מקדמות למס הכנסה', link: "/advance-income-tax-report", image: "../../../assets/advance_report.svg", id: '3', index: 'three', content: 'דיווח ותשלום מקדמות למס הכנסה'},

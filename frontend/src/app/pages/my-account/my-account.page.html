@@ -5,7 +5,7 @@
         <div class="avatar-with-name">
             <!-- <p-avatar icon="pi pi-user" [style]="{ backgroundColor: '#dee9fc', color: '#1a2551' }" shape="circle"></p-avatar> -->
             <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
-            <span class="avatar-text">שלום {{ userData.fName }} {{ userData.lName }}</span>
+            <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
         </div>
         <div class="user-actions">
             <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"

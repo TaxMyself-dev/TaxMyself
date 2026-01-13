@@ -56,5 +56,20 @@ export class DocumentsService implements OnInit{
         return this.http.get<any[]>(url, { params });
     }
 
+    updateDocStatus(
+        issuerBusinessNumber: string,
+        docNumber: string,
+        docType: string,
+        status: string
+    ): Observable<any> {
+        const url = `${environment.apiUrl}documents/update-status`;
+        return this.http.patch(url, {
+            issuerBusinessNumber,
+            docNumber,
+            docType,
+            status
+        });
+    }
+
 
 }

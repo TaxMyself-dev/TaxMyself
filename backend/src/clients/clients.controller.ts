@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ClientsService } from "./clients.service";
 import { FirebaseAuthGuard } from "src/guards/firebase-auth.guard";
 import { AuthenticatedRequest } from "src/interfaces/authenticated-request.interface";
@@ -12,15 +12,14 @@ export class ClientsController {
   @UseGuards(FirebaseAuthGuard)
 async addClient(@Body() clientData: CreateClientDto, @Req() request: AuthenticatedRequest) {
   const userId = request.user?.firebaseId;
-  //console.log("🚀 ~ ClientsController ~ addClient ~ clientData:", clientData)
   return this.clientsService.addClient(clientData, userId);
 }
 
-@Get('get-clients')
+@Get('get-clients/:businessNumber')
 @UseGuards(FirebaseAuthGuard)
-async getClients(@Req() request: AuthenticatedRequest) {
+async getClients(@Req() request: AuthenticatedRequest, @Param('businessNumber') businessNumber: string  ) {
   const userId = request.user?.firebaseId;
-  return this.clientsService.getClients(userId);
+  return this.clientsService.getClients(userId, businessNumber);
 }
 
 @Delete('delete-client/:id')

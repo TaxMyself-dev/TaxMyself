@@ -6,8 +6,10 @@
     "deleteOutDir": true,
     "assets": [
       {
-        "include": "cities/cities.json",
-        "outDir": "dist"
+        "include": "cities/cities.json"
+      },
+      {
+        "include": "assets/**/*"
       }
     ],
     "watchAssets": true

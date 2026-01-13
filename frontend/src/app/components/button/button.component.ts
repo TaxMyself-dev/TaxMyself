@@ -1,7 +1,7 @@
-import { Component, computed, EventEmitter, Input, input, OnInit, Output, Signal } from '@angular/core';
+import { booleanAttribute, Component, computed, EventEmitter, input, OnInit, output, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
-import { ButtonColor, ButtonSize, iconPosition } from './button.enum';
+import { ButtonColor, ButtonSize, IconPosition } from './button.enum';
 import { RouterModule } from '@angular/router';
 
 @Component({
@@ -14,7 +14,8 @@ import { RouterModule } from '@angular/router';
 export class ButtonComponent  implements OnInit {
   icon = input<string>();
   link = input<string>(null);
-  iconPosition = input<iconPosition>(iconPosition.LEFT);
+  customIcon = input(false, { transform: booleanAttribute });
+  iconPosition = input<IconPosition>('left');
   iconOnly = input<boolean>(false); //For aria-label for accessibility
   raised = input<boolean>(false); // For mark the button
   buttonText = input<string>('Button');
@@ -42,8 +43,7 @@ export class ButtonComponent  implements OnInit {
     .join(' ');
   });
 
-  @Output() onButtonClicked = new EventEmitter<Event>();
-
+  onButtonClicked = output<Event>();
   
   readonly ButtonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;

@@ -25,10 +25,18 @@ export class BusinessService {
       where: { firebaseId },
       order: { id: 'ASC' },
     });
-
-    console.log("businesses of ", firebaseId  ,"are ", businesses);
     
     return businesses;
+  }
+
+
+  async getBusinessByNumber(businessNumber: string, firebaseId?: string): Promise<Business | null> {
+    const where: any = { businessNumber };
+    if (firebaseId) {
+      where.firebaseId = firebaseId; // Optional: ensure user owns the business
+    }
+    
+    return await this.businessRepo.findOne({ where });
   }
 
 }

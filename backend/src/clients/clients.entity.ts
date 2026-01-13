@@ -1,40 +1,32 @@
-import { Entity, Column, PrimaryGeneratedColumn, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, PrimaryColumn, Unique } from 'typeorm';
 
 @Entity()
+@Unique('uq_user_clientId', ['userId', 'name'])
+
 export class Clients {
 
-    @Column({ type: 'varchar', length: 255, default: '' })
-    id: string;
+    @PrimaryGeneratedColumn('increment')
+    clientRowId: number;
 
-    //@PrimaryColumn()
-    @PrimaryColumn({ type: 'varchar', length: 9 })
+    @Column({ type: 'varchar', length: 9, default: '', nullable: true })
+    id: string | null;
+
+    @Column({ type: 'varchar', length: 255 })
     userId: string;
 
-    //@PrimaryColumn()
-    @PrimaryColumn({ type: 'varchar', length: 255 })
+    @Column({ type: 'varchar', length: 255 })
+    businessNumber: string;
+
+    @Column({ type: 'varchar', length: 255 })
     name: string;
 
-    @Column({ type: 'varchar', length: 255, default: '' })
-    phone: string;
+    @Column({ type: 'varchar', length: 255, default: '', nullable: true })
+    phone: string | null;
 
-    @Column({ type: 'varchar', length: 255, default: '' })
-    email: string;
+    @Column({ type: 'varchar', length: 255, default: '', nullable: true })
+    email: string | null;
 
-    @Column({ type: 'varchar', length: 255, default: '' })
-    city: string;
+    @Column({ type: 'varchar', length: 255, default: '', nullable: true })
+    address: string | null;
 
-    @Column({ type: 'varchar', length: 255, default: '' })
-    state: string;
-
-    @Column({ type: 'varchar', length: 255, default: '' })
-    street: string;
-
-    @Column({ type: 'varchar', length: 255, default: '' })
-    homeNumber: string;
-
-    @Column({ type: 'varchar', length: 255, default: '' })
-    postalCode: string;
-
-    @Column({ type: 'varchar', length: 255, default: '' })
-    stateCode: string;
 }

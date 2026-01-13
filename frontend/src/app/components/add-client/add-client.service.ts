@@ -1,5 +1,5 @@
 import { HttpClient, httpResource } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
@@ -11,7 +11,6 @@ import { environment } from 'src/environments/environment';
   providedIn: 'root'
 })
 export class AddClientService {
-
 
   readonly addClientFields: Record<ClientsTableColumns, IBaseFieldData> = {
     // General Details 
@@ -51,57 +50,13 @@ export class AddClientService {
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
-      validators: []
+      validators: [Validators.pattern(/^\d{9}$/)
+      ]
     },
-    [ClientsTableColumns.CITY]: {
-      value: ClientsTableColumns.CITY,
-      labelText: 'עיר',
-      placeHolder: 'עיר',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.STREET]: {
-      value: ClientsTableColumns.STREET,
-      labelText: 'רחוב',
-      placeHolder: 'רחוב',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.HOME_NUMBER]: {
-      value: ClientsTableColumns.HOME_NUMBER,
-      labelText: 'מספר בית',
-      placeHolder: 'מספר בית',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.POSTAL_CODE]: {
-      value: ClientsTableColumns.POSTAL_CODE,
-      labelText: 'מיקוד',
-      placeHolder: 'מיקוד',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.STATE]: {
-      value: ClientsTableColumns.STATE,
-      labelText: 'מדינה',
-      placeHolder: 'מדינה',
-      type: FormTypes.TEXT,
-      initialValue: '',
-      enumValues: [],
-      validators: []
-    },
-    [ClientsTableColumns.STATE_CODE]: {
-      value: ClientsTableColumns.STATE_CODE,
-      labelText: 'קוד מדינה',
-      placeHolder: 'קוד מדינה',
+    [ClientsTableColumns.ADDRESS]: {
+      value: ClientsTableColumns.ADDRESS,
+      labelText: 'כתובת',
+      placeHolder: 'כתובת',
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
@@ -133,17 +88,12 @@ export class AddClientService {
 
   private http = inject(HttpClient);
 
-  clients = httpResource<IClient[]>(() => ({
-    url: `${environment.apiUrl}clients/get-clients`,
-    method: 'GET',
-  }));
 
+  saveClientDetails(data: Partial<IClient>): Observable<any> {
+    const url = `${environment.apiUrl}clients/add-client`;
+    return this.http.post<any>(url, data);
+  }
 
-    saveClientDetails(data: IClient): Observable<any> {
-      const url = `${environment.apiUrl}clients/add-client`;
-      return this.http.post<any>(url, data);
-    }
-  
 }
 
 

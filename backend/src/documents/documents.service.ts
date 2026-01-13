@@ -8,7 +8,7 @@ import { DocLines } from './doc-lines.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
 import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity'
-import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions } from 'src/enum';
+import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions, Currency, UnitOfMeasure, CardCompany, CreditTransactionType, BusinessType } from 'src/enum';
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
@@ -17,7 +17,10 @@ import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
 import * as admin from 'firebase-admin';
 import { randomUUID } from 'crypto';
-
+import * as fs from 'fs';
+import * as path from 'path';
+import { CreateDocDto } from './dtos/create-doc.dto';
+import { BusinessService } from 'src/business/business.service';
 
 @Injectable()
 export class DocumentsService {
@@ -27,6 +30,7 @@ export class DocumentsService {
 
   constructor(
     private readonly sharedService: SharedService,
+    private readonly businessService: BusinessService,
     private readonly bookkeepingService: BookkeepingService,
     @InjectRepository(SettingDocuments)
     private settingDocuments: Repository<SettingDocuments>,
@@ -58,11 +62,6 @@ export class DocumentsService {
     docType?: DocumentType
   ): Promise<Documents[]> {
 
-    console.log("issuerBusinessNumber is ", issuerBusinessNumber);
-    console.log("startDate is ", startDate);
-    console.log("endDate is ", endDate);
-    console.log("docType is ", docType);
-
     // -------------------------------
     // 1) Convert dates safely
     // -------------------------------
@@ -84,9 +83,6 @@ export class DocumentsService {
         console.warn("Invalid endDate format:", endDate);
       }
     }
-
-    console.log("startDateSql →", startDateSql);
-    console.log("endDateSql   →", endDateSql);
 
     // -------------------------------
     // 2) Base Query
@@ -123,7 +119,7 @@ export class DocumentsService {
       // Case 2: NO DATES PROVIDED
       if (!hasDocTypeFilter) {
         // --------- ⭐ RETURN ALL DOCS ⭐ ---------
-        console.log("No dates & no docType → returning ALL docs");
+        // console.log("No dates & no docType → returning ALL docs");
         // Do NOT add any date filter
       } else {
         // Case 3: No dates but YES docType → default range
@@ -141,7 +137,6 @@ export class DocumentsService {
     // 4) Execute
     // -------------------------------
     const docs = await query.getMany();
-    console.log("Fetched documents:", docs);
 
     return docs;
   }
@@ -202,20 +197,12 @@ export class DocumentsService {
     fileName: string,
     fileType: 'original' | 'copy'
   ): Promise<string> {
-    console.log('Bucketttttttttttttttttt:', process.env.FIREBASE_STORAGE_BUCKET);
 
     try {
       const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
-      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ bucket:", bucket)
-      // console.log('FB PROJECT:', process.env.FIREBASE_PROJECT_ID);
-      // console.log('FB CLIENT :', process.env.FIREBASE_CLIENT_EMAIL);
-      // console.log('FB BUCKET :', process.env.FIREBASE_STORAGE_BUCKET);
-      // console.log('PK len    :', process.env.FIREBASE_PRIVATE_KEY?.length || 0);
-
       const uniqueId = randomUUID();
       const filePath = `systemDocs/${issuerBusinessNumber}/${docType}/${fileType}/${uniqueId}/${fileName}.pdf`;
       const file = bucket.file(filePath);
-      // console.log("🚀 ~ DocumentsService ~ uploadToFirebase ~ file:", file)
       await file.save(pdfBuffer, {
         metadata: {
           contentType: 'application/pdf',
@@ -415,9 +402,11 @@ export class DocumentsService {
       // Production FIDs
       prod: {
         // receipt: 'RVxpym2O68',           // RECEIPT, TAX_INVOICE_RECEIPT
-        receipt: 'JzEIejsTuY',
+        // receipt: 'JzEIejsTuY',
+        receipt: 'EaHjg6fsRL',
         // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
-        invoice: 'BUFw7FKiJn'
+        // invoice: 'BUFw7FKiJn'
+        invoice: 'TrBvfW6p6P'
       },
       // Development FIDs
       dev: {
@@ -432,7 +421,19 @@ export class DocumentsService {
     const url = 'https://api.fillfaster.com/v1/generatePDF';
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
     const docType = data.docData.docType;
-    const withoutVatLabel = docType === DocumentType.RECEIPT ? 'סה"כ' : 'פטור ממע"מ';
+
+    // Read draft image and convert to base64 only for previewDoc
+    let draftImageBase64: string | null = null;
+    if (templateType === 'previewDoc') {
+      try {
+        const draftImagePath = path.resolve(__dirname, '..', 'assets', 'draft.jpeg');
+        // const draftImagePath = path.join(__dirname, '..', '..', 'src', 'assets', 'draft.jpeg');
+        const imageBuffer = fs.readFileSync(draftImagePath);
+        draftImageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+      } catch (error) {
+        console.error('❌ Error reading draft image:', error);
+      }
+    }
 
     switch (templateType) {
       case 'createDoc':
@@ -445,13 +446,19 @@ export class DocumentsService {
         } else {
           fid = 'UNKNOWN FID';
         }
+
+        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' : 
+                              data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
+                              data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
+                              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
+                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' : '';
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
-          docTitle: `${data.docData.hebrewNameDoc} מספר ${data.docData.docNumber}`,
+          docTitle: `${hebrewNameDoc} מספר ${data.docData.docNumber}`,
           docSubtitle: data.docData.docSubtitle ?? null,
           allocationNum: data.docData.allocationNum ?? null,
-          docDate: this.formatDateToDDMMYYYY(data.docData.documentDate),
+          docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
           issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
           issuerDetails: [
             data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:  ${data.docData.issuerBusinessNumber}` : null,
@@ -461,16 +468,11 @@ export class DocumentsService {
           ].filter(Boolean).join('\n'),
           items_table: await this.transformLinesToItemsTable(data.linesData),
           sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
-          // totalWithoutVatLabel: withoutVatLabel,
-          // totalWithoutVat: `₪${Number(data.docData.sumWithoutVat).toFixed(2)}`,
-          // totalDiscountLabel: "הנחה",
-          // totalDiscount: `₪${Number(data.docData.disSum).toFixed(2)}`,
-          // totalLabel: 'סה"כ לתשלום',
-          // total: `₪${Number(data.docData.sumAftDisWithVAT).toFixed(2)}`,
           documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
           paymentMethod: data.docData.paymentMethod,
+          draft_image: templateType === 'previewDoc' ? draftImageBase64 : null
         };
-
+        
         // Add VAT-related fields only for non-receipts
         const isReceipt = docType === 'RECEIPT';
         if (!isReceipt) {
@@ -514,18 +516,82 @@ export class DocumentsService {
       'Content-Type': 'application/json',
     };
 
-    const response = await axios.post<Blob>(url, payload, {
-      headers,
-      responseType: 'arraybuffer',
-    });
+    try {
+      console.log('📤 Sending request to FillFaster API:');
+      console.log('   FID:', fid);
+      console.log('   Template Type:', templateType);
+      console.log('   Doc Type:', docType);
+      console.log('   Payload keys:', Object.keys(payload));
+      console.log('   Prefill data keys:', Object.keys(prefill_data));
+      
+      const response = await axios.post<Blob>(url, payload, {
+        headers,
+        responseType: 'arraybuffer',
+      });
 
-    if (!response.data) {
-      throw new Error('Failed to generate PDF');
+      if (!response.data) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ FillFaster API Error:');
+      console.error('   Status:', error.response?.status);
+      console.error('   Status Text:', error.response?.statusText);
+      console.error('   URL:', url);
+      console.error('   FID:', fid);
+      
+      // Try to parse error response body
+      if (error.response?.data) {
+        try {
+          // Try to parse as JSON first
+          const errorText = Buffer.from(error.response.data).toString('utf-8');
+          console.error('   Error Response Body:', errorText);
+          
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error('   Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
+          } catch (parseError) {
+            // Not JSON, just log as text
+            console.error('   Error Response (text):', errorText);
+          }
+        } catch (bufferError) {
+          console.error('   Could not parse error response body');
+        }
+      }
+      
+      // Log the payload that was sent (but truncate large fields)
+      const payloadForLog = {
+        ...payload,
+        prefill_data: {
+          ...prefill_data,
+          items_table: prefill_data.items_table ? `[${Array.isArray(prefill_data.items_table) ? prefill_data.items_table.length : 'N/A'} items]` : null,
+          payments_table: prefill_data.payments_table ? `[${Array.isArray(prefill_data.payments_table) ? prefill_data.payments_table.length : 'N/A'} items]` : null,
+          sumTable: prefill_data.sumTable ? `[${Array.isArray(prefill_data.sumTable) ? prefill_data.sumTable.length : 'N/A'} items]` : null,
+          draft_image: prefill_data.draft_image ? `[base64 image ${prefill_data.draft_image.length} chars]` : null,
+        }
+      };
+      console.error('   Payload sent:', JSON.stringify(payloadForLog, null, 2));
+      
+      throw new HttpException(
+        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`,
+        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
-
-    return response.data;
   }
 
+
+  /**
+   * Format a number with commas as thousand separators and 2 decimal places
+   * @param num - The number to format
+   * @returns Formatted string (e.g., "1,000.00")
+   */
+  private formatNumberWithCommas(num: number): string {
+    return num.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
 
   async transformSumsToSumTable(docData: any, issuerBusinessNumber: string): Promise<any[]> {
     
@@ -553,55 +619,58 @@ export class DocumentsService {
         // Show: סה"כ לפני הנחה
         sumTable.push({
           'תיאור': 'סה"כ לפני הנחה:',
-          'סכום': `₪${sumBefDisBefVat.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumBefDisBefVat)}`,
         });
 
         // Show: הנחה
         sumTable.push({
           'תיאור': 'הנחה:',
-          'סכום': `₪${disSum.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(disSum)}`,
         });
       }
 
       // Always show: סה"כ 
       sumTable.push({
         'תיאור': 'סה"כ:',
-        'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+        'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
       });
     } else {
       // For LICENSED (עוסק מורשה) or COMPANY (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
-      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT) {
+      console.log("docType is ", docType);
+      
+      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE) {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
-          'סכום': `₪${sumAftDisBefVAT.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisBefVAT)}`,
         });
 
         // מע"מ
         sumTable.push({
           'תיאור': 'מע"מ:',
-          'סכום': `₪${vatSum.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(vatSum)}`,
         });
 
         // סה"כ ללא מע"מ (רק אם שונה מאפס)
         if (sumWithoutVat > 0) {
           sumTable.push({
             'תיאור': 'סה"כ ללא מע"מ:',
-            'סכום': `₪${sumWithoutVat.toFixed(2)}`,
+            'סכום': `₪${this.formatNumberWithCommas(sumWithoutVat)}`,
           });
         }
 
         // סה"כ
         sumTable.push({
           'תיאור': 'סה"כ:',
-          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
         });
       } else {
+        console.log("docType is ", docType);
         // For other document types, return default structure
         sumTable.push({
           'תיאור': 'סה"כ:',
-          'סכום': `₪${sumAftDisWithVAT.toFixed(2)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
         });
       }
     }
@@ -612,8 +681,8 @@ export class DocumentsService {
 
   async transformLinesToItemsTable(lines: any[]): Promise<any[]> {
     return lines.map(line => ({
-      'סה"כ': `₪${Number(line.sumBefVatPerUnit * line.unitQuantity).toFixed(2)}`,
-      'מחיר': `₪${Number(line.sumBefVatPerUnit).toFixed(2)}`,
+      'סה"כ': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit * line.unitQuantity)}`,
+      'מחיר': `₪${this.formatNumberWithCommas(line.sumBefVatPerUnit)}`,
       'כמות': String(line.unitQuantity),
       'פירוט': line.description || ""
     }));
@@ -662,8 +731,7 @@ export class DocumentsService {
       }
 
       return {
-        "סכום": `₪${Number(line.paymentSum).toFixed(2)}`,
-        // "תאריך": line.paymentDate,
+        "סכום": `₪${this.formatNumberWithCommas(line.paymentAmount)}`,
         "תאריך": this.formatDateToDDMMYYYY(line.paymentDate),
         "פירוט": details,
         "אמצעי תשלום": paymentMethodHebrew
@@ -672,10 +740,231 @@ export class DocumentsService {
   }
 
 
+  async transformDocumentData(dto: CreateDocDto): Promise<any> {
+
+    console.log("🔄 Transforming document data from DTO...");
+
+    console.log("dto is ", dto);
+
+    // ============================================================================
+    // 1. TRANSFORM DOCDATA (Documents entity fields)
+    // ============================================================================
+    const docData = dto.docData;
+
+    // Calculate totals
+    let sumBefDisBefVat = 0;
+    let disSum = 0;
+    let sumAftDisBefVAT = 0;
+    let vatSum = 0;
+    let sumAftDisWithVAT = 0;
+
+    disSum = docData.totalDiscount;
+
+    if (docData.businessType === BusinessType.EXEMPT) {
+      sumBefDisBefVat = docData.totalWithoutVat;
+      sumAftDisBefVAT = docData.totalWithoutVat - docData.totalDiscount;
+      vatSum = 0;
+      sumAftDisWithVAT = sumAftDisBefVAT;
+    } else {
+      sumBefDisBefVat = docData.totalVatApplicable + docData.totalWithoutVat;
+      sumAftDisBefVAT = sumBefDisBefVat - docData.totalDiscount;
+      vatSum = docData.totalVat;
+      sumAftDisWithVAT = sumAftDisBefVAT + vatSum;
+    }
+
+    // Get business details
+    const business = await this.businessService.getBusinessByNumber(docData.issuerBusinessNumber);
+    console.log("business is ", business);
+
+    // Transform Documents entity fields
+    const transformedDocData: any = {
+      // Issuer details
+      issuerBusinessNumber: docData.issuerBusinessNumber,
+      issuerName: business?.businessName,
+      issuerAddress: business?.businessAddress,
+      issuerPhone: business?.businessPhone,
+      issuerEmail: business?.businessEmail,
+      // Recipient details
+      recipientName: docData.recipientName,
+      recipientId: docData.recipientId,
+      recipientPhone: docData.recipientPhone || null,
+      recipientEmail: docData.recipientEmail || null,
+      // Document details
+      docType: docData.docType,
+      generalDocIndex: String(docData.generalDocIndex),
+      allocationNum: docData.allocationNum || null,
+      docDescription: docData.docDescription || null,
+      docSubtitle: docData.docSubtitle || null,
+      docNumber: String(docData.docNumber),
+      docVatRate: Number(docData.docVatRate),
+      currency: docData.currency || Currency.ILS,
+      // Summary totals
+      sumBefDisBefVat: Number(sumBefDisBefVat.toFixed(2)),
+      disSum: Number(disSum.toFixed(2)),
+      sumAftDisBefVAT: Number(sumAftDisBefVAT.toFixed(2)),
+      vatSum: Number(vatSum.toFixed(2)),
+      sumAftDisWithVAT: Number(sumAftDisWithVAT.toFixed(2)),
+      withholdingTaxAmount: (docData as any).withholdingTaxAmount ? Number((docData as any).withholdingTaxAmount) : 0,
+      sumWithoutVat: docData.totalWithoutVat || 0,
+      // Dates
+      docDate: new Date(docData.docDate),
+      valueDate: new Date(docData.docDate), // TODO: Need to understand if we should support this value 
+      customerKey: (docData as any).customerKey || null,
+      matchField: (docData as any).matchField || null,
+      isCancelled: (docData as any).isCancelled ?? false,
+      branchCode: (docData as any).branchCode || null,
+      operationPerformer: (docData as any).operationPerformer || null,
+      // Parent document details
+      parentDocType: docData.parentDocType || null,
+      parentDocNumber: docData.parentDocNumber || null,
+      
+    };
+
+    // ============================================================================
+    // 2. TRANSFORM LINESDATA (DocLines entity fields)
+    // ============================================================================
+    const transformedLinesData = dto.linesData.map((line, index) => {
+      // Convert vatOpts string to enum if needed
+      // let vatOpts: VatOptions;
+      // const vatOptsValue = line.vatOpts as any;
+      // if (typeof vatOptsValue === 'string') {
+      //   const vatOptsUpper = vatOptsValue.toUpperCase();
+      //   if (vatOptsUpper === 'INCLUDE') {
+      //     vatOpts = VatOptions.INCLUDE;
+      //   } else if (vatOptsUpper === 'EXCLUDE') {
+      //     vatOpts = VatOptions.EXCLUDE;
+      //   } else if (vatOptsUpper === 'WITHOUT') {
+      //     vatOpts = VatOptions.WITHOUT;
+      //   } else {
+      //     vatOpts = VatOptions[vatOptsUpper as keyof typeof VatOptions] || VatOptions.INCLUDE;
+      //   }
+      // } else if (typeof vatOptsValue === 'number') {
+      //   vatOpts = vatOptsValue as VatOptions;
+      // } else {
+      //   vatOpts = VatOptions.INCLUDE; // Default
+      // }
+
+      // Convert unitType to enum if needed
+      // let unitType: UnitOfMeasure = UnitOfMeasure.UNIT; // Default
+      // const unitTypeValue = (line as any).unitType;
+      // if (unitTypeValue !== undefined && unitTypeValue !== null) {
+      //   if (typeof unitTypeValue === 'number') {
+      //     unitType = unitTypeValue as unknown as UnitOfMeasure;
+      //   } else if (typeof unitTypeValue === 'string') {
+      //     const unitTypeUpper = unitTypeValue.toUpperCase();
+      //     unitType = UnitOfMeasure[unitTypeUpper as keyof typeof UnitOfMeasure] || UnitOfMeasure.UNIT;
+      //   }
+      // }
+
+      return {
+        // Required fields
+        issuerBusinessNumber: docData.issuerBusinessNumber,
+        generalDocIndex: docData.generalDocIndex,
+        lineNumber: String(line.lineNumber),
+        docType: docData.docType,
+        transType: line.transType || '3', // varchar(1), default '3'
+        description: line.description || '', // string
+
+        // Optional product fields (may not be in DTO)
+        internalNumber: (line as any).internalNumber || null, // varchar(20), nullable
+        manufacturerName: (line as any).manufacturerName || null, // varchar, nullable
+        productSerialNumber: (line as any).productSerialNumber || null, // varchar, nullable
+
+        // Unit and quantity
+        unitType: line.unitType, // enum UnitOfMeasure, default UNIT
+        unitQuantity: Number(line.unitQuantity),
+
+        // Amounts
+        sumBefVatPerUnit: Number((line.sumBefVatPerUnit || line.sum || 0).toFixed(4)),
+        disBefVatPerLine: Number((line.disBefVatPerLine || line.discount || 0).toFixed(2)),
+        sumAftDisBefVatPerLine: Number((line.sumAftDisBefVatPerLine || 
+          ((line.sumBefVatPerUnit || line.sum || 0) * (line.unitQuantity || 1) - (line.discount || 0))
+        ).toFixed(2)),
+
+        // VAT
+        vatOpts: line.vatOpts, // enum VatOptions, default INCLUDE
+        vatRate: Number(line.vatRate), // decimal(5,2)
+        vatPerLine: Number((line.vatPerLine || 0).toFixed(2)), // decimal(10,2)
+        sumAftDisWithVat: Number((line.sumAftDisWithVat || 
+          (line.sumAftDisBefVatPerLine || ((line.sumBefVatPerUnit || line.sum || 0) * (line.unitQuantity || 1) - (line.discount || 0))) + (line.vatPerLine || 0)
+        ).toFixed(2)), // decimal(10,2)
+
+        // Journal entry (may not be in DTO)
+        journalEntryMainId: (line as any).journalEntryMainId || null, // varchar, nullable
+      };
+    });
+
+    // ============================================================================
+    // 3. TRANSFORM PAYMENTDATA (DocPayments entity fields)
+    // ============================================================================
+    const transformedPaymentData = (dto.paymentData || []).map((payment) => {
+      // Convert cardCompany to enum if needed
+      let cardCompany: CardCompany | null = null;
+      if (payment.cardCompany !== undefined && payment.cardCompany !== null) {
+        if (typeof payment.cardCompany === 'number') {
+          cardCompany = payment.cardCompany as CardCompany;
+        } else if (typeof payment.cardCompany === 'string') {
+          const cardCompanyUpper = payment.cardCompany.toUpperCase();
+          cardCompany = CardCompany[cardCompanyUpper as keyof typeof CardCompany] || null;
+        }
+      }
+
+      // Convert creditTransType to enum if needed (may not be in DTO)
+      let creditTransType: CreditTransactionType | null = null;
+      const creditTransTypeValue = (payment as any).creditTransType;
+      if (creditTransTypeValue !== undefined && creditTransTypeValue !== null) {
+        if (typeof creditTransTypeValue === 'number') {
+          creditTransType = creditTransTypeValue as CreditTransactionType;
+        } else if (typeof creditTransTypeValue === 'string') {
+          const creditTransTypeUpper = creditTransTypeValue.toUpperCase();
+          creditTransType = CreditTransactionType[creditTransTypeUpper as keyof typeof CreditTransactionType] || null;
+        }
+      }
+
+      // Convert paymentDate to Date
+      const paymentDate = payment.paymentDate ? new Date(payment.paymentDate) : new Date();
+
+      return {
+        // Required fields
+        issuerBusinessNumber: docData.issuerBusinessNumber, // string
+        generalDocIndex: docData.generalDocIndex, // varchar(7), nullable
+        paymentLineNumber: String(payment.paymentLineNumber), // varchar(4), nullable
+        paymentMethod: payment.paymentMethod, // varchar (not enum in entity)
+        paymentDate: paymentDate, // date
+        paymentAmount: Number(payment.paymentAmount || payment.paymentSum || 0), // decimal(10,4)
+
+        // Bank transfer fields
+        hebrewBankName: payment.hebrewBankName || null, // varchar(20), nullable
+        bankNumber: payment.bankNumber || null, // varchar(10), nullable
+        branchNumber: payment.branchNumber || null, // varchar(10), nullable
+        accountNumber: payment.accountNumber || null, // varchar(15), nullable
+
+        // Check fields
+        checkNumber: payment.checkNumber || null, // varchar(10), nullable
+
+        // Credit card fields
+        cardCompany: cardCompany, // enum CardCompany, nullable
+        creditCardName: payment.creditCardName || null, // varchar(20), nullable
+        creditTransType: creditTransType, // enum CreditTransactionType, nullable
+        card4Number: payment.card4Number || null, // varchar(4), nullable
+        creditPayNumber: (payment as any).creditPayNumber || null, // varchar(3), nullable
+      };
+    });
+
+    // ============================================================================
+    // 4. RETURN TRANSFORMED DATA
+    // ============================================================================
+    return {
+      docData: transformedDocData,
+      linesData: transformedLinesData,
+      paymentData: transformedPaymentData,
+    };
+  }
+  
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
-    console.log("createDoc in servce - start");
+    console.log("createDoc in service - start");
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -683,11 +972,28 @@ export class DocumentsService {
 
     try {
 
-      console.log("data is ", data);
+      console.log("createDoc in service - start: data is ", data);
 
       // 1. Increment general index (use manager for DB operation)
-      await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
-      console.log(new Date().toLocaleTimeString(), "Step 1 complete - General index incremented");
+      const updatedGeneralIndex = await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
+      // IMPORTANT: Use the NEW incremented generalIndex from the database, not from the request
+      // This ensures we always use a fresh, incremented value, not the parent document's index
+      const newGeneralDocIndex = String(updatedGeneralIndex.currentIndex);
+      data.docData.generalDocIndex = newGeneralDocIndex;
+      
+      // Update all lines and payments to use the new generalDocIndex
+      if (data.linesData && Array.isArray(data.linesData)) {
+        data.linesData.forEach(line => {
+          line.generalDocIndex = newGeneralDocIndex;
+        });
+      }
+      if (data.paymentData && Array.isArray(data.paymentData)) {
+        data.paymentData.forEach(payment => {
+          payment.generalDocIndex = newGeneralDocIndex;
+        });
+      }
+      
+      console.log(new Date().toLocaleTimeString(), "Step 1 complete - General index incremented to:", newGeneralDocIndex);
 
       // 2. Increment document-specific index
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
@@ -696,18 +1002,18 @@ export class DocumentsService {
       }
       console.log(new Date().toLocaleTimeString(), "Step 2 complete - Current index incremented");
 
-      // 3. Save main document info
+      // 3. Save main document info (now with the correct incremented generalDocIndex)
       const newDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
       if (!newDoc) {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       }            
       console.log(new Date().toLocaleTimeString(), "Step 3 complete - Document info saved");
 
-      // 4. Save line items
+      // 4. Save line items (now with the correct incremented generalDocIndex)
       await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 4 complete - Lines info saved");
 
-      // 5. Save payments
+      // 5. Save payments (now with the correct incremented generalDocIndex)
       await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 5 complete - Payments info saved");
 
@@ -722,7 +1028,7 @@ export class DocumentsService {
       if (docTypesWithJournalEntry.includes(data.docData.docType)) {
         await this.bookkeepingService.createJournalEntry({
           issuerBusinessNumber: data.docData.issuerBusinessNumber,
-          date: this.sharedService.normalizeToMySqlDate(data.docData.documentDate),
+          date: this.sharedService.normalizeToMySqlDate(data.docData.docDate),
           referenceType: data.docData.docType,
           referenceId: parseInt(data.docData.docNumber),
           description: `${data.docData.docType} #${data.docData.docNumber} for ${data.docData.recipientName}`,
@@ -852,7 +1158,7 @@ export class DocumentsService {
   }
 
 
-  async previewDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
+  async previewDoc(data: any, generatePdf: boolean = true): Promise<any> {
 
     try {
       // Generate the PDF
@@ -869,6 +1175,7 @@ export class DocumentsService {
     }
 
   }
+  
 
   convertPaymentMethod(paymentMethod: string): string {
     switch (paymentMethod) {
@@ -937,6 +1244,7 @@ export class DocumentsService {
 
 
   async saveDocInfo(userId: string, data: any, manager?: EntityManager): Promise<Documents> {
+    
     try {
       const repo = manager
         ? manager.getRepository(Documents)
@@ -950,7 +1258,8 @@ export class DocumentsService {
 
       const autoClosedTypes = [
         DocumentType.RECEIPT,
-        DocumentType.TAX_INVOICE_RECEIPT
+        DocumentType.TAX_INVOICE_RECEIPT,
+        DocumentType.CREDIT_INVOICE
       ];
 
       // Default values set on the server
@@ -995,12 +1304,36 @@ export class DocumentsService {
 
       for (const item of data) {
         const vatOptsRaw = item.vatOpts;
+        let vatOpts: VatOptions;
 
-        // Convert string to enum
-        const vatOpts = VatOptions[vatOptsRaw as keyof typeof VatOptions];
-
-        if (vatOpts === undefined) {
-          throw new HttpException(`Invalid vatOpts value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
+        // Handle different input types
+        if (typeof vatOptsRaw === 'number') {
+          // Already a number (enum value), validate it's a valid enum value
+          if (vatOptsRaw === VatOptions.INCLUDE || vatOptsRaw === VatOptions.EXCLUDE || vatOptsRaw === VatOptions.WITHOUT) {
+            vatOpts = vatOptsRaw as VatOptions;
+          } else {
+            throw new HttpException(`Invalid vatOpts numeric value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
+          }
+        } else if (typeof vatOptsRaw === 'string') {
+          // Convert string to enum
+          const vatOptsUpper = vatOptsRaw.toUpperCase();
+          if (vatOptsUpper === 'INCLUDE') {
+            vatOpts = VatOptions.INCLUDE;
+          } else if (vatOptsUpper === 'EXCLUDE') {
+            vatOpts = VatOptions.EXCLUDE;
+          } else if (vatOptsUpper === 'WITHOUT') {
+            vatOpts = VatOptions.WITHOUT;
+          } else {
+            // Try enum key lookup
+            const enumValue = VatOptions[vatOptsUpper as keyof typeof VatOptions];
+            if (enumValue !== undefined) {
+              vatOpts = enumValue;
+            } else {
+              throw new HttpException(`Invalid vatOpts string value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
+            }
+          }
+        } else {
+          throw new HttpException(`Invalid vatOpts type: ${typeof vatOptsRaw}, value: ${vatOptsRaw}`, HttpStatus.BAD_REQUEST);
         }
 
         const linesData = { userId, ...item, vatOpts };
@@ -1253,6 +1586,36 @@ export class DocumentsService {
     const month = String(date.getMonth() + 1).padStart(2, '0'); // months are zero-based
     const year = date.getFullYear();
     return `${day}-${month}-${year}`;
+  }
+
+  /**
+   * Update document status
+   */
+  async updateDocStatus(
+    issuerBusinessNumber: string,
+    docNumber: string,
+    docType: DocumentType,
+    status: DocumentStatusType
+  ): Promise<{ success: boolean; message: string }> {
+    const doc = await this.documentsRepo.findOne({
+      where: {
+        issuerBusinessNumber,
+        docNumber,
+        docType,
+      },
+    });
+
+    if (!doc) {
+      throw new NotFoundException('Document not found');
+    }
+
+    doc.docStatus = status;
+    await this.documentsRepo.save(doc);
+
+    return {
+      success: true,
+      message: 'Document status updated successfully',
+    };
   }
 
 

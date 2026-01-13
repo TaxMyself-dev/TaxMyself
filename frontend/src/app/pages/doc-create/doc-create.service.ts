@@ -1,8 +1,10 @@
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, of, from, throwError } from 'rxjs';
+import { switchMap, catchError } from 'rxjs/operators';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { ICreateDataDoc, IDataDocFormat, IDocIndexes, ISettingDoc } from 'src/app/shared/interface';
+import { IClient } from './doc-create.interface';
 
 @Injectable({
   providedIn: 'root'
@@ -36,9 +38,9 @@ export class DocCreateService {
     return this.http.post<any>(url, { initialIndex, issuerBusinessNumber });
   }
 
-  getClients(): Observable<any> {
-    const url = `${environment.apiUrl}clients/get-clients`;
-    return this.http.get<any[]>(url);
+  getClients(businessNumber: string): Observable<IClient[]> {
+    const url = `${environment.apiUrl}clients/get-clients/${businessNumber}`;
+    return this.http.get<IClient[]>(url);
   }
 
   
@@ -56,7 +58,71 @@ export class DocCreateService {
 
   previewDoc(dataFile: any): Observable<Blob> {
     const url = `${environment.apiUrl}documents/preview-doc`;
-    return this.http.post<Blob>(url, dataFile, { responseType: 'blob' as 'json'})
+    return this.http.post<Blob>(url, dataFile, { 
+      responseType: 'blob' as 'json',
+      observe: 'response'
+    }).pipe(
+      switchMap((response: HttpResponse<Blob>) => {
+        // Check if response status is not OK
+        if (!response.ok || !response.body) {
+          // It's an error response, parse the blob as JSON
+          const body = response.body;
+          if (!body) {
+            return throwError(() => new Error(`HTTP Error: ${response.status} ${response.statusText}`));
+          }
+          return from(body.text()).pipe(
+            switchMap(text => {
+              try {
+                const error = JSON.parse(text);
+                console.error('❌ Backend validation error:', error);
+                return throwError(() => new Error(JSON.stringify(error, null, 2)));
+              } catch (parseError) {
+                return throwError(() => new Error(`Failed to parse error: ${text}`));
+              }
+            })
+          );
+        }
+        // Check content type to ensure it's a PDF
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          // Unexpected JSON response, try to parse as error
+          return from(response.body.text()).pipe(
+            switchMap((text: string) => {
+              try {
+                const error = JSON.parse(text);
+                console.error('❌ Unexpected JSON response:', error);
+                return throwError(() => new Error(JSON.stringify(error, null, 2)));
+              } catch (parseError) {
+                return throwError(() => new Error(`Unexpected response format: ${text}`));
+              }
+            })
+          );
+        }
+        // It's a valid PDF blob
+        return of(response.body);
+      }),
+      catchError(error => {
+        // Handle HTTP errors (400, 500, etc.)
+        if (error.error instanceof Blob) {
+          return from(error.error.text()).pipe(
+            switchMap((text: string) => {
+              try {
+                const errorObj = JSON.parse(text);
+                console.error('❌ Backend error:', errorObj);
+                return throwError(() => new Error(JSON.stringify(errorObj, null, 2)));
+              } catch (parseError) {
+                return throwError(() => new Error(`Error: ${text}`));
+              }
+            })
+          );
+        }
+        // If it's already a parsed error message, re-throw it
+        if (error.message) {
+          return throwError(() => error);
+        }
+        return throwError(() => new Error(`HTTP Error: ${error.status || 'Unknown'} ${error.statusText || ''}`));
+      })
+    );
   }
 
   rollbackDocument(issuerBusinessNumber: string, generalDocIndex: string | number): Observable<any> {

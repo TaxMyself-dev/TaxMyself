@@ -228,13 +228,19 @@
                 {{ line.unitQuantity }}
                 }
                 @else if (col.dataField === 'vatOpts') {
-                {{ getVatLabel(line.vatOpts) }}
+                  <span dir="ltr">
+                    ₪{{ line.vatPerLine | number:'1.2-2' }}
+                  </span>
                 }
                 @else if (col.dataField === 'sum') {
-                {{ line.sum | currency:'ILS' }}
+                  <span dir="ltr">
+                    ₪{{ line.sumBefVatPerUnit | number:'1.2-2' }}
+                  </span>
                 }
                 @else if (col.dataField === 'total') {
-                {{ line.sum * line.unitQuantity | currency:'ILS' }}
+                  <span dir="ltr">
+                    ₪{{ line.sumAftDisWithVat | number:'1.2-2' }}
+                  </span>
                 }
                 @else if (col.dataField === 'discount') {
                 {{ line.discount || '-' }}
@@ -264,7 +270,11 @@
           </div>
           <div class="values-summary">
             @for (item of filteredSummaryItems(); track item.key) {
-            <p class="content-summary">{{ item.valueGetter(documentTotals()) | number:'1.2-2' }} ש"ח</p>
+              <p class="content-summary">
+                <span dir="ltr">
+                  ₪{{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
+                </span>
+              </p>
             }
           </div>
         </div>
@@ -347,18 +357,22 @@
         <div class="line-row">
           @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
           <div>
-            {{ item.type === formTypes.DATE
-            ? (payment[item.value] | date:'dd/MM/yyyy')
-            : (
-            item.value === 'bankName'
-            ? (
-            payment.hebrewBankName && payment.bankNumber
-            ? (payment.hebrewBankName + ' (' + payment.bankNumber + ')')
-            : (payment.hebrewBankName || payment.bankNumber || '-')
-            )
-            : (payment[item.value] || '-')
-            )
-            }}
+            @if (item.value === 'paymentSum') {
+              <span dir="ltr">₪{{ payment[item.value] | number:'1.2-2' }}</span>
+            } @else {
+              {{ item.type === formTypes.DATE
+              ? (payment[item.value] | date:'dd/MM/yyyy')
+              : (
+              item.value === 'bankName'
+              ? (
+              payment.hebrewBankName && payment.bankNumber
+              ? (payment.hebrewBankName + ' (' + payment.bankNumber + ')')
+              : (payment.hebrewBankName || payment.bankNumber || '-')
+              )
+              : (payment[item.value] || '-')
+              )
+              }}
+            }
           </div>
           }
           <div class="actions">
@@ -373,9 +387,13 @@
       @if (chargesPaymentsDifference() !== 0) {
       <div>
         <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
-        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} <span
-            class="amount-value">{{ chargesPaymentsDifference() | number:'1.2-2' }}</span>
-            <span class="currency">ש"ח</span>
+        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} 
+          <span
+            class="amount-value">
+            <span dir="ltr">
+              ₪{{ chargesPaymentsDifference() | number:'1.2-2' }}
+            </span>
+          </span>
         </p>
       </div>
       }

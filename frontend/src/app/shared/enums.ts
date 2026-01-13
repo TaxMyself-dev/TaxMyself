@@ -19,6 +19,19 @@ export enum FormTypes {
   AUTOCOMPLETE = 'autocomplete'
 }
 
+export type FormType =
+  | 'checkbox'
+  | 'text'
+  | 'ddl'
+  | 'file'
+  | 'date'
+  | 'number'
+  | 'email'
+  | 'password'
+  | 'tel'
+  | 'autocomplete';
+
+
 export enum displayColumnsExpense {
   supplier = 'ספק',
   date = 'תאריך',
@@ -130,7 +143,7 @@ export enum TransactionsOutcomesHebrewColumns {
   actions = 'פעולות',
   businessName = 'שייך לעסק',
   note = 'הערה',
-  documentDate = 'תאריך המסמך',
+  docDate = 'תאריך המסמך',
   currency = 'סוג מטבע',
 }
 
@@ -197,7 +210,7 @@ export enum FieldsCreateDocValue {
   BUSINESS_NUMBER = 'businessNumber',
   DOC_TYPE = 'docType',
   DOC_DESCRIPTION = 'docDescription',
-  DOCUMENT_DATE = 'documentDate',
+  DOC_DATE = 'docDate',
   DOC_VAT_RATE = 'docVatRate',
   VAT_SUM = 'vatSum',
   CURRENCY = "currency",
@@ -205,12 +218,7 @@ export enum FieldsCreateDocValue {
   RECIPIENT_ID = 'recipientId',
   RECIPIENT_PHONE = 'recipientPhone',
   RECIPIENT_EMAIL = 'recipientEmail',
-  RECIPIENT_CITY = 'recipientCity',
-  RECIPIENT_STREET = 'recipientStreet',
-  RECIPIENT_HOME_NUMBER = 'recipientHomeNumber',
-  RECIPIENT_POSTAL_CODE = 'recipientPostalCode',
-  RECIPIENT_STATE = 'recipientState',
-  RECIPIENT_STATE_CODE = 'recipientStateCode',
+  RECIPIENT_ADDRESS = 'recipientAddress',
   SUM_AFTER_DIS_BEF_VAT = 'sumAfterDisBefVat',
   SUM_AFTER_DIS_WITH_VAT = 'sumAfterDisWithVat',
   SUM_BEF_DIS_BEF_VAT = 'sumBefDisBefVat',
@@ -222,11 +230,10 @@ export enum FieldsCreateDocValue {
 }
 
 export enum FieldsCreateDocName {
-  //typeFile = "באיזה מסמך אתה מעוניין?",
   currency = "מטבע",
   docVatRate = "שיעור מעמ",
   date = "תאריך ביצוע התשלום",
-  documentDate = "תאריך המסמך",
+  docDate = "תאריך המסמך",
   recipientName = "שם הלקוח",
   recipientId = "ת.ז. / ח.פ. של הלקוח",
   recipientEmail = "אימייל של הלקוח",
@@ -310,7 +317,6 @@ export enum fieldLineDocName {
 
 export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;
 
-
 export enum PaymentMethodName {
   CASH = 'מזומן',
   BANK_TRANSFER = 'העברה בנקאית',
@@ -319,12 +325,6 @@ export enum PaymentMethodName {
   CREDIT_CARD = 'כרטיס אשראי',
   CHECK = "צ'ק",
 }
-
-// export enum VatOptions {
-//   INCLUDE = 'INCLUDE',
-//   EXCLUDE = 'EXCLUDE',
-//   WITHOUT = 'WITHOUT',
-// }
 
 export type VatType = 'INCLUDE' | 'EXCLUDE' | 'WITHOUT';
 
@@ -518,27 +518,17 @@ export enum TaxReportingType {
 }
 
 export enum ClientsTableColumns {
-  CITY = 'city',
-  STREET = 'street',
-  STATE = 'state',
-  STATE_CODE = 'stateCode',
-  POSTAL_CODE = 'postalCode',
   NAME = 'name',
   PHONE = 'phone',
   EMAIL = 'email',
-  HOME_NUMBER = 'homeNumber',
   ID = 'id',
+  ADDRESS = 'address',
 }
 
 export enum ClientsTableHebrewColumns {
-  city = 'עיר',
-  street = 'רחוב',
-  state = 'מדינה',
-  stateCode = 'קוד מדינה',
-  postalCode = 'מיקוד',
   name = 'שם הלקוח',
   phone = 'טלפון',
   email = 'אימייל',
-  homeNumber = 'מספר בית',
   id = 'ת.ז. / ח.פ.',
+  address = 'כתובת',
 }
