@@ -435,9 +435,8 @@ export class DocumentsService {
     let draftImageBase64: string | null = null;
     if (templateType === 'previewDoc') {
       try {
-        // Path: backend/src/assets/draft.jpeg
-        // From compiled dist folder: __dirname is dist/documents, so go up to dist, then up to root, then into src/assets
-        const draftImagePath = path.join(__dirname, '..', '..', 'src', 'assets', 'draft.jpeg');
+        const draftImagePath = path.resolve(__dirname, '..', 'assets', 'draft.jpeg');
+        // const draftImagePath = path.join(__dirname, '..', '..', 'src', 'assets', 'draft.jpeg');
         const imageBuffer = fs.readFileSync(draftImagePath);
         draftImageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
       } catch (error) {
