@@ -1018,10 +1018,6 @@ export class ReportsService {
       endDate: string | Date,
     ): Promise<DocumentSummaryRow[]> {
 
-      console.log("buildDocumentSummary - businessNumber: ", businessNumber);
-      console.log("buildDocumentSummary - startDate: ", startDate);
-      console.log("buildDocumentSummary - endDate: ", endDate);
-
       // ✅ Convert string dates to Date objects if they're strings
       const startDateObj = typeof startDate === 'string' 
       ? this.sharedService.convertStringToDateObject(startDate) 
@@ -1029,9 +1025,6 @@ export class ReportsService {
       const endDateObj = typeof endDate === 'string' 
       ? this.sharedService.convertStringToDateObject(endDate) 
       : endDate;
-
-      console.log("buildDocumentSummary - startDateObj: ", startDateObj);
-      console.log("buildDocumentSummary - endDateObj: ", endDateObj);
 
       const rows = await this.documentsRepo
       .createQueryBuilder('d')
@@ -1042,20 +1035,6 @@ export class ReportsService {
       .andWhere('d.docDate BETWEEN :from AND :to', { from: startDateObj, to: endDateObj }) // ✅ Use Date objects
       .groupBy('d.docType')
       .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
-  
-      console.log("buildDocumentSummary - rows: ", rows);
-
-      // const rows = await this.documentsRepo
-      //   .createQueryBuilder('d')
-      //   .select('d.docType', 'docType')
-      //   .addSelect('COUNT(*)', 'count')
-      //   .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
-      //   .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
-      //   .andWhere('d.docDate BETWEEN :from AND :to', { from: startDate, to: endDate })
-      //   .groupBy('d.docType')
-      //   .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
-
-      // console.log("buildDocumentSummary - rows: ", rows);
 
       const summary: DocumentSummaryRow[] = rows
       .filter(row => DOC_TYPE_INFO[row.docType]) // only known types
