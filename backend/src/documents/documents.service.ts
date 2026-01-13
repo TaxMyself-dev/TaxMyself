@@ -62,11 +62,6 @@ export class DocumentsService {
     docType?: DocumentType
   ): Promise<Documents[]> {
 
-    console.log("issuerBusinessNumber is ", issuerBusinessNumber);
-    console.log("startDate is ", startDate);
-    console.log("endDate is ", endDate);
-    console.log("docType is ", docType);
-
     // -------------------------------
     // 1) Convert dates safely
     // -------------------------------
@@ -88,9 +83,6 @@ export class DocumentsService {
         console.warn("Invalid endDate format:", endDate);
       }
     }
-
-    console.log("startDateSql →", startDateSql);
-    console.log("endDateSql   →", endDateSql);
 
     // -------------------------------
     // 2) Base Query
@@ -127,7 +119,7 @@ export class DocumentsService {
       // Case 2: NO DATES PROVIDED
       if (!hasDocTypeFilter) {
         // --------- ⭐ RETURN ALL DOCS ⭐ ---------
-        console.log("No dates & no docType → returning ALL docs");
+        // console.log("No dates & no docType → returning ALL docs");
         // Do NOT add any date filter
       } else {
         // Case 3: No dates but YES docType → default range
@@ -145,7 +137,6 @@ export class DocumentsService {
     // 4) Execute
     // -------------------------------
     const docs = await query.getMany();
-    console.log("Fetched documents:", docs);
 
     return docs;
   }
@@ -1184,6 +1175,7 @@ export class DocumentsService {
     }
 
   }
+  
 
   convertPaymentMethod(paymentMethod: string): string {
     switch (paymentMethod) {
@@ -1252,8 +1244,6 @@ export class DocumentsService {
 
 
   async saveDocInfo(userId: string, data: any, manager?: EntityManager): Promise<Documents> {
-
-    console.log("🚀 ~ DocumentsService ~ saveDocInfo ~ data:", data);
     
     try {
       const repo = manager
@@ -1268,7 +1258,8 @@ export class DocumentsService {
 
       const autoClosedTypes = [
         DocumentType.RECEIPT,
-        DocumentType.TAX_INVOICE_RECEIPT
+        DocumentType.TAX_INVOICE_RECEIPT,
+        DocumentType.CREDIT_INVOICE
       ];
 
       // Default values set on the server

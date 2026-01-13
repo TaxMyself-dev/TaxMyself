@@ -523,7 +523,8 @@ export class ExpensesService {
 
     async getExpensesForVatReport(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<Expense[]> {
 
-        let reportedExpenses = this.getExpensesByDates(userId, businessNumber, startDate, endDate);
+        // IMPORTANT: await the promise!
+        const reportedExpenses = await this.getExpensesByDates(userId, businessNumber, startDate, endDate);
 
         // // Valid months when isSingleMonth is false
         // const validMonths = [1, 3, 5, 7, 9, 11];        

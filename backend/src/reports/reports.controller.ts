@@ -1,6 +1,6 @@
 //General
 import { Response } from 'express';
-import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata, UsePipes} from '@nestjs/common';
+import { Controller, Post, Patch, Get, Query, Param, Body, Headers, UseGuards, ValidationPipe, Res, Req, UploadedFile, UseInterceptors, HttpException, HttpStatus, SetMetadata, UsePipes, BadRequestException} from '@nestjs/common';
 //Services 
 import { ReportsService } from './reports.service';
 import { SharedService } from '../shared/shared.service';
@@ -34,11 +34,27 @@ export class ReportsController {
         @Req() request: AuthenticatedRequest,
         @Query() query: VatReportRequestDto,
     ): Promise<VatReportDto> {
-        const firebaseId = request.user?.firebaseId;
-        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
-        const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-        const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
-        return vatReport;
+        try {
+            console.log("getVatReport - controller start");
+            console.log("query:", query);
+            const firebaseId = request.user?.firebaseId;
+            if (!firebaseId) {
+                throw new BadRequestException('Firebase ID is missing');
+            }
+            console.log("Converting dates...");
+            const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+            const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+            console.log("Converted dates - startDate:", startDate, "endDate:", endDate);
+            console.log("Calling createVatReport...");
+            const vatReport = await this.reportsService.createVatReport(firebaseId, query.businessNumber, startDate, endDate);
+            console.log("getVatReport - controller success");
+            return vatReport;
+        } catch (error) {
+            console.error("❌ Error in getVatReport controller:", error);
+            console.error("Error message:", error.message);
+            console.error("Error stack:", error.stack);
+            throw error;
+        }
     }
 
 

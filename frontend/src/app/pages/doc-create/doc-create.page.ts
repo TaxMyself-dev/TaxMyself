@@ -10,6 +10,7 @@ import { SelectClientComponent } from 'src/app/shared/select-client/select-clien
 import { GenericService } from 'src/app/services/generic.service';
 import { FilesService } from 'src/app/services/files.service';
 import { AuthService } from 'src/app/services/auth.service';
+import { DocumentsService } from 'src/app/services/documents.service';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { inputsSize } from 'src/app/shared/enums';
@@ -42,6 +43,7 @@ interface OppositeDocPayload {
   businessNumber: string;
   businessName: string;
   isNegativeReceipt?: boolean; // Flag to indicate if this is a negative receipt
+  shouldCloseParentDoc?: boolean; // Flag to indicate if parent document should be closed after creation
 }
 
 
@@ -54,7 +56,8 @@ interface OppositeDocPayload {
 export class DocCreatePage implements OnInit, OnDestroy {
 
   private gs = inject(GenericService);
-    confirmationService = inject(ConfirmationService);
+  private documentsService = inject(DocumentsService);
+  confirmationService = inject(ConfirmationService);
   
 
   // Business-related properties
@@ -112,6 +115,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   parentDocNumber: string | null = null;
   docSubtitle: string | null = null;
   allocationNum: string | null = null;
+  shouldCloseParentDoc: boolean = false; // Flag to indicate if parent document should be closed after creation
+  parentBusinessNumber: string | null = null; // Business number of parent document
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
   // selectedBankBranch: string;
@@ -424,8 +429,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
   
 
   onSelectionChange(field: string, event: any): void {
-    console.log("field: ", field);
-    console.log("event: ", event);
     switch (field) {
       case 'docType':
         if (!event) {
@@ -475,6 +478,30 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
     tap((response) => {
       console.log('✅ Document created successfully:', response);
+      
+      // If this is a closing document, update the parent document status to CLOSE
+      if (this.shouldCloseParentDoc && this.parentDocType && this.parentDocNumber && this.parentBusinessNumber) {
+        console.log('Updating parent document status to CLOSE:', {
+          businessNumber: this.parentBusinessNumber,
+          docNumber: this.parentDocNumber,
+          docType: this.parentDocType
+        });
+        
+        this.documentsService.updateDocStatus(
+          this.parentBusinessNumber,
+          this.parentDocNumber,
+          this.parentDocType,
+          'CLOSE'
+        ).pipe(
+          catchError(err => {
+            console.error('Failed to update parent document status:', err);
+            // Don't block the success flow if status update fails
+            return EMPTY;
+          })
+        ).subscribe(() => {
+          console.log('✅ Parent document status updated to CLOSE');
+        });
+      }
       
       // Show success dialog
       this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
@@ -537,6 +564,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.parentDocNumber = null;
     this.docSubtitle = null;
     this.allocationNum = null;
+    this.shouldCloseParentDoc = false;
+    this.parentBusinessNumber = null;
 }
 
 
@@ -1191,6 +1220,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Check if this is a negative receipt (created from "הפק קבלה במינוס" button)
     const isNegativeReceipt = payload.isNegativeReceipt === true;
 
+    // Store shouldCloseParentDoc flag and parent business number
+    this.shouldCloseParentDoc = payload.shouldCloseParentDoc ?? false;
+    this.parentBusinessNumber = payload.businessNumber ?? null;
+
     // Store parent document fields in class variables (will be saved in buildDocPayload)
     // Set subtitle if we have source doc info (even if enum is not found, use Hebrew name)
     if (sourceDocNumber && sourceDocHebrewName) {
@@ -1220,6 +1253,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       this.parentDocType = null;
       this.parentDocNumber = null;
       this.docSubtitle = null;
+      this.shouldCloseParentDoc = false;
+      this.parentBusinessNumber = null;
       console.log("🔥 prefillFromOppositeDoc - RESET (invalid values)");
       console.log("🔥 prefillFromOppositeDoc - sourceDocNumber:", sourceDocNumber, "sourceDocHebrewName:", sourceDocHebrewName);
     }

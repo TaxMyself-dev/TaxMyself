@@ -102,7 +102,14 @@ export class ReportsService {
       startDate: Date,
       endDate: Date
   ): Promise<VatReportDto> {
-      
+
+    try {
+      console.log("createVatReport - start");
+      console.log("firebaseId is ", firebaseId);
+      console.log("businessNumber is ", businessNumber);
+      console.log("startDate is ", startDate);
+      console.log("endDate is ", endDate);
+        
       const vatReport: VatReportDto = {
           vatableTurnover: 0,
           nonVatableTurnover: 0,
@@ -114,42 +121,50 @@ export class ReportsService {
 
       const year = startDate.getFullYear();
 
-      // Get income for vat report
-      // ({ vatableIncome: vatReport.vatableTurnover, noneVatableIncome: vatReport.nonVatableTurnover } =
-      //   await this.transactionsService.getTaxableIncomefromTransactionsForVatReport(
-      //     firebaseId,
-      //     businessNumber,
-      //     startDate,
-      //     endDate
-      // ));
-
+      console.log("Step 1: Getting VAT income from lines...");
       ({ vatableIncome: vatReport.vatableTurnover, nonVatableIncome: vatReport.nonVatableTurnover } =
         await this.getVatIncomeFromLines(
           businessNumber,
           startDate,
           endDate
       ));
+      console.log("Step 1 complete - vatableTurnover:", vatReport.vatableTurnover, "nonVatableTurnover:", vatReport.nonVatableTurnover);
 
-  
       // Step 1: Fetch expenses using the function we wrote based on monthReport
-      const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);        
+      console.log("Step 2: Fetching expenses...");
+      const expenses = await this.expensesService.getExpensesForVatReport(firebaseId, businessNumber, startDate, endDate);
+      console.log("Step 2 complete - expenses count:", expenses?.length || 0);
   
       // Step 2: Filter expenses into regular (non-equipment) and assets (equipment)
+      console.log("Step 3: Filtering expenses...");
       const regularExpenses = expenses.filter(expense => !expense.isEquipment);
       const assetsExpenses = expenses.filter(expense => expense.isEquipment);
+      console.log("Step 3 complete - regularExpenses:", regularExpenses.length, "assetsExpenses:", assetsExpenses.length);
   
       // Step 3: Calculate VAT for regular expenses
+      console.log("Step 4: Calculating VAT refunds...");
       vatReport.vatRefundOnExpenses = regularExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
       
       // Step 4: Calculate VAT for assets (equipment)
       vatReport.vatRefundOnAssets = assetsExpenses.reduce((sum, expense) => sum + Number(expense.totalVatPayable || 0), 0);
+      console.log("Step 4 complete - vatRefundOnExpenses:", vatReport.vatRefundOnExpenses, "vatRefundOnAssets:", vatReport.vatRefundOnAssets);
 
       // Step 5: Calculate VAT payment
-      vatReport.vatPayment = Math.round(vatReport.vatableTurnover * this.sharedService.getVatPercent(year)) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
+      console.log("Step 5: Calculating VAT payment...");
+      const vatPercent = this.sharedService.getVatPercent(year);
+      console.log("vatPercent for year", year, "is", vatPercent);
+      vatReport.vatPayment = Math.round(vatReport.vatableTurnover * vatPercent) - vatReport.vatRefundOnExpenses - vatReport.vatRefundOnAssets;
 
       vatReport.vatRate = this.sharedService.getVatRateByYear(startDate);
+      console.log("Step 5 complete - vatPayment:", vatReport.vatPayment, "vatRate:", vatReport.vatRate);
   
+      console.log("createVatReport - success, returning report");
       return vatReport;
+    } catch (error) {
+      console.error("❌ Error in createVatReport:", error);
+      console.error("Error stack:", error.stack);
+      throw error;
+    }
   }
 
 
@@ -510,6 +525,10 @@ export class ReportsService {
 
     async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<{ filePath: string; zipBuffer: Buffer; document_summary: DocumentSummaryRow[]; list_summary: ListSummaryRow[] }> {
 
+      // Reset recordSummary and totalLists to default values each time the user clicks "הצג"
+      this.recordSummary = { A100: 1, B100: 0, B110: 0, C100: 0, D110: 0, D120: 0, M100: 0, Z900: 1 };
+      this.totalLists = 0;
+
       // Generate Unique Random Number (15 digits)
       const uniqueId = this.generateUniqueId();
       
@@ -598,10 +617,6 @@ export class ReportsService {
       const f_1021 = this.formatField("!", 30, '!');
       const f_1022 = this.formatField("!", 8, '!');
       const f_1023 = this.formatField("!", 4, '!');
-      // const f_1024 = this.formatField(startDate.replace(/-/g, ""), 8, '!');
-      // const f_1025 = this.formatField(endDate.replace(/-/g, ""), 8, '!');
-      // const f_1024 = this.formatField(this.removeDateSeparators(startDate), 8, '!');
-      // const f_1025 = this.formatField(this.removeDateSeparators(endDate), 8, '!');
       const f_1024 = this.formatField(this.formatDateYYYYMMDD(startDateObj), 8, '!');
       const f_1025 = this.formatField(this.formatDateYYYYMMDD(endDateObj), 8, '!');
       const f_1026 = this.formatField(formattedCurrentDate, 8, '!');

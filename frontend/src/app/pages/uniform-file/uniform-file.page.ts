@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { BusinessInfo, IColumnDataTable, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { DateService } from 'src/app/services/date.service';
@@ -27,8 +27,10 @@ export interface ReportDetails {
 })
 export class UniformFilePage implements OnInit {
 
+  private gs = inject(GenericService);
+
   appName = 'Keepintax';
-  registrationNumber = '123456789';
+  registrationNumber = '2580001';
   generatedAt!: Date;
 
   uniformFileForm: FormGroup;
@@ -45,13 +47,11 @@ export class UniformFilePage implements OnInit {
   reportingPeriodType = ReportingPeriodType;
   reportDetails: ReportDetails | null = null;
 
-  // Business-related properties
-  showBusinessSelector = false;
-  businessUiList: ISelectItem[] = [];
-  businessFullList: BusinessInfo[] = [];
-
+  // Business related
+  businessNumber = signal<string>("");
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
+  businessOptions = this.gs.businessSelectItems;
 
   // Filter config (used by FilterTab)
   form: FormGroup = this.formBuilder.group({});
@@ -92,49 +92,33 @@ export class UniformFilePage implements OnInit {
   ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-    const businessData = this.genericService.getBusinessData(this.userData);
-    this.businessStatus = businessData.mode;
-    this.businessUiList = businessData.uiList;
-    this.businessFullList = businessData.fullList;
-    this.showBusinessSelector = businessData.showSelector;
-
-    // Initialize filter form
-    this.form = this.formBuilder.group({
-      businessNumber: [this.userData.businessStatus === 'MULTI_BUSINESS' ? '' : this.userData.id],
-    });
+    this.businessStatus = this.userData.businessStatus;
+    const businesses = this.gs.businesses();
+    this.businessNumber.set(businesses[0].businessNumber);
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
 
-    // Initialize filter config
     this.filterConfig = [
-      ...(this.userData.businessStatus === 'MULTI_BUSINESS' ? [{
-        type: 'select' as FilterFieldType,
+      {
+        type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.genericService.businessSelectItems,
-        defaultValue: ''
-      }] : []),
+        options: this.gs.businessSelectItems,
+        defaultValue: this.businessNumber(),
+      },
       {
-        type: 'period' as FilterFieldType,
+        type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
+        allowedPeriodModes: [ReportingPeriodType.DATE_RANGE],
         periodDefaults: {
+          periodMode: ReportingPeriodType.DATE_RANGE,
           year: currentYear,
         }
-      }
+      },
     ];
-
-    if (this.userData.businessStatus === 'MULTI_BUSINESS') {
-      this.businessNames.push({ name: this.userData.businessName, value: this.userData.businessNumber });
-      this.businessNames.push({ name: this.userData.spouseBusinessName, value: this.userData.spouseBusinessNumber });
-      this.uniformFileForm.get('businessNumber')?.setValidators([Validators.required]);
-    }
-    else {
-      this.uniformFileForm.get('businessNumber')?.patchValue(this.userData.id);
-    }
 
   }
 
@@ -160,29 +144,42 @@ export class UniformFilePage implements OnInit {
       );
       startDate = periodStartDate;
       endDate = periodEndDate;
-      businessNumber = formValues.businessNumber || this.userData.id;
+      // Get businessNumber from formValues (selected by user) or fallback to signal
+      businessNumber = formValues.businessNumber || this.businessNumber();
+      // Update the signal with the selected business number
+      if (formValues.businessNumber) {
+        this.businessNumber.set(formValues.businessNumber);
+      }
     } else {
       // Use uniformFileForm values
       formData = this.uniformFileForm.value;
       startDate = formData.startDate;
       endDate = formData.endDate;
-      businessNumber = formData.businessNumber || this.userData.id;
+      businessNumber = formData.businessNumber || this.businessNumber();
+      // Update the signal with the selected business number
+      if (formData.businessNumber) {
+        this.businessNumber.set(formData.businessNumber);
+      }
     }
 
     this.reportClick = false;
 
-    const selectedBusiness = this.businessFullList.find(b => b.value === businessNumber);
+    // Find business name from businesses list
+    const businesses = this.gs.businesses();
+    const selectedBusiness = businesses.find(b => b.businessNumber === businessNumber);
+    const businessName = selectedBusiness?.businessName || '';
 
+    // Initialize reportDetails before using it
     this.reportDetails = {
-      businessNumber: selectedBusiness?.value ?? businessNumber,
-      businessName: selectedBusiness?.name ?? '',
+      businessNumber: businessNumber,
+      businessName: businessName,
       startDate: startDate,
       endDate: endDate,
       downloadLink: '',
     };
 
     const { document_summary, list_summary, filePath } =
-    await this.createUniformFile(startDate, endDate, this.reportDetails.businessNumber);
+    await this.createUniformFile(startDate, endDate, businessNumber);
 
     this.uniformFileDocumentSummary = document_summary;
     this.uniformFileListSummary = list_summary;

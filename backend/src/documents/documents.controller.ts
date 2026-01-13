@@ -27,8 +27,6 @@ export class DocumentsController {
     @Query('issuerBusinessNumber') issuerBusinessNumber?: string, // optional query param
   ) {
 
-    console.log("get-docs - start");
-
     if (!issuerBusinessNumber) {
       throw new BadRequestException('issuerBusinessNumber is required');
     }

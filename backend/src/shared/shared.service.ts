@@ -222,30 +222,6 @@ export class SharedService {
     }
 
 
-    // async getJournalEntryCurrentIndex(userId: string): Promise<number> {
-    //     let setting = await this.settingDocumentsRepo.findOne({
-    //         where: {
-    //         userId,
-    //         docType: DocumentType.JOURNAL_ENTRY,
-    //         },
-    //     });
-
-    //     if (!setting) {
-    //         // Create initial setting with default index
-    //         setting = this.settingDocumentsRepo.create({
-    //         userId,
-    //         docType: DocumentType.JOURNAL_ENTRY,
-    //         initialIndex: 10000000,
-    //         currentIndex: 10000000,
-    //         });
-
-    //         await this.settingDocumentsRepo.save(setting);
-    //     }
-
-    //     return setting.currentIndex;
-    // }
-
-
     async getJournalEntryCurrentIndex(userId: string, manager?: EntityManager): Promise<number> {
         const repo = manager
             ? manager.getRepository(SettingDocuments)

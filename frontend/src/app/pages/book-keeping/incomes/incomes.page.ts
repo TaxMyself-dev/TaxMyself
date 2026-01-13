@@ -222,9 +222,20 @@ export class IncomesPage implements OnInit {
           parentDoc = `${parentDocTypeName}<br>${row.parentDocNumber}`;
         }
         
+        // Format sum: add "ש"ח" and handle negative sign on the right for RTL
+        // The column name is 'sumAftDisWithVAT' (from DocumentsTableColumns.DOC_SUM)
+        const sumValue = row.sumAftDisWithVAT as number;
+        const isNegative = sumValue < 0;
+        const absValue = Math.abs(sumValue);
+        const formattedSum = this.gs.addComma(absValue);
+        // For negative numbers in RTL: put minus on the right, e.g., "123- ש"ח"
+        const sumWithCurrency = isNegative 
+          ? `${formattedSum}- ש"ח`
+          : `${formattedSum} ש"ח`;
+        
         return {
         ...row,
-        sum: this.gs.addComma(Math.abs(row.sum as number)),
+        sumAftDisWithVAT: sumWithCurrency, // Update the field that matches the column name
         docType: DocTypeDisplayName[row.docType] ?? row.docType,
         docStatus: row.docStatus?.toUpperCase() === 'OPEN'  ? 'פתוח' : row.docStatus?.toUpperCase() === 'CLOSE' ? 'סגור' : '',
           docStatusOriginal: row.docStatus, // Keep original value for conditional checks
@@ -410,7 +421,7 @@ export class IncomesPage implements OnInit {
           rejectLabel: 'ביטול',
           acceptVisible: true,
           accept: () => {
-            this.redirectToOppositeDoc(row, DocumentType.CREDIT_INVOICE, true);
+            this.redirectToOppositeDoc(row, DocumentType.CREDIT_INVOICE, false);
           },
           reject: () => {
             console.log("User cancelled negative receipt creation.");
@@ -427,7 +438,7 @@ export class IncomesPage implements OnInit {
           rejectLabel: 'ביטול',
           acceptVisible: true,
           accept: () => {
-            this.redirectToOppositeDoc(row, DocumentType.CREDIT_INVOICE, true);
+            this.redirectToOppositeDoc(row, DocumentType.CREDIT_INVOICE, false);
           },
           reject: () => {
             console.log("User cancelled negative receipt creation.");
@@ -513,7 +524,9 @@ export class IncomesPage implements OnInit {
           acceptVisible: true,
           rejectVisible: true,
           accept: () => {
-            this.redirectToOppositeDoc(row, DocumentType.RECEIPT);
+            // Navigate to create the opposite document
+            // Status will be updated to CLOSE only after the closing document is successfully created
+            this.redirectToOppositeDoc(row, DocumentType.RECEIPT, false, true); // true = shouldCloseParentDoc
           },
           reject: () => {
             console.log("User cancelled status update.");
@@ -528,31 +541,27 @@ export class IncomesPage implements OnInit {
   }
 
 
-  private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType, isNegativeReceipt: boolean = false) {
+  private redirectToOppositeDoc(row: IRowDataTable, oppositeDocType: DocumentType, isNegativeReceipt: boolean = false, shouldCloseParentDoc: boolean = false) {
     const businessNumber = this.selectedBusinessNumber();
     
     // Find the original docType enum from the Hebrew name
     const hebrewDocType = row.docType as string;
-    console.log("🔥 redirectToOppositeDoc - hebrewDocType:", hebrewDocType);
     
     // Check if row.docType is already an enum value
     let originalDocType: DocumentType | null = null;
     if (Object.values(DocumentType).includes(hebrewDocType as DocumentType)) {
       // Already an enum value
       originalDocType = hebrewDocType as DocumentType;
-      console.log("🔥 redirectToOppositeDoc - docType is already enum:", originalDocType);
     } else {
       // Try to find enum from Hebrew name
       const originalDocTypeEntry = Object.entries(DocTypeDisplayName).find(
         ([_, name]) => name === hebrewDocType
       );
       originalDocType = originalDocTypeEntry ? (originalDocTypeEntry[0] as DocumentType) : null;
-      console.log("🔥 redirectToOppositeDoc - found enum from Hebrew name:", originalDocType);
     }
     
     // Try to fetch lines; if fails, navigate with base payload
     const docNumber = (row as any)?.docNumber ?? (row as any)?.doc_number;
-    console.log("🔥 redirectToOppositeDoc - docNumber:", docNumber);
     
     // Extract only the fields we need from row, explicitly excluding generalDocIndex
     const { generalDocIndex, ...rowWithoutGeneralIndex } = row as any;
@@ -570,10 +579,9 @@ export class IncomesPage implements OnInit {
       businessNumber,
       businessName: this.selectedBusinessName(),
       isNegativeReceipt, // Pass the flag to indicate if this is a negative receipt
+      shouldCloseParentDoc, // Flag to indicate if parent document should be closed after creation
     };
-    
-    console.log("🔥 redirectToOppositeDoc - basePayload.sourceDoc:", basePayload.sourceDoc);
-    
+        
     if (!docNumber) {
       this.navigateToDocCreate(basePayload);
       return;
@@ -607,24 +615,7 @@ export class IncomesPage implements OnInit {
     });
   }
 
-  // /**
-  //  * Resolve opposite doc type/label, including business-type rules for חשבון עסקה.
-  //  */
-  // private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
-    
-  //   const docTypeKey = typeof row.docType === 'string' ? row.docType : String(row.docType ?? '');
 
-  //   if (docTypeKey === 'חשבון עסקה') {
-  //     const businessType = this.getSelectedBusinessType();
-  //     const isExempt = businessType === BusinessType.EXEMPT;
-  //     return {
-  //       docType: isExempt ? DocumentType.RECEIPT : DocumentType.TAX_INVOICE_RECEIPT,
-  //       label: isExempt ? 'קבלה' : 'חשבונית מס קבלה',
-  //     };
-  //   }
-
-  //   return this.oppositeDocMap[docTypeKey];
-  // }
 
 
   private getOppositeDoc(row: IRowDataTable): { docType: DocumentType; label: string } | undefined {
@@ -680,8 +671,10 @@ export class IncomesPage implements OnInit {
 
   /**
    * Update document status to CLOSE
+   * @param row - The document row to update
+   * @param onSuccess - Optional callback to execute after successful status update
    */
-  private updateDocStatusToClose(row: IRowDataTable): void {
+  private updateDocStatusToClose(row: IRowDataTable, onSuccess?: () => void): void {
     const businessNumber = this.selectedBusinessNumber();
     const docNumber = (row as any)?.docNumber ?? (row as any)?.doc_number;
     const hebrewDocType = row.docType as string;
@@ -699,6 +692,10 @@ export class IncomesPage implements OnInit {
 
     if (!originalDocType || !docNumber) {
       console.error('Cannot update status: missing docType or docNumber', { originalDocType, docNumber });
+      // If callback provided, still execute it even if update fails (for navigation flow)
+      if (onSuccess) {
+        onSuccess();
+      }
       return;
     }
 
@@ -712,12 +709,20 @@ export class IncomesPage implements OnInit {
       catchError(err => {
         console.error('Failed to update document status', err);
         alert('שגיאה בעדכון סטטוס המסמך');
+        // If callback provided, still execute it even if update fails (for navigation flow)
+        if (onSuccess) {
+          onSuccess();
+        }
         return EMPTY;
       })
     ).subscribe(() => {
       console.log('Document status updated to CLOSE');
       // Refresh the documents list
       this.fetchDocuments(businessNumber, this.startDate, this.endDate);
+      // Execute callback if provided (e.g., navigate to create opposite document)
+      if (onSuccess) {
+        onSuccess();
+      }
     });
   }
 
