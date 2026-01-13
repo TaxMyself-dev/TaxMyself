@@ -1,6 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { firstValueFrom, timeout } from 'rxjs';
+import axios from 'axios';
 import { FeezbackJwtService } from './feezback-jwt.service';
 
 @Injectable()
@@ -64,17 +65,18 @@ export class FeezbackService {
     try {
       // Generate JWT token for accessing user data
       const jwtToken = this.feezbackJwtService.generateAccessToken(sub);
+      console.log("jwtToken: ", jwtToken);
 
       this.logger.debug(`Requesting access token from: ${this.tokenUrl}`);
 
       // Request access token from Feezback
-      const response$ = this.http.post(this.tokenUrl, { token: jwtToken });
-      const { data } = await firstValueFrom(response$);
+      const response = await axios.post(this.tokenUrl, { token: jwtToken });
+      const data = response.data;
 
       this.logger.debug(`Access token response: ${JSON.stringify(data)}`);
 
       // Extract token from response
-      const accessToken = data?.token || data;
+      const accessToken = data?.token;
       
       if (!accessToken || typeof accessToken !== 'string') {
         throw new Error('Invalid access token response format');
@@ -108,31 +110,30 @@ export class FeezbackService {
       
       // Get access token first
       const accessToken = await this.getAccessToken(sub);
-      this.logger.log(`Access token received (length: ${accessToken.length})`);
+      this.logger.log(`Access token received (length: ${accessToken})`);
       
       // Build the user identifier with TPP ID
       // Format: {sub}@TPP_ID (e.g., "AxFm5xBcYlMTV5kb5OAnde5Rbh62_sub@KNCAXnwXk1")
       const userIdentifier = `${sub}@${this.tppId}`;
       const accountsUrl = `${this.tppApiUrl}/tpp/v1/users/${userIdentifier}/accounts`;
+      // const accountsUrl = `${this.tppApiUrl}/tpp/v1/users/${userIdentifier}`;
 
       this.logger.log(`Requesting accounts from URL: ${accountsUrl}`);
       this.logger.log(`User identifier: ${userIdentifier}`);
 
       // Request user accounts with timeout
-      this.logger.debug(`Making POST request to: ${accountsUrl}`);
+      this.logger.debug(`Making GET request to: ${accountsUrl}`);
       this.logger.debug(`Authorization header: Bearer ${accessToken.substring(0, 20)}...`);
       
-      const response$ = this.http.post(accountsUrl, {}, {
+      const response = await axios.get(accountsUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
         timeout: 60000, // 60 seconds timeout (configured in axios)
-      }).pipe(
-        timeout(90000) // 90 seconds timeout (rxjs timeout as backup)
-      );
+      });
       
       this.logger.debug(`Waiting for response...`);
-      const { data } = await firstValueFrom(response$);
+      const data = response.data;
 
       this.logger.debug(`User accounts response: ${JSON.stringify(data)}`);
       return data;

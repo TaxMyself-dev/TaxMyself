@@ -25,9 +25,11 @@ export class FeezbackController {
   // אופציונלי – רק כדי שתוכל לראות את ה-JWT עצמו
   // ולהעתיק לפוסטמן אם תרצה
   @Post('debug-token')
-  @UseGuards(FirebaseAuthGuard)
+  // @UseGuards(FirebaseAuthGuard)
   async debugToken(@Req() req: AuthenticatedRequest) {
-    const firebaseId = req.user?.firebaseId;
+
+    // const firebaseId = req.user?.firebaseId;
+    const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
     
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
@@ -36,6 +38,23 @@ export class FeezbackController {
     const token = await (this.feezbackService as any).feezbackJwtService.generateConsentJwt(
       firebaseId,
     );
+
+    return { token };
+  }
+
+
+  @Post('get-access-token')
+  // @UseGuards(FirebaseAuthGuard)
+  async getAccessToken(@Req() req: AuthenticatedRequest) {
+
+    // const firebaseId = req.user?.firebaseId;
+    const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
+    
+    if (!firebaseId) {
+      throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    const token = await (this.feezbackService as any).feezbackJwtService.generateAccessToken(firebaseId);
 
     return { token };
   }
