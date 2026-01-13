@@ -553,7 +553,6 @@ export class ReportsService {
         archive.on('data', (chunk) => chunks.push(chunk));
         archive.on('end', () => {
           const zipBuffer = Buffer.concat(chunks);
-          // resolve({ fileName: zipFileName, zipBuffer, document_summary, list_summary});
           resolve({ filePath: `OPENFRMT/${filePath}`, zipBuffer, document_summary, list_summary});
         });
 
@@ -563,6 +562,12 @@ export class ReportsService {
 
 
     private async generateIniFileContent(businessNumber: string, uniqueId: string, filePath: string, startDate: string, endDate: string): Promise<string> {
+
+      console.log("startDate is ");
+
+      const startDateObj = this.sharedService.convertStringToDateObject(startDate);
+      const endDateObj = this.sharedService.convertStringToDateObject(endDate);
+      
 
       const currentDate = new Date();
       const formattedCurrentDate = `${currentDate.getFullYear()}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}`;
@@ -593,8 +598,12 @@ export class ReportsService {
       const f_1021 = this.formatField("!", 30, '!');
       const f_1022 = this.formatField("!", 8, '!');
       const f_1023 = this.formatField("!", 4, '!');
-      const f_1024 = this.formatField(startDate.replace(/-/g, ""), 8, '!');
-      const f_1025 = this.formatField(endDate.replace(/-/g, ""), 8, '!');
+      // const f_1024 = this.formatField(startDate.replace(/-/g, ""), 8, '!');
+      // const f_1025 = this.formatField(endDate.replace(/-/g, ""), 8, '!');
+      // const f_1024 = this.formatField(this.removeDateSeparators(startDate), 8, '!');
+      // const f_1025 = this.formatField(this.removeDateSeparators(endDate), 8, '!');
+      const f_1024 = this.formatField(this.formatDateYYYYMMDD(startDateObj), 8, '!');
+      const f_1025 = this.formatField(this.formatDateYYYYMMDD(endDateObj), 8, '!');
       const f_1026 = this.formatField(formattedCurrentDate, 8, '!');
       const f_1027 = this.formatField(currentTime, 4, '!');
       const f_1028 = this.formatField(0, 1, '0');
@@ -616,6 +625,11 @@ export class ReportsService {
       result += `A000${f_1001}${f_1002}${f_1003}${f_1004}${f_1005}${f_1006}${f_1007}${f_1008}${f_1009}${f_1010}${f_1011}${f_1012}${f_1013}${f_1014}${f_1015}${f_1016}${f_1017}${f_1018}${f_1019}${f_1020}${f_1021}${f_1022}${f_1023}${f_1024}${f_1025}${f_1026}${f_1027}${f_1028}${f_1029}${f_1030}${f_1032}${f_1034}${f_1035}\n${c100}\n${d110}\n${d120}\n${b100}\n${b110}\n${m100}\n`;
      
       return result;
+    }
+
+
+    private removeDateSeparators(dateString: string): string {
+      return dateString.replace(/[-\/]/g, "");
     }
 
 
@@ -1004,15 +1018,44 @@ export class ReportsService {
       endDate: string | Date,
     ): Promise<DocumentSummaryRow[]> {
 
+      console.log("buildDocumentSummary - businessNumber: ", businessNumber);
+      console.log("buildDocumentSummary - startDate: ", startDate);
+      console.log("buildDocumentSummary - endDate: ", endDate);
+
+      // ✅ Convert string dates to Date objects if they're strings
+      const startDateObj = typeof startDate === 'string' 
+      ? this.sharedService.convertStringToDateObject(startDate) 
+      : startDate;
+      const endDateObj = typeof endDate === 'string' 
+      ? this.sharedService.convertStringToDateObject(endDate) 
+      : endDate;
+
+      console.log("buildDocumentSummary - startDateObj: ", startDateObj);
+      console.log("buildDocumentSummary - endDateObj: ", endDateObj);
+
       const rows = await this.documentsRepo
-        .createQueryBuilder('d')
-        .select('d.docType', 'docType')
-        .addSelect('COUNT(*)', 'count')
-        .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
-        .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
-        .andWhere('d.docDate BETWEEN :from AND :to', { from: startDate, to: endDate })
-        .groupBy('d.docType')
-        .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
+      .createQueryBuilder('d')
+      .select('d.docType', 'docType')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
+      .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('d.docDate BETWEEN :from AND :to', { from: startDateObj, to: endDateObj }) // ✅ Use Date objects
+      .groupBy('d.docType')
+      .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
+  
+      console.log("buildDocumentSummary - rows: ", rows);
+
+      // const rows = await this.documentsRepo
+      //   .createQueryBuilder('d')
+      //   .select('d.docType', 'docType')
+      //   .addSelect('COUNT(*)', 'count')
+      //   .addSelect('COALESCE(SUM(d.sumAftDisWithVAT), 0)', 'totalSum')
+      //   .where('d.issuerBusinessNumber = :businessNumber', { businessNumber })
+      //   .andWhere('d.docDate BETWEEN :from AND :to', { from: startDate, to: endDate })
+      //   .groupBy('d.docType')
+      //   .getRawMany<{ docType: DocumentType; count: string; totalSum: string }>();
+
+      // console.log("buildDocumentSummary - rows: ", rows);
 
       const summary: DocumentSummaryRow[] = rows
       .filter(row => DOC_TYPE_INFO[row.docType]) // only known types
@@ -1173,13 +1216,24 @@ export class ReportsService {
 
     // Fetch documents by userId, businessNumber, startDate, and endDate
     async fetchDocuments(businessNumber: string, startDate: string, endDate: string): Promise<Documents[]> {
+
+      const startDateObj = this.sharedService.convertStringToDateObject(startDate);
+      const endDateObj = this.sharedService.convertStringToDateObject(endDate);
+      
       return this.documentsRepo.find({
         where: {
-          issuerBusinessNumber: businessNumber, // Only fetch documents issued by this business
-          docDate: Between(new Date(startDate), new Date(endDate)),
+          issuerBusinessNumber: businessNumber,
+          docDate: Between(startDateObj, endDateObj), // ✅ Use properly converted Date objects
         },
         order: { docDate: 'ASC' },
       });
+      // return this.documentsRepo.find({
+      //   where: {
+      //     issuerBusinessNumber: businessNumber, // Only fetch documents issued by this business
+      //     docDate: Between(new Date(startDate), new Date(endDate)),
+      //   },
+      //   order: { docDate: 'ASC' },
+      // });
     }
 
     

@@ -41,6 +41,7 @@ export class AuthService {
   logout(): void {
     this.afAuth.signOut().then(() => {
       localStorage.clear();
+      sessionStorage.clear();
     });
   }
 
@@ -53,9 +54,36 @@ export class AuthService {
 
 
 
-  getUserDataFromLocalStorage(): IUserData {
+  getUserDataFromLocalStorage(): IUserData | null {
     const tempA = localStorage.getItem('userData');
-    return JSON.parse(tempA)
+    if (!tempA) {
+      return null;
+    }
+    try {
+      return JSON.parse(tempA);
+    } catch (error) {
+      console.error('Error parsing userData from localStorage:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Restore userData from backend when localStorage is missing but user is still logged in
+   * @returns Observable that emits the restored userData or null if restoration fails
+   */
+  restoreUserData(): Observable<IUserData | null> {
+    return this.signIn().pipe(
+      tap((userData: IUserData) => {
+        if (userData) {
+          localStorage.setItem('userData', JSON.stringify(userData));
+          console.log('✅ userData restored from backend');
+        }
+      }),
+      catchError((error) => {
+        console.error('❌ Failed to restore userData from backend:', error);
+        return [null];
+      })
+    );
   }
 
 
@@ -194,6 +222,7 @@ export class AuthService {
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('userData');
+      sessionStorage.removeItem('isLoggedIn');
       this.router.navigate(['login']);
     });
   }

@@ -26,7 +26,7 @@ export class UsersController {
     async signin(@Req() request: AuthenticatedRequest) { 
         const userId = request.user?.firebaseId;    
         const user = await this.userService.signin(userId);  
-        return user[0];
+        return user;
     }
 
 

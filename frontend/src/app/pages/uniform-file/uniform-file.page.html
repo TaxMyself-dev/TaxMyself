@@ -31,9 +31,8 @@
         <p><strong>הנתונים נשמרו בנתיב: &nbsp;</strong> {{ reportDetails.downloadLink }}</p>
         <p>
           <strong>טווח תאריכים: &nbsp;</strong>
-          מתאריך &nbsp; {{ reportDetails.startDate | date:'dd-MM-yyyy' }} &nbsp; עד תאריך &nbsp; {{ reportDetails.endDate | date:'dd-MM-yyyy' }}
+          מתאריך &nbsp; {{ reportDetails.startDate | dateFormat }} &nbsp; עד תאריך &nbsp; {{ reportDetails.endDate | dateFormat }}
         </p>
-
       </div>
 
       <div class="table-block">

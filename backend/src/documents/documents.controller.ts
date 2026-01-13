@@ -6,6 +6,7 @@ import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { log } from 'node:console';
+import { CreateDocDto } from './dtos/create-doc.dto';
 
 
 
@@ -97,19 +98,127 @@ export class DocumentsController {
   
   @Post('create-doc')
   @UseGuards(FirebaseAuthGuard)
-  async createDoc(@Body() body: any, @Req() request: AuthenticatedRequest) {
+  @UsePipes(new ValidationPipe({ 
+    transform: true, 
+    whitelist: true,
+    forbidNonWhitelisted: false,
+    transformOptions: { enableImplicitConversion: true },
+    skipMissingProperties: false,
+    exceptionFactory: (errors) => {
+      const errorDetails = errors.map(err => {
+        const errorInfo: any = {
+          property: err.property,
+          constraints: err.constraints,
+          value: err.value,
+          valueType: typeof err.value
+        };
+        
+        if (err.children && err.children.length > 0) {
+          errorInfo.children = err.children.map(child => ({
+            property: child.property,
+            constraints: child.constraints,
+            value: child.value,
+            valueType: typeof child.value
+          }));
+        }
+        
+        return errorInfo;
+      });
+      
+      console.error("❌ VALIDATION ERRORS:");
+      console.error(JSON.stringify(errorDetails, null, 2));
+      
+      // Log each error separately for clarity
+      errorDetails.forEach((err, index) => {
+        console.error(`  Error ${index + 1}:`);
+        console.error(`    Property: ${err.property}`);
+        console.error(`    Value: ${JSON.stringify(err.value)} (${err.valueType})`);
+        console.error(`    Constraints:`, err.constraints);
+        if (err.children) {
+          console.error(`    Nested errors:`, err.children);
+        }
+      });
+      
+      return new BadRequestException({
+        message: 'Validation failed',
+        errors: errorDetails
+      });
+    }
+  }))
+  async createDoc(@Body() createDocDto: CreateDocDto, @Req() request: AuthenticatedRequest) {
     console.log("createDoc in controller - start");
+    console.log("📦 Received and validated DTO");
     const userId = request.user?.firebaseId;
-    const result = await this.documentsService.createDoc(body, userId);
+
+    console.log("🚀 ~ DocumentsController ~ createDoc ~ createDocDto:", createDocDto);
+    
+    // Transform the DTO data before passing to service
+    const transformedData = await this.documentsService.transformDocumentData(createDocDto);
+    
+    const result = await this.documentsService.createDoc(transformedData, userId);
     return result;
   }
 
 
   @Post('preview-doc')
   @UseGuards(FirebaseAuthGuard)
-  async previewDoc(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+  @UsePipes(new ValidationPipe({ 
+    transform: true, 
+    whitelist: true,
+    forbidNonWhitelisted: false,
+    transformOptions: { enableImplicitConversion: true },
+    skipMissingProperties: false,
+    exceptionFactory: (errors) => {
+      const errorDetails = errors.map(err => {
+        const errorInfo: any = {
+          property: err.property,
+          constraints: err.constraints,
+          value: err.value,
+          valueType: typeof err.value
+        };
+        
+        // Log nested errors
+        if (err.children && err.children.length > 0) {
+          errorInfo.children = err.children.map(child => ({
+            property: child.property,
+            constraints: child.constraints,
+            value: child.value,
+            valueType: typeof child.value
+          }));
+        }
+        
+        return errorInfo;
+      });
+      
+      console.error("❌ VALIDATION ERRORS:");
+      console.error(JSON.stringify(errorDetails, null, 2));
+      
+      // Log each error separately for clarity
+      errorDetails.forEach((err, index) => {
+        console.error(`  Error ${index + 1}:`);
+        console.error(`    Property: ${err.property}`);
+        console.error(`    Value: ${JSON.stringify(err.value)} (${err.valueType})`);
+        console.error(`    Constraints:`, err.constraints);
+        if (err.children) {
+          console.error(`    Nested errors:`, err.children);
+        }
+      });
+      
+      return new BadRequestException({
+        message: 'Validation failed',
+        errors: errorDetails
+      });
+    }
+  }))
+  async previewDoc(@Body() createDocDto: CreateDocDto, @Res() res: Response, @Req() request: AuthenticatedRequest) {
+    console.log("previewDoc in controller - start");
+    console.log("📦 Received and validated DTO");
     const userId = request.user?.firebaseId;
-    const pdfBuffer = await this.documentsService.previewDoc(body, userId);
+    
+    // Transform the DTO data before passing to service
+    const transformedData = await this.documentsService.transformDocumentData(createDocDto);
+    
+    const pdfBuffer = await this.documentsService.previewDoc(transformedData);
     res.setHeader('Content-Type', 'application/pdf');
     return res.send(pdfBuffer);
   }

@@ -554,13 +554,18 @@ export class IncomesPage implements OnInit {
     const docNumber = (row as any)?.docNumber ?? (row as any)?.doc_number;
     console.log("🔥 redirectToOppositeDoc - docNumber:", docNumber);
     
+    // Extract only the fields we need from row, explicitly excluding generalDocIndex
+    const { generalDocIndex, ...rowWithoutGeneralIndex } = row as any;
+    
     const basePayload = {
       docType: oppositeDocType,
       sourceDoc: {
-        ...row,
+        ...rowWithoutGeneralIndex,
         docType: originalDocType, // Use enum if found, otherwise null (will be handled in prefillFromOppositeDoc)
         docTypeName: hebrewDocType, // Keep Hebrew name for display
         docNumber: docNumber ? String(docNumber) : undefined, // Add docNumber if it exists
+        // Explicitly exclude generalDocIndex to prevent it from being used for the new document
+        generalDocIndex: undefined,
       },
       businessNumber,
       businessName: this.selectedBusinessName(),

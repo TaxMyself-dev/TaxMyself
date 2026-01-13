@@ -56,8 +56,9 @@ export class ReportsController {
     }
 
 
-    @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
-    @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+    // @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
+    // @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+    @UseGuards(FirebaseAuthGuard)
     @Post('create-uniform-file')
     async getHelloWorldZip(
         @Req() request: AuthenticatedRequest,
@@ -76,13 +77,25 @@ export class ReportsController {
               body.businessNumber
             );
 
-          // respond with JSON: { fileName, file (base64), arrays }
-          res.json({
-            filePath,
-            file: zipBuffer.toString('base64'),
-            document_summary,
-            list_summary,
-          });
+                    // ✅ Print the response data before sending
+        const responseData = {
+          filePath,
+          file: zipBuffer.toString('base64'),
+          document_summary,
+          list_summary,
+        };
+        
+      
+        // respond with JSON: { fileName, file (base64), arrays }
+        res.json(responseData);
+
+          // // respond with JSON: { fileName, file (base64), arrays }
+          // res.json({
+          //   filePath,
+          //   file: zipBuffer.toString('base64'),
+          //   document_summary,
+          //   list_summary,
+          // });
         
     }
 

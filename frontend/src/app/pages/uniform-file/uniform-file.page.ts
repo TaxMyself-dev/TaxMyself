@@ -196,6 +196,7 @@ export class UniformFilePage implements OnInit {
       this.fileService.createUniformFile(startDate, endDate, businessNumber).pipe(
         tap((response) => this.downloadBase64Zip(response.file)),
         map((response) => {
+          console.log("response in uniform file page: ", response);
           const document_summary = (response.document_summary ?? []).map(row => ({
             ...row,
             totalDocs: this.genericService.addComma(Math.abs(row.totalDocs as number)),

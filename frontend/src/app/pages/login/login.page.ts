@@ -151,6 +151,7 @@ export class LoginPage implements OnInit {
 
       // 3️⃣ Save user data
       tap((res: any) => {
+        console.log("res in login page: ", res);
         sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),

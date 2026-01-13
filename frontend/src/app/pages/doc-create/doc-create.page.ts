@@ -14,7 +14,7 @@ import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { inputsSize } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
+import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
 import { ConfirmationService, MenuItem } from 'primeng/api';
 import { DocumentType } from './doc-cerate.enum';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -43,7 +43,6 @@ interface OppositeDocPayload {
   businessName: string;
   isNegativeReceipt?: boolean; // Flag to indicate if this is a negative receipt
 }
-
 
 
 @Component({
@@ -112,6 +111,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   parentDocType: DocumentType | null = null;
   parentDocNumber: string | null = null;
   docSubtitle: string | null = null;
+  allocationNum: string | null = null;
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
   // selectedBankBranch: string;
@@ -157,7 +157,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
     sumAftDisBefVat: 0,
     vatSum: 0,
     sumAftDisWithVat: 0,
-    sumWithoutVat: 0,
+    // sumWithoutVat: 0,
+  });
+
+  documentSummary = signal<DocumentSummary>({
+    totalVatApplicable: 0,
+    totalWithoutVat: 0,
+    totalDiscount: 0,
+    // totalAftDisBefVat: 0,
+    totalVat: 0,
+    // totalIncludingVat: 0,
   });
 
   // Computed signals for filtered arrays based on document type
@@ -408,7 +417,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     
     this.lineDetailsForm?.reset(defaultValues);
     this.paymentInputForm?.reset();
-    this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('documentDate')?.value);
+    this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('docDate')?.value);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
   }
@@ -500,7 +509,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private resetDocFormsAndDrafts(): void {
   this.generalDetailsForm.reset({
     [DocCreateFields.DOC_VAT_RATE]: 18,
-    [FieldsCreateDocValue.DOCUMENT_DATE]: new Date()
+    [FieldsCreateDocValue.DOC_DATE]: new Date()
   });
 
   this.userDetailsForm.reset();
@@ -514,7 +523,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   // Use the cached date so we don't read from a reset control
   this.paymentInputForm.reset({
-    [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('documentDate')?.value
+    [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('docDate')?.value
   });
 
   this.lineItemsDraft.set([]);
@@ -527,6 +536,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.parentDocType = null;
     this.parentDocNumber = null;
     this.docSubtitle = null;
+    this.allocationNum = null;
 }
 
 
@@ -543,6 +553,14 @@ export class DocCreatePage implements OnInit, OnDestroy {
         }),
         catchError((err) => {
           console.error("Error in createPDF (Preview):", err);
+          // Log the error message if it's a string
+          if (err.message) {
+            console.error("Error details:", err.message);
+            alert("שגיאה ביצירת תצוגה מקדימה:\n" + err.message);
+          } else {
+            console.error("Full error object:", err);
+            alert("שגיאה ביצירת תצוגה מקדימה. בדוק את הקונסול לפרטים.");
+          }
           return EMPTY;
         })
       )
@@ -561,50 +579,50 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     let docPayload: DocPayload;
 
-    const issuerBusinessNumber = this.selectedBusinessNumber;
-    const issuerName = this.selectedBusinessName;
-    const issuerAddress = this.selectedBusinessAddress;
-    const issuerPhone = this.selectedBusinessPhone;
-    const issuerEmail = this.selectedBusinessEmail;
-
-    console.log("issuerBusinessNumber is ", issuerBusinessNumber);
-
+    const businessType = this.selectedBusinessType();
+    const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
     const docNumber = this.docIndexes.docIndex;
-    console.log("docNumber: ", docNumber);
-    
     const generalDocIndex = this.docIndexes.generalIndex;
-    const hebrewNameDoc = this.getHebrewNameDoc(this.fileSelected());
+    const issuerBusinessNumber = this.selectedBusinessNumber;
+    const docDescription = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DESCRIPTION)?.value;
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
+    const allocationNum = this.allocationNum?? null;
+    const docSubtitle = this.docSubtitle?? null;
+    const parentDocType = this.parentDocType?? null;
+    const parentDocNumber = this.parentDocNumber?? null;
+    const docVatRate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value;
+    const currency = this.generalDetailsForm.get(FieldsCreateDocValue.CURRENCY)?.value;
+    const recipientName = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_NAME)?.value;
+    const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
+    const recipientPhone = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_PHONE)?.value;
+    const recipientEmail = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_EMAIL)?.value;
+    const recipientAddress = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ADDRESS)?.value;
 
     // Build docData object, only including parent fields if they exist
     const docData: any = {
-        ...this.generalDetailsForm.value,
-        ...this.userDetailsForm.value,
-        issuerBusinessNumber,
-        issuerName,
-        issuerAddress,
-        issuerPhone,
-        issuerEmail,
-        docNumber,
-        generalDocIndex,
-        hebrewNameDoc,
-        sumWithoutVat: Number(this.documentTotals().sumWithoutVat.toFixed(2)),
-        sumBefDisBefVat: Number(this.documentTotals().sumBefDisBefVat.toFixed(2)),
-        disSum: Number(this.documentTotals().disSum.toFixed(2)),
-        sumAftDisBefVAT: Number(this.documentTotals().sumAftDisBefVat.toFixed(2)),
-        vatSum: Number(this.documentTotals().vatSum.toFixed(2)),
-        sumAftDisWithVAT: Number(this.documentTotals().sumAftDisWithVat.toFixed(2)),
+      businessType,
+      docType,
+      docNumber,
+      generalDocIndex,
+      issuerBusinessNumber,
+      docDescription,
+      docDate,
+      allocationNum,
+      docSubtitle,
+      parentDocType,
+      parentDocNumber,
+      docVatRate,
+      currency,
+      recipientName,
+      recipientId,
+      recipientPhone,
+      recipientEmail,
+      recipientAddress,
+      totalVatApplicable: Number(this.documentSummary().totalVatApplicable.toFixed(2)),
+      totalWithoutVat: Number(this.documentSummary().totalWithoutVat.toFixed(2)),
+      totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
+      totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
     };
-
-    // Only add parent fields if they exist (not null)
-    if (this.docSubtitle) {
-      docData.docSubtitle = this.docSubtitle;
-    }
-    if (this.parentDocType) {
-      docData.parentDocType = this.parentDocType;
-    }
-    if (this.parentDocNumber) {
-      docData.parentDocNumber = this.parentDocNumber;
-    }
 
     docPayload = {
       docData,
@@ -613,9 +631,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
     };
 
     console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
-    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ parentDocType:", this.parentDocType);
-    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ parentDocNumber:", this.parentDocNumber);
-    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docSubtitle:", this.docSubtitle);
 
     return docPayload;
 
@@ -637,14 +652,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // Add new line
       console.log("Adding new line with form value:", formData);
       this.addNewLine(formData);
-      // updateDocumentTotalsFromLines and calcTotals are already called in addNewLine
     }
     
     this.lineDetailsForm.reset({
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
     });
     this.editingLineIndex.set(null); // Reset editing state
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
     this.setSumInPaymentForm();
   }
@@ -703,8 +717,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.log("🚀 ~ addNewLine ~ final vatOpts:", vatOpts);
 
     const newLine: PartialLineItem = {
-      issuerBusinessNumber: this.selectedBusinessNumber,
-      generalDocIndex: String(this.docIndexes.generalIndex),
+      // issuerBusinessNumber: this.selectedBusinessNumber,
+      // generalDocIndex: String(this.docIndexes.generalIndex),
       lineNumber: lineIndex + 1,
       description: formData.description,
       unitQuantity: formData.unitAmount,
@@ -882,51 +896,45 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   updateDocumentTotalsFromLines(): void {
 
-    const totals: DocumentTotals = {
-      sumBefDisBefVat: 0,
-      disSum: 0,
-      sumAftDisBefVat: 0,
-      vatSum: 0,
-      sumAftDisWithVat: 0,
-      sumWithoutVat: 0,
-    };
+    this.documentSummary.set({
+      totalVatApplicable: 0,
+      totalWithoutVat: 0,
+      totalDiscount: 0,
+      totalVat: 0,
+    });
 
     const lines = this.lineItemsDraft();
-    console.log("🚀 ~ updateDocumentTotalsFromLines ~ lines:", lines);
 
-    for (const line of lines) {
-      console.log("🚀 ~ updateDocumentTotalsFromLines ~ line:", line, "vatOpts:", line.vatOpts, "sumBefVatPerUnit:", line.sumBefVatPerUnit, "sumAftDisWithVat:", line.sumAftDisWithVat);
-      
-      // Make sure we have calculated fields
-      if (!line.sumBefVatPerUnit && line.sumBefVatPerUnit !== 0) {
-        console.warn("⚠️ Line missing calculated fields, skipping:", line);
-        continue;
-      }
-      
+    for (const line of lines) {       
       if (line.vatOpts === 'WITHOUT') {
-        // For WITHOUT VAT: sumBefVatPerUnit is the unit price, multiply by quantity
-        const lineTotal = Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
-        totals.sumWithoutVat += lineTotal;
-        totals.sumAftDisWithVat += Number(line.sumAftDisWithVat ?? lineTotal);
+        this.documentSummary().totalWithoutVat += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
       }
       else {
-        // For WITH VAT: 
-        // sumBefDisBefVat = sum before discount before VAT (unit price * quantity)
-        totals.sumBefDisBefVat += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
-        // sumAftDisBefVat = sum after discount before VAT (already calculated per line)
-      totals.sumAftDisBefVat += Number(line.sumAftDisBefVatPerLine ?? 0);
-        // vatSum = VAT amount per line
-      totals.vatSum += Number(line.vatPerLine ?? 0);
-        // sumAftDisWithVat = total after discount with VAT (already calculated per line)
-      totals.sumAftDisWithVat += Number(line.sumAftDisWithVat ?? 0);
+        this.documentSummary().totalVatApplicable += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
+        this.documentSummary().totalVat += Number(line.vatPerLine ?? 0);
       }
-      // Discount is always added
-      totals.disSum += Number(line.disBefVatPerLine ?? 0);
+      this.documentSummary().totalDiscount += Number(line.discount ?? 0);
     }
 
-    console.log("🚀 ~ updateDocumentTotalsFromLines ~ totals:", totals);
-    this.documentTotals.set(totals);
+    console.log("🚀 ~ updateDocumentTotalsFromLines ~ this.documentSummary():", this.documentSummary());
+
+    if (this.isExemptBusiness()) {
+      this.documentTotals().sumBefDisBefVat = this.documentSummary().totalWithoutVat;
+      this.documentTotals().disSum = this.documentSummary().totalDiscount;
+      this.documentTotals().sumAftDisBefVat = this.documentSummary().totalWithoutVat - this.documentSummary().totalDiscount;
+      this.documentTotals().vatSum = 0;
+      this.documentTotals().sumAftDisWithVat = this.documentTotals().sumAftDisBefVat;
+    }
+    else {
+      this.documentTotals().sumBefDisBefVat = this.documentSummary().totalVatApplicable + this.documentSummary().totalWithoutVat;
+      this.documentTotals().disSum = this.documentSummary().totalDiscount;
+      this.documentTotals().sumAftDisBefVat = this.documentTotals().sumBefDisBefVat - this.documentTotals().disSum;
+      this.documentTotals().vatSum = this.documentSummary().totalVat;
+      this.documentTotals().sumAftDisWithVat = this.documentTotals().sumAftDisBefVat + this.documentTotals().vatSum;
+    }
+
   }
+
 
   calcTotals(): void {
 
@@ -986,7 +994,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   onPaymentMethodChange(paymentMethod: MenuItem): void {
     this.activePaymentMethod = paymentMethod;
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
     this.setSumInPaymentForm();
   }
@@ -1013,8 +1021,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       paymentSum: paymentFormValue.paymentSum
     ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
     : null,
-      issuerBusinessNumber: this.selectedBusinessNumber,
-      generalDocIndex: String(this.docIndexes.generalIndex),
+      // issuerBusinessNumber: this.selectedBusinessNumber,
+      // generalDocIndex: String(this.docIndexes.generalIndex),
       paymentLineNumber: paymentLineIndex + 1,
       paymentMethod: this.activePaymentMethod.id, // Track which payment method was selected
       hebrewBankName,  // Save the Hebrew name for later use (display / backend)
@@ -1025,7 +1033,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.paymentsDraft.update(items => [...items, paymentEntry]);
 
     // Reset the form for the next payment entry
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.value ?? null;
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     this.paymentInputForm.reset();
     this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
@@ -1115,13 +1123,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
       this.showBusinessSelector = false;
     }
 
+    // Reset docIndexes to ensure we don't use stale values from parent document
+    // The handleDocIndexes call inside onSelectedDoc will fetch fresh indexes from backend
+    this.docIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
+    
     // Set doc type and trigger existing doc-type setup
     this.generalDetailsForm.patchValue({ docType: targetDocType });
     this.onSelectedDoc(targetDocType);
 
     // Dates
     const docDate = payload.sourceDoc?.docDate ? new Date(payload.sourceDoc.docDate) : new Date();
-    this.generalDetailsForm.get(FieldsCreateDocValue.DOCUMENT_DATE)?.setValue(docDate);
+    this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.setValue(docDate);
 
     // Set parent document info and subtitle
     // sourceDoc.docType should be the enum, but fallback to docTypeName (Hebrew) if needed
@@ -1542,6 +1554,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
   handleDocIndexes(docType: DocumentType): void {
     console.log("selectedBusinessNumber is ", this.selectedBusinessNumber);
     
+    // Reset indexes first to ensure we don't use stale values
+    // This is especially important when creating documents from opposite-doc flow
+    this.docIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
+    
     this.docCreateService.getDocIndexes(docType, this.selectedBusinessNumber)
       .pipe(
         catchError(err => {
@@ -1553,7 +1569,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       .subscribe(
         (res) => {
           console.log("res in handleDocIndexes:", res);
-          //   // Save general index always (used for internal doc ID)
+          // IMPORTANT: Always use the NEW generalIndex from backend, never from sourceDoc
+          // The backend increments the generalIndex, so this will be a fresh, incremented value
           this.docIndexes.generalIndex = res.generalIndex;
           this.docIndexes.docIndex = res.docIndex;
           const defaultIndex = DocTypeDefaultStart[docType] ?? 100001;
@@ -1671,7 +1688,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   expandUserDetails(): void {
     console.log("🚀 ~ DocCreatePage ~ expandUserDetails ~ this.showUserMoreFields:", this.showUserMoreFields)
-    // this.showUserMoreFields = !this.showUserMoreFields;
     console.log("🚀 ~ DocCreatePage ~ expandUserDetails ~ this.showUserMoreFields:", this.showUserMoreFields)
     console.log(this.userDetailsForm);
     console.log(this.userArray);
@@ -1698,10 +1714,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   
   private fillExpandedClientFields(clientData: IClient): void {
     const expandField = {
-      [FieldsCreateDocValue.RECIPIENT_CITY]: clientData.city,
-      [FieldsCreateDocValue.RECIPIENT_STREET]: clientData.street,
-      [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: clientData.homeNumber,
-      [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: clientData.postalCode,
+      [FieldsCreateDocValue.RECIPIENT_ADDRESS]: clientData.address,
     }
     if (this.isUserExpanded()) {
       this.userDetailsForm.patchValue(expandField);

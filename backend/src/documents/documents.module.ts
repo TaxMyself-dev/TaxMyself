@@ -15,6 +15,7 @@ import { Transactions } from 'src/transactions/transactions.entity';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { DocPayments } from './doc-payments.entity';
 import { Business } from 'src/business/business.entity';
+import { BusinessService } from 'src/business/business.service';
 
 
 @Module({
@@ -23,7 +24,8 @@ import { Business } from 'src/business/business.entity';
   providers: [
     DocumentsService,
     SharedService,
-    BookkeepingService
+    BookkeepingService,
+    BusinessService
   ],
 })
 export class DocumentsModule {}

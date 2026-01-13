@@ -55,6 +55,7 @@ import { DefaultBookingAccount } from './bookkeeping/account.entity';
 import { BookkeepingService } from './bookkeeping/bookkeeping.service';
 import { UsersService } from './users/users.service';
 import { BusinessModule } from './business/business.module';
+import { BusinessService } from './business/business.service';
 
 
 @Module({
@@ -101,7 +102,7 @@ import { BusinessModule } from './business/business.module';
     ScheduleModule.forRoot(),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule],
   controllers: [AppController],
-  providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService],
+  providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

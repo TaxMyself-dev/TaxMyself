@@ -2,7 +2,7 @@ import { Injectable } from "@angular/core";
 import { CardCompany, CreateDocFields, Currency, CurrencyHebrew, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, UnitOfMeasure, vatOptions } from "src/app/shared/enums";
 import { ICreateDocSectionData, IDocCreateFieldData, ILineItemColumn, ISummaryItem, SectionKeysEnum } from "./doc-create.interface";
 import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
-import { DocTypeDisplayName, DocCreateFields, bankOptionsList, DocumentTotals } from "./doc-cerate.enum";
+import { DocTypeDisplayName, DocCreateFields, bankOptionsList, DocumentTotals, DocumentSummary } from "./doc-cerate.enum";
 import { ISelectItem } from "src/app/shared/interface";
 
 const CardCompanyHebrewLabels: Record<CardCompany, string> = {
@@ -81,37 +81,100 @@ export class DocCreateBuilderService {
         }
     ];
 
+    // // Summary items configuration
+    // summaryItems: ISummaryItem[] = [
+    //     {
+    //         key: 'sumBefDisBefVat',
+    //         label: 'חייב במע"מ:',
+    //         valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat,
+    //         // valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
+    //         excludeForReceipt: true
+    //     },
+    //     // {
+    //     //     key: 'withoutVat',
+    //     //     label: 'סה"כ:',
+    //     //     valueGetter: (totals: DocumentTotals) => totals.sumWithoutVat,
+    //     //     excludeForReceipt: false,
+    //     // },
+    //     {
+    //         key: 'vatSum',
+    //         label: 'מע"מ:',
+    //         valueGetter: (totals: DocumentTotals) => totals.vatSum,
+    //         excludeForReceipt: true
+    //     },
+    //     {
+    //         key: 'discount',
+    //         label: 'הנחה (ש"ח):',
+    //         valueGetter: (totals: DocumentTotals) => totals.disSum,
+    //         excludeForReceipt: false
+    //     },
+    //     {
+    //         key: 'totalPayment',
+    //         label: 'סה"כ לתשלום:',
+    //         valueGetter: (totals: DocumentTotals) => totals.sumAftDisWithVat,
+    //         excludeForReceipt: false
+    //     }
+    // ];
+
+
     // Summary items configuration
-    summaryItems: ISummaryItem[] = [
+    summaryItemsWithVat: ISummaryItem[] = [
         {
-            key: 'sumBefDisBefVat',
+            key: 'totalVatApplicable',
             label: 'חייב במע"מ:',
-            valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat,
-            // valueGetter: (totals: DocumentTotals) => totals.sumBefDisBefVat - totals.sumWithoutVat,
+            valueGetter: (totals: DocumentSummary) => totals.totalVatApplicable,
             excludeForReceipt: true
         },
         {
-            key: 'withoutVat',
-            label: 'סה"כ:',
-            valueGetter: (totals: DocumentTotals) => totals.sumWithoutVat,
-            excludeForReceipt: false,
-        },
-        {
-            key: 'vatSum',
-            label: 'מע"מ:',
-            valueGetter: (totals: DocumentTotals) => totals.vatSum,
+            key: 'totalWithoutVat',
+            label: 'סה"כ ללא מע"מ:',
+            valueGetter: (totals: DocumentSummary) => totals.totalWithoutVat,
             excludeForReceipt: true
         },
         {
             key: 'discount',
             label: 'הנחה (ש"ח):',
-            valueGetter: (totals: DocumentTotals) => totals.disSum,
+            valueGetter: (totals: DocumentSummary) => totals.totalDiscount,
+            excludeForReceipt: false
+        },
+        {
+            key: 'totalAftDisBefVat',
+            label: 'סה"כ לאחר הנחה לפני מע"מ:',
+            valueGetter: (totals: DocumentSummary) => (totals.totalVatApplicable + totals.totalWithoutVat - totals.totalDiscount),
+            excludeForReceipt: false
+        },
+        {
+            key: 'vatSum',
+            label: 'מע"מ:',
+            valueGetter: (totals: DocumentSummary) => totals.totalVat,
+            excludeForReceipt: true
+        },
+        {
+            key: 'totalIncludingVat',
+            label: 'סה"כ:',
+            valueGetter: (totals: DocumentSummary) => (totals.totalVatApplicable + totals.totalWithoutVat - totals.totalDiscount + totals.totalVat),
+            excludeForReceipt: false
+        }
+    ];
+
+
+    summaryItemsWithoutVat: ISummaryItem[] = [
+        {
+            key: 'totalWithoutVat',
+            label: 'סה"כ לפני הנחה:',
+            valueGetter: (totals: DocumentSummary) => totals.totalWithoutVat,
+            excludeForReceipt: true
+        },
+        {
+            key: 'discount',
+            label: 'הנחה (ש"ח):',
+            valueGetter: (totals: DocumentSummary) => totals.totalDiscount,
             excludeForReceipt: false
         },
         {
             key: 'totalPayment',
-            label: 'סה"כ לתשלום:',
-            valueGetter: (totals: DocumentTotals) => totals.sumAftDisWithVat,
+            label: 'סה"כ:',
+            valueGetter: (totals: DocumentSummary) => (totals.totalWithoutVat - totals.totalDiscount),
             excludeForReceipt: false
         }
     ];
@@ -163,9 +226,8 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: []
         },
-        [FieldsCreateDocValue.DOCUMENT_DATE]: {
-            //name: FieldsCreateDocName.documentDate,
-            value: FieldsCreateDocValue.DOCUMENT_DATE,
+        [FieldsCreateDocValue.DOC_DATE]: {
+            value: FieldsCreateDocValue.DOC_DATE,
             labelText: 'תאריך המסמך',
             placeHolder: '00/00/0000',
             type: FormTypes.DATE,
@@ -241,45 +303,12 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: [Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
         },
-        [FieldsCreateDocValue.RECIPIENT_CITY]: {
+        [FieldsCreateDocValue.RECIPIENT_ADDRESS]: {
             //name: FieldsCreateDocName.recipientCity,
-            value: FieldsCreateDocValue.RECIPIENT_CITY,
-            labelText: 'עיר',
-            placeHolder: 'עיר',
+            value: FieldsCreateDocValue.RECIPIENT_ADDRESS,
+            labelText: 'כתובת',
+            placeHolder: 'כתובת',
             type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
-        [FieldsCreateDocValue.RECIPIENT_STREET]: {
-            //name: FieldsCreateDocName.recipientStreet,
-            value: FieldsCreateDocValue.RECIPIENT_STREET,
-            labelText: 'רחוב',
-            placeHolder: 'רחוב',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
-        [FieldsCreateDocValue.RECIPIENT_HOME_NUMBER]: {
-            //name: FieldsCreateDocName.recipientHomeNumber,
-            value: FieldsCreateDocValue.RECIPIENT_HOME_NUMBER,
-            labelText: 'מספר בית',
-            placeHolder: 'מספר בית',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
-        [FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]: {
-            //name: FieldsCreateDocName.recipientPostalCode,
-            value: FieldsCreateDocValue.RECIPIENT_POSTAL_CODE,
-            labelText: 'מיקוד',
-            placeHolder: 'מיקוד',
-            type: FormTypes.NUMBER,
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
@@ -648,7 +677,7 @@ export class DocCreateBuilderService {
     readonly docCreateBuilderSectionsData: Partial<Record<SectionKeysEnum, ICreateDocSectionData>> = {
         'GeneralDetails': {
             key: 'GeneralDetails',
-            baseFields: [FieldsCreateDocValue.BUSINESS_NUMBER, FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOCUMENT_DATE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOC_VAT_RATE],
+            baseFields: [FieldsCreateDocValue.BUSINESS_NUMBER, FieldsCreateDocValue.DOC_TYPE, FieldsCreateDocValue.DOC_DATE, FieldsCreateDocValue.DOC_DESCRIPTION, FieldsCreateDocValue.DOC_VAT_RATE],
             expandable: true,
             expandedFields: [FieldsCreateDocValue.CURRENCY]
         },
@@ -656,7 +685,7 @@ export class DocCreateBuilderService {
             key: 'UserDetails',
             baseFields: [FieldsCreateDocValue.RECIPIENT_NAME, FieldsCreateDocValue.RECIPIENT_ID, FieldsCreateDocValue.RECIPIENT_PHONE, FieldsCreateDocValue.RECIPIENT_EMAIL],
             expandable: true,
-            expandedFields: [FieldsCreateDocValue.RECIPIENT_CITY, FieldsCreateDocValue.RECIPIENT_STREET, FieldsCreateDocValue.RECIPIENT_HOME_NUMBER, FieldsCreateDocValue.RECIPIENT_POSTAL_CODE]
+            expandedFields: [FieldsCreateDocValue.RECIPIENT_ADDRESS]
         },
         'LineDetails': {
             key: 'LineDetails',
@@ -848,10 +877,14 @@ export class DocCreateBuilderService {
             : this.lineItemColumns;
     }
 
+    // getSummaryItems(isReceipt: boolean = false): ISummaryItem[] {
+    //     return isReceipt
+    //         ? this.summaryItems.filter(item => !item.excludeForReceipt)
+    //         : this.summaryItems;
+    // }
+
     getSummaryItems(isReceipt: boolean = false): ISummaryItem[] {
-        return isReceipt
-            ? this.summaryItems.filter(item => !item.excludeForReceipt)
-            : this.summaryItems;
+        return isReceipt ? this.summaryItemsWithoutVat : this.summaryItemsWithVat;
     }
 
 }

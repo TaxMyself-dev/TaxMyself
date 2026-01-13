@@ -272,7 +272,7 @@
             @for (item of filteredSummaryItems(); track item.key) {
               <p class="content-summary">
                 <span dir="ltr">
-                  ₪{{ item.valueGetter(documentTotals()) | number:'1.2-2' }}
+                  ₪{{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
                 </span>
               </p>
             }
