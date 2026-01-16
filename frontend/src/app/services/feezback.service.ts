@@ -29,5 +29,19 @@ export class FeezbackService {
     // The Authorization header is automatically added by AuthInterceptor
     return this.http.get<any>(url);
   }
+
+  /**
+   * Gets all transactions for all user accounts from Feezback
+   * @param bookingStatus - Optional booking status filter (default: "booked")
+   * @returns Observable with all user transactions data
+   */
+  getUserTransactions(bookingStatus?: string): Observable<any> {
+    let url = `${environment.apiUrl}feezback/user-transactions`;
+    if (bookingStatus) {
+      url += `?bookingStatus=${bookingStatus}`;
+    }
+    // The Authorization header is automatically added by AuthInterceptor
+    return this.http.get<any>(url);
+  }
 }
 

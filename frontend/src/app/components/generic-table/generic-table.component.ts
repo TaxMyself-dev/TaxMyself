@@ -439,4 +439,44 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     return result;
   }
 
+  isBillNotAssociated(row?: IRowDataTable): boolean {
+    if (!row) return false;
+    return row['billName'] === 'לא שוייך';
+  }
+
+  isBillAssociated(row?: IRowDataTable): boolean {
+    if (!row) return false;
+    return row['billName'] !== 'לא שוייך';
+  }
+
+  getCurrentRow(): IRowDataTable | undefined {
+    return this.hoveredRowInfo()?.row;
+  }
+
+  hasAlwaysShowAction(): boolean {
+    return this.fileActions().some(action => action.alwaysShow);
+  }
+
+  shouldShowAction(action: ITableRowAction): boolean {
+    if (!action.alwaysShow) return false;
+    if (action.name === 'close') {
+      const row = this.hoveredRowInfo()?.row;
+      if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  shouldShowFileAction(action: ITableRowAction): boolean {
+    if (action.alwaysShow) return false;
+    if (action.name === 'close') {
+      const row = this.hoveredRowInfo()?.row;
+      if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
+        return false;
+      }
+    }
+    return true;
+  }
+
 }

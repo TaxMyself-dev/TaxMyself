@@ -1,0 +1,51 @@
+<div class="clients-dashboard">
+  <div class="dashboard-header">
+    <h2>לוח בקרה - לקוחות</h2>
+    <div class="stats-cards">
+      <div class="stat-card">
+        <div class="stat-value">{{ getTotalUsers() }}</div>
+        <div class="stat-label">סה"כ לקוחות</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getUsersByStatus('שולם') }}</div>
+        <div class="stat-label">משלמים</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getUsersByStatus('ניסיון') }}</div>
+        <div class="stat-label">בניסיון</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getUsersByStatus('נדרש תשלום') }}</div>
+        <div class="stat-label">נדרש תשלום</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-section">
+    <input 
+      type="text" 
+      class="search-input" 
+      placeholder="חפש לפי שם, אימייל, טלפון או עיר..."
+      (input)="onSearch($event)"
+    />
+  </div>
+
+  <div class="table-section">
+    <app-generic-table 
+      [isLoadingState]="isLoading()" 
+      [columnsTitle]="columnsTitle" 
+      [dataTable]="filteredUsers"
+      [fileActions]="fileActions"
+      [tableHeight]="'600px'">
+    </app-generic-table>
+  </div>
+
+  <app-feezback-transactions-dialog
+    *ngIf="visibleFeezbackDialog()"
+    [isVisible]="visibleFeezbackDialog()"
+    [firebaseId]="selectedClient()?.firebaseId || ''"
+    [clientName]="selectedClient()?.name || ''"
+    (visibleChange)="closeFeezbackDialog($event)">
+  </app-feezback-transactions-dialog>
+</div>
+

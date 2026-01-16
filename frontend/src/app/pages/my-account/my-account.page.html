@@ -12,7 +12,7 @@
           [link]="'/add-expense'">
                 <i class="pi pi-plus"></i>
             </app-p-button>
-            <app-p-button 
+            <!-- <app-p-button 
                 class="feezback-connect-button" 
                 [buttonText]="'התחבר לבנקאות פתוחה'" 
                 [buttonColor]="buttonColor.YELLOW" 
@@ -20,8 +20,8 @@
                 [isLoading]="isLoadingFeezback()"
                 (onButtonClicked)="connectToOpenBanking()">
                 <i class="pi pi-link"></i>
-            </app-p-button>
-            <app-p-button 
+            </app-p-button> -->
+            <!-- <app-p-button 
                 class="feezback-fetch-button" 
                 [buttonText]="'טען נתוני חשבונות'" 
                 [buttonColor]="buttonColor.BLACK" 
@@ -29,7 +29,16 @@
                 [isLoading]="isLoadingUserAccounts()"
                 (onButtonClicked)="fetchUserAccounts()">
                 <i class="pi pi-download"></i>
-            </app-p-button>
+            </app-p-button> -->
+            <!-- <app-p-button 
+                class="feezback-transactions-button" 
+                [buttonText]="'טען תנועות'" 
+                [buttonColor]="buttonColor.BLACK" 
+                [buttonSize]="buttonSize.AUTO"
+                [isLoading]="isLoadingTransactions()"
+                (onButtonClicked)="fetchUserTransactions()">
+                <i class="pi pi-list"></i>
+            </app-p-button> -->
         </div>
         <!-- <app-p-button class="vat-report-payment-button" [buttonText]="'פתח'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
         [link]="'/add-expense'" (onButtonClicked)="openModalAddExpenses()">

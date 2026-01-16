@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, NotFoundException, Session, UseGuards, Req} from '@nestjs/common';
+         Param, Query, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
@@ -55,6 +55,20 @@ export class UsersController {
     @Get('get-cities')
     async getCities() {
       return this.userService.getCities();
+    }
+
+    @Get('all-users')
+    @UseGuards(FirebaseAuthGuard)
+    async getAllUsers(@Req() request: AuthenticatedRequest) {
+      const firebaseId = request.user?.firebaseId;
+      
+      // Check if user is admin
+      const isAdmin = await this.userService.isAdmin(firebaseId);
+      if (!isAdmin) {
+        throw new HttpException('Admin access required', HttpStatus.FORBIDDEN);
+      }
+
+      return this.userService.getAllUsers();
     }
 
 }

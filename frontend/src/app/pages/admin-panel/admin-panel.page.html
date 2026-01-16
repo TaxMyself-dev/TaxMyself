@@ -8,6 +8,8 @@
   </div>
 
   <div>
+  <app-clients-dashboard *ngIf="selectedTab === 'clients-dashboard'">
+  </app-clients-dashboard>
   <app-category-management *ngIf="selectedTab === 'category-management'">
   </app-category-management>
   <app-trans-management *ngIf="selectedTab === 'trans-management'"></app-trans-management>

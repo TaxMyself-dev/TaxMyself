@@ -30,4 +30,19 @@ export class AdminPanelService {
     const url = `${environment.apiUrl}finsite/finsite-connect`;
     return this.http.get<any>(url);
   }
+
+  getAllUsers(): Observable<any> {
+    const url = `${environment.apiUrl}auth/all-users`;
+    return this.http.get<any>(url);
+  }
+
+  fetchFeezbackTransactions(firebaseId: string, startDate: string, endDate: string): Observable<any> {
+    const url = `${environment.apiUrl}feezback/admin-user-transactions`;
+    const params = new HttpParams()
+      .set('firebaseId', firebaseId)
+      .set('dateFrom', startDate)
+      .set('dateTo', endDate)
+      .set('bookingStatus', 'booked');
+    return this.http.get<any>(url, { params });
+  }
 }

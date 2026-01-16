@@ -8,6 +8,8 @@ import { AdminPanelPageRoutingModule } from './admin-panel-routing.module';
 
 import { AdminPanelPage } from './admin-panel.page';
 import { SharedModule } from '../../shared/shared.module';
+import { GenericTableComponent } from '../../components/generic-table/generic-table.component';
+import { FeezbackTransactionsDialogComponent } from '../../components/feezback-transactions-dialog/feezback-transactions-dialog.component';
 
 @NgModule({
   imports: [
@@ -16,7 +18,9 @@ import { SharedModule } from '../../shared/shared.module';
     IonicModule,
     AdminPanelPageRoutingModule,
     SharedModule,
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    GenericTableComponent,
+    FeezbackTransactionsDialogComponent
   ],
   declarations: [AdminPanelPage]
 })

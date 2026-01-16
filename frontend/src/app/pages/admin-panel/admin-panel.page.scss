@@ -1,3 +1,12 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    width: 100%;
+    overflow: auto;
+    align-items: center;
+  }
+
 .screen-admin-panel {
     display: flex;
     flex-direction: column;

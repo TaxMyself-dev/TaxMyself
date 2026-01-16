@@ -1,0 +1,44 @@
+<div class="feezback-dialog" *ngIf="isVisible()">
+  <div class="dialog-overlay" (click)="onCancel()"></div>
+  <div class="dialog-content" (click)="onDialogContentClick($event)">
+    <div class="dialog-header">
+      <h3>טען תנועות מ-Feezback</h3>
+      <p class="client-name">לקוח: {{ clientName() }}</p>
+    </div>
+    
+    <form [formGroup]="dateForm" class="dialog-form">
+      <app-input-date
+        [parentForm]="dateForm"
+        [controlName]="'startDate'"
+        [labelText]="'מתאריך'"
+        [placeholder]="'בחר תאריך התחלה'">
+      </app-input-date>
+      
+      <app-input-date
+        [parentForm]="dateForm"
+        [controlName]="'endDate'"
+        [labelText]="'עד תאריך'"
+        [placeholder]="'בחר תאריך סיום'">
+      </app-input-date>
+    </form>
+    
+    <div class="dialog-actions">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonSize]="buttonSize.AUTO"
+        [buttonColor]="buttonColor.WHITE"
+        [isLoading]="false"
+        (onButtonClicked)="onCancel()">
+      </app-p-button>
+      
+      <app-p-button
+        [buttonText]="'טען תנועות'"
+        [buttonSize]="buttonSize.AUTO"
+        [buttonColor]="buttonColor.BLACK"
+        [isLoading]="isLoading()"
+        [disabled]="dateForm.invalid"
+        (onButtonClicked)="onFetchTransactions()">
+      </app-p-button>
+    </div>
+  </div>
+</div>

@@ -17,7 +17,7 @@ export class FeezbackJwtService {
     private readonly userRepository: Repository<User>,
   ) {
     const keyPath = process.env.FEEZBACK_PRIVATE_KEY_PATH;
-    console.log(`Loading Feezback private key from: ${keyPath}`);
+    // console.log(`Loading Feezback private key from: ${keyPath}`);
     this.privateKey = fs.readFileSync(keyPath, 'utf8');
     
     // Base URL for redirects - should be your frontend URL
@@ -112,15 +112,15 @@ export class FeezbackJwtService {
       }
     };
 
-    console.log("private key is ", this.privateKey);
-    console.log("Redirect URLs:", JSON.stringify(redirects, null, 2));
-    console.log(`User ID for firebaseId ${firebaseId}: ${userId}`);
+    // console.log("private key is ", this.privateKey);
+    // console.log("Redirect URLs:", JSON.stringify(redirects, null, 2));
+    // console.log(`User ID for firebaseId ${firebaseId}: ${userId}`);
 
     const token = jwt.sign(payload, this.privateKey, {
       algorithm: 'RS512', 
     });
 
-    console.log(`Generated Feezback JWT for user ${firebaseId}`);
+    // console.log(`Generated Feezback JWT for user ${firebaseId}`);
     return token;
   }
 
@@ -135,7 +135,7 @@ export class FeezbackJwtService {
     const expirationTime = currentTime + 3600; // 1 hour
     const ttl = 600; // 10 minutes
 
-    this.logger.debug(`Generating access token for sub: ${sub}`);
+    // this.logger.debug(`Generating access token for sub: ${sub}`);
 
     const payload: any = {
       "sub": sub, // רק ה-sub, בלי @TPP_ID (זה מתווסף ב-URL)
@@ -151,7 +151,7 @@ export class FeezbackJwtService {
       algorithm: 'RS512',
     });
 
-    this.logger.debug(`Generated access token JWT`);
+    // this.logger.debug(`Generated access token JWT`);
     return token;
   }
 }

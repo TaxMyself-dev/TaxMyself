@@ -322,5 +322,21 @@ export class UsersService {
     return cities;
   }
 
+  /**
+   * Get all users (admin only)
+   * @returns Array of all users with basic information
+   */
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const users = await this.user_repo.find({
+        order: {
+          createdAt: 'DESC', // Most recent first
+        },
+      });
+      return users;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to fetch users');
+    }
+  }
 
 }

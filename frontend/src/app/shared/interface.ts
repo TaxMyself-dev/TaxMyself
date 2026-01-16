@@ -254,6 +254,7 @@ export interface ITableRowAction {
     fieldName?: string;
     title?: string,
     action: (event?: any, row?: IRowDataTable) => void;
+    alwaysShow?: boolean; // If true, show button even when row has no file
 }
 
 export interface IButtons {

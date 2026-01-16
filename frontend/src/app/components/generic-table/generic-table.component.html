@@ -15,31 +15,30 @@
     </div>
     <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
     <!-- <div> -->
-    @let filters = arrayFilters();
-    @if(filters) {
+    @if(arrayFilters()) {
     <div class="show-filters-container">
-      @if(filters.periodType) {
+      @if(arrayFilters()?.periodType) {
       <div class="filter-header">
         <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'"
           (onButtonClicked)="redefineFilters('time')"></app-p-button>
-        <p class="filter-header-text">{{ getFullPeriodDisplay(filters) }}</p>
+        <p class="filter-header-text">{{ getFullPeriodDisplay(arrayFilters()) }}</p>
       </div>
       }
-      @if(filters?.account?.length > 0) {
+      @if(arrayFilters()?.account?.length > 0) {
       <div class="filter-header">
         <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'"
           (onButtonClicked)="redefineFilters('account')"></app-p-button>
-        <p class="filter-header-text">חשבונות: {{ formatNames(filters.account) }}</p>
+        <p class="filter-header-text">חשבונות: {{ formatNames(arrayFilters()?.account) }}</p>
       </div>
       }
-      @if(filters?.category?.length > 0) {
+      @if(arrayFilters()?.category?.length > 0) {
       <div class="filter-header">
         <app-p-button [class]="'gray'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="ButtonColor.TRANSPARET" [icon]="'pi pi-times'"
           (onButtonClicked)="redefineFilters('category')"></app-p-button>
-        <p class="filter-header-text">קטגוריות: {{ formatNames(filters.category) }}</p>
+        <p class="filter-header-text">קטגוריות: {{ formatNames(arrayFilters()?.category) }}</p>
       </div>
       }
     </div>
@@ -112,7 +111,7 @@
 
     @if (hoveredRowInfo() && (showButtons() || fileActions().length > 0)) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
-      [style.top.px]="hoveredRowInfo()?.top" [@slideInFromLeft]="'visible'" (mouseenter)="onFloatingEnter()"
+      [style.top.px]="hoveredRowInfo()?.top" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
 
       <!-- Hidden file input for file actions -->
@@ -123,19 +122,32 @@
 
       <!-- File Actions Section -->
       @if (fileActions().length > 0) {
-      <!-- If file exists on server: show action buttons -->
-      @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
-      !== null) {
+      <!-- Check if any action should always show (doesn't require file) -->
+      @if (hasAlwaysShowAction()) {
+      <!-- Show actions that should always be visible -->
       @for (action of fileActions(); track action.name) {
-      @if (!(action.name === 'close' && hoveredRowInfo()?.row?.['docStatus']?.toUpperCase() === 'CLOSE')) {
+      @if (shouldShowAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
-        (onButtonClicked)="executeAction(action, hoveredRowInfo()?.row)" [buttonText]="action.title || action.name"
+        (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
       }
       }
-      } @else {
-      <!-- No file exists: show attach button -->
+      }
+      <!-- If file exists on server: show action buttons -->
+      @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
+      !== null) {
+      @for (action of fileActions(); track action.name) {
+      @if (shouldShowFileAction(action)) {
+      <app-p-button [icon]="action.icon" [iconOnly]="true"
+        (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      </app-p-button>
+      }
+      }
+      }
+      @else if (!hasAlwaysShowAction()) {
+      <!-- No file exists and no alwaysShow actions: show attach button -->
       <app-p-button [iconOnly]="true" [icon]="'pi pi-paperclip'" (onButtonClicked)="triggerFileInput()"
         [buttonText]="hasFileAttached(hoveredRowInfo()?.row) ? 'שנה קובץ: ' + getFileName(hoveredRowInfo()?.row) : 'צרף קובץ'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
@@ -145,19 +157,16 @@
 
       <!-- Classification Buttons Section -->
       @if (showButtons()) {
-      @if (hoveredRowInfo()?.row?.billName === 'לא שוייך') {
-      <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(hoveredRowInfo()?.row)"
-        [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      @if (isBillNotAssociated(hoveredRowInfo()?.row)) {
+      <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(getCurrentRow())" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
       }
-      @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
-      <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(hoveredRowInfo()?.row)" [buttonText]="'סיווג תנועה'"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      @if (isBillAssociated(hoveredRowInfo()?.row)) {
+      <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(getCurrentRow())" [buttonText]="'סיווג תנועה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
       </app-p-button>
       }
-      @if (hoveredRowInfo()?.row?.billName !== 'לא שוייך') {
-      <app-p-button (onButtonClicked)="quickClassify(hoveredRowInfo()?.row)" [buttonText]="'סיווג מהיר'"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
+      @if (isBillAssociated(hoveredRowInfo()?.row)) {
+      <app-p-button (onButtonClicked)="quickClassify(getCurrentRow())" [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
       </app-p-button>
       }
       }

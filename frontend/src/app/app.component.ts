@@ -71,10 +71,8 @@ export class AppComponent implements OnInit {
     this.hideTopNav();
 
     this.restoreSessionAfterRefresh();
-    if (this.userData?.role[0] === 'ADMIN') {
-      this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
-      this.menuItems.push({ label: 'כניסה', routerLink: '/login' });
-    }
+    // Check admin status after userData is loaded
+    this.updateAdminMenuItems();
     this.getRoute();
     this.getRoleUser();
   }
@@ -87,17 +85,7 @@ export class AppComponent implements OnInit {
 
   restartData(): void {
     this.userData = this.authService.getUserDataFromLocalStorage();
-    if (this.userData?.role[0] === 'ADMIN') {
-      const panelExist = this.menuItems.some(item => item.label === 'פאנל ניהול');
-      // If 'פאנל ניהול' is not already in the menuItems, add it
-      if (!panelExist) {
-        this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
-      }
-    }
-    else {
-      // If user is not admin, ensure 'פאנל ניהול' is removed
-      this.menuItems = this.menuItems.filter(item => item.label !== 'פאנל ניהול');
-    }
+    this.updateAdminMenuItems();
     this.getRoleUser();
   }
 
@@ -207,11 +195,26 @@ export class AppComponent implements OnInit {
 
     console.log("userData is ", userData);
     
-    // if (userData) {
-    //   console.log("call to business");
-    //   this.userData = userData;
-    //   await this.genericService.loadBusinesses();
-    // }
+    if (userData) {
+      console.log("Restoring user session data");
+      this.userData = userData;
+      // Update admin menu items after userData is set
+      this.updateAdminMenuItems();
+      // await this.genericService.loadBusinesses();
+    }
+  }
+
+  updateAdminMenuItems(): void {
+    // Remove existing admin panel menu item if it exists
+    this.menuItems = this.menuItems.filter(item => item.label !== 'פאנל ניהול');
+    
+    // Check if user is admin and add menu item
+    if (this.userData?.role && (this.userData.role[0] === 'ADMIN' || this.userData.role.includes('ADMIN'))) {
+      const panelExist = this.menuItems.some(item => item.label === 'פאנל ניהול');
+      if (!panelExist) {
+        this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
+      }
+    }
   }
 
 }
