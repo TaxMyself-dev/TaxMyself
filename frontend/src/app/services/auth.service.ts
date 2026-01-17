@@ -37,7 +37,16 @@ export class AuthService {
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
+private activeBusinessNumberSig = signal<string | null>(null);
 
+  setActiveBusinessNumber(bn: string | null) {
+    this.activeBusinessNumberSig.set(bn);
+  }
+
+  getActiveBusinessNumber(): string | null {
+    return this.activeBusinessNumberSig();
+  }
+  
   logout(): void {
     this.afAuth.signOut().then(() => {
       localStorage.clear();
@@ -47,8 +56,9 @@ export class AuthService {
 
 
   getUserBussinesNumber(): string {
-    const userData = this.getUserDataFromLocalStorage();
-    const businessNumber = userData.businessNumber;
+    const userBusinesses = this.getUserBusinessesFromLocalStorage();
+    console.log("🚀 ~ AuthService ~ getUserBussinesNumber ~ userBusinesses:", userBusinesses)
+    const businessNumber = userBusinesses.businessNumber;
     return businessNumber;
   }
 
@@ -63,6 +73,19 @@ export class AuthService {
       return JSON.parse(tempA);
     } catch (error) {
       console.error('Error parsing userData from localStorage:', error);
+      return null;
+    }
+  }
+
+    getUserBusinessesFromLocalStorage(): IUserData | null {
+    const tempA = localStorage.getItem('businesses');
+    if (!tempA) {
+      return null;
+    }
+    try {
+      return JSON.parse(tempA);
+    } catch (error) {
+      console.error('Error parsing businesses from localStorage:', error);
       return null;
     }
   }

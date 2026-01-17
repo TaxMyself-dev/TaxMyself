@@ -7,44 +7,43 @@ import {
     IsBoolean
 } from 'class-validator'
 
-export class UpdateSupplierDto {
+export class CreateSupplierDto {
 
-    @IsOptional()
     @IsString()
     supplier: string;
 
     @IsString()
     businessNumber: string;
 
-    @IsOptional()
+    // @IsOptional()
     @IsString()
     category: string;
 
-    @IsOptional()
+    // @IsOptional()
     @IsString()
     subCategory: string;
 
-    @IsOptional()
+    // @IsOptional()
     @IsString()
     supplierID: string;
 
-    @IsOptional()
+    // @IsOptional()
     @IsNumber()
     @Min(0)
     @Max(100)
     taxPercent: number;
   
-    @IsOptional()
+    // @IsOptional()
     @IsNumber()
     @Min(0)
     @Max(100)
     vatPercent: number;
 
-    @IsOptional()
+    // @IsOptional()
     @IsBoolean()
     isEquipment: boolean;
 
-    @IsOptional()
+    // @IsOptional()
     @IsNumber()
     reductionPercent: number;
 

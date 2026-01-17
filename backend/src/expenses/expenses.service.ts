@@ -452,8 +452,8 @@ export class ExpensesService {
     }
 
 
-    async getSupplierNamesByUserId(userId: string): Promise<SupplierResponseDto[]> {
-        const suppliers = await this.supplier_repo.find({ where: { userId } });
+    async getSupplierNamesByUserId(userId: string, businessNumber?: string): Promise<SupplierResponseDto[]> {
+        const suppliers = await this.supplier_repo.find({ where: { userId, businessNumber } });
         return suppliers.map((supplier) => {
             const { userId, ...supplierData } = supplier; // Exclude userId
             return supplierData;

@@ -1,12 +1,23 @@
+import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { IonicModule } from '@ionic/angular';
+import { AvatarModule } from 'primeng/avatar';
+import { AvatarGroupModule } from 'primeng/avatargroup';
+import { DialogService } from 'primeng/dynamicdialog';
+import { catchError, EMPTY, finalize, map } from 'rxjs';
+import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
+import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
+import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
 import { AuthService } from 'src/app/services/auth.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { GenericService } from 'src/app/services/generic.service';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { IColumnDataTable, IItemNavigate, IUserData } from 'src/app/shared/interface';
+import { SharedModule } from 'src/app/shared/shared.module';
 import { TransactionsService } from '../transactions/transactions.page.service';
-import { catchError, EMPTY, finalize, map } from 'rxjs';
-import { GenericService } from 'src/app/services/generic.service';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { MessageService } from 'primeng/api';
 
@@ -14,7 +25,19 @@ import { MessageService } from 'primeng/api';
     selector: 'app-my-account',
     templateUrl: './my-account.page.html',
     styleUrls: ['./my-account.page.scss'],
-    standalone: false
+    standalone: true,
+    imports: [
+        CommonModule,
+        FormsModule,
+        IonicModule,
+        SharedModule,
+        DashboardNavigateComponent,
+        AvatarModule,
+        AvatarGroupModule,
+        ButtonComponent,
+        GenericTableComponent
+    ],
+    providers: [DialogService]
 })
 export class MyAccountPage implements OnInit {
 
@@ -24,6 +47,9 @@ export class MyAccountPage implements OnInit {
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
 
+  dialogService = inject(DialogService);
+  // dialogRef = inject(DynamicDialogRef);
+  // dialogConfig = inject(DynamicDialogConfig);
   isLoadingDataTable = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
@@ -90,9 +116,7 @@ export class MyAccountPage implements OnInit {
                 : this.userData?.spouseBusinessName
           }))
       )
-    );
-    console.log("transToClassify: ", this.transToClassify);
-    
+    );    
 }
 
 openAddExpensesPage(): void {
@@ -248,4 +272,19 @@ fetchUserTransactions(): void {
 // openModalAddExpenses(): void {
 //   this.expenseService.openModalAddExpense().subscribe()
 // }
+openMannualExpenses(): void {
+  // this.dialogRef = 
+  this.dialogService.open(MannualExpenseComponent, {
+            header: 'הוספת הוצאה ידנית',       
+            width: '90%',
+            rtl: true,
+            closable: true,
+            dismissableMask: true,
+            modal: true,
+            // data: {
+            //   businessNumber: this.selectedBusinessNumber,
+            //   clients: this.clients()
+            // }
+          });
+}
 }

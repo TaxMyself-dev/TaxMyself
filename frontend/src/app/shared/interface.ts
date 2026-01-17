@@ -2,6 +2,18 @@ import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
 import { BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
 
+export interface ICategory {
+    id: number;
+    categoryName: string;
+    firebaseId: string;
+    isExpense: boolean;
+}
+
+export interface ISubCategory {
+    id: number;
+    name: string;
+}
+
 export interface IUserData {
     businessDate: string;
     businessField: string;

@@ -33,6 +33,9 @@ export class Supplier {
     userId: string;
 
     @Column()
+    businessNumber: string;
+
+    @Column()
     isEquipment: boolean;
 
     @Column()

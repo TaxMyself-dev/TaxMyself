@@ -40,6 +40,10 @@
                 <i class="pi pi-list"></i>
             </app-p-button> -->
         </div>
+        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="openMannualExpenses()">
+            <i class="pi pi-plus"></i>
+        </app-p-button>
         <!-- <app-p-button class="vat-report-payment-button" [buttonText]="'פתח'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
         [link]="'/add-expense'" (onButtonClicked)="openModalAddExpenses()">
               <i class="pi pi-plus"></i>

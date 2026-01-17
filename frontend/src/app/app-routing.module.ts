@@ -30,7 +30,7 @@ const routes: Routes = [
   },
   {
     path: 'my-account',
-    loadChildren: () => import('./pages/my-account/my-account.module').then( m => m.MyAccountPageModule),
+    loadComponent: () => import('./pages/my-account/my-account.page').then( m => m.MyAccountPage),
     canActivate: [AuthGuard] 
   },
   {

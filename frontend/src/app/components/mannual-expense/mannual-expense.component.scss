@@ -1,0 +1,280 @@
+:host {
+    overflow: scroll;
+}
+
+.wrap-supplier-list {
+    display: flex;
+    flex-direction: column;
+    width: 50%;
+    height: 100%;
+}
+
+.wrap-select-supplier {
+    display: flex;
+    align-items: center;
+    align-self: flex-start;
+    justify-content: center;
+    width: 116px;
+    height: 22px;
+    border: 1px solid;
+    border-radius: 35px;
+}
+
+.supplier-text {
+    font-size: 11px
+}
+
+.select-supplier-button {
+    height: 40px;
+    width: 24px;
+}
+
+.add-expense-header {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.header-list {
+    display: flex;
+    width: 98%;
+    justify-content: space-between;
+}
+
+.add-expense-icon-header {
+    cursor: pointer;
+}
+
+// .screen-add-expense {
+//     height: 400px;
+// }
+
+.form-expense {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    height: 100%;
+}
+
+.modal-content {
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    width: 99%;
+}
+
+
+
+.input-expense {
+    --border-radius: 15px;
+    margin: 5px 5px 20px 5px;
+
+    &.isEquipment {
+        width: 100%;
+        --border-style: none;
+        border-bottom: 1px solid gray;
+        border-radius: 0px;
+    }
+
+    &.category {
+        width: 47%;
+    }
+
+    &.subCategory {
+        width: 47%;
+    }
+
+    &.businessNumber {
+        width: 30%;
+        height: 80px;
+    }
+
+}
+
+.supplier-span {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: 30%;
+    right: 2%;
+    cursor: pointer;
+    color: gray;
+    font-size: small;
+}
+
+.supplier-span:hover {
+    text-shadow: 2px 2px 5px gray;
+}
+
+.wrap-add-expense-supplier {
+    // border: 1px red solid;
+    position: relative;
+}
+
+.label-file-add-expense {
+    // height: 500px;
+    max-height: 500px;
+    display: flex;
+    flex: 2;
+    justify-content: center;
+    align-items: center;
+    border: 5px solid rgb(79, 171, 79);
+    border-radius: 15px;
+    margin-right: 10px;
+    margin-left: 10px;
+}
+
+.label-file-add-expense ion-icon {
+    --ionicon-stroke-width: 2px;
+    width: 100%;
+    height: 100%;
+}
+
+.label-file-add-expense ion-input[type="file"] {
+    display: none;
+}
+
+.div-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    cursor: pointer;
+}
+
+.file-container {
+    max-width: 100%;
+    overflow: auto;
+}
+
+.image-file {
+    //display: block;
+    max-width: 100%;
+    max-height: auto;
+    object-fit: contain;
+}
+
+.div-icon {
+    width: 70%;
+    height: 70%;
+}
+
+.wrap-del-change-file {
+    width: 100%;
+    // align-self: flex-end;
+    display: flex;
+    justify-content: space-around;
+}
+
+.wrapp-btn-expense {
+    display: flex;
+    justify-content: space-between;
+    width: 60%;
+}
+
+.wrap-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 15px;
+    text-align: center;
+}
+
+.wrap-buttons-message {
+    width: 70%;
+    display: flex;
+    justify-content: space-between;
+}
+
+
+.list-expense {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    overflow-y: auto;
+}
+
+.text-file-type {
+    text-align: center;
+}
+
+
+.modal-input-30 {
+    width: 30%;
+}
+
+.modal-input-100 {
+    width: 100%;
+}
+
+.modal-input-50 {
+    width: 47%;
+}
+
+
+
+
+// @media only screen and (max-width:1120px) {
+@media only screen and (max-width:600px) {
+    .modal-content {
+        display: flex;
+        flex-direction: column-reverse;
+        overflow-y: auto;
+        height: 100%;
+    }
+
+.screen-add-expense {
+    height: 700px;
+}
+
+    .wrap-supplier-list {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        align-items: center;
+        height: 60%;
+    }
+
+    .list-expense {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        overflow-y: auto;
+        width: 98%;
+        height: 100%;
+    }
+
+    .label-file-add-expense {
+        background-color: #f0f0f0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 5px solid rgb(79, 171, 79);
+        border-radius: 15px;
+        margin-right: 10px;
+        margin-left: 10px;
+        margin-bottom: 10px;
+    }
+
+    .modal-input-30 {
+        width: 100%;
+    }
+
+    .modal-input-100 {
+        width: 100%;
+    }
+
+    .modal-input-50 {
+        width: 100%;
+    }
+
+    .wrapp-btn-expense {
+        flex-direction: column;
+        align-items: center;
+    }
+}
