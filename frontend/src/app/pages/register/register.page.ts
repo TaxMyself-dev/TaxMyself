@@ -518,12 +518,11 @@ matchRegisterImage = computed(() => {
     .pipe(
       catchError((error) => {
         console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
-        
-        this.authService.error.set(error);
+        const errMessage = this.authService.getSignupErrorMessage(error.code);
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail:"היי אירעה שגיאה והרישום נכשל. נשמח שתנסה שוב",
+          detail: errMessage,
           sticky: true,
           key: 'br'
         })

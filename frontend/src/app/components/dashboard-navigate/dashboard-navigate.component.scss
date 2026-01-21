@@ -44,6 +44,12 @@ a {
     color: #363636;
 }
 
+@media (prefers-color-scheme: dark) {
+    .title-card {
+        color: #fff;
+    }
+}
+
 .footer-card {
     // border: 1px solid blue;
     // word-break: break-word;

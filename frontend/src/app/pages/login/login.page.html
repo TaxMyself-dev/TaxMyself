@@ -1,6 +1,8 @@
-<div class="custom-modal-backdrop" (click)="closeModal()" *ngIf="showModal">
+@if(showModal) {
+<div class="custom-modal-backdrop" (click)="closeModal()">
   <div class="custom-modal" (click)="$event.stopPropagation()">
-    <button class="close-button" (click)="closeModal()">×</button>
+    <app-p-button class="close-button" [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.AUTO"
+      [iconOnly]="true" [icon]="'pi pi-times'" (onButtonClicked)="closeModal()"></app-p-button>
 
     <div>
       ✨ <strong>ההרשמה הסתיימה בהצלחה!✨</strong><br>
@@ -12,11 +14,19 @@
       <strong>לא רואה את ההודעה?</strong><br>
       כדאי לבדוק גם בתיקיית הספאם.<br>
       ואם צריך – אפשר
-      <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>.
+      <!-- <span (click)="sendVerficaitonEmail()" class="blue-link">ללחוץ כאן למשלוח נוסף</span>. -->
+      <div class="resend-verification">
+        <app-p-button [buttonText]="'ללחוץ כאן לשליחת מייל נוסף'" [variant]="'text'" [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO" (onButtonClicked)="sendVerficaitonEmail()"
+          [disabled]="isVerificationButtonDisabled()"></app-p-button>
+        @if (isVerificationButtonDisabled()) {
+        <span class="resend-countdown">שליחה נוספת בעוד{{ resendCountdown() }} שניות</span>
+        }
+      </div>
     </div>
   </div>
 </div>
-
+}
 <div class="login-page">
   <div class="login-section">
     <div class="login-top">
@@ -81,7 +91,7 @@
               @case ('error') {
               <p class="text-error">השירות אינו זמין כעת אנא נסה מאוחר יותר</p>
               }
-               @case ('net') {
+              @case ('net') {
               <p class="text-error">בעיית רשת אנא בדוק חיבורים ונסה שוב</p>
               }
               @default {

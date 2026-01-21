@@ -123,29 +123,35 @@ private activeBusinessNumberSig = signal<string | null>(null);
     return this.http.get(url);
   }
 
+  getSignupErrorMessage(err: string): string {
+  switch (err) {
 
-  handleErrorSignup(err: string): void {
-    switch (err) {
-      case "auth/email-already-in-use":
+    case 'auth/email-already-in-use':
+      return 'כתובת האימייל כבר רשומה במערכת. נסה להתחבר או להשתמש באימייל אחר.';
 
-        this.error.set("user");
-        break;
-      case "auth/invalid-email":
-        this.error.set("email");
-        break;
-      case "auth/network-request-failed":
-        this.error.set("net");
-        break;
-      case "auth/user-disabled":
-      case "auth/user-not-found":
-      case "auth/missing-email":
-        this.error.set("disabled");
-        break;
-      case "auth/too-many-requests":
-        this.error.set("many");
-        break;
-    }
+    case 'auth/invalid-email':
+      return 'כתובת האימייל אינה תקינה. אנא בדוק והזן כתובת נכונה.';
+
+    case 'auth/network-request-failed':
+      return 'בעיה בחיבור לאינטרנט. אנא בדוק את החיבור ונסה שוב.';
+
+    case 'auth/user-disabled':
+      return 'החשבון שלך הושבת. לפרטים נוספים פנה לתמיכה.';
+
+    case 'auth/user-not-found':
+      return 'לא נמצא חשבון עם כתובת האימייל שהוזנה.';
+
+    case 'auth/missing-email':
+      return 'יש להזין כתובת אימייל כדי להמשיך.';
+
+    case 'auth/too-many-requests':
+      return 'בוצעו יותר מדי ניסיונות בזמן קצר. אנא נסה שוב בעוד מספר דקות.';
+
+    default:
+      return 'אירעה שגיאה לא צפויה. אנא נסה שוב מאוחר יותר.';
   }
+}
+
 
 
   SignUp(formData: any): Observable<any> {
@@ -154,14 +160,12 @@ private activeBusinessNumberSig = signal<string | null>(null);
       .pipe(
         catchError((err) => {
           console.log("err in create user: ", err);
-          this.handleErrorSignup(err.code);
           return throwError(() => err);
           
         }),
         tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
         switchMap((userCredentialData: UserCredential) => from(sendEmailVerification(userCredentialData.user))),
         catchError((err) => {
-          this.handleErrorSignup(err.code);
           console.log("err in send email verify: ", err);
           return throwError(() => err);
         }),
@@ -178,7 +182,6 @@ private activeBusinessNumberSig = signal<string | null>(null);
           }).catch((err) => {
             console.log("err:", err);
           })
-          this.handleErrorSignup("auth/network-request-failed");
           return throwError(() => err);
         })
       )

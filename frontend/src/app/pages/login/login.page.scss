@@ -31,8 +31,8 @@ input:-webkit-autofill {
 
 .close-button {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 0px;
+  right: 1rem;
   background: transparent;
   border: none;
   font-size: 1.5rem;
@@ -269,5 +269,67 @@ input:-webkit-autofill {
 
   .login-media {
     display: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  input:-webkit-autofill {
+    box-shadow: 0 0 0px 1000px #1b1b1b inset !important;
+    -webkit-text-fill-color: #f4f4f5 !important;
+  }
+
+  .custom-modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.75);
+  }
+
+  .custom-modal {
+    background-color: #1f1f1f;
+    color: #f4f4f5;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+  }
+
+  .login-page {
+    background-color: #0d0d0d;
+    color: #f4f4f5;
+  }
+
+  .login-section {
+    background-color: #121212;
+    color: #f4f4f5;
+  }
+
+  .welcome-title,
+  .welcome-text,
+  .line-with-text,
+  .text,
+  .forgot-password span,
+  .register-link span {
+    color: #f4f4f5;
+  }
+
+  .line {
+    background: #57bc97;
+  }
+
+  .input-field {
+    background-color: #1b1b1b;
+    border: 1px solid #3d3d3d;
+    color: #f4f4f5;
+  }
+
+  .text-error {
+    color: #fca5a5;
+  }
+
+  .login-media__text {
+    color: #f4f4f5;
+  }
+
+  .login-media__bg {
+    filter: brightness(0.35);
+  }
+
+  .login-media__el {
+    filter: brightness(0.7);
   }
 }

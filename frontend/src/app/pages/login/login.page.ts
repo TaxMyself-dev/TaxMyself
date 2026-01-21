@@ -1,10 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, signal, computed } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { LoadingController } from '@ionic/angular';
-import { EMPTY, catchError, filter, finalize, from, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, filter, finalize, from, interval, switchMap, take, tap } from 'rxjs';
 import { ButtonSize } from '../../components/button/button.enum';
 import { ButtonColor } from '../../components/button/button.enum';
 import { bunnerImagePosition, FormTypes } from 'src/app/shared/enums';
@@ -12,6 +12,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { MessageService } from 'primeng/api';
 import { Location } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 
 @Component({
@@ -39,7 +40,10 @@ export class LoginPage implements OnInit {
   mailAddressForResendAuthMail: string = "";
   passwordForResendAuthMail: string = "";
   isVisibleDialogRegisterMessage: boolean = false;
-  showModal = false;
+  showModal = true;
+  resendCountdown = signal(0);
+  isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
+  private destroyRef = inject(DestroyRef);
 
   constructor(
     private location: Location, 
@@ -224,8 +228,22 @@ export class LoginPage implements OnInit {
 
 
   sendVerficaitonEmail(): void {
+    if (this.isVerificationButtonDisabled()) {
+      return;
+    }
+
     this.authService.SendVerificationMail(this.mailAddressForResendAuthMail, this.passwordForResendAuthMail)
       .pipe(
+        tap(() => {
+          this.messageService.add({
+            severity: 'info',
+            summary: 'Success',
+            detail: 'מייל לאימות נשלח לכתובת האימייל שהכנסת',
+            life: 3000,
+            key: 'br',
+          });
+        }),
+        tap(() => this.startResendCooldown(60)),
         catchError((err) => {
           console.log("error in send verification email: ", err);
           switch (err.code) {
@@ -262,19 +280,10 @@ export class LoginPage implements OnInit {
               });
           }
           return EMPTY;
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(() => {
-        console.log("Verification email sent successfully");
-
-        this.messageService.add({
-          severity: 'info',
-          summary: 'Success',
-          detail: "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת",
-          life: 3000,
-          key: 'br'
-        });
-      });
+      .subscribe();
   }
 
 
@@ -336,5 +345,18 @@ export class LoginPage implements OnInit {
           key: 'br'
         })
       });
+  }
+
+  private startResendCooldown(seconds: number): void {
+    this.resendCountdown.set(seconds);
+
+    interval(1000)
+      .pipe(
+        take(seconds),
+        tap((elapsed) => this.resendCountdown.set(seconds - 1 - elapsed)),
+        finalize(() => this.resendCountdown.set(0)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 }
