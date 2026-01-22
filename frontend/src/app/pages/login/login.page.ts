@@ -40,7 +40,7 @@ export class LoginPage implements OnInit {
   mailAddressForResendAuthMail: string = "";
   passwordForResendAuthMail: string = "";
   isVisibleDialogRegisterMessage: boolean = false;
-  showModal = true;
+  showModal = false;
   resendCountdown = signal(0);
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
