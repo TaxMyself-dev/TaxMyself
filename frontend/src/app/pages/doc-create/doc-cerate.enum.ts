@@ -142,20 +142,22 @@ export enum BankName {
   MERCANTILE = 'MERCANTILE',
   BEN_LEUMI = 'BEN_LEUMI',
   OTSAR_HACHAYAL = 'OTSAR_HACHAYAL',
+  YAHAV = 'YAHAV',
 }
 
 
-export type BankNameHebrew = 'הפועלים' | 'לאומי' | 'מזרחי טפחות' | 'דיסקונט' | 'מרכנתיל' | 'בינלאומי' | 'אוצר החייל';
+export type BankNameHebrew = 'הפועלים' | 'לאומי' | 'מזרחי טפחות' | 'דיסקונט' | 'מרכנתיל' | 'בינלאומי' | 'אוצר החייל' | 'יהב';
 
 export const bankOptionsList = [
-  { value: 12, name: 'הפועלים' },
-  { value: 10, name: 'לאומי' },
-  { value: 20, name: 'מזרחי טפחות' },
-  { value: 11, name: 'דיסקונט' },
-  { value: 17, name: 'מרכנתיל' },
-  { value: 31, name: 'בינלאומי' },
-  { value: 14, name: 'אוצר החייל' },
-] satisfies Array<{ value: number; name: BankNameHebrew }>;
+  { value: '12', name: 'הפועלים' },
+  { value: '10', name: 'לאומי' },
+  { value: '20', name: 'מזרחי טפחות' },
+  { value: '11', name: 'דיסקונט' },
+  { value: '17', name: 'מרכנתיל' },
+  { value: '31', name: 'בינלאומי' },
+  { value: '14', name: 'אוצר החייל' },
+  { value: '04', name: 'יהב' }
+] satisfies Array<{ value: string; name: BankNameHebrew }>;
 
 // Map each bank enum to its Hebrew label
 export const BankNameLabels = {
@@ -166,6 +168,7 @@ export const BankNameLabels = {
   [BankName.MERCANTILE]: 'מרכנתיל',
   [BankName.BEN_LEUMI]: 'בינלאומי',
   [BankName.OTSAR_HACHAYAL]: 'אוצר החייל',
+  [BankName.YAHAV]: 'יהב',
 };
 
 export type CreditTransactionType = 'REGULAR' | 'INSTALLMENTS' | 'CREDIT' | 'DEFERRED_CHARGE' | 'OTHER';
