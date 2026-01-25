@@ -65,12 +65,4 @@ export class PaymentDataDto {
   @IsString()
   appName?: string;
 
-  @IsOptional()
-  @IsString()
-  approvalCode?: string;
-
-  @IsOptional()
-  @IsString()
-  reference?: string;
 }
-

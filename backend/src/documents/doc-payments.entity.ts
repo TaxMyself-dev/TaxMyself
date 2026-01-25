@@ -17,9 +17,6 @@ export class DocPayments {
   @Column({ type: 'varchar', length: 4, nullable: true })
   paymentLineNumber: string;
 
-  // @Column({ type: 'enum', enum: PaymentMethodType })
-  // paymentMethod: PaymentMethodType;
-
   @Column({ type: 'varchar' })
   paymentMethod: string;
 
@@ -48,7 +45,7 @@ export class DocPayments {
   cardCompany: CardCompany;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
-  creditCardName: string; // שם הכרטיס הסולק
+  creditCardName: string;
 
   @Column({ type: 'enum', enum: CreditTransactionType, nullable: true })
   creditTransType: CreditTransactionType; // סוג עסקת האשראי
@@ -60,12 +57,6 @@ export class DocPayments {
   creditPayNumber: string;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
-  appName: string; // שם האפליקציה (Bit, PayBox, וכו')
-
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  approvalCode: string; // קוד אישור
-
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  reference: string; // אסמכתא
+  appName: string;
   
 }

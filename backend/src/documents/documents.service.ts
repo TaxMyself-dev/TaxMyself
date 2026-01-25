@@ -956,8 +956,6 @@ export class DocumentsService {
 
         // App payment fields
         appName: (payment as any).appName || null, // varchar(50), nullable
-        approvalCode: (payment as any).approvalCode || null, // varchar(50), nullable
-        reference: (payment as any).reference || null, // varchar(100), nullable
       };
     });
 
