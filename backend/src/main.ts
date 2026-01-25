@@ -14,23 +14,23 @@ async function bootstrap() {
   app.use(bodyParser.json({ limit: '50mb' }));  
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-  // -----------------------------
-  // 🚀 Fetch SERVER external IP automatically on startup
-  // -----------------------------
-  const httpService = app.get(HttpService);
+  // // -----------------------------
+  // // 🚀 Fetch SERVER external IP automatically on startup
+  // // -----------------------------
+  // const httpService = app.get(HttpService);
 
-  try {
-    const { data } = await firstValueFrom(
-      httpService.get('https://api.bigdatacloud.net/data/client-info')
-    );
+  // try {
+  //   const { data } = await firstValueFrom(
+  //     httpService.get('https://api.bigdatacloud.net/data/client-info')
+  //   );
 
-    console.log('===========================================');
-    console.log('🚀 External IP detected:', data.ipString);
-    console.log('===========================================');
+  //   console.log('===========================================');
+  //   console.log('🚀 External IP detected:', data.ipString);
+  //   console.log('===========================================');
 
-  } catch (err) {
-    console.error('❌ Failed to fetch external IP:', err.message);
-  }
+  // } catch (err) {
+  //   console.error('❌ Failed to fetch external IP:', err.message);
+  // }
 
   await app.listen(parseInt(process.env.PORT) || 8080);
 

@@ -9,21 +9,54 @@ import { User } from '../users/user.entity';
 @Injectable()
 export class FeezbackJwtService {
   private readonly logger = new Logger(FeezbackJwtService.name);
-  private readonly privateKey: string;
+  private privateKey: string | null = null;
   private readonly baseRedirectUrl: string;
 
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {
-    const keyPath = process.env.FEEZBACK_PRIVATE_KEY_PATH;
-    // console.log(`Loading Feezback private key from: ${keyPath}`);
-    this.privateKey = fs.readFileSync(keyPath, 'utf8');
-    
     // Base URL for redirects - should be your frontend URL
     this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL || 
       process.env.FRONTEND_URL || 
       'http://localhost:4200';
+  }
+
+  /**
+   * Lazy loads the private key when needed
+   * Priority: FEEZBACK_PRIVATE_KEY (env var) > FEEZBACK_PRIVATE_KEY_PATH (file path)
+   */
+  private getPrivateKey(): string {
+    if (this.privateKey) {
+      return this.privateKey;
+    }
+
+    // Priority 1: Use the private key directly from environment variable (for production)
+    const privateKeyFromEnv = process.env.FEEZBACK_PRIVATE_KEY;
+    
+    // Priority 2: Read from file path (for local development)
+    const keyPath = process.env.FEEZBACK_PRIVATE_KEY_PATH;
+    
+    if (privateKeyFromEnv) {
+      // Use the key directly from environment variable
+      this.privateKey = privateKeyFromEnv;
+      this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
+    } else if (keyPath) {
+      // Read from file
+      try {
+        this.privateKey = fs.readFileSync(keyPath, 'utf8');
+        this.logger.log(`✅ Feezback private key loaded from file: ${keyPath}`);
+      } catch (error) {
+        this.logger.error(`❌ Failed to read private key from ${keyPath}:`, error.message);
+        throw new Error(`Failed to load Feezback private key from file: ${error.message}`);
+      }
+    } else {
+      // Neither is set - throw error
+      this.logger.error('❌ Neither FEEZBACK_PRIVATE_KEY nor FEEZBACK_PRIVATE_KEY_PATH is set');
+      throw new Error('FEEZBACK_PRIVATE_KEY or FEEZBACK_PRIVATE_KEY_PATH environment variable is required');
+    }
+
+    return this.privateKey;
   }
 
   /**
@@ -116,7 +149,7 @@ export class FeezbackJwtService {
     // console.log("Redirect URLs:", JSON.stringify(redirects, null, 2));
     // console.log(`User ID for firebaseId ${firebaseId}: ${userId}`);
 
-    const token = jwt.sign(payload, this.privateKey, {
+    const token = jwt.sign(payload, this.getPrivateKey(), {
       algorithm: 'RS512', 
     });
 
@@ -147,7 +180,7 @@ export class FeezbackJwtService {
       "encrypt": true
     };
 
-    const token = jwt.sign(payload, this.privateKey, {
+    const token = jwt.sign(payload, this.getPrivateKey(), {
       algorithm: 'RS512',
     });
 

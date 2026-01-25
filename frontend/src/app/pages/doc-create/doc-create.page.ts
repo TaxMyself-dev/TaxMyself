@@ -692,6 +692,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.setSumInPaymentForm();
   }
 
+  /**
+   * Ensures a value is a valid number, returning defaultValue if not
+   */
+  private ensureNumber(value: any, defaultValue: number = 0): number {
+    if (value == null || value === '') return defaultValue;
+    const num = Number(value);
+    return isNaN(num) ? defaultValue : num;
+  }
+
   private addNewLine(formData: any): void {
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
@@ -752,7 +761,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       description: formData.description,
       unitQuantity: formData.unitAmount,
       sum: formData.sum,
-      discount: formData.discount ?? 0,
+      discount: this.ensureNumber(formData.discount, 0),
       vatOpts: vatOpts,
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
       docType: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value,
@@ -814,7 +823,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       description: formData.description,
       unitQuantity: formData.unitAmount,
       sum: formData.sum,
-      discount: formData.discount ?? 0,
+      discount: this.ensureNumber(formData.discount, 0),
       vatOpts: vatOpts,
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
     };

@@ -58,5 +58,14 @@ export class DocPayments {
 
   @Column({ type: 'varchar', length: 3, nullable: true })
   creditPayNumber: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  appName: string; // שם האפליקציה (Bit, PayBox, וכו')
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  approvalCode: string; // קוד אישור
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  reference: string; // אסמכתא
   
 }

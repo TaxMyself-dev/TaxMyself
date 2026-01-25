@@ -60,5 +60,17 @@ export class PaymentDataDto {
   @IsOptional()
   @IsString()
   card4Number?: string;
+
+  @IsOptional()
+  @IsString()
+  appName?: string;
+
+  @IsOptional()
+  @IsString()
+  approvalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  reference?: string;
 }
 
