@@ -208,7 +208,10 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
   ): Promise<SupplierResponseDto[]> {
     const firebaseId = request.user?.firebaseId;
-    return this.expensesService.getSupplierNamesByUserId(firebaseId);
+    console.log("🚀 ~ ExpensesController ~ getSupplierNamesByUserId ~ firebaseId:", firebaseId)
+    const businessNumber = request.user?.businessNumber;
+    console.log("🚀 ~ ExpensesController ~ getSupplierNamesByUserId ~ businessNumber:", businessNumber)
+    return this.expensesService.getSupplierNamesByUserId(firebaseId, businessNumber);
   }
 
 

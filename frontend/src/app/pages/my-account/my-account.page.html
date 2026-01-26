@@ -8,10 +8,6 @@
             <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
         </div>
         <div class="user-actions">
-            <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-          [link]="'/add-expense'">
-                <i class="pi pi-plus"></i>
-            </app-p-button>
             <!-- <app-p-button 
                 class="feezback-connect-button" 
                 [buttonText]="'התחבר לבנקאות פתוחה'" 
@@ -40,12 +36,11 @@
                 <i class="pi pi-list"></i>
             </app-p-button> -->
         </div>
-        <!-- <app-p-button class="vat-report-payment-button" [buttonText]="'פתח'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-        [link]="'/add-expense'" (onButtonClicked)="openModalAddExpenses()">
-              <i class="pi pi-plus"></i>
-          </app-p-button> -->
-    </div>
-
+        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="openMannualExpenses()">
+            <i class="pi pi-plus"></i>
+        </app-p-button>
+</div>
     <div class="nevigation-block">
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">

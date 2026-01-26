@@ -395,3 +395,59 @@ width: 220px;
     }
   }
 }
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    background-color: #0d0d0d;
+    color: #f4f4f5;
+  }
+
+  .register-screen {
+    background-color: #0d0d0d;
+  }
+
+  .register-wrap-module {
+    background-color: #121212;
+    color: #f4f4f5;
+  }
+
+  .level,
+  .title,
+  .main-title,
+  .business-title,
+  .login-link,
+  .password-instracions {
+    color: #d1d5db;
+  }
+
+  .form-register,
+  .children-form,
+  .business-form,
+  .business-row-wrap,
+  .business-block,
+  .business-row {
+    color: #f4f4f5;
+  }
+
+  .business-block {
+    border-top: 1px solid #3d3d3d;
+  }
+
+  .register-wrap-image {
+    background-color: #1b1b1b;
+  }
+
+  .register-media__text,
+  .image-title,
+  .image-sub-title {
+    color: #f4f4f5;
+  }
+
+  .register-media__bg {
+    filter: brightness(0.35);
+  }
+
+  .register-media__el {
+    filter: brightness(0.7);
+  }
+}

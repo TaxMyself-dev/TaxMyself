@@ -40,10 +40,13 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Validate the accountant's token and get Firebase UID
     const decodedToken = await this.validateToken(token);
     const authenticatedFirebaseId = decodedToken.uid;
+    const businessNumberHeader = (request.headers['businessnumber'] as string | undefined);
 
     // ✅ Attach the authenticated user (agent) info
-    request.user = { firebaseId: authenticatedFirebaseId, role: 'user' }; // ✅ Now TypeScript recognizes `request.user`
+    request.user = { firebaseId: authenticatedFirebaseId, role: 'user', businessNumber: businessNumberHeader, }; // ✅ Now TypeScript recognizes `request.user`
 
+
+    //TODO: If this agent need to update the business number to client, not of agent.
     // ✅ Extract `x-client-user-id` from headers (if exists)
     const clientUserId = Array.isArray(request.headers['x-client-user-id'])
       ? request.headers['x-client-user-id'][0]

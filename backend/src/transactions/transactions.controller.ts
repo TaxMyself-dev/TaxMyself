@@ -75,7 +75,9 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async getBills(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
+    const businessNumber = request.user?.businessNumber;
     console.log('User Firebase ID:', userId);
+    console.log('User Business Number:', businessNumber);
     return this.transactionsService.getBillsByUserId(userId);
   }
   

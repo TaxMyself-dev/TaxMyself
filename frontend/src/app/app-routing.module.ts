@@ -30,7 +30,7 @@ const routes: Routes = [
   },
   {
     path: 'my-account',
-    loadChildren: () => import('./pages/my-account/my-account.module').then( m => m.MyAccountPageModule),
+    loadComponent: () => import('./pages/my-account/my-account.page').then( m => m.MyAccountPage),
     canActivate: [AuthGuard] 
   },
   {
@@ -103,6 +103,10 @@ const routes: Routes = [
   {
     path: 'feezback/expired/:flowId',
     loadChildren: () => import('./pages/feezback-expired/feezback-expired.module').then(m => m.FeezbackExpiredPageModule)
+  },
+  {
+    path: 'shaam/callback',
+    loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
   },
  
 ];

@@ -32,6 +32,12 @@
   margin-right: 16px;
 }
 
+@media (prefers-color-scheme: dark) {
+  .block-title {
+    color: #fff;
+  }
+}
+
 .wrap-checkboxes {
   display: flex;
   margin-bottom: 10px;

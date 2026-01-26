@@ -1,0 +1,148 @@
+### SHAAM API Test Requests
+### Use with VS Code REST Client extension or similar tools
+### Base URL - adjust if needed
+@baseUrl = http://localhost:3000
+@accessToken = YOUR_ACCESS_TOKEN_HERE
+
+### 1. Redirect to SHAAM Login (Auto Redirect)
+### This endpoint redirects you directly to SHAAM authorization page
+### IMPORTANT: Open this URL in your browser, not via REST Client
+### Browser: http://localhost:3000/shaam/oauth/redirect
+### Or use the URL below in your browser address bar
+GET {{baseUrl}}/shaam/oauth/redirect
+
+###
+
+### 2. Get OAuth Authorization URL (Returns URL as JSON)
+### Returns: { url, state }
+### Copy the URL from response and open in browser
+GET {{baseUrl}}/shaam/oauth/authorize-url
+Content-Type: application/json
+
+###
+
+### 2. OAuth Callback (Exchange Code for Token)
+### This endpoint is typically called by SHAAM redirect after user authorization
+### Replace {code} and {state} with actual values from the redirect
+### Note: In real flow, this is a browser redirect, but you can test it manually
+GET {{baseUrl}}/shaam/oauth/callback?code=AUTHORIZATION_CODE_HERE&state=STATE_STRING_HERE&redirect_uri=https://localhost/get-all-number
+Content-Type: application/json
+
+###
+
+### 3. Submit Invoice Approval
+### Requires: Authorization header with Bearer token
+### Replace @accessToken above with actual token from step 2
+POST {{baseUrl}}/shaam/invoices/approval
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "accounting_software_number": 123456,
+  "amount_before_discount": 1000.00,
+  "customer_vat_number": 123456789,
+  "discount": 0.00,
+  "invoice_date": "2026-01-15",
+  "invoice_id": "INV-001",
+  "invoice_issuance_date": "2026-01-15",
+  "invoice_reference_number": "REF-001",
+  "invoice_type": 1,
+  "payment_amount": 1000.00,
+  "payment_amount_including_vat": 1170.00,
+  "vat_amount": 170.00,
+  "vat_number": 987654321
+}
+
+###
+
+### 4. Submit Invoice Approval - Example 2 (Different amounts)
+POST {{baseUrl}}/shaam/invoices/approval
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "accounting_software_number": 789012,
+  "amount_before_discount": 5000.00,
+  "customer_vat_number": 987654321,
+  "discount": 100.00,
+  "invoice_date": "2026-01-20",
+  "invoice_id": "INV-002",
+  "invoice_issuance_date": "2026-01-20",
+  "invoice_reference_number": "REF-002",
+  "invoice_type": 2,
+  "payment_amount": 4900.00,
+  "payment_amount_including_vat": 5733.00,
+  "vat_amount": 833.00,
+  "vat_number": 123456789
+}
+
+###
+
+### 5. Test Validation Error - Invalid date format
+POST {{baseUrl}}/shaam/invoices/approval
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "accounting_software_number": 123456,
+  "amount_before_discount": 1000.00,
+  "customer_vat_number": 123456789,
+  "discount": 0.00,
+  "invoice_date": "15/01/2026",
+  "invoice_id": "INV-001",
+  "invoice_issuance_date": "15/01/2026",
+  "invoice_reference_number": "REF-001",
+  "invoice_type": 1,
+  "payment_amount": 1000.00,
+  "payment_amount_including_vat": 1170.00,
+  "vat_amount": 170.00,
+  "vat_number": 987654321
+}
+
+###
+
+### 6. Test Validation Error - Payment amount mismatch
+POST {{baseUrl}}/shaam/invoices/approval
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "accounting_software_number": 123456,
+  "amount_before_discount": 1000.00,
+  "customer_vat_number": 123456789,
+  "discount": 0.00,
+  "invoice_date": "2026-01-15",
+  "invoice_id": "INV-001",
+  "invoice_issuance_date": "2026-01-15",
+  "invoice_reference_number": "REF-001",
+  "invoice_type": 1,
+  "payment_amount": 1000.00,
+  "payment_amount_including_vat": 1200.00,
+  "vat_amount": 170.00,
+  "vat_number": 987654321
+}
+
+###
+
+### 7. Test Missing Authorization Header
+POST {{baseUrl}}/shaam/invoices/approval
+Content-Type: application/json
+
+{
+  "accounting_software_number": 123456,
+  "amount_before_discount": 1000.00,
+  "customer_vat_number": 123456789,
+  "discount": 0.00,
+  "invoice_date": "2026-01-15",
+  "invoice_id": "INV-001",
+  "invoice_issuance_date": "2026-01-15",
+  "invoice_reference_number": "REF-001",
+  "invoice_type": 1,
+  "payment_amount": 1000.00,
+  "payment_amount_including_vat": 1170.00,
+  "vat_amount": 170.00,
+  "vat_number": 987654321
+}
+
+###
+

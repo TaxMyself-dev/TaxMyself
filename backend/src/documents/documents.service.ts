@@ -726,6 +726,11 @@ export class DocumentsService {
           paymentMethodHebrew = 'כרטיס אשראי';
           break;
 
+        case 'APP':
+          details = line.appName || 'שולם דרך אפליקציה';
+          paymentMethodHebrew = 'אפליקציה';
+          break;
+
         default:
           throw new Error(`אמצעי תשלום לא ידוע: ${line.paymentMethod}`);
       }
@@ -948,6 +953,9 @@ export class DocumentsService {
         creditTransType: creditTransType, // enum CreditTransactionType, nullable
         card4Number: payment.card4Number || null, // varchar(4), nullable
         creditPayNumber: (payment as any).creditPayNumber || null, // varchar(3), nullable
+
+        // App payment fields
+        appName: (payment as any).appName || null, // varchar(50), nullable
       };
     });
 
@@ -1191,6 +1199,8 @@ export class DocumentsService {
         return 'CHECK';
       case 'כרטיס אשראי':
         return 'CREDIT_CARD';
+      case 'אפליקציה':
+        return 'APP';
     }
   }
 

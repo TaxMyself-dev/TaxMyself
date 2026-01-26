@@ -1,0 +1,67 @@
+<div class="shaam-callback-page">
+  <div class="result-card">
+    @if (isLoading) {
+      <div class="loading-container">
+        <i class="pi pi-spin pi-spinner" style="font-size: 3rem; color: #007bff;"></i>
+        <h2 class="loading-text">מתחבר ל-SHAAM...</h2>
+        <p class="loading-message">אנא המתן בזמן שאנו מטפלים באישור</p>
+      </div>
+    }
+
+    @if (isSuccess && !isLoading) {
+      <div class="result-icon success">
+        <i class="pi pi-check-circle"></i>
+      </div>
+      
+      <h1 class="result-title">החיבור הושלם בהצלחה!</h1>
+      
+      <p class="result-message">
+        החיבור לרשות המיסים (SHAAM) הושלם בהצלחה.<br>
+        כעת תוכל לשלוח חשבוניות לאישור.
+      </p>
+
+      <div class="token-info" *ngIf="accessToken">
+        <p class="token-label">טוקן התקבל בהצלחה</p>
+        <p class="token-expiry">תוקף: {{ expiresIn }} שניות</p>
+      </div>
+
+      <div class="result-actions">
+        <app-p-button 
+          [buttonText]="'חזרה לדף הבית'" 
+          [buttonSize]="buttonSize.BIG"
+          [buttonColor]="buttonColor.YELLOW"
+          (onButtonClicked)="navigateToHome()">
+        </app-p-button>
+      </div>
+    }
+
+    @if (isError && !isLoading) {
+      <div class="result-icon error">
+        <i class="pi pi-times-circle"></i>
+      </div>
+      
+      <h1 class="result-title">החיבור נכשל</h1>
+      
+      <p class="result-message error-message">
+        {{ errorMessage }}
+      </p>
+
+      <div class="result-actions">
+        <app-p-button 
+          [buttonText]="'נסה שוב'" 
+          [buttonSize]="buttonSize.BIG"
+          [buttonColor]="buttonColor.YELLOW"
+          (onButtonClicked)="tryAgain()">
+        </app-p-button>
+        <app-p-button 
+          [buttonText]="'חזרה לדף הבית'" 
+          [buttonSize]="buttonSize.BIG"
+          [buttonColor]="buttonColor.WHITE"
+          (onButtonClicked)="navigateToHome()">
+        </app-p-button>
+      </div>
+    }
+  </div>
+</div>
+
+

@@ -3,6 +3,7 @@ import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent } from '@angular/c
 import { Observable, from, of } from 'rxjs';
 import { switchMap, take } from 'rxjs/operators';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
+import { AuthService } from '../services/auth.service';
 
 // @Injectable()
 // export class AuthInterceptor implements HttpInterceptor {
@@ -50,17 +51,32 @@ import { AngularFireAuth } from '@angular/fire/compat/auth';
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
 
-  constructor(private afAuth: AngularFireAuth) {}
+  constructor(
+    private afAuth: AngularFireAuth,
+    private authService: AuthService
+  ) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler) {
     return this.afAuth.idToken.pipe(
       take(1),
       switchMap(token => {
-        if (!token) return next.handle(req);
+        const businessNumber = this.authService.getActiveBusinessNumber();
+        console.log("🚀 ~ AuthInterceptor ~ intercept ~ businessNumber:", businessNumber)
+        if (!token && !businessNumber) {
+          return next.handle(req);
+        }
+
+        const headers: any = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        if (businessNumber) {
+          headers['businessNumber'] = businessNumber;
+        }
 
         return next.handle(
           req.clone({
-            setHeaders: { Authorization: `Bearer ${token}` }
+            setHeaders: headers
           })
         );
       })
