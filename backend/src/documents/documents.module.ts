@@ -27,5 +27,6 @@ import { BusinessService } from 'src/business/business.service';
     BookkeepingService,
     BusinessService
   ],
+  exports: [DocumentsService], // Export DocumentsService for use in other modules
 })
 export class DocumentsModule {}

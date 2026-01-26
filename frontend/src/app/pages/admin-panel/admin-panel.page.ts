@@ -6,6 +6,7 @@ import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { CategoryManagementComponent } from 'src/app/shared/category-management/category-management.component';
 import { TransManagementComponent } from 'src/app/shared/trans-management/trans-management.component';
 import { ClientsDashboardComponent } from 'src/app/shared/clients-dashboard/clients-dashboard.component';
+import { AgentManagementComponent } from 'src/app/shared/agent-management/agent-management.component';
 
 
 @Component({
@@ -21,6 +22,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
     { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
+    { label: 'ניהול סוכנים', value: 'agent-management', component: AgentManagementComponent },
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value
