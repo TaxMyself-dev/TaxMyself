@@ -1,0 +1,250 @@
+<div class="agent-management-container">
+  <div class="header">
+    <h2>ניהול סוכנים</h2>
+    <p class="description">ניהול סוכנים ובדיקת בקשות API</p>
+  </div>
+
+  <!-- Add Agent Section -->
+  <div class="section">
+    <h3>הוסף סוכן חדש</h3>
+    <form [formGroup]="agentForm" (ngSubmit)="onSubmit()" class="agent-form">
+      <app-input-text
+        [parentForm]="agentForm"
+        [controlName]="'name'"
+        [labelText]="'שם הסוכן'"
+        [placeholder]="'הזן שם סוכן'">
+      </app-input-text>
+
+      <div class="form-actions">
+        <app-p-button
+          [buttonText]="'הוסף סוכן'"
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK"
+          [isLoading]="isLoading()"
+          [disabled]="agentForm.invalid"
+          (onButtonClicked)="onSubmit()">
+        </app-p-button>
+      </div>
+    </form>
+
+    <app-agent-credentials-modal
+      *ngIf="showCredentialsModal() && credentials()"
+      [isVisible]="showCredentialsModal()"
+      [apiKey]="credentials()?.apiKey || ''"
+      [secret]="credentials()?.secret || ''"
+      (visibleChange)="onCredentialsModalClose($event)">
+    </app-agent-credentials-modal>
+  </div>
+
+  <!-- Test Agent Section -->
+  <div class="section">
+    <h3>בדיקת בקשות סוכן</h3>
+    <p class="section-description">הזן פרטי סוכן לבדיקה (מהסביבה או ידנית)</p>
+
+    <form [formGroup]="testAgentForm" class="test-agent-form">
+      <div class="credentials-section">
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'apiKey'"
+          [labelText]="'API Key'"
+          [placeholder]="'הזן API Key'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'secret'"
+          [labelText]="'Secret'"
+          [placeholder]="'הזן Secret'">
+        </app-input-text>
+      </div>
+
+      <!-- Ping Test -->
+      <div class="test-section">
+        <h4>בדיקת Ping</h4>
+        <p class="test-description">בדוק חיבור לשרת</p>
+        <app-p-button
+          [buttonText]="'בדוק Ping'"
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK"
+          [isLoading]="isTesting() && activeTestSection() === 'ping'"
+          [disabled]="!testAgentForm.get('apiKey')?.value || !testAgentForm.get('secret')?.value"
+          (onButtonClicked)="testPing()">
+        </app-p-button>
+      </div>
+
+      <!-- Register Customer Test -->
+      <div class="test-section">
+        <h4>רישום לקוח</h4>
+        <p class="test-description">צור לקוח חדש דרך סוכן</p>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'externalCustomerId'"
+          [labelText]="'מזהה לקוח חיצוני'"
+          [placeholder]="'למשל: ext-123'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'email'"
+          [labelText]="'אימייל (חובה)'"
+          [placeholder]="'customer@example.com'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'id'"
+          [labelText]="'תעודת זהות (חובה)'"
+          [placeholder]="'123456789'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'phone'"
+          [labelText]="'טלפון'"
+          [placeholder]="'0501234567'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'fName'"
+          [labelText]="'שם פרטי'"
+          [placeholder]="'יוחנן'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'lName'"
+          [labelText]="'שם משפחה'"
+          [placeholder]="'כהן'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'city'"
+          [labelText]="'מקום מגורים'"
+          [placeholder]="'תל אביב'">
+        </app-input-text>
+
+        <h4 style="margin-top: 20px; margin-bottom: 10px;">פרטי עסק</h4>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'businessName'"
+          [labelText]="'שם העסק'"
+          [placeholder]="'שם העסק'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'businessNumber'"
+          [labelText]="'מספר עוסק'"
+          [placeholder]="'מספר עוסק'">
+        </app-input-text>
+
+        <app-input-select
+          [parentForm]="testAgentForm"
+          [controlName]="'businessType'"
+          [labelText]="'סוג עוסק'"
+          [placeholder]="'בחר סוג עוסק'"
+          [items]="businessTypeOptions">
+        </app-input-select>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'businessAddress'"
+          [labelText]="'כתובת העסק (חובה)'"
+          [placeholder]="'רחוב הרצל 1, תל אביב'">
+        </app-input-text>
+
+        <app-p-button
+          [buttonText]="'צור לקוח'"
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK"
+          [isLoading]="isTesting() && activeTestSection() === 'register-customer'"
+          [disabled]="testAgentForm.get('externalCustomerId')?.invalid || testAgentForm.get('email')?.invalid || testAgentForm.get('id')?.invalid || testAgentForm.get('businessAddress')?.invalid"
+          (onButtonClicked)="testRegisterCustomer()">
+        </app-p-button>
+      </div>
+
+      <!-- Create Document Section -->
+      <div class="create-document-inputs" style="margin-top: 30px;">
+        <h4>יצירת מסמך (קבלה)</h4>
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'documentExternalCustomerId'"
+          [labelText]="'מזהה לקוח חיצוני'"
+          [placeholder]="'למשל: ext-123'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'documentRecipientName'"
+          [labelText]="'שם הלקוח'"
+          [placeholder]="'שם הלקוח'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'documentAmount'"
+          [labelText]="'סכום (לפני מע״מ)'"
+          [placeholder]="'1000'">
+        </app-input-text>
+
+        <app-input-text
+          [parentForm]="testAgentForm"
+          [controlName]="'documentDescription'"
+          [labelText]="'תיאור'"
+          [placeholder]="'שירותים מקצועיים'">
+        </app-input-text>
+
+        <app-p-button
+          [buttonText]="'צור מסמך (קבלה)'"
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK"
+          [isLoading]="isTesting() && activeTestSection() === 'create-document'"
+          [disabled]="testAgentForm.get('documentExternalCustomerId')?.invalid || testAgentForm.get('documentRecipientName')?.invalid || testAgentForm.get('documentAmount')?.invalid || !testAgentForm.get('businessNumber')?.value"
+          (onButtonClicked)="testCreateDocument()">
+        </app-p-button>
+      </div>
+    </form>
+
+    <!-- Test Results -->
+    <div class="test-results" *ngIf="testResults()">
+      <div class="results-header">
+        <h4>תוצאות בדיקה</h4>
+        <app-p-button
+          [buttonText]="'נקה'"
+          [buttonSize]="buttonSize.SMALL"
+          [buttonColor]="buttonColor.WHITE_BORDER"
+          (onButtonClicked)="clearTestResults()">
+        </app-p-button>
+      </div>
+
+      <div class="result-content" [class.success]="testResults()?.success" [class.error]="!testResults()?.success">
+        <div class="result-item">
+          <strong>Endpoint:</strong> {{ testResults()?.endpoint }}
+        </div>
+        <div class="result-item" *ngIf="testResults()?.request">
+          <strong>Request:</strong>
+          <pre>{{ testResults()?.request | json }}</pre>
+        </div>
+        <div class="result-item" *ngIf="testResults()?.response">
+          <strong>Response:</strong>
+          <pre>{{ testResults()?.response | json }}</pre>
+        </div>
+        <div class="result-item" *ngIf="testResults()?.error">
+          <strong>Error:</strong>
+          <pre>{{ testResults()?.error | json }}</pre>
+        </div>
+        <div class="result-item" *ngIf="testResults()?.status">
+          <strong>Status:</strong> {{ testResults()?.status }}
+        </div>
+        <div class="result-item">
+          <strong>Timestamp:</strong> {{ testResults()?.timestamp }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

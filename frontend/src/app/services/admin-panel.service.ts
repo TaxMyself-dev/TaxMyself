@@ -45,4 +45,9 @@ export class AdminPanelService {
       .set('bookingStatus', 'booked');
     return this.http.get<any>(url, { params });
   }
+
+  addAgent(name: string): Observable<any> {
+    const url = `${environment.apiUrl}agent/admin/add`;
+    return this.http.post<any>(url, { name });
+  }
 }

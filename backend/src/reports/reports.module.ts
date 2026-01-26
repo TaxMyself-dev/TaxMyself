@@ -22,7 +22,7 @@ import { ReportsController } from './reports.controller';
 //Services
 import { ReportsService } from './reports.service';
 import { ExpensesService } from '../expenses/expenses.service';
-import { UsersService } from '../users/users.service';
+import { UsersModule } from '../users/users.module';
 import { DefaultCategory } from '../expenses/default-categories.entity';
 import { UserCategory } from '../expenses/user-categories.entity';
 import { TransactionsService } from 'src/transactions/transactions.service';
@@ -34,11 +34,14 @@ import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Transactions, Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
+  imports: [
+    TypeOrmModule.forFeature([Transactions, Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
                                       ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments, 
                                       Delegation, JournalEntry, JournalLine, DefaultBookingAccount]),
-            SharedModule],
+    SharedModule,
+    UsersModule
+  ],
   controllers: [ReportsController],
-  providers: [ReportsService, ExpensesService, UsersService, TransactionsService, FinsiteService]
+  providers: [ReportsService, ExpensesService, TransactionsService, FinsiteService]
 })
 export class ReportsModule {}
