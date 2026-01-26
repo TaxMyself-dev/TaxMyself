@@ -1,0 +1,642 @@
+openapi: 3.0.1
+info:
+  title: Invoices
+  version: v2
+  description: |
+
+    שירות קבלת מספר אישור לחשבוניות (צד הספק)
+    >
+    כל בקשה למספר אישור לחשבונית חייבת לכלול מזהה ייחודי.  וכן את המידע המפורט בסכמה שלהלן השירות יחזיר מספר אישור המשויך למזהה הייחודי. 
+    >
+    אם חשבונית מקבלת קוד(י) שגיאה טכניים, יש לתקן את הבעיה ולשדר את החשבונית מחדש. 
+    >
+    אם השירות אינו מחזיר מספר אישור (עיכוב מהותי), תוכנת הנהלת החשבונות תציג בפני המשתמש 4 אפשרויות לבחירה כמתואר בשירות החלטה בגין חשבונית שעוכבה
+    >
+    --
+    >
+    Allocation Number Retrieval Service for Invoices (Supplier Side). 
+    >
+    Each request for an invoice confirmation number must include a unique identifier - Invoice_ID. as well as the information detailed in schema bellow The service will return a confirmation number associated with the unique identifier.
+    >
+    If an invoice receives a technical error code(s), the problem should be corrected and the invoice should be retransmitted again. 
+    >
+    If the service does not return a confirmation number (substantial delay) The accounting software will present the user with 4 options to choose from as described in invoice decision service.
+  x-ibm-name: invoices
+servers:
+  - url: https://t-ita-api.taxes.gov.il/shaam/tsandbox
+  - url: https://openapi.taxes.gov.il/shaam/tsandbox
+  - url: https://t-ita-api.taxes.gov.il/shaam/tsandbox
+  - url: https://ita-api.taxes.gov.il/shaam/tsandbox
+paths:
+  /Invoices/v2/Approval:
+    post:
+      tags:
+        - InvoicesEndpoint
+      operationId: InvoiceApproval
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceRequest'
+        required: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseApproval'
+              example:
+                status: 200
+                message: Invoice approved
+                confirmation_number: '20240718181618323199093572'
+                approved: true
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaErrorMessageErrorResponse'
+              example:
+                status: 400
+                message:
+                  errors:
+                    - code: 434
+                      message: Invoice date is too old for approval
+                      param: invoice_date
+                      location: request
+                confirmation_number: '0'
+                approved: false
+        '406':
+          description: Not Acceptable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptableErrorResponse'
+              example:
+                status: 406
+                message: Not Acceptable
+                error_id: '20240718181618323199093572'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralErrorResponse'
+                example:
+                  status: 500
+                  message: Internal error server
+                  error_id: '20240718181618323199093572'
+  /Invoices/v2/health:
+    get:
+      tags:
+        - HealthChecks
+      summary: Health Check
+      description: Checks the health of the application
+      responses:
+        '200':
+          description: Healthy
+        '503':
+          description: Unhealthy
+  /Invoices/v2/alive:
+    get:
+      tags:
+        - HealthChecks
+      summary: Liveness Check
+      description: Checks if the app is alive
+      responses:
+        '200':
+          description: Alive
+        '503':
+          description: Dead
+components:
+  schemas:
+    ErrorDetails:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: קוד שגיאה
+          format: int32
+          example: 460
+        message:
+          type: string
+          description: הודעת שגיאה
+          nullable: true
+          example: Invoice not approved
+        param:
+          type: string
+          description: שדה
+          nullable: true
+          example: vat_number
+        location:
+          type: string
+          description: מיקום
+          nullable: true
+          example: approval
+      additionalProperties: false
+    ErrorMessage:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetails'
+          nullable: true
+      additionalProperties: false
+    ErrorMessageResponseErrorApproval:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HttpStatusCode'
+          example: 400
+          description: סטטוס
+        message:
+          $ref: '#/components/schemas/ErrorMessage'
+          description: הסבר
+        confirmation_number:
+          type: string
+          description: מספר הקצאה
+          nullable: true
+          example: 0
+        approved:
+          type: boolean
+          description: האם הוקצתה חשבונית
+          example: false
+      additionalProperties: false
+    HsbSug:
+      enum:
+        - 300
+        - 305
+        - 310
+        - 320
+        - 330
+        - 332
+        - 340
+        - 345
+        - 348
+      type: integer
+      format: int32
+    HttpStatusCode:
+      enum:
+        - 200
+        - 400
+        - 406
+        - 500
+      type: integer
+      format: int32
+    InvoiceItem:
+      type: object
+      properties:
+        index:
+          maximum: 999999
+          minimum: 0
+          type: integer
+          description: מספר שורה
+          format: int32
+          nullable: true
+          example: 999999
+        catalog_id:
+          maxLength: 13
+          type: string
+          description: "מספר פריט (מק\"ט) , 1.\tכאשר מדובר בחשבונית ריכוז המתבססת על תעודות משלוח אין את פרטי החשבונית. בשדה \"מספר פריט\" (1259) יירשמו מספרי תעודות המשלוח בדומה לחשבוניות אוטונומיה"
+          nullable: true
+          example: '5569875437'
+        category:
+          maximum: 999999
+          minimum: 0
+          pattern: ^[1-4]
+          type: integer
+          description: קטגוריית הפריט תו ראשון ישמש לסימון טובין (1) או שירות (2) זיכוי טובין (3) או זיכוי שירות (4). 5 תווים נוספים לקטגוריית משנה כמצורף בנספח קטגורית משנה
+          format: int32
+          nullable: true
+          example: 15
+        description:
+          maxLength: 30
+          type: string
+          description: תיאור הפריט
+          nullable: true
+          example: תיאור הפריט
+        measure_unit_description:
+          maxLength: 20
+          type: string
+          description: תיאור יחידת מידה
+          nullable: true
+          example: קילו
+        quantity:
+          maximum: 999999999999.99
+          minimum: -999999999999.99
+          type: number
+          description: כמות
+          format: double
+          nullable: true
+          example: 100.5
+        price_per_unit:
+          maximum: 999999999999.99
+          minimum: 0
+          type: number
+          description: מחיר ליחידה
+          format: double
+          nullable: true
+          example: 5.5
+        discount:
+          maximum: 999999999999.99
+          minimum: -999999999999.99
+          type: number
+          description: הנחת פריט
+          format: double
+          nullable: true
+          example: 52.75
+        total_amount:
+          maximum: 999999999999.99
+          minimum: -999999999999.99
+          type: number
+          description: סך סכום לפריט ללא מע"מ בניכוי הנחת פריט
+          format: double
+          nullable: true
+          example: 500
+        vat_rate:
+          maximum: 99.99
+          minimum: 0
+          type: number
+          description: שיעור מע"מ
+          format: double
+          nullable: true
+          example: 17
+        vat_amount:
+          maximum: 999999999999.99
+          minimum: -999999999999.99
+          type: number
+          description: סכום מע"מ
+          format: double
+          nullable: true
+          example: 85
+      additionalProperties: false
+    InvoiceRequest:
+      required:
+        - accounting_software_number
+        - amount_before_discount
+        - customer_vat_number
+        - discount
+        - invoice_date
+        - invoice_id
+        - invoice_issuance_date
+        - invoice_reference_number
+        - invoice_type
+        - payment_amount
+        - payment_amount_including_vat
+        - vat_amount
+        - vat_number
+      type: object
+      properties:
+        invoice_id:
+          maxLength: 50
+          minLength: 1
+          type: string
+          pattern: ^(?=.*[^\s0])[\s0]*.*$
+          description: מספר קשר פנימי (מספר זמני של הנה\"ח
+          example: '987654321'
+        invoice_type:
+          $ref: '#/components/schemas/HsbSug'
+          example: 305
+        vat_number:
+          maximum: 999999999
+          minimum: 10
+          type: integer
+          description: 'מספר תיק מע"מ (ספק). ניתן להשתמש בעוסקים מדומים אלו לצורכי בדיקות: 777777715 - הקצאה, 777777723 - חשבונית מעוכבת, 777777731 - נמצאה חשבונית שלא סומן בה איך להמשיך, 777777749 - נמצאה חשבונית ונבחר כבר איך להתקדם איתה.'
+          format: int32
+          example: 777777715
+        union_vat_number:
+          maximum: 999999999
+          minimum: 0
+          type: integer
+          description: מספר העוסק באיחוד העוסקים
+          format: int32
+          nullable: true
+          example: 125847553
+        authorized_company:
+          maximum: 999999999
+          minimum: 0
+          type: integer
+          description: תאגיד נוסף
+          format: int32
+          nullable: true
+          example: 18
+        user_id:
+          maximum: 999999999
+          minimum: 10
+          type: integer
+          description: זיהוי משתמש
+          format: int32
+          nullable: true
+          example: 18
+        user_name:
+          maxLength: 25
+          pattern: ^(?=.*[^\s0])[\s0]*.*$
+          type: string
+          description: שם משתמש
+          nullable: true
+          example: שם משתמש
+        invoice_reference_number:
+          maxLength: 20
+          minLength: 1
+          pattern: ^(?=.*[^\s0])[\s0]*.*$
+          type: string
+          description: מספר אסמכתא חשבונית
+          example: '975626515'
+        customer_vat_number:
+          maximum: 999999999
+          minimum: 10
+          type: integer
+          description: מספר תיק מע"מ לקוח
+          format: int32
+          example: 18
+        customer_name:
+          maxLength: 25
+          type: string
+          nullable: true
+        customer_country_code:
+          maxLength: 3
+          type: string
+          description: מדינת הלקוח
+          nullable: true
+          example: UKR
+        invoice_date:
+          maxLength: 10
+          minLength: 1
+          pattern: ^(0{0,3}[1-9][0-9]{0,3}|[1-9][0-9]{0,3}|9999)-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])
+          type: string
+          description: YYYY-MM-DD תאריך החשבונית
+          example: '2024-11-24'
+        invoice_issuance_date:
+          maxLength: 10
+          minLength: 1
+          pattern: ^(0{0,3}[1-9][0-9]{0,3}|[1-9][0-9]{0,3}|9999)-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])
+          type: string
+          description: YYYY-MM-DD תאריך הפקת המסמך
+          example: '2024-11-24'
+        branch_id:
+          maxLength: 7
+          type: string
+          description: מזהה סניף
+          nullable: true
+          example: '533'
+        accounting_software_number:
+          maximum: 999999999
+          minimum: 1
+          type: integer
+          description: מספר רישום תכנה
+          format: int32
+          example: 987654321
+        client_software_key:
+          maxLength: 50
+          type: string
+          description: מפתח הלקוח של מפיק החשבונית אצל בית התוכנה
+          nullable: true
+          example: '76857'
+        amount_before_discount:
+          maximum: 999999999999.99
+          minimum: 0
+          type: number
+          description: סכום לפני הנחת מסמך
+          format: double
+          example: 552.75
+        discount:
+          maximum: 999999999999.99
+          minimum: 0
+          type: number
+          description: הנחת מסמך
+          format: double
+          example: 52.75
+        payment_amount:
+          maximum: 999999999999.99
+          minimum: 0
+          type: number
+          description: סכום סופי ללא מע"מ
+          format: double
+          example: 500
+        vat_amount:
+          maximum: 999999999999.99
+          minimum: 0
+          type: number
+          description: סכום המע"מ
+          format: double
+          example: 85
+        payment_amount_including_vat:
+          maximum: 999999999999.99
+          minimum: 0
+          type: number
+          description: סכום סופי כולל מע"מ
+          format: double
+          example: 585
+        invoice_note:
+          maxLength: 100
+          type: string
+          description: הערה לחשבונית
+          nullable: true
+          example: הערות
+        action:
+          $ref: '#/components/schemas/SwAction'
+          example: 0
+        vehicle_license_number:
+          maximum: 2147483647
+          minimum: 0
+          type: integer
+          description: מספר רישוי רכב
+          format: int64
+          nullable: true
+          example: 584752145
+        phone_of_driver:
+          maxLength: 10
+          type: string
+          description: מספר הנייד של הנהג
+          nullable: true
+          example: '0505674235'
+        arrival_date:
+          maxLength: 10
+          pattern: ^(0{0,3}[1-9][0-9]{0,3}|[1-9][0-9]{0,3}|9999)-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])
+          type: string
+          description: YYYY-MM-DD תאריך הגעה
+          nullable: true
+          example: '2024-11-24'
+        estimated_arrival_time:
+          maxLength: 5
+          pattern: ^(?:[01]\d|2[0-3]):(?:[0-5]\d)$
+          type: string
+          description: HH:MM שעת הגעה משוערת
+          nullable: true
+          example: '13:25'
+        transition_location:
+          maximum: 99
+          minimum: 0
+          type: integer
+          description: מיקום המעבר על פי טבלת קודים
+          format: int32
+          nullable: true
+          example: 12
+        delivery_address:
+          maxLength: 60
+          type: string
+          description: כתובת אספקה
+          nullable: true
+          example: כתובת אספקה
+        additional_information:
+          maximum: 9999
+          minimum: 0
+          type: integer
+          description: לשימוש עתידי
+          format: int32
+          nullable: true
+          example: 0
+        additional_information_1:
+          maxLength: 50
+          type: string
+          description: לשימוש עתידי
+          nullable: true
+          example: '0'
+        additional_information_2:
+          maxLength: 50
+          type: string
+          description: לשימוש עתידי
+          nullable: true
+          example: '0'
+        additional_information_3:
+          type: number
+          format: float
+          maximum: 3.4028235e+38
+          minimum: 0
+          multipleOf: 1
+          description: לשימוש עתידי
+          example: 0
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceItem'
+          nullable: true
+      additionalProperties: false
+      description: Invoice
+    SchemaErrorDetails:
+      type: object
+      properties:
+        value:
+          type: string
+          nullable: true
+        msg:
+          type: string
+          nullable: true
+        param:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+      additionalProperties: false
+    SchemaErrorMessage:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaErrorDetails'
+          nullable: true
+      additionalProperties: false
+    SchemaErrorMessageErrorResponse:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HttpStatusCode'
+        message:
+          $ref: '#/components/schemas/SchemaErrorMessage'
+        confirmation_number:
+          type: string
+          nullable: true
+        approved:
+          type: boolean
+        error_id:
+          type: string
+          nullable: true
+      additionalProperties: false
+    ResponseApproval:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HttpStatusCode'
+        message:
+          type: string
+          nullable: true
+        confirmation_number:
+          type: string
+          nullable: true
+        approved:
+          type: boolean
+      additionalProperties: false
+    AcceptableErrorResponse:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HttpStatusCode'
+        message:
+          type: string
+          nullable: true
+        error_id:
+          type: string
+          nullable: true
+      additionalProperties: false
+    GeneralErrorResponse:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HttpStatusCode'
+        message:
+          type: string
+          nullable: true
+        error_id:
+          type: string
+          nullable: true
+      additionalProperties: false
+    SwAction:
+      enum:
+        - 0
+        - 3
+        - 4
+      type: integer
+      format: int32
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      x-ibm-oauth-provider: longtimetoken
+      flows:
+        authorizationCode:
+          authorizationUrl: https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize
+          tokenUrl: https://t-ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token
+          scopes:
+            scope: scope
+            vat_report_scope: this scope is use for VATReportAPI
+            advances_payment_scope: this scope is use for AdvancesPaymentAPI
+            capital_declarations_scope: this scope is use for capital_declarations
+            tax_adjustment_retirement_scope: this scope is use for taxAdjustmentRetirementAPI
+x-ibm-configuration:
+  cors:
+    enabled: true
+  phase: realized
+  enforced: true
+  type: rest
+  testable: true
+  oauth-servers:
+    oauth2:
+      authorizationCode:
+        tokenUrls:
+          - https://t-ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token
+          - https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token
+          - https://ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token
+        authorizationUrls:
+          - https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize
+        refreshUrls: []
+security:
+  - oauth2:
+      - scope
+x-ibm-endpoints:
+  - url: https://t-ita-api.taxes.gov.il/shaam/tsandbox
+  - url: https://openapi.taxes.gov.il/shaam/tsandbox
+  - url: https://t-ita-api.taxes.gov.il/shaam/tsandbox
+  - url: https://ita-api.taxes.gov.il/shaam/tsandbox
