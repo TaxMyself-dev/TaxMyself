@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
 import { getShaamUrls, REQUEST_TIMEOUT_MS } from '../shaam.constants';
 import { ShaamApprovalDto } from '../dto/shaam-approval.dto';
+import { ShaamApprovalResponseDto } from '../dto/shaam-approval-response.dto';
 
 @Injectable()
 export class ShaamInvoicesService {
@@ -18,12 +19,12 @@ export class ShaamInvoicesService {
    * Submits invoice approval to SHAAM
    * @param accessToken - OAuth2 access token
    * @param approvalData - Invoice approval data
-   * @returns Response from SHAAM API
+   * @returns Response from SHAAM API with confirmation_number (allocation number)
    */
   async submitApproval(
     accessToken: string,
     approvalData: ShaamApprovalDto,
-  ): Promise<any> {
+  ): Promise<ShaamApprovalResponseDto> {
     if (!accessToken) {
       throw new BadRequestException('Access token is required');
     }
@@ -44,9 +45,13 @@ export class ShaamInvoicesService {
     const approvalUrl = this.urls.invoicesApproval;
 
     try {
+      const maskedToken = accessToken.substring(0, 10) + '...';
       this.logger.log('Submitting invoice approval to SHAAM', {
         invoice_id: approvalData.invoice_id,
         invoice_reference_number: approvalData.invoice_reference_number,
+        token: maskedToken,
+        tokenLength: accessToken.length,
+        url: approvalUrl,
       });
 
       const response = await firstValueFrom(
@@ -54,6 +59,8 @@ export class ShaamInvoicesService {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-IBM-Client-Id': process.env.SHAAM_CLIENT_ID || '',
           },
           timeout: REQUEST_TIMEOUT_MS,
         }).pipe(timeout(REQUEST_TIMEOUT_MS)),
@@ -62,14 +69,21 @@ export class ShaamInvoicesService {
       this.logger.log('Successfully submitted invoice approval', {
         invoice_id: approvalData.invoice_id,
         status: response.status,
+        confirmation_number: response.data?.confirmation_number,
+        approved: response.data?.approved,
       });
 
-      return response.data;
+      return response.data as ShaamApprovalResponseDto;
     } catch (error: any) {
+      const maskedToken = accessToken.substring(0, 10) + '...';
       this.logger.error('Failed to submit invoice approval', {
         invoice_id: approvalData.invoice_id,
         status: error.response?.status,
+        statusText: error.response?.statusText,
         message: error.message,
+        token: maskedToken,
+        tokenLength: accessToken.length,
+        responseData: error.response?.data,
       });
 
       throw this.handleError(error);

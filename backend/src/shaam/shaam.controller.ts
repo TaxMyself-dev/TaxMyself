@@ -22,16 +22,6 @@ export class ShaamController {
     private readonly invoicesService: ShaamInvoicesService,
   ) {}
 
-  @Get('oauth/authorize-url')
-  getAuthorizeUrl() {
-    const state = this.oauthService.generateState();
-    const url = this.oauthService.buildAuthorizeUrl(state);
-
-    return {
-      url,
-      state,
-    };
-  }
 
   @Get('oauth/redirect')
   redirectToAuthorize(@Res() res: Response) {
@@ -41,9 +31,11 @@ export class ShaamController {
     // Redirect user directly to SHAAM authorization page
     res.redirect(url);
   }
+  
 
   @Get('oauth/callback')
   async handleCallback(
+    @Res() res: Response,
     @Query('code') code: string,
     @Query('state') state: string,
     @Query('redirect_uri') redirectUri?: string,
@@ -60,16 +52,20 @@ export class ShaamController {
     };
     console.log('Incoming query params:', JSON.stringify(incomingParams, null, 2));
 
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8100';
+
     if (!code) {
       console.error('ERROR: Authorization code is missing');
-      throw new BadRequestException('Authorization code is required');
+      const errorMsg = encodeURIComponent('Authorization code is required');
+      return res.redirect(`${frontendUrl}/shaam/callback?error=missing_code&error_description=${errorMsg}`);
     }
 
     const redirectUriToUse = redirectUri || process.env.SHAAM_REDIRECT_URI || '';
     
     if (!redirectUriToUse) {
       console.error('ERROR: Redirect URI is not configured');
-      throw new BadRequestException('Redirect URI is not configured');
+      const errorMsg = encodeURIComponent('Redirect URI is not configured');
+      return res.redirect(`${frontendUrl}/shaam/callback?error=missing_redirect_uri&error_description=${errorMsg}`);
     }
 
     console.log('Using redirect URI:', redirectUriToUse);
@@ -95,12 +91,17 @@ export class ShaamController {
       console.log('Response structure:', JSON.stringify(responseStructure, null, 2));
       console.log('=== SHAAM CALLBACK COMPLETE ===');
 
-      // Return JSON response to browser
-      return {
-        accessToken: tokenResponse.access_token,
-        tokenType: tokenResponse.token_type,
-        expiresIn: tokenResponse.expires_in,
+      // Always redirect to frontend with full token response (browser flow)
+      // Send full response as JSON-encoded query parameter
+      const fullResponse = {
+        access_token: tokenResponse.access_token,
+        token_type: tokenResponse.token_type,
+        expires_in: tokenResponse.expires_in,
+        refresh_token: tokenResponse.refresh_token || null,
+        scope: tokenResponse.scope || null,
       };
+      const responseJson = encodeURIComponent(JSON.stringify(fullResponse));
+      return res.redirect(`${frontendUrl}/shaam/callback?response=${responseJson}`);
     } catch (error: any) {
       console.error('Token exchange failed');
       
@@ -131,7 +132,10 @@ export class ShaamController {
 
       console.error('Error details:', JSON.stringify(errorDetails, null, 2));
       console.log('=== SHAAM CALLBACK FAILED ===');
-      throw error;
+      
+      // Always redirect to frontend with error (browser flow)
+      const errorMsg = encodeURIComponent(error.message || 'Token exchange failed');
+      return res.redirect(`${frontendUrl}/shaam/callback?error=token_exchange_failed&error_description=${errorMsg}`);
     }
   }
 
@@ -141,6 +145,9 @@ export class ShaamController {
     @Body() approvalDto: ShaamApprovalDto,
     @Headers('authorization') authorization?: string,
   ) {
+    console.log('=== SHAAM INVOICE APPROVAL REQUEST ===');
+    console.log('Authorization header received:', authorization ? authorization.substring(0, 20) + '...' : 'MISSING');
+    
     if (!authorization) {
       throw new BadRequestException('Authorization header is required');
     }
@@ -154,6 +161,11 @@ export class ShaamController {
     }
 
     const accessToken = match[1];
+    const maskedToken = accessToken.substring(0, 10) + '...';
+    console.log('Extracted access token:', maskedToken);
+    console.log('Token length:', accessToken.length);
+    console.log('Invoice ID:', approvalDto.invoice_id);
+    console.log('=== END APPROVAL REQUEST LOG ===');
 
     const result = await this.invoicesService.submitApproval(
       accessToken,

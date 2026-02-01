@@ -1,0 +1,164 @@
+<div class="shaam-dialog" *ngIf="isVisible()">
+  <div class="dialog-overlay" (click)="onCancel()"></div>
+  <div class="dialog-content" (click)="onDialogContentClick($event)">
+    <div class="dialog-header">
+      <h3>שליחת בקשה למספר הקצאה משעמ</h3>
+    </div>
+    
+    @if (approvalResponse() && isApproved) {
+      <div class="success-message">
+        <h4>✅ הבקשה נשלחה בהצלחה!</h4>
+        <p class="confirmation-number">
+          <strong>מספר הקצאה:</strong> 
+          <span class="number">{{ confirmationNumber }}</span>
+        </p>
+      </div>
+    } @else {
+      <form [formGroup]="approvalForm" class="dialog-form">
+        <div class="form-row">
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'invoice_id'"
+            [labelText]="'מזהה חשבונית (ייחודי)'"
+            [placeholder]="'לדוגמה: INV-001'"
+            [type]="'text'">
+          </app-input-text>
+          
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'invoice_reference_number'"
+            [labelText]="'מספר הפניה'"
+            [placeholder]="'לדוגמה: REF-001'"
+            [type]="'text'">
+          </app-input-text>
+        </div>
+
+        <div class="form-row">
+          <app-input-date
+            [parentForm]="approvalForm"
+            [controlName]="'invoice_date'"
+            [labelText]="'תאריך חשבונית'"
+            [placeholder]="'בחר תאריך'">
+          </app-input-date>
+          
+          <app-input-date
+            [parentForm]="approvalForm"
+            [controlName]="'invoice_issuance_date'"
+            [labelText]="'תאריך הנפקה'"
+            [placeholder]="'בחר תאריך'">
+          </app-input-date>
+        </div>
+
+        <div class="form-row">
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'vat_number'"
+            [labelText]="'ח.פ. ספק'"
+            [placeholder]="'לדוגמה: 123456789'"
+            [type]="'number'">
+          </app-input-text>
+          
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'customer_vat_number'"
+            [labelText]="'ח.פ. לקוח'"
+            [placeholder]="'לדוגמה: 987654321'"
+            [type]="'number'">
+          </app-input-text>
+        </div>
+
+        <div class="form-row">
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'accounting_software_number'"
+            [labelText]="'מספר תוכנת הנהלת חשבונות'"
+            [placeholder]="'לדוגמה: 123456'"
+            [type]="'number'">
+          </app-input-text>
+          
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'invoice_type'"
+            [labelText]="'סוג חשבונית'"
+            [placeholder]="'לדוגמה: 1'"
+            [type]="'number'">
+          </app-input-text>
+        </div>
+
+        <div class="form-row">
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'amount_before_discount'"
+            [labelText]="'סכום לפני הנחה'"
+            [placeholder]="'לדוגמה: 1000.00'"
+            [type]="'number'">
+          </app-input-text>
+          
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'discount'"
+            [labelText]="'הנחה'"
+            [placeholder]="'לדוגמה: 0.00'"
+            [type]="'number'">
+          </app-input-text>
+        </div>
+
+        <div class="form-row">
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'payment_amount'"
+            [labelText]="'סכום תשלום'"
+            [placeholder]="'לדוגמה: 1000.00'"
+            [type]="'number'">
+          </app-input-text>
+          
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'vat_amount'"
+            [labelText]="'סכום מע״מ'"
+            [placeholder]="'לדוגמה: 170.00'"
+            [type]="'number'">
+          </app-input-text>
+        </div>
+
+        <div class="form-row">
+          <app-input-text
+            [parentForm]="approvalForm"
+            [controlName]="'payment_amount_including_vat'"
+            [labelText]="'סכום כולל מע״מ'"
+            [placeholder]="'חייב להיות שווה לסכום תשלום + מע״מ'"
+            [type]="'number'">
+          </app-input-text>
+        </div>
+
+        @if (approvalForm.hasError('paymentAmountMismatch')) {
+          <div class="error-message">
+            סכום כולל מע״מ חייב להיות שווה לסכום תשלום + סכום מע״מ
+          </div>
+        }
+      </form>
+    }
+    
+    <div class="dialog-actions">
+      <app-p-button
+        [buttonText]="'ביטול'"
+        [buttonSize]="buttonSize.AUTO"
+        [buttonColor]="buttonColor.WHITE"
+        [isLoading]="false"
+        (onButtonClicked)="onCancel()">
+      </app-p-button>
+      
+      @if (!approvalResponse() || !isApproved) {
+        <app-p-button
+          [buttonText]="'שלח בקשה'"
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK"
+          [isLoading]="isLoading()"
+          [disabled]="approvalForm.invalid"
+          (onButtonClicked)="onSubmit()">
+        </app-p-button>
+      }
+    </div>
+  </div>
+</div>
+

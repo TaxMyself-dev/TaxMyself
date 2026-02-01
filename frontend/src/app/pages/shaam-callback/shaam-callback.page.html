@@ -20,10 +20,35 @@
         כעת תוכל לשלוח חשבוניות לאישור.
       </p>
 
-      <div class="token-info" *ngIf="accessToken">
-        <p class="token-label">טוקן התקבל בהצלחה</p>
-        <p class="token-expiry">תוקף: {{ expiresIn }} שניות</p>
-      </div>
+      <!-- Full Token Response -->
+      @if (fullTokenResponse) {
+        <div class="response-section">
+          <h2 class="section-title">תשובה מלאה משעמ:</h2>
+          <div class="response-box">
+            <pre class="response-json">{{ fullTokenResponse | json }}</pre>
+            <button 
+              class="copy-button" 
+              (click)="copyToClipboard(getTokenResponseAsJson())">
+              <i class="pi pi-copy"></i> העתק תשובה
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- CURL Command -->
+      @if (curlCommand) {
+        <div class="response-section">
+          <h2 class="section-title">בקשת CURL לקבלת מספר הקצאה (דמו):</h2>
+          <div class="response-box">
+            <pre class="curl-command">{{ curlCommand }}</pre>
+            <button 
+              class="copy-button" 
+              (click)="copyToClipboard(curlCommand)">
+              <i class="pi pi-copy"></i> העתק CURL
+            </button>
+          </div>
+        </div>
+      }
 
       <div class="result-actions">
         <app-p-button 

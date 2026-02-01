@@ -450,3 +450,32 @@ export interface Business {
 //   bankAccount: string | null;
 //   bankIban: string | null;
 }
+
+/**
+ * SHAAM Invoice Approval Request Interface
+ */
+export interface IShaamApprovalRequest {
+  accounting_software_number: number;
+  amount_before_discount: number;
+  customer_vat_number: number;
+  discount: number;
+  invoice_date: string; // YYYY-MM-DD format
+  invoice_id: string;
+  invoice_issuance_date: string; // YYYY-MM-DD format
+  invoice_reference_number: string;
+  invoice_type: number;
+  payment_amount: number;
+  payment_amount_including_vat: number;
+  vat_amount: number;
+  vat_number: number;
+}
+
+/**
+ * SHAAM Invoice Approval Response Interface
+ */
+export interface IShaamApprovalResponse {
+  status: number;
+  message?: string | null;
+  confirmation_number?: string | null; // מספר הקצאה - allocation number
+  approved: boolean;
+}

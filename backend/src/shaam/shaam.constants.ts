@@ -11,8 +11,8 @@ export interface ShaamUrls {
 
 const TSANDBOX_URLS: ShaamUrls = {
   authorize: 'https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize',
-  token: 'https://t-ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token',
-  invoicesApproval: 'https://t-ita-api.taxes.gov.il/shaam/tsandbox/Invoices/v2/Approval',
+  token: 'https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token',
+  invoicesApproval: 'https://openapi.taxes.gov.il/shaam/tsandbox/Invoices/v2/Approval',
 };
 
 // TODO: Add production URLs when ready
