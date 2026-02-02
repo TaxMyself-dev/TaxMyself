@@ -1,11 +1,13 @@
-  @if (showBusinessSelector()) {
-    <app-input-select [controlName]="'businessNumber'" [labelText]="'עסק'" [placeholder]="'בחר עסק'"
-          [items]="businessOptions()" [parentForm]="mannualExpenseForm"
-          [size]="inputSize.MEDIUM" (onChangeInputSelect)="selectBusiness($event)">
-        </app-input-select>
-  }
+<!-- <div> -->
+@if (mannualExpenseService.showBusinessSelector()) {
+<app-input-select [controlName]="'businessNumber'" [labelText]="'עסק'" [placeholder]="'בחר עסק'"
+  [items]="mannualExpenseService.businessOptions()" [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM"
+  (onChangeInputSelect)="selectBusiness($event)">
+</app-input-select>
+}
 
-<app-input-date [controlName]="'date'" [labelText]="'תאריך'" placeholder="00/00/0000" [parentForm]="mannualExpenseForm">
+<app-input-date [controlName]="'date'" [size]="inputSize.MEDIUM" [labelText]="'תאריך'" placeholder="00/00/0000"
+  [parentForm]="mannualExpenseForm">
 </app-input-date>
 
 
@@ -13,161 +15,50 @@
   [size]="inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
-<!-- <app-input-autocomplete labelText="ספק" [parentForm]="mannualExpenseForm" [controlName]="'supplier'"
-  placeholder="הקלד שם ספק" [items]="filteredClients()" optionLabel="name" (onCompleteMethod)="filterClients($event)"
-  (onItemSelect)="onClientSelect($event)" [showAddNew]="true" addNewLabel="הוסף ספק חדש"
-  (onAddNew)="onAddNewClient($event)" headerText="בחר ספק קיים" [forceSelection]="false" [size]="inputSize.BETWEEN">
-</app-input-autocomplete> -->
+<app-input-text [controlName]="'supplier'" [labelText]="'ספק'" [placeholder]="'הקלד ספק'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" [type]="'text'">
+</app-input-text>
+
+<app-input-text [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'" [placeholder]="'הקלד ח.פ. ספק'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" [type]="'text'">
+</app-input-text>
+
+<app-input-text [controlName]="'expenseNumber'" [labelText]="'מספר חשבונית'" [placeholder]="'הקלד מספר חשבונית'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" [type]="'text'">
+</app-input-text>
 
 @if (mannualExpenseService.$categoriesOptions()) {
-  <app-input-select [controlName]="'category'" [labelText]="'קטגוריה'" [placeholder]="'בחר קטגוריה'"
-  [items]="mannualExpenseService.$categoriesOptions()" [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" (onChangeInputSelect)="getSubCategory($event)">
+<app-input-select [controlName]="'category'" [labelText]="'קטגוריה'" [placeholder]="'בחר קטגוריה'"
+  [items]="mannualExpenseService.$categoriesOptions()" [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM"
+  [disabled]="mannualExpenseService.$selectedBusinessNumber() === null" (onChangeInputSelect)="getSubCategory($event)">
 </app-input-select>
 }
 
-<!-- <app-input-select [controlName]="'subCategory'" [labelText]="'תת קטגוריה'" [placeholder]="'בחר תת קטגוריה'" [items]="[]"
-  [parentForm]="mannualExpenseForm" [size]="inputsSize.BETWEEN">
+<app-input-select [controlName]="'subCategory'" [labelText]="'תת קטגוריה'" [placeholder]="'בחר תת קטגוריה'"
+  [items]="subCategoryItems" [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM"
+  (onChangeInputSelect)="onSelectSubCategory($event)">
 </app-input-select>
 
-<app-input-select [controlName]="'isEquipment'" [labelText]="'רכוש קבוע'" [placeholder]="item.placeHolder" [items]="[]"
-  [parentForm]="mannualExpenseForm" [size]="inputsSize.BETWEEN">
-</app-input-select>
+<app-input-text [controlName]="'taxPercent'" [labelText]="'שיעור המס'" [placeholder]="'הכנס מס'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM" [type]="'number'">
+</app-input-text>
 
+<app-input-text [controlName]="'vatPercent'" [labelText]="'שיעור מעמ'" [placeholder]="'הכנס מעמ'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM" [type]="'number'">
+</app-input-text>
 
-<app-input-text [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-  [parentForm]="userDetailsForm" [size]="inputsSize.BETWEEN" [type]="
-          item.type === formTypes.NUMBER ? 'number' :
-          'text'
-        ">
-</app-input-text> -->
+@if (mannualExpenseService.$selectedCategory() === "רכוש קבוע") {
+<app-input-text [controlName]="'reductionPercent'" [labelText]="'אחוזי פחת'" [placeholder]="'אחוזי פחת'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM" [type]="'number'">
+</app-input-text>
+}
 
+<app-input-text [controlName]="'note'" [labelText]="'הערה'" [placeholder]="'הקלד הערה'"
+  [parentForm]="mannualExpenseForm" [size]="inputSize.LARGE" [type]="'text'">
+</app-input-text>
 
+<app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
 
-
-
-הערה
-תאריך
-ספק
-ח.פ.
-בכום
-רכוש קבוע
-קטגוריה
-תת קטגוריה
-מעמ
-אחוז פחת
-<!-- <ion-modal class="modal-content">
-<ion-toolbar>
-  <ion-header class="add-expense-header">
-    <ion-list class="header-list">
-      <ion-title>
-        {{title}}
-      </ion-title>
-      <ion-icon class="add-expense-icon-header" (click)="cancel()" aria-label="back" size="large"
-        name="close-outline"></ion-icon>
-    </ion-list>
-  </ion-header>
-</ion-toolbar>
-
-<ion-content>
-  <div class="screen-add-expense">
-    <form *ngIf="addExpenseForm; else loader" class="form-expense" [formGroup]="addExpenseForm" scrollY="true">
-      <div class="modal-content">
-        <div class="wrap-supplier-list">
-          <div class="wrap-select-supplier">
-            <div class="supplier-text">לרשימת הספקים</div>
-            <div class="select-supplier-button">
-              <app-button (onButtonClicked)="openSelectSupplier()" [buttonSize]="ButtonSize.X_SMALL"
-                [iconName]="'arrow-forward-outline'" [buttonClass]="ButtonClass.CLEAR_ICON_ONLY"></app-button>
-            </div>
-          </div>
-          <ion-list class="list-expense">
-            <ng-container *ngFor="let col of columns">
-              <ng-container [ngSwitch]="col.type">
-                <ng-container *ngSwitchCase="formTypes.TEXT">
-                  <app-generic-input [class]="col.name !== 'note' ? 'modal-input-30' : 'modal-input-100' "
-                    [className]="col.name === 'note' ? 'note' : ''" [inputLabel]="col.value" [controlName]="col.name"
-                    [parentForm]="addExpenseForm" [errorText]="col.errorText"></app-generic-input>
-                </ng-container>
-                <ng-container *ngSwitchCase="formTypes.DATE">
-                  <app-generic-input class="modal-input-30" [inputType]="formTypes.DATE" [inputLabel]="col.value"
-                    [controlName]="col.name" [parentForm]="addExpenseForm"></app-generic-input>
-                </ng-container>
-                <ng-container *ngSwitchCase="formTypes.DDL">
-         
-                  <app-generic-select
-                    *ngIf="userData?.businessStatus === BusinessStatus.MULTI_BUSINESS"
-                    class="modal-input-30" [parentForm]="addExpenseForm"
-                    [controlName]="expenseFormColumns.BUSINESS_NUMBER" [title]="expenseFormHebrewColumns.businessNumber"
-                    [items]="businessList"></app-generic-select>
-                  <app-generic-select *ngIf="col.name === expenseFormColumns.IS_EQUIPMENT" class="modal-input-100"
-                    [className]="'note'" [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.IS_EQUIPMENT"
-                    [title]="expenseFormHebrewColumns.isEquipment" [items]="equipmentList"
-                    (selectionChanged)="setValueEquipment($event)"></app-generic-select>
-                  <app-generic-select *ngIf="col.name === expenseFormColumns.CATEGORY" class="modal-input-50"
-                    [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.CATEGORY"
-                    [title]="expenseFormHebrewColumns.category" [items]="getListCategory()"
-                    (selectionChanged)="getSubCategory($event)"></app-generic-select>
-                  <app-generic-select *ngIf="col.name === expenseFormColumns.SUB_CATEGORY" class="modal-input-50"
-                    [parentForm]="addExpenseForm" [controlName]="expenseFormColumns.SUB_CATEGORY"
-                    [title]="expenseFormHebrewColumns.subCategory" [items]="getListSubCategory()"
-                    (selectionChanged)="selectedSubcategory($event)"></app-generic-select>
-                </ng-container>
-              </ng-container>
-            </ng-container>
-          </ion-list>
-        </div>
-        <label *ngIf="fileItem" class="label-file-add-expense">
-          <div class="div-wrap">
-            <ng-container *ngIf="(selectedFile || editModeFile || pdfLoaded); else notFile">
-              <div *ngIf="!pdfLoaded" class="file-container">
-                <ng-container *ngIf="displayFile() && !(displayFile() == 'loading'); else loader">
-                  <img class="image-file" [src]="displayFile()" alt="file" />
-                </ng-container>
-              </div>
-              <ng-container *ngIf="getPdfData(); else loader">
-                <object *ngIf="pdfLoaded" type="application/pdf" width="100%" height="100%" style="min-height: 500px;"
-                  [data]="getPdfData()">
-                </object>
-              </ng-container>
-            </ng-container>
-            <ng-template #notFile>
-              <p class="text-file-type">ניתן להעלות קבצי pdf / png / jpeg בלבד</p>
-              <div class="div-icon" *ngIf="!selectedFile && !editModeFile">
-                <ion-icon size="large" name="document-outline"></ion-icon>
-              </div>
-            </ng-template>
-            <p *ngIf="errorFile">
-              אירעה שגיאה לא ניתן להעלות קובץ זה
-            </p>
-            <p *ngIf="isEditMode && !editModeFile">לא נשמר קובץ עבור הוצאה זאת</p>
-            <div class="wrap-del-change-file">
-              <p><b>{{((isEditMode && !editModeFile) || selectedFile || pdfLoaded ) ? "שנה קובץ" : "בחר קובץ"}}</b></p>
-              <p *ngIf="selectedFile || editModeFile" (click)="deleteFile($event)">מחק קובץ</p>
-            </div>
-          </div>
-          <ion-input (change)="fileSelected($event)" label-placement="floating" type="file"
-            accept=".pdf, .png, .jpeg, .jpg">
-          </ion-input>
-        </label>
-      </div>
-
-  
-
-      <div class="wrapp-btn-expense">
-        <app-button [buttonSize]="ButtonSize.SMALL" [buttonText]="buttonText" [disabled]="disableSave()"
-          (onButtonClicked)="confirm()" [isLoading]="isLoadingAddExpense"></app-button>
-        <app-button buttonText="שמירת ספק קבוע" [buttonSize]="ButtonSize.SMALL" [disabled]="disabledAddSupplier()"
-          (onButtonClicked)="addSupplier()" [isLoading]="isLoadingAddSupplier"></app-button>
-      </div>
-    </form>
-  </div>
-</ion-content>
-
-
-<ng-template #loader>
-  <ion-spinner></ion-spinner>
-</ng-template>
-
-<ng-template #lineLoader>
-  <ion-loading></ion-loading>
-</ng-template> -->
+<app-p-button [disabled]="mannualExpenseForm.invalid" (onButtonClicked)="addExpense()"
+  [isLoading]="isLoadingAddExpense()" [buttonText]="'הוסף'" [buttonSize]="buttonSize.SMALL"
+  [buttonColor]="buttonColor.BLACK"></app-p-button>

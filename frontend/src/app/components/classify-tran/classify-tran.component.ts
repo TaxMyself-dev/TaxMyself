@@ -1,20 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
-import { LeftPanelComponent } from "../left-panel/left-panel.component";
-import { InputSelectComponent } from "../input-select/input-select.component";
-import { ButtonComponent } from "../button/button.component";
-import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
-import { FormBuilder, FormControl, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { IClassifyTrans, IGetSubCategory, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
-import { ButtonSize } from '../button/button.enum';
-import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { catchError, EMPTY, finalize, map, takeUntil, tap, zip } from 'rxjs';
-import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { CheckboxModule } from 'primeng/checkbox';
 import { CommonModule } from '@angular/common';
-import { InputTextComponent } from '../input-text/input-text.component';
+import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MessageService } from 'primeng/api';
+import { CheckboxModule } from 'primeng/checkbox';
+import { ToastModule } from 'primeng/toast';
+import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
+import { IRowDataTable, ISelectItem, ISubCategory } from 'src/app/shared/interface';
+import { ButtonComponent } from "../button/button.component";
+import { ButtonSize } from '../button/button.enum';
 import { InputDateComponent } from '../input-date/input-date.component';
+import { InputSelectComponent } from "../input-select/input-select.component";
+import { InputTextComponent } from '../input-text/input-text.component';
+import { LeftPanelComponent } from "../left-panel/left-panel.component";
 
 
 @Component({
@@ -45,16 +45,16 @@ export class ClassifyTranComponent implements OnInit {
   isVisible = input<boolean>(false);
   incomeMode = input<boolean>(false);
   visibleChange = output<{ visible: boolean; data: boolean }>();
-  openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean }>();
-  openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; category: string }>();
+  openAddCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; data: IRowDataTable }>();
+  openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; data: IRowDataTable; category: string }>();
   rowData = input<IRowDataTable>();
 
   // Signals
-  isLoading: WritableSignal<boolean> = signal(false);
+  isLoading = signal<boolean>(false);
   categoryList = signal<ISelectItem[]>([]);
   groupedSubCategory = signal([{ label: '', items: [] }]);
-  originalSubCategoryList = signal<IGetSubCategory[]>([]);
-  selectedSubCategory = signal<IGetSubCategory | null>(null);
+  originalSubCategoryList = signal<ISubCategory[]>([]);
+  selectedSubCategory = signal<ISubCategory | null>(null);
   showAdvancedSection = signal(false);
 
   // UI constants
@@ -89,7 +89,7 @@ export class ClassifyTranComponent implements OnInit {
       })
       .map((key) => ({
         key,
-        value: subCat[key as keyof IGetSubCategory],
+        value: subCat[key as keyof ISubCategory],
       }));
   });
 
@@ -194,11 +194,11 @@ export class ClassifyTranComponent implements OnInit {
     this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
   }
 
-  getSubCategory(event: string): void {
+  getSubCategory(event: string | boolean): void {
     this.myForm.patchValue({ subCategoryName: '' });
     this.selectedSubCategory.set(null);
-    const isEq = this.expenseDataService.getSubCategory(event, true, !this.incomeMode());
-    const notEq = this.expenseDataService.getSubCategory(event, false, !this.incomeMode());
+    const isEq = this.expenseDataService.getSubCategory(event as string, true, !this.incomeMode());
+    const notEq = this.expenseDataService.getSubCategory(event as string, false, !this.incomeMode());
 
     zip(isEq, notEq)
       .pipe(
@@ -215,13 +215,14 @@ export class ClassifyTranComponent implements OnInit {
   }
 
   openAddCategory(): void {
-    this.openAddCategoryClicked.emit({ state: true, subCategoryMode: false });
+    this.openAddCategoryClicked.emit({ state: true, subCategoryMode: false, data: this.rowData() });
   }
 
   openAddSubCategory(event: { state: true; subCategoryMode: true }): void {
     this.openAddSubCategoryClicked.emit({
       state: event.state,
       subCategoryMode: event.subCategoryMode,
+      data: this.rowData(),
       category: this.myForm.get('categoryName')?.value,
     });
   }
@@ -231,7 +232,7 @@ export class ClassifyTranComponent implements OnInit {
     this.toggleDetailControls(!!event.checked);
   }
 
-  subCategorySelected(event: string): void {
+  subCategorySelected(event: string | boolean): void {
     this.selectedSubCategory.set(this.originalSubCategoryList().find((item) => item.subCategoryName === event) || null);
     const sub = this.selectedSubCategory();
     if (sub) {

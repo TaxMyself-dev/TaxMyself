@@ -1,9 +1,8 @@
-import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
-import { Dialog } from "primeng/dialog";
 import { AddClientService } from './add-client.service';
-import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
-import { ClientsTableColumns, ClientsTableHebrewColumns, FormTypes, inputsSize } from 'src/app/shared/enums';
+import { IColumnDataTable } from 'src/app/shared/interface';
+import { FormTypes, inputsSize } from 'src/app/shared/enums';
 import { InputTextComponent } from "../input-text/input-text.component";
 import { ReactiveFormsModule } from '@angular/forms';
 import { KeyValuePipe } from '@angular/common';
@@ -13,6 +12,7 @@ import { catchError, EMPTY } from 'rxjs';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
+import { ClientKeys, ClientValues } from 'src/app/shared/types';
 
 @Component({
   selector: 'app-add-client',
@@ -20,7 +20,7 @@ import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
   styleUrls: ['./add-client.component.scss'],
   standalone: true,
   imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent],
- providers: [AddClientService]
+  providers: [AddClientService]
 })
 export class AddClientComponent {
   addClientService = inject(AddClientService);
@@ -37,11 +37,11 @@ export class AddClientComponent {
   // Preserve original order for keyvalue pipe (prevents alphabetical sorting)
   preserveOrder = () => 0;
 
-  clientsTableFields: IColumnDataTable<ClientsTableColumns, ClientsTableHebrewColumns>[] = [
-    { name: ClientsTableColumns.NAME, value: ClientsTableHebrewColumns.name, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.PHONE, value: ClientsTableHebrewColumns.phone, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.ID, value: ClientsTableHebrewColumns.id, type: FormTypes.TEXT },
-    { name: ClientsTableColumns.EMAIL, value: ClientsTableHebrewColumns.email, type: FormTypes.TEXT },
+  clientsTableFields: IColumnDataTable<ClientKeys, ClientValues>[] = [
+    { name: 'name', value: 'שם הלקוח', type: FormTypes.TEXT },
+    { name: 'phone', value: 'טלפון', type: FormTypes.TEXT },
+    { name: 'id', value: 'ת.ז. / ח.פ.', type: FormTypes.TEXT },
+    { name: 'email', value: 'אימייל', type: FormTypes.TEXT },
   ];
 
   clients = signal<IClient[]>(this.dialogConfig.data?.clients ?? []);
@@ -57,7 +57,7 @@ export class AddClientComponent {
       }
       (acc as any)[key] = value ?? null;
       return acc;
-    }, {} as Partial<IClient>);    
+    }, {} as Partial<IClient>);
     clientData.businessNumber = this.dialogConfig.data?.businessNumber;
 
     this.addClientService.saveClientDetails(clientData)
@@ -101,6 +101,6 @@ export class AddClientComponent {
   }
 
   cancel(data?: Partial<IClient>) {
-    this.dialogRef.close(data); 
+    this.dialogRef.close(data);
   }
 }

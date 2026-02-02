@@ -17,6 +17,7 @@ import { UpdateSupplierDto } from './dtos/update-supplier.dto';
 import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
+import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
 
 
 @Injectable()
@@ -35,13 +36,16 @@ export class ExpensesService {
         ) { }
 
 
-    async addExpense(expense: Partial<CreateExpenseDto>, userId: string): Promise<Expense> {
+    async addExpense(expense: CreateExpenseDto, userId: string, businessNumber: string): Promise<Expense> {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
+        const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
+        newExpense.isEquipment = isEquipment;
         newExpense.userId = userId;
         newExpense.date = expense.date;
         const currentDate = (new Date()).toISOString();
         newExpense.loadingDate = new Date();
+        newExpense.businessNumber = businessNumber;
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0) {
             throw new Error("expense not saved");
@@ -155,9 +159,9 @@ export class ExpensesService {
         expense.file = null;
         await this.expense_repo.save(expense);
 
-        return { 
+        return {
             message: 'File deleted successfully',
-            file: deletedFilePath 
+            file: deletedFilePath
         };
     }
 
@@ -166,9 +170,71 @@ export class ExpensesService {
     /////////////////////////////               Categories            /////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
+
+    private async getUserCategory(
+        firebaseId: string,
+        businessNumber: string,
+        categoryName: string,
+    ): Promise<UserCategory | null> {
+        return this.userCategoryRepo.findOne({
+            where: {
+                categoryName,
+                firebaseId,
+                businessNumber,
+            },
+        });
+    }
+
+    private async saveUserSubCategories(
+        firebaseId: string,
+        businessNumber: string,
+        categoryName: string,
+        subCategories: CreateUserSubCategoryDto[],
+    ): Promise<UserSubCategory[]> {
+        if (!subCategories.length) {
+            return [];
+        }
+
+        const names = subCategories.map(s => s.subCategoryName);
+
+        const existingSubs = await this.userSubCategoryRepo.find({
+            where: names.map((subCategoryName) => ({
+                firebaseId,
+                categoryName,
+                subCategoryName,
+            })),
+            select: { subCategoryName: true },
+        });
+
+        if (existingSubs.length) {
+            throw new ConflictException({
+                message: `Some sub-categories already exist`,
+                duplicates: existingSubs.map(s => s.subCategoryName),
+            });
+        }
+
+        const entities = subCategories.map((subDto) =>
+            this.userSubCategoryRepo.create({
+                subCategoryName: subDto.subCategoryName,
+                taxPercent: subDto.taxPercent ?? 0,
+                vatPercent: subDto.vatPercent ?? 0,
+                reductionPercent: subDto.reductionPercent ?? 0,
+                isEquipment: subDto.isEquipment ?? false,
+                isRecognized: subDto.isRecognized ?? false,
+                firebaseId,
+                businessNumber,
+                categoryName,
+                isExpense: subDto.isExpense,
+            })
+        );
+
+        return this.userSubCategoryRepo.save(entities);
+    }
+
     async addUserCategory(
         firebaseId: string,
-        createUserCategoryDto: CreateUserCategoryDto
+        createUserCategoryDto: CreateUserCategoryDto,
+        businessNumber: string
     ): Promise<UserSubCategory[]> {
 
         // Step 1: Validate that the user exists
@@ -177,126 +243,65 @@ export class ExpensesService {
             throw new NotFoundException(`User with ID ${firebaseId} not found`);
         }
 
-        // Step 2: Check if the category exists; if not, create it
-        let category = await this.userCategoryRepo.findOne({
-            where: {
-                categoryName: createUserCategoryDto.categoryName,
-                firebaseId,
-            },
-        });
+        const existingCategory = await this.getUserCategory(firebaseId, businessNumber, createUserCategoryDto.categoryName);
 
-        if (!category) {
-            category = this.userCategoryRepo.create({
-                categoryName: createUserCategoryDto.categoryName,
-                firebaseId,
-                isExpense: createUserCategoryDto.isExpense ?? true,
-            });
-            category = await this.userCategoryRepo.save(category);
+        if (existingCategory) {
+            throw new ConflictException(`Category with name ${createUserCategoryDto.categoryName} already exists`);
         }
 
-        // Step 3: Iterate and create subcategories
-        const savedSubCategories: UserSubCategory[] = [];
+        await this.userCategoryRepo.save(this.userCategoryRepo.create({
+            categoryName: createUserCategoryDto.categoryName,
+            firebaseId,
+            businessNumber,
+            isExpense: createUserCategoryDto.isExpense ?? true,
+        }));
 
-        for (const subDto of createUserCategoryDto.subCategories) {
-            const exists = await this.userSubCategoryRepo.findOne({
-                where: {
-                    firebaseId,
-                    subCategoryName: subDto.subCategoryName,
-                    categoryName: createUserCategoryDto.categoryName,
-                },
-            });
-
-            if (!exists) {
-                const newSubCat = this.userSubCategoryRepo.create({
-                    subCategoryName: subDto.subCategoryName,
-                    taxPercent: subDto.taxPercent ?? 0,
-                    vatPercent: subDto.vatPercent ?? 0,
-                    reductionPercent: subDto.reductionPercent ?? 0,
-                    isEquipment: subDto.isEquipment ?? false,
-                    isRecognized: subDto.isRecognized ?? false,
-                    firebaseId,
-                    categoryName: createUserCategoryDto.categoryName,
-                    isExpense: subDto.isExpense ?? createUserCategoryDto.isExpense ?? true,
-                });
-
-                const saved = await this.userSubCategoryRepo.save(newSubCat);
-                savedSubCategories.push(saved);
-            }
-        }
-
-        return savedSubCategories;
+        return this.saveUserSubCategories(
+            firebaseId,
+            businessNumber,
+            createUserCategoryDto.categoryName,
+            createUserCategoryDto.subCategories,
+        );
     }
 
 
+    async addUserSubCategories(
+        firebaseId: string,
+        businessNumber: string,
+        categoryName: string,
+        subCategories: CreateUserSubCategoryDto[],
+        defaultIsExpense?: boolean
+    ): Promise<UserSubCategory[]> {
+        const user = await this.userRepo.findOne({ where: { firebaseId } });
+        if (!user) {
+            throw new NotFoundException(`User with ID ${firebaseId} not found`);
+        }
 
-    // async addUserCategory(
-    //     firebaseId: string,
-    //     createUserCategoryDto: CreateUserCategoryDto
-    //   ): Promise<UserSubCategory> {
+        const category = await this.getUserCategory(firebaseId, businessNumber, categoryName);
+        if (!category) {
+            throw new NotFoundException(`Category with name ${categoryName} not found`);
+        }
 
-    //     // Step 1: Validate that the user exists using the userId
-    //     const user = await this.userRepo.findOne({ where: { firebaseId } });
-    //     if (!user) {
-    //       throw new NotFoundException(`User with ID ${firebaseId} not found`);
-    //     }
-
-    //     // Step 2: Check if the category exists; if not, create it
-    //     let category = await this.userCategoryRepo.findOne({
-    //         where: {
-    //             categoryName: createUserCategoryDto.categoryName,
-    //             firebaseId: firebaseId,
-    //             // isExpense: createUserCategoryDto.isExpense
-    //         }
-    //     });
-    //     if (!category) {
-    //       category = new UserCategory();
-    //       category.categoryName = createUserCategoryDto.categoryName;
-    //       category.firebaseId = firebaseId;
-    //     //   category.isExpense = createUserCategoryDto.isExpense;
-    //       category = await this.userCategoryRepo.save(category);
-    //     }
-
-    //     console.log("new category is ", category.categoryName);
-
-    //     // Step 3: Check if the sub-category already exists for this user and category
-    //     const existingSubCategory = await this.userSubCategoryRepo.findOne({
-    //         where: {
-    //             // subCategoryName: createUserCategoryDto.subCategoryName,
-    //             firebaseId: firebaseId,
-    //             // isExpense: createUserCategoryDto.isExpense
-    //         },
-    //     });
-    //     // if (existingSubCategory) {
-    //     //   throw new ConflictException(`Sub-category with name ${createUserCategoryDto.subCategoryName} already exists for this user and category`);
-    //     // }
-
-    //     // Step 4: Create and save the new user sub-category
-    //     const userSubCategory = new UserSubCategory();
-
-    //     // userSubCategory.subCategoryName = createUserCategoryDto.subCategoryName;
-    //     // userSubCategory.taxPercent = createUserCategoryDto.taxPercent;
-    //     // userSubCategory.vatPercent = createUserCategoryDto.vatPercent;
-    //     // userSubCategory.reductionPercent = createUserCategoryDto.reductionPercent;
-    //     // userSubCategory.isEquipment = createUserCategoryDto.isEquipment;
-    //     // userSubCategory.isRecognized = createUserCategoryDto.isRecognized;
-    //     // userSubCategory.firebaseId = firebaseId;
-    //     // userSubCategory.categoryName = createUserCategoryDto.categoryName;
-    //     // userSubCategory.isExpense = createUserCategoryDto.isExpense;
-
-    //     return await this.userSubCategoryRepo.save(userSubCategory);
-    // }
+        return this.saveUserSubCategories(
+            firebaseId,
+            businessNumber,
+            categoryName,
+            subCategories,
+        );
+    }
 
 
-    async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null): Promise<(UserCategory | DefaultCategory)[]> {
+    async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null, businessNumber: string | null): Promise<(UserCategory | DefaultCategory)[]> {
 
         if (isDefault === null) {
 
-            if (!firebaseId) {
-                throw new Error('firebaseId must be provided to fetch user-specific categories.');
+            if (!firebaseId || !businessNumber) {
+                throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
             }
 
             const defaultCategories = await this.defaultCategoryRepo.find();
-            const userCategories = await this.userCategoryRepo.find({ where: { firebaseId } });
+            const userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
+            console.log("🚀 ~ ExpensesService ~ getCategories ~ userCategories:", userCategories)
             const categoryMap = new Map<string, UserCategory | DefaultCategory>();
 
             // First, add all default categories
@@ -330,10 +335,10 @@ export class ExpensesService {
 
         else if (isDefault === false) {
             // Return only the user-specific categories for the given firebaseId
-            if (!firebaseId) {
-                throw new Error('firebaseId must be provided to fetch user-specific categories.');
+            if (!firebaseId || !businessNumber) {
+                throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
             }
-            let userCategories = await this.userCategoryRepo.find({ where: { firebaseId } });
+            let userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
             // Filter by isExpense if the flag is provided
             userCategories = userCategories.filter(category => category.isExpense === isExpense);
             return userCategories;
@@ -346,17 +351,19 @@ export class ExpensesService {
         firebaseId: string | null,
         isEquipment: boolean | null,
         isExpense: boolean,
-        categoryName: string
+        categoryName: string,
+        businessNumber: string | null
     ): Promise<(UserSubCategory | DefaultSubCategory)[]> {
 
-        if (!firebaseId) {
-            throw new Error('firebaseId must be provided for user-specific subcategory search.');
+        if (!firebaseId || !businessNumber) {
+            throw new Error('firebaseId and businessNumber must be provided for user-specific subcategory search.');
         }
 
         // Query userSubCategoryRepo by categoryName
         const userQuery = this.userSubCategoryRepo
             .createQueryBuilder('subcategory')
             .where('subcategory.firebaseId = :firebaseId', { firebaseId })
+            .andWhere('subcategory.businessNumber = :businessNumber', { businessNumber })
             .andWhere('subcategory.categoryName = :categoryName', { categoryName });
 
         // Add the isEquipment condition only if it’s true or false (not null)
@@ -398,6 +405,47 @@ export class ExpensesService {
         // Filter by isExpense if the flag is provided
         subCategories = subCategories.filter(subCategory => subCategory.isExpense === isExpense);
         return subCategories;
+    }
+
+
+    async getSubCategoryIsEquipment(
+        categoryName: string,
+        subCategoryName: string,
+        firebaseId?: string | null,
+        businessNumber?: string | null,
+    ): Promise<boolean | null> {
+        categoryName = categoryName?.trim();
+        subCategoryName = subCategoryName?.trim();
+        if (!categoryName || !subCategoryName) {
+            return null;
+        }
+
+        if (firebaseId && businessNumber) {
+            const userMatch = await this.userSubCategoryRepo.findOne({
+                where: {
+                    categoryName,
+                    subCategoryName,
+                    firebaseId,
+                    businessNumber,
+                },
+                select: { isEquipment: true },
+            });
+
+            if (userMatch) {
+                return userMatch.isEquipment ?? null;
+            }
+        }
+
+        const defaultMatch = await this.defaultSubCategoryRepo.findOne({
+            where: {
+                categoryName: 'רכוש קבוע',
+                subCategoryName: 'מזגן',
+            },
+            select: { isEquipment: true },
+        });
+        console.log("🚀 ~ ExpensesService ~ getSubCategoryIsEquipment ~ defaultMatch:", defaultMatch)
+
+        return defaultMatch?.isEquipment ?? null;
     }
 
 
@@ -455,7 +503,7 @@ export class ExpensesService {
     async getSupplierNamesByUserId(userId: string, businessNumber?: string): Promise<SupplierResponseDto[]> {
         const suppliers = await this.supplier_repo.find({ where: { userId, businessNumber } });
         return suppliers.map((supplier) => {
-            const { userId, ...supplierData } = supplier; // Exclude userId
+            const { userId, businessNumber, ...supplierData } = supplier; // Exclude userId
             return supplierData;
         });
     }

@@ -10,15 +10,15 @@ import { ca } from 'date-fns/locale';
 @Injectable({
   providedIn: 'root'
 })
-export class TransactionsService implements OnInit{
+export class TransactionsService implements OnInit {
 
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
-  
-  businessList: [{businessName: string, businessNumber: string}];
+
+  businessList: [{ businessName: string, businessNumber: string }];
   categories = signal<ISelectItem[]>([]);
 
-  constructor(private http: HttpClient) { 
+  constructor(private http: HttpClient) {
     console.log("in transaction service");
   };
 
@@ -30,11 +30,11 @@ export class TransactionsService implements OnInit{
   getTransToConfirm(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}transactions/get-transaction-to-confirm-and-add-to-expenses`;
     const params = new HttpParams()
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    .set('businessNumber', businessNumber);
-    
-    return this.http.get<IRowDataTable[]>(url, {params:params});
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+      .set('businessNumber', businessNumber);
+
+    return this.http.get<IRowDataTable[]>(url, { params: params });
   }
 
 
@@ -47,8 +47,8 @@ export class TransactionsService implements OnInit{
     const url = `${environment.apiUrl}transactions/get-trans-to-classify`;
 
     let params = new HttpParams();
-    if (startDate)      { params = params.set('startDate', startDate); }
-    if (endDate)        { params = params.set('endDate',   endDate);   }
+    if (startDate) { params = params.set('startDate', startDate); }
+    if (endDate) { params = params.set('endDate', endDate); }
     if (businessNumber) { params = params.set('businessNumber', businessNumber); }
 
     return this.http.get<IRowDataTable[]>(url, { params });
@@ -58,50 +58,50 @@ export class TransactionsService implements OnInit{
   getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
     const param = new HttpParams()
-    .set('billId', billId?.length ? billId.join(',') : 'null' )
-    .set('categories', categories?.length ? categories.join(',') : 'null' )
-    .set('sources', sources?.length ? sources.join(',') : 'null' )
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    return this.http.get<ITransactionData[]>(url, {params: param})
+      .set('billId', billId?.length ? billId.join(',') : 'null')
+      .set('categories', categories?.length ? categories.join(',') : 'null')
+      .set('sources', sources?.length ? sources.join(',') : 'null')
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+    return this.http.get<ITransactionData[]>(url, { params: param })
   }
-  
+
 
   getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     console.log("billId: ", billId);
-    
+
     const url = `${environment.apiUrl}transactions/get-expenses`;
     const param = new HttpParams()
-    .set('billId', billId?.length ? billId.join(',') : 'null' )
-    .set('categories', categories?.length ? categories.join(',') : 'null' )
-    .set('sources', sources?.length ? sources.join(',') : 'null' )
-    .set('startDate', startDate)
-    .set('endDate', endDate)
-    return this.http.get<ITransactionData[]>(url, {params: param})
-  } 
+      .set('billId', billId?.length ? billId.join(',') : 'null')
+      .set('categories', categories?.length ? categories.join(',') : 'null')
+      .set('sources', sources?.length ? sources.join(',') : 'null')
+      .set('startDate', startDate)
+      .set('endDate', endDate)
+    return this.http.get<ITransactionData[]>(url, { params: param })
+  }
 
   getAllBills(): void {
     const url = `${environment.apiUrl}transactions/get-bills`;
     this.http.get<any[]>(url)
-    .pipe(
-      catchError((err) => {        
-        if (err.error.status === 404) {
-          this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
-        }
-        this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
-        return EMPTY;
-      }),
-      map((data) => {
-        return data.map((bill) => {
-          const { userId, ...bills } = bill;
-          const newfields = this.renameFields(bills);
-          return newfields;
-        })
-      }),
-    )
-    .subscribe((bills) => {
-      this.updateAccountList(bills);
-    })
+      .pipe(
+        catchError((err) => {
+          if (err.error.status === 404) {
+            this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
+          }
+          this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
+          return EMPTY;
+        }),
+        map((data) => {
+          return data.map((bill) => {
+            const { userId, ...bills } = bill;
+            const newfields = this.renameFields(bills);
+            return newfields;
+          })
+        }),
+      )
+      .subscribe((bills) => {
+        this.updateAccountList(bills);
+      })
   }
 
   getAllSources(): Observable<string[]> {
@@ -109,7 +109,7 @@ export class TransactionsService implements OnInit{
     return this.http.get<any[]>(url)
   }
 
-  getSourcesByBillId(billId:number): Observable<string[]> {
+  getSourcesByBillId(billId: number): Observable<string[]> {
     const url = `${environment.apiUrl}transactions/get-sources-by-bill/${billId}`;
     return this.http.get<any[]>(url)
   }
@@ -124,17 +124,17 @@ export class TransactionsService implements OnInit{
       name: obj.billName,
     };
   }
-  
+
   addSource(billId: number, source: string, type: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/${billId}/sources`;
-    return this.http.post<any[]>(url,{sourceName: source, sourceType: type});
+    return this.http.post<any[]>(url, { sourceName: source, sourceType: type });
   }
 
   addBill(billName: string, businessNumber: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/add-bill`;
-    return this.http.post<any[]>(url,{billName, businessNumber});
+    return this.http.post<any[]>(url, { billName, businessNumber });
   }
-  
+
   uploadFile(fileBuffer: ArrayBuffer): Observable<any> {
     console.log("file buffer in service: ", fileBuffer);
     const url = `${environment.apiUrl}transactions/load-file`;
@@ -145,17 +145,24 @@ export class TransactionsService implements OnInit{
     console.log("form data: ", formData.get('file'));
     return this.http.post<any>(url, formData);
   }
- 
+
   addClassifiction(formData: IClassifyTrans | IClassifyTransMinimal, date?: any): Observable<any> {
-    console.log("form data of classify trans: ",formData);
+    console.log("form data of classify trans: ", formData);
     const url = `${environment.apiUrl}transactions/classify-trans`;
-    return this.http.post<any>(url,formData);
+    return this.http.post<any>(url, formData);
   }
 
   addCategory(formData: any): Observable<any> {
     console.log("in add category");
     console.log("🚀 ~ addCategory ~ formData:", formData)
     const url = `${environment.apiUrl}expenses/add-user-category`;
+    return this.http.post<any>(url, formData)
+  }
+
+  addSubCategory(formData: any, categoryName: string): Observable<any> {
+    console.log("in add sub category");
+    console.log("🚀 ~ addSubCategory ~ formData:", formData)
+    const url = `${environment.apiUrl}expenses/add-user-sub-categories`;
     return this.http.post<any>(url, formData)
   }
 
@@ -177,30 +184,30 @@ export class TransactionsService implements OnInit{
       .set('isDefault', isDefault)
       .set('isExpense', isExpense)
     return this.http.get<ISelectItem[]>(url, { params: param })
-    .pipe(
-      catchError((err) => {
-        console.log("error in get category", err);
-        return EMPTY;
-      }),
-      map((res) => {
-        return res.map((item: any) => ({
-          name: item.categoryName,
-          value: item.categoryName
+      .pipe(
+        catchError((err) => {
+          console.log("error in get category", err);
+          return EMPTY;
+        }),
+        map((res) => {
+          return res.map((item: any) => ({
+            name: item.categoryName,
+            value: item.categoryName
+          })
+          )
+        }),
+        tap((res: ISelectItem[]) => {
+          console.log("category", res);
+          this.categories.set(res);
+          console.log("categories", this.categories());
         })
-        )
-      }),
-      tap((res: ISelectItem[]) => {
-        console.log("category", res);
-        this.categories.set(res);
-        console.log("categories", this.categories());
-      })
-    )
+      )
   }
 
-     
+
   addTransToExpense(IDs: IRowDataTable[]): Observable<string> {
-      const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
-      return this.http.post<string>(url, IDs)
+    const url = `${environment.apiUrl}transactions/save-trans-to-expenses`;
+    return this.http.post<string>(url, IDs)
   }
 
   quickClassify(transactionId: number): Observable<any> {

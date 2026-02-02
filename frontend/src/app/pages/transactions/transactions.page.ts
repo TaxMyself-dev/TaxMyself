@@ -1,7 +1,7 @@
 import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
-import { IColumnDataTable, IGetSubCategory, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, BusinessStatus, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
@@ -27,25 +27,25 @@ export class TransactionsPage implements OnInit {
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
   private readonly OVERLAY_SEL =
-  '.p-datepicker, [data-pc-name="calendar"], .p-overlaypanel, .p-dropdown-panel, .p-autocomplete-panel, .p-multiselect-panel';
+    '.p-datepicker, [data-pc-name="calendar"], .p-overlaypanel, .p-dropdown-panel, .p-autocomplete-panel, .p-multiselect-panel';
 
-isInPrimeOverlay(e: Event): boolean {
-  const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
-  if (path?.length) {
-    for (const n of path) {
-      const el = n as HTMLElement;
-      if (el?.closest?.(this.OVERLAY_SEL)) return true;
+  isInPrimeOverlay(e: Event): boolean {
+    const path = (e as any).composedPath?.() as (HTMLElement | EventTarget)[] | undefined;
+    if (path?.length) {
+      for (const n of path) {
+        const el = n as HTMLElement;
+        if (el?.closest?.(this.OVERLAY_SEL)) return true;
+      }
     }
+    // Fallback
+    const t = e.target as HTMLElement | null;
+    return !!t?.closest?.(this.OVERLAY_SEL);
   }
-  // Fallback
-  const t = e.target as HTMLElement | null;
-  return !!t?.closest?.(this.OVERLAY_SEL);
-}
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const clickedInside = this.filterPanelRef?.nativeElement.contains(event.target);
     const clickedFilterButton = (event.target as HTMLElement).closest('.sort-button');
-    if (!clickedInside && !clickedFilterButton && !this.isInPrimeOverlay(event) && this.visibleFilterPannel() ) {
+    if (!clickedInside && !clickedFilterButton && !this.isInPrimeOverlay(event) && this.visibleFilterPannel()) {
       this.visibleFilterPannel.set(false); // 👈 close the panel
     }
   }
@@ -216,7 +216,7 @@ isInPrimeOverlay(e: Event): boolean {
   checkClassifyBill: boolean = true;
   listCategory: ISelectItem[];
   listFilterCategory: ISelectItem[] = [{ value: null, name: 'הכל' }];
-  originalSubCategoryList: IGetSubCategory[];
+  originalSubCategoryList: ISubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
   filterByExpense: string = "";
@@ -588,9 +588,11 @@ isInPrimeOverlay(e: Event): boolean {
     this.incomeMode.set(event.incomeMode);
   }
 
-  openAddCategory(event: { state: boolean, subCategoryMode: boolean, category?: string }): void {
+  openAddCategory(event: { state: boolean, subCategoryMode: boolean, data: IRowDataTable, category?: string }): void {
+    console.log("🚀 ~ TransactionsPage ~ openAddCategory ~ event:", event.data)
     this.visibleAddCategory.set(event.state);
     this.subCategoryMode.set(event.subCategoryMode);
+    this.leftPanelData.set(event.data);
     this.categoryName.set(event.category);
   }
 

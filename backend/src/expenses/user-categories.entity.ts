@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
 @Entity()
 export class UserCategory {
@@ -9,10 +9,13 @@ export class UserCategory {
   @Column()
   categoryName: string;
 
-  @Column({ nullable: true })
+  @Column()
   firebaseId: string;
-  
+
+  @Column()
+  businessNumber: string;
+
   @Column('boolean')
   isExpense: boolean;
-  
+
 }

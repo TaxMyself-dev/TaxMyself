@@ -1,4 +1,4 @@
-@if(showModal) {
+@if(showModal()) {
 <div class="custom-modal-backdrop" (click)="closeModal()">
   <div class="custom-modal" (click)="$event.stopPropagation()">
     <app-p-button class="close-button" [buttonColor]="buttonColor.TRANSPARET" [buttonSize]="buttonSize.AUTO"

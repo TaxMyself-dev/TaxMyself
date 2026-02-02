@@ -1,5 +1,5 @@
 import { ExpenseNecessity } from 'src/enum';
-import { Entity, PrimaryGeneratedColumn, Column} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
 @Entity()
 export class UserSubCategory {
@@ -7,8 +7,11 @@ export class UserSubCategory {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ nullable: true })
+  @Column()
   firebaseId: string;
+
+  @Column()
+  businessNumber: string;
 
   @Column()
   subCategoryName: string;
@@ -36,5 +39,5 @@ export class UserSubCategory {
 
   @Column({ type: 'enum', enum: ExpenseNecessity, default: ExpenseNecessity.IMPORTANT })
   necessity: ExpenseNecessity;
-  
+
 }
