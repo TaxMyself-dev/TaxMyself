@@ -40,20 +40,20 @@ export class LoginPage implements OnInit {
   mailAddressForResendAuthMail: string = "";
   passwordForResendAuthMail: string = "";
   isVisibleDialogRegisterMessage: boolean = false;
-  showModal = true;
+  showModal = signal<boolean>(false);
   resendCountdown = signal(0);
   isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
   private destroyRef = inject(DestroyRef);
 
   constructor(
-    private location: Location, 
-    private messageService: MessageService, 
-    private route: ActivatedRoute, 
-    private genericService: GenericService, 
+    private location: Location,
+    private messageService: MessageService,
+    private route: ActivatedRoute,
+    private genericService: GenericService,
     private router: Router,
     public afAuth: AngularFireAuth,
-    private formBuilder: FormBuilder, 
-    public authService: AuthService, 
+    private formBuilder: FormBuilder,
+    public authService: AuthService,
     private loadingController: LoadingController
   ) {
 
@@ -95,12 +95,12 @@ export class LoginPage implements OnInit {
 
     if (state?.from === 'register') {
       console.log('Navigated to Login Page from Register Page');
-      this.showModal = true;
+      this.showModal.set(true);
     }
   }
 
   closeModal() {
-    this.showModal = false;
+    this.showModal.set(false);
   }
 
   togglePassword() {
@@ -114,67 +114,67 @@ export class LoginPage implements OnInit {
 
   login(): void {
 
-  this.isLoading.set(true);
-  this.authService.error.set(null);
-  const formData = this.loginForm.value;
+    this.isLoading.set(true);
+    this.authService.error.set(null);
+    const formData = this.loginForm.value;
 
-  from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
-    .pipe(
-      catchError((err) => {
-        this.authService.handleErrorLogin(err.code);
-        console.log("❌ Firebase login error:", err);
-        return EMPTY;
-      }),
+    from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
+      .pipe(
+        catchError((err) => {
+          this.authService.handleErrorLogin(err.code);
+          console.log("❌ Firebase login error:", err);
+          return EMPTY;
+        }),
 
-      // 1️⃣ Validate email
-      filter((res) => {
-        if (!res?.user?.emailVerified) {
-          this.authService.error.set("email");
-        }
-        return res?.user?.emailVerified;
-      }),
+        // 1️⃣ Validate email
+        filter((res) => {
+          if (!res?.user?.emailVerified) {
+            this.authService.error.set("email");
+          }
+          return res?.user?.emailVerified;
+        }),
 
-      // 2️⃣ Call your backend signIn()
-      switchMap(() => this.authService.signIn()),
+        // 2️⃣ Call your backend signIn()
+        switchMap(() => this.authService.signIn()),
 
-      catchError((err) => {
-        if (err.status === 0) {
-          this.authService.error.set("net");
-          
-        }
-        else if (err.status === 404) {
-          this.authService.error.set("user");
-        }
-        else {
-          this.authService.error.set("error");
-        }
+        catchError((err) => {
+          if (err.status === 0) {
+            this.authService.error.set("net");
 
-        console.log("❌ Backend sign-in error:", err);
-        return EMPTY;
-      }),
+          }
+          else if (err.status === 404) {
+            this.authService.error.set("user");
+          }
+          else {
+            this.authService.error.set("error");
+          }
 
-      // 3️⃣ Save user data
-      tap((res: any) => {
-        console.log("res in login page: ", res);
-        sessionStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userData', JSON.stringify(res));
-      }),
+          console.log("❌ Backend sign-in error:", err);
+          return EMPTY;
+        }),
 
-      // 4️⃣ Load businesses from server
-      switchMap(() =>
-        from(this.genericService.loadBusinessesFromServer())
-      ),
+        // 3️⃣ Save user data
+        tap((res: any) => {
+          console.log("res in login page: ", res);
+          sessionStorage.setItem('isLoggedIn', 'true');
+          localStorage.setItem('userData', JSON.stringify(res));
+        }),
 
-      // 5️⃣ After businesses loaded → navigate
-      tap(() => {
-        console.log("Businesses loaded → navigate");
-        this.router.navigate(['my-account']);
-      }),
+        // 4️⃣ Load businesses from server
+        switchMap(() =>
+          from(this.genericService.loadBusinessesFromServer())
+        ),
 
-      finalize(() => this.isLoading.set(false))
-    )
-    .subscribe();
-}
+        // 5️⃣ After businesses loaded → navigate
+        tap(() => {
+          console.log("Businesses loaded → navigate");
+          this.router.navigate(['my-account']);
+        }),
+
+        finalize(() => this.isLoading.set(false))
+      )
+      .subscribe();
+  }
 
 
 
@@ -215,7 +215,7 @@ export class LoginPage implements OnInit {
   //         //this.genericService.clearBusinesses
   //         //this.genericService.loadBusinesses();
   //         console.log("after login");
-          
+
   //         this.router.navigate(['my-account']);
   //       }),
   //       finalize(() => {

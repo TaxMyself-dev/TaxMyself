@@ -1,8 +1,8 @@
 import { SingleMonthReport, DualMonthReport } from 'src/enum';
-import { 
-    Entity, 
-    Column, 
-    PrimaryGeneratedColumn,
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
 } from 'typeorm'
 
 @Entity()
@@ -14,7 +14,7 @@ export class Expense {
   @Column()
   supplier: string;
 
-  @Column()
+  @Column({ nullable: true, default: null })
   supplierID: string;
 
   @Column()
@@ -38,7 +38,7 @@ export class Expense {
   @Column()
   businessNumber: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, default: null })
   note: string;
 
   @Column({ nullable: true, default: null })
@@ -53,10 +53,10 @@ export class Expense {
   @Column('date')
   loadingDate: Date;
 
-  @Column()
+  @Column({ nullable: true, default: null })
   expenseNumber: string;
 
-  @Column()
+  @Column({ nullable: true, default: null })
   reductionDone: number;
 
   @Column()
@@ -72,7 +72,7 @@ export class Expense {
     type: 'int',
     nullable: true,
     default: null,
-  })  
+  })
   transId: number;
 
   @Column({
@@ -86,7 +86,7 @@ export class Expense {
     type: 'boolean',
     nullable: true,
     default: null,
-  }) 
+  })
   isReported: boolean;
 
 }

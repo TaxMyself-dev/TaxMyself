@@ -1,11 +1,11 @@
-import { Component, effect, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
+import { Component, computed, effect, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
 import { ButtonComponent } from "../button/button.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { FormArray, FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonColor, ButtonSize, IconPosition } from '../button/button.enum';
 import { inputsSize } from 'src/app/shared/enums';
-import { ISelectItem } from 'src/app/shared/interface';
+import { IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { InputTextComponent } from "../input-text/input-text.component";
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { CommonModule } from '@angular/common';
@@ -13,7 +13,8 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
-
+import { AuthService } from 'src/app/services/auth.service';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-add-category',
@@ -35,6 +36,8 @@ import { ToastModule } from 'primeng/toast';
 export class AddCategoryComponent implements OnInit {
   // === Services & utils ===
   transactionService = inject(TransactionsService);
+  authService = inject(AuthService);
+  genericService = inject(GenericService);
   messageService = inject(MessageService);
   fb = inject(FormBuilder);
 
@@ -43,12 +46,21 @@ export class AddCategoryComponent implements OnInit {
   incomeMode = input<boolean>(false);
   subCategoryMode = input<boolean>(false);
   categoryName = input<string>('');
+  rowData = input<IRowDataTable>();
+  
+  businessNumber = computed(() => {
+    const businessName = this.rowData()?.businessNumber;
+    const businessesList = this.genericService.businessSelectItems();
+    const business = businessesList.find((b) => b.value === businessName);
+    
+    this.authService.setActiveBusinessNumber(business?.value as string);
+  });
 
   // === Outputs ===
   visibleChange = output<{ visible: boolean; data?: boolean }>();
 
   // === Signals & UI constants ===
-  isLoading: WritableSignal<boolean> = signal(false);
+  isLoading = signal<boolean>(false);
   categoryList = signal<ISelectItem[]>([]);
   isEquipmentValues = [
     { value: true, name: 'כן' },
@@ -154,6 +166,48 @@ export class AddCategoryComponent implements OnInit {
           ctrl.setValue(Number(ctrl.value), { emitEvent: false });
       });
     });
+  }
+
+  addSwitch(): void {
+    if (this.subCategoryMode()) {
+      this.addSubCategory();
+    } else {
+      this.addCategory();
+    }
+  }
+
+  addSubCategory(): void {
+    this.isLoading.set(true);
+    this.convertSubCategoriesToNumbers();
+
+    const formValue = this.mainForm.getRawValue();
+
+    this.transactionService
+      .addSubCategory(formValue, formValue.categoryName)
+      .pipe(
+        catchError((err) => {
+          this.isLoading.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'הוספת תתי קטגוריה נכשלה',
+            life: 3000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoading.set(false))
+      )
+      .subscribe(() => {
+        this.visibleChange.emit({ visible: false, data: true });
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'הוספת תת קטגוריה בוצעה בהצלחה',
+          life: 3000,
+          key: 'br',
+        });
+      });
   }
 
   addCategory(): void {

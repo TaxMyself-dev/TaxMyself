@@ -347,10 +347,10 @@ export type PaymentMethodTypeHebrew = 'מזומן' | 'העברה בנקאית' |
 
 export const paymentMethodOptions = [
   { label: 'העברה בנקאית', id: 'BANK_TRANSFER' },
-  { label: 'כרטיס אשראי',   id: 'CREDIT_CARD' },
-  { label: 'מזומן',         id: 'CASH' },
-  { label: 'אפליקציה',      id: 'APP' },
-  { label: 'צ׳ק',           id: 'CHECK' },
+  { label: 'כרטיס אשראי', id: 'CREDIT_CARD' },
+  { label: 'מזומן', id: 'CASH' },
+  { label: 'אפליקציה', id: 'APP' },
+  { label: 'צ׳ק', id: 'CHECK' },
 ] satisfies Array<MenuItem & { label: PaymentMethodTypeHebrew; id: PaymentMethodType }>;
 
 export enum CardCompany {
@@ -515,20 +515,4 @@ export enum TaxReportingType {
   NOT_REQUIRED = 'NOT_REQUIRED',
   MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
-}
-
-export enum ClientsTableColumns {
-  NAME = 'name',
-  PHONE = 'phone',
-  EMAIL = 'email',
-  ID = 'id',
-  ADDRESS = 'address',
-}
-
-export enum ClientsTableHebrewColumns {
-  name = 'שם הלקוח',
-  phone = 'טלפון',
-  email = 'אימייל',
-  id = 'ת.ז. / ח.פ.',
-  address = 'כתובת',
 }

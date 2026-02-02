@@ -1,5 +1,9 @@
 :host {
-    overflow: scroll;
+    // overflow: scroll;
+    // border: 1px solid red;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
 }
 
 .wrap-supplier-list {
@@ -228,9 +232,9 @@
         height: 100%;
     }
 
-.screen-add-expense {
-    height: 700px;
-}
+    .screen-add-expense {
+        height: 700px;
+    }
 
     .wrap-supplier-list {
         display: flex;

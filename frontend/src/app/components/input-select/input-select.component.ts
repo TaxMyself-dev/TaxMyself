@@ -39,8 +39,8 @@ export class InputSelectComponent implements OnInit {
   group = input<boolean>(false);
   virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
-  
-  onChangeInputSelect = output<string>();
+
+  onChangeInputSelect = output<string | boolean>();
   onClickInputSelect = output<string>();
   multiSelectButtonClicked = output<any>();
   addSubCategoryClicked = output<{ state: true, subCategoryMode: true }>();
@@ -54,7 +54,7 @@ export class InputSelectComponent implements OnInit {
     this.getinputClasses();
     this.getStringMessage();
 
-     effect(() => {
+    effect(() => {
       const form = this.parentForm();
       const name = this.controlName();
       const isDisabled = this.disabled();
@@ -69,7 +69,7 @@ export class InputSelectComponent implements OnInit {
         ctrl.enable({ emitEvent: false });
       }
     }, { injector: this.injector });
-  
+
   }
 
   get isRequired(): boolean {
@@ -111,7 +111,7 @@ export class InputSelectComponent implements OnInit {
     this.inputClasses.set(classes);
   }
 
-  onChange(event: any): void {    
+  onChange(event: any): void {
     this.getStringMessage();
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {

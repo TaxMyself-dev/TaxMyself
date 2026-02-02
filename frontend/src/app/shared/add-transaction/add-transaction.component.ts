@@ -1,18 +1,18 @@
 import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { IClassifyTrans, IColumnDataTable, IDisplayCategorytDetails, IGetSubCategory, ISelectItem } from '../interface';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, displayColumnsExpense } from '../enums';
-import { EMPTY, catchError, finalize, map, switchMap, tap, zip } from 'rxjs';
-import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ModalController } from '@ionic/angular';
+import { EMPTY, catchError, finalize, map, switchMap, zip } from 'rxjs';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { FormTypes, displayColumnsExpense } from '../enums';
+import { IClassifyTrans, ISelectItem, ISubCategory } from '../interface';
 
 @Component({
-    selector: 'app-add-transaction',
-    templateUrl: './add-transaction.component.html',
-    styleUrls: ['./add-transaction.component.scss', '../../shared/shared-styling.scss'],
-    standalone: false
+  selector: 'app-add-transaction',
+  templateUrl: './add-transaction.component.html',
+  styleUrls: ['./add-transaction.component.scss', '../../shared/shared-styling.scss'],
+  standalone: false
 })
 export class AddTransactionComponent implements OnInit {
 
@@ -55,9 +55,9 @@ export class AddTransactionComponent implements OnInit {
   listNotIsEqiupmentSubCategory: any[]
   listIsEqiupmentSubCategory: ISelectItem[];
   listSubCategory: ISelectItem[];
-  originalSubCategoryList: IGetSubCategory[] = [];
+  originalSubCategoryList: ISubCategory[] = [];
   subCategorySelected: boolean = false;
-  categoryDetails: IGetSubCategory = { id: 0, categoryName: "", isRecognized: "", subCategoryName: "", isEquipment: "", reductionPercent: "", taxPercent: "", vatPercent: "", isExpense: false };
+  categoryDetails: Partial<ISubCategory> = { id: 0, categoryName: "", isRecognized: null, subCategoryName: "", isEquipment: null, reductionPercent: 0, taxPercent: 0, vatPercent: 0, isExpense: false };
   equipmentType = 0;
   isRecognize: boolean = false;
   equipmentList: ISelectItem[] = [{ name: "לא", value: 0 }, { name: "כן", value: 1 }];
@@ -125,6 +125,14 @@ export class AddTransactionComponent implements OnInit {
       ),
     })
 
+  }
+
+  get isRecognizedLabel(): string {
+    return this.categoryDetails.isRecognized ? 'כן' : 'לא';
+  }
+
+  get isEquipmentLabel(): string {
+    return this.categoryDetails.isEquipment ? 'כן' : 'לא';
   }
 
   ngOnInit() {
@@ -252,7 +260,7 @@ export class AddTransactionComponent implements OnInit {
 
     if (this.existCategory) {
       this.subCategorySelected = true;
-      const categoryDetailsFromServer: IGetSubCategory = this.originalSubCategoryList?.find((item) => item.subCategoryName === event.value);
+      const categoryDetailsFromServer: ISubCategory = this.originalSubCategoryList?.find((item) => item.subCategoryName === event.value);
       console.log("categoryDetailsFromServer :", categoryDetailsFromServer);
 
       this.categoryDetails.id = categoryDetailsFromServer?.id;
@@ -261,8 +269,8 @@ export class AddTransactionComponent implements OnInit {
       this.categoryDetails.subCategoryName = categoryDetailsFromServer?.subCategoryName;
       this.categoryDetails.taxPercent = categoryDetailsFromServer?.taxPercent;
       this.categoryDetails.vatPercent = categoryDetailsFromServer?.vatPercent;
-      categoryDetailsFromServer?.isRecognized ? this.categoryDetails.isRecognized = "כן" : this.categoryDetails.isRecognized = "לא";
-      categoryDetailsFromServer?.isEquipment ? this.categoryDetails.isEquipment = "כן" : this.categoryDetails.isEquipment = "לא";
+      this.categoryDetails.isRecognized = categoryDetailsFromServer?.isRecognized;
+      this.categoryDetails.isEquipment = categoryDetailsFromServer?.isEquipment;
       console.log("category details: ", this.categoryDetails);
 
     }
@@ -311,10 +319,10 @@ export class AddTransactionComponent implements OnInit {
     formData.name = this.data.name;
     formData.category = this.categoryDetails.categoryName as string;
     formData.subCategory = this.categoryDetails.subCategoryName;
-    formData.isRecognized = this.categoryDetails.isRecognized == "כן" ? true : false;
+    formData.isRecognized = this.categoryDetails.isRecognized;
     formData.vatPercent = +this.categoryDetails.vatPercent;
     formData.taxPercent = +this.categoryDetails.taxPercent;
-    formData.isEquipment = this.categoryDetails.isEquipment == "כן" ? true : false;;
+    formData.isEquipment = this.categoryDetails.isEquipment;
     formData.reductionPercent = +this.categoryDetails.reductionPercent;
     formData.isNewCategory = false;
     formData.isExpense = !this.incomeMode;

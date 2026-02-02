@@ -3,6 +3,10 @@ import { IsString, IsNumber, IsBoolean, IsOptional } from 'class-validator';
 export class CreateUserSubCategoryDto {
 
   @IsString()
+  @IsOptional()
+  categoryName: string;
+
+  @IsString()
   subCategoryName: string;
 
   @IsNumber()
@@ -27,6 +31,6 @@ export class CreateUserSubCategoryDto {
 
   @IsBoolean()
   @IsOptional()
-  isExpense?: boolean;
+  isExpense: boolean;
 
 }

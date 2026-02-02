@@ -1,134 +1,81 @@
-<app-left-panel
-  [headerText]="subCategoryMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'"
-  [visible]="isVisible()"
-  (visibleChanged)="onVisibleChange($event)"
-  [backEnabled]="true"
-  (backEnabledClicked)="onBackEnabled($event)"
->
+<app-left-panel [headerText]="subCategoryMode() ? 'הוספת תת קטגוריה חדשה' : 'הוספת קטגוריה חדשה'"
+  [visible]="isVisible()" (visibleChanged)="onVisibleChange($event)" [backEnabled]="true"
+  (backEnabledClicked)="onBackEnabled($event)">
   <div class="content" content>
     <form [formGroup]="mainForm" class="is-recognized-form">
       <!-- CATEGORY -->
-      <app-input-text
-        [ariaLabel]="'קטגוריה'"
-        [placeholder]="subCategoryMode() ? categoryName() : ''"
-        [labelText]="'קטגוריה'"
-        [controlName]="'categoryName'"
-        [parentForm]="mainForm"
-        [size]="inputsSize.MEDIUM">
+      <app-input-text [ariaLabel]="'קטגוריה'" [placeholder]="subCategoryMode() ? categoryName() : ''"
+        [labelText]="'קטגוריה'" [controlName]="'categoryName'" [parentForm]="mainForm" [size]="inputsSize.MEDIUM">
       </app-input-text>
 
       <!-- SUBCATEGORIES -->
       <div class="subCategories-container" formArrayName="subCategories">
         @for (group of subCategories.controls; let i = $index; track i) {
-          <div [formGroupName]="i" class="wrap-subcat-block">
+        <div [formGroupName]="i" class="wrap-subcat-block">
 
-            <div class="subcat-block">
-              <!-- Checkbox per subcategory -->
-              <div class="checkbox-container">
-                <p-checkbox
-                  [size]="'small'"
-                  inputId="ny-{{ i }}"
-                  [binary]="true"
-                  formControlName="isRecognized"
-                  [style]="{ color: 'red' }"
-                  (onChange)="onCheckboxClicked($event, i)" />
-                <label for="ny-{{ i }}" class="ml-2">
-                  האם ההוצאה הינה הוצאה מוכרת?
-                </label>
-              </div>
-
-              <!-- Conditional fields -->
-              @if (getSubCategoryFormByIndex(i).get('isRecognized')?.value) {
-                <!-- Recognized -->
-                <app-input-text
-                  [parentForm]="getSubCategoryFormByIndex(i)"
-                  [controlName]="'subCategoryName'"
-                  [labelText]="'תת-קטגוריה'"
-                  [size]="inputsSize.MEDIUM">
-                </app-input-text>
-
-                <app-input-select
-                  [parentForm]="getSubCategoryFormByIndex(i)"
-                  [controlName]="'isEquipment'"
-                  [labelText]="'רכוש קבוע?'"
-                  [items]="isEquipmentValues"
-                  [placeholder]="'בחר'"
-                  [size]="inputsSize.SMALL">
-                </app-input-select>
-
-                <app-input-text
-                  [parentForm]="getSubCategoryFormByIndex(i)"
-                  [controlName]="'taxPercent'"
-                  [labelText]="'% מס'"
-                  [size]="inputsSize.SMALL"
-                  [type]="'number'"
-                  [errorText]="'מספרים בלבד'"
-                  placeholder="אחוז מס">
-                </app-input-text>
-
-                <app-input-text
-                  [parentForm]="getSubCategoryFormByIndex(i)"
-                  [controlName]="'vatPercent'"
-                  [labelText]="'% מע״מ'"
-                  [size]="inputsSize.SMALL"
-                  [type]="'number'"
-                  placeholder="אחוז מע״מ">
-                </app-input-text>
-
-                <app-input-text
-                  [parentForm]="getSubCategoryFormByIndex(i)"
-                  [controlName]="'reductionPercent'"
-                  [labelText]="'% פחת'"
-                  [size]="inputsSize.SMALL"
-                  [type]="'number'"
-                  placeholder="אחוז פחת">
-                </app-input-text>
-
-              }
-              @else {
-                <!-- Unrecognized -->
-                <app-input-text
-                  [ariaLabel]="'תת-קטגוריה'"
-                  [labelText]="'תת-קטגוריה'"
-                  [controlName]="'subCategoryName'"
-                  [parentForm]="getSubCategoryFormByIndex(i)"
-                  [size]="inputsSize.MEDIUM"
-                  placeholder="">
-                </app-input-text>
-              }
+          <div class="subcat-block">
+            <!-- Checkbox per subcategory -->
+            <div class="checkbox-container">
+              <p-checkbox [size]="'small'" inputId="ny-{{ i }}" [binary]="true" formControlName="isRecognized"
+                [style]="{ color: 'red' }" (onChange)="onCheckboxClicked($event, i)" />
+              <label for="ny-{{ i }}" class="ml-2">
+                האם ההוצאה הינה הוצאה מוכרת?
+              </label>
             </div>
 
-            <!-- Remove Button -->
-            @if (subCategories.length > 1) {
-              <app-p-button
-                [buttonColor]="buttonColor.WHITE"
-                [buttonSize]="buttonSize.ICON"
-                [icon]="'pi pi-times-circle'"
-                [iconOnly]="true"
-                (onButtonClicked)="removeSubCategory(i)">
-              </app-p-button>
+            <!-- Conditional fields -->
+            @if (getSubCategoryFormByIndex(i).get('isRecognized')?.value) {
+            <!-- Recognized -->
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'subCategoryName'"
+              [labelText]="'תת-קטגוריה'" [size]="inputsSize.MEDIUM">
+            </app-input-text>
+
+            <app-input-select [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'isEquipment'"
+              [labelText]="'רכוש קבוע?'" [items]="isEquipmentValues" [placeholder]="'בחר'" [size]="inputsSize.SMALL">
+            </app-input-select>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'taxPercent'"
+              [labelText]="'% מס'" [size]="inputsSize.SMALL" [type]="'number'" [errorText]="'מספרים בלבד'"
+              placeholder="אחוז מס">
+            </app-input-text>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'vatPercent'"
+              [labelText]="'% מע״מ'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחוז מע״מ">
+            </app-input-text>
+
+            <app-input-text [parentForm]="getSubCategoryFormByIndex(i)" [controlName]="'reductionPercent'"
+              [labelText]="'% פחת'" [size]="inputsSize.SMALL" [type]="'number'" placeholder="אחוז פחת">
+            </app-input-text>
+
+            }
+            @else {
+            <!-- Unrecognized -->
+            <app-input-text [ariaLabel]="'תת-קטגוריה'" [labelText]="'תת-קטגוריה'" [controlName]="'subCategoryName'"
+              [parentForm]="getSubCategoryFormByIndex(i)" [size]="inputsSize.MEDIUM" placeholder="">
+            </app-input-text>
             }
           </div>
+
+          <!-- Remove Button -->
+          @if (subCategories.length > 1) {
+          <app-p-button [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON" [icon]="'pi pi-times-circle'"
+            [iconOnly]="true" (onButtonClicked)="removeSubCategory(i)">
+          </app-p-button>
+          }
+        </div>
         }
 
         <!-- Add Button -->
-        <app-p-button
-          [buttonText]="' + הוסף תת קטגוריה'"
-          [variant]="'text'"
-          [severity]="'info'"
-          [buttonSize]="buttonSize.AUTO"
-          (onButtonClicked)="AddSubCategory()">
+        <app-p-button [buttonText]="' + הוסף תת קטגוריה'" [variant]="'text'" [severity]="'info'"
+          [buttonSize]="buttonSize.AUTO" (onButtonClicked)="AddSubCategory()">
         </app-p-button>
       </div>
     </form>
   </div>
 
   <div class="footer" footer>
-    <app-p-button
-      [buttonText]="'הוסף'"
-      [isLoading]="isLoading()"
-      [disabled]="mainForm.invalid"
-      (onButtonClicked)="addCategory()">
+    <app-p-button [buttonText]="'הוסף'" [isLoading]="isLoading()" [disabled]="mainForm.invalid"
+      (onButtonClicked)="subCategoryMode() ? addSubCategory() : addCategory()">
     </app-p-button>
   </div>
 </app-left-panel>

@@ -3,7 +3,7 @@ import { ModalController, PopoverController } from '@ionic/angular';
 import { BehaviorSubject, EMPTY, Observable, catchError, delay, finalize, from, map, switchMap, tap } from 'rxjs';
 import { addSupplierComponent } from '../add-supplier/add-supplier.component';
 import { cloneDeep } from 'lodash';
-import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISuppliers, ITableRowAction } from '../interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISupplier, ITableRowAction } from '../interface';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { ButtonSize } from '../button/button.enum';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, TransactionsOutcomesColumns } from '../enums';

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, input, OnInit, output, signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { FormType, inputsSize } from 'src/app/shared/enums';
@@ -10,7 +10,7 @@ import { FormType, inputsSize } from 'src/app/shared/enums';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InputTextComponent  implements OnInit {
+export class InputTextComponent implements OnInit {
 
   inputsSize = inputsSize;
 
@@ -36,8 +36,8 @@ export class InputTextComponent  implements OnInit {
     this.getInputClasses();
   }
 
-   /** true if this control was built with Validators.required */
-   get isRequired(): boolean {
+  /** true if this control was built with Validators.required */
+  get isRequired(): boolean {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (!ctrl) return false;
     // Angular 16+ supports hasValidator
@@ -53,14 +53,14 @@ export class InputTextComponent  implements OnInit {
   }
 
   getInputClasses(): void {
-    const classes =  [
-      this.size(),   
-      this.customStyle()          
+    const classes = [
+      this.size(),
+      this.customStyle()
     ]
       .filter(c => !!c)                // remove empty strings
       .join(' ');
-            
-      this.inputClasses.set(classes);
+
+    this.inputClasses.set(classes);
   }
 
   // onChange(event: any): void {
@@ -69,14 +69,14 @@ export class InputTextComponent  implements OnInit {
 
   onInput(event: any): void {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.dirty && ctrl.value !="") {
+    if (ctrl.dirty && ctrl.value != "") {
       this.inputClasses.update(current => {
         if (!current.includes('dirty')) {
           return current + ' dirty';
         }
         return current;
       });
-      
+
     }
     else {
       this.inputClasses.update(current => current.replace('dirty', ''));
@@ -84,6 +84,6 @@ export class InputTextComponent  implements OnInit {
     this.onInputText.emit(event.target.value);
   }
 
- 
+
 
 }

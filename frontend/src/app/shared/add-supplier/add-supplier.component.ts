@@ -1,19 +1,17 @@
-import { HttpClient } from '@angular/common/http';
 import { Component, Input, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map, of, switchMap, tap } from 'rxjs';
-import { FilesService } from 'src/app/services/files.service';
-import { ICreateSupplier, IGetSubCategory, IRowDataTable, ISelectItem } from '../interface';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map, of, tap } from 'rxjs';
+import { ICreateSupplier, ISelectItem, ISubCategory } from '../interface';
 import { cloneDeep, isEqual } from 'lodash';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
-    selector: 'app-add-supplier',
-    templateUrl: './add-supplier.component.html',
-    styleUrls: ['./add-supplier.component.scss'],
-    standalone: false
+  selector: 'app-add-supplier',
+  templateUrl: './add-supplier.component.html',
+  styleUrls: ['./add-supplier.component.scss'],
+  standalone: false
 })
 export class addSupplierComponent implements OnInit {
 
@@ -47,7 +45,7 @@ export class addSupplierComponent implements OnInit {
   isEquipment: boolean;
   equipmentList: ISelectItem[] = [{ name: "לא", value: "0" }, { name: "כן", value: "1" }];
   categoryList: {};
-  subCategoryList: IGetSubCategory[];
+  subCategoryList: ISubCategory[];
   subCategoriesListDataMap = new Map<string, any[]>();
   categoriesListDataMap = new Map<boolean, any[]>();
   doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
@@ -79,7 +77,7 @@ export class addSupplierComponent implements OnInit {
   }
 
   confirm(data: any): Observable<any> {
-    return  this.expenseDataService.editSupplier(data, this.id);
+    return this.expenseDataService.editSupplier(data, this.id);
     // return this.editMode ? this.expenseDataService.editSupplier(data, this.id) : this.expenseDataService.addSupplier(data);
   };
 
@@ -105,7 +103,7 @@ export class addSupplierComponent implements OnInit {
         return EMPTY;
       })).subscribe((res) => {
         console.log("res of save sup: ", res);
-        this.cancel("save", this.myForm); 
+        this.cancel("save", this.myForm);
       });
   }
 
@@ -126,7 +124,7 @@ export class addSupplierComponent implements OnInit {
 
   tryPriny(): void {
     console.log("selection");
-    
+
   }
 
   onDdlSelectionChange(event: any, data: any) {
@@ -137,7 +135,7 @@ export class addSupplierComponent implements OnInit {
         break;
       case 'category':
         console.log('onDdlSelectionChange');
-        this.myForm.patchValue({subCategory: ""});
+        this.myForm.patchValue({ subCategory: "" });
         this.getSubCategoryFromServer(event.value).
           pipe(
             tap((res) => { this.subCategoryList = res })
@@ -197,7 +195,7 @@ export class addSupplierComponent implements OnInit {
           map((res) => {
             console.log("before map:", res);
 
-            return res.map((item: IGetSubCategory) => ({
+            return res.map((item: ISubCategory) => ({
               //...item,
               name: item.subCategoryName,
               value: item.subCategoryName,
@@ -241,7 +239,7 @@ export class addSupplierComponent implements OnInit {
     }
   }
 
-  selectedSubcategory(data: IGetSubCategory): void {
+  selectedSubcategory(data: ISubCategory): void {
     console.log("data in select sub:", data);
     this.myForm.patchValue({ reductionPercent: data.reductionPercent });
     this.myForm.patchValue({ vatPercent: data.vatPercent });

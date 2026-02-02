@@ -37,7 +37,7 @@ export class AuthService {
   public isToastOpen$ = new BehaviorSubject<boolean>(false);
   public tokenRefreshed$ = new BehaviorSubject<string | null>(null);
 
-private activeBusinessNumberSig = signal<string | null>(null);
+  private activeBusinessNumberSig = signal<string | null>(null);
 
   setActiveBusinessNumber(bn: string | null) {
     this.activeBusinessNumberSig.set(bn);
@@ -46,7 +46,29 @@ private activeBusinessNumberSig = signal<string | null>(null);
   getActiveBusinessNumber(): string | null {
     return this.activeBusinessNumberSig();
   }
-  
+
+  setActiveBusinessNumberByName(businessName: string | null): void {
+    if (!businessName) {
+      this.setActiveBusinessNumber(null);
+      return;
+    }
+
+    const match = this.genericService.businessSelectItems().find((item) => item.name === businessName);
+    const value = match?.value;
+
+    if (typeof value === 'string') {
+      this.setActiveBusinessNumber(value);
+      return;
+    }
+
+    if (value !== undefined && value !== null) {
+      this.setActiveBusinessNumber(String(value));
+      return;
+    }
+
+    this.setActiveBusinessNumber(null);
+  }
+
   logout(): void {
     this.afAuth.signOut().then(() => {
       localStorage.clear();
@@ -59,6 +81,8 @@ private activeBusinessNumberSig = signal<string | null>(null);
     const userBusinesses = this.getUserBusinessesFromLocalStorage();
     console.log("🚀 ~ AuthService ~ getUserBussinesNumber ~ userBusinesses:", userBusinesses)
     const businessNumber = userBusinesses.businessNumber;
+    console.log("🚀 ~ AuthService ~ getUserBussinesNumber ~ businessNumber:", businessNumber)
+    console.log('%c special log', 'color: red; font-size: 20px; font-weight: bold; background-color: black; ', businessNumber)
     return businessNumber;
   }
 
@@ -77,7 +101,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
     }
   }
 
-    getUserBusinessesFromLocalStorage(): IUserData | null {
+  getUserBusinessesFromLocalStorage(): IUserData | null {
     const tempA = localStorage.getItem('businesses');
     if (!tempA) {
       return null;
@@ -124,33 +148,33 @@ private activeBusinessNumberSig = signal<string | null>(null);
   }
 
   getSignupErrorMessage(err: string): string {
-  switch (err) {
+    switch (err) {
 
-    case 'auth/email-already-in-use':
-      return 'כתובת האימייל כבר רשומה במערכת. נסה להתחבר או להשתמש באימייל אחר.';
+      case 'auth/email-already-in-use':
+        return 'כתובת האימייל כבר רשומה במערכת. נסה להתחבר או להשתמש באימייל אחר.';
 
-    case 'auth/invalid-email':
-      return 'כתובת האימייל אינה תקינה. אנא בדוק והזן כתובת נכונה.';
+      case 'auth/invalid-email':
+        return 'כתובת האימייל אינה תקינה. אנא בדוק והזן כתובת נכונה.';
 
-    case 'auth/network-request-failed':
-      return 'בעיה בחיבור לאינטרנט. אנא בדוק את החיבור ונסה שוב.';
+      case 'auth/network-request-failed':
+        return 'בעיה בחיבור לאינטרנט. אנא בדוק את החיבור ונסה שוב.';
 
-    case 'auth/user-disabled':
-      return 'החשבון שלך הושבת. לפרטים נוספים פנה לתמיכה.';
+      case 'auth/user-disabled':
+        return 'החשבון שלך הושבת. לפרטים נוספים פנה לתמיכה.';
 
-    case 'auth/user-not-found':
-      return 'לא נמצא חשבון עם כתובת האימייל שהוזנה.';
+      case 'auth/user-not-found':
+        return 'לא נמצא חשבון עם כתובת האימייל שהוזנה.';
 
-    case 'auth/missing-email':
-      return 'יש להזין כתובת אימייל כדי להמשיך.';
+      case 'auth/missing-email':
+        return 'יש להזין כתובת אימייל כדי להמשיך.';
 
-    case 'auth/too-many-requests':
-      return 'בוצעו יותר מדי ניסיונות בזמן קצר. אנא נסה שוב בעוד מספר דקות.';
+      case 'auth/too-many-requests':
+        return 'בוצעו יותר מדי ניסיונות בזמן קצר. אנא נסה שוב בעוד מספר דקות.';
 
-    default:
-      return 'אירעה שגיאה לא צפויה. אנא נסה שוב מאוחר יותר.';
+      default:
+        return 'אירעה שגיאה לא צפויה. אנא נסה שוב מאוחר יותר.';
+    }
   }
-}
 
 
 
@@ -161,7 +185,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
         catchError((err) => {
           console.log("err in create user: ", err);
           return throwError(() => err);
-          
+
         }),
         tap((userCredentialData: UserCredential) => uid = userCredentialData.user.uid),
         switchMap((userCredentialData: UserCredential) => from(sendEmailVerification(userCredentialData.user))),
@@ -195,7 +219,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
           // משתמש מחובר – שלח מייל אימות
           return from(user.sendEmailVerification());
         }
-  
+
         // אם המשתמש לא מחובר אבל יש אימייל וסיסמה – ננסה להתחבר ואז לשלוח מייל
         if (mailAddress && password) {
           return from(this.afAuth.signInWithEmailAndPassword(mailAddress, password)).pipe(
@@ -208,7 +232,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
             })
           );
         }
-  
+
         // אין משתמש ואין פרטי התחברות
         return throwError(() => {
           const err: any = new Error('No user signed in, and no credentials provided');
@@ -222,7 +246,7 @@ private activeBusinessNumberSig = signal<string | null>(null);
       })
     );
   }
-  
+
 
 
 

@@ -29,17 +29,18 @@
             [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'סינון טבלה'"
             [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button>
           <div class="filter-panel-container" #filterPanelRef>
-            <app-filter-panel (applyFilters)="applyFilters($event)"
-              [isVisible]="visibleFilterPannel()" [class.open-filter-panel]="visibleFilterPannel()" [class.close-filter-panel]="!visibleFilterPannel()"></app-filter-panel>
+            <app-filter-panel (applyFilters)="applyFilters($event)" [isVisible]="visibleFilterPannel()"
+              [class.open-filter-panel]="visibleFilterPannel()"
+              [class.close-filter-panel]="!visibleFilterPannel()"></app-filter-panel>
           </div>
         </div>
         <!-- <app-filter-panel></app-filter-panel> -->
       </div>
 
-      <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
-        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()"
-        [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
-        (visibleAccountAssociationClicked)="openAccountAssociation($event)"
+      <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()"
+        [isLoadingState]="isLoadingStateTable()" [showButtons]="true" [placeholderSearch]="'חיפוש לפי שם עסק'"
+        [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()" [dataTable]="filteredExpensesData()"
+        [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)"
         (visibleClassifyTranClicked)="openClassifyTran($event)"
         (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
     </div>
@@ -70,8 +71,8 @@
 
     @if (visibleAddCategory()) {
     <app-add-category [isVisible]="visibleAddCategory()" (visibleChange)="closeAddCategory($event)"
-      [subCategoryMode]="subCategoryMode()" [categoryName]="categoryName()"
-      [incomeMode]="incomeMode()"></app-add-category>
+      [subCategoryMode]="subCategoryMode()" [categoryName]="categoryName()" [incomeMode]="incomeMode()"
+      [rowData]="leftPanelData()"></app-add-category>
     }
   </div>
 </div>
