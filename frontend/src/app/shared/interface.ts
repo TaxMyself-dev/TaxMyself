@@ -455,6 +455,7 @@ export interface Business {
  * SHAAM Invoice Approval Request Interface
  */
 export interface IShaamApprovalRequest {
+  user_id: number;
   accounting_software_number: number;
   amount_before_discount: number;
   customer_vat_number: number;

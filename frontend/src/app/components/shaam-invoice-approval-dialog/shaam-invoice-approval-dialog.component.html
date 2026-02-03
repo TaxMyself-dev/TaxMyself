@@ -52,12 +52,22 @@
         <div class="form-row">
           <app-input-text
             [parentForm]="approvalForm"
+            [controlName]="'user_id'"
+            [labelText]="'מספר משתמש (user_id)'"
+            [placeholder]="'לדוגמה: 304902133'"
+            [type]="'number'">
+          </app-input-text>
+          
+          <app-input-text
+            [parentForm]="approvalForm"
             [controlName]="'vat_number'"
             [labelText]="'ח.פ. ספק'"
             [placeholder]="'לדוגמה: 123456789'"
             [type]="'number'">
           </app-input-text>
-          
+        </div>
+
+        <div class="form-row">
           <app-input-text
             [parentForm]="approvalForm"
             [controlName]="'customer_vat_number'"
@@ -161,4 +171,6 @@
     </div>
   </div>
 </div>
+
+<p-confirmDialog></p-confirmDialog>
 

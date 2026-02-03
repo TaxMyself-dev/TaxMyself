@@ -37,10 +37,6 @@ export class ShaamCallbackPage implements OnInit {
   isSuccess = false;
   isError = false;
   errorMessage = '';
-  accessToken = '';
-  expiresIn = 0;
-  fullTokenResponse: ShaamTokenResponse | null = null;
-  curlCommand = '';
 
   ngOnInit() {
     // Get query parameters from SHAAM redirect or backend redirect
@@ -103,17 +99,12 @@ export class ShaamCallbackPage implements OnInit {
   private handleTokenReceived(tokenResponse: ShaamTokenResponse): void {
     this.isLoading = false;
     this.isSuccess = true;
-    this.accessToken = tokenResponse.access_token;
-    this.expiresIn = tokenResponse.expires_in;
-    this.fullTokenResponse = tokenResponse;
 
-    // Store token in localStorage (you may want to use a more secure storage)
-    localStorage.setItem('shaam_access_token', tokenResponse.access_token);
-    localStorage.setItem('shaam_token_expires_in', tokenResponse.expires_in.toString());
-    localStorage.setItem('shaam_token_timestamp', Date.now().toString());
-
-    // Build CURL command for allocation number request
-    this.buildCurlCommand(tokenResponse.access_token);
+    // Token is now stored in the database, no need to store in localStorage
+    // Clear any old localStorage tokens
+    localStorage.removeItem('shaam_access_token');
+    localStorage.removeItem('shaam_token_expires_in');
+    localStorage.removeItem('shaam_token_timestamp');
 
     this.messageService.add({
       severity: 'success',
@@ -122,61 +113,6 @@ export class ShaamCallbackPage implements OnInit {
       life: 3000,
       key: 'br',
     });
-  }
-
-  private buildCurlCommand(accessToken: string): void {
-    // Prepare demo request data (with default values)
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    const demoRequest = {
-      accounting_software_number: 123456,
-      amount_before_discount: 1000.00,
-      customer_vat_number: 304902133,
-      discount: 0.00,
-      invoice_date: today,
-      invoice_id: `DEMO-${Date.now()}`,
-      invoice_issuance_date: today,
-      invoice_reference_number: `REF-${Date.now()}`,
-      invoice_type: 1,
-      payment_amount: 1000.00,
-      payment_amount_including_vat: 1180.00,
-      vat_amount: 180.00,
-      vat_number: 204245724,
-    };
-
-    const apiUrl = `${environment.apiUrl}shaam/invoices/approval`;
-    const clientId = 'YOUR_CLIENT_ID_HERE'; // Replace with your actual CLIENT_ID
-
-    // Build CURL command with proper formatting
-    const requestBody = JSON.stringify(demoRequest, null, 2);
-    const curlCommand = `curl -X POST "${apiUrl}" \\\n` +
-      `  -H "Authorization: Bearer ${accessToken}" \\\n` +
-      `  -H "Content-Type: application/json" \\\n` +
-      `  -H "Accept: application/json" \\\n` +
-      `  -H "X-IBM-Client-Id: ${clientId}" \\\n` +
-      `  -d '${requestBody.replace(/'/g, "'\\''")}'`;
-
-    this.curlCommand = curlCommand;
-  }
-
-  copyToClipboard(text: string): void {
-    navigator.clipboard.writeText(text).then(() => {
-      this.messageService.add({
-        severity: 'success',
-        summary: 'הועתק',
-        detail: 'הטקסט הועתק ללוח',
-        life: 2000,
-        key: 'br',
-      });
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-    });
-  }
-
-  getTokenResponseAsJson(): string {
-    if (!this.fullTokenResponse) {
-      return '';
-    }
-    return JSON.stringify(this.fullTokenResponse, null, 2);
   }
 
   private exchangeCodeForToken(code: string, state: string): void {
@@ -212,6 +148,10 @@ export class ShaamCallbackPage implements OnInit {
 
   navigateToHome(): void {
     this.router.navigate(['/my-account']);
+  }
+
+  navigateToDocCreate(): void {
+    this.router.navigate(['/doc-create']);
   }
 
   tryAgain(): void {

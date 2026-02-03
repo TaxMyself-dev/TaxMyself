@@ -421,6 +421,7 @@
   <!-- SHAAM Invoice Approval Dialog -->
   <app-shaam-invoice-approval-dialog
     [isVisible]="showShaamDialog()"
+    [businessNumber]="selectedBusinessNumber"
     (visibleChange)="onShaamDialogClose($event)"
     (approvalSuccess)="onShaamApprovalSuccess($event)">
   </app-shaam-invoice-approval-dialog>

@@ -6,7 +6,8 @@ import { InputDateComponent } from '../input-date/input-date.component';
 import { InputTextComponent } from '../input-text/input-text.component';
 import { ButtonSize, ButtonColor } from '../button/button.enum';
 import { ShaamService } from 'src/app/services/shaam.service';
-import { MessageService } from 'primeng/api';
+import { MessageService, ConfirmationService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
 
@@ -15,14 +16,17 @@ import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/in
   templateUrl: './shaam-invoice-approval-dialog.component.html',
   styleUrls: ['./shaam-invoice-approval-dialog.component.scss'],
   standalone: true,
-  imports: [CommonModule, ButtonComponent, InputDateComponent, InputTextComponent, ReactiveFormsModule]
+  imports: [CommonModule, ButtonComponent, InputDateComponent, InputTextComponent, ReactiveFormsModule, ConfirmDialogModule],
+  providers: [ConfirmationService]
 })
 export class ShaamInvoiceApprovalDialogComponent {
   formBuilder = inject(FormBuilder);
   messageService = inject(MessageService);
+  confirmationService = inject(ConfirmationService);
   shaamService = inject(ShaamService);
 
   isVisible = input<boolean>(false);
+  businessNumber = input<string | undefined>(undefined);
   
   visibleChange = output<{ visible: boolean }>();
   approvalSuccess = output<{ response: IShaamApprovalResponse }>();
@@ -39,19 +43,20 @@ export class ShaamInvoiceApprovalDialogComponent {
     const today = new Date().toISOString().split('T')[0];
     
     this.approvalForm = this.formBuilder.group({
-      accounting_software_number: new FormControl('', [Validators.required]),
+      user_id: new FormControl('304902133', [Validators.required]),
+      accounting_software_number: new FormControl('123456', [Validators.required]),
       amount_before_discount: new FormControl('1000', [Validators.required, Validators.min(0)]),
-      customer_vat_number: new FormControl('304902133', [Validators.required]),
+      customer_vat_number: new FormControl('204245724', [Validators.required]),
       discount: new FormControl('0', [Validators.required, Validators.min(0)]),
       invoice_date: new FormControl(today, [Validators.required]),
       invoice_id: new FormControl('', [Validators.required]),
       invoice_issuance_date: new FormControl(today, [Validators.required]),
       invoice_reference_number: new FormControl('', [Validators.required]),
-      invoice_type: new FormControl('1', [Validators.required]),
+      invoice_type: new FormControl('305', [Validators.required]),
       payment_amount: new FormControl('1000', [Validators.required, Validators.min(0)]),
       payment_amount_including_vat: new FormControl('1180', [Validators.required, Validators.min(0)]),
       vat_amount: new FormControl('180', [Validators.required, Validators.min(0)]),
-      vat_number: new FormControl('204245724', [Validators.required]),
+      vat_number: new FormControl('777777715', [Validators.required]),
     });
 
     // Add custom validator to ensure payment_amount_including_vat = payment_amount + vat_amount
@@ -111,81 +116,26 @@ export class ShaamInvoiceApprovalDialogComponent {
       return;
     }
 
-    // Get access token from localStorage
-    const accessToken = localStorage.getItem('shaam_access_token');
-    if (!accessToken) {
+    // Check if businessNumber is provided
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) {
       this.messageService.add({
         severity: 'error',
         summary: 'שגיאה',
-        detail: 'לא נמצא token. אנא התחבר מחדש לשעמ',
+        detail: 'מספר עסק לא זוהה. אנא נסה שוב',
         life: 3000,
         key: 'br'
       });
-      // Optionally redirect to OAuth flow
-      this.shaamService.initiateOAuthFlow();
       return;
     }
 
-    // Check if token is expired
-    const tokenTimestamp = localStorage.getItem('shaam_token_timestamp');
-    const tokenExpiresIn = localStorage.getItem('shaam_token_expires_in');
-    if (tokenTimestamp && tokenExpiresIn) {
-      const timestamp = parseInt(tokenTimestamp);
-      const expiresIn = parseInt(tokenExpiresIn);
-      const now = Date.now();
-      const elapsed = (now - timestamp) / 1000; // seconds
-      
-      if (elapsed >= expiresIn) {
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'ה-token פג תוקף. אנא התחבר מחדש לשעמ',
-          life: 3000,
-          key: 'br'
-        });
-        // Clear expired token
-        localStorage.removeItem('shaam_access_token');
-        localStorage.removeItem('shaam_token_expires_in');
-        localStorage.removeItem('shaam_token_timestamp');
-        // Redirect to OAuth flow
-        this.shaamService.initiateOAuthFlow();
-        return;
-      }
-      
-      console.log('Token validation:', {
-        tokenLength: accessToken.length,
-        tokenPreview: accessToken.substring(0, 20) + '...',
-        elapsedSeconds: elapsed,
-        expiresInSeconds: expiresIn,
-        remainingSeconds: expiresIn - elapsed,
-        isValid: elapsed < expiresIn
-      });
-    }
-
     this.isLoading.set(true);
-    const formValue = this.approvalForm.value;
-    
-    // Prepare request data
-    const approvalData: IShaamApprovalRequest = {
-      accounting_software_number: parseInt(formValue.accounting_software_number),
-      amount_before_discount: parseFloat(formValue.amount_before_discount),
-      customer_vat_number: parseInt(formValue.customer_vat_number),
-      discount: parseFloat(formValue.discount || '0'),
-      invoice_date: formValue.invoice_date,
-      invoice_id: formValue.invoice_id,
-      invoice_issuance_date: formValue.invoice_issuance_date,
-      invoice_reference_number: formValue.invoice_reference_number,
-      invoice_type: parseInt(formValue.invoice_type),
-      payment_amount: parseFloat(formValue.payment_amount),
-      payment_amount_including_vat: parseFloat(formValue.payment_amount_including_vat),
-      vat_amount: parseFloat(formValue.vat_amount),
-      vat_number: parseInt(formValue.vat_number),
-    };
 
-    this.shaamService.submitInvoiceApproval(accessToken, approvalData)
+    // Get valid access token from backend (checks validity and refreshes if needed)
+    this.shaamService.getValidAccessToken(businessNumber)
       .pipe(
         catchError((error) => {
-          const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';
+          const errorMessage = error.error?.message || error.message || 'שגיאה בבדיקת חיבור לשעמ';
           this.messageService.add({
             severity: 'error',
             summary: 'שגיאה',
@@ -193,33 +143,78 @@ export class ShaamInvoiceApprovalDialogComponent {
             life: 5000,
             key: 'br'
           });
-          return EMPTY;
-        }),
-        finalize(() => {
           this.isLoading.set(false);
+          return EMPTY;
         })
       )
-      .subscribe((response: IShaamApprovalResponse) => {
-        this.approvalResponse.set(response);
-        
-        if (response.approved && response.confirmation_number) {
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: `מספר הקצאה: ${response.confirmation_number}`,
-            life: 5000,
-            key: 'br'
-          });
-          this.approvalSuccess.emit({ response });
-        } else {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'החשבונית לא אושרה',
-            detail: response.message || 'החשבונית לא אושרה על ידי שעמ',
-            life: 5000,
-            key: 'br'
-          });
+      .subscribe((tokenData) => {
+        if (!tokenData || !tokenData.accessToken) {
+          // No valid connection exists, show confirmation dialog
+          this.isLoading.set(false);
+          this.showShaamConnectionRequiredDialog(businessNumber);
+          return;
         }
+
+        // We have a valid access token, proceed with submission
+        const formValue = this.approvalForm.value;
+        
+        // Prepare request data
+        const approvalData: IShaamApprovalRequest = {
+          user_id: parseInt(formValue.user_id),
+          accounting_software_number: parseInt(formValue.accounting_software_number),
+          amount_before_discount: parseFloat(formValue.amount_before_discount),
+          customer_vat_number: parseInt(formValue.customer_vat_number),
+          discount: parseFloat(formValue.discount || '0'),
+          invoice_date: formValue.invoice_date,
+          invoice_id: formValue.invoice_id,
+          invoice_issuance_date: formValue.invoice_issuance_date,
+          invoice_reference_number: formValue.invoice_reference_number,
+          invoice_type: parseInt(formValue.invoice_type),
+          payment_amount: parseFloat(formValue.payment_amount),
+          payment_amount_including_vat: parseFloat(formValue.payment_amount_including_vat),
+          vat_amount: parseFloat(formValue.vat_amount),
+          vat_number: parseInt(formValue.vat_number),
+        };
+
+        this.shaamService.submitInvoiceApproval(tokenData.accessToken, approvalData)
+          .pipe(
+            catchError((error) => {
+              const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';
+              this.messageService.add({
+                severity: 'error',
+                summary: 'שגיאה',
+                detail: errorMessage,
+                life: 5000,
+                key: 'br'
+              });
+              return EMPTY;
+            }),
+            finalize(() => {
+              this.isLoading.set(false);
+            })
+          )
+          .subscribe((response: IShaamApprovalResponse) => {
+            this.approvalResponse.set(response);
+            
+            if (response.approved && response.confirmation_number) {
+              this.messageService.add({
+                severity: 'success',
+                summary: 'הצלחה',
+                detail: `מספר הקצאה: ${response.confirmation_number}`,
+                life: 5000,
+                key: 'br'
+              });
+              this.approvalSuccess.emit({ response });
+            } else {
+              this.messageService.add({
+                severity: 'warn',
+                summary: 'החשבונית לא אושרה',
+                detail: response.message || 'החשבונית לא אושרה על ידי שעמ',
+                life: 5000,
+                key: 'br'
+              });
+            }
+          });
       });
   }
 
@@ -229,6 +224,26 @@ export class ShaamInvoiceApprovalDialogComponent {
 
   get isApproved(): boolean {
     return this.approvalResponse()?.approved || false;
+  }
+
+  // Show dialog when SHAAM connection is required
+  private showShaamConnectionRequiredDialog(businessNumber: string | undefined): void {
+    this.confirmationService.confirm({
+      message: 'על מנת להמשיך בתהליך יש לבצע התחברות לאיזור האישי ברשות המיסים ולתת הרשאה למערכת לבצע עבורך את הפעולה',
+      header: 'התחברות נדרשת',
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'מעבר לאתר רשות המיסים',
+      rejectLabel: 'ביטול',
+      acceptVisible: true,
+      rejectVisible: true,
+      accept: () => {
+        // Redirect to SHAAM OAuth flow
+        this.shaamService.initiateOAuthFlow(businessNumber);
+      },
+      reject: () => {
+        // User cancelled, do nothing
+      }
+    });
   }
 }
 

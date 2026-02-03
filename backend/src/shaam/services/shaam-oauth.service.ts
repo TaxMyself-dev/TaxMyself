@@ -176,6 +176,79 @@ export class ShaamOauthService {
     }
   }
 
+  /**
+   * Refreshes an access token using refresh token
+   * @param refreshToken - The refresh token
+   * @returns New token response with access_token, expires_in, and optionally new refresh_token
+   */
+  async refreshAccessToken(refreshToken: string): Promise<ShaamTokenResponseDto> {
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
+    const tokenUrl = this.urls.token;
+    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      scope: SHAAM_SCOPE,
+    });
+
+    // Log refresh request (without secrets)
+    const refreshRequestLog = {
+      url: tokenUrl,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken.substring(0, 10) + '...',
+      scope: SHAAM_SCOPE,
+      hasAuthHeader: true,
+      authHeaderPrefix: 'Basic',
+    };
+
+    this.logger.log('Refresh token request sent', refreshRequestLog);
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post<ShaamTokenResponseDto>(
+          tokenUrl,
+          body.toString(),
+          {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${credentials}`,
+            },
+            timeout: REQUEST_TIMEOUT_MS,
+          },
+        ).pipe(timeout(REQUEST_TIMEOUT_MS)),
+      );
+
+      // Log token response (with masked access_token)
+      const maskedToken = response.data.access_token
+        ? response.data.access_token.substring(0, 10) + '...'
+        : 'N/A';
+      
+      const tokenResponseLog = {
+        status: response.status,
+        access_token: maskedToken,
+        token_type: response.data.token_type,
+        expires_in: response.data.expires_in,
+        has_refresh_token: !!response.data.refresh_token,
+        scope: response.data.scope,
+      };
+
+      this.logger.log('Refresh token response received', tokenResponseLog);
+      
+      return response.data;
+    } catch (error: any) {
+      this.logger.error('Failed to refresh access token', {
+        status: error.response?.status,
+        error: error.response?.data?.error,
+        error_description: error.response?.data?.error_description,
+      });
+      throw this.handleError(error, 'Failed to refresh access token');
+    }
+  }
+
   private handleError(error: any, defaultMessage: string): Error {
     // Handle HTTP response errors
     if (error.response) {

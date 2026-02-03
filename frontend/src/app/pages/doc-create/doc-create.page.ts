@@ -1,6 +1,6 @@
 import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, take, tap, throwError } from 'rxjs';
 import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
@@ -25,7 +25,7 @@ import { log } from 'console';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
 import { ShaamService } from 'src/app/services/shaam.service';
-import { IShaamApprovalResponse } from 'src/app/shared/interface';
+import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 
@@ -1828,7 +1828,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
       acceptVisible: true,
       rejectVisible: true,
       accept: () => {
-        this.openShaamDialog();
+        // Wait for the current dialog to close before opening the next one
+        setTimeout(() => {
+          this.openShaamDialog();
+        }, 100);
       },
       reject: () => {
         this.showAllocationNumberInput.set(true);
@@ -1836,21 +1839,156 @@ export class DocCreatePage implements OnInit, OnDestroy {
     });
   }
 
-  // Open SHAAM dialog
+  // Open SHAAM dialog and send automatic request
   openShaamDialog(): void {
-    const accessToken = localStorage.getItem('shaam_access_token');
-    if (!accessToken) {
+    // Check if businessNumber is available
+    if (!this.selectedBusinessNumber) {
       this.messageService.add({
-        severity: 'info',
-        summary: 'התחברות נדרשת',
-        detail: 'אנא התחבר לשעמ תחילה',
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'מספר עסק לא זוהה. אנא נסה שוב',
         life: 3000,
         key: 'br'
       });
-      this.shaamService.initiateOAuthFlow();
       return;
     }
-    this.showShaamDialog.set(true);
+
+    // Check for valid SHAAM connection
+    firstValueFrom(
+      this.shaamService.getValidAccessToken(this.selectedBusinessNumber).pipe(
+        catchError((error) => {
+          // On error, return null to indicate no connection
+          return of(null);
+        })
+      )
+    ).then((tokenData) => {
+      if (!tokenData || !tokenData.accessToken) {
+        // No valid connection exists, show confirmation dialog
+        this.showShaamConnectionRequiredDialog();
+        return;
+      }
+      // Valid connection exists, send automatic request with document data
+      this.sendAllocationNumberRequest(tokenData.accessToken);
+    });
+  }
+
+  // Send allocation number request automatically with document data
+  private sendAllocationNumberRequest(accessToken: string): void {
+    // Log token details
+    console.log('=== SENDING ALLOCATION NUMBER REQUEST ===');
+    console.log('Access token length:', accessToken.length);
+    console.log('Access token starts with:', accessToken.substring(0, 30));
+    console.log('Access token ends with:', '...' + accessToken.substring(accessToken.length - 20));
+    
+    // Build request data from document
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value;
+    const docNumber = this.docIndexes.docIndex;
+    const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
+    const totals = this.documentTotals();
+    const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
+    
+    // Format date to YYYY-MM-DD
+    const formattedDate = docDate ? new Date(docDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    
+    // Map document type to invoice_type (you may need to adjust this mapping)
+    const invoiceType = this.mapDocTypeToInvoiceType(docType);
+    
+    // Build approval request
+    const approvalData: IShaamApprovalRequest = {
+      user_id: parseInt(recipientId) || 304902133, // Use recipient ID or default
+      accounting_software_number: 123456, // Default value, can be configured
+      amount_before_discount: totals.sumBefDisBefVat || totals.sumAftDisBefVat,
+      customer_vat_number: parseInt(recipientId) || 204245724,
+      discount: totals.disSum || 0,
+      invoice_date: formattedDate,
+      invoice_id: `INV-${docNumber}-${Date.now()}`,
+      invoice_issuance_date: formattedDate,
+      invoice_reference_number: docNumber?.toString() || `REF-${Date.now()}`,
+      invoice_type: invoiceType,
+      payment_amount: totals.sumAftDisBefVat,
+      payment_amount_including_vat: totals.sumAftDisWithVat,
+      vat_amount: totals.vatSum,
+      vat_number: parseInt(this.selectedBusinessNumber) || 777777715,
+    };
+
+    console.log('Approval data:', JSON.stringify(approvalData, null, 2));
+    console.log('Business number:', this.selectedBusinessNumber);
+    console.log('=== END ALLOCATION NUMBER REQUEST DATA ===');
+
+    // Send request with businessNumber so backend can verify token
+    this.shaamService.submitInvoiceApproval(accessToken, approvalData, this.selectedBusinessNumber)
+      .pipe(
+        catchError((error) => {
+          const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: errorMessage,
+            life: 5000,
+            key: 'br'
+          });
+          return EMPTY;
+        })
+      )
+      .subscribe((response: IShaamApprovalResponse) => {
+        if (response.approved && response.confirmation_number) {
+          this.allocationNumber.set(response.confirmation_number);
+          this.messageService.add({
+            severity: 'success',
+            summary: 'הצלחה',
+            detail: `מספר הקצאה התקבל: ${response.confirmation_number}`,
+            life: 5000,
+            key: 'br'
+          });
+          // After getting allocation number, proceed with document creation
+          this.confirmCreateDoc();
+        } else {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'החשבונית לא אושרה',
+            detail: response.message || 'החשבונית לא אושרה על ידי שעמ',
+            life: 5000,
+            key: 'br'
+          });
+        }
+      });
+  }
+
+  // Map document type to SHAAM invoice type
+  private mapDocTypeToInvoiceType(docType: DocumentType): number {
+    // Map your document types to SHAAM invoice types
+    // You may need to adjust this mapping based on your business logic
+    switch (docType) {
+      case DocumentType.TAX_INVOICE:
+        return 305; // Example: tax invoice
+      case DocumentType.TAX_INVOICE_RECEIPT:
+        return 305; // Example: tax invoice receipt
+      default:
+        return 305; // Default invoice type
+    }
+  }
+
+  // Show dialog when SHAAM connection is required
+  showShaamConnectionRequiredDialog(): void {
+    // Wait a bit to ensure any previous dialog is fully closed
+    setTimeout(() => {
+      this.confirmationService.confirm({
+        message: 'על מנת להמשיך בתהליך יש לבצע התחברות לאיזור האישי ברשות המיסים ולתת הרשאה למערכת לבצע עבורך את הפעולה',
+        header: 'התחברות נדרשת',
+        icon: 'pi pi-info-circle',
+        acceptLabel: 'מעבר לאתר רשות המיסים',
+        rejectLabel: 'ביטול',
+        acceptVisible: true,
+        rejectVisible: true,
+        accept: () => {
+          // Redirect to SHAAM OAuth flow
+          this.shaamService.initiateOAuthFlow(this.selectedBusinessNumber);
+        },
+        reject: () => {
+          // User cancelled, do nothing
+        }
+      });
+    }, 150);
   }
 
   // Handle SHAAM dialog close
