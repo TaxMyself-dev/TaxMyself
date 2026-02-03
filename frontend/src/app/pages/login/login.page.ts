@@ -86,15 +86,12 @@ export class LoginPage implements OnInit {
       password?: string;
     };
 
-    console.log("🚀 ~ LoginPage ~ ngOnInit ~ state:", state);
-
     if (state?.email && state?.password) {
       this.mailAddressForResendAuthMail = state.email;
       this.passwordForResendAuthMail = state.password;
     }
 
     if (state?.from === 'register') {
-      console.log('Navigated to Login Page from Register Page');
       this.showModal = true;
     }
   }
@@ -155,7 +152,6 @@ export class LoginPage implements OnInit {
 
       // 3️⃣ Save user data
       tap((res: any) => {
-        console.log("res in login page: ", res);
         sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),
@@ -167,7 +163,6 @@ export class LoginPage implements OnInit {
 
       // 5️⃣ After businesses loaded → navigate
       tap(() => {
-        console.log("Businesses loaded → navigate");
         this.router.navigate(['my-account']);
       }),
 
@@ -175,56 +170,6 @@ export class LoginPage implements OnInit {
     )
     .subscribe();
 }
-
-
-
-
-  //   async login(): Promise<void> {
-
-
-  //   this.isLoading.set(true);
-  //   this.authService.error.set(null);
-  //   const formData = this.loginForm.value;
-
-  //   from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
-  //     .pipe(
-  //       catchError((err) => {
-  //         console.log("err in user verify in sign in", err);
-  //         return EMPTY;
-  //       }),
-  //       filter((res) => {
-  //         if (!res?.user?.emailVerified) {
-  //           console.log("res in email error", res);
-  //           this.authService.error.set("email");
-  //         }
-  //         return res?.user?.emailVerified;
-  //       }),
-  //       switchMap((res) => this.authService.signIn()),
-  //       catchError((err) => {
-  //         console.log("error in sign-in of login page: ", err);
-  //         return EMPTY;
-  //       }),
-  //       tap((res: any) => {
-  //         sessionStorage.setItem('isLoggedIn', 'true');
-  //         localStorage.setItem('userData', JSON.stringify(res));
-  //         console.log('Sign-in response:', res);
-
-  //          // 🚀 Load businesses immediately after login
-  //         await this.genericService.loadBusinessesFromServer();
-  //         // 🔥 Load businesses right after successful login
-  //         //this.genericService.clearBusinesses
-  //         //this.genericService.loadBusinesses();
-  //         console.log("after login");
-          
-  //         this.router.navigate(['my-account']);
-  //       }),
-  //       finalize(() => {
-  //         console.log("Finalize called - Dismissing loader");
-  //         this.isLoading.set(false);
-  //       })
-  //     )
-  //     .subscribe()
-  // }
 
 
   sendVerficaitonEmail(): void {
