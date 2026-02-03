@@ -226,64 +226,12 @@
                       [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="getBusinessFormByIndex(i)"
                       [size]="inputsSize.BETWEEN">
                     </app-input-select>
-
-                    <div class="wrap-add-remove-business-button">
-                      @if (businessArray.controls.length > 1) {
-                      <app-p-button [buttonText]="'-'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW"
-                        (onButtonClicked)="removeBusiness(i)">
-                      </app-p-button>
-                      }
-                    </div>
                   </div>
                 </div>
                 }
               </div>
-
-              <app-p-button [buttonText]="'+'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.YELLOW"
-                (onButtonClicked)="addBusiness()">
-              </app-p-button>
             </form>
           </div>
-
-
-          <!-- <div class="business-title" *ngIf="businessForm && isIndependent()">פרטי עסק משתמש/ת ראשי/ת</div>
-            <form *ngIf="businessForm && isIndependent()" class="form-register" [formGroup]="businessForm">
-              <div class="section-one"> -->
-          <!-------Business name------>
-          <!-- <app-input-text [controlName]="registerFormControls.BUSINESSNAME" labelText="שם העסק"
-                  [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'"></app-input-text> -->
-          <!-------Business id------>
-          <!-- <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText="מספר העסק"
-                  [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text> -->
-          <!--------------- Business type ------------->
-          <!-- <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק"
-                  [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm"
-                  [size]="inputsSize.BETWEEN"></app-input-select>
-              </div>
-            </form> -->
-          <!-- </div> -->
-          <!-------Business 2 ------>
-          <!-- <div class="wrap-one-detial-business"> -->
-          <!-- <div class="business-title" *ngIf="businessForm && isSpouseIndependent()">פרטי עסק בן/בת הזוג</div>
-            <form *ngIf="businessForm && isSpouseIndependent()" class="form-register" [formGroup]="businessForm">
-              <div class="section-one"> -->
-          <!-------Business name------>
-          <!-- <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNAME" labelText="שם העסק"
-                  [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'"></app-input-text> -->
-          <!-------Business id------>
-          <!-- <app-input-text [controlName]="registerFormControls.SPOUSEBUSINESSNUMBER" labelText="מספר העסק"
-                  [placeholder]="'כתוב כאן'" [parentForm]="businessForm" [size]="inputsSize.BETWEEN"
-                  [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'"></app-input-text> -->
-          <!--------------- Business type ------------->
-          <!-- <app-input-select [controlName]="registerFormControls.SPOUSEBUSINESSTYPE" labelText="סוג העסק"
-                  [placeholder]="'בחר/י'" [items]="businessTypeOptionsList" [parentForm]="businessForm"
-                  [size]="inputsSize.BETWEEN"></app-input-select>
-              </div>
-            </form> -->
-          <!-- </div> -->
         </div>
       </div>
     </ng-container>
