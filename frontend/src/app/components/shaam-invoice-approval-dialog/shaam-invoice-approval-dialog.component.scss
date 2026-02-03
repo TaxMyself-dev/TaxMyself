@@ -1,0 +1,107 @@
+.shaam-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  direction: rtl;
+
+  .dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+  }
+
+  .dialog-content {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    min-width: 500px;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+
+    .dialog-header {
+      margin-bottom: 25px;
+
+      h3 {
+        margin: 0 0 10px 0;
+        color: #1a2551;
+        font-size: 24px;
+        font-weight: bold;
+      }
+    }
+
+    .success-message {
+      padding: 20px;
+      background-color: #f0f9ff;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+
+      h4 {
+        margin: 0 0 15px 0;
+        color: #059669;
+        font-size: 20px;
+      }
+
+      .confirmation-number {
+        font-size: 18px;
+        color: #1a2551;
+
+        .number {
+          font-weight: bold;
+          color: #059669;
+          font-size: 24px;
+          display: block;
+          margin-top: 10px;
+        }
+      }
+    }
+
+    .dialog-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 25px;
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+
+        @media (max-width: 600px) {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .error-message {
+        color: #dc2626;
+        font-size: 14px;
+        padding: 10px;
+        background-color: #fef2f2;
+        border-radius: 6px;
+        margin-top: 10px;
+      }
+    }
+
+    .dialog-actions {
+      display: flex;
+      gap: 15px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+  }
+}
+

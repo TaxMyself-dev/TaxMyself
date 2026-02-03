@@ -418,6 +418,58 @@
 
   </div>
 
+  <!-- SHAAM Invoice Approval Dialog -->
+  <app-shaam-invoice-approval-dialog
+    [isVisible]="showShaamDialog()"
+    [businessNumber]="selectedBusinessNumber"
+    (visibleChange)="onShaamDialogClose($event)"
+    (approvalSuccess)="onShaamApprovalSuccess($event)">
+  </app-shaam-invoice-approval-dialog>
+
+  <!-- Manual Allocation Number Input Dialog -->
+  <p-dialog 
+    header="הזנת מספר הקצאה ידנית" 
+    [visible]="showAllocationNumberInput()" 
+    [modal]="true" 
+    [rtl]="true"
+    [style]="{ width: '400px' }"
+    (onHide)="cancelAllocationNumberInput()">
+    <div class="p-fluid">
+      <p>אנא הזן את מספר ההקצאה שקיבלת משעמ:</p>
+      <div class="p-field">
+        <label for="allocationNumber">מספר הקצאה</label>
+        <input 
+          id="allocationNumber"
+          type="text" 
+          class="p-inputtext p-component" 
+          [(ngModel)]="manualAllocationNumber"
+          placeholder="הזן מספר הקצאה"
+          style="width: 100%;">
+      </div>
+      <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <app-p-button 
+          [buttonText]="'ביטול'" 
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.WHITE"
+          (onButtonClicked)="cancelAllocationNumberInput()">
+        </app-p-button>
+        <app-p-button 
+          [buttonText]="'אישור'" 
+          [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK"
+          [disabled]="!manualAllocationNumber || !manualAllocationNumber.trim()"
+          (onButtonClicked)="onAllocationNumberSubmit(manualAllocationNumber)">
+        </app-p-button>
+      </div>
+    </div>
+  </p-dialog>
+
+  <!-- Toast for messages -->
+  <p-toast key="br"></p-toast>
+  
+  <!-- Confirmation Dialog for PrimeNG ConfirmationService -->
+  <p-confirmDialog></p-confirmDialog>
+
 
 
 

@@ -33,6 +33,10 @@ export class PaymentAmountValidator implements ValidatorConstraintInterface {
 export class ShaamApprovalDto {
   @IsNumber()
   @Type(() => Number)
+  user_id: number;
+
+  @IsNumber()
+  @Type(() => Number)
   accounting_software_number: number;
 
   @IsNumber({ maxDecimalPlaces: 2 })

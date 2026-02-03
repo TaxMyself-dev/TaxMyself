@@ -62,6 +62,16 @@ export class Business {
   })
   taxReportingType: TaxReportingType | null;
 
+  // SHAAM OAuth tokens (encrypted with AES-256)
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamAccessToken: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamAccessTokenExp: string | null; // Unix timestamp as string (encrypted)
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamRefreshToken: string | null;
+
   // @Column({ type: 'varchar', nullable: true, default: null })
   // bankBeneficiary: string | null;
 

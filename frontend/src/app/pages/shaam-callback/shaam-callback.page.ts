@@ -7,6 +7,15 @@ import { ToastModule } from 'primeng/toast';
 import { catchError, EMPTY } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
+import { environment } from 'src/environments/environment';
+
+interface ShaamTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token?: string | null;
+  scope?: string | null;
+}
 
 @Component({
   selector: 'app-shaam-callback',
@@ -28,16 +37,13 @@ export class ShaamCallbackPage implements OnInit {
   isSuccess = false;
   isError = false;
   errorMessage = '';
-  accessToken = '';
-  expiresIn = 0;
 
   ngOnInit() {
     // Get query parameters from SHAAM redirect or backend redirect
     this.route.queryParams.subscribe(params => {
       const code = params['code'];
       const state = params['state'];
-      const token = params['token'];
-      const expiresIn = params['expires_in'];
+      const response = params['response']; // Full response from backend
       const error = params['error'];
       const errorDescription = params['error_description'];
 
@@ -56,10 +62,20 @@ export class ShaamCallbackPage implements OnInit {
         return;
       }
 
-      // If token is already provided (from backend redirect), use it directly
-      if (token) {
-        this.handleTokenReceived(token, expiresIn ? parseInt(expiresIn) : 0);
-        return;
+      // If full response is provided (from backend redirect), use it directly
+      if (response) {
+        try {
+          const decodedResponse = decodeURIComponent(response);
+          const tokenResponse: ShaamTokenResponse = JSON.parse(decodedResponse);
+          this.handleTokenReceived(tokenResponse);
+          return;
+        } catch (e) {
+          console.error('Error parsing token response:', e);
+          this.isLoading = false;
+          this.isError = true;
+          this.errorMessage = 'שגיאה בפענוח התשובה משעמ';
+          return;
+        }
       }
 
       // Handle success - exchange code for token
@@ -80,16 +96,15 @@ export class ShaamCallbackPage implements OnInit {
     });
   }
 
-  private handleTokenReceived(token: string, expiresIn: number): void {
+  private handleTokenReceived(tokenResponse: ShaamTokenResponse): void {
     this.isLoading = false;
     this.isSuccess = true;
-    this.accessToken = token;
-    this.expiresIn = expiresIn;
 
-    // Store token in localStorage (you may want to use a more secure storage)
-    localStorage.setItem('shaam_access_token', token);
-    localStorage.setItem('shaam_token_expires_in', expiresIn.toString());
-    localStorage.setItem('shaam_token_timestamp', Date.now().toString());
+    // Token is now stored in the database, no need to store in localStorage
+    // Clear any old localStorage tokens
+    localStorage.removeItem('shaam_access_token');
+    localStorage.removeItem('shaam_token_expires_in');
+    localStorage.removeItem('shaam_token_timestamp');
 
     this.messageService.add({
       severity: 'success',
@@ -119,12 +134,24 @@ export class ShaamCallbackPage implements OnInit {
         })
       )
       .subscribe(response => {
-        this.handleTokenReceived(response.accessToken, response.expiresIn);
+        // Convert to ShaamTokenResponse format
+        const tokenResponse: ShaamTokenResponse = {
+          access_token: response.accessToken,
+          token_type: response.tokenType,
+          expires_in: response.expiresIn,
+          refresh_token: null,
+          scope: null,
+        };
+        this.handleTokenReceived(tokenResponse);
       });
   }
 
   navigateToHome(): void {
     this.router.navigate(['/my-account']);
+  }
+
+  navigateToDocCreate(): void {
+    this.router.navigate(['/doc-create']);
   }
 
   tryAgain(): void {

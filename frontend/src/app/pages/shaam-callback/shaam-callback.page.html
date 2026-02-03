@@ -17,19 +17,20 @@
       
       <p class="result-message">
         החיבור לרשות המיסים (SHAAM) הושלם בהצלחה.<br>
-        כעת תוכל לשלוח חשבוניות לאישור.
+        כעת תוכל לשלוח חשבוניות לאישור ולקבל מספר הקצאה.
       </p>
-
-      <div class="token-info" *ngIf="accessToken">
-        <p class="token-label">טוקן התקבל בהצלחה</p>
-        <p class="token-expiry">תוקף: {{ expiresIn }} שניות</p>
-      </div>
 
       <div class="result-actions">
         <app-p-button 
+          [buttonText]="'הפק מספר הקצאה'" 
+          [buttonSize]="buttonSize.BIG"
+          [buttonColor]="buttonColor.BLACK"
+          (onButtonClicked)="navigateToDocCreate()">
+        </app-p-button>
+        <app-p-button 
           [buttonText]="'חזרה לדף הבית'" 
           [buttonSize]="buttonSize.BIG"
-          [buttonColor]="buttonColor.YELLOW"
+          [buttonColor]="buttonColor.WHITE"
           (onButtonClicked)="navigateToHome()">
         </app-p-button>
       </div>

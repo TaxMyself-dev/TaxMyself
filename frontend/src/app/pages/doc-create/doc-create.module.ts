@@ -23,6 +23,10 @@ import { TabMenuModule } from 'primeng/tabmenu';
 import { TableModule } from 'primeng/table';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { InputAutoCompleteComponent } from "src/app/components/input-autoComplete/input-autoComplete.component";
+import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
+import { ToastModule } from 'primeng/toast';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmDialog } from 'primeng/confirmdialog';
 
 
 @NgModule({
@@ -45,10 +49,13 @@ import { InputAutoCompleteComponent } from "src/app/components/input-autoComplet
     TabMenuModule,
     TableModule,
     DocSuccessDialogComponent,
-    InputAutoCompleteComponent
+    InputAutoCompleteComponent,
+    ShaamInvoiceApprovalDialogComponent,
+    ToastModule,
+    ConfirmDialog
 ],
   declarations: [DocCreatePage, ],
-  providers: [DialogService]
+  providers: [DialogService, ConfirmationService, MessageService]
 })
 export class DocCreatePageModule {}
 

@@ -16,5 +16,6 @@ import { Delegation } from 'src/delegation/delegation.entity';
     BusinessService,
     SharedService,
   ],
+  exports: [BusinessService],
 })
 export class BusinessModule {}

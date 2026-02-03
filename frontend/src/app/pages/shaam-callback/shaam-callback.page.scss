@@ -10,7 +10,7 @@
     background: white;
     border-radius: 16px;
     padding: 3rem;
-    max-width: 500px;
+    max-width: 900px;
     width: 100%;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
     text-align: center;
@@ -79,6 +79,69 @@
         color: #666;
         margin: 0;
         font-size: 0.9rem;
+      }
+    }
+
+    .response-section {
+      margin: 2rem 0;
+      text-align: right;
+      direction: rtl;
+
+      .section-title {
+        font-size: 1.3rem;
+        color: #333;
+        margin: 0 0 1rem 0;
+        font-weight: bold;
+      }
+
+      .response-box {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        position: relative;
+        text-align: left;
+        direction: ltr;
+
+        .response-json,
+        .curl-command {
+          margin: 0;
+          padding: 0;
+          font-family: 'Courier New', monospace;
+          font-size: 0.85rem;
+          color: #212529;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          overflow-x: auto;
+          max-height: 400px;
+          overflow-y: auto;
+        }
+
+        .copy-button {
+          position: absolute;
+          top: 0.5rem;
+          left: 0.5rem;
+          background: #007bff;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 0.5rem 1rem;
+          cursor: pointer;
+          font-size: 0.85rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          transition: background 0.2s;
+
+          &:hover {
+            background: #0056b3;
+          }
+
+          i {
+            font-size: 0.9rem;
+          }
+        }
       }
     }
 
