@@ -2,7 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert 
 import { BusinessType, Currency, DocumentType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
-@Entity()
+@Entity('business')
 export class Business {
 
   @PrimaryGeneratedColumn()

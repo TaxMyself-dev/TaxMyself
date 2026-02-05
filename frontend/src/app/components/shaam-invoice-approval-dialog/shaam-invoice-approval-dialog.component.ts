@@ -6,6 +6,7 @@ import { InputDateComponent } from '../input-date/input-date.component';
 import { InputTextComponent } from '../input-text/input-text.component';
 import { ButtonSize, ButtonColor } from '../button/button.enum';
 import { ShaamService } from 'src/app/services/shaam.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { catchError, EMPTY, finalize } from 'rxjs';
@@ -24,9 +25,22 @@ export class ShaamInvoiceApprovalDialogComponent {
   messageService = inject(MessageService);
   confirmationService = inject(ConfirmationService);
   shaamService = inject(ShaamService);
+  authService = inject(AuthService);
 
   isVisible = input<boolean>(false);
   businessNumber = input<string | undefined>(undefined);
+  
+  /**
+   * Gets the business number - either from input or from AuthService
+   */
+  private getBusinessNumber(): string | null {
+    const inputBusinessNumber = this.businessNumber();
+    if (inputBusinessNumber) {
+      return inputBusinessNumber;
+    }
+    // Fallback to AuthService if not provided
+    return this.authService.getActiveBusinessNumber() || this.authService.getUserBussinesNumber() || null;
+  }
   
   visibleChange = output<{ visible: boolean }>();
   approvalSuccess = output<{ response: IShaamApprovalResponse }>();
@@ -43,8 +57,8 @@ export class ShaamInvoiceApprovalDialogComponent {
     const today = new Date().toISOString().split('T')[0];
     
     this.approvalForm = this.formBuilder.group({
-      user_id: new FormControl('304902133', [Validators.required]),
-      accounting_software_number: new FormControl('123456', [Validators.required]),
+      user_id: new FormControl('304902133', [Validators.required]), // Will be overridden with businessNumber
+      accounting_software_number: new FormControl('258001', [Validators.required]), // Fixed company number
       amount_before_discount: new FormControl('1000', [Validators.required, Validators.min(0)]),
       customer_vat_number: new FormControl('204245724', [Validators.required]),
       discount: new FormControl('0', [Validators.required, Validators.min(0)]),
@@ -116,13 +130,13 @@ export class ShaamInvoiceApprovalDialogComponent {
       return;
     }
 
-    // Check if businessNumber is provided
-    const businessNumber = this.businessNumber();
+    // Get businessNumber - from input or AuthService
+    const businessNumber = this.getBusinessNumber();
     if (!businessNumber) {
       this.messageService.add({
         severity: 'error',
         summary: 'שגיאה',
-        detail: 'מספר עסק לא זוהה. אנא נסה שוב',
+        detail: 'מספר עסק לא זוהה. אנא בחר עסק תחילה',
         life: 3000,
         key: 'br'
       });
@@ -159,9 +173,10 @@ export class ShaamInvoiceApprovalDialogComponent {
         const formValue = this.approvalForm.value;
         
         // Prepare request data
+        // user_id should be businessNumber, accounting_software_number should be fixed 258001
         const approvalData: IShaamApprovalRequest = {
-          user_id: parseInt(formValue.user_id),
-          accounting_software_number: parseInt(formValue.accounting_software_number),
+          user_id: parseInt(businessNumber) || 0, // Use businessNumber instead of form value
+          accounting_software_number: 258001, // Fixed company number
           amount_before_discount: parseFloat(formValue.amount_before_discount),
           customer_vat_number: parseInt(formValue.customer_vat_number),
           discount: parseFloat(formValue.discount || '0'),

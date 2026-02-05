@@ -1832,7 +1832,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       message: `על מנת להפיק חשבונית בסכום של ₪${sumBeforeVat.toLocaleString('he-IL')} (לפני מע״מ), נדרש מספר הקצאה משעמ.\n\nכיצד תרצה להמשיך?`,
       header: 'מספר הקצאה נדרש',
       icon: 'pi pi-info-circle',
-      acceptLabel: 'הפיק באמצעות התוכנה',
+      acceptLabel: 'הפק באמצעות התוכנה',
       rejectLabel: 'הזן ידנית',
       acceptVisible: true,
       rejectVisible: true,
@@ -1904,8 +1904,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     
     // Build approval request
     const approvalData: IShaamApprovalRequest = {
-      user_id: parseInt(recipientId) || 304902133, // Use recipient ID or default
-      accounting_software_number: 123456, // Default value, can be configured
+      user_id: parseInt(this.selectedBusinessNumber),
+      accounting_software_number: 258001, // Fixed company number
       amount_before_discount: totals.sumBefDisBefVat || totals.sumAftDisBefVat,
       customer_vat_number: parseInt(recipientId) || 204245724,
       discount: totals.disSum || 0,

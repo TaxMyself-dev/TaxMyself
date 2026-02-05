@@ -311,14 +311,6 @@ export class ShaamController {
       const accessToken = decryptToken(business.shaamAccessToken);
       const expirationTimestamp = parseInt(decryptToken(business.shaamAccessTokenExp));
       
-      // Log token details for debugging
-      this.logger.log(`Decrypted token for business ${businessNumber}:`, {
-        tokenLength: accessToken.length,
-        tokenPreview: accessToken.substring(0, 20) + '...',
-        expirationTimestamp,
-        expirationDate: new Date(expirationTimestamp).toISOString(),
-      });
-      
       // Check if token is still valid (with 5 minute buffer)
       const now = Date.now();
       const bufferMs = 5 * 60 * 1000; // 5 minutes
@@ -362,17 +354,52 @@ export class ShaamController {
         expiresIn: newTokenResponse.expires_in,
       };
     } catch (error: any) {
-      this.logger.error(`Error getting/refreshing token for business ${businessNumber}: ${error.message}`, error.stack);
+      // Log detailed error information
+      this.logger.error(`❌ ERROR getting/refreshing token for business ${businessNumber}:`, {
+        errorMessage: error.message,
+        errorStack: error.stack,
+        errorName: error.name,
+        hasBusiness: !!business,
+        hasShaamAccessToken: !!business?.shaamAccessToken,
+        hasShaamAccessTokenExp: !!business?.shaamAccessTokenExp,
+        hasShaamRefreshToken: !!business?.shaamRefreshToken,
+        shaamAccessTokenLength: business?.shaamAccessToken?.length,
+        shaamAccessTokenExpLength: business?.shaamAccessTokenExp?.length,
+        shaamRefreshTokenLength: business?.shaamRefreshToken?.length,
+      });
       
-      // If decryption fails, tokens might be corrupted - clear them
+      // If decryption fails, provide clear error message
       if (error.message.includes('Decryption failed')) {
-        this.logger.warn(`Clearing corrupted tokens for business: ${businessNumber}`);
-        business.shaamAccessToken = null;
-        business.shaamAccessTokenExp = null;
-        business.shaamRefreshToken = null;
-        await this.businessRepo.save(business);
+        const errorDetails = `
+═══════════════════════════════════════════════════════════════
+❌ SHAAM TOKEN DECRYPTION FAILED
+═══════════════════════════════════════════════════════════════
+Business Number: ${businessNumber}
+Error: ${error.message}
+
+Possible causes:
+1. SHAAM_TOKEN_ENC_KEY_B64 environment variable changed
+   → Tokens were encrypted with a different key
+   → Solution: Ensure SHAAM_TOKEN_ENC_KEY_B64 matches the key used when tokens were saved
+
+2. Token format is corrupted
+   → Tokens may have been modified or truncated
+   → Solution: User needs to reconnect to SHAAM to get new tokens
+
+3. Encryption key is missing or invalid
+   → SHAAM_TOKEN_ENC_KEY_B64 is not set or has wrong format
+   → Solution: Check environment variable configuration
+
+⚠️  Tokens were NOT deleted from database.
+⚠️  User needs to reconnect to SHAAM to get new tokens.
+═══════════════════════════════════════════════════════════════
+        `;
+        
+        this.logger.error(errorDetails);
+        throw new Error(`Failed to decrypt SHAAM tokens. Please reconnect to SHAAM. Error: ${error.message}`);
       }
       
+      // For other errors, throw with original message
       throw error;
     }
   }
@@ -401,13 +428,6 @@ export class ShaamController {
       this.logger.error(`Business not found for businessNumber: ${businessNumber}`);
       throw new Error(`Business not found for businessNumber: ${businessNumber}`);
     }
-
-    // Log token before encryption for debugging
-    this.logger.log(`=== SAVING TOKENS FOR BUSINESS ${businessNumber} ===`);
-    this.logger.log(`Access token length: ${accessToken.length}`);
-    this.logger.log(`Access token starts with: ${accessToken.substring(0, 30)}`);
-    this.logger.log(`Access token ends with: ...${accessToken.substring(accessToken.length - 20)}`);
-    this.logger.log(`Expires in: ${expiresIn} seconds`);
     
     // Encrypt tokens
     const encryptedAccessToken = encryptToken(accessToken);
@@ -421,10 +441,6 @@ export class ShaamController {
       encryptedRefreshToken = encryptToken(refreshToken);
     }
 
-    // Log encrypted token details
-    this.logger.log(`Encrypted access token length: ${encryptedAccessToken.length}`);
-    this.logger.log(`Encrypted access token starts with: ${encryptedAccessToken.substring(0, 30)}`);
-
     // Update business entity
     business.shaamAccessToken = encryptedAccessToken;
     business.shaamAccessTokenExp = encryptedExpiration;
@@ -433,17 +449,7 @@ export class ShaamController {
     // Save to database
     await this.businessRepo.save(business);
     
-    // Verify decryption works
-    try {
-      const decryptedTest = decryptToken(encryptedAccessToken);
-      this.logger.log(`Verification: Decrypted token matches original: ${decryptedTest === accessToken}`);
-      this.logger.log(`Decrypted token length: ${decryptedTest.length}`);
-      this.logger.log(`Decrypted token starts with: ${decryptedTest.substring(0, 30)}`);
-    } catch (error: any) {
-      this.logger.error(`Failed to verify token decryption: ${error.message}`);
-    }
-    
-    this.logger.log(`Successfully saved encrypted SHAAM tokens for business: ${businessNumber.substring(0, 3)}...`);
+    this.logger.log(`Successfully saved SHAAM tokens for business: ${businessNumber}`);
   }
 }
 

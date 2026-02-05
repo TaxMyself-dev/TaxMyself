@@ -12,7 +12,6 @@ import { DocumentType, DocumentStatusType, PaymentMethodType, VatOptions, Curren
 import { Business } from 'src/business/business.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
-import { log } from 'console';
 import { DocPayments } from './doc-payments.entity';
 import { DataSource } from 'typeorm';
 import * as admin from 'firebase-admin';
@@ -119,7 +118,6 @@ export class DocumentsService {
       // Case 2: NO DATES PROVIDED
       if (!hasDocTypeFilter) {
         // --------- ⭐ RETURN ALL DOCS ⭐ ---------
-        // console.log("No dates & no docType → returning ALL docs");
         // Do NOT add any date filter
       } else {
         // Case 3: No dates but YES docType → default range
@@ -393,19 +391,14 @@ export class DocumentsService {
 
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
-    console.log("data is ", data);
-
     const isProduction = process.env.NODE_ENV === 'production';
     
     // FID mapping based on environment and document type
     const fidMap = {
       // Production FIDs
       prod: {
-        // receipt: 'RVxpym2O68',           // RECEIPT, TAX_INVOICE_RECEIPT
-        // receipt: 'JzEIejsTuY',
         receipt: 'EaHjg6fsRL',
         // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
-        // invoice: 'BUFw7FKiJn'
         invoice: 'TrBvfW6p6P'
       },
       // Development FIDs
@@ -517,12 +510,6 @@ export class DocumentsService {
     };
 
     try {
-      console.log('📤 Sending request to FillFaster API:');
-      console.log('   FID:', fid);
-      console.log('   Template Type:', templateType);
-      console.log('   Doc Type:', docType);
-      console.log('   Payload keys:', Object.keys(payload));
-      console.log('   Prefill data keys:', Object.keys(prefill_data));
       
       const response = await axios.post<Blob>(url, payload, {
         headers,
@@ -637,7 +624,6 @@ export class DocumentsService {
     } else {
       // For LICENSED (עוסק מורשה) or COMPANY (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
-      console.log("docType is ", docType);
       
       if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE) {
         // סה"כ חייב במע"מ
@@ -666,7 +652,6 @@ export class DocumentsService {
           'סכום': `₪${this.formatNumberWithCommas(sumAftDisWithVAT)}`,
         });
       } else {
-        console.log("docType is ", docType);
         // For other document types, return default structure
         sumTable.push({
           'תיאור': 'סה"כ:',
@@ -747,10 +732,6 @@ export class DocumentsService {
 
   async transformDocumentData(dto: CreateDocDto): Promise<any> {
 
-    console.log("🔄 Transforming document data from DTO...");
-
-    console.log("dto is ", dto);
-
     // ============================================================================
     // 1. TRANSFORM DOCDATA (Documents entity fields)
     // ============================================================================
@@ -779,7 +760,6 @@ export class DocumentsService {
 
     // Get business details
     const business = await this.businessService.getBusinessByNumber(docData.issuerBusinessNumber);
-    console.log("business is ", business);
 
     // Transform Documents entity fields
     const transformedDocData: any = {
@@ -972,15 +952,11 @@ export class DocumentsService {
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
-    console.log("createDoc in service - start");
-
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-
-      console.log("createDoc in service - start: data is ", data);
 
       // 1. Increment general index (use manager for DB operation)
       const updatedGeneralIndex = await this.incrementGeneralIndex(userId, data.docData.issuerBusinessNumber, queryRunner.manager);
@@ -1459,7 +1435,6 @@ export class DocumentsService {
           currentIndex: defaultInitialValues[docType],
         };
         await this.settingDocuments.save(payload);
-        console.log(`✅ Created initial setting for ${docType} for user ${userId}`);
       }
     }
   }
