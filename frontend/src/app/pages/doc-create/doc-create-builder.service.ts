@@ -41,25 +41,29 @@ export class DocCreateBuilderService {
             formField: FieldsCreateDocValue.LINE_DESCRIPTION,
             dataField: 'description',
             header: 'תיאור',
-            excludeForReceipt: false
+            excludeForReceipt: false,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.UNIT_AMOUNT,
             dataField: 'unitQuantity',
             header: 'כמות',
-            excludeForReceipt: false
+            excludeForReceipt: false,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.SUM,
             dataField: 'sum',
             header: 'מחיר',
-            excludeForReceipt: false
+            excludeForReceipt: false,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.VAT_OPTIONS,
             dataField: 'vatOpts',
             header: 'מע"מ',
-            excludeForReceipt: true
+            excludeForReceipt: true,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.TOTAL,
@@ -193,7 +197,7 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
-          [FieldsCreateDocValue.TOTAL]: {
+        [FieldsCreateDocValue.TOTAL]: {
             //name: FieldsCreateDocName.typeFile,
             value: FieldsCreateDocValue.TOTAL,
             labelText: 'סה"כ',
@@ -379,7 +383,8 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required]
+            validators: [Validators.required],
+            // r
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
             //name: fieldLineDocName.line_description,
@@ -524,6 +529,7 @@ export class DocCreateBuilderService {
             enumValues: [],
             editFormBasedOnValue: {},
             validators: [Validators.required],
+            required: true
         },
         [fieldLineDocValue.CARD_COMPANY]: {
             //name: fieldLineDocName.cardCompany,
@@ -634,7 +640,8 @@ export class DocCreateBuilderService {
             initialValue: new Date(),
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required]
+            validators: [Validators.required],
+            required: true
         },
         [fieldLineDocValue.APPROVAL_CODE]: {
             value: fieldLineDocValue.APPROVAL_CODE,
@@ -669,7 +676,7 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: []
+            validators: [],
         },
 
     };

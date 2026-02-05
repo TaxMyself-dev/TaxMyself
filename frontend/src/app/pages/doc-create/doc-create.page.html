@@ -88,7 +88,7 @@
             [placeholder]="item.placeHolder" [items]="filteredClients()" optionLabel="name"
             (onCompleteMethod)="filterClients($event)" (onItemSelect)="onClientSelect($event)" [showAddNew]="true"
             addNewLabel="הוסף לקוח חדש" (onAddNew)="onAddNewClient($event)" headerText="בחר לקוח קיים"
-          [forceSelection]="false" [size]="inputsSize.BETWEEN">
+            [forceSelection]="false" [size]="inputsSize.BETWEEN">
           </app-input-autocomplete>
           }
 
@@ -228,19 +228,19 @@
                 {{ line.unitQuantity }}
                 }
                 @else if (col.dataField === 'vatOpts') {
-                  <span dir="ltr">
-                    ₪{{ line.vatPerLine | number:'1.2-2' }}
-                  </span>
+                <span dir="ltr">
+                  ₪{{ line.vatPerLine | number:'1.2-2' }}
+                </span>
                 }
                 @else if (col.dataField === 'sum') {
-                  <span dir="ltr">
-                    ₪{{ line.sumBefVatPerUnit | number:'1.2-2' }}
-                  </span>
+                <span dir="ltr">
+                  ₪{{ line.sumBefVatPerUnit | number:'1.2-2' }}
+                </span>
                 }
                 @else if (col.dataField === 'total') {
-                  <span dir="ltr">
-                    ₪{{ line.sumAftDisWithVat | number:'1.2-2' }}
-                  </span>
+                <span dir="ltr">
+                  ₪{{ line.sumAftDisWithVat | number:'1.2-2' }}
+                </span>
                 }
                 @else if (col.dataField === 'discount') {
                 {{ line.discount || '-' }}
@@ -270,11 +270,11 @@
           </div>
           <div class="values-summary">
             @for (item of filteredSummaryItems(); track item.key) {
-              <p class="content-summary">
-                <span dir="ltr">
-                  ₪{{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
-                </span>
-              </p>
+            <p class="content-summary">
+              <span dir="ltr">
+                ₪{{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
+              </span>
+            </p>
             }
           </div>
         </div>
@@ -358,20 +358,20 @@
           @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
           <div>
             @if (item.value === 'paymentSum') {
-              <span dir="ltr">₪{{ payment[item.value] | number:'1.2-2' }}</span>
+            <span dir="ltr">₪{{ payment[item.value] | number:'1.2-2' }}</span>
             } @else {
-              {{ item.type === formTypes.DATE
-              ? (payment[item.value] | date:'dd/MM/yyyy')
-              : (
-              item.value === 'bankName'
-              ? (
-              payment.hebrewBankName && payment.bankNumber
-              ? (payment.hebrewBankName + ' (' + payment.bankNumber + ')')
-              : (payment.hebrewBankName || payment.bankNumber || '-')
-              )
-              : (payment[item.value] || '-')
-              )
-              }}
+            {{ item.type === formTypes.DATE
+            ? (payment[item.value] | date:'dd/MM/yyyy')
+            : (
+            item.value === 'bankName'
+            ? (
+            payment.hebrewBankName && payment.bankNumber
+            ? (payment.hebrewBankName + ' (' + payment.bankNumber + ')')
+            : (payment.hebrewBankName || payment.bankNumber || '-')
+            )
+            : (payment[item.value] || '-')
+            )
+            }}
             }
           </div>
           }
@@ -387,13 +387,12 @@
       @if (chargesPaymentsDifference() !== 0) {
       <div>
         <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
-        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} 
-          <span
+        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} <span
             class="amount-value">
             <span dir="ltr">
               ₪{{ chargesPaymentsDifference() | number:'1.2-2' }}
             </span>
-          </span>
+            </span>
         </p>
       </div>
       }

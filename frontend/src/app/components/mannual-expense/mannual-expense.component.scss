@@ -1,9 +1,8 @@
 :host {
-    // overflow: scroll;
-    // border: 1px solid red;
     display: flex;
     flex-wrap: wrap;
     gap: 20px;
+    column-gap: 66px;
 }
 
 .wrap-supplier-list {
@@ -218,6 +217,16 @@
 
 .modal-input-50 {
     width: 47%;
+}
+
+.wrap-file-uploader {
+    width: 97%;
+}
+
+.wrap-add-button {
+    width: 97%;
+    display: flex;
+    justify-content: end;
 }
 
 

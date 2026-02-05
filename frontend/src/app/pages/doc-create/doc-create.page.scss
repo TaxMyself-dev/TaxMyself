@@ -60,10 +60,10 @@
   align-items: center;
 }
 
-.fields-header {
-  font-size: 14px;
-  font-weight: 400;
-  color: #666;
+.header-payment-table {
+  font-size: 16px;
+  font-weight: 600;
+  color: gray;
   margin-bottom: 0;
   margin-top: 3px;
 }
@@ -167,7 +167,7 @@
   position: relative;
 }
 
-.text-header {
+.sub-title {
   font-size: 18px;
   color: #666;
   margin-top: 3px;
@@ -191,6 +191,10 @@
 .payment-list {
   display: flex;
   flex-direction: column;
+}
+
+.required {
+  color: red;
 }
 
 .inputs-container {
@@ -221,7 +225,7 @@
 
 .values-summary {
   margin-left: 50px;
-  
+
   // Fix minus sign position in summary values
   .content-summary {
     direction: ltr;
@@ -231,20 +235,30 @@
 
 .error-text {
   color: red;
-}// Fix minus sign position in line items table
+}
+
+.error-difference,
+.error-difference * {
+  color: red;
+}
+
+// Fix minus sign position in line items table
 .line-items-table {
+
   // Target cells that contain currency/number values
   ::ng-deep td {
+
     // For cells containing sum or total values
     &:has(span:contains('₪')) {
       direction: ltr;
       text-align: right;
     }
   }
-  
+
   // Alternative: target specific columns by their content
   ::ng-deep p-table {
     td {
+
       // Apply LTR direction to numeric columns (sum, total, discount)
       &:nth-child(n) {
         // Check if content starts with minus or contains currency
@@ -268,8 +282,12 @@
     color: #f4f4f5;
   }
 
+  .header-payment-table {
+    // color: #d1d5db;
+  }
+
   .fields-header,
-  .text-header {
+  .sub-title {
     color: #d1d5db;
   }
 
@@ -311,14 +329,16 @@
     }
   }
 }
+
 // Better approach: add a class to numeric cells in the template
 // Or use this CSS to target cells with currency pipe output
 .line-items-table ::ng-deep {
+
   // PrimeNG table cells with currency values
   td {
     direction: ltr;
     text-align: right;
-    
+
     // Keep RTL for description and actions columns
     &:first-child,
     &:last-child {
@@ -327,4 +347,3 @@
     }
   }
 }
-

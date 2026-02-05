@@ -403,7 +403,11 @@ app-root {
   }
 
   &.between {
-    width: 264px;
+    width: 175px;
+  }
+
+  &.mobile {
+    width: 320px;
   }
 
   &.narrow {
@@ -464,6 +468,10 @@ app-root {
 
   &.normal {
     width: 215px;
+  }
+
+  &.mobile {
+    width: 320px;
   }
 
   &.narrow {
