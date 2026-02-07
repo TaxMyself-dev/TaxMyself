@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { FormType, inputsSize } from 'src/app/shared/enums';
@@ -33,8 +33,9 @@ export class InputTextComponent {
 
 
   readonly inputClasses = computed(() => {
+    const isDirty = this.isDirty();
     const base = [this.size(), this.customStyle()].filter(Boolean).join(' ');
-    return this.isDirty() ? `${base} dirty` : base;
+    return isDirty ? `${base} dirty` : base;
   });
 
   readonly isDirty = computed(() => {

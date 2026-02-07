@@ -533,6 +533,7 @@ export class MannualExpenseComponent {
     expenseDataService = inject(ExpenseDataService);
 
     files = signal<File[]>([]);
+    isDirty = signal<boolean>(false);
     isLoadingAddExpense = signal<boolean>(false);
     inputSize = inputsSize;
     buttonSize = ButtonSize;
@@ -727,8 +728,6 @@ export class MannualExpenseComponent {
         else {
             this.mannualExpenseService.isSelectBusiness.set(false);
         }
-        // console.log("this.mannualExpenseService.$selectedIsEquipment(): ", this.mannualExpenseService.$selectedIsEquipment());
-        console.log("this.mannualExpenseService.isSelectBusiness(): ", this.mannualExpenseService.isSelectBusiness());
     }
 
     get subCategoryItems(): ISelectItem[] {
@@ -737,13 +736,19 @@ export class MannualExpenseComponent {
     }
 
     onSelectSubCategory(event: string | boolean | null): void {
-        console.log("event: ", event);
         const subCategory = this.mannualExpenseService.subCategoriesResource.value()?.find((item: ISubCategory) => item.subCategoryName === event);
-        console.log("subCategory: ", subCategory);
         this.mannualExpenseForm.patchValue({ reductionPercent: subCategory?.reductionPercent });
         this.mannualExpenseForm.patchValue({ vatPercent: +(subCategory?.vatPercent) });
         this.mannualExpenseForm.patchValue({ taxPercent: +(subCategory?.taxPercent) });
+        this.isDirty.set(true);
     }
+
+    onInputText(event: string): void {
+        if (event === '') {
+            // this.isDirty.set(false);
+        }
+    }
+
 
     // onSupplierSelect(event: any): void {
     //     console.log("event: ", event);
