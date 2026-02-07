@@ -27,7 +27,6 @@ export class GenericService {
     const saved = localStorage.getItem('businesses');
     if (saved) {
       this._businesses.set(JSON.parse(saved));
-      console.log("📦 Businesses restored from localStorage");
     }
   }
 
@@ -55,7 +54,6 @@ export class GenericService {
       );
 
       this.saveBusinesses(res ?? []);
-      console.log("📦 Businesses loaded:", res);
 
     } catch (err) {
       console.error("❌ loadBusinesses failed", err);
@@ -68,36 +66,6 @@ export class GenericService {
     this._businesses.set(data);
     localStorage.setItem('businesses', JSON.stringify(data));
   }
-
-
-  // async loadBusinesses(): Promise<void> {
-
-  //   console.log("loaded businesses start:", this._businesses());
-
-  //   if (this._businesses()) {
-  //     console.log("already loaded:", this._businesses());
-  //     return;
-  //   }
-
-  //   try {
-  //     const res = await firstValueFrom(
-  //       this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
-  //     );
-
-  //     this._businesses.set(res ?? []);
-  //     console.log("loaded businesses:", this._businesses());
-
-  //   } catch (err) {
-  //     console.error("❌ loadBusinesses failed", err);
-  //     this._businesses.set([]); 
-  //   }
-  // }
-
-
-  // // --- clear on logout ---
-  // clearBusinesses(): void {
-  //   this._businesses.set(null);
-  // }
 
 
   getBusinessData(user: IUserData): { mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
@@ -173,8 +141,6 @@ export class GenericService {
         }),
         switchMap((loader) => {
           if (loader) {
-            console.log("in get loader");
-
             this.loaderInstance = loader;  // Store the loader instance
             return from(loader.present())
               .pipe(
@@ -190,7 +156,6 @@ export class GenericService {
                 )
               );
           }
-          console.log("Loader is null");
           return EMPTY;
         }),
         catchError((err) => {
@@ -212,7 +177,6 @@ export class GenericService {
     }
     else {
       console.log("in else dissmis");
-
     }
   }
 
@@ -227,10 +191,7 @@ export class GenericService {
 
 
   convertStringToNumber(value: string): number {
-    console.log("convertStringToNumber value: ", value);
-
     if (!value) return NaN; // Handle empty or invalid input
-
     // Remove commas and convert to number
     return Number(value.replace(/,/g, ''));
   }

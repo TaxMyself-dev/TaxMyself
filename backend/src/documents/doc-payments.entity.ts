@@ -17,9 +17,6 @@ export class DocPayments {
   @Column({ type: 'varchar', length: 4, nullable: true })
   paymentLineNumber: string;
 
-  // @Column({ type: 'enum', enum: PaymentMethodType })
-  // paymentMethod: PaymentMethodType;
-
   @Column({ type: 'varchar' })
   paymentMethod: string;
 
@@ -48,7 +45,7 @@ export class DocPayments {
   cardCompany: CardCompany;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
-  creditCardName: string; // שם הכרטיס הסולק
+  creditCardName: string;
 
   @Column({ type: 'enum', enum: CreditTransactionType, nullable: true })
   creditTransType: CreditTransactionType; // סוג עסקת האשראי
@@ -58,5 +55,8 @@ export class DocPayments {
 
   @Column({ type: 'varchar', length: 3, nullable: true })
   creditPayNumber: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  appName: string;
   
 }

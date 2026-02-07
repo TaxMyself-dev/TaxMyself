@@ -10,6 +10,10 @@ import { AdminPanelPage } from './admin-panel.page';
 import { SharedModule } from '../../shared/shared.module';
 import { GenericTableComponent } from '../../components/generic-table/generic-table.component';
 import { FeezbackTransactionsDialogComponent } from '../../components/feezback-transactions-dialog/feezback-transactions-dialog.component';
+import { AgentManagementComponent } from '../../shared/agent-management/agent-management.component';
+import { ShaamInvoiceApprovalDialogComponent } from '../../components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
+import { ButtonComponent } from '../../components/button/button.component';
+import { ToastModule } from 'primeng/toast';
 
 @NgModule({
   imports: [
@@ -20,7 +24,11 @@ import { FeezbackTransactionsDialogComponent } from '../../components/feezback-t
     SharedModule,
     ReactiveFormsModule,
     GenericTableComponent,
-    FeezbackTransactionsDialogComponent
+    FeezbackTransactionsDialogComponent,
+    AgentManagementComponent,
+    ShaamInvoiceApprovalDialogComponent,
+    ButtonComponent,
+    ToastModule
   ],
   declarations: [AdminPanelPage]
 })

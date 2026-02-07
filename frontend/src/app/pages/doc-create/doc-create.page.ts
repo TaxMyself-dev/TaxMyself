@@ -1,6 +1,6 @@
 import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, tap, throwError } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, take, tap, throwError } from 'rxjs';
 import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
 import { Router } from '@angular/router';
 import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
@@ -23,6 +23,14 @@ import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { log } from 'console';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
+import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
+import { ShaamService } from 'src/app/services/shaam.service';
+import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
+import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
+
+// Constant for allocation number threshold
+const ALLOCATION_NUMBER_THRESHOLD = 10000;
 
 interface DocPayload {
   docData: any[];
@@ -58,6 +66,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private gs = inject(GenericService);
   private documentsService = inject(DocumentsService);
   confirmationService = inject(ConfirmationService);
+  private shaamService = inject(ShaamService);
+  private messageService = inject(MessageService);
 
 
   // Business-related properties
@@ -117,6 +127,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
   allocationNum: string | null = null;
   shouldCloseParentDoc: boolean = false; // Flag to indicate if parent document should be closed after creation
   parentBusinessNumber: string | null = null; // Business number of parent document
+
+  // Allocation number related properties
+  allocationNumber = signal<string | null>(null);
+  showAllocationNumberInput = signal<boolean>(false);
+  showShaamDialog = signal<boolean>(false);
+  manualAllocationNumber: string = '';
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
   // selectedBankBranch: string;
@@ -205,6 +221,20 @@ export class DocCreatePage implements OnInit, OnDestroy {
   chargesPaymentsDifference = computed(() => {
     return this.totalAmount() - this.totalPayments();
   })
+
+  // Check if allocation number is required
+  requiresAllocationNumber = computed(() => {
+    const docType = this.fileSelected();
+    const isTaxInvoice = docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT;
+
+    if (!isTaxInvoice) {
+      return false;
+    }
+
+    // Sum before VAT after discount
+    const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
+    return sumBeforeVat > ALLOCATION_NUMBER_THRESHOLD;
+  });
 
   createDocIsValid = computed(() => {
     return (
@@ -451,6 +481,21 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   confirmCreateDoc(): void {
+    // Check if allocation number is required
+    const requiresAlloc = this.requiresAllocationNumber();
+    const hasAllocNumber = this.allocationNumber();
+
+    console.log("🔍 confirmCreateDoc - requiresAlloc:", requiresAlloc);
+    console.log("🔍 confirmCreateDoc - hasAllocNumber:", hasAllocNumber);
+    console.log("🔍 confirmCreateDoc - docType:", this.fileSelected());
+    console.log("🔍 confirmCreateDoc - sumBeforeVat:", this.documentTotals().sumAftDisBefVat);
+
+    if (requiresAlloc && !hasAllocNumber) {
+      console.log("✅ Showing allocation number dialog");
+      this.showAllocationNumberDialog();
+      return;
+    }
+
     this.confirmationService.confirm({
       message: 'האם אתה בטוח שברצונך להפיק את המסמך?\nהמסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
       header: 'אישור הפקת מסמך',
@@ -566,10 +611,20 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.allocationNum = null;
     this.shouldCloseParentDoc = false;
     this.parentBusinessNumber = null;
+
+    // Reset allocation number
+    this.allocationNumber.set(null);
+    this.manualAllocationNumber = '';
   }
 
 
   previewDoc(): void {
+    // Check if allocation number is required
+    if (this.requiresAllocationNumber() && !this.allocationNumber()) {
+      this.showAllocationNumberDialog();
+      return;
+    }
+
     console.log(this.myForm);
 
     this.createPreviewPDFIsLoading.set(true);
@@ -615,7 +670,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const issuerBusinessNumber = this.selectedBusinessNumber;
     const docDescription = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DESCRIPTION)?.value;
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
-    const allocationNum = this.allocationNum ?? null;
+    // Use allocationNumber from signal if available, otherwise fall back to allocationNum
+    const allocationNum = this.allocationNumber() ?? this.allocationNum ?? null;
     const docSubtitle = this.docSubtitle ?? null;
     const parentDocType = this.parentDocType ?? null;
     const parentDocNumber = this.parentDocNumber ?? null;
@@ -692,6 +748,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.setSumInPaymentForm();
   }
 
+  /**
+   * Ensures a value is a valid number, returning defaultValue if not
+   */
+  private ensureNumber(value: any, defaultValue: number = 0): number {
+    if (value == null || value === '') return defaultValue;
+    const num = Number(value);
+    return isNaN(num) ? defaultValue : num;
+  }
+
   private addNewLine(formData: any): void {
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
@@ -752,7 +817,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       description: formData.description,
       unitQuantity: formData.unitAmount,
       sum: formData.sum,
-      discount: formData.discount ?? 0,
+      discount: this.ensureNumber(formData.discount, 0),
       vatOpts: vatOpts,
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
       docType: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value,
@@ -814,7 +879,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       description: formData.description,
       unitQuantity: formData.unitAmount,
       sum: formData.sum,
-      discount: formData.discount ?? 0,
+      discount: this.ensureNumber(formData.discount, 0),
       vatOpts: vatOpts,
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
     };
@@ -1754,6 +1819,223 @@ export class DocCreatePage implements OnInit, OnDestroy {
     if (this.isUserExpanded()) {
       this.userDetailsForm.patchValue(expandField);
     }
+  }
+
+  // Show dialog asking user how to get allocation number
+  showAllocationNumberDialog(): void {
+    const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
+
+    console.log("🔍 showAllocationNumberDialog - sumBeforeVat:", sumBeforeVat);
+    console.log("🔍 showAllocationNumberDialog - confirmationService:", this.confirmationService);
+
+    this.confirmationService.confirm({
+      message: `על מנת להפיק חשבונית בסכום של ₪${sumBeforeVat.toLocaleString('he-IL')} (לפני מע״מ), נדרש מספר הקצאה משעמ.\n\nכיצד תרצה להמשיך?`,
+      header: 'מספר הקצאה נדרש',
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'הפק באמצעות התוכנה',
+      rejectLabel: 'הזן ידנית',
+      acceptVisible: true,
+      rejectVisible: true,
+      accept: () => {
+        // Wait for the current dialog to close before opening the next one
+        setTimeout(() => {
+          this.openShaamDialog();
+        }, 100);
+      },
+      reject: () => {
+        this.showAllocationNumberInput.set(true);
+      }
+    });
+  }
+
+  // Open SHAAM dialog and send automatic request
+  openShaamDialog(): void {
+    // Check if businessNumber is available
+    if (!this.selectedBusinessNumber) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'מספר עסק לא זוהה. אנא נסה שוב',
+        life: 3000,
+        key: 'br'
+      });
+      return;
+    }
+
+    // Check for valid SHAAM connection
+    firstValueFrom(
+      this.shaamService.getValidAccessToken(this.selectedBusinessNumber).pipe(
+        catchError((error) => {
+          // On error, return null to indicate no connection
+          return of(null);
+        })
+      )
+    ).then((tokenData) => {
+      if (!tokenData || !tokenData.accessToken) {
+        // No valid connection exists, show confirmation dialog
+        this.showShaamConnectionRequiredDialog();
+        return;
+      }
+      // Valid connection exists, send automatic request with document data
+      this.sendAllocationNumberRequest(tokenData.accessToken);
+    });
+  }
+
+  // Send allocation number request automatically with document data
+  private sendAllocationNumberRequest(accessToken: string): void {
+    // Log token details
+    console.log('=== SENDING ALLOCATION NUMBER REQUEST ===');
+    console.log('Access token length:', accessToken.length);
+    console.log('Access token starts with:', accessToken.substring(0, 30));
+    console.log('Access token ends with:', '...' + accessToken.substring(accessToken.length - 20));
+
+    // Build request data from document
+    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value;
+    const docNumber = this.docIndexes.docIndex;
+    const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
+    const totals = this.documentTotals();
+    const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
+
+    // Format date to YYYY-MM-DD
+    const formattedDate = docDate ? new Date(docDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
+    // Map document type to invoice_type (you may need to adjust this mapping)
+    const invoiceType = this.mapDocTypeToInvoiceType(docType);
+
+    // Build approval request
+    const approvalData: IShaamApprovalRequest = {
+      user_id: parseInt(this.selectedBusinessNumber),
+      accounting_software_number: 258001, // Fixed company number
+      amount_before_discount: totals.sumBefDisBefVat || totals.sumAftDisBefVat,
+      customer_vat_number: parseInt(recipientId) || 204245724,
+      discount: totals.disSum || 0,
+      invoice_date: formattedDate,
+      invoice_id: `INV-${docNumber}-${Date.now()}`,
+      invoice_issuance_date: formattedDate,
+      invoice_reference_number: docNumber?.toString() || `REF-${Date.now()}`,
+      invoice_type: invoiceType,
+      payment_amount: totals.sumAftDisBefVat,
+      payment_amount_including_vat: totals.sumAftDisWithVat,
+      vat_amount: totals.vatSum,
+      vat_number: parseInt(this.selectedBusinessNumber) || 777777715,
+    };
+
+    console.log('Approval data:', JSON.stringify(approvalData, null, 2));
+    console.log('Business number:', this.selectedBusinessNumber);
+    console.log('=== END ALLOCATION NUMBER REQUEST DATA ===');
+
+    // Send request with businessNumber so backend can verify token
+    this.shaamService.submitInvoiceApproval(accessToken, approvalData, this.selectedBusinessNumber)
+      .pipe(
+        catchError((error) => {
+          const errorMessage = error.error?.message || error.message || 'שגיאה בשליחת הבקשה';
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: errorMessage,
+            life: 5000,
+            key: 'br'
+          });
+          return EMPTY;
+        })
+      )
+      .subscribe((response: IShaamApprovalResponse) => {
+        if (response.approved && response.confirmation_number) {
+          this.allocationNumber.set(response.confirmation_number);
+          this.messageService.add({
+            severity: 'success',
+            summary: 'הצלחה',
+            detail: `מספר הקצאה התקבל: ${response.confirmation_number}`,
+            life: 5000,
+            key: 'br'
+          });
+          // After getting allocation number, proceed with document creation
+          this.confirmCreateDoc();
+        } else {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'החשבונית לא אושרה',
+            detail: response.message || 'החשבונית לא אושרה על ידי שעמ',
+            life: 5000,
+            key: 'br'
+          });
+        }
+      });
+  }
+
+  // Map document type to SHAAM invoice type
+  private mapDocTypeToInvoiceType(docType: DocumentType): number {
+    // Map your document types to SHAAM invoice types
+    // You may need to adjust this mapping based on your business logic
+    switch (docType) {
+      case DocumentType.TAX_INVOICE:
+        return 305; // Example: tax invoice
+      case DocumentType.TAX_INVOICE_RECEIPT:
+        return 305; // Example: tax invoice receipt
+      default:
+        return 305; // Default invoice type
+    }
+  }
+
+  // Show dialog when SHAAM connection is required
+  showShaamConnectionRequiredDialog(): void {
+    // Wait a bit to ensure any previous dialog is fully closed
+    setTimeout(() => {
+      this.confirmationService.confirm({
+        message: 'על מנת להמשיך בתהליך יש לבצע התחברות לאיזור האישי ברשות המיסים ולתת הרשאה למערכת לבצע עבורך את הפעולה',
+        header: 'התחברות נדרשת',
+        icon: 'pi pi-info-circle',
+        acceptLabel: 'מעבר לאתר רשות המיסים',
+        rejectLabel: 'ביטול',
+        acceptVisible: true,
+        rejectVisible: true,
+        accept: () => {
+          // Redirect to SHAAM OAuth flow
+          this.shaamService.initiateOAuthFlow(this.selectedBusinessNumber);
+        },
+        reject: () => {
+          // User cancelled, do nothing
+        }
+      });
+    }, 150);
+  }
+
+  // Handle SHAAM dialog close
+  onShaamDialogClose(event: { visible: boolean }): void {
+    this.showShaamDialog.set(event.visible);
+  }
+
+  // Handle SHAAM approval success
+  onShaamApprovalSuccess(event: { response: IShaamApprovalResponse }): void {
+    if (event.response.confirmation_number) {
+      this.allocationNumber.set(event.response.confirmation_number);
+      this.messageService.add({
+        severity: 'success',
+        summary: 'הצלחה',
+        detail: `מספר הקצאה התקבל: ${event.response.confirmation_number}`,
+        life: 3000,
+        key: 'br'
+      });
+      // After getting allocation number, proceed with document creation
+      this.confirmCreateDoc();
+    }
+  }
+
+  // Handle manual allocation number input
+  onAllocationNumberSubmit(allocationNumber: string): void {
+    if (allocationNumber && allocationNumber.trim()) {
+      this.allocationNumber.set(allocationNumber.trim());
+      this.manualAllocationNumber = '';
+      this.showAllocationNumberInput.set(false);
+      // After setting allocation number, proceed with document creation
+      this.confirmCreateDoc();
+    }
+  }
+
+  // Cancel manual allocation number input
+  cancelAllocationNumberInput(): void {
+    this.manualAllocationNumber = '';
+    this.showAllocationNumberInput.set(false);
   }
 
 

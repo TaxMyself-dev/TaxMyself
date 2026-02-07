@@ -278,9 +278,7 @@ export enum fieldLineDocValue {
   INTERNAL_NUMBER = 'internalNumber',
   JOURNAL_ENTRY_MAIN_ID = 'journalEntryMainId',
   PAYMENT_DATE = 'paymentDate',
-  APPROVAL_CODE = 'approvalCode',
   APP_NAME = 'appName',
-  REFERENCE = 'reference',
 }
 
 export enum fieldLineDocName {
@@ -310,9 +308,7 @@ export enum fieldLineDocName {
   internalNumber = 'מספר פנימי',
   journalEntryMainId = 'מספר ראשי של רשומת יומן',
   paymentDate = 'תאריך',
-  approvalCode = 'קוד אישור',
   appName = 'אפליקציה',
-  reference = 'אסמכתא',
 }
 
 export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;

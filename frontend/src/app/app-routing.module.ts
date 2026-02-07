@@ -104,6 +104,10 @@ const routes: Routes = [
     path: 'feezback/expired/:flowId',
     loadChildren: () => import('./pages/feezback-expired/feezback-expired.module').then(m => m.FeezbackExpiredPageModule)
   },
+  {
+    path: 'shaam/callback',
+    loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
+  },
  
 ];
 

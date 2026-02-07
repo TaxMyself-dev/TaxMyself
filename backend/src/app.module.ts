@@ -16,6 +16,8 @@ import { FinsiteModule } from './finsite/finsite.module';
 import { DelegationModule } from './delegation/delegation.module';
 import { BookkeepingModule } from './bookkeeping/bookkeeping.module';
 import { FeezbackModule } from './feezback/feezback.module';
+import { ShaamModule } from './shaam/shaam.module';
+import { AgentsModule } from './agents/agents.module';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -32,6 +34,7 @@ import { Source } from './transactions/source.entity';
 import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
 import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
+import { Agents } from './delegation/agents.entity';
 import { Clients } from './clients/clients.entity';
 import { Documents } from './documents/documents.entity';
 import { DocLines } from './documents/doc-lines.entity';
@@ -69,7 +72,7 @@ import { BusinessService } from './business/business.service';
       database: process.env.DB_DATABASE,
       entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
-        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount],
+        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true
@@ -100,9 +103,9 @@ import { BusinessService } from './business/business.service';
       Child
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule],
   controllers: [AppController],
-  providers: [AppService, UsersService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

@@ -2,7 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert 
 import { BusinessType, Currency, DocumentType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
-@Entity()
+@Entity('business')
 export class Business {
 
   @PrimaryGeneratedColumn()
@@ -61,6 +61,16 @@ export class Business {
     default: TaxReportingType.NOT_REQUIRED
   })
   taxReportingType: TaxReportingType | null;
+
+  // SHAAM OAuth tokens (encrypted with AES-256)
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamAccessToken: string | null;
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamAccessTokenExp: string | null; // Unix timestamp as string (encrypted)
+
+  @Column({ type: 'varchar', nullable: true, default: null })
+  shaamRefreshToken: string | null;
 
   // @Column({ type: 'varchar', nullable: true, default: null })
   // bankBeneficiary: string | null;

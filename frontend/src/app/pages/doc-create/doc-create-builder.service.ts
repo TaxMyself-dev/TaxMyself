@@ -640,8 +640,7 @@ export class DocCreateBuilderService {
             initialValue: new Date(),
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required],
-            required: true
+            validators: [Validators.required]
         },
         [fieldLineDocValue.APPROVAL_CODE]: {
             value: fieldLineDocValue.APPROVAL_CODE,
@@ -720,7 +719,7 @@ export class DocCreateBuilderService {
         },
         'APP': {
             key: 'APP',
-            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.APP_NAME, fieldLineDocValue.REFERENCE, fieldLineDocValue.PAYMENT_SUM],
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.APP_NAME, fieldLineDocValue.PAYMENT_SUM],
             expandable: false,
             expandedFields: []
         },

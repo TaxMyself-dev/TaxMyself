@@ -67,7 +67,9 @@ export class AuthInterceptor implements HttpInterceptor {
         }
 
         const headers: any = {};
-        if (token) {
+        // Only add Firebase token if Authorization header doesn't already exist
+        // This allows services (like Shaam) to set their own Authorization header
+        if (token && !req.headers.has('Authorization')) {
           headers['Authorization'] = `Bearer ${token}`;
         }
         if (businessNumber) {

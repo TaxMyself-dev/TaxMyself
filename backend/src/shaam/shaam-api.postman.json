@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "SHAAM API",
+    "description": "SHAAM (Israeli Tax Authority) Integration API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "YOUR_ACCESS_TOKEN_HERE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "OAuth",
+      "item": [
+        {
+          "name": "Get Authorization URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shaam/oauth/authorize-url",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "oauth", "authorize-url"]
+            },
+            "description": "Returns OAuth2 authorization URL and state. Use the URL in browser to authorize."
+          },
+          "response": []
+        },
+        {
+          "name": "OAuth Callback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shaam/oauth/callback?code=AUTHORIZATION_CODE_HERE&state=STATE_STRING_HERE&redirect_uri=https://localhost/get-all-number",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "oauth", "callback"],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "AUTHORIZATION_CODE_HERE",
+                  "description": "Authorization code from SHAAM redirect"
+                },
+                {
+                  "key": "state",
+                  "value": "STATE_STRING_HERE",
+                  "description": "State string from authorization URL"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "https://localhost/get-all-number",
+                  "description": "Redirect URI (must match registered URI)"
+                }
+              ]
+            },
+            "description": "Exchanges authorization code for access token. Typically called by browser redirect."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "Submit Invoice Approval",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "description": "OAuth2 access token"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accounting_software_number\": 123456,\n  \"amount_before_discount\": 1000.00,\n  \"customer_vat_number\": 123456789,\n  \"discount\": 0.00,\n  \"invoice_date\": \"2026-01-15\",\n  \"invoice_id\": \"INV-001\",\n  \"invoice_issuance_date\": \"2026-01-15\",\n  \"invoice_reference_number\": \"REF-001\",\n  \"invoice_type\": 1,\n  \"payment_amount\": 1000.00,\n  \"payment_amount_including_vat\": 1170.00,\n  \"vat_amount\": 170.00,\n  \"vat_number\": 987654321\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shaam/invoices/approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "invoices", "approval"]
+            },
+            "description": "Submits invoice approval to SHAAM. Requires valid access token."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Invoice Approval - Example 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accounting_software_number\": 789012,\n  \"amount_before_discount\": 5000.00,\n  \"customer_vat_number\": 987654321,\n  \"discount\": 100.00,\n  \"invoice_date\": \"2026-01-20\",\n  \"invoice_id\": \"INV-002\",\n  \"invoice_reference_number\": \"REF-002\",\n  \"invoice_type\": 2,\n  \"payment_amount\": 4900.00,\n  \"payment_amount_including_vat\": 5733.00,\n  \"vat_amount\": 833.00,\n  \"vat_number\": 123456789\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shaam/invoices/approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "invoices", "approval"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Test Validation - Invalid Date Format",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accounting_software_number\": 123456,\n  \"amount_before_discount\": 1000.00,\n  \"customer_vat_number\": 123456789,\n  \"discount\": 0.00,\n  \"invoice_date\": \"15/01/2026\",\n  \"invoice_id\": \"INV-001\",\n  \"invoice_issuance_date\": \"15/01/2026\",\n  \"invoice_reference_number\": \"REF-001\",\n  \"invoice_type\": 1,\n  \"payment_amount\": 1000.00,\n  \"payment_amount_including_vat\": 1170.00,\n  \"vat_amount\": 170.00,\n  \"vat_number\": 987654321\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shaam/invoices/approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "invoices", "approval"]
+            },
+            "description": "Tests validation - should fail with date format error"
+          },
+          "response": []
+        },
+        {
+          "name": "Test Validation - Payment Amount Mismatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accounting_software_number\": 123456,\n  \"amount_before_discount\": 1000.00,\n  \"customer_vat_number\": 123456789,\n  \"discount\": 0.00,\n  \"invoice_date\": \"2026-01-15\",\n  \"invoice_id\": \"INV-001\",\n  \"invoice_issuance_date\": \"2026-01-15\",\n  \"invoice_reference_number\": \"REF-001\",\n  \"invoice_type\": 1,\n  \"payment_amount\": 1000.00,\n  \"payment_amount_including_vat\": 1200.00,\n  \"vat_amount\": 170.00,\n  \"vat_number\": 987654321\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shaam/invoices/approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "invoices", "approval"]
+            },
+            "description": "Tests validation - should fail because payment_amount + vat_amount != payment_amount_including_vat"
+          },
+          "response": []
+        },
+        {
+          "name": "Test Missing Authorization Header",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accounting_software_number\": 123456,\n  \"amount_before_discount\": 1000.00,\n  \"customer_vat_number\": 123456789,\n  \"discount\": 0.00,\n  \"invoice_date\": \"2026-01-15\",\n  \"invoice_id\": \"INV-001\",\n  \"invoice_issuance_date\": \"2026-01-15\",\n  \"invoice_reference_number\": \"REF-001\",\n  \"invoice_type\": 1,\n  \"payment_amount\": 1000.00,\n  \"payment_amount_including_vat\": 1170.00,\n  \"vat_amount\": 170.00,\n  \"vat_number\": 987654321\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shaam/invoices/approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["shaam", "invoices", "approval"]
+            },
+            "description": "Tests validation - should fail with missing authorization header error"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
+

@@ -86,8 +86,6 @@ export class LoginPage implements OnInit {
       password?: string;
     };
 
-    console.log("🚀 ~ LoginPage ~ ngOnInit ~ state:", state);
-
     if (state?.email && state?.password) {
       this.mailAddressForResendAuthMail = state.email;
       this.passwordForResendAuthMail = state.password;
@@ -153,23 +151,21 @@ export class LoginPage implements OnInit {
           return EMPTY;
         }),
 
-        // 3️⃣ Save user data
-        tap((res: any) => {
-          console.log("res in login page: ", res);
-          sessionStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('userData', JSON.stringify(res));
-        }),
+      // 3️⃣ Save user data
+      tap((res: any) => {
+        sessionStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userData', JSON.stringify(res));
+      }),
 
         // 4️⃣ Load businesses from server
         switchMap(() =>
           from(this.genericService.loadBusinessesFromServer())
         ),
 
-        // 5️⃣ After businesses loaded → navigate
-        tap(() => {
-          console.log("Businesses loaded → navigate");
-          this.router.navigate(['my-account']);
-        }),
+      // 5️⃣ After businesses loaded → navigate
+      tap(() => {
+        this.router.navigate(['my-account']);
+      }),
 
         finalize(() => this.isLoading.set(false))
       )

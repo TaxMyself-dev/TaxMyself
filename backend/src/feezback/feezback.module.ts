@@ -8,7 +8,6 @@ import { Delegation } from '../delegation/delegation.entity';
 import { User } from '../users/user.entity';
 import { Transactions } from '../transactions/transactions.entity';
 import { UsersModule } from '../users/users.module';
-import { UsersService } from 'src/users/users.service';
 import { SharedService } from 'src/shared/shared.service';
 import { Business } from 'src/business/business.entity';
 import { Child } from 'src/users/child.entity';
@@ -25,7 +24,7 @@ import { SettingDocuments } from 'src/documents/settingDocuments.entity';
     UsersModule,
   ],
   controllers: [FeezbackController],
-  providers: [FeezbackService, FeezbackJwtService, UsersService, SharedService],
+  providers: [FeezbackService, FeezbackJwtService, SharedService],
   exports: [FeezbackService],
 })
 export class FeezbackModule {}

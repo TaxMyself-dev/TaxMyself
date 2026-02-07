@@ -5,7 +5,7 @@ import { DelegationController } from './delegation.controller';
 import { Delegation } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { MailService } from 'src/mail/mail.service';
-import { UsersService } from 'src/users/users.service';
+import { UsersModule } from 'src/users/users.module';
 import { SharedService } from 'src/shared/shared.service';
 import { Child } from 'src/users/child.entity';
 import { Expense } from 'src/expenses/expenses.entity';
@@ -16,11 +16,13 @@ import { Business } from 'src/business/business.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Delegation, User, Business, Transactions, Expense, Child, SettingDocuments])],
+  imports: [
+    TypeOrmModule.forFeature([Delegation, User, Business, Transactions, Expense, Child, SettingDocuments]),
+    UsersModule
+  ],
   controllers: [DelegationController],
   providers: [
     DelegationService,
-    UsersService,
     SharedService,
     MailService,
     //FirebaseAuthGuard
