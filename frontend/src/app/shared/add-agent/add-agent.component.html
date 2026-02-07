@@ -1,0 +1,35 @@
+<div class="add-agent-container">
+  <div class="header">
+    <h2>הוסף סוכן</h2>
+    <p class="description">הוסף סוכן חדש למערכת. לאחר הוספה, תקבל API Key ו-Secret להעתקה (מוצגים פעם אחת בלבד).</p>
+  </div>
+
+  <form [formGroup]="agentForm" (ngSubmit)="onSubmit()" class="agent-form">
+    <app-input-text
+      [parentForm]="agentForm"
+      [controlName]="'name'"
+      [labelText]="'שם הסוכן'"
+      [placeholder]="'הזן שם סוכן'">
+    </app-input-text>
+
+    <div class="form-actions">
+      <app-p-button
+        [buttonText]="'הוסף סוכן'"
+        [buttonSize]="buttonSize.AUTO"
+        [buttonColor]="buttonColor.BLACK"
+        [isLoading]="isLoading()"
+        [disabled]="agentForm.invalid"
+        (onButtonClicked)="onSubmit()">
+      </app-p-button>
+    </div>
+  </form>
+
+  <app-agent-credentials-modal
+    *ngIf="showCredentialsModal() && credentials()"
+    [isVisible]="showCredentialsModal()"
+    [apiKey]="credentials()?.apiKey || ''"
+    [secret]="credentials()?.secret || ''"
+    (visibleChange)="onCredentialsModalClose($event)">
+  </app-agent-credentials-modal>
+</div>
+

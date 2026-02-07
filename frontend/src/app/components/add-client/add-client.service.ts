@@ -3,8 +3,9 @@ import { inject, Injectable, signal } from '@angular/core';
 import { FormGroup, FormControl, Validators } from '@angular/forms';
 import { Observable } from 'rxjs';
 import { IClient } from 'src/app/pages/doc-create/doc-create.interface';
-import { ClientsTableColumns, FormTypes } from 'src/app/shared/enums';
+import { FormTypes } from 'src/app/shared/enums';
 import { IBaseFieldData } from 'src/app/shared/interface';
+import { ClientKeys } from 'src/app/shared/types';
 import { environment } from 'src/environments/environment';
 
 @Injectable({
@@ -12,11 +13,11 @@ import { environment } from 'src/environments/environment';
 })
 export class AddClientService {
 
-  readonly addClientFields: Record<ClientsTableColumns, IBaseFieldData> = {
+  readonly addClientFields: Record<ClientKeys, IBaseFieldData> = {
     // General Details 
-    [ClientsTableColumns.NAME]: {
+    ['name']: {
       //name: FieldsCreateDocName.typeFile,
-      value: ClientsTableColumns.NAME,
+      value: 'name',
       labelText: 'שם הלקוח',
       placeHolder: 'הקלד את שם הלקוח',
       type: FormTypes.TEXT,
@@ -24,8 +25,8 @@ export class AddClientService {
       enumValues: [],
       validators: [Validators.required]
     },
-    [ClientsTableColumns.PHONE]: {
-      value: ClientsTableColumns.PHONE,
+    ['phone']: {
+      value: 'phone',
       labelText: 'טלפון',
       placeHolder: 'טלפון',
       type: FormTypes.TEXT,
@@ -34,8 +35,8 @@ export class AddClientService {
       validators: [Validators.pattern(/^(05[0-9]\d{7}|0[23489]\d{7})$/)
       ]
     },
-    [ClientsTableColumns.EMAIL]: {
-      value: ClientsTableColumns.EMAIL,
+    ['email']: {
+      value: 'email',
       labelText: 'אימייל',
       placeHolder: 'example@example.com',
       type: FormTypes.TEXT,
@@ -43,8 +44,8 @@ export class AddClientService {
       enumValues: [],
       validators: [Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
     },
-    [ClientsTableColumns.ID]: {
-      value: ClientsTableColumns.ID,
+    ['id']: {
+      value: 'id',
       labelText: 'תעודת זהות או ח.פ.',
       placeHolder: 'הקלד 9 ספרות',
       type: FormTypes.TEXT,
@@ -53,8 +54,8 @@ export class AddClientService {
       validators: [Validators.pattern(/^\d{9}$/)
       ]
     },
-    [ClientsTableColumns.ADDRESS]: {
-      value: ClientsTableColumns.ADDRESS,
+    ['address']: {
+      value: 'address',
       labelText: 'כתובת',
       placeHolder: 'כתובת',
       type: FormTypes.TEXT,
@@ -73,7 +74,7 @@ export class AddClientService {
 
     // Iterate through all fields and create a FormControl for each
     Object.keys(this.addClientFields).forEach((fieldKey) => {
-      const fieldData = this.addClientFields[fieldKey as ClientsTableColumns];
+      const fieldData = this.addClientFields[fieldKey as ClientKeys];
 
       // Create FormControl with initial value and validators
       formControls[fieldKey] = new FormControl(

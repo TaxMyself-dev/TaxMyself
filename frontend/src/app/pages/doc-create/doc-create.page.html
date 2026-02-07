@@ -31,43 +31,50 @@
         בחר איזה מסמך ברצונך להפיק
       </p>
     </div>
-    <div class="general-fields">
-      <div class="user-details-section">
-        @for (item of generalArray; track item.value) {
-        @switch (item.type) {
-
-        @case (formTypes.DDL) {
-        @if (item.value !== FieldsCreateDocValue.BUSINESS_NUMBER || showBusinessSelector) {
-        <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-          [items]="item.labelText === 'עסק' ? businessOptions() : item.enumValues" [parentForm]="generalDetailsForm"
-          [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
-    item.value === 'docType' && !generalDetailsForm.get('businessNumber')?.value">
-        </app-input-select>
-        }
-        }
-
-        @case (formTypes.DATE) {
-        <app-input-date [controlName]="item.value" [labelText]="item.labelText" placeholder="00/00/0000"
-          [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM">
-        </app-input-date>
-        }
-
-        @default {
-        @if (item.value !== FieldsCreateDocValue.DOC_VAT_RATE || isGeneralExpanded) {
-        <app-input-text [controlName]="item.value" [value]="item.initialValue" [labelText]="item.labelText"
-          [placeholder]="item.placeHolder" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" [type]="
-          item.type === formTypes.NUMBER ? 'number' : 'text'"></app-input-text>
-        }
-        }
-
-        }
-        }
+    <div class="section">
+      <div class="create-doc-header">
+        <div class="icon-title">
+          <span class="title">פרטי המסמך</span>
+        </div>
       </div>
-      <div>
-        <app-p-button class="pnl-pdf-button" [buttonText]="isGeneralExpanded ? 'הסתר שדות' : 'הצג שדות נוספים'"
-          [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
-          (onButtonClicked)="expandGeneralDetails()">
-        </app-p-button>
+      <div class="general-fields">
+        <div class="user-details-section">
+          @for (item of generalArray; track item.value) {
+          @switch (item.type) {
+
+          @case (formTypes.DDL) {
+          @if (item.value !== FieldsCreateDocValue.BUSINESS_NUMBER || showBusinessSelector) {
+          <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
+            [items]="item.labelText === 'עסק' ? businessOptions() : item.enumValues" [parentForm]="generalDetailsForm"
+            [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
+            item.value === 'docType' && !generalDetailsForm.get('businessNumber')?.value">
+          </app-input-select>
+          }
+          }
+
+          @case (formTypes.DATE) {
+          <app-input-date [controlName]="item.value" [labelText]="item.labelText" placeholder="00/00/0000"
+            [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM">
+          </app-input-date>
+          }
+
+          @default {
+          @if (item.value !== FieldsCreateDocValue.DOC_VAT_RATE || isGeneralExpanded) {
+          <app-input-text [controlName]="item.value" [value]="item.initialValue" [labelText]="item.labelText"
+            [placeholder]="item.placeHolder" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" [type]="
+          item.type === formTypes.NUMBER ? 'number' : 'text'"></app-input-text>
+          }
+          }
+
+          }
+          }
+        </div>
+        <div>
+          <app-p-button class="pnl-pdf-button" [buttonText]="isGeneralExpanded ? 'הסתר שדות' : 'הצג שדות נוספים'"
+            [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
+            (onButtonClicked)="expandGeneralDetails()">
+          </app-p-button>
+        </div>
       </div>
     </div>
 
@@ -88,7 +95,7 @@
             [placeholder]="item.placeHolder" [items]="filteredClients()" optionLabel="name"
             (onCompleteMethod)="filterClients($event)" (onItemSelect)="onClientSelect($event)" [showAddNew]="true"
             addNewLabel="הוסף לקוח חדש" (onAddNew)="onAddNewClient($event)" headerText="בחר לקוח קיים"
-          [forceSelection]="false" [size]="inputsSize.BETWEEN">
+            [forceSelection]="false" [size]="inputsSize.BETWEEN">
           </app-input-autocomplete>
           }
 
@@ -228,22 +235,22 @@
                 {{ line.unitQuantity }}
                 }
                 @else if (col.dataField === 'vatOpts') {
-                  <span dir="ltr">
-                    ₪{{ line.vatPerLine | number:'1.2-2' }}
-                  </span>
+                <span dir="ltr">
+                  ₪{{ line.vatPerLine | number:'1.2-2' }}
+                </span>
                 }
                 @else if (col.dataField === 'sum') {
-                  <span dir="ltr">
-                    ₪{{ line.sumBefVatPerUnit | number:'1.2-2' }}
-                  </span>
+                <span dir="ltr">
+                  ₪{{ line.sumBefVatPerUnit | number:'1.2-2' }}
+                </span>
                 }
                 @else if (col.dataField === 'total') {
-                  <span dir="ltr">
-                    ₪{{ line.sumAftDisWithVat | number:'1.2-2' }}
-                  </span>
+                <span dir="ltr">
+                  ₪{{ line.sumAftDisWithVat | number:'1.2-2' }}
+                </span>
                 }
                 @else if (col.dataField === 'discount') {
-                {{ line.discount || '-' }}
+                {{ line.discount ?? '-' }}
                 }
                 @else if (col.dataField === 'actions') {
                 <div style="display: flex; gap: 0.5rem;">
@@ -270,11 +277,11 @@
           </div>
           <div class="values-summary">
             @for (item of filteredSummaryItems(); track item.key) {
-              <p class="content-summary">
-                <span dir="ltr">
-                  ₪{{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
-                </span>
-              </p>
+            <p class="content-summary">
+              <span dir="ltr">
+                ₪{{ item.valueGetter(documentSummary()) | number:'1.2-2' }}
+              </span>
+            </p>
             }
           </div>
         </div>
@@ -358,20 +365,20 @@
           @for (item of getPaymentFields(payment.paymentMethod); track item.value) {
           <div>
             @if (item.value === 'paymentSum') {
-              <span dir="ltr">₪{{ payment[item.value] | number:'1.2-2' }}</span>
+            <span dir="ltr">₪{{ payment[item.value] | number:'1.2-2' }}</span>
             } @else {
-              {{ item.type === formTypes.DATE
-              ? (payment[item.value] | date:'dd/MM/yyyy')
-              : (
-              item.value === 'bankName'
-              ? (
-              payment.hebrewBankName && payment.bankNumber
-              ? (payment.hebrewBankName + ' (' + payment.bankNumber + ')')
-              : (payment.hebrewBankName || payment.bankNumber || '-')
-              )
-              : (payment[item.value] || '-')
-              )
-              }}
+            {{ item.type === formTypes.DATE
+            ? (payment[item.value] | date:'dd/MM/yyyy')
+            : (
+            item.value === 'bankName'
+            ? (
+            payment.hebrewBankName && payment.bankNumber
+            ? (payment.hebrewBankName + ' (' + payment.bankNumber + ')')
+            : (payment.hebrewBankName || payment.bankNumber || '-')
+            )
+            : (payment[item.value] || '-')
+            )
+            }}
             }
           </div>
           }
@@ -387,13 +394,12 @@
       @if (chargesPaymentsDifference() !== 0) {
       <div>
         <p class="error-difference">אין התאמה בין סכום המסמך לבין סכום התשלומים</p>
-        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} 
-          <span
+        <p class="amount">{{ chargesPaymentsDifference() < 0 ? 'תשלום עודף של:' : 'יתרה לתשלום' }} <span
             class="amount-value">
             <span dir="ltr">
               ₪{{ chargesPaymentsDifference() | number:'1.2-2' }}
             </span>
-          </span>
+            </span>
         </p>
       </div>
       }

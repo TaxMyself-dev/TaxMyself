@@ -6,7 +6,7 @@ import { AuthService } from '../users/auth.service';
 import { Expense } from '../expenses/expenses.entity';
 import { User } from '../users/user.entity';
 import { Transactions } from './transactions.entity';
-import { UsersService } from '../users/users.service';
+import { UsersModule } from '../users/users.module';
 import { Child } from '../users/child.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
@@ -25,14 +25,16 @@ import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Business } from 'src/business/business.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
-            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation, SettingDocuments])],
+  imports: [
+    TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
+            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
+    UsersModule
+  ],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
     SharedService,
     ExpensesService,
-    UsersService,
     AuthService,
     FinsiteService
   ],

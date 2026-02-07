@@ -278,9 +278,7 @@ export enum fieldLineDocValue {
   INTERNAL_NUMBER = 'internalNumber',
   JOURNAL_ENTRY_MAIN_ID = 'journalEntryMainId',
   PAYMENT_DATE = 'paymentDate',
-  APPROVAL_CODE = 'approvalCode',
   APP_NAME = 'appName',
-  REFERENCE = 'reference',
 }
 
 export enum fieldLineDocName {
@@ -310,9 +308,7 @@ export enum fieldLineDocName {
   internalNumber = 'מספר פנימי',
   journalEntryMainId = 'מספר ראשי של רשומת יומן',
   paymentDate = 'תאריך',
-  approvalCode = 'קוד אישור',
   appName = 'אפליקציה',
-  reference = 'אסמכתא',
 }
 
 export type CreateDocFields = fieldLineDocValue | FieldsCreateDocValue;
@@ -347,10 +343,10 @@ export type PaymentMethodTypeHebrew = 'מזומן' | 'העברה בנקאית' |
 
 export const paymentMethodOptions = [
   { label: 'העברה בנקאית', id: 'BANK_TRANSFER' },
-  { label: 'כרטיס אשראי',   id: 'CREDIT_CARD' },
-  { label: 'מזומן',         id: 'CASH' },
-  { label: 'אפליקציה',      id: 'APP' },
-  { label: 'צ׳ק',           id: 'CHECK' },
+  { label: 'כרטיס אשראי', id: 'CREDIT_CARD' },
+  { label: 'מזומן', id: 'CASH' },
+  { label: 'אפליקציה', id: 'APP' },
+  { label: 'צ׳ק', id: 'CHECK' },
 ] satisfies Array<MenuItem & { label: PaymentMethodTypeHebrew; id: PaymentMethodType }>;
 
 export enum CardCompany {
@@ -501,6 +497,7 @@ export enum inputsSize {
   SMALL = 'narrow',
   BETWEEN = 'between',
   MEDIUM = 'normal',
+  MOBILE = 'mobile',
   LARGE = 'wide',
   AUTO = 'auto'
 }
@@ -515,20 +512,4 @@ export enum TaxReportingType {
   NOT_REQUIRED = 'NOT_REQUIRED',
   MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
-}
-
-export enum ClientsTableColumns {
-  NAME = 'name',
-  PHONE = 'phone',
-  EMAIL = 'email',
-  ID = 'id',
-  ADDRESS = 'address',
-}
-
-export enum ClientsTableHebrewColumns {
-  name = 'שם הלקוח',
-  phone = 'טלפון',
-  email = 'אימייל',
-  id = 'ת.ז. / ח.פ.',
-  address = 'כתובת',
 }

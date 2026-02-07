@@ -1,0 +1,32 @@
+<div class="client-container">
+  <form [formGroup]="addSupplierForm" class="client-form">
+    @for (field of addSupplierService.addSupplierFields | keyvalue:preserveOrder; track field.key) {
+    @switch (field.value.type) {
+    @case (formTypes.DDL) {
+    <app-input-select [controlName]="field.key" [labelText]="field.value.labelText"
+      [placeholder]="field.value.placeHolder" (onChangeInputSelect)="onSelectionChange($event, field.key)"
+      [items]="field.value.enumValues" [parentForm]="addSupplierForm" [size]="inputSize.MEDIUM">
+    </app-input-select>
+    }
+    @case (formTypes.TEXT) {
+    <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
+      [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
+    </app-input-text>
+    }
+    @case (formTypes.NUMBER) {
+    <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
+      [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
+    </app-input-text>
+    }
+    }
+    }
+  </form>
+  <div>
+    <app-p-button [disabled]="addSupplierForm.invalid" (onButtonClicked)="saveSupplier()"
+      [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [buttonText]="'שמור ספק חדש'"></app-p-button>
+  </div>
+  @if(suppliers().length > 0) {
+  <app-generic-table [title]="'רשימת הספקים הקיימים'" [dataTable]="suppliers()" [columnsTitle]="suppliersTableFields">
+  </app-generic-table>
+  }
+</div>

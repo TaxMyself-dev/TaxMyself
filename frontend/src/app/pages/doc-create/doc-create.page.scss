@@ -29,6 +29,7 @@
 
 .general-fields {
   display: flex;
+  flex-wrap: wrap;
   flex-direction: column;
   width: 100%;
   gap: 10px;
@@ -60,10 +61,10 @@
   align-items: center;
 }
 
-.fields-header {
-  font-size: 14px;
-  font-weight: 400;
-  color: #666;
+.header-payment-table {
+  font-size: 16px;
+  font-weight: 600;
+  color: gray;
   margin-bottom: 0;
   margin-top: 3px;
 }
@@ -167,7 +168,7 @@
   position: relative;
 }
 
-.text-header {
+.sub-title {
   font-size: 18px;
   color: #666;
   margin-top: 3px;
@@ -191,6 +192,10 @@
 .payment-list {
   display: flex;
   flex-direction: column;
+}
+
+.required {
+  color: red;
 }
 
 .inputs-container {
@@ -221,7 +226,7 @@
 
 .values-summary {
   margin-left: 50px;
-  
+
   // Fix minus sign position in summary values
   .content-summary {
     direction: ltr;
@@ -231,20 +236,30 @@
 
 .error-text {
   color: red;
-}// Fix minus sign position in line items table
+}
+
+.error-difference,
+.error-difference * {
+  color: red;
+}
+
+// Fix minus sign position in line items table
 .line-items-table {
+
   // Target cells that contain currency/number values
   ::ng-deep td {
+
     // For cells containing sum or total values
     &:has(span:contains('₪')) {
       direction: ltr;
       text-align: right;
     }
   }
-  
+
   // Alternative: target specific columns by their content
   ::ng-deep p-table {
     td {
+
       // Apply LTR direction to numeric columns (sum, total, discount)
       &:nth-child(n) {
         // Check if content starts with minus or contains currency
@@ -255,14 +270,76 @@
   }
 }
 
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    background-color: #0d0d0d;
+    color: #f4f4f5;
+  }
+
+  .page-wrapper,
+  .section {
+    background-color: transparent;
+    color: #f4f4f5;
+  }
+
+  .header-payment-table {
+    // color: #d1d5db;
+  }
+
+  .fields-header,
+  .sub-title {
+    color: #d1d5db;
+  }
+
+  .fields-divider,
+  .line-row.content {
+    border-color: #2f2f2f;
+  }
+
+  .line-row.header {
+    background-color: #1b1b1b;
+    color: #f4f4f5;
+  }
+
+  ::ng-deep .p-tabmenu {
+    background: #0d0d0d;
+    border-color: #1f1f1f;
+
+    .p-tabmenu-nav {
+      background: #0d0d0d;
+      border-color: #1f1f1f;
+    }
+
+    .p-tabmenuitem {
+      background: transparent;
+
+      .p-menuitem-link {
+        background: transparent;
+        color: #e5e7eb;
+
+        &:hover {
+          background: #1f1f1f;
+        }
+      }
+
+      &.p-highlight .p-menuitem-link {
+        background: #1f1f1f;
+        color: #57bc97;
+      }
+    }
+  }
+}
+
 // Better approach: add a class to numeric cells in the template
 // Or use this CSS to target cells with currency pipe output
 .line-items-table ::ng-deep {
+
   // PrimeNG table cells with currency values
   td {
     direction: ltr;
     text-align: right;
-    
+
     // Keep RTL for description and actions columns
     &:first-child,
     &:last-child {
@@ -271,4 +348,3 @@
     }
   }
 }
-

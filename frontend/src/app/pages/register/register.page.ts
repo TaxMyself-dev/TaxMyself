@@ -218,40 +218,6 @@ matchRegisterImage = computed(() => {
       ["businessArray"]: this.formBuilder.array([]),
     })
 
-    // const businessForm = this.formBuilder.group({
-    //   [RegisterFormControls.BUSINESSNAME]: new FormControl(
-    //     null, this.requierdField && this.isIndependent() ? Validators.required : null,
-    //   ),
-    //   [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-    //     null, this.requierdField && this.isIndependent() ? Validators.required : null,
-    //   ),
-    //   // [RegisterFormControls.BUSINESSDATE]: new FormControl(
-    //   //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
-    //   // ),
-    //   [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-    //     null, this.requierdField && this.isIndependent() ? [Validators.required, Validators.pattern(/^\d+$/)] : null,
-    //   ),
-    //   // [RegisterFormControls.BUSINESSINVENTORY]: new FormControl(
-    //   //   null, this.requierdField && this.isIndependent() ? Validators.required : null,
-    //   // ),
-    //   [RegisterFormControls.SPOUSEBUSINESSNAME]: new FormControl(
-    //     null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-    //   ),
-    //   [RegisterFormControls.SPOUSEBUSINESSTYPE]: new FormControl(
-    //     null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-    //   ),
-    //   // [RegisterFormControls.SPOUSEBUSINESSDATE]: new FormControl(
-    //   //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-    //   // ),
-    //   [RegisterFormControls.SPOUSEBUSINESSNUMBER]: new FormControl(
-    //     null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-    //   ),
-    //   // [RegisterFormControls.SPOUSEBUSINESSINVENTORY]: new FormControl(
-    //   //   null, this.requierdField && this.isMarried() && this.isSpouseIndependent() ? Validators.required : null,
-    //   // ),
-    // })
-
-
     this.myForm = this.formBuilder.group({
       [RegisterFormModules.PERSONAL]: personalForm,
       [RegisterFormModules.SPOUSE]: spouseForm,
@@ -303,10 +269,6 @@ matchRegisterImage = computed(() => {
     return this.myForm?.get(RegisterFormModules.BUSINESS).get("businessArray") as FormArray;
   }
 
-  // get businessForm(): FormGroup {
-  //   return this.myForm?.get(RegisterFormModules.BUSINESS) as FormGroup;
-  // }
-
   get isNextButtonDisabled(): boolean {
     return !this.isCurrentFormValid();
   }
@@ -342,22 +304,7 @@ matchRegisterImage = computed(() => {
 
 
 
-  // addBusiness() {
-  //   const items = this.myForm.get(RegisterFormModules.BUSINESS).get('businessArray') as FormArray;
-  //   items.push(
-  //     this.formBuilder.group({
-  //       [RegisterFormControls.BUSINESSNAME]: new FormControl(
-  //         '', [Validators.required]
-  //       ),
-  //       [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
-  //         '', [Validators.required, Validators.pattern(/^\d+$/)]
-  //       ),
-  //       [RegisterFormControls.BUSINESSTYPE]: new FormControl(
-  //         '', Validators.required,
-  //       )
-  //     })
-  //   );
-  // }
+
 
 
   addBusiness(title?: string): void {
@@ -371,12 +318,6 @@ matchRegisterImage = computed(() => {
         [RegisterFormControls.BUSINESSTYPE]: new FormControl(null, this.requierdField ? Validators.required : null),
       })
     );
-  }
-
-
-  removeBusiness(index: number) {
-    const items = this.myForm.get(RegisterFormModules.BUSINESS).get("businessArray") as FormArray;
-    items.removeAt(index);
   }
 
 
@@ -499,7 +440,6 @@ matchRegisterImage = computed(() => {
     items.removeAt(index);
   }
 
-
   handleFormRegister() {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
@@ -518,12 +458,11 @@ matchRegisterImage = computed(() => {
     .pipe(
       catchError((error) => {
         console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
-        
-        this.authService.error.set(error);
+        const errMessage = this.authService.getSignupErrorMessage(error.code);
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
-          detail:"היי אירעה שגיאה והרישום נכשל. נשמח שתנסה שוב",
+          detail: errMessage,
           sticky: true,
           key: 'br'
         })

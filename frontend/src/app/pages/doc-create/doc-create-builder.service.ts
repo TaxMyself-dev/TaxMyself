@@ -41,25 +41,29 @@ export class DocCreateBuilderService {
             formField: FieldsCreateDocValue.LINE_DESCRIPTION,
             dataField: 'description',
             header: 'תיאור',
-            excludeForReceipt: false
+            excludeForReceipt: false,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.UNIT_AMOUNT,
             dataField: 'unitQuantity',
             header: 'כמות',
-            excludeForReceipt: false
+            excludeForReceipt: false,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.SUM,
             dataField: 'sum',
             header: 'מחיר',
-            excludeForReceipt: false
+            excludeForReceipt: false,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.VAT_OPTIONS,
             dataField: 'vatOpts',
             header: 'מע"מ',
-            excludeForReceipt: true
+            excludeForReceipt: true,
+            required: true
         },
         {
             formField: FieldsCreateDocValue.TOTAL,
@@ -193,7 +197,7 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
-          [FieldsCreateDocValue.TOTAL]: {
+        [FieldsCreateDocValue.TOTAL]: {
             //name: FieldsCreateDocName.typeFile,
             value: FieldsCreateDocValue.TOTAL,
             labelText: 'סה"כ',
@@ -379,7 +383,8 @@ export class DocCreateBuilderService {
             initialValue: '',
             enumValues: [],
             editFormBasedOnValue: {},
-            validators: [Validators.required]
+            validators: [Validators.required],
+            // r
         },
         [fieldLineDocValue.LINE_DESCRIPTION]: {
             //name: fieldLineDocName.line_description,
@@ -524,6 +529,7 @@ export class DocCreateBuilderService {
             enumValues: [],
             editFormBasedOnValue: {},
             validators: [Validators.required],
+            required: true
         },
         [fieldLineDocValue.CARD_COMPANY]: {
             //name: fieldLineDocName.cardCompany,
@@ -636,16 +642,6 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
-        [fieldLineDocValue.APPROVAL_CODE]: {
-            value: fieldLineDocValue.APPROVAL_CODE,
-            labelText: 'קוד אישור',
-            placeHolder: 'הכנס קוד אישור',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
         [fieldLineDocValue.APP_NAME]: {
             value: fieldLineDocValue.APP_NAME,
             labelText: 'בחר אפליקציה',
@@ -658,16 +654,6 @@ export class DocCreateBuilderService {
                 { value: 'PepperPay', name: 'PepperPay' },
                 { value: 'Other', name: 'אחר' },
             ],
-            editFormBasedOnValue: {},
-            validators: []
-        },
-        [fieldLineDocValue.REFERENCE]: {
-            value: fieldLineDocValue.REFERENCE,
-            labelText: 'אסמכתא',
-            placeHolder: 'הכנס אסמכתא',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
             editFormBasedOnValue: {},
             validators: []
         },
@@ -713,7 +699,7 @@ export class DocCreateBuilderService {
         },
         'APP': {
             key: 'APP',
-            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.APP_NAME, fieldLineDocValue.REFERENCE, fieldLineDocValue.PAYMENT_SUM],
+            baseFields: [fieldLineDocValue.PAYMENT_DATE, fieldLineDocValue.APP_NAME, fieldLineDocValue.PAYMENT_SUM],
             expandable: false,
             expandedFields: []
         },

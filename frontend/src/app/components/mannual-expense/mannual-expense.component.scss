@@ -1,5 +1,8 @@
 :host {
-    overflow: scroll;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    column-gap: 66px;
 }
 
 .wrap-supplier-list {
@@ -216,6 +219,16 @@
     width: 47%;
 }
 
+.wrap-file-uploader {
+    width: 97%;
+}
+
+.wrap-add-button {
+    width: 97%;
+    display: flex;
+    justify-content: end;
+}
+
 
 
 
@@ -228,9 +241,9 @@
         height: 100%;
     }
 
-.screen-add-expense {
-    height: 700px;
-}
+    .screen-add-expense {
+        height: 700px;
+    }
 
     .wrap-supplier-list {
         display: flex;

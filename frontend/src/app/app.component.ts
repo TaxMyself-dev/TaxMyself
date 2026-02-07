@@ -192,11 +192,8 @@ export class AppComponent implements OnInit {
 
   async restoreSessionAfterRefresh() {
     const userData = this.authService.getUserDataFromLocalStorage();
-
-    console.log("userData is ", userData);
     
     if (userData) {
-      console.log("Restoring user session data");
       this.userData = userData;
       // Update admin menu items after userData is set
       this.updateAdminMenuItems();

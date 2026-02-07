@@ -1,10 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, signal, computed } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { LoadingController } from '@ionic/angular';
-import { EMPTY, catchError, filter, finalize, from, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, filter, finalize, from, interval, switchMap, take, tap } from 'rxjs';
 import { ButtonSize } from '../../components/button/button.enum';
 import { ButtonColor } from '../../components/button/button.enum';
 import { bunnerImagePosition, FormTypes } from 'src/app/shared/enums';
@@ -12,6 +12,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { MessageService } from 'primeng/api';
 import { Location } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 
 @Component({
@@ -39,17 +40,20 @@ export class LoginPage implements OnInit {
   mailAddressForResendAuthMail: string = "";
   passwordForResendAuthMail: string = "";
   isVisibleDialogRegisterMessage: boolean = false;
-  showModal = false;
+  showModal = signal<boolean>(false);
+  resendCountdown = signal(0);
+  isVerificationButtonDisabled = computed(() => this.resendCountdown() > 0);
+  private destroyRef = inject(DestroyRef);
 
   constructor(
-    private location: Location, 
-    private messageService: MessageService, 
-    private route: ActivatedRoute, 
-    private genericService: GenericService, 
+    private location: Location,
+    private messageService: MessageService,
+    private route: ActivatedRoute,
+    private genericService: GenericService,
     private router: Router,
     public afAuth: AngularFireAuth,
-    private formBuilder: FormBuilder, 
-    public authService: AuthService, 
+    private formBuilder: FormBuilder,
+    public authService: AuthService,
     private loadingController: LoadingController
   ) {
 
@@ -82,8 +86,6 @@ export class LoginPage implements OnInit {
       password?: string;
     };
 
-    console.log("🚀 ~ LoginPage ~ ngOnInit ~ state:", state);
-
     if (state?.email && state?.password) {
       this.mailAddressForResendAuthMail = state.email;
       this.passwordForResendAuthMail = state.password;
@@ -91,12 +93,12 @@ export class LoginPage implements OnInit {
 
     if (state?.from === 'register') {
       console.log('Navigated to Login Page from Register Page');
-      this.showModal = true;
+      this.showModal.set(true);
     }
   }
 
   closeModal() {
-    this.showModal = false;
+    this.showModal.set(false);
   }
 
   togglePassword() {
@@ -110,67 +112,65 @@ export class LoginPage implements OnInit {
 
   login(): void {
 
-  this.isLoading.set(true);
-  this.authService.error.set(null);
-  const formData = this.loginForm.value;
+    this.isLoading.set(true);
+    this.authService.error.set(null);
+    const formData = this.loginForm.value;
 
-  from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
-    .pipe(
-      catchError((err) => {
-        this.authService.handleErrorLogin(err.code);
-        console.log("❌ Firebase login error:", err);
-        return EMPTY;
-      }),
+    from(this.afAuth.signInWithEmailAndPassword(formData.userName, formData.password))
+      .pipe(
+        catchError((err) => {
+          this.authService.handleErrorLogin(err.code);
+          console.log("❌ Firebase login error:", err);
+          return EMPTY;
+        }),
 
-      // 1️⃣ Validate email
-      filter((res) => {
-        if (!res?.user?.emailVerified) {
-          this.authService.error.set("email");
-        }
-        return res?.user?.emailVerified;
-      }),
+        // 1️⃣ Validate email
+        filter((res) => {
+          if (!res?.user?.emailVerified) {
+            this.authService.error.set("email");
+          }
+          return res?.user?.emailVerified;
+        }),
 
-      // 2️⃣ Call your backend signIn()
-      switchMap(() => this.authService.signIn()),
+        // 2️⃣ Call your backend signIn()
+        switchMap(() => this.authService.signIn()),
 
-      catchError((err) => {
-        if (err.status === 0) {
-          this.authService.error.set("net");
-          
-        }
-        else if (err.status === 404) {
-          this.authService.error.set("user");
-        }
-        else {
-          this.authService.error.set("error");
-        }
+        catchError((err) => {
+          if (err.status === 0) {
+            this.authService.error.set("net");
 
-        console.log("❌ Backend sign-in error:", err);
-        return EMPTY;
-      }),
+          }
+          else if (err.status === 404) {
+            this.authService.error.set("user");
+          }
+          else {
+            this.authService.error.set("error");
+          }
+
+          console.log("❌ Backend sign-in error:", err);
+          return EMPTY;
+        }),
 
       // 3️⃣ Save user data
       tap((res: any) => {
-        console.log("res in login page: ", res);
         sessionStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userData', JSON.stringify(res));
       }),
 
-      // 4️⃣ Load businesses from server
-      switchMap(() =>
-        from(this.genericService.loadBusinessesFromServer())
-      ),
+        // 4️⃣ Load businesses from server
+        switchMap(() =>
+          from(this.genericService.loadBusinessesFromServer())
+        ),
 
       // 5️⃣ After businesses loaded → navigate
       tap(() => {
-        console.log("Businesses loaded → navigate");
         this.router.navigate(['my-account']);
       }),
 
-      finalize(() => this.isLoading.set(false))
-    )
-    .subscribe();
-}
+        finalize(() => this.isLoading.set(false))
+      )
+      .subscribe();
+  }
 
 
 
@@ -211,7 +211,7 @@ export class LoginPage implements OnInit {
   //         //this.genericService.clearBusinesses
   //         //this.genericService.loadBusinesses();
   //         console.log("after login");
-          
+
   //         this.router.navigate(['my-account']);
   //       }),
   //       finalize(() => {
@@ -224,8 +224,22 @@ export class LoginPage implements OnInit {
 
 
   sendVerficaitonEmail(): void {
+    if (this.isVerificationButtonDisabled()) {
+      return;
+    }
+
     this.authService.SendVerificationMail(this.mailAddressForResendAuthMail, this.passwordForResendAuthMail)
       .pipe(
+        tap(() => {
+          this.messageService.add({
+            severity: 'info',
+            summary: 'Success',
+            detail: 'מייל לאימות נשלח לכתובת האימייל שהכנסת',
+            life: 3000,
+            key: 'br',
+          });
+        }),
+        tap(() => this.startResendCooldown(60)),
         catchError((err) => {
           console.log("error in send verification email: ", err);
           switch (err.code) {
@@ -262,19 +276,10 @@ export class LoginPage implements OnInit {
               });
           }
           return EMPTY;
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(() => {
-        console.log("Verification email sent successfully");
-
-        this.messageService.add({
-          severity: 'info',
-          summary: 'Success',
-          detail: "מייל לאימות סיסמא נשלח לכתובת האימייל שהכנסת",
-          life: 3000,
-          key: 'br'
-        });
-      });
+      .subscribe();
   }
 
 
@@ -336,5 +341,18 @@ export class LoginPage implements OnInit {
           key: 'br'
         })
       });
+  }
+
+  private startResendCooldown(seconds: number): void {
+    this.resendCountdown.set(seconds);
+
+    interval(1000)
+      .pipe(
+        take(seconds),
+        tap((elapsed) => this.resendCountdown.set(seconds - 1 - elapsed)),
+        finalize(() => this.resendCountdown.set(0)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 }

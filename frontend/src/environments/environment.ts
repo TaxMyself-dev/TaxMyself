@@ -14,4 +14,10 @@ export const environment = {
     appId: "1:747885191189:web:b230991e3a783614812e1c",
     measurementId: "G-K8B1TC0DKB"
   },
+  // Test agent credentials for admin panel testing
+  // Set these values from your .env file or leave empty to enter manually in the UI
+  testAgent: {
+    apiKey: '', // Set from .env or leave empty to use from backend
+    secret: '', // Set from .env or leave empty to use from backend
+  },
 };

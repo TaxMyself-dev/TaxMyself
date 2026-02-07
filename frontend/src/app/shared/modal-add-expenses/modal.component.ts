@@ -1,29 +1,27 @@
-import { Component, Input, OnInit, ViewChild, NgModule, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef, TemplateRef, Inject } from '@angular/core';
-import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
-import { LoadingController, ModalController, PopoverController, NavParams } from '@ionic/angular';
-import { IButtons, IColumnDataTable, IGetSubCategory, IGetSupplier, IRowDataTable, ISelectItem, IUserData } from '../interface';
-import { KeyValue, formatDate } from '@angular/common';
-import { PopupConfirmComponent } from '../popup-confirm/popup-confirm.component';
+import { KeyValue } from '@angular/common';
+import { Component, Input } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Router } from '@angular/router';
+import { LoadingController, ModalController, PopoverController } from '@ionic/angular';
+import { cloneDeep, isEqual } from 'lodash';
+import { BehaviorSubject, EMPTY, Observable, from, of } from 'rxjs';
+import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
+import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FilesService } from 'src/app/services/files.service';
-import { cloneDeep, isEqual } from 'lodash';
-import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
-import {catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
-import {of, BehaviorSubject, Observable, from, EMPTY} from 'rxjs';
-import { ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
-import { ButtonClass, ButtonSize } from '../button/button.enum';
-import { Router } from '@angular/router';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { ButtonClass, ButtonSize } from '../button/button.enum';
+import { BusinessStatus, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes } from '../enums';
+import { IButtons, IColumnDataTable, IGetSupplier, IRowDataTable, ISelectItem, ISubCategory, IUserData } from '../interface';
 import { PopupMessageComponent } from '../popup-message/popup-message.component';
-import { BusinessStatus } from '../enums';
+import { selectSupplierComponent } from '../select-supplier/popover-select-supplier.component';
 
 @Component({
-    selector: 'app-modal',
-    templateUrl: './modal.component.html',
-    styleUrls: ['./modal.component.scss'],
-    standalone: false
+  selector: 'app-modal',
+  templateUrl: './modal.component.html',
+  styleUrls: ['./modal.component.scss'],
+  standalone: false
 })
 export class ModalExpensesComponent {
   @Input() set editMode(val: boolean) {
@@ -104,7 +102,7 @@ export class ModalExpensesComponent {
   equipmentList: ISelectItem[] = [{ name: "לא", value: "0" }, { name: "כן", value: "1" }];
   categoryList: ISelectItem[];
   displaySubCategoryList: ISelectItem[];
-  originalSubCategoryList: IGetSubCategory[];
+  originalSubCategoryList: ISubCategory[];
   displaySuppliersList: ISelectItem[]; //Use this variable only if changing the supplier field to DDL.
   originalSuppliersList: IGetSupplier[];
   // doneLoadingCategoryList$ = new BehaviorSubject<boolean>(false);
@@ -240,7 +238,7 @@ export class ModalExpensesComponent {
     console.log("🚀 ~ ModalExpensesComponent ~ confirm ~ this.isLoadingAddExpense:", this.isLoadingAddExpense)
     this.isEditMode ? this.update() : this.add();
   }
-  
+
   add(): void {
     this.isLoadingAddExpense = true;
     console.log("🚀 ~ ModalExpensesComponent ~ add ~ this.isLoadingAddExpense:", this.isLoadingAddExpense)
@@ -297,11 +295,11 @@ export class ModalExpensesComponent {
   }
 
   update(): void {
-   this.isLoadingAddExpense = true;
-   
+    this.isLoadingAddExpense = true;
+
     let filePath = '';
     const previousFile = this.addExpenseForm?.get('file').value;
-    this.getFileData()          
+    this.getFileData()
       .pipe(
         finalize(() => {
           this.isLoadingAddExpense = false;
@@ -348,7 +346,7 @@ export class ModalExpensesComponent {
   //     .pipe(
   //       finalize(() => {
   //         console.log('finalize');
-          
+
   //         this.modalCtrl.dismiss();
   //         this.genericService.dismissLoader();
   //       }),
@@ -386,7 +384,7 @@ export class ModalExpensesComponent {
   //       if (res) { // TODO: why returning this object from BE?
   //         this.expenseDataServise.updateTable$.next(true);
   //       }
-      
+
   //       this.genericService.dismissLoader();
   //       // this.modalCtrl.dismiss();
   //     });
@@ -443,7 +441,7 @@ export class ModalExpensesComponent {
   setFormData(filePath: string, token: string) {
     const formData = this.addExpenseForm.value;
     console.log("form in set form", formData);
-    if (this.userData?.businessStatus != 'MULTI_BUSINESS') { 
+    if (this.userData?.businessStatus != 'MULTI_BUSINESS') {
       formData.businessNumber = this.userData?.businessNumber;
     }
     formData.taxPercent = +formData.taxPercent;
@@ -616,7 +614,7 @@ export class ModalExpensesComponent {
         map((res) => {
           console.log("res sub category: ", res);
           this.originalSubCategoryList = res;
-          return res.map((item: IGetSubCategory) => ({
+          return res.map((item: ISubCategory) => ({
             ...item,
             name: item.subCategoryName,
             value: item.subCategoryName,
@@ -712,7 +710,7 @@ export class ModalExpensesComponent {
         }),
         map((res) => {
           console.log("🚀 ~ ModalExpensesComponent ~ map ~ res:", res)
-          
+
           this.originalSuppliersList = res;
           return res.map((item) => ({
             name: item.supplier,

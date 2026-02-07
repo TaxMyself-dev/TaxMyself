@@ -151,3 +151,22 @@
     gap: 6px;
     transition: top 0.2s ease;
 }
+
+@media (prefers-color-scheme: dark) {
+    .buttons-cell,
+    .buttons-container,
+    .floating-buttons {
+        background: #0d0d0d;
+        border-color: #2f2f2f;
+        color: #f4f4f5;
+    }
+
+    .filter-header {
+        background-color: #1f1f1f;
+        color: #fff;
+    }
+
+    .filter-header-text {
+        color: #fff;
+    }
+}

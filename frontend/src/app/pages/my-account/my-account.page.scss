@@ -14,7 +14,8 @@ p.block-title {
 .page-wrapper {
   min-height: 97vh;
   width: 100vw;
-  padding: 50px;      /* space from edges */
+  padding: 50px;
+  /* space from edges */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -23,20 +24,20 @@ p.block-title {
 }
 
 .user-info-block {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    // border: solid 1px green;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  // border: solid 1px green;
 }
 
 .user-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .feezback-connect-button {
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 .nevigation-block {
@@ -62,10 +63,10 @@ p.block-title {
 }
 
 .cards-container {
-    display: flex;
-    justify-content: space-between;
-    // gap: 20px;
-    //border-color: #EBEBEB;
+  display: flex;
+  justify-content: space-between;
+  // gap: 20px;
+  //border-color: #EBEBEB;
 }
 
 .cards-container app-dashboard-navigate {
@@ -74,9 +75,9 @@ p.block-title {
 
 
 .avatar-with-name {
-    display: flex; 
-    align-items: center; 
-    gap: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .avatar-style {
@@ -85,13 +86,23 @@ p.block-title {
 }
 
 .avatar-text {
-    font-size: 22px;
-    font-weight: 400;
-    color: #363636;
+  font-size: 22px;
+  font-weight: 400;
+  color: #363636;
 }
 
 .block-title {
-    font-size: 20px;
-    font-weight: 550;
-    color: #363636;
+  font-size: 20px;
+  font-weight: 550;
+  color: #363636;
+}
+
+@media (prefers-color-scheme: dark) {
+  .avatar-text {
+    color: #fff;
+  }
+
+  .block-title {
+    color: #fff;
+  }
 }

@@ -1,13 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { catchError, EMPTY } from 'rxjs';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { ButtonClass, ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize as ComponentButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { CategoryManagementComponent } from 'src/app/shared/category-management/category-management.component';
 import { TransManagementComponent } from 'src/app/shared/trans-management/trans-management.component';
 import { ClientsDashboardComponent } from 'src/app/shared/clients-dashboard/clients-dashboard.component';
-import { ShaamService } from 'src/app/services/shaam.service';
+import { AgentManagementComponent } from 'src/app/shared/agent-management/agent-management.component';
 import { MessageService } from 'primeng/api';
 import { IShaamApprovalResponse } from 'src/app/shared/interface';
 
@@ -25,6 +24,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
     { label: 'ניהול קטגוריות', value: 'category-management', component: CategoryManagementComponent },
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
+    { label: 'ניהול סוכנים', value: 'agent-management', component: AgentManagementComponent },
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value
@@ -41,7 +41,6 @@ export class AdminPanelPage implements OnInit {
   constructor(
     private formBuilder: FormBuilder, 
     private adminPanelService: AdminPanelService,
-    private shaamService: ShaamService,
     private messageService: MessageService
   ) { }
 
@@ -58,21 +57,7 @@ export class AdminPanelPage implements OnInit {
   }
 
   onOpenShaamDialog(): void {
-    // Check if access token exists
-    const accessToken = localStorage.getItem('shaam_access_token');
-    if (!accessToken) {
-      this.messageService.add({
-        severity: 'info',
-        summary: 'התחברות נדרשת',
-        detail: 'אנא התחבר לשעמ תחילה',
-        life: 3000,
-        key: 'br'
-      });
-      // Redirect to OAuth flow
-      this.shaamService.initiateOAuthFlow();
-      return;
-    }
-
+    // Simply open the dialog - all Shaam logic is handled inside the dialog component
     this.showShaamDialog.set(true);
   }
 
@@ -82,7 +67,6 @@ export class AdminPanelPage implements OnInit {
 
   onShaamApprovalSuccess(event: { response: IShaamApprovalResponse }): void {
     const response = event.response;
-    console.log('SHAAM Approval Success:', response);
     
     if (response.confirmation_number) {
       this.messageService.add({

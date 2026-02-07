@@ -5,7 +5,6 @@ import { DocumentsService } from './documents.service';
 import { UsersService } from 'src/users/users.service';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
-import { log } from 'node:console';
 import { CreateDocDto } from './dtos/create-doc.dto';
 
 
@@ -79,7 +78,6 @@ export class DocumentsController {
     const userId = request.user?.firebaseId;
     const initialIndex = Number(body.initialIndex);
     const issuerBusinessNumber: string = body.issuerBusinessNumber;
-    console.log("🚀 ~ DocumentsController ~ setInitialDocDetails ~ issuerBusinessNumber:", issuerBusinessNumber)
 
     if (typeof initialIndex !== 'number' || isNaN(initialIndex)) {
       throw new BadRequestException('initialIndex must be a valid number');
@@ -144,11 +142,7 @@ export class DocumentsController {
     }
   }))
   async createDoc(@Body() createDocDto: CreateDocDto, @Req() request: AuthenticatedRequest) {
-    console.log("createDoc in controller - start");
-    console.log("📦 Received and validated DTO");
     const userId = request.user?.firebaseId;
-
-    console.log("🚀 ~ DocumentsController ~ createDoc ~ createDocDto:", createDocDto);
     
     // Transform the DTO data before passing to service
     const transformedData = await this.documentsService.transformDocumentData(createDocDto);
@@ -209,8 +203,6 @@ export class DocumentsController {
     }
   }))
   async previewDoc(@Body() createDocDto: CreateDocDto, @Res() res: Response, @Req() request: AuthenticatedRequest) {
-    console.log("previewDoc in controller - start");
-    console.log("📦 Received and validated DTO");
     const userId = request.user?.firebaseId;
     
     // Transform the DTO data before passing to service

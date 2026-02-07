@@ -19,6 +19,7 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { AuthService } from 'src/app/services/auth.service';
 
 
 @Component({
@@ -56,6 +57,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   messageService = inject(MessageService);
+  authService = inject(AuthService);
   transactionService = inject(TransactionsService);
   confirmationService = inject(ConfirmationService);
   title = input<string>();
@@ -334,6 +336,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   onVisibleClassifyTranClicked(row: IRowDataTable): void {
+    this.authService.setActiveBusinessNumberByName(row.businessNumber as string)
     this.visibleClassifyTranClicked.emit({ state: true, data: row, incomeMode: this.incomeMode() });
   }
 
@@ -395,7 +398,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   getFileName(row?: IRowDataTable): string {
     if (!row) return 'קובץ מצורף';
-    
+
     // First check if there's a newly attached file in the map
     const attachedFile = this.filesAttached().get(row.id as number);
     if (attachedFile) {
@@ -431,7 +434,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   hasFileAttached(row?: IRowDataTable): boolean {
     if (!row) return false;
-    
+
     const hasInMap = this.filesAttached().has(row.id as number);
     const hasCount = row['attachmentCount'] && Number(row['attachmentCount']) > 0;
     const result = hasInMap || hasCount;

@@ -11,7 +11,17 @@ export interface ICategory {
 
 export interface ISubCategory {
     id: number;
-    name: string;
+    firebaseId: string;
+    businessNumber: string;
+    subCategoryName: string;
+    categoryName: string;
+    taxPercent: number;
+    vatPercent: number;
+    reductionPercent: number;
+    isEquipment: boolean;
+    isRecognized: boolean;
+    isExpense: boolean;
+    necessity: string;
 }
 
 export interface IUserData {
@@ -63,10 +73,11 @@ export interface IBaseFieldData {
     value: string;
     labelText: string;
     placeHolder: string;
-    type: FormTypes; 
+    type: FormTypes;
     enumValues: ISelectItem[] | null;
-    validators?: ValidatorFn[];   
-    initialValue?: any;     
+    validators?: ValidatorFn[];
+    initialValue?: any;
+    required?: boolean;
 }
 
 export interface IPnlReportData {
@@ -93,7 +104,7 @@ export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     type?: FormTypes;
     listItems?: ISelectItem[];
     cellRenderer?: ICellRenderer;
-    errorText?: string; 
+    errorText?: string;
     hide?: boolean;
     onChange?: (event?: any, parent?: any) => void;
 }
@@ -112,7 +123,7 @@ export interface IDocIndexes {
     docIndex: number;
     generalIndex: number;
     isInitial: boolean;
-}  
+}
 
 export interface IRegisterLoginImage {
     bg_img: string;
@@ -125,7 +136,7 @@ export interface IRegisterLoginImage {
     posText: string;
 }
 
-export interface ISuppliers {
+export interface ISupplier extends IRowDataTable {
     id: number,
     name: string,
     category: string,
@@ -316,12 +327,12 @@ export interface IToastData {
     type: 'success' | 'error'; // Added type for toast
 }
 
-export interface ITotals  {
+export interface ITotals {
     sumBefDisBefVat: number,
     sumAftDisBefVAT: number,
     vatSum: number,
     sumAftDisWithVAT: number,
-  };
+};
 
 export interface ICreateDataDoc {
     fid: string;
@@ -363,24 +374,24 @@ export interface ICreateDoc {
     accountForeing: number;
     currency: string;
     sumBefDisBefVat: number;
-    disSum: number;  
+    disSum: number;
     sumAftDisBefVAT: number;
-    vatSum: number; 
+    vatSum: number;
     sumAftDisWithVAT: number;
     withholdingTaxAmount: number;
     docDate: Date;
-    issueDate: Date; 
-    issueHour: string; 
+    issueDate: Date;
+    issueHour: string;
     customerKey: string;
     matchField: string;
     isCancelled: boolean;
-    branchCode: string; 
+    branchCode: string;
     operationPerformer: string;
     parentDocType: string;
     parentDocNumber: string;
     parentBranchCode: string;
 }
-  
+
 export interface ICreateLineDoc {
     issuerbusinessNumber: string;
     generalDocIndex: string;
@@ -423,32 +434,32 @@ export interface ICreateDocField<TFieldsHebrew, TFields> {
 }
 
 export interface BusinessInfo {
-  name: string;
-  value: string; //business number
-  address: string;
-  type: string;
-  phone: string;
-  email: string
+    name: string;
+    value: string; //business number
+    address: string;
+    type: string;
+    phone: string;
+    email: string
 }
 
 export interface Business {
-  firebaseId: string;
-  businessName: string | null;
-  businessField: string | null;
-  businessNumber: string | null;
-  businessAddress: string | null;
-  businessPhone: string | null;
-  businessEmail: string | null;
-  businessType: BusinessType | null;
-  businessInventory: boolean | null;
-  businessDate: string | null;
-  vatReportingType: VATReportingType | null;
-  taxReportingType: TaxReportingType | null;
-//   bankBeneficiary: string | null;
-//   bankName: string | null;
-//   bankBranch: string | null;
-//   bankAccount: string | null;
-//   bankIban: string | null;
+    firebaseId: string;
+    businessName: string | null;
+    businessField: string | null;
+    businessNumber: string | null;
+    businessAddress: string | null;
+    businessPhone: string | null;
+    businessEmail: string | null;
+    businessType: BusinessType | null;
+    businessInventory: boolean | null;
+    businessDate: string | null;
+    vatReportingType: VATReportingType | null;
+    taxReportingType: TaxReportingType | null;
+    //   bankBeneficiary: string | null;
+    //   bankName: string | null;
+    //   bankBranch: string | null;
+    //   bankAccount: string | null;
+    //   bankIban: string | null;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { FormType, inputsSize } from 'src/app/shared/enums';
@@ -10,7 +10,7 @@ import { FormType, inputsSize } from 'src/app/shared/enums';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InputTextComponent  implements OnInit {
+export class InputTextComponent {
 
   inputsSize = inputsSize;
 
@@ -29,15 +29,23 @@ export class InputTextComponent  implements OnInit {
   type = input<FormType>('text');
   onInputText = output<string>();
 
-  inputClasses = signal<string>("");
-  constructor() { }
+  readonly inputValue = signal<string>('');
 
-  ngOnInit() {
-    this.getInputClasses();
-  }
 
-   /** true if this control was built with Validators.required */
-   get isRequired(): boolean {
+  readonly inputClasses = computed(() => {
+    const isDirty = this.isDirty();
+    const base = [this.size(), this.customStyle()].filter(Boolean).join(' ');
+    return isDirty ? `${base} dirty` : base;
+  });
+
+  readonly isDirty = computed(() => {
+    const ctrl = this.parentForm()?.get(this.controlName());
+    const hasValue = (this.inputValue().trim() !== '');
+    return !!ctrl?.dirty && hasValue;
+  });
+
+  /** true if this control was built with Validators.required */
+  get isRequired(): boolean {
     const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
     if (!ctrl) return false;
     // Angular 16+ supports hasValidator
@@ -52,38 +60,10 @@ export class InputTextComponent  implements OnInit {
     return false;
   }
 
-  getInputClasses(): void {
-    const classes =  [
-      this.size(),   
-      this.customStyle()          
-    ]
-      .filter(c => !!c)                // remove empty strings
-      .join(' ');
-            
-      this.inputClasses.set(classes);
+  onInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.inputValue.set(value);
+    this.onInputText.emit(value);
   }
-
-  // onChange(event: any): void {
-  //   this.onChangeInputText.emit(event.value);
-  // }
-
-  onInput(event: any): void {
-    const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.dirty && ctrl.value !="") {
-      this.inputClasses.update(current => {
-        if (!current.includes('dirty')) {
-          return current + ' dirty';
-        }
-        return current;
-      });
-      
-    }
-    else {
-      this.inputClasses.update(current => current.replace('dirty', ''));
-    }
-    this.onInputText.emit(event.target.value);
-  }
-
- 
 
 }
