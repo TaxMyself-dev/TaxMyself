@@ -642,16 +642,6 @@ export class DocCreateBuilderService {
             editFormBasedOnValue: {},
             validators: [Validators.required]
         },
-        [fieldLineDocValue.APPROVAL_CODE]: {
-            value: fieldLineDocValue.APPROVAL_CODE,
-            labelText: 'קוד אישור',
-            placeHolder: 'הכנס קוד אישור',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: []
-        },
         [fieldLineDocValue.APP_NAME]: {
             value: fieldLineDocValue.APP_NAME,
             labelText: 'בחר אפליקציה',
@@ -666,16 +656,6 @@ export class DocCreateBuilderService {
             ],
             editFormBasedOnValue: {},
             validators: []
-        },
-        [fieldLineDocValue.REFERENCE]: {
-            value: fieldLineDocValue.REFERENCE,
-            labelText: 'אסמכתא',
-            placeHolder: 'הכנס אסמכתא',
-            type: FormTypes.TEXT,
-            initialValue: '',
-            enumValues: [],
-            editFormBasedOnValue: {},
-            validators: [],
         },
 
     };
