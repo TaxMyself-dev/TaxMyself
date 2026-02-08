@@ -497,6 +497,7 @@ export enum inputsSize {
   SMALL = 'narrow',
   BETWEEN = 'between',
   MEDIUM = 'normal',
+  MOBILE = 'mobile',
   LARGE = 'wide',
   AUTO = 'auto'
 }

@@ -1,4 +1,3 @@
-
 <div class="page-wrapper">
 
     <div class="user-info-block">
@@ -7,8 +6,8 @@
             <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
             <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
         </div>
-        <div class="user-actions">
-            <!-- <app-p-button 
+        <!-- <div class="user-actions"> -->
+        <!-- <app-p-button 
                 class="feezback-connect-button" 
                 [buttonText]="'התחבר לבנקאות פתוחה'" 
                 [buttonColor]="buttonColor.YELLOW" 
@@ -17,7 +16,7 @@
                 (onButtonClicked)="connectToOpenBanking()">
                 <i class="pi pi-link"></i>
             </app-p-button> -->
-            <!-- <app-p-button 
+        <!-- <app-p-button 
                 class="feezback-fetch-button" 
                 [buttonText]="'טען נתוני חשבונות'" 
                 [buttonColor]="buttonColor.BLACK" 
@@ -25,35 +24,33 @@
                 [isLoading]="isLoadingUserAccounts()"
                 (onButtonClicked)="fetchUserAccounts()">
                 <i class="pi pi-download"></i>
-            </app-p-button> -->
-            <!-- <app-p-button 
-                class="feezback-transactions-button" 
-                [buttonText]="'טען תנועות'" 
-                [buttonColor]="buttonColor.BLACK" 
-                [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingTransactions()"
+            </app-p-button>
+            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות'"
+                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingTransactions()"
                 (onButtonClicked)="fetchUserTransactions()">
                 <i class="pi pi-list"></i>
-            </app-p-button> -->
-        </div>
-        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-      (onButtonClicked)="openMannualExpenses()">
+            </app-p-button>
+        </div> -->
+        <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
         </app-p-button>
-</div>
+    </div>
     <div class="nevigation-block">
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
             @for (item of itemsNavigate; track $index) {
-                <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
-                <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
+            <app-dashboard-navigate [cardItem]="item"></app-dashboard-navigate>
+            <!-- <app-card-navigate [cardItem]="item"></app-card-navigate> -->
             }
         </div>
     </div>
 
     <div class="table-block">
         <p class="block-title">התנועות הלא מסווגות שלי</p>
-        <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="fieldsNamesExpenses" [dataTable]="transToClassify | async" [selectionModeCheckBox]="null" [tableHeight]="'500px'"></app-generic-table>
+        <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="fieldsNamesExpenses"
+            [dataTable]="transToClassify | async" [selectionModeCheckBox]="null"
+            [tableHeight]="'500px'"></app-generic-table>
     </div>
 
 </div>

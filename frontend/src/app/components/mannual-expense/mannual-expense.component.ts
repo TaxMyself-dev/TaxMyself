@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
 import { FilesService } from "src/app/services/files.service";
@@ -15,8 +15,8 @@ import { ButtonColor, ButtonSize } from "../button/button.enum";
 import { MannualExpenseService } from "./mannual-expense.service";
 import { ExpenseDataService } from "src/app/services/expense-data.service";
 import { MessageService } from "primeng/api";
-import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError } from "rxjs";
-
+import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError, fromEvent, startWith } from "rxjs";
+import { toSignal } from "@angular/core/rxjs-interop";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -533,13 +533,24 @@ export class MannualExpenseComponent {
     expenseDataService = inject(ExpenseDataService);
 
     files = signal<File[]>([]);
+    isDirty = signal<boolean>(false);
     isLoadingAddExpense = signal<boolean>(false);
     inputSize = inputsSize;
     buttonSize = ButtonSize;
     buttonColor = ButtonColor;
 
+    readonly viewportWidth = toSignal(
+        fromEvent(window, 'resize').pipe(
+            startWith(null),
+            map(() => window.innerWidth)
+        ),
+        { initialValue: window.innerWidth }
+    );
+
+    isMobile = computed(() => this.viewportWidth() <= 768);
+
     mannualExpenseForm = this.formBuilder.group({
-        businessNumber: [this.mannualExpenseService.showBusinessSelector() ? "" : "", Validators.required],
+        businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
         date: ["", Validators.required],
         sum: ["", [Validators.required, Validators.min(0)]],
         supplier: ["", Validators.required],
@@ -717,8 +728,6 @@ export class MannualExpenseComponent {
         else {
             this.mannualExpenseService.isSelectBusiness.set(false);
         }
-        // console.log("this.mannualExpenseService.$selectedIsEquipment(): ", this.mannualExpenseService.$selectedIsEquipment());
-        console.log("this.mannualExpenseService.isSelectBusiness(): ", this.mannualExpenseService.isSelectBusiness());
     }
 
     get subCategoryItems(): ISelectItem[] {
@@ -727,13 +736,19 @@ export class MannualExpenseComponent {
     }
 
     onSelectSubCategory(event: string | boolean | null): void {
-        console.log("event: ", event);
         const subCategory = this.mannualExpenseService.subCategoriesResource.value()?.find((item: ISubCategory) => item.subCategoryName === event);
-        console.log("subCategory: ", subCategory);
         this.mannualExpenseForm.patchValue({ reductionPercent: subCategory?.reductionPercent });
         this.mannualExpenseForm.patchValue({ vatPercent: +(subCategory?.vatPercent) });
         this.mannualExpenseForm.patchValue({ taxPercent: +(subCategory?.taxPercent) });
+        this.isDirty.set(true);
     }
+
+    onInputText(event: string): void {
+        if (event === '') {
+            // this.isDirty.set(false);
+        }
+    }
+
 
     // onSupplierSelect(event: any): void {
     //     console.log("event: ", event);

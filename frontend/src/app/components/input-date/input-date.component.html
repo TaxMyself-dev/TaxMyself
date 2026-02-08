@@ -1,39 +1,32 @@
 <form [formGroup]="parentForm()">
   @let ctrl = parentForm().get(controlName())!;
   <div class="input-text-wrapper">
-  @if (labelText()) {
-  <p class="input-label">{{labelText()}}
-    @if (isRequired) {
-    <span class="required">*</span>
-    }
-  </p>
-  }
-
-   <p-datepicker
-  [inputStyleClass]="inputClasses()"
-  [formControlName]="controlName()"
-  [placeholder]="placeholder()"
-  [iconDisplay]="'input'"
-  [appendTo]="'body'"
-  [dateFormat]="'yy-mm-dd'"
-  [dataType]="'string'"
-  [showIcon]="showIcon()"
-  (onInput)="onInput()"
-  (onSelect)="onInput()">
-  <ng-template #inputicon let-clickCallBack="clickCallBack">
-    <i [class]="icon()" style="font-size: 0.8rem" (click)="clickCallBack($event)"></i>
-</ng-template>
-</p-datepicker>
-</div>
-  @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
-    <span class="error-text" style="color: red;">
-      @if (ctrl.hasError('required')) {
-      שדה חובה
-      } @else if (ctrl.hasError('pattern')) {
-      {{ errorText() || (labelText()) }}
-      } @else {
-      {{ errorText() }}
+    @if (labelText()) {
+    <p class="input-label">{{labelText()}}
+      @if (isRequired) {
+      <span class="required">*</span>
       }
-    </span>
+    </p>
+    }
+
+    <p-datepicker [showButtonBar]="true" [showClear]="true" [inputStyleClass]="inputClasses()"
+      [formControlName]="controlName()" [placeholder]="placeholder()" [iconDisplay]="'input'" [appendTo]="'body'"
+      [dateFormat]="'yy-mm-dd'" [dataType]="'string'" [showIcon]="showIcon()" (onInput)="onInput($event)"
+      (onSelect)="onInput($event)" (onClear)="onInput($event)" (onClearClick)="onClearClick()">
+      <ng-template #inputicon let-clickCallBack="clickCallBack">
+        <i [class]="icon()" style="font-size: 0.8rem" (click)="clickCallBack($event)"></i>
+      </ng-template>
+    </p-datepicker>
+  </div>
+  @if (ctrl.invalid && (ctrl.dirty || ctrl.touched)) {
+  <span class="error-text" style="color: red;">
+    @if (ctrl.hasError('required')) {
+    שדה חובה
+    } @else if (ctrl.hasError('pattern')) {
+    {{ errorText() || (labelText()) }}
+    } @else {
+    {{ errorText() }}
+    }
+  </span>
   }
 </form>

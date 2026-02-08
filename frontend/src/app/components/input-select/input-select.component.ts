@@ -1,12 +1,11 @@
-import { ChangeDetectionStrategy, Component, OnInit, input, output, signal, WritableSignal, computed, Signal, effect, inject, Injector } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, Injector, input, OnInit, output, signal } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { inputsSize } from 'src/app/shared/enums';
 import { ISelectItem } from 'src/app/shared/interface';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonSize } from '../button/button.enum';
-import { MultiSelectModule } from 'primeng/multiselect';
 @Component({
   selector: 'app-input-select',
   templateUrl: './input-select.component.html',
@@ -45,13 +44,22 @@ export class InputSelectComponent implements OnInit {
   multiSelectButtonClicked = output<any>();
   addSubCategoryClicked = output<{ state: true, subCategoryMode: true }>();
 
-  inputClasses = signal<string>("");
+
   stringMessage = signal<string>("");
 
-  constructor() { }
+  readonly selectValue = signal<any>(null);
+
+  readonly hasValue = computed(() => {
+    const v = this.selectValue();
+    return v !== '' && v !== null && v !== undefined;
+  });
+
+  readonly inputClasses = computed(() => {
+    const base = [this.size(), this.customStyle()].filter(Boolean).join(' ');
+    return this.hasValue() ? `${base} dirty` : base;
+  });
 
   ngOnInit() {
-    this.getinputClasses();
     this.getStringMessage();
 
     effect(() => {
@@ -99,28 +107,13 @@ export class InputSelectComponent implements OnInit {
     }
   }
 
-
-  getinputClasses(): void {
-    const classes = [
-      this.size(),
-      this.customStyle()
-    ]
-      .filter(c => !!c)                // remove empty strings
-      .join(' ');
-
-    this.inputClasses.set(classes);
-  }
-
   onChange(event: any): void {
     this.getStringMessage();
-    const ctrl: AbstractControl | null = this.parentForm()?.get(this.controlName());
-    if (ctrl.value != "" && ctrl.value != null && ctrl.value != undefined) {
-      this.inputClasses.update(current => current + ' dirty');
-    }
-    else {
-      this.inputClasses.update(current => current.replace('dirty', ''));
-    }
-    this.onChangeInputSelect.emit(event.value);
+
+    const value = event?.value;
+    this.selectValue.set(value);
+
+    this.onChangeInputSelect.emit(value);
   }
 
   onAddSubCategoryClicked(): void {

@@ -77,6 +77,7 @@ export interface IBaseFieldData {
     enumValues: ISelectItem[] | null;
     validators?: ValidatorFn[];
     initialValue?: any;
+    required?: boolean;
 }
 
 export interface IPnlReportData {

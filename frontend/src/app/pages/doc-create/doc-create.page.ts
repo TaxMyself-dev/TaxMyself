@@ -66,7 +66,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   confirmationService = inject(ConfirmationService);
   private shaamService = inject(ShaamService);
   private messageService = inject(MessageService);
-  
+
 
   // Business-related properties
   // businesses = this.gs.businesses;
@@ -126,7 +126,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   allocationNum: string | null = null;
   shouldCloseParentDoc: boolean = false; // Flag to indicate if parent document should be closed after creation
   parentBusinessNumber: string | null = null; // Business number of parent document
-  
+
   // Allocation number related properties
   allocationNumber = signal<string | null>(null);
   showAllocationNumberInput = signal<boolean>(false);
@@ -188,20 +188,20 @@ export class DocCreatePage implements OnInit, OnDestroy {
     totalVat: 0,
     // totalIncludingVat: 0,
   });
-
+  log = console.log
   // Computed signals for filtered arrays based on document type
   isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
   isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
-  
-  filteredLineDetailsColumns = computed(() => 
+
+  filteredLineDetailsColumns = computed(() =>
     this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument() || this.isExemptBusiness())
   );
-  
-  filteredLineItemsDisplayColumns = computed(() => 
+
+  filteredLineItemsDisplayColumns = computed(() =>
     this.docCreateBuilderService.getLineItemsDisplayColumns(this.isReceiptDocument() || this.isExemptBusiness())
   );
-  
-  filteredSummaryItems = computed(() => 
+
+  filteredSummaryItems = computed(() =>
     this.docCreateBuilderService.getSummaryItems(this.isReceiptDocument() || this.isExemptBusiness())
   );
 
@@ -225,11 +225,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
   requiresAllocationNumber = computed(() => {
     const docType = this.fileSelected();
     const isTaxInvoice = docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT;
-    
+
     if (!isTaxInvoice) {
       return false;
     }
-    
+
     // Sum before VAT after discount
     const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
     return sumBeforeVat > ALLOCATION_NUMBER_THRESHOLD;
@@ -279,9 +279,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.log("ngoninit selected is ", selected);
       this.setSelectedBusiness(selected);
       if (allBusinesses.length === 1) {
-      this.showBusinessSelector = false;
-    } else {
-      this.showBusinessSelector = true;
+        this.showBusinessSelector = false;
+      } else {
+        this.showBusinessSelector = true;
       }
     }
 
@@ -292,7 +292,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.userDetailsForm.statusChanges.subscribe(() => {
       this.userFormIsValidSignal.set(this.userDetailsForm.valid);
     });
-           // Load clients for autocomplete
+    // Load clients for autocomplete
     this.loadClients();
 
     // Check if returning from SHAAM OAuth and restore draft
@@ -308,7 +308,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
-   loadClients(): void {
+  loadClients(): void {
     this.docCreateService.getClients(this.selectedBusinessNumber)
       .pipe(
         catchError((err) => {
@@ -325,7 +325,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   filterClients(event: any): void {
     const query = event.query?.toLowerCase() || '';
-    
+
     if (!query) {
       this.filteredClients.set([...this.clients()]);
     } else {
@@ -346,26 +346,26 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.userDetailsForm.patchValue({
       [FieldsCreateDocValue.RECIPIENT_NAME]: name
     });
-    
-          this.dialogRef = this.dialogService.open(AddClientComponent, {
-          header: 'יצירת לקוח חדש',       
-          width: '90%',
-          rtl: true,
-          closable: true,
-          dismissableMask: true,
-          modal: true,
-          data: {
-            businessNumber: this.selectedBusinessNumber,
-            clients: this.clients()
-          }
-        });
 
-        this.dialogRef.onClose.subscribe((res) => {
-          if (res) {
-            this.fillClientDetails(res);
-          }
-          this.loadClients();
-        })
+    this.dialogRef = this.dialogService.open(AddClientComponent, {
+      header: 'יצירת לקוח חדש',
+      width: '90%',
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      data: {
+        businessNumber: this.selectedBusinessNumber,
+        clients: this.clients()
+      }
+    });
+
+    this.dialogRef.onClose.subscribe((res) => {
+      if (res) {
+        this.fillClientDetails(res);
+      }
+      this.loadClients();
+    })
     // Optionally: Open a dialog or modal to add full client details
     // For now, just allow the user to continue filling the form
     console.log('Adding new client:', name);
@@ -393,7 +393,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   onBusinessSelection(selectedBusinessNumber: string): void {
-    
+
     const selected = this.genericService.businesses().find(
       b => b.businessNumber === selectedBusinessNumber
     );
@@ -404,7 +404,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
 
     console.log("selected is ", selected);
-    
+
 
     this.setSelectedBusiness(selected);
   }
@@ -431,13 +431,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.fileSelected.set(event);
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected());
     this.handleDocIndexes(this.fileSelected());
-    
+
     // For receipts, automatically set VAT to 'WITHOUT' and remove VAT control from form
-    const defaultValues: any = { 
-      [FieldsCreateDocValue.UNIT_AMOUNT]: 1, 
+    const defaultValues: any = {
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
       // [FieldsCreateDocValue.DISCOUNT]: 0 
     };
-    
+
     if (this.selectedBusinessType() === BusinessType.EXEMPT || this.fileSelected() === DocumentType.RECEIPT) {
       if (this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
         this.lineDetailsForm.removeControl(FieldsCreateDocValue.VAT_OPTIONS);
@@ -447,20 +447,20 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // For other document types, ensure VAT_OPTIONS control exists
       if (!this.lineDetailsForm?.get(FieldsCreateDocValue.VAT_OPTIONS)) {
         this.lineDetailsForm?.addControl(
-          FieldsCreateDocValue.VAT_OPTIONS, 
+          FieldsCreateDocValue.VAT_OPTIONS,
           new FormControl('', [Validators.required])
         );
       }
       defaultValues[FieldsCreateDocValue.VAT_OPTIONS] = '';
     }
-    
+
     this.lineDetailsForm?.reset(defaultValues);
     this.paymentInputForm?.reset();
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('docDate')?.value);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
   }
-  
+
 
   onSelectionChange(field: string, event: any): void {
     switch (field) {
@@ -689,38 +689,38 @@ export class DocCreatePage implements OnInit, OnDestroy {
       return EMPTY; // swallow to allow finalize to run
     }),
 
-    // Turn off loader no matter what
-    finalize(() => {
-      this.createPDFIsLoading.set(false);
-    })
-  ).subscribe();
-}
+      // Turn off loader no matter what
+      finalize(() => {
+        this.createPDFIsLoading.set(false);
+      })
+    ).subscribe();
+  }
 
   private resetDocFormsAndDrafts(): void {
-  this.generalDetailsForm.reset({
-    [DocCreateFields.DOC_VAT_RATE]: 18,
-    [FieldsCreateDocValue.DOC_DATE]: new Date()
-  });
+    this.generalDetailsForm.reset({
+      [DocCreateFields.DOC_VAT_RATE]: 18,
+      [FieldsCreateDocValue.DOC_DATE]: new Date()
+    });
 
-  this.userDetailsForm.reset();
+    this.userDetailsForm.reset();
 
-  this.lineDetailsForm.reset({
-    [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
-    // [FieldsCreateDocValue.DISCOUNT]: 0
-  });
+    this.lineDetailsForm.reset({
+      [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
+      // [FieldsCreateDocValue.DISCOUNT]: 0
+    });
 
-  this.initialIndexForm.reset();
+    this.initialIndexForm.reset();
 
-  // Use the cached date so we don't read from a reset control
-  this.paymentInputForm.reset({
-    [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('docDate')?.value
-  });
+    // Use the cached date so we don't read from a reset control
+    this.paymentInputForm.reset({
+      [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('docDate')?.value
+    });
 
-  this.lineItemsDraft.set([]);
-  this.paymentsDraft.set([]);
+    this.lineItemsDraft.set([]);
+    this.paymentsDraft.set([]);
 
-  this.isFileSelected.set(false);
-  // this.HebrewNameFileSelected = null;
+    this.isFileSelected.set(false);
+    // this.HebrewNameFileSelected = null;
 
     // Reset parent document info
     this.parentDocType = null;
@@ -729,11 +729,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.allocationNum = null;
     this.shouldCloseParentDoc = false;
     this.parentBusinessNumber = null;
-    
+
     // Reset allocation number
     this.allocationNumber.set(null);
     this.manualAllocationNumber = '';
-}
+  }
 
 
   previewDoc(): void {
@@ -794,9 +794,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
     // Use allocationNumber from signal if available, otherwise fall back to allocationNum
     const allocationNum = this.allocationNumber() ?? this.allocationNum ?? null;
-    const docSubtitle = this.docSubtitle?? null;
-    const parentDocType = this.parentDocType?? null;
-    const parentDocNumber = this.parentDocNumber?? null;
+    const docSubtitle = this.docSubtitle ?? null;
+    const parentDocType = this.parentDocType ?? null;
+    const parentDocNumber = this.parentDocNumber ?? null;
     const docVatRate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value;
     const currency = this.generalDetailsForm.get(FieldsCreateDocValue.CURRENCY)?.value;
     const recipientName = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_NAME)?.value;
@@ -847,7 +847,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   addLineDetails(): void {
     const formData = this.lineDetailsForm.value;
     const editingIndex = this.editingLineIndex();
-    
+
     if (editingIndex !== null) {
       // Update existing line
       console.log("Updating line at index:", editingIndex);
@@ -860,7 +860,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.log("Adding new line with form value:", formData);
       this.addNewLine(formData);
     }
-    
+
     this.lineDetailsForm.reset({
       [FieldsCreateDocValue.UNIT_AMOUNT]: 1,
     });
@@ -882,55 +882,55 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private addNewLine(formData: any): void {
     const lineIndex = this.lineItemsDraft().length;
     const transType = "3";
-    
+
     // For receipts or EXEMPT businesses, vatOptions won't exist in the form, so set it to 'WITHOUT'
     const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
     const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
     const isTaxInvoiceReceipt = this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT;
-    
-      // Handle vatOptions - it might be a number (index) or string (value)
-      let vatOpts: VatType = 'WITHOUT';
-      // For TAX_INVOICE_RECEIPT, we also need to handle VAT options (not just RECEIPT)
-      if (!isExempt && !isReceipt) {
-        const vatOptionsValue = formData.vatOptions;
-        console.log("🚀 ~ addNewLine ~ vatOptionsValue:", vatOptionsValue, "type:", typeof vatOptionsValue);
-        
-        if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
-          if (typeof vatOptionsValue === 'number') {
-            // If it's a number, it's probably an index - convert to value
-            const vatOptionsArray = this.vatOptions;
-            if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
-              vatOpts = vatOptionsArray[vatOptionsValue].value;
-            } else {
-              vatOpts = 'WITHOUT';
-            }
+
+    // Handle vatOptions - it might be a number (index) or string (value)
+    let vatOpts: VatType = 'WITHOUT';
+    // For TAX_INVOICE_RECEIPT, we also need to handle VAT options (not just RECEIPT)
+    if (!isExempt && !isReceipt) {
+      const vatOptionsValue = formData.vatOptions;
+      console.log("🚀 ~ addNewLine ~ vatOptionsValue:", vatOptionsValue, "type:", typeof vatOptionsValue);
+
+      if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
+        if (typeof vatOptionsValue === 'number') {
+          // If it's a number, it's probably an index - convert to value
+          const vatOptionsArray = this.vatOptions;
+          if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
+            vatOpts = vatOptionsArray[vatOptionsValue].value;
+          } else {
+            vatOpts = 'WITHOUT';
+          }
         } else if (typeof vatOptionsValue === 'string') {
           vatOpts = vatOptionsValue as VatType;
-          } else {
-            vatOpts = 'WITHOUT';
-          }
-        }
-      } else if (isTaxInvoiceReceipt && !isExempt) {
-        // For TAX_INVOICE_RECEIPT, handle VAT options like regular tax invoices
-        const vatOptionsValue = formData.vatOptions;
-        
-        if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
-          if (typeof vatOptionsValue === 'number') {
-            const vatOptionsArray = this.vatOptions;
-            if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
-              vatOpts = vatOptionsArray[vatOptionsValue].value;
-            } else {
-              vatOpts = 'WITHOUT';
-            }
-          } else if (typeof vatOptionsValue === 'string') {
-            vatOpts = vatOptionsValue as VatType;
-          } else {
-            vatOpts = 'WITHOUT';
-          }
+        } else {
+          vatOpts = 'WITHOUT';
         }
       }
-      
-      console.log("🚀 ~ addNewLine ~ final vatOpts:", vatOpts);
+    } else if (isTaxInvoiceReceipt && !isExempt) {
+      // For TAX_INVOICE_RECEIPT, handle VAT options like regular tax invoices
+      const vatOptionsValue = formData.vatOptions;
+
+      if (vatOptionsValue !== undefined && vatOptionsValue !== null) {
+        if (typeof vatOptionsValue === 'number') {
+          const vatOptionsArray = this.vatOptions;
+          if (vatOptionsArray && vatOptionsArray[vatOptionsValue]) {
+            vatOpts = vatOptionsArray[vatOptionsValue].value;
+          } else {
+            vatOpts = 'WITHOUT';
+          }
+        } else if (typeof vatOptionsValue === 'string') {
+          vatOpts = vatOptionsValue as VatType;
+        } else {
+          vatOpts = 'WITHOUT';
+        }
+      }
+    }
+
+    console.log("🚀 ~ addNewLine ~ final vatOpts:", vatOpts);
 
     const newLine: PartialLineItem = {
       // issuerBusinessNumber: this.selectedBusinessNumber,
@@ -957,7 +957,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const isExempt = this.selectedBusinessType() === BusinessType.EXEMPT;
     const isReceipt = this.fileSelected() === DocumentType.RECEIPT;
     const isTaxInvoiceReceipt = this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT;
-    
+
     // Handle vatOptions - it might be a number (index) or string (value)
     let vatOpts: VatType = 'WITHOUT';
     if (!isExempt && !isReceipt) {
@@ -1006,10 +1006,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
       vatRate: this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value,
     };
 
-    this.lineItemsDraft.update(items => 
+    this.lineItemsDraft.update(items =>
       items.map((item, i) => i === index ? updatedLine : item)
     );
-    
+
     this.calculateVatFieldsForLine(index);
     console.log("🚀 ~ DocCreatePage ~ updateLine ~ updated line", this.lineItemsDraft()[index]);
   }
@@ -1023,13 +1023,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.error("⚠️ calculateVatFieldsForLine: lineIndex out of bounds", lineIndex, "lines.length:", lines.length);
       return;
     }
-    
+
     const line = lines[lineIndex]; //Get the line by reference
     console.log("🚀 ~ calculateVatFieldsForLine ~ line before calculation:", line);
     const quantity = Number(line.unitQuantity ?? 1);
     const unitSum = Number(line.sum ?? 0);
     const discount = Number(line.discount ?? 0);
-    
+
     // Convert vatOpts to string if it's a number (index)
     let vatOption: VatType = 'WITHOUT';
     if (typeof line.vatOpts === 'number') {
@@ -1043,9 +1043,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
     } else if (typeof line.vatOpts === 'string') {
       vatOption = line.vatOpts as VatType;
     }
-    
+
     console.log("🚀 ~ calculateVatFieldsForLine ~ vatOpts:", line.vatOpts, "converted to vatOption:", vatOption);
-    
+
     const vatRate = Number(line.vatRate ?? 0);
 
     const lineGross = unitSum * quantity;
@@ -1097,13 +1097,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       vatPerLine: Number(vatPerLine.toFixed(2)),
       sumAftDisWithVat: Number(sumAftDisWithVat.toFixed(2)),
     };
-    
+
     // Update the signal with the new line
     this.lineItemsDraft.update(items =>
       items.map((item, i) => i === lineIndex ? updatedLine : item)
     );
     console.log("🚀 ~ DocCreatePage ~ calculateVatFieldsForLine ~ line after calaulate", updatedLine);
-    
+
     // Update totals after calculating VAT fields
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
@@ -1121,7 +1121,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     const lines = this.lineItemsDraft();
 
-    for (const line of lines) {       
+    for (const line of lines) {
       if (line.vatOpts === 'WITHOUT') {
         this.documentSummary().totalWithoutVat += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
       }
@@ -1164,7 +1164,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         console.warn("⚠️ calcTotals: Line missing calculated fields, skipping:", line);
         continue;
       }
-      
+
       if (line.vatOpts === 'WITHOUT') {
         this.totalNonVATAmount += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
       }
@@ -1235,8 +1235,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const paymentEntry = {
       ...paymentFormValue,
       paymentSum: paymentFormValue.paymentSum
-    ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
-    : null,
+        ? Number(paymentFormValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
+        : null,
       // issuerBusinessNumber: this.selectedBusinessNumber,
       // generalDocIndex: String(this.docIndexes.generalIndex),
       paymentLineNumber: paymentLineIndex + 1,
@@ -1262,7 +1262,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   editLine(index: number): void {
     const line = this.lineItemsDraft()[index];
     console.log("Editing line at index:", index, line);
-    
+
     // Populate the form with the line data
     this.lineDetailsForm.patchValue({
       [FieldsCreateDocValue.LINE_DESCRIPTION]: line.description,
@@ -1273,10 +1273,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
         [FieldsCreateDocValue.VAT_OPTIONS]: line.vatOpts
       })
     });
-    
+
     // Set the editing index
     this.editingLineIndex.set(index);
-    
+
     // Optional: scroll to the form for better UX
     setTimeout(() => {
       const formElement = document.querySelector('.line-details-form');
@@ -1301,7 +1301,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // Adjust the editing index if we're deleting a line before it
       this.editingLineIndex.set(this.editingLineIndex()! - 1);
     }
-    
+
     this.lineItemsDraft.update(items => items.filter((_, i) => i !== index));
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
@@ -1342,7 +1342,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Reset docIndexes to ensure we don't use stale values from parent document
     // The handleDocIndexes call inside onSelectedDoc will fetch fresh indexes from backend
     this.docIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
-    
+
     // Set doc type and trigger existing doc-type setup
     this.generalDetailsForm.patchValue({ docType: targetDocType });
     this.onSelectedDoc(targetDocType);
@@ -1472,7 +1472,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // Fallback to a single aggregate line (gross sum)
       const rawSum = payload.sourceDoc?.sumAftDisWithVAT ?? payload.sourceDoc?.sum ?? 0;
       let numericSum = Number(String(rawSum).replace(/,/g, '')) || 0;
-      
+
       // If this is a negative receipt, make the sum negative
       if (isNegativeReceipt) {
         numericSum = -Math.abs(numericSum);
@@ -1584,17 +1584,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
     } else {
       // For tax invoices and tax invoice receipts: always extract the price BEFORE VAT from source
       // We'll calculate the final price based on the selected VAT option later
-      
+
       // First, determine the source line's VAT option to know how to extract the price
       const sourceVatOpts = line?.vatOpts ?? line?.vatOptions;
       console.log("🚀 ~ mapSourceLineToForm ~ sourceVatOpts:", sourceVatOpts, "type:", typeof sourceVatOpts, "line:", line);
       let priceBeforeVat = 0;
       const vatRate = Number(line?.vatRate ?? this.generalDetailsForm.get(FieldsCreateDocValue.DOC_VAT_RATE)?.value ?? 18);
-      
+
       // Determine the default VAT option from source line
       // Default to EXCLUDE (price before VAT) - this is the most common case
       defaultVatOption = 'EXCLUDE';
-      
+
       // Convert sourceVatOpts to string if it's a number (index)
       // Backend enum: INCLUDE=1, EXCLUDE=2, WITHOUT=3
       // Frontend array: [0]=INCLUDE, [1]=EXCLUDE, [2]=WITHOUT
@@ -1614,7 +1614,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       } else if (typeof sourceVatOpts === 'string') {
         sourceVatOptsString = sourceVatOpts as VatType;
       }
-      
+
       // First priority: use sourceVatOpts if available
       if (sourceVatOptsString && (sourceVatOptsString === 'INCLUDE' || sourceVatOptsString === 'EXCLUDE' || sourceVatOptsString === 'WITHOUT')) {
         defaultVatOption = sourceVatOptsString;
@@ -1624,14 +1624,14 @@ export class DocCreatePage implements OnInit, OnDestroy {
         const vatPerLine = Number(line?.vatPerLine ?? 0);
         const sumAftDisWithVat = Number(line?.sumAftDisWithVat ?? line?.sumAftDisWithVAT ?? 0);
         const sumAftDisBefVatPerLine = Number(line?.sumAftDisBefVatPerLine ?? 0);
-        
+
         if (vatPerLine === 0 && sumAftDisWithVat === sumAftDisBefVatPerLine && sumAftDisBefVatPerLine > 0) {
           // If vatPerLine is 0 and sumAftDisWithVat equals sumAftDisBefVatPerLine, it's WITHOUT VAT
           defaultVatOption = 'WITHOUT';
           console.log("🚀 ~ mapSourceLineToForm ~ Detected WITHOUT VAT from vatPerLine === 0 (fallback)");
         }
       }
-      
+
       // Extract price based on source VAT option (use defaultVatOption which is already converted)
       // First, always extract the base price before VAT from the source line
       if (line?.sumBefVatPerUnit != null) {
@@ -1644,7 +1644,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         // Fallback: try to calculate from total with VAT
         const sumAftDisWithVat = Number(line?.sumAftDisWithVat ?? line?.sumAftDisWithVAT ?? 0);
         const vatPerLine = Number(line?.vatPerLine ?? 0);
-        
+
         if (sumAftDisWithVat > 0 && vatPerLine > 0) {
           // If we have total with VAT and VAT amount, calculate price before VAT
           priceBeforeVat = (sumAftDisWithVat - vatPerLine) / qty;
@@ -1660,7 +1660,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
           priceBeforeVat = qty > 0 ? rawSum / qty : rawSum;
         }
       }
-      
+
       // Calculate unitPrice based on the selected VAT option
       // If INCLUDE: user enters total with VAT, so we need to use the total with VAT from source
       // If EXCLUDE: user enters price before VAT, so we use priceBeforeVat
@@ -1679,11 +1679,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
         // For EXCLUDE or WITHOUT, use price before VAT
         unitPrice = priceBeforeVat;
       }
-      
+
       // Store selectedVatOption for later use in formData
       selectedVatOption = defaultVatOption;
     }
-    
+
     // Determine VAT options for the form (for receipts, set here)
     if (isReceipt) {
       selectedVatOption = 'WITHOUT';
@@ -1775,11 +1775,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   handleDocIndexes(docType: DocumentType): void {
     console.log("selectedBusinessNumber is ", this.selectedBusinessNumber);
-    
+
     // Reset indexes first to ensure we don't use stale values
     // This is especially important when creating documents from opposite-doc flow
     this.docIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
-    
+
     this.docCreateService.getDocIndexes(docType, this.selectedBusinessNumber)
       .pipe(
         catchError(err => {
@@ -1845,13 +1845,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   fillClientDetails(client: any) {
     console.log("🚀 ~ DocCreatePage ~ fillClientDetails ~ client:", client)
-    
+
     // Handle both cases: autocomplete (client.value) and modal (direct client object)
     const clientData = client.value || client;
-    
+
     // Save client data for later use when expanding fields
     this.selectedClientData = clientData;
-    
+
     // Fill only the base fields that currently exist in the form
     this.userDetailsForm.patchValue({
       [FieldsCreateDocValue.RECIPIENT_NAME]: clientData.name || '',
@@ -1859,7 +1859,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       [FieldsCreateDocValue.RECIPIENT_PHONE]: clientData.phone || '',
       [FieldsCreateDocValue.RECIPIENT_ID]: clientData.id || '',
     });
-    
+
     // If user details are already expanded, fill the expanded fields too
     if (this.isUserExpanded()) {
       this.fillExpandedClientFields(clientData);
@@ -1933,7 +1933,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     }
   }
-  
+
   private fillExpandedClientFields(clientData: IClient): void {
     const expandField = {
       [FieldsCreateDocValue.RECIPIENT_ADDRESS]: clientData.address,
@@ -1946,10 +1946,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
   // Show dialog asking user how to get allocation number
   showAllocationNumberDialog(): void {
     const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
-    
+
     console.log("🔍 showAllocationNumberDialog - sumBeforeVat:", sumBeforeVat);
     console.log("🔍 showAllocationNumberDialog - confirmationService:", this.confirmationService);
-    
+
     this.confirmationService.confirm({
       message: `על מנת להפיק חשבונית בסכום של ₪${sumBeforeVat.toLocaleString('he-IL')} (לפני מע״מ), נדרש מספר הקצאה משעמ.\n\nכיצד תרצה להמשיך?`,
       header: 'מספר הקצאה נדרש',
@@ -2022,13 +2022,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
     const totals = this.documentTotals();
     const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
-    
+
     // Format date to YYYY-MM-DD
     const formattedDate = docDate ? new Date(docDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    
+
     // Map document type to invoice_type (you may need to adjust this mapping)
     const invoiceType = this.mapDocTypeToInvoiceType(docType);
-    
+
     // Build approval request
     const approvalData: IShaamApprovalRequest = {
       user_id: parseInt(this.selectedBusinessNumber),

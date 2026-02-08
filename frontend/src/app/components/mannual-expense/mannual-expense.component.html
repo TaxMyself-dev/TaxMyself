@@ -1,64 +1,75 @@
 <!-- <div> -->
 @if (mannualExpenseService.showBusinessSelector()) {
-<app-input-select [controlName]="'businessNumber'" [labelText]="'עסק'" [placeholder]="'בחר עסק'"
-  [items]="mannualExpenseService.businessOptions()" [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM"
-  (onChangeInputSelect)="selectBusiness($event)">
+<app-input-select [customStyle]="'register'" [controlName]="'businessNumber'" [labelText]="'עסק'"
+  [placeholder]="'בחר עסק'" [items]="mannualExpenseService.businessOptions()" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" (onChangeInputSelect)="selectBusiness($event)">
 </app-input-select>
 }
 
-<app-input-date [controlName]="'date'" [size]="inputSize.MEDIUM" [labelText]="'תאריך'" placeholder="00/00/0000"
+<app-input-date [customStyle]="'register'" [controlName]="'date'"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [labelText]="'תאריך'" placeholder="00/00/0000"
   [parentForm]="mannualExpenseForm">
 </app-input-date>
 
 
-<app-input-text [controlName]="'sum'" [labelText]="'סכום'" [placeholder]="'הקלד סכום'" [parentForm]="mannualExpenseForm"
-  [size]="inputSize.BETWEEN" [type]="'number'">
+<app-input-text [customStyle]="'fill-border'" [controlName]="'sum'" [labelText]="'סכום'" [placeholder]="'הקלד סכום'"
+  [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
-<app-input-text [controlName]="'supplier'" [labelText]="'ספק'" [placeholder]="'הקלד ספק'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" [type]="'text'">
+<app-input-text [customStyle]="'fill-border'" [controlName]="'supplier'" [labelText]="'ספק'" [placeholder]="'הקלד ספק'"
+  [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
 
-<app-input-text [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'" [placeholder]="'הקלד ח.פ. ספק'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" [type]="'text'">
+<app-input-text [customStyle]="'fill-border'" [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'"
+  [placeholder]="'הקלד ח.פ. ספק'" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
 
-<app-input-text [controlName]="'expenseNumber'" [labelText]="'מספר חשבונית'" [placeholder]="'הקלד מספר חשבונית'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.BETWEEN" [type]="'text'">
+<app-input-text [customStyle]="'fill-border'" [controlName]="'expenseNumber'" [labelText]="'מספר חשבונית'"
+  [placeholder]="'הקלד מספר חשבונית'" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
 
 @if (mannualExpenseService.$categoriesOptions()) {
-<app-input-select [controlName]="'category'" [labelText]="'קטגוריה'" [placeholder]="'בחר קטגוריה'"
-  [items]="mannualExpenseService.$categoriesOptions()" [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM"
+<app-input-select [customStyle]="'register'" [controlName]="'category'" [labelText]="'קטגוריה'"
+  [placeholder]="'בחר קטגוריה'" [items]="mannualExpenseService.$categoriesOptions()" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
   [disabled]="mannualExpenseService.$selectedBusinessNumber() === null" (onChangeInputSelect)="getSubCategory($event)">
 </app-input-select>
 }
 
-<app-input-select [controlName]="'subCategory'" [labelText]="'תת קטגוריה'" [placeholder]="'בחר תת קטגוריה'"
-  [items]="subCategoryItems" [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM"
-  (onChangeInputSelect)="onSelectSubCategory($event)">
+<app-input-select [customStyle]="'register'" [controlName]="'subCategory'" [labelText]="'תת קטגוריה'"
+  [placeholder]="'בחר תת קטגוריה'" [items]="subCategoryItems" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" (onChangeInputSelect)="onSelectSubCategory($event)">
 </app-input-select>
 
-<app-input-text [controlName]="'taxPercent'" [labelText]="'שיעור המס'" [placeholder]="'הכנס מס'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM" [type]="'number'">
+<app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'taxPercent'"
+  [labelText]="'שיעור המס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 
-<app-input-text [controlName]="'vatPercent'" [labelText]="'שיעור מעמ'" [placeholder]="'הכנס מעמ'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM" [type]="'number'">
+<app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'vatPercent'"
+  [labelText]="'שיעור מעמ'" [placeholder]="'הכנס מעמ'" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 
 @if (mannualExpenseService.$selectedCategory() === "רכוש קבוע") {
-<app-input-text [controlName]="'reductionPercent'" [labelText]="'אחוזי פחת'" [placeholder]="'אחוזי פחת'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.MEDIUM" [type]="'number'">
+<app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'reductionPercent'"
+  [labelText]="'אחוזי פחת'" [placeholder]="'אחוזי פחת'" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 }
 
-<app-input-text [controlName]="'note'" [labelText]="'הערה'" [placeholder]="'הקלד הערה'"
-  [parentForm]="mannualExpenseForm" [size]="inputSize.LARGE" [type]="'text'">
+<app-input-text [customStyle]="'fill-border'" [controlName]="'note'" [labelText]="'הערה'" [placeholder]="'הקלד הערה'"
+  [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.LARGE" [type]="'text'">
 </app-input-text>
 
-<app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
+<div class="wrap-file-uploader">
+  <app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
+</div>
 
-<app-p-button [disabled]="mannualExpenseForm.invalid" (onButtonClicked)="addExpense()"
-  [isLoading]="isLoadingAddExpense()" [buttonText]="'הוסף'" [buttonSize]="buttonSize.SMALL"
-  [buttonColor]="buttonColor.BLACK"></app-p-button>
+<div class="wrap-add-button">
+  <app-p-button [disabled]="mannualExpenseForm.invalid" (onButtonClicked)="addExpense()"
+    [isLoading]="isLoadingAddExpense()" [buttonText]="'הוסף'" [buttonSize]="buttonSize.SMALL"
+    [buttonColor]="buttonColor.BLACK"></app-p-button>
+</div>
