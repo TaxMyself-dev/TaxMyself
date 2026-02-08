@@ -408,7 +408,7 @@
       </div>
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'צור מסמך'" [buttonSize]="buttonSize.SMALL"
-          [disabled]="!createDocIsValid()" [isLoading]="createPDFIsLoading()" (onButtonClicked)="confirmCreateDoc()"
+          [disabled]="!createDocIsValid()" [isLoading]="createPDFIsLoading()" (onButtonClicked)="createDoc()"
           [buttonColor]="buttonColor.BLACK">
         </app-p-button>
       </div>
@@ -425,6 +425,29 @@
     (visibleChange)="onShaamDialogClose($event)"
     (approvalSuccess)="onShaamApprovalSuccess($event)">
   </app-shaam-invoice-approval-dialog>
+
+  <!-- Loading Dialog for Allocation Number Request -->
+  <p-dialog 
+    header="מפיק מספר הקצאה" 
+    [visible]="allocationNumberLoading()" 
+    [modal]="true" 
+    [rtl]="true"
+    [closable]="false"
+    [style]="{ width: '400px' }">
+    <div class="allocation-loading-content">
+      <div class="allocation-loading-wrapper">
+        <div class="allocation-spinner"></div>
+        <div class="allocation-loading-text">
+          <p class="allocation-loading-title">
+            מפיק מספר הקצאה משעמ...
+          </p>
+          <p class="allocation-loading-subtitle">
+            אנא המתן, התהליך עשוי לקחת מספר שניות
+          </p>
+        </div>
+      </div>
+    </div>
+  </p-dialog>
 
   <!-- Manual Allocation Number Input Dialog -->
   <p-dialog 

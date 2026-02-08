@@ -1,7 +1,7 @@
 import { Injectable, HttpException, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, Repository, In } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
@@ -952,6 +952,13 @@ export class DocumentsService {
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
+    // Ensure docStatus is not DRAFT when creating actual document
+    // Remove any DRAFT status that might have been set from draft restoration
+    if (data.docData && data.docData.docStatus === DocumentStatusType.DRAFT) {
+      console.log('⚠️ Removing DRAFT status from docData before document creation');
+      delete data.docData.docStatus;
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -1249,15 +1256,20 @@ export class DocumentsService {
       ];
 
       // Default values set on the server
-      const serverGeneratedValues = {
+      // Don't override docStatus if it's already set (e.g., for DRAFT)
+      const serverGeneratedValues: any = {
         issueDate: new Date(),
         docDate: data.docDate ? new Date(data.docDate) : new Date(),
         valueDate: data.valueDate ? new Date(data.valueDate) : new Date(),
         issueHour,
         isCancelled: data.isCancelled ?? false,
         docNumber: data.docNumber.toString(),
-        docStatus: autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN',
       };
+
+      // Only set docStatus if it's not already set (e.g., not DRAFT)
+      if (!data.docStatus) {
+        serverGeneratedValues.docStatus = autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN';
+      }
 
       // Merge all values
       const docData: Partial<Documents> = { userId, ...data, ...serverGeneratedValues };
@@ -1366,6 +1378,205 @@ export class DocumentsService {
     }
   }
 
+
+  // Save draft before SHAAM redirect
+  async saveDraft(userId: string, data: any): Promise<Documents> {
+    console.log('=== SAVING DRAFT TO DATABASE ===');
+    console.log('User ID:', userId);
+    console.log('Business Number (issuerBusinessNumber):', data.docData.issuerBusinessNumber);
+    console.log('Document Type:', data.docData.docType);
+    console.log('Lines Count:', data.linesData?.length || 0);
+    console.log('Payments Count:', data.paymentData?.length || 0);
+    console.log('Full docData:', JSON.stringify(data.docData, null, 2));
+    
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Delete existing draft for this user/business/docType
+      console.log('Deleting existing draft if exists...');
+      await this.deleteDraft(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager);
+
+      // 2. Generate temporary generalDocIndex for draft (not incrementing real index)
+      // Use a short hash based on timestamp to fit in varchar(7)
+      // Format: D + last 6 digits of timestamp (e.g., D123456)
+      const timestamp = Date.now();
+      const shortHash = timestamp % 1000000; // Last 6 digits
+      const draftGeneralDocIndex = `D${String(shortHash).padStart(6, '0')}`;
+      data.docData.generalDocIndex = draftGeneralDocIndex;
+      console.log('Generated draft generalDocIndex:', draftGeneralDocIndex, '(from timestamp:', timestamp, ')');
+      
+      // Update lines and payments with draft index
+      if (data.linesData && Array.isArray(data.linesData)) {
+        data.linesData.forEach(line => {
+          line.generalDocIndex = draftGeneralDocIndex;
+        });
+      }
+      if (data.paymentData && Array.isArray(data.paymentData)) {
+        data.paymentData.forEach(payment => {
+          payment.generalDocIndex = draftGeneralDocIndex;
+        });
+      }
+
+      // 3. Set docStatus to DRAFT
+      data.docData.docStatus = DocumentStatusType.DRAFT;
+      
+      // 4. Set docNumber to temporary value (not incrementing real index)
+      if (!data.docData.docNumber || data.docData.docNumber === '') {
+        data.docData.docNumber = 'DRAFT';
+      }
+
+      // 5. Save document with DRAFT status
+      console.log('Saving draft document to database...');
+      const draftDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
+      if (!draftDoc) {
+        throw new HttpException('Error saving draft document', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      console.log('✅ Draft document saved with ID:', draftDoc.id);
+
+      // 6. Save lines
+      if (data.linesData && data.linesData.length > 0) {
+        console.log('Saving draft lines to database...');
+        await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
+        console.log(`✅ Saved ${data.linesData.length} lines`);
+      }
+
+      // 7. Save payments
+      if (data.paymentData && data.paymentData.length > 0) {
+        console.log('Saving draft payments to database...');
+        await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
+        console.log(`✅ Saved ${data.paymentData.length} payments`);
+      }
+
+      await queryRunner.commitTransaction();
+      console.log('=== DRAFT SAVED SUCCESSFULLY ===');
+      return draftDoc;
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // Load draft after returning from SHAAM
+  async loadDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType): Promise<any | null> {
+    console.log('=== LOADING DRAFT FROM DATABASE ===');
+    console.log('Business Number:', issuerBusinessNumber);
+    console.log('Document Type:', docType);
+    console.log('User ID:', userId);
+    
+    try {
+      // Find draft document
+      console.log('Querying database for draft document...');
+      const draftDoc = await this.documentsRepo.findOne({
+        where: {
+          issuerBusinessNumber,
+          docType,
+          docStatus: DocumentStatusType.DRAFT,
+        },
+        order: { id: 'DESC' }
+      });
+
+      if (!draftDoc) {
+        console.log('❌ No draft found in database');
+        return null;
+      }
+
+      console.log('✅ Draft document found with ID:', draftDoc.id);
+      console.log('Draft generalDocIndex:', draftDoc.generalDocIndex);
+
+      // Get lines and payments
+      console.log('Querying database for draft lines...');
+      const lines = await this.docLinesRepo.find({
+        where: {
+          issuerBusinessNumber,
+          generalDocIndex: draftDoc.generalDocIndex,
+          docType
+        }
+      });
+      console.log(`✅ Found ${lines.length} lines`);
+
+      console.log('Querying database for draft payments...');
+      const payments = await this.docPaymentsRepo.find({
+        where: {
+          issuerBusinessNumber,
+          generalDocIndex: draftDoc.generalDocIndex
+        }
+      });
+      console.log(`✅ Found ${payments.length} payments`);
+
+      console.log('=== DRAFT LOADED SUCCESSFULLY ===');
+      return {
+        docData: draftDoc,
+        linesData: lines,
+        paymentData: payments
+      };
+    } catch (error) {
+      console.error('❌ Error loading draft:', error);
+      return null;
+    }
+  }
+
+  // Delete draft (called before saving new draft or after creating document)
+  async deleteDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType, manager?: EntityManager): Promise<void> {
+    try {
+      const repo = manager 
+        ? manager.getRepository(Documents)
+        : this.documentsRepo;
+
+      // Find all drafts for this business/docType
+      const drafts = await repo.find({
+        where: {
+          issuerBusinessNumber,
+          docType,
+          docStatus: DocumentStatusType.DRAFT
+        }
+      });
+
+      if (drafts.length === 0) {
+        return;
+      }
+
+      // Get all generalDocIndexes of drafts
+      const draftIndexes = drafts.map(d => d.generalDocIndex).filter(Boolean);
+
+      if (draftIndexes.length === 0) {
+        return;
+      }
+
+      // Delete lines
+      const linesRepo = manager 
+        ? manager.getRepository(DocLines)
+        : this.docLinesRepo;
+      await linesRepo.delete({
+        issuerBusinessNumber,
+        generalDocIndex: In(draftIndexes),
+        docType
+      });
+
+      // Delete payments
+      const paymentsRepo = manager 
+        ? manager.getRepository(DocPayments)
+        : this.docPaymentsRepo;
+      await paymentsRepo.delete({
+        issuerBusinessNumber,
+        generalDocIndex: In(draftIndexes)
+      });
+
+      // Delete documents
+      await repo.delete({
+        issuerBusinessNumber,
+        docType,
+        docStatus: DocumentStatusType.DRAFT
+      });
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      // Don't throw - allow draft save to continue even if delete fails
+    }
+  }
 
   async generateMultipleDocs(userId: string): Promise<any[]> {
 

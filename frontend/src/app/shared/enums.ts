@@ -512,3 +512,9 @@ export enum TaxReportingType {
   MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
+
+/**
+ * Threshold amount (in NIS) above which an allocation number is required for tax invoices
+ * When a tax invoice amount exceeds this threshold, the system must request an allocation number from SHAAM
+ */
+export const ALLOCATION_NUMBER_THRESHOLD = 10000;
