@@ -12,11 +12,11 @@ const routes: Routes = [
         loadChildren: () =>
           import('./incomes/incomes.module').then(m => m.IncomesPageModule)
       },
-      // {
-      //   path: 'expenses',
-      //   loadChildren: () =>
-      //     import('./expenses/expenses.module').then(m => m.ExpensesPageModule)
-      // },
+      {
+        path: 'expenses',
+        loadChildren: () =>
+          import('./expenses/expenses.module').then(m => m.ExpensesPageModule)
+      },
       // {
       //   path: 'clients',
       //   loadChildren: () =>
