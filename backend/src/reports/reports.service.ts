@@ -203,20 +203,21 @@ export class ReportsService {
       // Separate expenses into equipment and non-equipment categories
       const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
 
-      // Initialize an object to hold the totalTaxPayable sums by category
-      const totalTaxPayableByCategory: { [category: string]: number } = {};
+      // Initialize an object to hold the expense sums by category
+      const expenseSumByCategory: { [category: string]: number } = {};
 
       // Loop through each non-equipment expense
       for (const expense of nonEquipmentExpenses) {
           const category = String(expense.category); // Ensure category is treated as a string
-          if (!totalTaxPayableByCategory[category]) {
-              totalTaxPayableByCategory[category] = 0; // Initialize category sum if not already done
+          if (!expenseSumByCategory[category]) {
+              expenseSumByCategory[category] = 0; // Initialize category sum if not already done
           }
-          totalTaxPayableByCategory[category] += Number(expense.totalTaxPayable); // Sum up the totalTaxPayable
+          // Sum up the total expense amount (sum field), not just tax payable
+          expenseSumByCategory[category] += Number(expense.sum || 0);
       }
 
         // Map the totals by category into an array of ExpenseDto
-      const expenseDtos: ExpensePnlDto[] = Object.entries(totalTaxPayableByCategory).map(
+      const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
           ([category, total]) => ({
               category,
               total,

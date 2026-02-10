@@ -39,13 +39,31 @@ export class ExpensesService {
     async addExpense(expense: CreateExpenseDto, userId: string, businessNumber: string): Promise<Expense> {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
-        const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
-        newExpense.isEquipment = isEquipment;
+        // isEquipment should be true only if category is "רכוש קבוע", otherwise always false
+        if (expense.category === 'רכוש קבוע') {
+            const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
+            newExpense.isEquipment = isEquipment ?? false;
+        } else {
+            newExpense.isEquipment = false;
+        }
         newExpense.userId = userId;
         newExpense.date = expense.date;
         const currentDate = (new Date()).toISOString();
         newExpense.loadingDate = new Date();
         newExpense.businessNumber = businessNumber;
+        
+        // Calculate totalVatPayable and totalTaxPayable
+        // Get VAT rate for the expense date year
+        const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
+        
+        // Calculate totalVatPayable: (sum / (1 + vatRate)) * vatRate * (vatPercent / 100)
+        // This calculates the VAT amount that can be claimed based on the vatPercent
+        newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercent / 100);
+        
+        // Calculate totalTaxPayable: (sum - totalVatPayable) * (taxPercent / 100)
+        // This calculates the tax amount based on the amount after VAT
+        newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
+        
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0) {
             throw new Error("expense not saved");
@@ -73,9 +91,32 @@ export class ExpensesService {
         if (updateExpenseDto.vatPercent !== undefined) expense.vatPercent = updateExpenseDto.vatPercent;
         if (updateExpenseDto.taxPercent !== undefined) expense.taxPercent = updateExpenseDto.taxPercent;
         if (updateExpenseDto.sum !== undefined) expense.sum = updateExpenseDto.sum;
-        // if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
-        //     expense.calculateSums();
-        // }
+        if (updateExpenseDto.category !== undefined) expense.category = updateExpenseDto.category;
+        if (updateExpenseDto.subCategory !== undefined) expense.subCategory = updateExpenseDto.subCategory;
+        
+        // Update isEquipment based on category: true only if category is "רכוש קבוע", otherwise always false
+        if (updateExpenseDto.category !== undefined || updateExpenseDto.subCategory !== undefined) {
+            const categoryToCheck = updateExpenseDto.category ?? expense.category;
+            if (categoryToCheck === 'רכוש קבוע') {
+                const subCategoryToCheck = updateExpenseDto.subCategory ?? expense.subCategory;
+                const isEquipment = await this.getSubCategoryIsEquipment(categoryToCheck, subCategoryToCheck, userId, expense.businessNumber);
+                expense.isEquipment = isEquipment ?? false;
+            } else {
+                expense.isEquipment = false;
+            }
+        }
+        
+        // Recalculate totalVatPayable and totalTaxPayable if sum, vatPercent, or taxPercent changed
+        if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
+            // Get VAT rate for the expense date year
+            const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
+            
+            // Calculate totalVatPayable: (sum / (1 + vatRate)) * vatRate * (vatPercent / 100)
+            expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
+            
+            // Calculate totalTaxPayable: (sum - totalVatPayable) * (taxPercent / 100)
+            expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
+        }
 
         return this.expense_repo.save({
             ...expense,
@@ -301,7 +342,6 @@ export class ExpensesService {
 
             const defaultCategories = await this.defaultCategoryRepo.find();
             const userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
-            console.log("🚀 ~ ExpensesService ~ getCategories ~ userCategories:", userCategories)
             const categoryMap = new Map<string, UserCategory | DefaultCategory>();
 
             // First, add all default categories
@@ -320,7 +360,6 @@ export class ExpensesService {
             }
             // Filter by isExpense if the flag is provided
             categories = categories.filter(category => category.isExpense === isExpense);
-            // console.log("🚀 ~ ExpensesService ~ getCategories ~ categories:", categories)
 
             return categories;
         }
@@ -438,8 +477,8 @@ export class ExpensesService {
 
         const defaultMatch = await this.defaultSubCategoryRepo.findOne({
             where: {
-                categoryName: 'רכוש קבוע',
-                subCategoryName: 'מזגן',
+                categoryName,
+                subCategoryName,
             },
             select: { isEquipment: true },
         });
