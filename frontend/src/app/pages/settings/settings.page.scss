@@ -1,0 +1,151 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  align-items: center;
+  overflow: scroll;
+}
+
+.page-wrapper {
+  min-height: 97vh;
+  width: 100vw;
+  padding: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  position: relative;
+  justify-content: flex-start;
+}
+
+.share-accountant-button-container {
+  position: absolute;
+  top: 50px;
+  left: 50px;
+  z-index: 10;
+}
+
+.section-block {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 550;
+  color: #363636;
+  margin: 0;
+}
+
+.details-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background-color: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #EBEBEB;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.detail-label {
+  font-size: 16px;
+  font-weight: 500;
+  color: #363636;
+  min-width: 150px;
+}
+
+.detail-value {
+  font-size: 16px;
+  font-weight: 400;
+  color: #666;
+  text-align: right;
+  flex: 1;
+}
+
+.businesses-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.business-card {
+  background-color: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.business-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #EBEBEB;
+}
+
+.business-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: #363636;
+  margin: 0;
+}
+
+.business-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.no-data {
+  font-size: 16px;
+  color: #999;
+  text-align: center;
+  padding: 40px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .section-title {
+    color: #fff;
+  }
+
+  .detail-label {
+    color: #fff;
+  }
+
+  .detail-value {
+    color: #ccc;
+  }
+
+  .business-name {
+    color: #fff;
+  }
+
+  .details-container,
+  .business-card {
+    background-color: #2a2a2a;
+  }
+
+  .detail-row {
+    border-bottom-color: #444;
+  }
+
+  .business-header {
+    border-bottom-color: #444;
+  }
+}
+
