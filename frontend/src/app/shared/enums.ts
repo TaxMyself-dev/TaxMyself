@@ -91,6 +91,22 @@ export enum ExpenseFormColumns {
   CHECKBOX = 'checkbox'
 }
 
+export enum ClientsTableColumns {
+  NAME = 'name',
+  ID = 'id',
+  PHONE = 'phone',
+  EMAIL = 'email',
+  ADDRESS = 'address'
+}
+
+export enum ClientsTableHebrewColumns {
+  name = 'שם',
+  id = 'תעודת זהות',
+  phone = 'טלפון',
+  email = 'אימייל',
+  address = 'כתובת'
+}
+
 export enum TransactionsOutcomesColumns {
   BUSINESS_NAME = 'businessName',
   BUSINESS_NUMBER = 'businessNumber',

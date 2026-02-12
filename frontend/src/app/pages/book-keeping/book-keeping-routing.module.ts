@@ -17,11 +17,11 @@ const routes: Routes = [
         loadChildren: () =>
           import('./expenses/expenses.module').then(m => m.ExpensesPageModule)
       },
-      // {
-      //   path: 'clients',
-      //   loadChildren: () =>
-      //     import('./clients/clients.module').then(m => m.ClientsPageModule)
-      // },
+      {
+        path: 'clients',
+        loadChildren: () =>
+          import('./clients/clients.module').then(m => m.ClientsPageModule)
+      },
       { path: '', redirectTo: 'incomes', pathMatch: 'full' }
     ]
   }

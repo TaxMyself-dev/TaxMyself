@@ -481,18 +481,6 @@ export class DocumentsService {
 
         break;
 
-      case 'pnlReport':
-        fid = 'ydAEQsvSbC';
-        prefill_data = {
-          name: data.prefill_data.name,
-          id: data.prefill_data.id,
-          period: data.prefill_data.period,
-          income: data.prefill_data.income,
-          profit: data.prefill_data.profit,
-          expenses: data.prefill_data.expenses,
-          table: data.prefill_data.table || [],
-        };
-        break;
 
       default:
         throw new Error(`Unknown template type: ${templateType}`);

@@ -8,7 +8,6 @@ import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
-import { DocCreateService } from '../doc-create/doc-create.service';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 
@@ -50,7 +49,7 @@ export class PnLReportPage implements OnInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
-  constructor(private docCreateService: DocCreateService, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
   }
 
 
@@ -201,7 +200,7 @@ export class PnLReportPage implements OnInit {
       prefill_data: {
         name: this.userData.fName + " " + this.userData.lName,
         id: this.userData.businessNumber,
-        period: `${this.startDate} - ${this.endDate}`,
+        period: `${this.startDate()} - ${this.endDate()}`,
         income: this.pnlReport.income as string,
         profit: this.pnlReport.netProfitBeforeTax as string,
         expenses: String(this.totalExpense),
@@ -209,7 +208,7 @@ export class PnLReportPage implements OnInit {
       },
     }
 
-    this.docCreateService.generatePDF(data)
+    this.pnlReportService.generatePnLReportPDF(data)
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);

@@ -39,11 +39,9 @@ export class ClientsService {
     try {
       const clients = await this.clientsRepo.find({ where: { userId, businessNumber } });
 
-      if (clients.length === 0) {
-        throw new NotFoundException('No clients found');
-      }
-      if (!clients) {
-        throw new HttpException('Error in get clients', HttpStatus.INTERNAL_SERVER_ERROR);
+      // Return empty array if no clients found instead of throwing error
+      if (!clients || clients.length === 0) {
+        return [];
       }
       return clients;
 
@@ -53,14 +51,14 @@ export class ClientsService {
     }
   }
 
-  async deleteClient(userId: string, clientId: string) {
+  async deleteClient(userId: string, clientRowId: number) {
     try {
-      const client = await this.clientsRepo.findOne({ where: { userId, id: clientId } });
+      const client = await this.clientsRepo.findOne({ where: { userId, clientRowId } });
 
       if (!client) {
         throw new NotFoundException('Client not found');
       }
-      const deletedClient = await this.clientsRepo.delete(clientId);
+      const deletedClient = await this.clientsRepo.delete({ clientRowId });
       if (!deletedClient) {
         throw new HttpException('Error in delete client', HttpStatus.INTERNAL_SERVER_ERROR);
       }

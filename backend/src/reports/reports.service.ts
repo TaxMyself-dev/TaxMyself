@@ -94,6 +94,55 @@ export class ReportsService {
       throw new InternalServerErrorException("something went wrong in create PDF");
     }
   }
+
+  async generatePnLReportPDF(data: any): Promise<Blob> {
+    const fid = 'ydAEQsvSbC';
+    const url = 'https://api.fillfaster.com/v1/generatePDF';
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+
+    const payload = {
+      fid,
+      digitallySign: false,
+      prefill_data: data.prefill_data,
+    };
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      const response = await axios.post<Blob>(url, payload, {
+        headers,
+        responseType: 'arraybuffer',
+      });
+
+      if (!response.data) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ FillFaster API Error for PnL Report:');
+      console.error('   Status:', error.response?.status);
+      console.error('   Status Text:', error.response?.statusText);
+      console.error('   URL:', url);
+      console.error('   FID:', fid);
+      
+      if (error.response?.data) {
+        try {
+          const errorText = Buffer.from(error.response.data).toString('utf-8');
+          console.error('   Error Response Body:', errorText);
+        } catch (bufferError) {
+          console.error('   Could not parse error response body');
+        }
+      }
+      
+      throw new InternalServerErrorException(
+        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`
+      );
+    }
+  }
     
 
   async createVatReport(

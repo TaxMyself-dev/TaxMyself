@@ -222,13 +222,6 @@ export class DocumentsController {
   }
 
 
-  @Post('generate-pdf')
-  @UseGuards(FirebaseAuthGuard)
-  async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {    
-    const pdfBuffer = await this.documentsService.generatePDF(body, "pnlReport");
-    res.setHeader('Content-Type', 'application/pdf');
-    return res.send(pdfBuffer);
-  }
 
   
   @Post('generate-multiple')
