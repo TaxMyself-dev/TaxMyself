@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, Res, UseGuards, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentType, DocumentStatusType } from 'src/enum';
 import { DocumentsService } from './documents.service';
@@ -222,13 +222,6 @@ export class DocumentsController {
   }
 
 
-  @Post('generate-pdf')
-  @UseGuards(FirebaseAuthGuard)
-  async generatePDF(@Body() body: any, @Res() res: Response, @Req() request: AuthenticatedRequest) {    
-    const pdfBuffer = await this.documentsService.generatePDF(body, "pnlReport");
-    res.setHeader('Content-Type', 'application/pdf');
-    return res.send(pdfBuffer);
-  }
 
   
   @Post('generate-multiple')
@@ -249,5 +242,50 @@ export class DocumentsController {
     return this.documentsService.updateDocStatus(issuerBusinessNumber, docNumber, docType, status);
   }
 
+  @Post('save-draft')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async saveDraft(
+    @Body() createDocDto: CreateDocDto,
+    @Req() request: AuthenticatedRequest
+  ) {
+    const userId = request.user?.firebaseId;
+    const transformedData = await this.documentsService.transformDocumentData(createDocDto);
+    const draft = await this.documentsService.saveDraft(userId, transformedData);
+    return { success: true, draftId: draft.id };
+  }
+
+  @Get('load-draft')
+  @UseGuards(FirebaseAuthGuard)
+  async loadDraft(
+    @Query('issuerBusinessNumber') issuerBusinessNumber: string,
+    @Query('docType') docType: DocumentType,
+    @Req() request: AuthenticatedRequest
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!issuerBusinessNumber || !docType) {
+      throw new BadRequestException('issuerBusinessNumber and docType are required');
+    }
+    const draft = await this.documentsService.loadDraft(userId, issuerBusinessNumber, docType);
+    if (!draft) {
+      return { exists: false };
+    }
+    return { exists: true, draft };
+  }
+
+  @Delete('delete-draft')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteDraft(
+    @Query('issuerBusinessNumber') issuerBusinessNumber: string,
+    @Query('docType') docType: DocumentType,
+    @Req() request: AuthenticatedRequest
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!issuerBusinessNumber || !docType) {
+      throw new BadRequestException('issuerBusinessNumber and docType are required');
+    }
+    await this.documentsService.deleteDraft(userId, issuerBusinessNumber, docType);
+    return { success: true };
+  }
 
 }

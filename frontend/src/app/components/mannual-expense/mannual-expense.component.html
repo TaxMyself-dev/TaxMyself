@@ -44,14 +44,16 @@
 </app-input-select>
 
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'taxPercent'"
-  [labelText]="'שיעור המס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
+  [labelText]="'אחוז מוכר למס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 
+@if (!isExemptBusiness()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'vatPercent'"
-  [labelText]="'שיעור מעמ'" [placeholder]="'הכנס מעמ'" [parentForm]="mannualExpenseForm"
+  [labelText]="'אחוז מוכר למע&quot;מ'" [placeholder]="'הכנס מעמ'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
+}
 
 @if (mannualExpenseService.$selectedCategory() === "רכוש קבוע") {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'reductionPercent'"

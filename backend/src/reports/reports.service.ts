@@ -94,6 +94,55 @@ export class ReportsService {
       throw new InternalServerErrorException("something went wrong in create PDF");
     }
   }
+
+  async generatePnLReportPDF(data: any): Promise<Blob> {
+    const fid = 'ydAEQsvSbC';
+    const url = 'https://api.fillfaster.com/v1/generatePDF';
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
+
+    const payload = {
+      fid,
+      digitallySign: false,
+      prefill_data: data.prefill_data,
+    };
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      const response = await axios.post<Blob>(url, payload, {
+        headers,
+        responseType: 'arraybuffer',
+      });
+
+      if (!response.data) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ FillFaster API Error for PnL Report:');
+      console.error('   Status:', error.response?.status);
+      console.error('   Status Text:', error.response?.statusText);
+      console.error('   URL:', url);
+      console.error('   FID:', fid);
+      
+      if (error.response?.data) {
+        try {
+          const errorText = Buffer.from(error.response.data).toString('utf-8');
+          console.error('   Error Response Body:', errorText);
+        } catch (bufferError) {
+          console.error('   Could not parse error response body');
+        }
+      }
+      
+      throw new InternalServerErrorException(
+        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`
+      );
+    }
+  }
     
 
   async createVatReport(
@@ -203,20 +252,21 @@ export class ReportsService {
       // Separate expenses into equipment and non-equipment categories
       const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
 
-      // Initialize an object to hold the totalTaxPayable sums by category
-      const totalTaxPayableByCategory: { [category: string]: number } = {};
+      // Initialize an object to hold the expense sums by category
+      const expenseSumByCategory: { [category: string]: number } = {};
 
       // Loop through each non-equipment expense
       for (const expense of nonEquipmentExpenses) {
           const category = String(expense.category); // Ensure category is treated as a string
-          if (!totalTaxPayableByCategory[category]) {
-              totalTaxPayableByCategory[category] = 0; // Initialize category sum if not already done
+          if (!expenseSumByCategory[category]) {
+              expenseSumByCategory[category] = 0; // Initialize category sum if not already done
           }
-          totalTaxPayableByCategory[category] += Number(expense.totalTaxPayable); // Sum up the totalTaxPayable
+          // Sum up the total expense amount (sum field), not just tax payable
+          expenseSumByCategory[category] += Number(expense.sum || 0);
       }
 
         // Map the totals by category into an array of ExpenseDto
-      const expenseDtos: ExpensePnlDto[] = Object.entries(totalTaxPayableByCategory).map(
+      const expenseDtos: ExpensePnlDto[] = Object.entries(expenseSumByCategory).map(
           ([category, total]) => ({
               category,
               total,
