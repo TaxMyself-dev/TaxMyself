@@ -298,6 +298,25 @@
   display: flex;
 }
 
+.email-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+
+  .checkbox-label {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .email-warning {
+    color: #f44336;
+    font-size: 12px;
+    margin-right: 8px;
+  }
+}
+
 .buttons-container {
   padding: 0px 0px 14px 0px;
   display: flex;

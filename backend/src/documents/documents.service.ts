@@ -20,6 +20,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
+import { MailService } from 'src/mail/mail.service';
+import { User } from 'src/users/user.entity';
 
 @Injectable()
 export class DocumentsService {
@@ -31,6 +33,7 @@ export class DocumentsService {
     private readonly sharedService: SharedService,
     private readonly businessService: BusinessService,
     private readonly bookkeepingService: BookkeepingService,
+    private readonly mailService: MailService,
     @InjectRepository(SettingDocuments)
     private settingDocuments: Repository<SettingDocuments>,
     @InjectRepository(Documents)
@@ -47,6 +50,8 @@ export class DocumentsService {
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
     private dataSource: DataSource
   ) { }
 
@@ -230,6 +235,24 @@ export class DocumentsService {
       console.log(`Deleted Firebase file: ${fullPath}`);
     } catch (error) {
       console.error(`Failed to delete Firebase file: ${fullPath}`, error);
+    }
+  }
+
+  /**
+   * Download a file from Firebase Storage
+   */
+  private async downloadFromFirebase(filePath: string): Promise<Buffer> {
+    try {
+      const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+      const file = bucket.file(filePath);
+      const [buffer] = await file.download();
+      return buffer;
+    } catch (error) {
+      console.error(`Failed to download Firebase file: ${filePath}`, error);
+      throw new HttpException(
+        `Failed to download file from Firebase: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -724,6 +747,7 @@ export class DocumentsService {
     // 1. TRANSFORM DOCDATA (Documents entity fields)
     // ============================================================================
     const docData = dto.docData;
+    console.log('📧 [transformDocumentData] sendEmailToRecipient from DTO:', docData.sendEmailToRecipient);
 
     // Calculate totals
     let sumBefDisBefVat = 0;
@@ -790,6 +814,8 @@ export class DocumentsService {
       // Parent document details
       parentDocType: docData.parentDocType || null,
       parentDocNumber: docData.parentDocNumber || null,
+      // Email sending flag
+      sendEmailToRecipient: docData.sendEmailToRecipient || false,
       
     };
 
@@ -1096,6 +1122,90 @@ export class DocumentsService {
                 console.log(new Date().toLocaleTimeString(), "Step 10 complete - Parent document status updated to CLOSE");
               }
             }
+          }
+
+          // 11. Send email to recipient if requested
+          console.log(new Date().toLocaleTimeString(), "Step 11 - Checking email sending conditions:");
+          console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
+          console.log("  - recipientEmail:", data.docData.recipientEmail);
+          console.log("  - originalFilePath:", originalFilePath);
+          
+          if (data.docData.sendEmailToRecipient && data.docData.recipientEmail && originalFilePath) {
+            try {
+              console.log(new Date().toLocaleTimeString(), "Step 11.1 - Starting email sending process");
+              console.log("  📧 Email will be sent to:", data.docData.recipientEmail);
+              
+              // Get business info for email content
+              const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber);
+              const businessName = business?.businessName || data.docData.issuerBusinessNumber;
+              console.log("  📧 Business name:", businessName);
+
+              // Get Hebrew document type name
+              const docTypeNames: Partial<Record<DocumentType, string>> = {
+                [DocumentType.RECEIPT]: 'קבלה',
+                [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+                [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
+                [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+                [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+                [DocumentType.GENERAL]: 'מסמך כללי',
+              };
+              const docTypeName = docTypeNames[data.docData.docType] || data.docData.docType;
+              console.log("  📧 Document type:", docTypeName, "Number:", data.docData.docNumber);
+
+              // Download PDF from Firebase
+              console.log("  📧 Downloading PDF from Firebase:", originalFilePath);
+              const pdfBuffer = await this.downloadFromFirebase(originalFilePath);
+              console.log("  📧 PDF downloaded successfully, size:", pdfBuffer.length, "bytes");
+
+              // Get owner name - use issuerName from transformed data if available, otherwise get from user
+              let ownerName = data.docData.issuerName;
+              if (!ownerName && business?.firebaseId) {
+                const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
+                ownerName = user ? `${user.fName} ${user.lName}`.trim() : null;
+              }
+              const finalOwnerName = ownerName?.trim() || businessName;
+              console.log("  📧 Owner name:", finalOwnerName);
+              
+              // Prepare email content
+              const recipientName = data.docData.recipientName || 'לקוח נכבד';
+              
+              const emailSubject = `${docTypeName} #${data.docData.docNumber}`;
+              const emailText = `שלום ${recipientName},
+
+מצורף בזאת ${docTypeName} מספר ${data.docData.docNumber}.
+
+בברכה,
+${finalOwnerName}`;
+
+              // Generate attachment filename
+              const attachmentName = `${data.docData.docType}_${data.docData.docNumber}_${data.docData.generalDocIndex}.pdf`;
+              console.log("  📧 Email subject:", emailSubject);
+              console.log("  📧 Attachment name:", attachmentName);
+
+              // Send email with attachment
+              console.log("  📧 Sending email via BREVO...");
+              const emailResponse = await this.mailService.sendMailWithAttachment(
+                data.docData.recipientEmail,
+                emailSubject,
+                emailText,
+                pdfBuffer,
+                attachmentName
+              );
+
+              console.log(new Date().toLocaleTimeString(), "✅ Step 11 complete - Email sent successfully to:", data.docData.recipientEmail);
+              console.log("  📧 Email response:", JSON.stringify(emailResponse, null, 2));
+            } catch (emailError) {
+              // Don't fail document creation if email fails - just log the error
+              console.error(new Date().toLocaleTimeString(), "❌ Error sending email to recipient:", data.docData.recipientEmail);
+              console.error("  Error details:", emailError);
+              if (emailError instanceof Error) {
+                console.error("  Error message:", emailError.message);
+                console.error("  Error stack:", emailError.stack);
+              }
+              console.error("  Document was created successfully, but email sending failed");
+            }
+          } else {
+            console.log(new Date().toLocaleTimeString(), "Step 11 skipped - Email sending conditions not met");
           }
 
         } catch (uploadError) {

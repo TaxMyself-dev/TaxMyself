@@ -406,6 +406,19 @@
     </div>
     }
     <div class="buttons-container">
+      <div class="email-checkbox-container">
+        <p-checkbox 
+          [binary]="true" 
+          inputId="sendEmailCheckbox"
+          [(ngModel)]="sendEmailToRecipient">
+        </p-checkbox>
+        <label for="sendEmailCheckbox" class="checkbox-label">
+          שלח מסמך למייל הלקוח
+        </label>
+        @if (sendEmailToRecipient && !canSendEmail()) {
+          <span class="email-warning">נא למלא כתובת מייל תקינה</span>
+        }
+      </div>
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!createDocIsValid()" (onButtonClicked)="previewDoc()"

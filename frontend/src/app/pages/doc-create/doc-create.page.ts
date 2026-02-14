@@ -97,6 +97,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   filteredClients = signal<IClient[]>([]);
   selectedClientData: IClient = null; // Store selected client data for expanded fields
   addPDFIsLoading: boolean = false;
+  sendEmailToRecipient = false; // Checkbox state for sending email to recipient
   userData: IUserData
   amountBeforeVat: number = 0;
   overallTotals: ITotals;
@@ -244,6 +245,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
       (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0)
     );
   });
+
+  // Check if recipient email is valid for sending
+  canSendEmail = computed(() => {
+    const recipientEmail = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_EMAIL)?.value;
+    return recipientEmail && recipientEmail.trim() !== '' && this.isValidEmail(recipientEmail);
+  });
+
+  // Simple email validation
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
 
 
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
@@ -829,6 +843,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       totalWithoutVat: Number(this.documentSummary().totalWithoutVat.toFixed(2)),
       totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
       totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
+      sendEmailToRecipient: this.sendEmailToRecipient && this.canSendEmail(),
     };
 
     docPayload = {
