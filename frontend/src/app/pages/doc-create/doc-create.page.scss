@@ -7,6 +7,33 @@
   align-items: center;
 }
 
+.withholding-tax-container {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.withholding-tax-link {
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 1rem;
+  display: inline-block;
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: #0056b3;
+    text-decoration: underline;
+  }
+  
+  &.expanded {
+    margin-bottom: 1rem;
+  }
+}
+
+.withholding-tax-input {
+  margin-top: 1rem;
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

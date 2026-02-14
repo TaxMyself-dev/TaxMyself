@@ -106,6 +106,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
   isUserExpanded = signal<boolean>(false);
   isPaymentExpanded: boolean = false;
   morePaymentDetails: boolean = false;
+  isWithholdingTaxExpanded = signal<boolean>(false);
+  withholdingTaxForm: FormGroup;
+  withholdingTaxAmount = signal<number>(0);
   generalArray: IDocCreateFieldData[] = [];
   userArray: IDocCreateFieldData[] = [];
   paymentsArray: IDocCreateFieldData[] = [];
@@ -193,6 +196,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   // Computed signals for filtered arrays based on document type
   isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
   isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+  showWithholdingTaxSection = computed(() => this.fileSelected() === DocumentType.RECEIPT || this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT);
 
   filteredLineDetailsColumns = computed(() =>
     this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument() || this.isExemptBusiness())
@@ -473,6 +477,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('docDate')?.value);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
+    
+    // Reset withholding tax amount when document type changes
+    this.withholdingTaxAmount.set(0);
+    if (this.withholdingTaxForm) {
+      this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(0);
+    }
   }
 
 
@@ -747,6 +757,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Reset allocation number
     this.allocationNumber.set(null);
     this.manualAllocationNumber = '';
+    
+    // Reset withholding tax
+    this.withholdingTaxAmount.set(0);
+    if (this.withholdingTaxForm) {
+      this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(0);
+    }
+    this.isWithholdingTaxExpanded.set(false);
   }
 
 
@@ -844,6 +861,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
       totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
       sendEmailToRecipient: this.sendEmailToRecipient && this.canSendEmail(),
+      withholdingTaxAmount: this.withholdingTaxAmount() || 0,
     };
 
     docPayload = {
@@ -1749,7 +1767,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
     this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
     this.paymentsArray = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
-    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);    
+    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    this.initializeWithholdingTaxForm();
   }
 
 
@@ -1956,6 +1975,22 @@ export class DocCreatePage implements OnInit, OnDestroy {
     if (this.isUserExpanded()) {
       this.userDetailsForm.patchValue(expandField);
     }
+  }
+
+  expandWithholdingTax(): void {
+    this.isWithholdingTaxExpanded.set(!this.isWithholdingTaxExpanded());
+  }
+
+  initializeWithholdingTaxForm(): void {
+    this.withholdingTaxForm = this.formBuilder.group({
+      withholdingTaxAmount: new FormControl(0, [Validators.min(0)])
+    });
+    
+    // Subscribe to form value changes to update the signal
+    this.withholdingTaxForm.get('withholdingTaxAmount')?.valueChanges.subscribe(value => {
+      const numValue = Number(value) || 0;
+      this.withholdingTaxAmount.set(numValue);
+    });
   }
 
   // Show dialog asking user how to get allocation number
@@ -2329,6 +2364,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
               this.allocationNum = docData.allocationNum || null;
               if (docData.allocationNum) {
                 this.allocationNumber.set(docData.allocationNum);
+              }
+              
+              // Restore withholding tax amount
+              if (docData.withholdingTaxAmount !== undefined && docData.withholdingTaxAmount !== null) {
+                const withholdingAmount = Number(docData.withholdingTaxAmount) || 0;
+                this.withholdingTaxAmount.set(withholdingAmount);
+                if (this.withholdingTaxForm) {
+                  this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(withholdingAmount);
+                }
               }
               
               console.log('✅ General and user forms patched');

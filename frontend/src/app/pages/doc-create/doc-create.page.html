@@ -405,20 +405,51 @@
       }
     </div>
     }
-    <div class="buttons-container">
-      <div class="email-checkbox-container">
-        <p-checkbox 
-          [binary]="true" 
-          inputId="sendEmailCheckbox"
-          [(ngModel)]="sendEmailToRecipient">
-        </p-checkbox>
-        <label for="sendEmailCheckbox" class="checkbox-label">
-          שלח מסמך למייל הלקוח
-        </label>
-        @if (sendEmailToRecipient && !canSendEmail()) {
-          <span class="email-warning">נא למלא כתובת מייל תקינה</span>
+
+    <!-- Withholding Tax Section -->
+    @if (showWithholdingTaxSection()) {
+    <div class="section">
+      <div class="withholding-tax-container">
+        <span 
+          class="withholding-tax-link" 
+          (click)="expandWithholdingTax()"
+          [class.expanded]="isWithholdingTaxExpanded()">
+          {{ isWithholdingTaxExpanded() ? 'הסתר ניכוי מס במקור' : 'הוסף ניכוי מס במקור' }}
+        </span>
+        
+        @if (isWithholdingTaxExpanded()) {
+          <div class="withholding-tax-input">
+            <form [formGroup]="withholdingTaxForm">
+              <app-input-text 
+                [controlName]="'withholdingTaxAmount'" 
+                [labelText]="'סכום ניכוי מס במקור'" 
+                [placeholder]="'0.00'" 
+                [parentForm]="withholdingTaxForm"
+                [type]="'number'"
+                [size]="inputsSize.MEDIUM">
+              </app-input-text>
+            </form>
+          </div>
         }
       </div>
+    </div>
+    }
+
+    <div class="email-checkbox-container">
+      <p-checkbox 
+        [binary]="true" 
+        inputId="sendEmailCheckbox"
+        [(ngModel)]="sendEmailToRecipient">
+      </p-checkbox>
+      <label for="sendEmailCheckbox" class="checkbox-label">
+        שלח מסמך למייל הלקוח
+      </label>
+      @if (sendEmailToRecipient && !canSendEmail()) {
+        <span class="email-warning">נא למלא כתובת מייל תקינה</span>
+      }
+    </div>
+
+    <div class="buttons-container">
       <div>
         <app-p-button class="pnl-pdf-button" [buttonText]="'תצוגה מקדימה'" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="buttonColor.WHITE_BORDER" [disabled]="!createDocIsValid()" (onButtonClicked)="previewDoc()"
