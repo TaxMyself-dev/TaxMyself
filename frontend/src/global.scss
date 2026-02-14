@@ -208,7 +208,7 @@ app-root {
   }
 
   &.btn_select {
-    width: 264px;
+    width: 275px;
   }
 
   &.icon {
@@ -407,7 +407,7 @@ app-root {
   }
 
   &.mobile {
-    width: 320px;
+    width: 275px;
   }
 
   &.narrow {
@@ -471,7 +471,7 @@ app-root {
   }
 
   &.mobile {
-    width: 320px;
+    width: 275px;
   }
 
   &.narrow {
@@ -530,10 +530,6 @@ input.p-inputtext::placeholder {
 }
 
 .p-autocomplete-input {
-  // padding-inline: var(--p-inputtext-padding-x) !important;
-  // border-radius: 26px !important;
-  // // background-color: #e0e0e054 !important;
-  // border: 1px solid #ebe8e8 !important;
   border-color: rgb(245 242 242) !important;
   border: none !important;
   padding-inline: 0 !important;

@@ -12,7 +12,7 @@
       <div class="p-field">
         <label for="index">מספר התחלה</label>
         <app-input-text [controlName]="'initialIndex'" labelText="" [placeholder]="''" [parentForm]="initialIndexForm"
-          [size]="inputsSize.BETWEEN"></app-input-text>
+          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
       </div>
       <div>
         <app-p-button [buttonText]=" 'אישור'" [buttonSize]="buttonSize.AUTO"
@@ -22,15 +22,27 @@
   </p-dialog>
   }
   <!-- Document type selection -->
-  <div class="section">
-    <div class="create-doc-header">
+  <div class="section wrapper-sections">
+    <!-- <div class="create-doc-header">
       <div class="icon-title">
         <span class="title">הפקת מסמך</span>
       </div>
       <p class="text-header">
         בחר איזה מסמך ברצונך להפיק
       </p>
+    </div> -->
+    <!-- <p-card class="header-card"> -->
+    <div class="header-content">
+      <p-avatar icon="pi pi-user" shape="circle" size="large">
+      </p-avatar>
+      <div class="text">
+        <h3>הפקת מסמך</h3>
+        <p>בחר איזה מסמך ברצונך להפיק</p>
+      </div>
+
     </div>
+    <!-- </p-card> -->
+
     <div class="section">
       <div class="create-doc-header">
         <div class="icon-title">
@@ -46,7 +58,8 @@
           @if (item.value !== FieldsCreateDocValue.BUSINESS_NUMBER || showBusinessSelector) {
           <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
             [items]="item.labelText === 'עסק' ? businessOptions() : item.enumValues" [parentForm]="generalDetailsForm"
-            [size]="inputsSize.MEDIUM" (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
+            [size]="isMobile() ? inputsSize.MOBILE : inputsSize.MEDIUM"
+            (onChangeInputSelect)="onSelectionChange(item.value, $event)" [disabled]="
             item.value === 'docType' && !generalDetailsForm.get('businessNumber')?.value">
           </app-input-select>
           }
@@ -54,14 +67,15 @@
 
           @case (formTypes.DATE) {
           <app-input-date [controlName]="item.value" [labelText]="item.labelText" placeholder="00/00/0000"
-            [parentForm]="generalDetailsForm" [size]="inputsSize.MEDIUM">
+            [parentForm]="generalDetailsForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.MEDIUM">
           </app-input-date>
           }
 
           @default {
           @if (item.value !== FieldsCreateDocValue.DOC_VAT_RATE || isGeneralExpanded) {
           <app-input-text [controlName]="item.value" [value]="item.initialValue" [labelText]="item.labelText"
-            [placeholder]="item.placeHolder" [parentForm]="generalDetailsForm" [size]="inputsSize.BETWEEN" [type]="
+            [placeholder]="item.placeHolder" [parentForm]="generalDetailsForm"
+            [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [type]="
           item.type === formTypes.NUMBER ? 'number' : 'text'"></app-input-text>
           }
           }
@@ -95,25 +109,26 @@
             [placeholder]="item.placeHolder" [items]="filteredClients()" optionLabel="name"
             (onCompleteMethod)="filterClients($event)" (onItemSelect)="onClientSelect($event)" [showAddNew]="true"
             addNewLabel="הוסף לקוח חדש" (onAddNew)="onAddNewClient($event)" headerText="בחר לקוח קיים"
-            [forceSelection]="false" [size]="inputsSize.BETWEEN">
+            [forceSelection]="false" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN">
           </app-input-autocomplete>
           }
 
           @case (formTypes.DDL) {
           <app-input-select [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-            [items]="item.enumValues" [parentForm]="userDetailsForm" [size]="inputsSize.BETWEEN">
+            [items]="item.enumValues" [parentForm]="userDetailsForm"
+            [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN">
           </app-input-select>
           }
 
           @case (formTypes.DATE) {
           <app-input-date [controlName]="item.value" [labelText]="item.labelText" placeholder="00/00/0000"
-            [parentForm]="userDetailsForm">
+            [parentForm]="userDetailsForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN">
           </app-input-date>
           }
 
           @default {
           <app-input-text [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-            [parentForm]="userDetailsForm" [size]="inputsSize.BETWEEN" [type]="
+            [parentForm]="userDetailsForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [type]="
           item.type === formTypes.NUMBER ? 'number' :
           'text'
         ">
@@ -139,7 +154,86 @@
           <span class="title">פירוט</span>
         </div>
       </div>
-      <div class="table-wrapper">
+
+
+      <div class="line-entry" [formGroup]="lineDetailsForm">
+
+        <!-- Desktop header -->
+        <div class="line-entry__header">
+          @for (col of lineDetailsColumns; track col.field) {
+          <div class="line-entry__cell line-entry__cell--head">
+            <span>{{ col.header }}</span>
+            @if (col.required) { <span class="req">*</span> }
+          </div>
+          }
+        </div>
+
+        <div class="line-entry__row">
+          @for (col of lineDetailsColumns; track col.field) {
+          <div class="line-entry__cell" [attr.data-label]="col.header">
+
+            <!-- label for mobile -->
+            <div class="line-entry__label">
+              {{ col.header }}
+              @if (col.header) { <span class="req">*</span> }
+            </div>
+
+            @switch (col.field) {
+
+            @case (FieldsCreateDocValue.UNIT_AMOUNT) {
+            <p-inputnumber [min]="1" class="plus-minus" [formControlName]="col.field" [showButtons]="true"
+              buttonLayout="horizontal" spinnerMode="horizontal"
+              [inputStyle]="{ width: '3rem', 'text-align': 'center' }" [ngStyle]="{'flex-direction': 'row-reverse'}">
+              <ng-template #decrementbuttonicon>
+                <span class="pi pi-minus"></span>
+              </ng-template>
+              <ng-template #incrementbuttonicon>
+                <span class="pi pi-plus"></span>
+              </ng-template>
+            </p-inputnumber>
+            }
+
+            @case (FieldsCreateDocValue.VAT_OPTIONS) {
+            <div class="gender-options-row" role="radiogroup">
+              @for (opt of vatOptions; track opt.value) {
+              <div class="vat-option">
+                <p-radiobutton [formControlName]="col.field" [value]="opt.value" [name]="col.field"
+                  [inputId]="col.field + '-' + opt.value" />
+                <label class="ml-2" [for]="col.field + '-' + opt.value">{{ opt.name }}</label>
+              </div>
+              }
+            </div>
+            }
+
+            @case ('action') {
+            <div class="line-entry__actions">
+              <app-p-button class="pnl-pdf-button"
+                [buttonText]="editingLineIndex() !== null ? 'עדכן שורה' : 'הוסף שורה'" [variant]="'text'"
+                [severity]="'info'" [buttonSize]="buttonSize.AUTO" [disabled]="!lineDetailsForm.valid"
+                (onButtonClicked)="addLineDetails()">
+              </app-p-button>
+
+              @if (editingLineIndex() !== null) {
+              <app-p-button class="pnl-pdf-button" [buttonText]="'ביטול'" [variant]="'text'" [severity]="'secondary'"
+                [buttonSize]="buttonSize.AUTO" (onButtonClicked)="cancelEdit()">
+              </app-p-button>
+              }
+            </div>
+            }
+
+            @default {
+            <app-input-text [controlName]="col.field" [placeholder]="col.header" [parentForm]="lineDetailsForm"
+              [type]="col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? 'text' : 'number'"
+              [size]="isMobile() ? inputsSize.MOBILE : col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? inputsSize.LARGE : inputsSize.SMALL">
+            </app-input-text>
+            }
+            }
+          </div>
+          }
+        </div>
+      </div>
+      <!-- <div class="table-wrapper">
+
         <p-table [columns]="lineDetailsColumns" [value]="[{}]" [tableStyle]="{ 'min-width': '50rem' }">
           <ng-template pTemplate="header" let-columns>
             <tr>
@@ -178,7 +272,7 @@
                 @case (FieldsCreateDocValue.VAT_OPTIONS) {
                 <div class="gender-options-row" role="radiogroup" [attr.aria-labelledby]="'vat-label'">
                   @for (opt of vatOptions; track opt.value; let i = $index) {
-                  <!-- Make 'name' and 'inputId' unique per row to prevent cross-row grouping -->
+                  Make 'name' and 'inputId' unique per row to prevent cross-row grouping
                   <div class="vat-option">
                     <p-radiobutton [formControlName]="col.field" [value]="opt.value" [name]="col.field"
                       [inputId]="col.field + '-' + opt.value" />
@@ -214,7 +308,7 @@
             </tr>
           </ng-template>
         </p-table>
-      </div>
+      </div> -->
 
       @if (lineItemsDraft().length > 0) {
       <div class="line-items-table" style="margin-top: 2rem;">
@@ -324,17 +418,18 @@
             @for (item of getPaymentFields(activePaymentMethod.id); track item.value) {
             @switch (item.type) {
             @case (formTypes.DATE) {
-            <app-input-date [controlName]="item.value" [placeholder]="item.placeHolder"
-              [parentForm]="paymentInputForm"></app-input-date>
+            <app-input-date [controlName]="item.value" [placeholder]="item.placeHolder" [parentForm]="paymentInputForm"
+              [size]="isMobile() ? inputsSize.MOBILE : inputsSize.MEDIUM"></app-input-date>
             }
             @case (formTypes.DDL) {
             <app-input-select [controlName]="item.value" [placeholder]="item.placeHolder" [items]="item.enumValues"
-              [parentForm]="paymentInputForm" [size]="inputsSize.AUTO"></app-input-select>
+              [parentForm]="paymentInputForm"
+              [size]="isMobile() ? inputsSize.MOBILE : inputsSize.AUTO"></app-input-select>
             }
             @default {
             <app-input-text [controlName]="item.value" [placeholder]="item.placeHolder" [parentForm]="paymentInputForm"
               [type]="item.type === formTypes.NUMBER ? 'number' : 'text'" [min]="1"
-              [size]="inputsSize.SMALL"></app-input-text>
+              [size]="isMobile() ? inputsSize.MOBILE : inputsSize.SMALL"></app-input-text>
             }
             }
             }
@@ -425,44 +520,25 @@
   </div>
 
   <!-- SHAAM Invoice Approval Dialog -->
-  <app-shaam-invoice-approval-dialog
-    [isVisible]="showShaamDialog()"
-    [businessNumber]="selectedBusinessNumber"
-    (visibleChange)="onShaamDialogClose($event)"
-    (approvalSuccess)="onShaamApprovalSuccess($event)">
+  <app-shaam-invoice-approval-dialog [isVisible]="showShaamDialog()" [businessNumber]="selectedBusinessNumber"
+    (visibleChange)="onShaamDialogClose($event)" (approvalSuccess)="onShaamApprovalSuccess($event)">
   </app-shaam-invoice-approval-dialog>
 
   <!-- Manual Allocation Number Input Dialog -->
-  <p-dialog 
-    header="הזנת מספר הקצאה ידנית" 
-    [visible]="showAllocationNumberInput()" 
-    [modal]="true" 
-    [rtl]="true"
-    [style]="{ width: '400px' }"
-    (onHide)="cancelAllocationNumberInput()">
+  <p-dialog header="הזנת מספר הקצאה ידנית" [visible]="showAllocationNumberInput()" [modal]="true" [rtl]="true"
+    [style]="{ width: '400px' }" (onHide)="cancelAllocationNumberInput()">
     <div class="p-fluid">
       <p>אנא הזן את מספר ההקצאה שקיבלת משעמ:</p>
       <div class="p-field">
         <label for="allocationNumber">מספר הקצאה</label>
-        <input 
-          id="allocationNumber"
-          type="text" 
-          class="p-inputtext p-component" 
-          [(ngModel)]="manualAllocationNumber"
-          placeholder="הזן מספר הקצאה"
-          style="width: 100%;">
+        <input id="allocationNumber" type="text" class="p-inputtext p-component" [(ngModel)]="manualAllocationNumber"
+          placeholder="הזן מספר הקצאה" style="width: 100%;">
       </div>
       <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
-        <app-p-button 
-          [buttonText]="'ביטול'" 
-          [buttonSize]="buttonSize.AUTO"
-          [buttonColor]="buttonColor.WHITE"
+        <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.WHITE"
           (onButtonClicked)="cancelAllocationNumberInput()">
         </app-p-button>
-        <app-p-button 
-          [buttonText]="'אישור'" 
-          [buttonSize]="buttonSize.AUTO"
-          [buttonColor]="buttonColor.BLACK"
+        <app-p-button [buttonText]="'אישור'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK"
           [disabled]="!manualAllocationNumber || !manualAllocationNumber.trim()"
           (onButtonClicked)="onAllocationNumberSubmit(manualAllocationNumber)">
         </app-p-button>
@@ -471,8 +547,8 @@
   </p-dialog>
 
   <!-- Toast for messages -->
-  <p-toast key="br"></p-toast>
-  
+  <!-- <p-toast key="br"></p-toast> -->
+
   <!-- Confirmation Dialog for PrimeNG ConfirmationService -->
   <p-confirmDialog></p-confirmDialog>
 

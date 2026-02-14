@@ -1,9 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn} from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { SourceType } from 'src/enum';
 
 @Entity()
 export class Finsite {
-
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -28,15 +27,14 @@ export class Finsite {
   @Column()
   finsiteId: string;
 
-  @Column('decimal', { precision: 10, scale: 2,  default: 0.00 })
+  @Column('decimal', { precision: 10, scale: 2, default: 0.0 })
   balance: number;
 
   @Column({
     type: 'enum',
     enum: SourceType,
     enumName: 'SourceType',
-    default: SourceType.CREDIT_CARD
+    default: SourceType.CREDIT_CARD,
   })
   paymentMethodType: SourceType;
-
 }

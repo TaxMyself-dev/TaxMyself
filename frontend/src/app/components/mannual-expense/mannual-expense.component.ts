@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
 import { FilesService } from "src/app/services/files.service";
@@ -15,8 +15,7 @@ import { ButtonColor, ButtonSize } from "../button/button.enum";
 import { MannualExpenseService } from "./mannual-expense.service";
 import { ExpenseDataService } from "src/app/services/expense-data.service";
 import { MessageService } from "primeng/api";
-import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError, fromEvent, startWith } from "rxjs";
-import { toSignal } from "@angular/core/rxjs-interop";
+import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError } from "rxjs";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -539,15 +538,7 @@ export class MannualExpenseComponent {
     buttonSize = ButtonSize;
     buttonColor = ButtonColor;
 
-    readonly viewportWidth = toSignal(
-        fromEvent(window, 'resize').pipe(
-            startWith(null),
-            map(() => window.innerWidth)
-        ),
-        { initialValue: window.innerWidth }
-    );
-
-    isMobile = computed(() => this.viewportWidth() <= 768);
+    isMobile = computed(() => this.genericService.isMobile());
 
     mannualExpenseForm = this.formBuilder.group({
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],

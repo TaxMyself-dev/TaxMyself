@@ -1,33 +1,25 @@
-import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
-import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, take, tap, throwError } from 'rxjs';
-import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
-import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
-import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
-import { GenericService } from 'src/app/services/generic.service';
-import { FilesService } from 'src/app/services/files.service';
+import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { catchError, EMPTY, finalize, firstValueFrom, from, of, switchMap, tap } from 'rxjs';
+import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocumentsService } from 'src/app/services/documents.service';
+import { FilesService } from 'src/app/services/files.service';
+import { GenericService } from 'src/app/services/generic.service';
+import { ShaamService } from 'src/app/services/shaam.service';
+import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, inputsSize, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
+import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
+import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
+import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
-import { inputsSize } from 'src/app/shared/enums';
-import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
-import { ConfirmationService, MenuItem } from 'primeng/api';
-import { DocumentType } from './doc-cerate.enum';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
-import { log } from 'console';
-import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
-import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
-import { ShaamService } from 'src/app/services/shaam.service';
-import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
-import { MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
+import { DocCreateService } from './doc-create.service';
 
 // Constant for allocation number threshold
 const ALLOCATION_NUMBER_THRESHOLD = 10000;
@@ -86,6 +78,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   DocCreateFields = DocCreateFields;
   isFileSelected = signal(false); // For HTML template
   generalFormIsValidSignal = signal(false);
+  isMobile = computed(() => this.genericService.isMobile());
   userFormIsValidSignal = signal(false);
   // fileSelected: DocumentType; // For get type of file
   fileSelected = signal<DocumentType>(DocumentType.RECEIPT); // For get type of file

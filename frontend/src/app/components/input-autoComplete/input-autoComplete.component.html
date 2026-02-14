@@ -11,13 +11,16 @@
       }
     </label>
     }
-    <p-autocomplete #acInput  [formControlName]="controlName()" [suggestions]="items()" (completeMethod)="onComplete($event)"
-      (onSelect)="onSelect($event)" [placeholder]="placeholder()" [disabled]="disabled()" [optionLabel]="optionLabel()">
+    <p-autocomplete #acInput [inputStyleClass]="inputClasses()" [formControlName]="controlName()"
+      [suggestions]="items()" (completeMethod)="onComplete($event)" (onSelect)="onSelect($event)"
+      [placeholder]="placeholder()" [disabled]="disabled()" [optionLabel]="optionLabel()">
       @if (showAddNew()) {
       <ng-template #footer>
         <div class="px-3 py-3">
         </div>
-        <app-p-button fluid [severity]="'info'" [buttonText]="addNewLabel()" [variant]="'text'" [buttonSize]="buttonSize.AUTO" (onButtonClicked)="handleAddNew(ctrl.value, acInput)" [icon]="'pi pi-plus'"></app-p-button>
+        <app-p-button fluid [severity]="'info'" [buttonText]="addNewLabel()" [variant]="'text'"
+          [buttonSize]="buttonSize.AUTO" (onButtonClicked)="handleAddNew(ctrl.value, acInput)"
+          [icon]="'pi pi-plus'"></app-p-button>
       </ng-template>
       }
       <!-- empty template -->

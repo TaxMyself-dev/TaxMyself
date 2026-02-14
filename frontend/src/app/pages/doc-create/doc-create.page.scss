@@ -5,16 +5,35 @@
   width: 100%;
   overflow: auto;
   align-items: center;
+  padding-right: 20px;
 }
 
 .page-wrapper {
   flex: 1 1 auto;
   height: 100%;
   width: 98%;
-  // display: flex;
-  // flex-direction: column;
-  // justify-content: flex-start;
 }
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 16px;
+  gap: 10px;
+  align-self: baseline;
+}
+
+.text h3 {
+  margin: 0;
+  font-weight: 700;
+}
+
+.text p {
+  margin: 0;
+  // color: var(--text-color-secondary);
+  color: #898585;
+}
+
 
 .section {
   display: flex;
@@ -48,6 +67,91 @@
   justify-content: flex-start;
   column-gap: 44px;
   row-gap: 30px;
+}
+
+@media (max-width: 768px) {
+
+  .wrapper-sections {
+    align-items: center;
+  }
+
+  .section .section {
+    border: solid 1px #EBEBEB;
+    padding-right: 16px;
+    padding-top: 16px;
+    border-radius: 4px;
+    width: 90%;
+  }
+
+  // :host {
+  //   align-items: stretch;
+  //   background-color: #f7f7f9;
+  // }
+
+  // .page-wrapper {
+  //   width: 100%;
+  //   padding: 16px 16px 140px;
+  //   box-sizing: border-box;
+  // }
+
+  // .page-wrapper > .section {
+  //   gap: 16px;
+  // }
+
+  // .page-wrapper > .section > .section {
+  //   background-color: #ffffff;
+  //   border: 1px solid #e9e9f0;
+  //   border-radius: 18px;
+  //   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+  //   padding: 20px 18px;
+  //   box-sizing: border-box;
+  //   display: flex;
+  //   flex-direction: column;
+  //   gap: 18px;
+  // }
+
+  // .page-wrapper > .section > .section .create-doc-header {
+  //   text-align: right;
+  //   display: flex;
+  //   flex-direction: column;
+  //   gap: 6px;
+  // }
+
+  // .page-wrapper > .section > .section .general-fields {
+  //   display: flex;
+  //   flex-direction: column;
+  //   gap: 16px;
+  //   width: 100%;
+  // }
+
+  // .page-wrapper > .section > .section .user-details-section {
+  //   display: flex;
+  //   flex-direction: column;
+  //   gap: 16px;
+  // }
+
+  // .buttons-container {
+  //   position: fixed;
+  //   bottom: 0;
+  //   left: 0;
+  //   width: 100%;
+  //   padding: 16px 18px 24px;
+  //   box-sizing: border-box;
+  //   background: rgba(255, 255, 255, 0.96);
+  //   box-shadow: 0 -12px 24px rgba(15, 23, 42, 0.12);
+  //   display: flex;
+  //   flex-direction: row-reverse;
+  //   gap: 12px;
+  //   z-index: 15;
+  // }
+
+  // .buttons-container > div {
+  //   flex: 1;
+  // }
+
+  // .buttons-container app-p-button {
+  //   width: 100%;
+  // }
 }
 
 .table-wrapper {
@@ -346,5 +450,130 @@
       direction: rtl;
       text-align: right;
     }
+  }
+}
+
+
+
+
+// ====================================================================
+
+/* Container של שורת ההזנה */
+.line-entry {
+  width: 100%;
+}
+
+/* "כותרת" לדסקטופ */
+.line-entry__header {
+  display: grid;
+  grid-template-columns: 1.9fr 0.9fr 0.9fr 1.6fr 0.9fr 0.9fr;
+  /* תתאים לפי העמודות אצלך */
+  gap: 0.75rem;
+  align-items: center;
+  color: gray;
+  border-bottom: 1px solid #EBEBEB;
+  padding-bottom: 5px;
+  margin-bottom: 10px;
+}
+
+.line-entry__row {
+  display: grid;
+  grid-template-columns: 1.9fr 0.9fr 0.9fr 1.6fr 0.9fr 0.9fr;
+  /* חייב להיות זהה ל-header */
+  gap: 0.75rem;
+  align-items: center;
+  border-bottom: 1px solid #EBEBEB;
+  padding-bottom: 10px;
+}
+
+.line-entry__cell {
+  min-width: 0;
+  /* חשוב כדי למנוע overflow */
+}
+
+.line-entry__cell--head {
+  font-weight: 600;
+}
+
+.req {
+  color: red;
+  margin-right: 4px;
+}
+
+/* label במובייל בלבד */
+.line-entry__label {
+  display: none;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+/* פעולות */
+.line-entry__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* כוחות רוחב מלא לאינפוטים */
+.line-entry app-input-text,
+.line-entry app-input-select,
+.line-entry app-input-date {
+  display: block;
+  width: 100%;
+}
+
+// .line-entry :where(.p-inputnumber, .p-inputtext, .p-dropdown) {
+//   width: 100%;
+// }
+
+/* ------ מובייל ------ */
+@media (max-width: 768px) {
+
+  /* אין כותרת במובייל */
+  .line-entry__header {
+    display: none;
+  }
+
+  /* הופכים את השורה לכרטיס/stack */
+  .line-entry__row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    // border: 1px solid #ebebeb;
+    // border-radius: 8px;
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .line-entry__cell {
+    width: 100%;
+  }
+
+  .line-entry__label {
+    display: block;
+  }
+
+  /* רדיו מע״מ לרוב עדיף שיהיה שורה-שורה במובייל */
+  .gender-options-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* כפתורי action נוחים במובייל */
+  .line-entry__actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* מונע overflow אופקי מכל דבר בפנים */
+  .line-entry,
+  .line-entry * {
+    max-width: 100%;
   }
 }

@@ -16,6 +16,7 @@ import { FinsiteModule } from './finsite/finsite.module';
 import { DelegationModule } from './delegation/delegation.module';
 import { BookkeepingModule } from './bookkeeping/bookkeeping.module';
 import { FeezbackModule } from './feezback/feezback.module';
+import { FeezbackWebhookModule } from './feezback/webhook/feezback-webhook.module';
 import { ShaamModule } from './shaam/shaam.module';
 import { AgentsModule } from './agents/agents.module';
 //Entities
@@ -40,6 +41,8 @@ import { Documents } from './documents/documents.entity';
 import { DocLines } from './documents/doc-lines.entity';
 import { DocPayments } from './documents/doc-payments.entity';
 import { Business } from './business/business.entity';
+import { FeezbackConsent } from './feezback/consent/entities/feezback-consent.entity';
+import { FeezbackWebhookEvent } from './feezback/webhook/entities/feezback-webhook-event.entity';
 
 import 'dotenv/config'
 import * as admin from 'firebase-admin';
@@ -72,7 +75,8 @@ import { BusinessService } from './business/business.service';
       database: process.env.DB_DATABASE,
       entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
-        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents],
+        Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents,
+        FeezbackConsent, FeezbackWebhookEvent],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true
@@ -100,10 +104,12 @@ import { BusinessService } from './business/business.service';
       JournalEntry,
       JournalLine,
       DefaultBookingAccount,
-      Child
+      Child,
+      FeezbackConsent,
+      FeezbackWebhookEvent
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
   controllers: [AppController],
   providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })
