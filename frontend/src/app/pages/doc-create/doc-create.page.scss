@@ -8,6 +8,125 @@
   padding-right: 20px;
 }
 
+.withholding-tax-container {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.withholding-tax-link {
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 1rem;
+  display: inline-block;
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: #0056b3;
+    text-decoration: underline;
+  }
+  
+  &.expanded {
+    margin-bottom: 1rem;
+  }
+}
+
+.withholding-tax-input {
+  margin-top: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.allocation-loading-content {
+  text-align: center;
+  padding: 2rem;
+}
+
+.allocation-loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.allocation-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: block;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+// Ensure animation works inside PrimeNG dialog (using ::ng-deep to penetrate view encapsulation)
+::ng-deep .p-dialog-content {
+  .allocation-loading-content {
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .allocation-loading-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .allocation-spinner {
+    width: 50px !important;
+    height: 50px !important;
+    border: 4px solid #f3f3f3 !important;
+    border-top: 4px solid #007bff !important;
+    border-radius: 50% !important;
+    animation: spin 1s linear infinite !important;
+    display: block !important;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+
+  .allocation-loading-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .allocation-loading-title {
+    font-size: 1.1rem;
+    color: #333;
+    margin: 0;
+  }
+
+  .allocation-loading-subtitle {
+    font-size: 0.9rem;
+    color: #666;
+    margin: 0;
+  }
+}
+
+.allocation-loading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.allocation-loading-title {
+  font-size: 1.1rem;
+  color: #333;
+  margin: 0;
+}
+
+.allocation-loading-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+}
+
 .page-wrapper {
   flex: 1 1 auto;
   height: 100%;
@@ -308,6 +427,25 @@
 
 .wrap-amount {
   display: flex;
+}
+
+.email-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+
+  .checkbox-label {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .email-warning {
+    color: #f44336;
+    font-size: 12px;
+    margin-right: 8px;
+  }
 }
 
 .buttons-container {

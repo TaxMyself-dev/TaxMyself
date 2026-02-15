@@ -27,6 +27,7 @@ import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-in
 import { ToastModule } from 'primeng/toast';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialog } from 'primeng/confirmdialog';
+import { CheckboxModule } from 'primeng/checkbox';
 import { Card } from "primeng/card";
 import { Avatar } from "primeng/avatar";
 
@@ -55,6 +56,7 @@ import { Avatar } from "primeng/avatar";
     ShaamInvoiceApprovalDialogComponent,
     ToastModule,
     ConfirmDialog,
+    CheckboxModule,
     Card,
     Avatar
   ],

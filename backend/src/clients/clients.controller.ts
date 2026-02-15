@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ClientsService } from "./clients.service";
 import { FirebaseAuthGuard } from "src/guards/firebase-auth.guard";
 import { AuthenticatedRequest } from "src/interfaces/authenticated-request.interface";
@@ -26,7 +26,11 @@ async getClients(@Req() request: AuthenticatedRequest, @Param('businessNumber') 
 @UseGuards(FirebaseAuthGuard)
 async deleteClient(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
   const userId = request.user?.firebaseId;
-  return this.clientsService.deleteClient(userId, id);
+  const clientRowId = parseInt(id, 10);
+  if (isNaN(clientRowId)) {
+    throw new BadRequestException('Invalid client ID');
+  }
+  return this.clientsService.deleteClient(userId, clientRowId);
 }
 
 

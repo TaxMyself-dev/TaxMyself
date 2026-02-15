@@ -35,6 +35,12 @@ export class PnLReportService {
     return this.http.get<any>(url, { params: params })
   }
 
+  generatePnLReportPDF(data: any): Observable<Blob> {
+    const url = `${environment.apiUrl}reports/pnl-report-pdf`;
+    return this.http.post<Blob>(url, data, { 
+      responseType: 'blob' as 'json'
+    });
+  }
 
   addFileToExpenses(formData: { id: number, file: string | File }[]): Observable<any> {
     // const token = localStorage.getItem('token');

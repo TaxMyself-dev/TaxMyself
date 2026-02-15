@@ -4,7 +4,8 @@ import { DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
 import { FilesService } from "src/app/services/files.service";
 import { GenericService } from "src/app/services/generic.service";
 import { AuthService } from "src/app/services/auth.service";
-import { inputsSize } from "src/app/shared/enums";
+import { inputsSize, BusinessType } from "src/app/shared/enums";
+import { Business } from "src/app/shared/interface";
 import { IGetSupplier, ISelectItem, ISubCategory } from "src/app/shared/interface";
 import { InputDateComponent } from "../input-date/input-date.component";
 import { appFileUploadGptComponent } from "../input-file/input-file.component";
@@ -540,6 +541,12 @@ export class MannualExpenseComponent {
 
     isMobile = computed(() => this.genericService.isMobile());
 
+    // Track selected business type (similar to doc-create.page.ts)
+    selectedBusinessType = signal<BusinessType>(BusinessType.EXEMPT);
+
+    // Check if the selected business is exempt from VAT
+    isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+
     mannualExpenseForm = this.formBuilder.group({
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
         date: ["", Validators.required],
@@ -555,6 +562,24 @@ export class MannualExpenseComponent {
         note: ["",],
         file: [null],
     })
+
+    constructor() {
+        // Initialize selectedBusinessType from active business (if available)
+        const activeBusinessNumber = this.authService.getActiveBusinessNumber();
+        if (activeBusinessNumber) {
+            const business = this.genericService.businesses().find(b => b.businessNumber === activeBusinessNumber);
+            if (business) {
+                this.selectedBusinessType.set(business.businessType ?? BusinessType.EXEMPT);
+            }
+        }
+
+        // Set vatPercent to 0 when business is exempt
+        effect(() => {
+            if (this.isExemptBusiness()) {
+                this.mannualExpenseForm.patchValue({ vatPercent: 0 }, { emitEvent: false });
+            }
+        });
+    }
 
     getSubCategory(category: string | boolean | null): void {
         if (!category) {
@@ -709,9 +734,18 @@ export class MannualExpenseComponent {
 
     selectBusiness(event: string | boolean): void {
         console.log("event: ", event);
-        this.authService.setActiveBusinessNumber(event as string);
-        this.mannualExpenseService.$selectedBusinessNumber.set(event as string); // Trigger supplier reload on account change
+        const businessNumber = event as string;
+        this.authService.setActiveBusinessNumber(businessNumber);
+        this.mannualExpenseService.$selectedBusinessNumber.set(businessNumber); // Trigger supplier reload on account change
         console.log("🚀 ~ MannualExpenseComponent ~ selectBusiness ~ this.mannualExpenseService.$selectedBusinessNumber:", this.mannualExpenseService.$selectedBusinessNumber())
+
+        // Update selectedBusinessType (similar to doc-create.page.ts)
+        if (businessNumber) {
+            const business = this.genericService.businesses().find(b => b.businessNumber === businessNumber);
+            if (business) {
+                this.selectedBusinessType.set(business.businessType ?? BusinessType.EXEMPT);
+            }
+        }
 
         if (event) {
             this.mannualExpenseService.isSelectBusiness.set(true);

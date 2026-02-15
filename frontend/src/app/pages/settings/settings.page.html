@@ -1,0 +1,95 @@
+<div class="page-wrapper">
+  <!-- Share Accountant Button - Top Left -->
+  <div class="share-accountant-button-container">
+    <app-p-button 
+      [buttonText]="'שתף את רואה החשבון שלי'" 
+      [buttonColor]="buttonColor.BLACK" 
+      [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="shareWithAccountant()">
+    </app-p-button>
+  </div>
+
+  <!-- Personal Details Section -->
+  <div class="section-block">
+    <h2 class="section-title">פרטים אישיים</h2>
+    <div class="details-container">
+      <div class="detail-row">
+        <span class="detail-label">שם פרטי:</span>
+        <span class="detail-value">{{ userData?.fName || '-' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">שם משפחה:</span>
+        <span class="detail-value">{{ userData?.lName || '-' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">תעודת זהות:</span>
+        <span class="detail-value">{{ userData?.id || '-' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">אימייל:</span>
+        <span class="detail-value">{{ userData?.email || '-' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">טלפון:</span>
+        <span class="detail-value">{{ userData?.phone || '-' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">תאריך לידה:</span>
+        <span class="detail-value">{{ formatDateOfBirth(userData?.dateOfBirth) }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">עיר:</span>
+        <span class="detail-value">{{ userData?.city || '-' }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">סטטוס משפחתי:</span>
+        <span class="detail-value">{{ getFamilyStatusLabel(userData?.familyStatus) }}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">סטטוס תעסוקתי:</span>
+        <span class="detail-value">{{ getEmploymentStatusLabel(userData?.employmentStatus) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Businesses Section -->
+  <div class="section-block">
+    <h2 class="section-title">עסקים</h2>
+    <div class="businesses-container">
+      @if (businesses().length === 0) {
+        <p class="no-data">אין עסקים זמינים</p>
+      } @else {
+        @for (business of businesses(); track business.businessNumber) {
+          <div class="business-card">
+            <div class="business-header">
+              <h3 class="business-name">{{ business.businessName || '-' }}</h3>
+            </div>
+            <div class="business-details">
+              <div class="detail-row">
+                <span class="detail-label">מספר עסק:</span>
+                <span class="detail-value">{{ business.businessNumber || '-' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">כתובת:</span>
+                <span class="detail-value">{{ business.businessAddress || '-' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">טלפון:</span>
+                <span class="detail-value">{{ business.businessPhone || '-' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">אימייל:</span>
+                <span class="detail-value">{{ business.businessEmail || '-' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">סוג עסק:</span>
+                <span class="detail-value">{{ getBusinessTypeLabel(business.businessType) }}</span>
+              </div>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</div>
+

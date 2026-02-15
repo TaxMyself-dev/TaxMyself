@@ -8,7 +8,6 @@ import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
-import { DocCreateService } from '../doc-create/doc-create.service';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 
@@ -27,6 +26,7 @@ export class PnLReportPage implements OnInit {
 
   // Business related
   businessNumber = signal<string>("");
+  businessName = signal<string>("");
   businessNamesList: ISelectItem[] = [];
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
@@ -49,7 +49,7 @@ export class PnLReportPage implements OnInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
-  constructor(private docCreateService: DocCreateService, public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
   }
 
 
@@ -63,9 +63,24 @@ export class PnLReportPage implements OnInit {
     if (businesses.length === 1) {
       // 1️⃣ Set the signal
       this.businessNumber.set(businesses[0].businessNumber);
+      this.businessName.set(businesses[0].businessName);
       // 2️⃣ Set the form so FilterTab works
       this.form.get('businessNumber')?.setValue(businesses[0].businessNumber);
     }
+    
+    // Listen to business number changes
+    this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
+      if (!businessNumber) return;
+      
+      const business = this.gs.businesses().find(
+        b => b.businessNumber === businessNumber
+      );
+      
+      if (business) {
+        this.businessNumber.set(business.businessNumber);
+        this.businessName.set(business.businessName);
+      }
+    });
     
     // Now config can be set safely
     this.filterConfig = [
@@ -108,8 +123,18 @@ export class PnLReportPage implements OnInit {
 
     const { startDate, endDate } = this.dateService.getStartAndEndDates(periodMode, year, month, localStartDate, localEndDate);
     
-    // this.businessNumber.set(formValues.businessNumber);
-    this.businessNumber.set(this.form?.get('businessNumber')?.value);
+    // Update business number and name
+    const selectedBusinessNumber = this.form?.get('businessNumber')?.value;
+    this.businessNumber.set(selectedBusinessNumber);
+    
+    // Find and set business name
+    const business = this.gs.businesses().find(
+      b => b.businessNumber === selectedBusinessNumber
+    );
+    if (business) {
+      this.businessName.set(business.businessName);
+    }
+    
     this.startDate.set(startDate);
     this.endDate.set(endDate);
 
@@ -175,7 +200,7 @@ export class PnLReportPage implements OnInit {
       prefill_data: {
         name: this.userData.fName + " " + this.userData.lName,
         id: this.userData.businessNumber,
-        period: `${this.startDate} - ${this.endDate}`,
+        period: `${this.startDate()} - ${this.endDate()}`,
         income: this.pnlReport.income as string,
         profit: this.pnlReport.netProfitBeforeTax as string,
         expenses: String(this.totalExpense),
@@ -183,7 +208,7 @@ export class PnLReportPage implements OnInit {
       },
     }
 
-    this.docCreateService.generatePDF(data)
+    this.pnlReportService.generatePnLReportPDF(data)
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);

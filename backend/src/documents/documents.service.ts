@@ -1,7 +1,7 @@
 import { Injectable, HttpException, HttpStatus, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios, { AxiosInstance } from 'axios';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, Repository, In } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
 import { DocLines } from './doc-lines.entity';
@@ -20,6 +20,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
+import { MailService } from 'src/mail/mail.service';
+import { User } from 'src/users/user.entity';
 
 @Injectable()
 export class DocumentsService {
@@ -31,6 +33,7 @@ export class DocumentsService {
     private readonly sharedService: SharedService,
     private readonly businessService: BusinessService,
     private readonly bookkeepingService: BookkeepingService,
+    private readonly mailService: MailService,
     @InjectRepository(SettingDocuments)
     private settingDocuments: Repository<SettingDocuments>,
     @InjectRepository(Documents)
@@ -47,6 +50,8 @@ export class DocumentsService {
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
     private dataSource: DataSource
   ) { }
 
@@ -233,6 +238,24 @@ export class DocumentsService {
     }
   }
 
+  /**
+   * Download a file from Firebase Storage
+   */
+  private async downloadFromFirebase(filePath: string): Promise<Buffer> {
+    try {
+      const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+      const file = bucket.file(filePath);
+      const [buffer] = await file.download();
+      return buffer;
+    } catch (error) {
+      console.error(`Failed to download Firebase file: ${filePath}`, error);
+      throw new HttpException(
+        `Failed to download file from Firebase: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   async rollbackDocumentAndIndexes(
     issuerBusinessNumber: string,
     generalDocIndex: string,
@@ -392,6 +415,9 @@ export class DocumentsService {
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
     const isProduction = process.env.NODE_ENV === 'production';
+
+    console.log("data is ", data);
+
     
     // FID mapping based on environment and document type
     const fidMap = {
@@ -477,22 +503,12 @@ export class DocumentsService {
 
         if (data.paymentData && data.paymentData.length > 0) {
           prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
+          prefill_data.sumPaymentsTable = await this.transformPaymentsToSumTable(data.paymentData, data.docData);
         }
 
+
         break;
 
-      case 'pnlReport':
-        fid = 'ydAEQsvSbC';
-        prefill_data = {
-          name: data.prefill_data.name,
-          id: data.prefill_data.id,
-          period: data.prefill_data.period,
-          income: data.prefill_data.income,
-          profit: data.prefill_data.profit,
-          expenses: data.prefill_data.expenses,
-          table: data.prefill_data.table || [],
-        };
-        break;
 
       default:
         throw new Error(`Unknown template type: ${templateType}`);
@@ -729,6 +745,51 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Transform payments data to sum payments table with withholding tax logic
+   * @param paymentData - Array of payment objects
+   * @param docData - Document data containing withholdingTaxAmount
+   * @returns Array of table rows with description and amount
+   */
+  async transformPaymentsToSumTable(paymentData: any[], docData: any): Promise<any[]> {
+    // Calculate total payments amount
+    const totalPayments = paymentData.reduce((sum, payment) => {
+      const paymentAmount = Number(payment.paymentAmount || payment.paymentSum || 0);
+      return sum + paymentAmount;
+    }, 0);
+
+    const withholdingTaxAmount = Number(docData.withholdingTaxAmount || 0);
+    const sumPaymentsTable: any[] = [];
+
+    if (withholdingTaxAmount === 0) {
+      // If withholding tax is 0, show only total
+      sumPaymentsTable.push({
+        'תיאור': 'סה"כ',
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+      });
+    } else {
+      // If withholding tax is not 0, show: התקבל, ניכוי מס במקור, סה"כ
+      sumPaymentsTable.push({
+        'תיאור': 'התקבל:',
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+      });
+
+      sumPaymentsTable.push({
+        'תיאור': 'ניכוי מס במקור:',
+        'סכום': `₪${this.formatNumberWithCommas(withholdingTaxAmount)}`,
+      });
+
+      // Calculate final total (payments minus withholding tax)
+      const finalTotal = totalPayments - withholdingTaxAmount;
+      sumPaymentsTable.push({
+        'תיאור': 'סה"כ:',
+        'סכום': `₪${this.formatNumberWithCommas(finalTotal)}`,
+      });
+    }
+
+    return sumPaymentsTable;
+  }
+
 
   async transformDocumentData(dto: CreateDocDto): Promise<any> {
 
@@ -736,6 +797,8 @@ export class DocumentsService {
     // 1. TRANSFORM DOCDATA (Documents entity fields)
     // ============================================================================
     const docData = dto.docData;
+    console.log('📧 [transformDocumentData] sendEmailToRecipient from DTO:', docData.sendEmailToRecipient);
+    console.log('📧 [transformDocumentData] withholdingTaxAmount from DTO:', docData.withholdingTaxAmount, 'type:', typeof docData.withholdingTaxAmount);
 
     // Calculate totals
     let sumBefDisBefVat = 0;
@@ -789,7 +852,7 @@ export class DocumentsService {
       sumAftDisBefVAT: Number(sumAftDisBefVAT.toFixed(2)),
       vatSum: Number(vatSum.toFixed(2)),
       sumAftDisWithVAT: Number(sumAftDisWithVAT.toFixed(2)),
-      withholdingTaxAmount: (docData as any).withholdingTaxAmount ? Number((docData as any).withholdingTaxAmount) : 0,
+      withholdingTaxAmount: docData.withholdingTaxAmount !== undefined && docData.withholdingTaxAmount !== null ? Number(docData.withholdingTaxAmount) : 0,
       sumWithoutVat: docData.totalWithoutVat || 0,
       // Dates
       docDate: new Date(docData.docDate),
@@ -802,6 +865,8 @@ export class DocumentsService {
       // Parent document details
       parentDocType: docData.parentDocType || null,
       parentDocNumber: docData.parentDocNumber || null,
+      // Email sending flag
+      sendEmailToRecipient: docData.sendEmailToRecipient || false,
       
     };
 
@@ -809,37 +874,6 @@ export class DocumentsService {
     // 2. TRANSFORM LINESDATA (DocLines entity fields)
     // ============================================================================
     const transformedLinesData = dto.linesData.map((line, index) => {
-      // Convert vatOpts string to enum if needed
-      // let vatOpts: VatOptions;
-      // const vatOptsValue = line.vatOpts as any;
-      // if (typeof vatOptsValue === 'string') {
-      //   const vatOptsUpper = vatOptsValue.toUpperCase();
-      //   if (vatOptsUpper === 'INCLUDE') {
-      //     vatOpts = VatOptions.INCLUDE;
-      //   } else if (vatOptsUpper === 'EXCLUDE') {
-      //     vatOpts = VatOptions.EXCLUDE;
-      //   } else if (vatOptsUpper === 'WITHOUT') {
-      //     vatOpts = VatOptions.WITHOUT;
-      //   } else {
-      //     vatOpts = VatOptions[vatOptsUpper as keyof typeof VatOptions] || VatOptions.INCLUDE;
-      //   }
-      // } else if (typeof vatOptsValue === 'number') {
-      //   vatOpts = vatOptsValue as VatOptions;
-      // } else {
-      //   vatOpts = VatOptions.INCLUDE; // Default
-      // }
-
-      // Convert unitType to enum if needed
-      // let unitType: UnitOfMeasure = UnitOfMeasure.UNIT; // Default
-      // const unitTypeValue = (line as any).unitType;
-      // if (unitTypeValue !== undefined && unitTypeValue !== null) {
-      //   if (typeof unitTypeValue === 'number') {
-      //     unitType = unitTypeValue as unknown as UnitOfMeasure;
-      //   } else if (typeof unitTypeValue === 'string') {
-      //     const unitTypeUpper = unitTypeValue.toUpperCase();
-      //     unitType = UnitOfMeasure[unitTypeUpper as keyof typeof UnitOfMeasure] || UnitOfMeasure.UNIT;
-      //   }
-      // }
 
       return {
         // Required fields
@@ -951,6 +985,13 @@ export class DocumentsService {
   
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
+
+    // Ensure docStatus is not DRAFT when creating actual document
+    // Remove any DRAFT status that might have been set from draft restoration
+    if (data.docData && data.docData.docStatus === DocumentStatusType.DRAFT) {
+      console.log('⚠️ Removing DRAFT status from docData before document creation');
+      delete data.docData.docStatus;
+    }
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -1103,6 +1144,90 @@ export class DocumentsService {
             }
           }
 
+          // 11. Send email to recipient if requested
+          console.log(new Date().toLocaleTimeString(), "Step 11 - Checking email sending conditions:");
+          console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
+          console.log("  - recipientEmail:", data.docData.recipientEmail);
+          console.log("  - originalFilePath:", originalFilePath);
+          
+          if (data.docData.sendEmailToRecipient && data.docData.recipientEmail && originalFilePath) {
+            try {
+              console.log(new Date().toLocaleTimeString(), "Step 11.1 - Starting email sending process");
+              console.log("  📧 Email will be sent to:", data.docData.recipientEmail);
+              
+              // Get business info for email content
+              const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber);
+              const businessName = business?.businessName || data.docData.issuerBusinessNumber;
+              console.log("  📧 Business name:", businessName);
+
+              // Get Hebrew document type name
+              const docTypeNames: Partial<Record<DocumentType, string>> = {
+                [DocumentType.RECEIPT]: 'קבלה',
+                [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+                [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
+                [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+                [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+                [DocumentType.GENERAL]: 'מסמך כללי',
+              };
+              const docTypeName = docTypeNames[data.docData.docType] || data.docData.docType;
+              console.log("  📧 Document type:", docTypeName, "Number:", data.docData.docNumber);
+
+              // Download PDF from Firebase
+              console.log("  📧 Downloading PDF from Firebase:", originalFilePath);
+              const pdfBuffer = await this.downloadFromFirebase(originalFilePath);
+              console.log("  📧 PDF downloaded successfully, size:", pdfBuffer.length, "bytes");
+
+              // Get owner name - use issuerName from transformed data if available, otherwise get from user
+              let ownerName = data.docData.issuerName;
+              if (!ownerName && business?.firebaseId) {
+                const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
+                ownerName = user ? `${user.fName} ${user.lName}`.trim() : null;
+              }
+              const finalOwnerName = ownerName?.trim() || businessName;
+              console.log("  📧 Owner name:", finalOwnerName);
+              
+              // Prepare email content
+              const recipientName = data.docData.recipientName || 'לקוח נכבד';
+              
+              const emailSubject = `${docTypeName} #${data.docData.docNumber}`;
+              const emailText = `שלום ${recipientName},
+
+מצורף בזאת ${docTypeName} מספר ${data.docData.docNumber}.
+
+בברכה,
+${finalOwnerName}`;
+
+              // Generate attachment filename
+              const attachmentName = `${data.docData.docType}_${data.docData.docNumber}_${data.docData.generalDocIndex}.pdf`;
+              console.log("  📧 Email subject:", emailSubject);
+              console.log("  📧 Attachment name:", attachmentName);
+
+              // Send email with attachment
+              console.log("  📧 Sending email via BREVO...");
+              const emailResponse = await this.mailService.sendMailWithAttachment(
+                data.docData.recipientEmail,
+                emailSubject,
+                emailText,
+                pdfBuffer,
+                attachmentName
+              );
+
+              console.log(new Date().toLocaleTimeString(), "✅ Step 11 complete - Email sent successfully to:", data.docData.recipientEmail);
+              console.log("  📧 Email response:", JSON.stringify(emailResponse, null, 2));
+            } catch (emailError) {
+              // Don't fail document creation if email fails - just log the error
+              console.error(new Date().toLocaleTimeString(), "❌ Error sending email to recipient:", data.docData.recipientEmail);
+              console.error("  Error details:", emailError);
+              if (emailError instanceof Error) {
+                console.error("  Error message:", emailError.message);
+                console.error("  Error stack:", emailError.stack);
+              }
+              console.error("  Document was created successfully, but email sending failed");
+            }
+          } else {
+            console.log(new Date().toLocaleTimeString(), "Step 11 skipped - Email sending conditions not met");
+          }
+
         } catch (uploadError) {
           // If upload fails, delete any uploaded files
           if (originalFilePath) {
@@ -1249,15 +1374,20 @@ export class DocumentsService {
       ];
 
       // Default values set on the server
-      const serverGeneratedValues = {
+      // Don't override docStatus if it's already set (e.g., for DRAFT)
+      const serverGeneratedValues: any = {
         issueDate: new Date(),
         docDate: data.docDate ? new Date(data.docDate) : new Date(),
         valueDate: data.valueDate ? new Date(data.valueDate) : new Date(),
         issueHour,
         isCancelled: data.isCancelled ?? false,
         docNumber: data.docNumber.toString(),
-        docStatus: autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN',
       };
+
+      // Only set docStatus if it's not already set (e.g., not DRAFT)
+      if (!data.docStatus) {
+        serverGeneratedValues.docStatus = autoClosedTypes.includes(data.docType) ? 'CLOSE' : 'OPEN';
+      }
 
       // Merge all values
       const docData: Partial<Documents> = { userId, ...data, ...serverGeneratedValues };
@@ -1366,6 +1496,205 @@ export class DocumentsService {
     }
   }
 
+
+  // Save draft before SHAAM redirect
+  async saveDraft(userId: string, data: any): Promise<Documents> {
+    console.log('=== SAVING DRAFT TO DATABASE ===');
+    console.log('User ID:', userId);
+    console.log('Business Number (issuerBusinessNumber):', data.docData.issuerBusinessNumber);
+    console.log('Document Type:', data.docData.docType);
+    console.log('Lines Count:', data.linesData?.length || 0);
+    console.log('Payments Count:', data.paymentData?.length || 0);
+    console.log('Full docData:', JSON.stringify(data.docData, null, 2));
+    
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Delete existing draft for this user/business/docType
+      console.log('Deleting existing draft if exists...');
+      await this.deleteDraft(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager);
+
+      // 2. Generate temporary generalDocIndex for draft (not incrementing real index)
+      // Use a short hash based on timestamp to fit in varchar(7)
+      // Format: D + last 6 digits of timestamp (e.g., D123456)
+      const timestamp = Date.now();
+      const shortHash = timestamp % 1000000; // Last 6 digits
+      const draftGeneralDocIndex = `D${String(shortHash).padStart(6, '0')}`;
+      data.docData.generalDocIndex = draftGeneralDocIndex;
+      console.log('Generated draft generalDocIndex:', draftGeneralDocIndex, '(from timestamp:', timestamp, ')');
+      
+      // Update lines and payments with draft index
+      if (data.linesData && Array.isArray(data.linesData)) {
+        data.linesData.forEach(line => {
+          line.generalDocIndex = draftGeneralDocIndex;
+        });
+      }
+      if (data.paymentData && Array.isArray(data.paymentData)) {
+        data.paymentData.forEach(payment => {
+          payment.generalDocIndex = draftGeneralDocIndex;
+        });
+      }
+
+      // 3. Set docStatus to DRAFT
+      data.docData.docStatus = DocumentStatusType.DRAFT;
+      
+      // 4. Set docNumber to temporary value (not incrementing real index)
+      if (!data.docData.docNumber || data.docData.docNumber === '') {
+        data.docData.docNumber = 'DRAFT';
+      }
+
+      // 5. Save document with DRAFT status
+      console.log('Saving draft document to database...');
+      const draftDoc = await this.saveDocInfo(userId, data.docData, queryRunner.manager);
+      if (!draftDoc) {
+        throw new HttpException('Error saving draft document', HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      console.log('✅ Draft document saved with ID:', draftDoc.id);
+
+      // 6. Save lines
+      if (data.linesData && data.linesData.length > 0) {
+        console.log('Saving draft lines to database...');
+        await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
+        console.log(`✅ Saved ${data.linesData.length} lines`);
+      }
+
+      // 7. Save payments
+      if (data.paymentData && data.paymentData.length > 0) {
+        console.log('Saving draft payments to database...');
+        await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
+        console.log(`✅ Saved ${data.paymentData.length} payments`);
+      }
+
+      await queryRunner.commitTransaction();
+      console.log('=== DRAFT SAVED SUCCESSFULLY ===');
+      return draftDoc;
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // Load draft after returning from SHAAM
+  async loadDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType): Promise<any | null> {
+    console.log('=== LOADING DRAFT FROM DATABASE ===');
+    console.log('Business Number:', issuerBusinessNumber);
+    console.log('Document Type:', docType);
+    console.log('User ID:', userId);
+    
+    try {
+      // Find draft document
+      console.log('Querying database for draft document...');
+      const draftDoc = await this.documentsRepo.findOne({
+        where: {
+          issuerBusinessNumber,
+          docType,
+          docStatus: DocumentStatusType.DRAFT,
+        },
+        order: { id: 'DESC' }
+      });
+
+      if (!draftDoc) {
+        console.log('❌ No draft found in database');
+        return null;
+      }
+
+      console.log('✅ Draft document found with ID:', draftDoc.id);
+      console.log('Draft generalDocIndex:', draftDoc.generalDocIndex);
+
+      // Get lines and payments
+      console.log('Querying database for draft lines...');
+      const lines = await this.docLinesRepo.find({
+        where: {
+          issuerBusinessNumber,
+          generalDocIndex: draftDoc.generalDocIndex,
+          docType
+        }
+      });
+      console.log(`✅ Found ${lines.length} lines`);
+
+      console.log('Querying database for draft payments...');
+      const payments = await this.docPaymentsRepo.find({
+        where: {
+          issuerBusinessNumber,
+          generalDocIndex: draftDoc.generalDocIndex
+        }
+      });
+      console.log(`✅ Found ${payments.length} payments`);
+
+      console.log('=== DRAFT LOADED SUCCESSFULLY ===');
+      return {
+        docData: draftDoc,
+        linesData: lines,
+        paymentData: payments
+      };
+    } catch (error) {
+      console.error('❌ Error loading draft:', error);
+      return null;
+    }
+  }
+
+  // Delete draft (called before saving new draft or after creating document)
+  async deleteDraft(userId: string, issuerBusinessNumber: string, docType: DocumentType, manager?: EntityManager): Promise<void> {
+    try {
+      const repo = manager 
+        ? manager.getRepository(Documents)
+        : this.documentsRepo;
+
+      // Find all drafts for this business/docType
+      const drafts = await repo.find({
+        where: {
+          issuerBusinessNumber,
+          docType,
+          docStatus: DocumentStatusType.DRAFT
+        }
+      });
+
+      if (drafts.length === 0) {
+        return;
+      }
+
+      // Get all generalDocIndexes of drafts
+      const draftIndexes = drafts.map(d => d.generalDocIndex).filter(Boolean);
+
+      if (draftIndexes.length === 0) {
+        return;
+      }
+
+      // Delete lines
+      const linesRepo = manager 
+        ? manager.getRepository(DocLines)
+        : this.docLinesRepo;
+      await linesRepo.delete({
+        issuerBusinessNumber,
+        generalDocIndex: In(draftIndexes),
+        docType
+      });
+
+      // Delete payments
+      const paymentsRepo = manager 
+        ? manager.getRepository(DocPayments)
+        : this.docPaymentsRepo;
+      await paymentsRepo.delete({
+        issuerBusinessNumber,
+        generalDocIndex: In(draftIndexes)
+      });
+
+      // Delete documents
+      await repo.delete({
+        issuerBusinessNumber,
+        docType,
+        docStatus: DocumentStatusType.DRAFT
+      });
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      // Don't throw - allow draft save to continue even if delete fails
+    }
+  }
 
   async generateMultipleDocs(userId: string): Promise<any[]> {
 

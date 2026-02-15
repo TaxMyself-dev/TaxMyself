@@ -91,6 +91,22 @@ export enum ExpenseFormColumns {
   CHECKBOX = 'checkbox'
 }
 
+export enum ClientsTableColumns {
+  NAME = 'name',
+  ID = 'id',
+  PHONE = 'phone',
+  EMAIL = 'email',
+  ADDRESS = 'address'
+}
+
+export enum ClientsTableHebrewColumns {
+  name = 'שם',
+  id = 'תעודת זהות',
+  phone = 'טלפון',
+  email = 'אימייל',
+  address = 'כתובת'
+}
+
 export enum TransactionsOutcomesColumns {
   BUSINESS_NAME = 'businessName',
   BUSINESS_NUMBER = 'businessNumber',
@@ -513,3 +529,9 @@ export enum TaxReportingType {
   MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
+
+/**
+ * Threshold amount (in NIS) above which an allocation number is required for tax invoices
+ * When a tax invoice amount exceeds this threshold, the system must request an allocation number from SHAAM
+ */
+export const ALLOCATION_NUMBER_THRESHOLD = 10000;

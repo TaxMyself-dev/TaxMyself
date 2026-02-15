@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsNumber, IsEnum, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsNumber, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BusinessType, DocumentType } from 'src/enum';
 
@@ -96,6 +96,15 @@ export class DocDataDto {
   @IsOptional()
   @IsNumber()
   totalVat?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  sendEmailToRecipient?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  withholdingTaxAmount?: number;
 
 }
 

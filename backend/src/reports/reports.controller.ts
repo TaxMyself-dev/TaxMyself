@@ -71,6 +71,18 @@ export class ReportsController {
         return pnlReport;
     }
 
+    @Post('pnl-report-pdf')
+    @UseGuards(FirebaseAuthGuard)
+    async generatePnLReportPDF(
+        @Body() body: any,
+        @Res() res: Response,
+        @Req() request: AuthenticatedRequest
+    ) {
+        const pdfBuffer = await this.reportsService.generatePnLReportPDF(body);
+        res.setHeader('Content-Type', 'application/pdf');
+        return res.send(pdfBuffer);
+    }
+
 
     // @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
     // @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
