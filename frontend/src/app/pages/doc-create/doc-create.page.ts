@@ -861,7 +861,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
       totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
       sendEmailToRecipient: this.sendEmailToRecipient && this.canSendEmail(),
-      withholdingTaxAmount: this.withholdingTaxAmount() || 0,
+      withholdingTaxAmount: this.withholdingTaxAmount() ?? 0,
     };
 
     docPayload = {
@@ -869,8 +869,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
       linesData: this.lineItemsDraft(),
       paymentData: this.paymentsDraft(),
     };
-
-    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
 
     return docPayload;
 
@@ -1988,9 +1986,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
     
     // Subscribe to form value changes to update the signal
     this.withholdingTaxForm.get('withholdingTaxAmount')?.valueChanges.subscribe(value => {
-      const numValue = Number(value) || 0;
+      const numValue = value !== null && value !== undefined && value !== '' ? Number(value) : 0;
       this.withholdingTaxAmount.set(numValue);
+      console.log('🔄 withholdingTaxAmount updated:', numValue, 'from form value:', value);
     });
+    
+    // Also set initial value from form
+    const initialValue = this.withholdingTaxForm.get('withholdingTaxAmount')?.value;
+    if (initialValue !== null && initialValue !== undefined && initialValue !== '') {
+      this.withholdingTaxAmount.set(Number(initialValue));
+    }
   }
 
   // Show dialog asking user how to get allocation number

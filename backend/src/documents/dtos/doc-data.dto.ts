@@ -101,5 +101,10 @@ export class DocDataDto {
   @IsBoolean()
   sendEmailToRecipient?: boolean;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  withholdingTaxAmount?: number;
+
 }
 

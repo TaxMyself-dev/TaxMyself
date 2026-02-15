@@ -415,6 +415,9 @@ export class DocumentsService {
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
     const isProduction = process.env.NODE_ENV === 'production';
+
+    console.log("data is ", data);
+
     
     // FID mapping based on environment and document type
     const fidMap = {
@@ -500,7 +503,9 @@ export class DocumentsService {
 
         if (data.paymentData && data.paymentData.length > 0) {
           prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
+          prefill_data.sumPaymentsTable = await this.transformPaymentsToSumTable(data.paymentData, data.docData);
         }
+
 
         break;
 
@@ -740,6 +745,51 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Transform payments data to sum payments table with withholding tax logic
+   * @param paymentData - Array of payment objects
+   * @param docData - Document data containing withholdingTaxAmount
+   * @returns Array of table rows with description and amount
+   */
+  async transformPaymentsToSumTable(paymentData: any[], docData: any): Promise<any[]> {
+    // Calculate total payments amount
+    const totalPayments = paymentData.reduce((sum, payment) => {
+      const paymentAmount = Number(payment.paymentAmount || payment.paymentSum || 0);
+      return sum + paymentAmount;
+    }, 0);
+
+    const withholdingTaxAmount = Number(docData.withholdingTaxAmount || 0);
+    const sumPaymentsTable: any[] = [];
+
+    if (withholdingTaxAmount === 0) {
+      // If withholding tax is 0, show only total
+      sumPaymentsTable.push({
+        'תיאור': 'סה"כ',
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+      });
+    } else {
+      // If withholding tax is not 0, show: התקבל, ניכוי מס במקור, סה"כ
+      sumPaymentsTable.push({
+        'תיאור': 'התקבל:',
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+      });
+
+      sumPaymentsTable.push({
+        'תיאור': 'ניכוי מס במקור:',
+        'סכום': `₪${this.formatNumberWithCommas(withholdingTaxAmount)}`,
+      });
+
+      // Calculate final total (payments minus withholding tax)
+      const finalTotal = totalPayments - withholdingTaxAmount;
+      sumPaymentsTable.push({
+        'תיאור': 'סה"כ:',
+        'סכום': `₪${this.formatNumberWithCommas(finalTotal)}`,
+      });
+    }
+
+    return sumPaymentsTable;
+  }
+
 
   async transformDocumentData(dto: CreateDocDto): Promise<any> {
 
@@ -748,6 +798,7 @@ export class DocumentsService {
     // ============================================================================
     const docData = dto.docData;
     console.log('📧 [transformDocumentData] sendEmailToRecipient from DTO:', docData.sendEmailToRecipient);
+    console.log('📧 [transformDocumentData] withholdingTaxAmount from DTO:', docData.withholdingTaxAmount, 'type:', typeof docData.withholdingTaxAmount);
 
     // Calculate totals
     let sumBefDisBefVat = 0;
@@ -801,7 +852,7 @@ export class DocumentsService {
       sumAftDisBefVAT: Number(sumAftDisBefVAT.toFixed(2)),
       vatSum: Number(vatSum.toFixed(2)),
       sumAftDisWithVAT: Number(sumAftDisWithVAT.toFixed(2)),
-      withholdingTaxAmount: (docData as any).withholdingTaxAmount ? Number((docData as any).withholdingTaxAmount) : 0,
+      withholdingTaxAmount: docData.withholdingTaxAmount !== undefined && docData.withholdingTaxAmount !== null ? Number(docData.withholdingTaxAmount) : 0,
       sumWithoutVat: docData.totalWithoutVat || 0,
       // Dates
       docDate: new Date(docData.docDate),
@@ -823,37 +874,6 @@ export class DocumentsService {
     // 2. TRANSFORM LINESDATA (DocLines entity fields)
     // ============================================================================
     const transformedLinesData = dto.linesData.map((line, index) => {
-      // Convert vatOpts string to enum if needed
-      // let vatOpts: VatOptions;
-      // const vatOptsValue = line.vatOpts as any;
-      // if (typeof vatOptsValue === 'string') {
-      //   const vatOptsUpper = vatOptsValue.toUpperCase();
-      //   if (vatOptsUpper === 'INCLUDE') {
-      //     vatOpts = VatOptions.INCLUDE;
-      //   } else if (vatOptsUpper === 'EXCLUDE') {
-      //     vatOpts = VatOptions.EXCLUDE;
-      //   } else if (vatOptsUpper === 'WITHOUT') {
-      //     vatOpts = VatOptions.WITHOUT;
-      //   } else {
-      //     vatOpts = VatOptions[vatOptsUpper as keyof typeof VatOptions] || VatOptions.INCLUDE;
-      //   }
-      // } else if (typeof vatOptsValue === 'number') {
-      //   vatOpts = vatOptsValue as VatOptions;
-      // } else {
-      //   vatOpts = VatOptions.INCLUDE; // Default
-      // }
-
-      // Convert unitType to enum if needed
-      // let unitType: UnitOfMeasure = UnitOfMeasure.UNIT; // Default
-      // const unitTypeValue = (line as any).unitType;
-      // if (unitTypeValue !== undefined && unitTypeValue !== null) {
-      //   if (typeof unitTypeValue === 'number') {
-      //     unitType = unitTypeValue as unknown as UnitOfMeasure;
-      //   } else if (typeof unitTypeValue === 'string') {
-      //     const unitTypeUpper = unitTypeValue.toUpperCase();
-      //     unitType = UnitOfMeasure[unitTypeUpper as keyof typeof UnitOfMeasure] || UnitOfMeasure.UNIT;
-      //   }
-      // }
 
       return {
         // Required fields
