@@ -8,7 +8,7 @@ import { environment } from 'src/environments/environment';
 })
 export class FeezbackService {
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   /**
    * Creates a consent link for Feezback open banking
@@ -35,8 +35,17 @@ export class FeezbackService {
    * @param bookingStatus - Optional booking status filter (default: "booked")
    * @returns Observable with all user transactions data
    */
-  getUserTransactions(bookingStatus?: string): Observable<any> {
+  getUserBankTransactions(bookingStatus?: string): Observable<any> {
     let url = `${environment.apiUrl}feezback/user-transactions`;
+    if (bookingStatus) {
+      url += `?bookingStatus=${bookingStatus}`;
+    }
+    // The Authorization header is automatically added by AuthInterceptor
+    return this.http.get<any>(url);
+  }
+
+  getUserCardTransactions(bookingStatus?: string): Observable<any> {
+    let url = `${environment.apiUrl}feezback/user-card-transactions`;
     if (bookingStatus) {
       url += `?bookingStatus=${bookingStatus}`;
     }

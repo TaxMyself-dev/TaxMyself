@@ -17,9 +17,14 @@
                 (onButtonClicked)="fetchUserAccounts()">
                 <i class="pi pi-download"></i>
             </app-p-button>
-            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות'"
-                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingTransactions()"
-                (onButtonClicked)="fetchUserTransactions()">
+            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות בנק'"
+                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+                [isLoading]="isLoadingUserBankTransactions()" (onButtonClicked)="fetchUserBankTransactions()">
+                <i class="pi pi-list"></i>
+            </app-p-button>
+            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות אשראי'"
+                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+                [isLoading]="isLoadingUserCardTransactions()" (onButtonClicked)="fetchUserCardTransactions()">
                 <i class="pi pi-list"></i>
             </app-p-button>
         </div>

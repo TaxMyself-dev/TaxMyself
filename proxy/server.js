@@ -2,6 +2,7 @@ const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
 const app = express();
+// const PORT = 8080;
 const PORT = process.env.PORT || 8080;
 
 // ===========================
@@ -57,6 +58,44 @@ app.get("/myip", async (req, res) => {
     res.send(ip);
   } catch (err) {
     res.status(500).send({ error: "Failed to check IP", details: err.message });
+  }
+});
+
+app.post("/feezback/webhook", async (req, res) => {
+  console.log("🚀 Incoming webhook:", req.body);
+  
+  try {
+    const forwardHeaders = { ...req.headers };
+    delete forwardHeaders.host;
+
+    if (!forwardHeaders["content-type"]) {
+      forwardHeaders["content-type"] = "application/json";
+    }
+
+    const payload = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
+
+    const response = await fetch("http://localhost:3000/feezback/webhook-router", {
+      method: "POST",
+      headers: forwardHeaders,
+      body: payload,
+    });
+
+    const responseText = await response.text();
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      try {
+        const json = JSON.parse(responseText);
+        res.status(response.status).json(json);
+        return;
+      } catch (parseErr) {
+        // fall back to sending raw response text below
+      }
+    }
+
+    res.status(response.status).send(responseText);
+  } catch (err) {
+    res.status(502).send({ error: "Failed to forward webhook", details: err.message });
   }
 });
 

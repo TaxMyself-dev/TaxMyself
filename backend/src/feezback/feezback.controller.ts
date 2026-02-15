@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Logger, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
 import { FeezbackService } from './feezback.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
 import { UsersService } from '../users/users.service';
+import type { Request, Response } from 'express';
 import { log } from 'node:console';
 import * as fs from 'fs';
 import * as path from 'path';
+import { FeezbackWebhookRouterService } from './router/feezback-webhook-router.service';
 
 @Controller('feezback')
 export class FeezbackController {
@@ -14,7 +16,22 @@ export class FeezbackController {
   constructor(
     private readonly feezbackService: FeezbackService,
     private readonly usersService: UsersService,
+    private readonly routerService: FeezbackWebhookRouterService
   ) { }
+
+  @Post('webhook-router')
+  handleWebhookRouter(@Req() req: Request, @Res() res: Response): void {
+    console.log("webhook-routerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");
+
+    // Return 200 immediately (do not block)
+    res.status(200).json({ received: true });
+
+    // Fire-and-forget forwarding
+    void this.routerService.forward(req).catch((err) => {
+      // Should never throw, but just in case
+      this.logger.error('Unexpected error in forward()', err?.stack || String(err));
+    });
+  }
 
   @Post('consent-link')
   @UseGuards(FirebaseAuthGuard)
@@ -232,9 +249,6 @@ export class FeezbackController {
     const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
     const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
 
-    this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
-
     try {
       // Step 1: Get all accounts
       let accountsResponse;
@@ -280,6 +294,7 @@ export class FeezbackController {
 
       for (let i = 0; i < accounts.length; i++) {
         const account = accounts[i];
+        console.log("🚀 ~ FeezbackController ~ getAllUserTransactionsInternal ~ account:", account)
 
         // Add delay before each request (except the first one)
         if (i > 0) {
@@ -291,7 +306,8 @@ export class FeezbackController {
           this.logger.log(`Fetching transactions for account: ${account.name} (${i + 1}/${accounts.length})`);
           const transactionsResponse = await this.feezbackService.getAccountTransactions(
             sub,
-            account.transactionsLink,
+            account._links.transactions.href,
+            // account.transactionsLink,
             bookingStatus || 'booked',
             defaultDateFrom,
             defaultDateTo,
@@ -394,7 +410,8 @@ export class FeezbackController {
                 this.logger.log(`Retry ${retryCount} for account ${account.name}...`);
                 const retryResponse = await this.feezbackService.getAccountTransactions(
                   sub,
-                  account.transactionsLink,
+                  account._links.transactions.href,
+                  // account.transactionsLink,
                   bookingStatus || 'booked',
                   defaultDateFrom,
                   defaultDateTo,
@@ -477,7 +494,7 @@ export class FeezbackController {
         let dbError: any = null;
 
         try {
-          saveResult = await this.feezbackService.saveTransactionsToDatabase(
+          saveResult = await this.feezbackService.saveBankTransactionsToDatabase(
             allTransactions,
             firebaseId,
             accountInfoMap,
@@ -559,6 +576,46 @@ export class FeezbackController {
     this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
     return this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+  }
+
+  @Get('user-card-transactions')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserCardTransactions(
+    @Req() req: AuthenticatedRequest,
+    @Query('bookingStatus') bookingStatus?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('cardResourceId') cardResourceId?: string,
+  ) {
+    const firebaseId = req.user?.firebaseId;
+    console.log('in user-card-transactions');
+
+    if (!firebaseId) {
+      throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    const sub = `${firebaseId}_sub`;
+
+    const today = new Date();
+    const sixtyDaysAgo = new Date(today);
+    sixtyDaysAgo.setDate(today.getDate() - 60);
+
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
+    const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
+
+    this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
+    this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
+
+    // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
+    return this.feezbackService.getAndSaveUserCardTransactions(
+      firebaseId,
+      sub,
+      bookingStatus ?? 'booked',
+      resolvedDateFrom,
+      resolvedDateTo,
+      cardResourceId,
+    );
   }
 
   /**
@@ -772,7 +829,8 @@ export class FeezbackController {
 
       const transactionsResponse = await this.feezbackService.getAccountTransactions(
         sub,
-        firstAccount.transactionsLink,
+        firstAccount._links.transactions.href,
+        // firstAccount.transactionsLink,
         'booked',
         dateFrom,
         dateTo,
@@ -941,7 +999,8 @@ export class FeezbackController {
 
       const transactionsResponse = await this.feezbackService.getAccountTransactions(
         sub,
-        firstAccount.transactionsLink,
+        firstAccount._links.transactions.href,
+        // firstAccount.transactionsLink,
         'booked',
         dateFrom,
         dateTo,

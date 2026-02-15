@@ -20,6 +20,7 @@ import { Child } from 'src/users/child.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { FeezbackPersistenceModule } from './consent/feezback-persistence.module';
+import { FeezbackWebhookRouterModule } from './router/feezback-webhook-router.module';
 
 @Module({
   imports: [
@@ -30,6 +31,8 @@ import { FeezbackPersistenceModule } from './consent/feezback-persistence.module
     TypeOrmModule.forFeature([Delegation, User, Child, Transactions, Expense, Business, SettingDocuments]),
     UsersModule,
     FeezbackPersistenceModule,
+    FeezbackWebhookRouterModule,
+
   ],
   controllers: [FeezbackController],
   providers: [

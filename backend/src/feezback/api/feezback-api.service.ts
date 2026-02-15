@@ -11,7 +11,7 @@ export class FeezbackApiService {
     private readonly httpClient: FeezbackHttpClient,
     private readonly authService: FeezbackAuthService,
     private readonly feezbackJwtService: FeezbackJwtService,
-  ) {}
+  ) { }
 
   async createConsentLink(firebaseId: string): Promise<any> {
     const token = await this.feezbackJwtService.generateConsentJwt(firebaseId);
@@ -28,6 +28,37 @@ export class FeezbackApiService {
   async getUserAccounts(sub: string): Promise<any> {
     this.logger.log(`Fetching user accounts for sub=${sub}`);
     return this.getFromUserPath(sub, '/accounts');
+  }
+
+  async getUserCards(
+    sub: string,
+    options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
+  ): Promise<{ cards: any[] }> {
+    this.logger.log(`Fetching user cards for sub=${sub}`);
+
+    const queryParams: Record<string, string> = {};
+
+    if (options?.preventUpdate !== undefined) {
+      queryParams.preventUpdate = String(options.preventUpdate);
+    }
+
+    if (options?.withInvalid !== undefined) {
+      queryParams.withInvalid = String(options.withInvalid);
+    }
+
+    if (options?.withBalances !== undefined) {
+      queryParams.withBalances = String(options.withBalances);
+    }
+
+    const data = await this.getFromUserPath(
+      sub,
+      '/cards',
+      Object.keys(queryParams).length ? queryParams : undefined,
+    );
+
+    const cards = this.normalizeCardsResponse(data);
+    // console.log("🚀 ~ FeezbackApiService ~ getUserCards ~ cards:", cards)
+    return { cards };
   }
 
   async getAccountTransactions(
@@ -56,10 +87,15 @@ export class FeezbackApiService {
     return `${baseUrl}${href}`;
   }
 
-  private async getFromUserPath(sub: string, suffix: string): Promise<any> {
+  private async getFromUserPath(
+    sub: string,
+    suffix: string,
+    queryParams?: Record<string, string>,
+  ): Promise<any> {
     await this.ensureAuthorized(sub);
     const path = `/tpp/v1/users/${this.buildUserIdentifier(sub)}${suffix}`;
-    return this.httpClient.get(path, {
+    const url = this.appendQueryParams(path, queryParams);
+    return this.httpClient.get(url, {
       sub,
       timeout: 60_000,
     });
@@ -79,7 +115,13 @@ export class FeezbackApiService {
     dateFrom?: string,
     dateTo?: string,
   ): URL {
-    const url = new URL(baseUrl);
+    const absoluteLink = this.buildAbsoluteLink(baseUrl);
+
+    if (!absoluteLink) {
+      throw new TypeError(`Invalid transactions link: ${baseUrl}`);
+    }
+
+    const url = new URL(absoluteLink);
     url.searchParams.set('bookingStatus', bookingStatus || 'booked');
 
     if (dateFrom && dateFrom.trim() !== '') {
@@ -131,6 +173,42 @@ export class FeezbackApiService {
       }
     }
     return [];
+  }
+
+  private normalizeCardsResponse(data: any): any[] {
+    if (Array.isArray(data?.cards)) {
+      return data.cards;
+    }
+
+    if (Array.isArray(data?.data?.cards)) {
+      return data.data.cards;
+    }
+
+    if (Array.isArray(data?.data)) {
+      return data.data;
+    }
+
+    return this.extractArray(data);
+  }
+
+  private appendQueryParams(
+    path: string,
+    queryParams?: Record<string, string>,
+  ): string {
+    if (!queryParams || Object.keys(queryParams).length === 0) {
+      return path;
+    }
+
+    const query = Object.entries(queryParams)
+      .filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+
+    if (!query) {
+      return path;
+    }
+
+    return path.includes('?') ? `${path}&${query}` : `${path}?${query}`;
   }
 
   private normalizeRecurringIndicator(value: unknown): boolean | null {

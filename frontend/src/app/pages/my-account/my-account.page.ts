@@ -53,7 +53,8 @@ export class MyAccountPage implements OnInit {
   isLoadingDataTable = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
-  isLoadingTransactions = signal<boolean>(false);
+  isLoadingUserBankTransactions = signal<boolean>(false);
+  isLoadingUserCardTransactions = signal<boolean>(false);
 
   userData: IUserData;
   transToClassify: any;
@@ -205,10 +206,10 @@ export class MyAccountPage implements OnInit {
       });
   }
 
-  fetchUserTransactions(): void {
-    this.isLoadingTransactions.set(true);
+  fetchUserBankTransactions(): void {
+    this.isLoadingUserBankTransactions.set(true);
 
-    this.feezbackService.getUserTransactions('booked')
+    this.feezbackService.getUserBankTransactions('booked')
       .pipe(
         catchError(err => {
           console.error('Error fetching user transactions:', err);
@@ -221,7 +222,71 @@ export class MyAccountPage implements OnInit {
           });
           return EMPTY;
         }),
-        finalize(() => this.isLoadingTransactions.set(false))
+        finalize(() => this.isLoadingUserBankTransactions.set(false))
+      )
+      .subscribe(response => {
+        console.log('User transactions data:', response);
+
+        if (response?.transactions && Array.isArray(response.transactions)) {
+          // Show message with saved count from database
+          const savedCount = response?.databaseSaveResult?.saved || 0;
+          const skippedCount = response?.databaseSaveResult?.skipped || 0;
+          const totalFetched = response?.totalTransactions || response.transactions.length || 0;
+          const accountsProcessed = response?.accountsProcessed || 0;
+
+          let detailMessage = '';
+          if (savedCount > 0) {
+            detailMessage = `נשמרו ${savedCount} תנועות חדשות מ-${accountsProcessed} חשבונות בהצלחה`;
+            if (skippedCount > 0) {
+              detailMessage += ` (${skippedCount} תנועות כבר קיימות, ${totalFetched} סה"כ נטענו)`;
+            } else {
+              detailMessage += ` (${totalFetched} סה"כ נטענו)`;
+            }
+          } else if (skippedCount > 0) {
+            detailMessage = `כל התנועות כבר קיימות במערכת (${skippedCount} תנועות, ${totalFetched} סה"כ נטענו מ-${accountsProcessed} חשבונות)`;
+          } else {
+            detailMessage = `נטענו ${totalFetched} תנועות מ-${accountsProcessed} חשבונות`;
+          }
+
+          this.messageService.add({
+            severity: 'success',
+            summary: 'הצלחה',
+            detail: detailMessage,
+            life: 6000,
+            key: 'br'
+          });
+
+          // כאן תוכל לעשות משהו עם הנתונים - למשל לשמור ב-DB או להציג בטבלה
+          // TODO: Process and store the transactions data
+        } else {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'התראה',
+            detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
+            life: 5000,
+            key: 'br'
+          });
+        }
+      });
+  }
+
+  fetchUserCardTransactions(): void {
+    this.isLoadingUserCardTransactions.set(true);
+
+    this.feezbackService.getUserCardTransactions('booked')
+      .pipe(
+        catchError(err => {
+          console.error('Error fetching user transactions:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.',
+            life: 5000,
+            key: 'br'
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingUserCardTransactions.set(false))
       )
       .subscribe(response => {
         console.log('User transactions data:', response);

@@ -26,10 +26,10 @@ export class FeezbackAuthService {
   ) {
     const defaultBaseUrl = 'https://proxy-146140406969.me-west1.run.app/proxy/feezback';
 
-    this.tppId = process.env.FEEZBACK_TPP_ID ?? 'KNCAXnwXk1';
-    this.tppApiUrl = process.env.FEEZBACK_TPP_API_URL ?? defaultBaseUrl;
-    this.tokenUrl = process.env.FEEZBACK_TOKEN_URL ?? `${defaultBaseUrl}/token`;
-    this.lgsUrl = process.env.FEEZBACK_LGS_URL ?? `${defaultBaseUrl}/link`;
+    this.tppId = 'KNCAXnwXk1';
+    this.tppApiUrl = defaultBaseUrl;
+    this.tokenUrl = `${defaultBaseUrl}/token`;
+    this.lgsUrl = `${defaultBaseUrl}/link`;
   }
 
   getTppId(): string {
