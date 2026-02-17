@@ -6,7 +6,7 @@
             <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
             <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
         </div>
-        <div class="user-actions" [class.hidden]="isDev()">
+        <div class="user-actions" [class.hidden]="isProd()">
             <app-p-button class="feezback-connect-button" [buttonText]="'התחבר לבנקאות פתוחה'"
                 [buttonColor]="buttonColor.YELLOW" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingFeezback()"
                 (onButtonClicked)="connectToOpenBanking()">
