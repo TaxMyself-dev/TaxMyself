@@ -270,7 +270,6 @@ export class FeezbackService {
     });
 
     const cards = cardsResponse?.cards || [];
-    // console.log("ששששששששששששששששששששששששששששששששששששששששששששששששששששששששששש ~ cards:", cards)
     const filteredCards = cardResourceId
       ? cards.filter(card => card?.resourceId === cardResourceId)
       : cards;
@@ -312,7 +311,7 @@ export class FeezbackService {
         dateFrom,
         dateTo,
       );
-      console.log("🚀 ~ FeezbackService ~ getAndSaveUserCardTransactions ~ transactionsResponse:", transactionsResponse)
+      // console.log("🚀 ~ FeezbackService ~ getAndSaveUserCardTransactions ~ transactionsResponse:", transactionsResponse)
 
       const transactions = this.extractCardTransactions(transactionsResponse);
 
@@ -353,6 +352,7 @@ export class FeezbackService {
   }
 
   private extractCardTransactions(response: any): any[] {
+    console.log("transactionssssssssssss: ", JSON.stringify(response, null, 2));
     if (!response) {
       return [];
     }
@@ -405,13 +405,15 @@ export class FeezbackService {
   }
 
   private buildBaseTransactionEntity(tx: any, userId: string): Transactions | null {
+    // console.log("🚀 ~ FeezbackService ~ buildBaseTransactionEntity ~ txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", tx)
     const transaction = new Transactions();
 
     transaction.userId = userId;
-    transaction.name = tx?.remittanceInformationUnstructured
-      || tx?._aggregate?.standardName
-      || tx?.description
-      || 'Unknown Transaction';
+    transaction.name = tx?.cardAcceptorId || tx?.cardAcceptorName || 'לא זוהה בית עסק';
+    // transaction.name = tx?.remittanceInformationUnstructured
+    //   || tx?._aggregate?.standardName
+    //   || tx?.description
+    //   || 'Unknown Transaction';
 
     const billDate = this.parseTxDate(tx);
     if (!billDate) {
@@ -427,7 +429,7 @@ export class FeezbackService {
     }
     transaction.sum = amount;
 
-    transaction.note2 = tx?.additionalInformation || null;
+    transaction.note2 = tx?.transactionDetails || null;
     transaction.category = tx?._aggregate?.category || null;
 
     transaction.billName = null;
@@ -455,7 +457,7 @@ export class FeezbackService {
   }
 
   private parseTxAmount(tx: any): number | null {
-    console.log("🚀 ~ FeezbackService ~ parseTxAmount ~ tx:", tx)
+    // console.log("🚀 ~ FeezbackService ~ parseTxAmount ~ tx:", tx)
     const rawAmount = tx?.transactionAmount?.amount
       || tx?.transactionAmount
       || tx?.grandTotalAmount?.amount
@@ -463,13 +465,13 @@ export class FeezbackService {
       || tx?.originalAmount?.amount
       || tx?.originalAmount;
 
-    console.log("🚀 ~ FeezbackService ~ parseTxAmount ~ rawAmount:", rawAmount)
+    // console.log("🚀 ~ FeezbackService ~ parseTxAmount ~ rawAmount:", rawAmount)
     if (rawAmount === undefined || rawAmount === null) {
       return null;
     }
 
     const parsed = parseFloat(rawAmount.toString().replace(/,/g, ''));
-    console.log("🚀 ~ FeezbackService ~ parseTxAmount ~ parsed:", parsed)
+    // console.log("🚀 ~ FeezbackService ~ parseTxAmount ~ parsed:", parsed)
     return Number.isNaN(parsed) ? null : parsed;
   }
 

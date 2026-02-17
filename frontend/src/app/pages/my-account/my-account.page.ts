@@ -55,6 +55,7 @@ export class MyAccountPage implements OnInit {
   isLoadingUserAccounts = signal<boolean>(false);
   isLoadingUserBankTransactions = signal<boolean>(false);
   isLoadingUserCardTransactions = signal<boolean>(false);
+  isDev = signal<boolean>(process.env.NODE_ENV == 'production');
 
   userData: IUserData;
   transToClassify: any;
