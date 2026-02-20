@@ -52,8 +52,6 @@ export class MannualExpenseService {
 
     $selectedBusinessNumber = signal<string | null>(null);
 
-
-
     readonly categoriesResource = httpResource<ICategory[]>(() => {
         const selectedBusiness = this.$selectedBusinessNumber();
 
@@ -61,7 +59,11 @@ export class MannualExpenseService {
 
         return {
             url: `${environment.apiUrl}expenses/get-categories`,
-            params: { businessNumber: selectedBusiness },
+            params: { 
+                // businessNumber is sent via header (businessnumber), not query param
+                // Backend gets it from request.user?.businessNumber
+                isExpense: 'true' 
+            },
             method: 'GET',
         };
     })

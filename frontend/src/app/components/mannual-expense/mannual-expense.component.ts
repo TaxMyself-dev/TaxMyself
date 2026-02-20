@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, OnDestroy, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
+import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { FilesService } from "src/app/services/files.service";
 import { GenericService } from "src/app/services/generic.service";
 import { AuthService } from "src/app/services/auth.service";
@@ -23,11 +24,11 @@ import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throw
     templateUrl: './mannual-expense.component.html',
     styleUrls: ['./mannual-expense.component.scss'],
     standalone: true,
-    changeDetection: ChangeDetectionStrategy.OnPush,
+    changeDetection: ChangeDetectionStrategy.Default,
     imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent],
     providers: [FormBuilder]
 })
-export class MannualExpenseComponent {
+export class MannualExpenseComponent implements OnDestroy {
 
 
 
@@ -531,10 +532,24 @@ export class MannualExpenseComponent {
     genericService = inject(GenericService);
     messageService = inject(MessageService);
     expenseDataService = inject(ExpenseDataService);
+    sanitizer = inject(DomSanitizer);
 
     files = signal<File[]>([]);
     isDirty = signal<boolean>(false);
     isLoadingAddExpense = signal<boolean>(false);
+    previewFileUrl = signal<string | null>(null);
+    previewFileType = signal<'pdf' | 'image' | null>(null);
+    safePreviewUrl = signal<SafeResourceUrl | null>(null);
+    
+    // Computed signal for PDF URL with toolbar disabled
+    pdfUrlWithParams = computed(() => {
+        const url = this.previewFileUrl();
+        if (url && this.previewFileType() === 'pdf') {
+            const separator = url.includes('#') ? '&' : '#';
+            return this.sanitizer.bypassSecurityTrustResourceUrl(`${url}${separator}toolbar=0&navpanes=0&scrollbar=0`);
+        }
+        return null;
+    });
     inputSize = inputsSize;
     buttonSize = ButtonSize;
     buttonColor = ButtonColor;
@@ -566,12 +581,24 @@ export class MannualExpenseComponent {
     constructor() {
         // Initialize selectedBusinessType from active business (if available)
         const activeBusinessNumber = this.authService.getActiveBusinessNumber();
+        
+        // Initialize $selectedBusinessNumber if there's an active business or only one business
         if (activeBusinessNumber) {
             const business = this.genericService.businesses().find(b => b.businessNumber === activeBusinessNumber);
             if (business) {
                 this.selectedBusinessType.set(business.businessType ?? BusinessType.EXEMPT);
+                this.mannualExpenseService.$selectedBusinessNumber.set(activeBusinessNumber);
+            }
+        } else if (!this.mannualExpenseService.showBusinessSelector()) {
+            // If there's only one business, automatically select it
+            const businesses = this.genericService.businesses();
+            if (businesses.length === 1) {
+                const singleBusiness = businesses[0];
+                this.mannualExpenseService.$selectedBusinessNumber.set(singleBusiness.businessNumber);
+                this.selectedBusinessType.set(singleBusiness.businessType ?? BusinessType.EXEMPT);
             }
         }
+
 
         // Set vatPercent to 0 when business is exempt
         effect(() => {
@@ -586,15 +613,66 @@ export class MannualExpenseComponent {
             this.mannualExpenseService.$selectedCategory.set("");
             return;
         }
-        console.log("🚀 ~ MannualExpenseComponent ~ getSubCategory ~ category:", category)
-
         this.mannualExpenseService.$selectedCategory.set(category as string);
     }
 
     selectedFiles(event: File[]): void {
         this.files.set(event);
-        console.log("selectedFiles: ", this.files());
+        
+        // Clean up previous preview URL
+        if (this.previewFileUrl()) {
+            const url = this.previewFileUrl();
+            if (url && url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+            }
+        }
+        this.safePreviewUrl.set(null);
+        
+        // Auto-preview the first file
+        if (event.length > 0) {
+            this.loadPreview(event[0]);
+        } else {
+            this.previewFileUrl.set(null);
+            this.previewFileType.set(null);
+        }
     }
+
+    loadPreview(file: File): void {
+        if (!file) return;
+
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+        
+        if (fileExtension === 'pdf') {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const arrayBuffer = reader.result as ArrayBuffer;
+                const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+                this.previewFileUrl.set(blobUrl);
+                this.previewFileType.set('pdf');
+                const safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(blobUrl);
+                this.safePreviewUrl.set(safeUrl);
+            };
+            reader.onerror = (error) => {
+                console.error("Error reading PDF:", error);
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (['jpg', 'jpeg', 'png'].includes(fileExtension || '')) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const dataUrl = reader.result as string;
+                this.previewFileUrl.set(dataUrl);
+                this.previewFileType.set('image');
+                const safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(dataUrl);
+                this.safePreviewUrl.set(safeUrl);
+            };
+            reader.onerror = (error) => {
+                console.error("Error reading image:", error);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
 
     addExpense(): void {
         if (this.isLoadingAddExpense()) {
@@ -733,11 +811,9 @@ export class MannualExpenseComponent {
     }
 
     selectBusiness(event: string | boolean): void {
-        console.log("event: ", event);
         const businessNumber = event as string;
         this.authService.setActiveBusinessNumber(businessNumber);
         this.mannualExpenseService.$selectedBusinessNumber.set(businessNumber); // Trigger supplier reload on account change
-        console.log("🚀 ~ MannualExpenseComponent ~ selectBusiness ~ this.mannualExpenseService.$selectedBusinessNumber:", this.mannualExpenseService.$selectedBusinessNumber())
 
         // Update selectedBusinessType (similar to doc-create.page.ts)
         if (businessNumber) {
@@ -808,5 +884,14 @@ export class MannualExpenseComponent {
     //     });
     // }
 
+    ngOnDestroy(): void {
+        // Clean up blob URL to prevent memory leaks
+        if (this.previewFileUrl()) {
+            const url = this.previewFileUrl();
+            if (url && url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+            }
+        }
+    }
 
 }
