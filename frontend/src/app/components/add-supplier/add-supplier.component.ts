@@ -1,6 +1,6 @@
 import { KeyValuePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
-import { ReactiveFormsModule } from '@angular/forms';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { ReactiveFormsModule, Validators } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { catchError, EMPTY } from 'rxjs';
@@ -13,6 +13,7 @@ import { GenericTableComponent } from "../generic-table/generic-table.component"
 import { InputSelectComponent } from '../input-select/input-select.component';
 import { InputTextComponent } from "../input-text/input-text.component";
 import { AddSupplierService } from './add-supplier.service';
+import { CheckboxModule } from 'primeng/checkbox';
 
 // !! ATTENTION !!
 // We have stopped development of this feature near completion. 
@@ -25,7 +26,7 @@ import { AddSupplierService } from './add-supplier.service';
   templateUrl: './add-supplier.component.html',
   styleUrls: ['./add-supplier.component.scss'],
   standalone: true,
-  imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent],
+  imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent, CheckboxModule],
   providers: [AddSupplierService]
 })
 export class AddSupplierComponent {
@@ -44,6 +45,9 @@ export class AddSupplierComponent {
   addSupplierForm = this.addSupplierService.createSupplierForm();
 
   subCategories = computed(() => this.addSupplierService.$subCategoriesOptions());
+  
+  // Signal to track isEquipment checkbox state
+  isEquipmentChecked = signal<boolean>(false);
 
   // Preserve original order for keyvalue pipe (prevents alphabetical sorting)
   preserveOrder = () => 0;
@@ -61,6 +65,37 @@ export class AddSupplierComponent {
 
   constructor() {
     this.addSupplierService.setCategoryEnumValues(this.categories());
+    
+    // Initialize isEquipmentChecked signal with form value
+    this.isEquipmentChecked.set(this.addSupplierForm.get('isEquipment')?.value === true);
+    
+    // Listen to isEquipment form control changes
+    this.addSupplierForm.get('isEquipment')?.valueChanges.subscribe((value) => {
+      this.isEquipmentChecked.set(value === true);
+      
+      if (value) {
+        // When checked (רכוש קבוע):
+        // - Set taxPercent to 0 and clear validators
+        this.addSupplierForm.patchValue({ taxPercent: 0 }, { emitEvent: false });
+        this.addSupplierForm.get('taxPercent')?.clearValidators();
+        this.addSupplierForm.get('taxPercent')?.updateValueAndValidity({ emitEvent: false });
+        
+        // - Make reductionPercent required
+        this.addSupplierForm.get('reductionPercent')?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+        this.addSupplierForm.get('reductionPercent')?.updateValueAndValidity();
+      } else {
+        // When unchecked:
+        // - Set reductionPercent to 0 and remove required validator
+        this.addSupplierForm.patchValue({ reductionPercent: 0 }, { emitEvent: false });
+        this.addSupplierForm.get('reductionPercent')?.clearValidators();
+        this.addSupplierForm.get('reductionPercent')?.setValidators([Validators.min(0), Validators.max(100)]);
+        this.addSupplierForm.get('reductionPercent')?.updateValueAndValidity({ emitEvent: false });
+        
+        // - Restore taxPercent validators
+        this.addSupplierForm.get('taxPercent')?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+        this.addSupplierForm.get('taxPercent')?.updateValueAndValidity();
+      }
+    });
   }
 
   saveSupplier() {
@@ -70,6 +105,16 @@ export class AddSupplierComponent {
       if (typeof value === 'string') {
         const trimmed = value.trim();
         (acc as any)[key] = trimmed === '' ? null : trimmed;
+        return acc;
+      }
+      // Ensure taxPercent is 0 if isEquipment is true
+      if (key === 'taxPercent' && raw.isEquipment) {
+        (acc as any)[key] = 0;
+        return acc;
+      }
+      // Ensure reductionPercent is 0 if isEquipment is false
+      if (key === 'reductionPercent' && !raw.isEquipment) {
+        (acc as any)[key] = 0;
         return acc;
       }
       (acc as any)[key] = value ?? null;
