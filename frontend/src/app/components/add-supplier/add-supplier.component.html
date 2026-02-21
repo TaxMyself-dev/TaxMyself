@@ -1,24 +1,37 @@
 <div class="client-container">
   <form [formGroup]="addSupplierForm" class="client-form">
     @for (field of addSupplierService.addSupplierFields | keyvalue:preserveOrder; track field.key) {
-    @switch (field.value.type) {
-    @case (formTypes.DDL) {
-    <app-input-select [controlName]="field.key" [labelText]="field.value.labelText"
-      [placeholder]="field.value.placeHolder" (onChangeInputSelect)="onSelectionChange($event, field.key)"
-      [items]="field.value.enumValues" [parentForm]="addSupplierForm" [size]="inputSize.MEDIUM">
-    </app-input-select>
-    }
-    @case (formTypes.TEXT) {
-    <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
-      [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
-    </app-input-text>
-    }
-    @case (formTypes.NUMBER) {
-    <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
-      [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
-    </app-input-text>
-    }
-    }
+      @if ((field.key !== 'reductionPercent' || isEquipmentChecked()) && 
+           (field.key !== 'taxPercent' || !isEquipmentChecked())) {
+        @switch (field.value.type) {
+          @case (formTypes.DDL) {
+            <app-input-select [controlName]="field.key" [labelText]="field.value.labelText"
+              [placeholder]="field.value.placeHolder" (onChangeInputSelect)="onSelectionChange($event, field.key)"
+              [items]="field.value.enumValues" [parentForm]="addSupplierForm" [size]="inputSize.MEDIUM">
+            </app-input-select>
+          }
+          @case (formTypes.TEXT) {
+            <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
+              [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
+            </app-input-text>
+          }
+          @case (formTypes.NUMBER) {
+            <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
+              [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
+            </app-input-text>
+          }
+          @case (formTypes.CHECKBOX) {
+            <div class="checkbox-field">
+              <p-checkbox 
+                [formControlName]="field.key" 
+                [inputId]="field.key"
+                [binary]="true">
+              </p-checkbox>
+              <label [for]="field.key" class="checkbox-label">{{ field.value.labelText }}</label>
+            </div>
+          }
+        }
+      }
     }
   </form>
   <div>

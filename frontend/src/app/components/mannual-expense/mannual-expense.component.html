@@ -15,9 +15,23 @@
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
-<app-input-text [customStyle]="'fill-border'" [controlName]="'supplier'" [labelText]="'ספק'" [placeholder]="'הקלד ספק'"
-  [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
-</app-input-text>
+<app-input-autocomplete 
+  [customStyle]="'fill-border'" 
+  [controlName]="'supplier'" 
+  [labelText]="'ספק'" 
+  [placeholder]="'חפש או הוסף ספק'"
+  [parentForm]="mannualExpenseForm" 
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
+  [items]="mannualExpenseService.$filteredSuppliers()" 
+  optionLabel="supplier"
+  (onCompleteMethod)="filterSuppliers($event)" 
+  (onItemSelect)="onSupplierSelect($event)" 
+  [showAddNew]="true"
+  addNewLabel="הוסף ספק חדש" 
+  (onAddNew)="onAddNewSupplier($event)" 
+  headerText="בחר ספק קיים"
+  [forceSelection]="false">
+</app-input-autocomplete>
 
 <app-input-text [customStyle]="'fill-border'" [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'"
   [placeholder]="'הקלד ח.פ. ספק'" [parentForm]="mannualExpenseForm"

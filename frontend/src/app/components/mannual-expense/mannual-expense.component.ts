@@ -7,17 +7,19 @@ import { GenericService } from "src/app/services/generic.service";
 import { AuthService } from "src/app/services/auth.service";
 import { inputsSize, BusinessType } from "src/app/shared/enums";
 import { Business } from "src/app/shared/interface";
-import { IGetSupplier, ISelectItem, ISubCategory } from "src/app/shared/interface";
+import { IGetSupplier, ISelectItem, ISubCategory, ISupplier } from "src/app/shared/interface";
 import { InputDateComponent } from "../input-date/input-date.component";
 import { appFileUploadGptComponent } from "../input-file/input-file.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { InputTextComponent } from "../input-text/input-text.component";
+import { InputAutoCompleteComponent } from "../input-autoComplete/input-autoComplete.component";
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from "../button/button.enum";
 import { MannualExpenseService } from "./mannual-expense.service";
 import { ExpenseDataService } from "src/app/services/expense-data.service";
 import { MessageService } from "primeng/api";
 import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError } from "rxjs";
+import { AddSupplierComponent } from "../add-supplier/add-supplier.component";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -25,7 +27,7 @@ import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throw
     styleUrls: ['./mannual-expense.component.scss'],
     standalone: true,
     changeDetection: ChangeDetectionStrategy.Default,
-    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent],
+    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent],
     providers: [FormBuilder]
 })
 export class MannualExpenseComponent implements OnDestroy {
@@ -588,6 +590,8 @@ export class MannualExpenseComponent implements OnDestroy {
             if (business) {
                 this.selectedBusinessType.set(business.businessType ?? BusinessType.EXEMPT);
                 this.mannualExpenseService.$selectedBusinessNumber.set(activeBusinessNumber);
+                // Ensure AuthService is synced for interceptor
+                this.authService.setActiveBusinessNumber(activeBusinessNumber);
             }
         } else if (!this.mannualExpenseService.showBusinessSelector()) {
             // If there's only one business, automatically select it
@@ -596,6 +600,8 @@ export class MannualExpenseComponent implements OnDestroy {
                 const singleBusiness = businesses[0];
                 this.mannualExpenseService.$selectedBusinessNumber.set(singleBusiness.businessNumber);
                 this.selectedBusinessType.set(singleBusiness.businessType ?? BusinessType.EXEMPT);
+                // Ensure AuthService is synced for interceptor
+                this.authService.setActiveBusinessNumber(singleBusiness.businessNumber);
             }
         }
 
@@ -604,6 +610,15 @@ export class MannualExpenseComponent implements OnDestroy {
         effect(() => {
             if (this.isExemptBusiness()) {
                 this.mannualExpenseForm.patchValue({ vatPercent: 0 }, { emitEvent: false });
+            }
+        });
+
+        // Sync AuthService with $selectedBusinessNumber for interceptor
+        // This ensures the businessNumber header is sent with API requests
+        effect(() => {
+            const businessNumber = this.mannualExpenseService.$selectedBusinessNumber();
+            if (businessNumber) {
+                this.authService.setActiveBusinessNumber(businessNumber);
             }
         });
     }
@@ -851,38 +866,69 @@ export class MannualExpenseComponent implements OnDestroy {
     }
 
 
-    // onSupplierSelect(event: any): void {
-    //     console.log("event: ", event);
-    // }
+    filterSuppliers(event: any): void {
+        const query = event.query || '';
+        this.mannualExpenseService.$supplierSearchQuery.set(query);
+    }
 
-    // filterSuppliers(event: any): void {
-    //     console.log("event: ", event);
-    //     const query = event.query?.toLowerCase() || '';
+    onSupplierSelect(event: any): void {
+        // Handle both cases: autocomplete (event.value) and direct supplier object
+        const supplier = event.value || event;
+        
+        // Map supplier data - backend returns 'supplier' field, interface might use 'name'
+        const supplierName = supplier.supplier || supplier.name || '';
+        const supplierId = supplier.supplierID || supplier.supplierId || '';
+        
+        // Fill form fields with supplier data
+        this.mannualExpenseForm.patchValue({
+            supplier: supplierName,
+            supplierId: supplierId,
+            category: supplier.category || null,
+            subCategory: supplier.subCategory || null,
+            taxPercent: supplier.taxPercent || 0,
+            vatPercent: supplier.vatPercent || 0,
+            reductionPercent: supplier.reductionPercent || 0,
+        });
+        
+        // Trigger category selection to load subcategories
+        if (supplier.category) {
+            this.getSubCategory(supplier.category);
+        }
+    }
 
-    //     if (!query) {
-    //         this.filteredSuppliers.set([...this.mannualExpenseService.$suppliers()]);
-    //     } else {
-    //         const filtered = this.mannualExpenseService.$suppliers().filter(supplier => supplier.supplier?.toLowerCase().includes(query));
-    //         this.filteredSuppliers.set(filtered);
-    //     }
-    // }
+    onAddNewSupplier(name: string): void {
+        // Set the name in the form
+        this.mannualExpenseForm.patchValue({
+            supplier: name
+        });
 
-    // onAddNewSupplier(event: any): void {
-    //     console.log("event: ", event);
-    //     this.dialogRef = this.dialogService.open(AddSupplierComponent, {
-    //         header: 'יצירת ספק חדש',
-    //         width: '90%',
-    //         rtl: true,
-    //         closable: true,
-    //         dismissableMask: true,
-    //         modal: true,
-    //         data: {
-    //             businessNumber: this.mannualExpenseService.$selectedBusinessNumber(),
-    //             suppliers: this.mannualExpenseService.$suppliers(),
-    //             categories: this.mannualExpenseService.$categoriesOptions(),
-    //         }
-    //     });
-    // }
+        this.dialogRef = this.dialogService.open(AddSupplierComponent, {
+            header: 'יצירת ספק חדש',
+            width: '90%',
+            rtl: true,
+            closable: true,
+            dismissableMask: true,
+            modal: true,
+            data: {
+                businessNumber: this.mannualExpenseService.$selectedBusinessNumber(),
+                suppliers: this.mannualExpenseService.$suppliers(),
+                categories: this.mannualExpenseService.$categoriesOptions(),
+            }
+        });
+
+        this.dialogRef.onClose.subscribe((res) => {
+            if (res) {
+                this.onSupplierSelect(res);
+            }
+            // Trigger reload of suppliers resource
+            // The resource will automatically reload when dependencies change
+            const currentBusiness = this.mannualExpenseService.$selectedBusinessNumber();
+            this.mannualExpenseService.$selectedBusinessNumber.set(null);
+            setTimeout(() => {
+                this.mannualExpenseService.$selectedBusinessNumber.set(currentBusiness);
+            }, 0);
+        });
+    }
 
     ngOnDestroy(): void {
         // Clean up blob URL to prevent memory leaks

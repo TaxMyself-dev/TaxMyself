@@ -1,0 +1,34 @@
+<div class="table-block">
+
+    <!-- FILTER TAB -->
+    <app-filter-tab
+        [config]="filterConfig"
+        [parentForm]="form"
+        (apply)="onSubmit($event)">
+    </app-filter-tab>
+
+    <!-- PAGE TITLE -->
+     <h2 class="table-title">
+        ספקים עבור העסק:
+        <span class="business-name">{{ selectedBusinessName() }}</span>
+    </h2>
+
+    <!-- SUPPLIERS TABLE -->
+    <app-generic-table
+        class="table"
+        [isLoadingState]="isLoadingDataTable()"
+        [columnsTitle]="suppliersTableFields"
+        [dataTable]="mySuppliers | async"
+        [fileActions]="fileActions()"
+        [selectionModeCheckBox]="null"
+        [tableHeight]="'500px'">
+    </app-generic-table>
+
+</div>
+
+<!-- Toast for messages -->
+<p-toast key="br"></p-toast>
+
+<!-- Confirmation Dialog for PrimeNG ConfirmationService -->
+<p-confirmDialog></p-confirmDialog>
+

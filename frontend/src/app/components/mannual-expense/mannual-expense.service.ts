@@ -1,8 +1,20 @@
 import { httpResource } from "@angular/common/http";
 import { computed, effect, inject, Injectable, linkedSignal, Resource, signal } from "@angular/core";
 import { GenericService } from "src/app/services/generic.service";
-import { ICategory, IGetSupplier, ISubCategory } from "src/app/shared/interface";
+import { ICategory, IGetSupplier, ISubCategory, ISupplier } from "src/app/shared/interface";
 import { environment } from "src/environments/environment";
+
+// Type for supplier from API (matches backend SupplierResponseDto)
+interface SupplierApiResponse {
+    supplier: string;
+    supplierID: string;
+    category: string;
+    subCategory: string;
+    taxPercent: number;
+    vatPercent: number;
+    reductionPercent?: number;
+    id?: number;
+}
 
 @Injectable({
     providedIn: 'root'
@@ -38,19 +50,53 @@ export class MannualExpenseService {
     })
 
     $subCategoriesOptions = computed(() => {
-
-        return this.subCategoriesResource.value()?.map((item: ISubCategory) => ({
+        const subCategories = this.subCategoriesResource.value();
+        if (!subCategories || subCategories.length === 0) {
+            return [];
+        }
+        return subCategories.map((item: ISubCategory) => ({
             name: item.subCategoryName,
             value: item.subCategoryName
-        })
-        ) ?? [];
+        }));
     })
 
-    // $suppliers = computed(() => {
-    //     return this.supplierResource.value()
-    // })
-
     $selectedBusinessNumber = signal<string | null>(null);
+    
+    // Signal for supplier search query
+    $supplierSearchQuery = signal<string>('');
+    
+    // httpResource for loading suppliers
+    readonly suppliersResource = httpResource<SupplierApiResponse[]>(() => {
+        const selectedBusiness = this.$selectedBusinessNumber();
+        
+        if (!selectedBusiness) return undefined;
+        
+        return {
+            url: `${environment.apiUrl}expenses/get-suppliers-list`,
+            method: 'GET',
+        };
+    });
+    
+    // Computed signal for all suppliers
+    $suppliers = computed(() => {
+        return this.suppliersResource.value() ?? [];
+    });
+    
+    // Computed signal for filtered suppliers based on search query
+    $filteredSuppliers = computed(() => {
+        const suppliers = this.$suppliers();
+        const query = this.$supplierSearchQuery().toLowerCase();
+        
+        if (!query) {
+            return suppliers;
+        }
+        
+        return suppliers.filter(supplier => {
+            const supplierName = supplier.supplier?.toLowerCase() || '';
+            const supplierId = supplier.supplierID?.toLowerCase() || '';
+            return supplierName.includes(query) || supplierId.includes(query);
+        });
+    });
 
     readonly categoriesResource = httpResource<ICategory[]>(() => {
         const selectedBusiness = this.$selectedBusinessNumber();
@@ -75,7 +121,7 @@ export class MannualExpenseService {
 
         return {
             url: `${environment.apiUrl}expenses/get-sub-categories`,
-            params: { categoryName: selectedCategory, isExpense: true },
+            params: { categoryName: selectedCategory, isExpense: 'true' },
             method: 'GET',
         };
     });
