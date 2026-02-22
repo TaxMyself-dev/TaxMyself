@@ -43,11 +43,25 @@
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
 
+<!-- רכוש קבוע checkbox -->
+<div class="checkbox-row">
+  <form [formGroup]="mannualExpenseForm">
+    <div class="checkbox-field">
+      <p-checkbox 
+        formControlName="isEquipment" 
+        inputId="isEquipment"
+        [binary]="true">
+      </p-checkbox>
+      <label [for]="'isEquipment'" class="checkbox-label">רכוש קבוע</label>
+    </div>
+  </form>
+</div>
+
 @if (mannualExpenseService.$categoriesOptions()) {
 <app-input-select [customStyle]="'register'" [controlName]="'category'" [labelText]="'קטגוריה'"
   [placeholder]="'בחר קטגוריה'" [items]="mannualExpenseService.$categoriesOptions()" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
-  [disabled]="mannualExpenseService.$selectedBusinessNumber() === null" (onChangeInputSelect)="getSubCategory($event)">
+  [disabled]="mannualExpenseService.$selectedBusinessNumber() === null || isEquipmentChecked()" (onChangeInputSelect)="getSubCategory($event)">
 </app-input-select>
 }
 
@@ -56,10 +70,12 @@
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" (onChangeInputSelect)="onSelectSubCategory($event)">
 </app-input-select>
 
+@if (!isEquipmentChecked()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'taxPercent'"
   [labelText]="'אחוז מוכר למס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
+}
 
 @if (!isExemptBusiness()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'vatPercent'"
@@ -68,9 +84,9 @@
 </app-input-text>
 }
 
-@if (mannualExpenseService.$selectedCategory() === "רכוש קבוע") {
+@if (isEquipmentChecked()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'reductionPercent'"
-  [labelText]="'אחוזי פחת'" [placeholder]="'אחוזי פחת'" [parentForm]="mannualExpenseForm"
+  [labelText]="'אחוז פחת'" [placeholder]="'אחוז פחת'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 }

@@ -102,6 +102,13 @@ export class AddSupplierComponent {
     const raw = this.addSupplierForm.getRawValue() as Partial<ISupplier>;
 
     const supplierData = Object.entries(raw).reduce((acc, [key, value]) => {
+      // Map 'name' to 'supplier' for backend compatibility
+      if (key === 'name') {
+        const trimmed = typeof value === 'string' ? value.trim() : value;
+        (acc as any)['supplier'] = trimmed === '' ? null : trimmed;
+        return acc;
+      }
+      
       if (typeof value === 'string') {
         const trimmed = value.trim();
         (acc as any)[key] = trimmed === '' ? null : trimmed;

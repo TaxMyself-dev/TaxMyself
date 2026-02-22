@@ -569,19 +569,27 @@ export class ExpensesService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    async addSupplier(supplier: Partial<Supplier>, userId: string) {
+    async addSupplier(supplier: Partial<Supplier>, userId: string, businessNumber: string) {
         console.log("addSupplier - start");
+        console.log("addSupplier - businessNumber:", businessNumber);
 
-        const isAlreadyExist = await this.supplier_repo.findOne({ where: { supplier: supplier.supplier } });
+        // Check if supplier already exists for this business (not globally)
+        const isAlreadyExist = await this.supplier_repo.findOne({ 
+            where: { 
+                supplier: supplier.supplier,
+                businessNumber: businessNumber 
+            } 
+        });
         console.log("is allready: ", isAlreadyExist);
         if (isAlreadyExist) {
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
-                error: `Supplier with this name: "${supplier}" already exists`
+                error: `Supplier with this name: "${supplier.supplier}" already exists for this business`
             }, HttpStatus.CONFLICT);
         }
         const newSupplier = this.supplier_repo.create(supplier);
         newSupplier.userId = userId;
+        newSupplier.businessNumber = businessNumber;
         return await this.supplier_repo.save(newSupplier);
     }
 
