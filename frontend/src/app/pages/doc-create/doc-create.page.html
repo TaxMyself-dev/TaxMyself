@@ -76,7 +76,8 @@
           <app-input-text [controlName]="item.value" [value]="item.initialValue" [labelText]="item.labelText"
             [placeholder]="item.placeHolder" [parentForm]="generalDetailsForm"
             [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [type]="
-          item.type === formTypes.NUMBER ? 'number' : 'text'"></app-input-text>
+          item.type === formTypes.NUMBER ? 'number' : 'text'"
+            [customStyle]="isMobile() ? 'fill-border' : ''"></app-input-text>
           }
           }
 
@@ -105,11 +106,12 @@
           @for (item of userArray; track item.value) {
           @switch (item.type) {
           @case (formTypes.AUTOCOMPLETE) {
-          <app-input-autocomplete [labelText]="item.labelText" [parentForm]="userDetailsForm" [controlName]="item.value"
-            [placeholder]="item.placeHolder" [items]="filteredClients()" optionLabel="name"
-            (onCompleteMethod)="filterClients($event)" (onItemSelect)="onClientSelect($event)" [showAddNew]="true"
-            addNewLabel="הוסף לקוח חדש" (onAddNew)="onAddNewClient($event)" headerText="בחר לקוח קיים"
-            [forceSelection]="false" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN">
+          <app-input-autocomplete [customStyle]="isMobile() ? 'fill-border' : ''" [labelText]="item.labelText"
+            [parentForm]="userDetailsForm" [controlName]="item.value" [placeholder]="item.placeHolder"
+            [items]="filteredClients()" optionLabel="name" (onCompleteMethod)="filterClients($event)"
+            (onItemSelect)="onClientSelect($event)" [showAddNew]="true" addNewLabel="הוסף לקוח חדש"
+            (onAddNew)="onAddNewClient($event)" headerText="בחר לקוח קיים" [forceSelection]="false"
+            [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN">
           </app-input-autocomplete>
           }
 
@@ -127,8 +129,9 @@
           }
 
           @default {
-          <app-input-text [controlName]="item.value" [labelText]="item.labelText" [placeholder]="item.placeHolder"
-            [parentForm]="userDetailsForm" [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [type]="
+          <app-input-text [customStyle]="isMobile() ? 'fill-border' : ''" [controlName]="item.value"
+            [labelText]="item.labelText" [placeholder]="item.placeHolder" [parentForm]="userDetailsForm"
+            [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN" [type]="
           item.type === formTypes.NUMBER ? 'number' :
           'text'
         ">
@@ -179,7 +182,14 @@
             </div>
 
             @switch (col.field) {
+            @case (FieldsCreateDocValue.SUM) {
+            @if (isMobile()) {
+            <p-inputnumber [min]="1" class="sum-input" [formControlName]="col.field" [inputStyle]="{ width: '130px' }"
+              placeholder="0">
 
+            </p-inputnumber>
+            }
+            }
             @case (FieldsCreateDocValue.UNIT_AMOUNT) {
             <p-inputnumber [min]="1" class="plus-minus" [formControlName]="col.field" [showButtons]="true"
               buttonLayout="horizontal" spinnerMode="horizontal"
@@ -195,12 +205,21 @@
 
             @case (FieldsCreateDocValue.VAT_OPTIONS) {
             <div class="gender-options-row" role="radiogroup">
+              @if (isMobile()) {
+              <form [formGroup]="lineDetailsForm">
+                <p-selectbutton styleClass="vat-selectbutton" [options]="vatOptionsToPrimeng" formControlName="value"
+                  optionLabel="label" optionValue="value" />
+              </form>
+              }
+              @else {
+
               @for (opt of vatOptions; track opt.value) {
               <div class="vat-option">
                 <p-radiobutton [formControlName]="col.field" [value]="opt.value" [name]="col.field"
                   [inputId]="col.field + '-' + opt.value" />
                 <label class="ml-2" [for]="col.field + '-' + opt.value">{{ opt.name }}</label>
               </div>
+              }
               }
             </div>
             }
@@ -223,6 +242,7 @@
 
             @default {
             <app-input-text [controlName]="col.field" [placeholder]="col.header" [parentForm]="lineDetailsForm"
+              [customStyle]="isMobile() ? 'fill-border' : ''"
               [type]="col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? 'text' : 'number'"
               [size]="isMobile() ? inputsSize.MOBILE : col.field === FieldsCreateDocValue.LINE_DESCRIPTION ? inputsSize.LARGE : inputsSize.SMALL">
             </app-input-text>
@@ -505,42 +525,32 @@
     @if (showWithholdingTaxSection()) {
     <div class="section">
       <div class="withholding-tax-container">
-        <span 
-          class="withholding-tax-link" 
-          (click)="expandWithholdingTax()"
+        <span class="withholding-tax-link" (click)="expandWithholdingTax()"
           [class.expanded]="isWithholdingTaxExpanded()">
           {{ isWithholdingTaxExpanded() ? 'הסתר ניכוי מס במקור' : 'הוסף ניכוי מס במקור' }}
         </span>
-        
+
         @if (isWithholdingTaxExpanded()) {
-          <div class="withholding-tax-input">
-            <form [formGroup]="withholdingTaxForm">
-              <app-input-text 
-                [controlName]="'withholdingTaxAmount'" 
-                [labelText]="'סכום ניכוי מס במקור'" 
-                [placeholder]="'0.00'" 
-                [parentForm]="withholdingTaxForm"
-                [type]="'number'"
-                [size]="inputsSize.MEDIUM">
-              </app-input-text>
-            </form>
-          </div>
+        <div class="withholding-tax-input">
+          <form [formGroup]="withholdingTaxForm">
+            <app-input-text [controlName]="'withholdingTaxAmount'" [labelText]="'סכום ניכוי מס במקור'"
+              [placeholder]="'0.00'" [parentForm]="withholdingTaxForm" [type]="'number'" [size]="inputsSize.MEDIUM">
+            </app-input-text>
+          </form>
+        </div>
         }
       </div>
     </div>
     }
 
     <div class="email-checkbox-container">
-      <p-checkbox 
-        [binary]="true" 
-        inputId="sendEmailCheckbox"
-        [(ngModel)]="sendEmailToRecipient">
+      <p-checkbox [binary]="true" inputId="sendEmailCheckbox" [(ngModel)]="sendEmailToRecipient">
       </p-checkbox>
       <label for="sendEmailCheckbox" class="checkbox-label">
         שלח מסמך למייל הלקוח
       </label>
       @if (sendEmailToRecipient && !canSendEmail()) {
-        <span class="email-warning">נא למלא כתובת מייל תקינה</span>
+      <span class="email-warning">נא למלא כתובת מייל תקינה</span>
       }
     </div>
 
@@ -569,13 +579,8 @@
   </app-shaam-invoice-approval-dialog>
 
   <!-- Loading Dialog for Allocation Number Request -->
-  <p-dialog 
-    header="מפיק מספר הקצאה" 
-    [visible]="allocationNumberLoading()" 
-    [modal]="true" 
-    [rtl]="true"
-    [closable]="false"
-    [style]="{ width: '400px' }">
+  <p-dialog header="מפיק מספר הקצאה" [visible]="allocationNumberLoading()" [modal]="true" [rtl]="true"
+    [closable]="false" [style]="{ width: '400px' }">
     <div class="allocation-loading-content">
       <div class="allocation-loading-wrapper">
         <div class="allocation-spinner"></div>

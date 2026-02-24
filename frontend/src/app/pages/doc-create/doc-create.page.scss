@@ -20,12 +20,12 @@
   font-size: 1rem;
   display: inline-block;
   transition: color 0.2s ease;
-  
+
   &:hover {
     color: #0056b3;
     text-decoration: underline;
   }
-  
+
   &.expanded {
     margin-bottom: 1rem;
   }
@@ -36,8 +36,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .allocation-loading-content {
@@ -202,10 +207,9 @@
     width: 90%;
   }
 
-  // :host {
-  //   align-items: stretch;
-  //   background-color: #f7f7f9;
-  // }
+  :host {
+    padding-right: 0px;
+  }
 
   // .page-wrapper {
   //   width: 100%;
@@ -305,6 +309,14 @@
 
 .plus-minus {
   border: solid 1px #ccc;
+}
+
+.sum-input {
+  border: solid 1px #ccc;
+}
+
+::ng-deep .p-inputtext {
+  padding-inline: 1rem !important;
 }
 
 .gender-options-row {
@@ -644,6 +656,8 @@
   font-weight: 600;
   opacity: 0.85;
   margin-bottom: 6px;
+  width: fit-content;
+
 }
 
 /* פעולות */

@@ -169,7 +169,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private dialogRef: DynamicDialogRef | undefined;
 
   readonly vatOptions = vatOptions;
-
+  readonly vatOptionsToPrimeng = this.gs.mapLabelToName(vatOptions);
   documentTotals = signal<DocumentTotals>({
     sumBefDisBefVat: 0,
     disSum: 0,
