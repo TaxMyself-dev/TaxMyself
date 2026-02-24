@@ -229,6 +229,24 @@
     justify-content: end;
 }
 
+.checkbox-row {
+    width: 100%;
+    flex-basis: 100%;
+    min-width: 100%;
+}
+
+.checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.checkbox-label {
+    cursor: pointer;
+    user-select: none;
+}
+
 
 
 

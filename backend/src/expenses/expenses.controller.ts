@@ -209,7 +209,8 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
     @Body() body: any) {
     const firebaseId = request.user?.firebaseId;
-    return await this.expensesService.addSupplier(body, firebaseId);
+    const businessNumber = request.user?.businessNumber;
+    return await this.expensesService.addSupplier(body, firebaseId, businessNumber);
   }
 
 

@@ -20,6 +20,7 @@ import { ExpenseDataService } from "src/app/services/expense-data.service";
 import { MessageService } from "primeng/api";
 import { Observable, EMPTY, catchError, finalize, map, of, switchMap, tap, throwError } from "rxjs";
 import { AddSupplierComponent } from "../add-supplier/add-supplier.component";
+import { CheckboxModule } from "primeng/checkbox";
 
 @Component({
     selector: 'app-mannual-expense',
@@ -27,7 +28,7 @@ import { AddSupplierComponent } from "../add-supplier/add-supplier.component";
     styleUrls: ['./mannual-expense.component.scss'],
     standalone: true,
     changeDetection: ChangeDetectionStrategy.Default,
-    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent],
+    imports: [ReactiveFormsModule, InputSelectComponent, InputTextComponent, InputDateComponent, appFileUploadGptComponent, ButtonComponent, InputAutoCompleteComponent, CheckboxModule],
     providers: [FormBuilder]
 })
 export class MannualExpenseComponent implements OnDestroy {
@@ -563,6 +564,12 @@ export class MannualExpenseComponent implements OnDestroy {
 
     // Check if the selected business is exempt from VAT
     isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+    
+    // Signal to track isEquipment checkbox state
+    isEquipmentChecked = signal<boolean>(false);
+    
+    // Subscription for isEquipment valueChanges
+    private isEquipmentSubscription?: any;
 
     mannualExpenseForm = this.formBuilder.group({
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
@@ -571,7 +578,8 @@ export class MannualExpenseComponent implements OnDestroy {
         supplier: ["", Validators.required],
         supplierId: ["", Validators.pattern("^[0-9]*$")],
         expenseNumber: ["", Validators.pattern("^[0-9]*$")],
-        category: [null, Validators.required],
+        isEquipment: [false],
+        category: [null as string | null, Validators.required],
         subCategory: [null, Validators.required],
         vatPercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
         taxPercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
@@ -606,11 +614,73 @@ export class MannualExpenseComponent implements OnDestroy {
         }
 
 
-        // Set vatPercent to 0 when business is exempt
+        // Set vatPercent to 0 and clear validators when business is exempt
         effect(() => {
+            const vatPercentControl = this.mannualExpenseForm.get('vatPercent');
             if (this.isExemptBusiness()) {
                 this.mannualExpenseForm.patchValue({ vatPercent: 0 }, { emitEvent: false });
+                // Clear validators for exempt business
+                vatPercentControl?.clearValidators();
+                vatPercentControl?.updateValueAndValidity({ emitEvent: false });
+            } else {
+                // Restore validators for non-exempt business
+                vatPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+                vatPercentControl?.updateValueAndValidity({ emitEvent: false });
             }
+        });
+
+        // Initialize isEquipmentChecked signal with form value
+        this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
+        
+        // Handle isEquipment checkbox changes
+        this.isEquipmentSubscription = this.mannualExpenseForm.get('isEquipment')?.valueChanges.subscribe((isChecked: boolean) => {
+            console.log('isEquipment value changed:', isChecked);
+            this.isEquipmentChecked.set(isChecked || false);
+            
+            if (isChecked) {
+                // Set category to "רכוש קבוע" automatically
+                this.mannualExpenseForm.patchValue({ category: "רכוש קבוע" }, { emitEvent: true });
+                // Trigger subcategory load
+                this.getSubCategory("רכוש קבוע");
+                // Set taxPercent to 0 and clear validators
+                this.mannualExpenseForm.patchValue({ taxPercent: 0 }, { emitEvent: false });
+                const taxPercentControl = this.mannualExpenseForm.get('taxPercent');
+                taxPercentControl?.clearValidators();
+                taxPercentControl?.updateValueAndValidity({ emitEvent: false });
+                // Make reductionPercent required
+                const reductionPercentControl = this.mannualExpenseForm.get('reductionPercent');
+                reductionPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+                reductionPercentControl?.updateValueAndValidity({ emitEvent: false });
+            } else {
+                // Clear category only if it was "רכוש קבוע"
+                const currentCategory = this.mannualExpenseForm.get('category')?.value;
+                if (currentCategory === "רכוש קבוע") {
+                    this.mannualExpenseForm.patchValue({ category: null as any }, { emitEvent: true });
+                }
+                // Restore taxPercent validators
+                const taxPercentControl = this.mannualExpenseForm.get('taxPercent');
+                taxPercentControl?.setValidators([Validators.required, Validators.min(0), Validators.max(100)]);
+                taxPercentControl?.updateValueAndValidity({ emitEvent: false });
+                // Clear reductionPercent and remove required validator
+                this.mannualExpenseForm.patchValue({ reductionPercent: 0 }, { emitEvent: false });
+                const reductionPercentControl = this.mannualExpenseForm.get('reductionPercent');
+                reductionPercentControl?.clearValidators();
+                reductionPercentControl?.setValidators([Validators.min(0), Validators.max(100)]);
+                reductionPercentControl?.updateValueAndValidity({ emitEvent: false });
+            }
+        });
+
+        // Handle businessNumber validators based on showBusinessSelector
+        effect(() => {
+            const businessNumberControl = this.mannualExpenseForm.get('businessNumber');
+            if (this.mannualExpenseService.showBusinessSelector()) {
+                // Business number is required if there are multiple businesses
+                businessNumberControl?.setValidators([Validators.required]);
+            } else {
+                // Clear validators if there's only one business
+                businessNumberControl?.clearValidators();
+            }
+            businessNumberControl?.updateValueAndValidity({ emitEvent: false });
         });
 
         // Sync AuthService with $selectedBusinessNumber for interceptor
@@ -776,6 +846,7 @@ export class MannualExpenseComponent implements OnDestroy {
             taxPercent: this.toNumberOrNull(raw.taxPercent),
             vatPercent: this.toNumberOrNull(raw.vatPercent),
             reductionPercent: this.toNumberOrNull(raw.reductionPercent),
+            isEquipment: raw.isEquipment || false,
         };
     }
 
@@ -903,8 +974,9 @@ export class MannualExpenseComponent implements OnDestroy {
         });
 
         this.dialogRef = this.dialogService.open(AddSupplierComponent, {
-            header: 'יצירת ספק חדש',
-            width: '90%',
+            header: 'הוספת ספק חדש',
+            width: '480px',
+            style: { maxWidth: '95vw' },
             rtl: true,
             closable: true,
             dismissableMask: true,
@@ -937,6 +1009,10 @@ export class MannualExpenseComponent implements OnDestroy {
             if (url && url.startsWith('blob:')) {
                 URL.revokeObjectURL(url);
             }
+        }
+        // Unsubscribe from isEquipment valueChanges
+        if (this.isEquipmentSubscription) {
+            this.isEquipmentSubscription.unsubscribe();
         }
     }
 

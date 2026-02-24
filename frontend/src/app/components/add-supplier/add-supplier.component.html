@@ -1,38 +1,98 @@
 <div class="client-container">
   <form [formGroup]="addSupplierForm" class="client-form">
-    @for (field of addSupplierService.addSupplierFields | keyvalue:preserveOrder; track field.key) {
-      @if ((field.key !== 'reductionPercent' || isEquipmentChecked()) && 
-           (field.key !== 'taxPercent' || !isEquipmentChecked())) {
-        @switch (field.value.type) {
-          @case (formTypes.DDL) {
-            <app-input-select [controlName]="field.key" [labelText]="field.value.labelText"
-              [placeholder]="field.value.placeHolder" (onChangeInputSelect)="onSelectionChange($event, field.key)"
-              [items]="field.value.enumValues" [parentForm]="addSupplierForm" [size]="inputSize.MEDIUM">
-            </app-input-select>
-          }
-          @case (formTypes.TEXT) {
-            <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
-              [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
-            </app-input-text>
-          }
-          @case (formTypes.NUMBER) {
-            <app-input-text [parentForm]="addSupplierForm" [controlName]="field.key" [labelText]="field.value.labelText"
-              [placeholder]="field.value.placeHolder" [type]="field.value.type" [size]="inputSize.MEDIUM">
-            </app-input-text>
-          }
-          @case (formTypes.CHECKBOX) {
-            <div class="checkbox-field">
-              <p-checkbox 
-                [formControlName]="field.key" 
-                [inputId]="field.key"
-                [binary]="true">
-              </p-checkbox>
-              <label [for]="field.key" class="checkbox-label">{{ field.value.labelText }}</label>
-            </div>
-          }
-        }
+    <!-- Row 1: שם ספק ומספר ספק -->
+    <div class="form-row">
+      <app-input-text 
+        [parentForm]="addSupplierForm" 
+        [controlName]="'name'" 
+        [labelText]="addSupplierService.addSupplierFields.name.labelText"
+        [placeholder]="addSupplierService.addSupplierFields.name.placeHolder" 
+        [type]="'text'" 
+        [size]="inputSize.MEDIUM"
+        class="form-field-half">
+      </app-input-text>
+      <app-input-text 
+        [parentForm]="addSupplierForm" 
+        [controlName]="'supplierID'" 
+        [labelText]="addSupplierService.addSupplierFields.supplierID.labelText"
+        [placeholder]="addSupplierService.addSupplierFields.supplierID.placeHolder" 
+        [type]="'text'" 
+        [size]="inputSize.MEDIUM"
+        class="form-field-half">
+      </app-input-text>
+    </div>
+
+    <!-- Row 2: רכוש קבוע checkbox -->
+    <div class="form-row">
+      <div class="checkbox-field">
+        <p-checkbox 
+          [formControlName]="'isEquipment'" 
+          [inputId]="'isEquipment'"
+          [binary]="true">
+        </p-checkbox>
+        <label [for]="'isEquipment'" class="checkbox-label">{{ addSupplierService.addSupplierFields.isEquipment.labelText }}</label>
+      </div>
+    </div>
+
+    <!-- Row 3: קטגוריה ותת קטגוריה -->
+    <div class="form-row">
+      <app-input-select 
+        [controlName]="'category'" 
+        [labelText]="addSupplierService.addSupplierFields.category.labelText"
+        [placeholder]="addSupplierService.addSupplierFields.category.placeHolder" 
+        (onChangeInputSelect)="onSelectionChange($event, 'category')"
+        [items]="addSupplierService.addSupplierFields.category.enumValues" 
+        [parentForm]="addSupplierForm" 
+        [size]="inputSize.MEDIUM"
+        class="form-field-half">
+      </app-input-select>
+      <app-input-select 
+        [controlName]="'subCategory'" 
+        [labelText]="addSupplierService.addSupplierFields.subCategory.labelText"
+        [placeholder]="addSupplierService.addSupplierFields.subCategory.placeHolder" 
+        (onChangeInputSelect)="onSelectionChange($event, 'subCategory')"
+        [items]="subCategories()" 
+        [parentForm]="addSupplierForm" 
+        [size]="inputSize.MEDIUM"
+        class="form-field-half">
+      </app-input-select>
+    </div>
+
+    <!-- Row 4: אחוז מוכר למע"מ ולמס הכנסה או פחת -->
+    <div class="form-row">
+      @if (!isEquipmentChecked()) {
+        <!-- Show vatPercent and taxPercent when NOT fixed asset -->
+        <app-input-text 
+          [parentForm]="addSupplierForm" 
+          [controlName]="'vatPercent'" 
+          [labelText]="addSupplierService.addSupplierFields.vatPercent.labelText"
+          [placeholder]="addSupplierService.addSupplierFields.vatPercent.placeHolder" 
+          [type]="'number'" 
+          [size]="inputSize.MEDIUM"
+          class="form-field-half">
+        </app-input-text>
+        <app-input-text 
+          [parentForm]="addSupplierForm" 
+          [controlName]="'taxPercent'" 
+          [labelText]="addSupplierService.addSupplierFields.taxPercent.labelText"
+          [placeholder]="addSupplierService.addSupplierFields.taxPercent.placeHolder" 
+          [type]="'number'" 
+          [size]="inputSize.MEDIUM"
+          class="form-field-half">
+        </app-input-text>
+      } @else {
+        <!-- Show reductionPercent when fixed asset -->
+        <app-input-text 
+          [parentForm]="addSupplierForm" 
+          [controlName]="'reductionPercent'" 
+          [labelText]="addSupplierService.addSupplierFields.reductionPercent.labelText"
+          [placeholder]="addSupplierService.addSupplierFields.reductionPercent.placeHolder" 
+          [type]="'number'" 
+          [size]="inputSize.MEDIUM"
+          class="form-field-full">
+        </app-input-text>
       }
-    }
+    </div>
   </form>
   <div>
     <app-p-button [disabled]="addSupplierForm.invalid" (onButtonClicked)="saveSupplier()"
