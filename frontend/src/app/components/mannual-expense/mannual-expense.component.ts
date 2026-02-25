@@ -836,11 +836,24 @@ export class MannualExpenseComponent implements OnDestroy {
         );
     }
 
+    /** Convert display date (dd-mm-yy) to API format (yyyy-mm-dd). */
+    private toApiDateString(displayDate: string | null | undefined): string | undefined {
+        if (displayDate == null || displayDate === '') return undefined;
+        const s = String(displayDate).trim();
+        const parts = s.split(/[-/]/);
+        if (parts.length !== 3) return undefined;
+        const [d, m, y] = parts;
+        const year = y!.length === 2 ? `20${y}` : y;
+        return `${year}-${m!.padStart(2, '0')}-${d!.padStart(2, '0')}`;
+    }
+
     private buildExpensePayload(filePath: string | null): any {
         const raw = this.mannualExpenseForm.value;
+        const dateForApi = this.toApiDateString(raw.date) ?? raw.date;
 
         return {
             ...raw,
+            date: dateForApi,
             file: filePath,
             sum: this.toNumberOrNull(raw.sum),
             taxPercent: this.toNumberOrNull(raw.taxPercent),
