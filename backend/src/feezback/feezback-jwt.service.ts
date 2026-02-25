@@ -17,8 +17,8 @@ export class FeezbackJwtService {
     private readonly userRepository: Repository<User>,
   ) {
     // Base URL for redirects - should be your frontend URL
-    this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL || 
-      process.env.FRONTEND_URL || 
+    this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL ||
+      process.env.FRONTEND_URL ||
       'http://localhost:4200';
   }
 
@@ -33,26 +33,26 @@ export class FeezbackJwtService {
 
     // Priority 1: Use the private key directly from environment variable (for production)
     const privateKeyFromEnv = process.env.FEEZBACK_PRIVATE_KEY;
-    
+
     // Priority 2: Read from file path (for local development)
     const keyPath = process.env.FEEZBACK_PRIVATE_KEY_PATH;
-    
+
     if (privateKeyFromEnv) {
       // Use the key directly from environment variable
       this.privateKey = privateKeyFromEnv;
-      this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
+      // this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
     } else if (keyPath) {
       // Read from file
       try {
         this.privateKey = fs.readFileSync(keyPath, 'utf8');
-        this.logger.log(`✅ Feezback private key loaded from file: ${keyPath}`);
+        // this.logger.log(`✅ Feezback private key loaded from file: ${keyPath}`);
       } catch (error) {
-        this.logger.error(`❌ Failed to read private key from ${keyPath}:`, error.message);
+        // this.logger.error(`❌ Failed to read private key from ${keyPath}:`, error.message);
         throw new Error(`Failed to load Feezback private key from file: ${error.message}`);
       }
     } else {
       // Neither is set - throw error
-      this.logger.error('❌ Neither FEEZBACK_PRIVATE_KEY nor FEEZBACK_PRIVATE_KEY_PATH is set');
+      // this.logger.error('❌ Neither FEEZBACK_PRIVATE_KEY nor FEEZBACK_PRIVATE_KEY_PATH is set');
       throw new Error('FEEZBACK_PRIVATE_KEY or FEEZBACK_PRIVATE_KEY_PATH environment variable is required');
     }
 
@@ -70,8 +70,8 @@ export class FeezbackJwtService {
     failure: string;
     ttlExpired: string;
   } {
-    const baseUrl = this.baseRedirectUrl.endsWith('/') 
-      ? this.baseRedirectUrl.slice(0, -1) 
+    const baseUrl = this.baseRedirectUrl.endsWith('/')
+      ? this.baseRedirectUrl.slice(0, -1)
       : this.baseRedirectUrl;
 
     return {
@@ -87,8 +87,8 @@ export class FeezbackJwtService {
     const redirects = this.buildRedirectUrls(flowId, context);
 
     // Get user from database to retrieve the ID
-    const user = await this.userRepository.findOne({ 
-      where: { firebaseId } 
+    const user = await this.userRepository.findOne({
+      where: { firebaseId }
     });
 
     if (!user) {
@@ -150,7 +150,7 @@ export class FeezbackJwtService {
     // console.log(`User ID for firebaseId ${firebaseId}: ${userId}`);
 
     const token = jwt.sign(payload, this.getPrivateKey(), {
-      algorithm: 'RS512', 
+      algorithm: 'RS512',
     });
 
     // console.log(`Generated Feezback JWT for user ${firebaseId}`);
