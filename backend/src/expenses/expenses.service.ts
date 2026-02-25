@@ -51,19 +51,19 @@ export class ExpensesService {
         const currentDate = (new Date()).toISOString();
         newExpense.loadingDate = new Date();
         newExpense.businessNumber = businessNumber;
-        
+
         // Calculate totalVatPayable and totalTaxPayable
         // Get VAT rate for the expense date year
         const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-        
+
         // Calculate totalVatPayable: (sum / (1 + vatRate)) * vatRate * (vatPercent / 100)
         // This calculates the VAT amount that can be claimed based on the vatPercent
         newExpense.totalVatPayable = (newExpense.sum / (1 + vatRate)) * vatRate * (newExpense.vatPercent / 100);
-        
+
         // Calculate totalTaxPayable: (sum - totalVatPayable) * (taxPercent / 100)
         // This calculates the tax amount based on the amount after VAT
         newExpense.totalTaxPayable = (newExpense.sum - newExpense.totalVatPayable) * (newExpense.taxPercent / 100);
-        
+
         const resAddExpense = await this.expense_repo.save(newExpense);
         if (!resAddExpense || Object.keys(resAddExpense).length === 0) {
             throw new Error("expense not saved");
@@ -93,7 +93,7 @@ export class ExpensesService {
         if (updateExpenseDto.sum !== undefined) expense.sum = updateExpenseDto.sum;
         if (updateExpenseDto.category !== undefined) expense.category = updateExpenseDto.category;
         if (updateExpenseDto.subCategory !== undefined) expense.subCategory = updateExpenseDto.subCategory;
-        
+
         // Update isEquipment based on category: true only if category is "רכוש קבוע", otherwise always false
         if (updateExpenseDto.category !== undefined || updateExpenseDto.subCategory !== undefined) {
             const categoryToCheck = updateExpenseDto.category ?? expense.category;
@@ -105,15 +105,15 @@ export class ExpensesService {
                 expense.isEquipment = false;
             }
         }
-        
+
         // Recalculate totalVatPayable and totalTaxPayable if sum, vatPercent, or taxPercent changed
         if (updateExpenseDto.vatPercent !== undefined || updateExpenseDto.taxPercent !== undefined || updateExpenseDto.sum !== undefined) {
             // Get VAT rate for the expense date year
             const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
-            
+
             // Calculate totalVatPayable: (sum / (1 + vatRate)) * vatRate * (vatPercent / 100)
             expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
-            
+
             // Calculate totalTaxPayable: (sum - totalVatPayable) * (taxPercent / 100)
             expense.totalTaxPayable = (expense.sum - expense.totalVatPayable) * (expense.taxPercent / 100);
         }
@@ -332,31 +332,102 @@ export class ExpensesService {
     }
 
 
-    async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null, businessNumber: string | null): Promise<(UserCategory | DefaultCategory)[]> {
+    // async getCategories(isDefault: boolean | null, isExpense: boolean, firebaseId: string | null, businessNumber: string | null): Promise<(UserCategory | DefaultCategory)[]> {
 
-        if (isDefault === null) {
+    //     if (isDefault === null) {
 
-            if (!firebaseId || !businessNumber) {
-                throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
+    //         if (!firebaseId || !businessNumber) {
+    //             throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
+    //         }
+
+    //         const defaultCategories = await this.defaultCategoryRepo.find();
+    //         const userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
+    //         console.log("🚀 ~ ExpensesService ~ getCategories ~ userCategories:", userCategories)
+    //         const categoryMap = new Map<string, UserCategory | DefaultCategory>();
+
+    //         // First, add all default categories
+    //         defaultCategories.forEach(category => {
+    //             categoryMap.set(category.categoryName, category);
+    //         });
+    //         // Then, add/override with user-specific categories (preference for user categories)
+    //         userCategories.forEach(category => {
+    //             categoryMap.set(category.categoryName, category);
+    //         });
+    //         // Convert the map back to an array
+    //         let categories = Array.from(categoryMap.values());
+
+    //         if (isExpense === null) {
+    //             return categories;
+    //         }
+    //         // Filter by isExpense if the flag is provided
+    //         categories = categories.filter(category => category.isExpense === isExpense);
+    //         // console.log("🚀 ~ ExpensesService ~ getCategories ~ categories:", categories)
+
+    //         return categories;
+    //     }
+
+    //     else if (isDefault === true) {
+    //         // Return only the default categories
+    //         let defaultCategories = await this.defaultCategoryRepo.find();
+    //         // Filter by isExpense if the flag is provided
+    //         defaultCategories = defaultCategories.filter(category => category.isExpense === isExpense);
+    //         return defaultCategories;
+    //     }
+
+    //     else if (isDefault === false) {
+    //         // Return only the user-specific categories for the given firebaseId
+    //         if (!firebaseId || !businessNumber) {
+    //             throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
+    //         }
+    //         let userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
+    //         // Filter by isExpense if the flag is provided
+    //         userCategories = userCategories.filter(category => category.isExpense === isExpense);
+    //         return userCategories;
+    //     }
+
+    // }
+    async getCategories(
+        isDefault: boolean | null,
+        isExpense: boolean | null,
+        firebaseId: string | null,
+        businessNumber: string | null
+    ): Promise<(UserCategory | DefaultCategory)[]> {
+
+        // helper – שליפת קטגוריות משתמש עם/בלי businessNumber
+        const getUserCategories = async (): Promise<UserCategory[]> => {
+            if (!firebaseId) {
+                throw new Error('firebaseId must be provided to fetch user categories.');
             }
 
+            const where: any = { firebaseId };
+
+            if (businessNumber) {
+                where.businessNumber = businessNumber;
+            }
+
+            return this.userCategoryRepo.find({ where });
+        };
+
+        // ====== MIX: default + user ======
+        if (isDefault === null) {
             const defaultCategories = await this.defaultCategoryRepo.find();
             const userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
             const categoryMap = new Map<string, UserCategory | DefaultCategory>();
 
-            // First, add all default categories
-            defaultCategories.forEach(category => {
-                categoryMap.set(category.categoryName, category);
-            });
-            // Then, add/override with user-specific categories (preference for user categories)
-            userCategories.forEach(category => {
-                categoryMap.set(category.categoryName, category);
-            });
-            // Convert the map back to an array
+            // default first
+            defaultCategories.forEach(cat =>
+                categoryMap.set(cat.categoryName, cat)
+            );
+
+            // user overrides default
+            userCategories.forEach(cat =>
+                categoryMap.set(cat.categoryName, cat)
+            );
+
             let categories = Array.from(categoryMap.values());
 
-            if (isExpense === null) {
-                return categories;
+            if (isExpense !== null) {
+                categories = categories.filter(c => c.isExpense === isExpense);
             }
             // Filter by isExpense if the flag is provided
             categories = categories.filter(category => category.isExpense === isExpense);
@@ -364,26 +435,31 @@ export class ExpensesService {
             return categories;
         }
 
-        else if (isDefault === true) {
-            // Return only the default categories
+        // ====== ONLY DEFAULT ======
+        if (isDefault === true) {
             let defaultCategories = await this.defaultCategoryRepo.find();
-            // Filter by isExpense if the flag is provided
-            defaultCategories = defaultCategories.filter(category => category.isExpense === isExpense);
+
+            if (isExpense !== null) {
+                defaultCategories = defaultCategories.filter(c => c.isExpense === isExpense);
+            }
+
             return defaultCategories;
         }
 
-        else if (isDefault === false) {
-            // Return only the user-specific categories for the given firebaseId
-            if (!firebaseId || !businessNumber) {
-                throw new Error('firebaseId and businessNumber must be provided to fetch user-specific categories.');
+        // ====== ONLY USER ======
+        if (isDefault === false) {
+            let userCategories = await getUserCategories();
+
+            if (isExpense !== null) {
+                userCategories = userCategories.filter(c => c.isExpense === isExpense);
             }
-            let userCategories = await this.userCategoryRepo.find({ where: { firebaseId, businessNumber } });
-            // Filter by isExpense if the flag is provided
-            userCategories = userCategories.filter(category => category.isExpense === isExpense);
+
             return userCategories;
         }
 
+        return [];
     }
+
 
 
     async getSubCategories(
@@ -493,19 +569,27 @@ export class ExpensesService {
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    async addSupplier(supplier: Partial<Supplier>, userId: string) {
+    async addSupplier(supplier: Partial<Supplier>, userId: string, businessNumber: string) {
         console.log("addSupplier - start");
+        console.log("addSupplier - businessNumber:", businessNumber);
 
-        const isAlreadyExist = await this.supplier_repo.findOne({ where: { supplier: supplier.supplier } });
+        // Check if supplier already exists for this business (not globally)
+        const isAlreadyExist = await this.supplier_repo.findOne({ 
+            where: { 
+                supplier: supplier.supplier,
+                businessNumber: businessNumber 
+            } 
+        });
         console.log("is allready: ", isAlreadyExist);
         if (isAlreadyExist) {
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
-                error: `Supplier with this name: "${supplier}" already exists`
+                error: `Supplier with this name: "${supplier.supplier}" already exists for this business`
             }, HttpStatus.CONFLICT);
         }
         const newSupplier = this.supplier_repo.create(supplier);
         newSupplier.userId = userId;
+        newSupplier.businessNumber = businessNumber;
         return await this.supplier_repo.save(newSupplier);
     }
 

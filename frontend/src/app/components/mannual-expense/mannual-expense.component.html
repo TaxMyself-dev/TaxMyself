@@ -1,4 +1,3 @@
-<!-- <div> -->
 @if (mannualExpenseService.showBusinessSelector()) {
 <app-input-select [customStyle]="'register'" [controlName]="'businessNumber'" [labelText]="'עסק'"
   [placeholder]="'בחר עסק'" [items]="mannualExpenseService.businessOptions()" [parentForm]="mannualExpenseForm"
@@ -16,9 +15,23 @@
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
-<app-input-text [customStyle]="'fill-border'" [controlName]="'supplier'" [labelText]="'ספק'" [placeholder]="'הקלד ספק'"
-  [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
-</app-input-text>
+<app-input-autocomplete 
+  [customStyle]="'fill-border'" 
+  [controlName]="'supplier'" 
+  [labelText]="'ספק'" 
+  [placeholder]="'חפש או הוסף ספק'"
+  [parentForm]="mannualExpenseForm" 
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
+  [items]="mannualExpenseService.$filteredSuppliers()" 
+  optionLabel="supplier"
+  (onCompleteMethod)="filterSuppliers($event)" 
+  (onItemSelect)="onSupplierSelect($event)" 
+  [showAddNew]="true"
+  addNewLabel="הוסף ספק חדש" 
+  (onAddNew)="onAddNewSupplier($event)" 
+  headerText="בחר ספק קיים"
+  [forceSelection]="false">
+</app-input-autocomplete>
 
 <app-input-text [customStyle]="'fill-border'" [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'"
   [placeholder]="'הקלד ח.פ. ספק'" [parentForm]="mannualExpenseForm"
@@ -30,11 +43,25 @@
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
 
+<!-- רכוש קבוע checkbox -->
+<div class="checkbox-row">
+  <form [formGroup]="mannualExpenseForm">
+    <div class="checkbox-field">
+      <p-checkbox 
+        formControlName="isEquipment" 
+        inputId="isEquipment"
+        [binary]="true">
+      </p-checkbox>
+      <label [for]="'isEquipment'" class="checkbox-label">רכוש קבוע</label>
+    </div>
+  </form>
+</div>
+
 @if (mannualExpenseService.$categoriesOptions()) {
 <app-input-select [customStyle]="'register'" [controlName]="'category'" [labelText]="'קטגוריה'"
   [placeholder]="'בחר קטגוריה'" [items]="mannualExpenseService.$categoriesOptions()" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN"
-  [disabled]="mannualExpenseService.$selectedBusinessNumber() === null" (onChangeInputSelect)="getSubCategory($event)">
+  [disabled]="mannualExpenseService.$selectedBusinessNumber() === null || isEquipmentChecked()" (onChangeInputSelect)="getSubCategory($event)">
 </app-input-select>
 }
 
@@ -43,10 +70,12 @@
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" (onChangeInputSelect)="onSelectSubCategory($event)">
 </app-input-select>
 
+@if (!isEquipmentChecked()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'taxPercent'"
   [labelText]="'אחוז מוכר למס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
+}
 
 @if (!isExemptBusiness()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'vatPercent'"
@@ -55,9 +84,9 @@
 </app-input-text>
 }
 
-@if (mannualExpenseService.$selectedCategory() === "רכוש קבוע") {
+@if (isEquipmentChecked()) {
 <app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'reductionPercent'"
-  [labelText]="'אחוזי פחת'" [placeholder]="'אחוזי פחת'" [parentForm]="mannualExpenseForm"
+  [labelText]="'אחוז פחת'" [placeholder]="'אחוז פחת'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 }
@@ -68,6 +97,38 @@
 
 <div class="wrap-file-uploader">
   <app-file-uploader-gpt (selectedFiles)="selectedFiles($event)"></app-file-uploader-gpt>
+  
+  @if (previewFileUrl() && previewFileType()) {
+    <div class="file-preview-section" style="margin-top: 1rem; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; background: #f9f9f9;">
+      @if (previewFileType() === 'pdf' && pdfUrlWithParams()) {
+        <div style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; background: #fff;">
+          <object 
+            [data]="pdfUrlWithParams()" 
+            type="application/pdf"
+            style="width: 100%; height: 100%; border: none;"
+            title="תצוגה מקדימה של PDF">
+            <embed 
+              [src]="pdfUrlWithParams()" 
+              type="application/pdf"
+              style="width: 100%; height: 100%;">
+            <p style="padding: 20px; text-align: center;">
+              הדפדפן שלך לא תומך בתצוגת PDF. 
+              <a [href]="previewFileUrl()" target="_blank" style="color: #007bff; text-decoration: underline;">לחץ כאן להוריד את הקובץ</a>
+            </p>
+          </object>
+        </div>
+      }
+      
+      @if (previewFileType() === 'image') {
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 400px; background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 1rem;">
+          <img 
+            [src]="previewFileUrl()" 
+            alt="תצוגה מקדימה" 
+            style="max-width: 100%; max-height: 600px; object-fit: contain; display: block;">
+        </div>
+      }
+    </div>
+  }
 </div>
 
 <div class="wrap-add-button">

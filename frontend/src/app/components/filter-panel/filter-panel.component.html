@@ -27,46 +27,32 @@
         @if (selectedType() === 'DATE_RANGE') {
         <div>
           <form [formGroup]="form" class="wrap-inner-inputs">
-            <p-datepicker
-              (onClose)="getButtonText()"
-              placeholder="תאריך התחלה"
-              formControlName="startDate"
-              [iconDisplay]="'input'"
-              [showIcon]="true"
-              inputId="startDate"
-              [dateFormat]="'dd/mm/yy'"
-              [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
-            ></p-datepicker>
-          
-            <p-datepicker
-              (onClose)="getButtonText()"
-              placeholder="תאריך סוף"
-              formControlName="endDate"
-              [iconDisplay]="'input'"
-              [showIcon]="true"
-              [maxDate]="today"
-              inputId="endDate"
-              [dateFormat]="'dd/mm/yy'"
+            <p-datepicker (onClose)="getButtonText()" placeholder="תאריך התחלה" formControlName="startDate"
+              [iconDisplay]="'input'" [showIcon]="true" inputId="startDate" [dateFormat]="'dd/mm/yy'"
+              [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }" [maxDate]="today"></p-datepicker>
+
+            <p-datepicker (onClose)="getButtonText()" placeholder="תאריך סוף" formControlName="endDate"
+              [iconDisplay]="'input'" [showIcon]="true" [maxDate]="today" inputId="endDate" [dateFormat]="'dd/mm/yy'"
               [minDate]="form.get('startDate')?.value"
-              [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"
-            ></p-datepicker>
+              [style]="{ 'borderBottom': '1px solid rgb(186, 183, 183)' }"></p-datepicker>
           </form>
         </div>
         }
         @else if (selectedType() === 'ANNUAL') {
         <div class="wrap-inner-inputs">
-          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" placeholder="בחר שנה" [parentForm]="form" controlName="year"
-            [items]="years"></app-input-select>
+          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" placeholder="בחר שנה"
+            [parentForm]="form" controlName="year" [items]="years"></app-input-select>
         </div>
         }
         @else {
         <div class="wrap-inner-inputs">
-          <app-input-select (onChangeInputSelect)="onSelectedYear()" [size]="inputsSize.AUTO" [parentForm]="form" placeholder="בחר שנה" controlName="year"
-          [items]="years"></app-input-select>
-          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" [parentForm]="form" [controlName]="this.form?.get('periodType').value === 'MONTHLY' ? 'month' : 'bimonth'"
+          <app-input-select (onChangeInputSelect)="onSelectedYear()" [size]="inputsSize.AUTO" [parentForm]="form"
+            placeholder="בחר שנה" controlName="year" [items]="years"></app-input-select>
+          <app-input-select (onChangeInputSelect)="getButtonText()" [size]="inputsSize.AUTO" [parentForm]="form"
+            [controlName]="this.form?.get('periodType').value === 'MONTHLY' ? 'month' : 'bimonth'"
             [placeholder]="this.form?.get('periodType').value === 'MONTHLY' ? 'בחר חודש' : 'בחר חודשים'"
             [items]="filteredMonth"></app-input-select>
-         
+
         </div>
         }
         }
@@ -77,27 +63,28 @@
   <!-- Select account -->
   <div class="header">
     <span class="title">חשבון</span>
-    <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()" [parentForm]="form"
-      [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onChangeSelection($event, 'account')"></app-input-select>
+    <app-input-select [controlName]="'account'" [multiSelect]="true" [placeholder]="'בחר'" [items]="fullListAccounts()"
+      [parentForm]="form" [size]="inputsSize.MOBILE"
+      (onChangeInputSelect)="onChangeSelection($event, 'account')"></app-input-select>
   </div>
-   <!-- Select payment identifier -->
-   @if (form.contains('sources') && form.get('account')?.value?.length === 1) {
-    <div class="header">
-      <span class="title">אמצעי תשלום</span>
-      <app-input-select [controlName]="'sources'" [multiSelect]="true" [placeholder]="'בחר'" [items]="sourcesList()" [parentForm]="form"
-      [size]="inputsSize.BETWEEN"></app-input-select>
-    </div>
+  <!-- Select payment identifier -->
+  @if (form.contains('sources') && form.get('account')?.value?.length === 1) {
+  <div class="header">
+    <span class="title">אמצעי תשלום</span>
+    <app-input-select [controlName]="'sources'" [multiSelect]="true" [placeholder]="'בחר'" [items]="sourcesList()"
+      [parentForm]="form" [size]="inputsSize.MOBILE"></app-input-select>
+  </div>
   }
   <!-- Select Category -->
   <div class="header">
     <span class="title">קטגוריה</span>
     <app-input-select [controlName]="'category'" [multiSelect]="true" [placeholder]="'בחר'" [items]="categoryList()"
-      [parentForm]="form" [size]="inputsSize.BETWEEN" (onChangeInputSelect)="onChangeSelection($event, 'category')">
+      [parentForm]="form" [size]="inputsSize.MOBILE" (onChangeInputSelect)="onChangeSelection($event, 'category')">
     </app-input-select>
   </div>
   <div class="apply-filters-button">
     <app-p-button [buttonText]="'סנן'" [variant]="'text'" [severity]="'info'" [buttonSize]="buttonSize.AUTO"
       (onButtonClicked)="onFilterButtonClicked()" [disabled]="disableFilter()"></app-p-button>
   </div>
-  </div>
+</div>
 <!-- } -->

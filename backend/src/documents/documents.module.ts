@@ -16,10 +16,15 @@ import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { DocPayments } from './doc-payments.entity';
 import { Business } from 'src/business/business.entity';
 import { BusinessService } from 'src/business/business.service';
+import { MailModule } from 'src/mail/mail.module';
+import { User } from 'src/users/user.entity';
 
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount])],
+  imports: [
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, DefaultBookingAccount, User]),
+    MailModule
+  ],
   controllers: [DocumentsController],
   providers: [
     DocumentsService,

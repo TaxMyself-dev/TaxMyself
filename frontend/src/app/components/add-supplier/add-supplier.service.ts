@@ -66,12 +66,12 @@ export class AddSupplierService {
     },
     ['isEquipment']: {
       value: 'isEquipment',
-      labelText: 'האם זה ציוד',
-      placeHolder: 'בחר',
-      type: FormTypes.DDL,
-      initialValue: undefined,
-      enumValues: [{ name: 'כן', value: true }, { name: 'לא', value: false }],
-      validators: [Validators.required]
+      labelText: 'רכוש קבוע',
+      placeHolder: '',
+      type: FormTypes.CHECKBOX,
+      initialValue: false,
+      enumValues: [],
+      validators: []
     },
     ['category']: {
       value: 'category',
@@ -93,8 +93,8 @@ export class AddSupplierService {
     },
     ['taxPercent']: {
       value: 'taxPercent',
-      labelText: 'אחוז מס',
-      placeHolder: 'אחוז מס',
+      labelText: 'אחוז מוכר למס',
+      placeHolder: 'אחוז מוכר למס',
       type: FormTypes.NUMBER,
       initialValue: '',
       enumValues: [],
@@ -102,8 +102,8 @@ export class AddSupplierService {
     },
     ['vatPercent']: {
       value: 'vatPercent',
-      labelText: 'אחוז מע"מ',
-      placeHolder: 'אחוז מע"מ',
+      labelText: 'אחוז מוכר למע"מ',
+      placeHolder: 'אחוז מוכר למע"מ',
       type: FormTypes.NUMBER,
       initialValue: '',
       enumValues: [],
@@ -114,9 +114,9 @@ export class AddSupplierService {
       labelText: 'אחוז פחת',
       placeHolder: 'אחוז פחת',
       type: FormTypes.NUMBER,
-      initialValue: '',
+      initialValue: 0,
       enumValues: [],
-      validators: [Validators.min(0), Validators.max(100), Validators.required]
+      validators: [Validators.min(0), Validators.max(100)]
     },
   }
 
@@ -146,7 +146,12 @@ export class AddSupplierService {
     });
 
     // Return new FormGroup with all controls
-    return new FormGroup(formControls);
+    const form = new FormGroup(formControls);
+    
+    // Set reductionPercent to 0 initially (since isEquipment defaults to false)
+    form.patchValue({ reductionPercent: 0 }, { emitEvent: false });
+    
+    return form;
   }
 
   saveSupplierDetails(data: Partial<ISupplier>): Observable<any> {

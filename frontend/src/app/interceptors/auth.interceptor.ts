@@ -73,7 +73,8 @@ export class AuthInterceptor implements HttpInterceptor {
           headers['Authorization'] = `Bearer ${token}`;
         }
         if (businessNumber) {
-          headers['businessNumber'] = businessNumber;
+          // Backend guard expects lowercase 'businessnumber' header
+          headers['businessnumber'] = businessNumber;
         }
 
         return next.handle(

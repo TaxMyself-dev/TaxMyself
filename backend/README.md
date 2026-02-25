@@ -26,6 +26,17 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Feezback Integration Notes
+
+- **Webhook URL**
+  `POST /webhooks/feezback` expects Feezback webhook payloads. If `FEEZBACK_WEBHOOK_SECRET` is set, the `x-feezback-secret` header must match.
+
+- **Verifying Database State**
+  After a consent webhook, check `feezback_webhook_events` for the event hash and `feezback_consents` for the upserted consent (unique on `firebase_id`, `tpp_id`, `consent_id`). New columns `event_hash`, `needs_sync`, `last_sync_at`, and `last_sync_error` support auditing and sync diagnostics.
+
+- **Automatic Consent Sync**
+  A background job (`FeezbackConsentSyncService`) runs every 30 seconds. Any consent with `needs_sync = 1` triggers a refresh from Feezback to populate status, validity, access scopes, and metadata. Successful syncs clear `needs_sync` and update `last_sync_at`; failures preserve `needs_sync` and record `last_sync_error` for troubleshooting.
+
 ## Installation
 
 ```bash

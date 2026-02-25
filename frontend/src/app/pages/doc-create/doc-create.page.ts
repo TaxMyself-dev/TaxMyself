@@ -1,34 +1,28 @@
-import { Component, computed, inject, OnDestroy, OnInit, Signal, signal } from '@angular/core';
-import { FormArray, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, Subject, catchError, finalize, firstValueFrom, forkJoin, from, map, of, startWith, switchMap, take, tap, throwError } from 'rxjs';
-import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, PaymentMethodName, paymentMethodOptions, UnitOfMeasure, vatOptions, VatType } from 'src/app/shared/enums';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Business, BusinessInfo, ICreateDataDoc, ICreateDocField, ICreateLineDoc, IDataDocFormat, IDocIndexes, ISelectItem, ISettingDoc, ITotals, IUserData, } from 'src/app/shared/interface';
-import { DocCreateService } from './doc-create.service';
 import { ModalController } from '@ionic/angular';
-import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
-import { GenericService } from 'src/app/services/generic.service';
-import { FilesService } from 'src/app/services/files.service';
+import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { catchError, EMPTY, finalize, firstValueFrom, from, of, switchMap, tap } from 'rxjs';
+import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { DocumentsService } from 'src/app/services/documents.service';
+import { FilesService } from 'src/app/services/files.service';
+import { GenericService } from 'src/app/services/generic.service';
+import { ShaamService } from 'src/app/services/shaam.service';
+import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, inputsSize, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
+import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
+import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
+import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
-import { inputsSize } from 'src/app/shared/enums';
-import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, LineItem, PartialLineItem } from './doc-cerate.enum';
-import { ConfirmationService, MenuItem } from 'primeng/api';
-import { DocumentType } from './doc-cerate.enum';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
-import { log } from 'console';
-import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
-import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
-import { ShaamService } from 'src/app/services/shaam.service';
-import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
-import { ALLOCATION_NUMBER_THRESHOLD } from 'src/app/shared/enums';
-import { MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
+import { DocCreateService } from './doc-create.service';
+
+// Constant for allocation number threshold
+const ALLOCATION_NUMBER_THRESHOLD = 10000;
 
 interface DocPayload {
   docData: any[];
@@ -84,6 +78,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   DocCreateFields = DocCreateFields;
   isFileSelected = signal(false); // For HTML template
   generalFormIsValidSignal = signal(false);
+  isMobile = computed(() => this.genericService.isMobile());
   userFormIsValidSignal = signal(false);
   // fileSelected: DocumentType; // For get type of file
   fileSelected = signal<DocumentType>(DocumentType.RECEIPT); // For get type of file
@@ -97,6 +92,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   filteredClients = signal<IClient[]>([]);
   selectedClientData: IClient = null; // Store selected client data for expanded fields
   addPDFIsLoading: boolean = false;
+  sendEmailToRecipient = false; // Checkbox state for sending email to recipient
   userData: IUserData
   amountBeforeVat: number = 0;
   overallTotals: ITotals;
@@ -105,6 +101,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
   isUserExpanded = signal<boolean>(false);
   isPaymentExpanded: boolean = false;
   morePaymentDetails: boolean = false;
+  isWithholdingTaxExpanded = signal<boolean>(false);
+  withholdingTaxForm: FormGroup;
+  withholdingTaxAmount = signal<number>(0);
   generalArray: IDocCreateFieldData[] = [];
   userArray: IDocCreateFieldData[] = [];
   paymentsArray: IDocCreateFieldData[] = [];
@@ -192,6 +191,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   // Computed signals for filtered arrays based on document type
   isReceiptDocument = computed(() => this.fileSelected() === DocumentType.RECEIPT);
   isExemptBusiness = computed(() => this.selectedBusinessType() === BusinessType.EXEMPT);
+  showWithholdingTaxSection = computed(() => this.fileSelected() === DocumentType.RECEIPT || this.fileSelected() === DocumentType.TAX_INVOICE_RECEIPT);
 
   filteredLineDetailsColumns = computed(() =>
     this.docCreateBuilderService.getLineDetailsColumns(this.isReceiptDocument() || this.isExemptBusiness())
@@ -244,6 +244,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
       (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0)
     );
   });
+
+  // Check if recipient email is valid for sending
+  canSendEmail = computed(() => {
+    const recipientEmail = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_EMAIL)?.value;
+    return recipientEmail && recipientEmail.trim() !== '' && this.isValidEmail(recipientEmail);
+  });
+
+  // Simple email validation
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
 
 
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private modalController: ModalController, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
@@ -459,6 +472,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.paymentInputForm?.get('paymentDate')?.setValue(this.generalDetailsForm?.get('docDate')?.value);
     this.paymentsDraft.set([]);
     this.lineItemsDraft.set([]);
+
+    // Reset withholding tax amount when document type changes
+    this.withholdingTaxAmount.set(0);
+    if (this.withholdingTaxForm) {
+      this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(0);
+    }
   }
 
 
@@ -485,11 +504,11 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   confirmCreateDoc(): void {
-    
+
     // Check if allocation number is required
     const requiresAlloc = this.requiresAllocationNumber();
     const hasAllocNumber = this.allocationNumber();
-    
+
     if (requiresAlloc) {
       // Always check recipientId when allocation number is required
       const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
@@ -505,7 +524,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         });
         return;
       }
-      
+
       if (!hasAllocNumber) {
         // No allocation number yet, show dialog
         console.log("✅ Showing allocation number dialog");
@@ -516,7 +535,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       this.showDocumentCreationConfirmation();
       return;
     }
-    
+
     // No allocation number required - show confirmation dialog
     this.showDocumentCreationConfirmation();
   }
@@ -550,7 +569,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.createPDFIsLoading.set(true);
 
     const payload = this.buildDocPayload();
-    
+
     // Ensure docStatus is not DRAFT when creating actual document
     // Remove any DRAFT status that might have been set from draft restoration
     const docData = (payload as any).docData;
@@ -558,7 +577,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       console.log('⚠️ Removing DRAFT status from payload before document creation');
       delete docData.docStatus;
     }
-    
+
     console.log('Document creation payload:', {
       docType: docData?.docType,
       docNumber: docData?.docNumber,
@@ -567,127 +586,127 @@ export class DocCreatePage implements OnInit, OnDestroy {
       paymentsCount: (payload as any).paymentData?.length
     });
 
-  this.docCreateService.createDoc(payload).pipe(
-    // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
-    tap((response) => {
-      console.log('✅ Document created successfully:', response);
-      console.log('Response structure:', {
-        success: response.success,
-        docNumber: response.docNumber,
-        docType: response.docType,
-        file: response.file,
-        copyFile: response.copyFile,
-        generalDocIndex: response.generalDocIndex
-      });
-      
-      // Validate response has required fields
-      if (!response || !response.docNumber) {
-        console.error('❌ Invalid response from backend:', response);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'המסמך נוצר אך התקבלה תשובה לא תקינה מהשרת',
-          life: 5000,
-          key: 'br'
+    this.docCreateService.createDoc(payload).pipe(
+      // Backend now handles: DB transaction + PDF generation + Firebase upload + save paths
+      tap((response) => {
+        console.log('✅ Document created successfully:', response);
+        console.log('Response structure:', {
+          success: response.success,
+          docNumber: response.docNumber,
+          docType: response.docType,
+          file: response.file,
+          copyFile: response.copyFile,
+          generalDocIndex: response.generalDocIndex
         });
-        return;
-      }
-      
-      // If this is a closing document, update the parent document status to CLOSE
-      if (this.shouldCloseParentDoc && this.parentDocType && this.parentDocNumber && this.parentBusinessNumber) {
-        console.log('Updating parent document status to CLOSE:', {
-          businessNumber: this.parentBusinessNumber,
-          docNumber: this.parentDocNumber,
-          docType: this.parentDocType
-        });
-        
-        this.documentsService.updateDocStatus(
-          this.parentBusinessNumber,
-          this.parentDocNumber,
-          this.parentDocType,
-          'CLOSE'
-        ).pipe(
-          catchError(err => {
-            console.error('Failed to update parent document status:', err);
-            // Don't block the success flow if status update fails
-            return EMPTY;
-          })
-        ).subscribe(() => {
-          console.log('✅ Parent document status updated to CLOSE');
-        });
-      }
-      
-      // Delete draft from database before showing success dialog
-      if (this.selectedBusinessNumber && this.fileSelected()) {
-        console.log('Deleting draft after successful document creation...');
-        this.docCreateService.deleteDraft(this.selectedBusinessNumber, this.fileSelected()).subscribe({
-          next: () => {
-            console.log('✅ Draft deleted successfully');
-          },
-          error: (error) => {
-            console.error('Error deleting draft:', error);
-            // Don't block success flow if draft deletion fails
-          }
-        });
-      }
-      
-      // Show success dialog
-      console.log('Opening success dialog with data:', {
-        docNumber: response.docNumber,
-        file: response.file,
-        copyFile: response.copyFile,
-        docType: response.docType
-      });
-      
-      try {
-        this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
-          header: '',
-          width: '400px',
-          rtl: true,
-          data: {
-            docNumber: response.docNumber,
-            file: response.file,
-            copyFile: response.copyFile,
-            docType: this.getHebrewNameDoc(response.docType)
-          }
-        });
-        console.log('✅ Success dialog opened');
-      } catch (error) {
-        console.error('❌ Error opening success dialog:', error);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'שגיאה',
-          detail: 'שגיאה בפתיחת דיאלוג הצלחה',
-          life: 5000,
-          key: 'br'
-        });
-      }
-      
-      this.resetDocFormsAndDrafts();
-    }),
 
-    // Handle errors
-    catchError((err) => {
-      console.error('❌ Error creating document:', err);
-      console.error('Error details:', {
-        message: err.message,
-        error: err.error,
-        status: err.status,
-        statusText: err.statusText
-      });
-      
-      // Show error message to user
-      this.messageService.add({
-        severity: 'error',
-        summary: 'שגיאה',
-        detail: err.error?.message || err.message || 'שגיאה ביצירת המסמך',
-        life: 5000,
-        key: 'br'
-      });
-      
-      // Backend automatically rolls back the transaction if anything fails
-      return EMPTY; // swallow to allow finalize to run
-    }),
+        // Validate response has required fields
+        if (!response || !response.docNumber) {
+          console.error('❌ Invalid response from backend:', response);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'המסמך נוצר אך התקבלה תשובה לא תקינה מהשרת',
+            life: 5000,
+            key: 'br'
+          });
+          return;
+        }
+
+        // If this is a closing document, update the parent document status to CLOSE
+        if (this.shouldCloseParentDoc && this.parentDocType && this.parentDocNumber && this.parentBusinessNumber) {
+          console.log('Updating parent document status to CLOSE:', {
+            businessNumber: this.parentBusinessNumber,
+            docNumber: this.parentDocNumber,
+            docType: this.parentDocType
+          });
+
+          this.documentsService.updateDocStatus(
+            this.parentBusinessNumber,
+            this.parentDocNumber,
+            this.parentDocType,
+            'CLOSE'
+          ).pipe(
+            catchError(err => {
+              console.error('Failed to update parent document status:', err);
+              // Don't block the success flow if status update fails
+              return EMPTY;
+            })
+          ).subscribe(() => {
+            console.log('✅ Parent document status updated to CLOSE');
+          });
+        }
+
+        // Delete draft from database before showing success dialog
+        if (this.selectedBusinessNumber && this.fileSelected()) {
+          console.log('Deleting draft after successful document creation...');
+          this.docCreateService.deleteDraft(this.selectedBusinessNumber, this.fileSelected()).subscribe({
+            next: () => {
+              console.log('✅ Draft deleted successfully');
+            },
+            error: (error) => {
+              console.error('Error deleting draft:', error);
+              // Don't block success flow if draft deletion fails
+            }
+          });
+        }
+
+        // Show success dialog
+        console.log('Opening success dialog with data:', {
+          docNumber: response.docNumber,
+          file: response.file,
+          copyFile: response.copyFile,
+          docType: response.docType
+        });
+
+        try {
+          this.dialogRef = this.dialogService.open(DocSuccessDialogComponent, {
+            header: '',
+            width: '400px',
+            rtl: true,
+            data: {
+              docNumber: response.docNumber,
+              file: response.file,
+              copyFile: response.copyFile,
+              docType: this.getHebrewNameDoc(response.docType)
+            }
+          });
+          console.log('✅ Success dialog opened');
+        } catch (error) {
+          console.error('❌ Error opening success dialog:', error);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'שגיאה בפתיחת דיאלוג הצלחה',
+            life: 5000,
+            key: 'br'
+          });
+        }
+
+        this.resetDocFormsAndDrafts();
+      }),
+
+      // Handle errors
+      catchError((err) => {
+        console.error('❌ Error creating document:', err);
+        console.error('Error details:', {
+          message: err.message,
+          error: err.error,
+          status: err.status,
+          statusText: err.statusText
+        });
+
+        // Show error message to user
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: err.error?.message || err.message || 'שגיאה ביצירת המסמך',
+          life: 5000,
+          key: 'br'
+        });
+
+        // Backend automatically rolls back the transaction if anything fails
+        return EMPTY; // swallow to allow finalize to run
+      }),
 
       // Turn off loader no matter what
       finalize(() => {
@@ -733,6 +752,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Reset allocation number
     this.allocationNumber.set(null);
     this.manualAllocationNumber = '';
+
+    // Reset withholding tax
+    this.withholdingTaxAmount.set(0);
+    if (this.withholdingTaxForm) {
+      this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(0);
+    }
+    this.isWithholdingTaxExpanded.set(false);
   }
 
 
@@ -829,6 +855,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       totalWithoutVat: Number(this.documentSummary().totalWithoutVat.toFixed(2)),
       totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
       totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
+      sendEmailToRecipient: this.sendEmailToRecipient && this.canSendEmail(),
+      withholdingTaxAmount: this.withholdingTaxAmount() ?? 0,
     };
 
     docPayload = {
@@ -836,8 +864,6 @@ export class DocCreatePage implements OnInit, OnDestroy {
       linesData: this.lineItemsDraft(),
       paymentData: this.paymentsDraft(),
     };
-
-    console.log("🚀 ~ DocCreatePage ~ buildDocPayload ~ docPayload", docPayload);
 
     return docPayload;
 
@@ -1734,7 +1760,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.generalArray = this.docCreateBuilderService.getBaseFieldsBySection('GeneralDetails');
     this.userArray = this.docCreateBuilderService.getBaseFieldsBySection('UserDetails');
     this.paymentsArray = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
-    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);    
+    // this.paymentsArray[0] = this.docCreateBuilderService.getBaseFieldsBySection(this.paymentSectionName);
+    this.initializeWithholdingTaxForm();
   }
 
 
@@ -1943,6 +1970,29 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
+  expandWithholdingTax(): void {
+    this.isWithholdingTaxExpanded.set(!this.isWithholdingTaxExpanded());
+  }
+
+  initializeWithholdingTaxForm(): void {
+    this.withholdingTaxForm = this.formBuilder.group({
+      withholdingTaxAmount: new FormControl(0, [Validators.min(0)])
+    });
+
+    // Subscribe to form value changes to update the signal
+    this.withholdingTaxForm.get('withholdingTaxAmount')?.valueChanges.subscribe(value => {
+      const numValue = value !== null && value !== undefined && value !== '' ? Number(value) : 0;
+      this.withholdingTaxAmount.set(numValue);
+      console.log('🔄 withholdingTaxAmount updated:', numValue, 'from form value:', value);
+    });
+
+    // Also set initial value from form
+    const initialValue = this.withholdingTaxForm.get('withholdingTaxAmount')?.value;
+    if (initialValue !== null && initialValue !== undefined && initialValue !== '') {
+      this.withholdingTaxAmount.set(Number(initialValue));
+    }
+  }
+
   // Show dialog asking user how to get allocation number
   showAllocationNumberDialog(): void {
     const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
@@ -2009,13 +2059,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     console.log('🔵 Setting allocationNumberLoading to true');
     this.allocationNumberLoading.set(true);
     console.log('🔵 allocationNumberLoading value:', this.allocationNumberLoading());
-    
+
     // Log token details
     console.log('=== SENDING ALLOCATION NUMBER REQUEST ===');
     // console.log('Access token length:', accessToken.length);
     // console.log('Access token starts with:', accessToken.substring(0, 30));
     // console.log('Access token ends with:', '...' + accessToken.substring(accessToken.length - 20));
-    
+
     // Build request data from document
     const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value;
     const docNumber = this.docIndexes.docIndex;
@@ -2127,19 +2177,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
           console.log('Document Type:', this.fileSelected());
           console.log('Lines Count:', this.lineItemsDraft().length);
           console.log('Payments Count:', this.paymentsDraft().length);
-          
+
           const draftPayload = this.buildDocPayload();
           console.log('Draft payload built, sending to backend...');
           console.log('Payload issuerBusinessNumber:', (draftPayload as any).docData?.issuerBusinessNumber);
           console.log('Current selectedBusinessNumber:', this.selectedBusinessNumber);
-          
+
           // Save businessNumber to sessionStorage before redirecting
           const businessNumberToSave = (draftPayload as any).docData?.issuerBusinessNumber || this.selectedBusinessNumber;
           const docTypeToSave = this.fileSelected();
           sessionStorage.setItem('draft_businessNumber', businessNumberToSave);
           sessionStorage.setItem('draft_docType', docTypeToSave);
           console.log('Saved to sessionStorage - businessNumber:', businessNumberToSave, 'docType:', docTypeToSave);
-          
+
           this.docCreateService.saveDraft(draftPayload).subscribe({
             next: (response) => {
               console.log('✅ FRONTEND: Draft saved successfully!', response);
@@ -2202,26 +2252,26 @@ export class DocCreatePage implements OnInit, OnDestroy {
   // Restore draft from database after returning from SHAAM
   private restoreDraftFromDatabase(): void {
     console.log('=== FRONTEND: Restoring draft from database ===');
-    
+
     // Try to get businessNumber from sessionStorage first (saved before SHAAM redirect)
     const savedBusinessNumber = sessionStorage.getItem('draft_businessNumber');
     const savedDocType = sessionStorage.getItem('draft_docType') as DocumentType | null;
-    
+
     console.log('Business Number from sessionStorage:', savedBusinessNumber);
     console.log('Business Number from component:', this.selectedBusinessNumber);
     console.log('DocType from sessionStorage:', savedDocType);
     console.log('DocType from component:', this.fileSelected());
     console.log('All businesses:', this.gs.businesses());
-    
+
     // Use saved businessNumber if available, otherwise use current selectedBusinessNumber
     const businessNumberToUse = savedBusinessNumber || this.selectedBusinessNumber;
-    
+
     if (!businessNumberToUse) {
       console.log('❌ No business number available, skipping draft restore');
       console.log('Available businesses:', this.gs.businesses().map(b => b.businessNumber));
       return;
     }
-    
+
     // If we have a saved businessNumber but it's different from selectedBusinessNumber, update it
     if (savedBusinessNumber && savedBusinessNumber !== this.selectedBusinessNumber) {
       console.log('⚠️ BusinessNumber mismatch! Updating selectedBusinessNumber from', this.selectedBusinessNumber, 'to', savedBusinessNumber);
@@ -2233,9 +2283,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
         });
       }
     }
-    
+
     // Try to load draft for all possible document types if fileSelected is not set
-    const docTypesToTry = savedDocType || this.fileSelected() 
+    const docTypesToTry = savedDocType || this.fileSelected()
       ? [savedDocType || this.fileSelected()].filter(Boolean) as DocumentType[]
       : [DocumentType.TAX_INVOICE, DocumentType.TAX_INVOICE_RECEIPT, DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.CREDIT_INVOICE];
 
@@ -2268,7 +2318,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
             // Restore document data to forms
             if (docData) {
               console.log('Restoring form values from docData:', docData);
-              
+
               // Restore general details using correct field names from enum
               const generalFormValues: any = {
                 [FieldsCreateDocValue.DOC_TYPE]: docData.docType,
@@ -2277,22 +2327,22 @@ export class DocCreatePage implements OnInit, OnDestroy {
                 [FieldsCreateDocValue.DOC_VAT_RATE]: docData.docVatRate || 18,
                 [FieldsCreateDocValue.CURRENCY]: docData.currency || 'ILS',
               };
-              
+
               // Add docSubtitle if field exists in form
               if (this.generalDetailsForm.get('docSubtitle')) {
                 generalFormValues['docSubtitle'] = docData.docSubtitle || null;
               }
-              
+
               // Add allocationNum if field exists in form
               if (this.generalDetailsForm.get('allocationNum')) {
                 generalFormValues['allocationNum'] = docData.allocationNum || null;
               }
-              
+
               console.log('Patching generalDetailsForm with:', generalFormValues);
               this.generalDetailsForm.patchValue(generalFormValues);
 
               // Restore user details using correct field names from enum
-              const recipientAddress = docData.recipientStreet 
+              const recipientAddress = docData.recipientStreet
                 ? `${docData.recipientStreet}${docData.recipientHomeNumber ? ' ' + docData.recipientHomeNumber : ''}${docData.recipientCity ? ', ' + docData.recipientCity : ''}`
                 : null;
 
@@ -2303,7 +2353,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
                 [FieldsCreateDocValue.RECIPIENT_EMAIL]: docData.recipientEmail || null,
                 [FieldsCreateDocValue.RECIPIENT_ADDRESS]: recipientAddress || null,
               };
-              
+
               console.log('Patching userDetailsForm with:', userFormValues);
               this.userDetailsForm.patchValue(userFormValues);
 
@@ -2315,7 +2365,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
               if (docData.allocationNum) {
                 this.allocationNumber.set(docData.allocationNum);
               }
-              
+
+              // Restore withholding tax amount
+              if (docData.withholdingTaxAmount !== undefined && docData.withholdingTaxAmount !== null) {
+                const withholdingAmount = Number(docData.withholdingTaxAmount) || 0;
+                this.withholdingTaxAmount.set(withholdingAmount);
+                if (this.withholdingTaxForm) {
+                  this.withholdingTaxForm.get('withholdingTaxAmount')?.setValue(withholdingAmount);
+                }
+              }
+
               console.log('✅ General and user forms patched');
             }
 
@@ -2326,13 +2385,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
                 // Calculate discount from disBefVatPerLine if needed
                 // The discount field in the UI is the total discount, which equals disBefVatPerLine for most cases
                 const discount = line.disBefVatPerLine || 0;
-                
+
                 // Calculate sum (unit price) from sumBefVatPerUnit
                 // We need to reverse the calculation based on vatOpts
                 let sum = 0;
                 const vatRate = line.vatRate || 0;
                 const quantity = line.unitQuantity || 1;
-                
+
                 if (line.vatOpts === 'INCLUDE') {
                   // If VAT is included, sumBefVatPerUnit = sum / (1 + vatRate/100)
                   // So sum = sumBefVatPerUnit * (1 + vatRate/100)
@@ -2341,7 +2400,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
                   // For EXCLUDE or WITHOUT, sum = sumBefVatPerUnit
                   sum = line.sumBefVatPerUnit;
                 }
-                
+
                 return {
                   description: line.description,
                   unitQuantity: line.unitQuantity,
@@ -2366,7 +2425,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
               console.log('Setting lineItemsDraft with', restoredLines.length, 'lines');
               console.log('Restored lines with calculated fields:', restoredLines);
               this.lineItemsDraft.set(restoredLines);
-              
+
               // Update totals after restoring lines
               console.log('Updating document totals from restored lines...');
               this.updateDocumentTotalsFromLines();
@@ -2401,7 +2460,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
             // Clear sessionStorage after successful restore
             sessionStorage.removeItem('draft_businessNumber');
             sessionStorage.removeItem('draft_docType');
-            
+
             // Show success message
             console.log('✅ FRONTEND: Draft restored successfully!');
             this.messageService.add({

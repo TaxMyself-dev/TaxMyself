@@ -20,6 +20,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
+import { MailService } from 'src/mail/mail.service';
+import { User } from 'src/users/user.entity';
 
 @Injectable()
 export class DocumentsService {
@@ -31,6 +33,7 @@ export class DocumentsService {
     private readonly sharedService: SharedService,
     private readonly businessService: BusinessService,
     private readonly bookkeepingService: BookkeepingService,
+    private readonly mailService: MailService,
     @InjectRepository(SettingDocuments)
     private settingDocuments: Repository<SettingDocuments>,
     @InjectRepository(Documents)
@@ -47,6 +50,8 @@ export class DocumentsService {
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
     private dataSource: DataSource
   ) { }
 
@@ -233,6 +238,24 @@ export class DocumentsService {
     }
   }
 
+  /**
+   * Download a file from Firebase Storage
+   */
+  private async downloadFromFirebase(filePath: string): Promise<Buffer> {
+    try {
+      const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+      const file = bucket.file(filePath);
+      const [buffer] = await file.download();
+      return buffer;
+    } catch (error) {
+      console.error(`Failed to download Firebase file: ${filePath}`, error);
+      throw new HttpException(
+        `Failed to download file from Firebase: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   async rollbackDocumentAndIndexes(
     issuerBusinessNumber: string,
     generalDocIndex: string,
@@ -392,6 +415,9 @@ export class DocumentsService {
   async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
 
     const isProduction = process.env.NODE_ENV === 'production';
+
+    console.log("data is ", data);
+
     
     // FID mapping based on environment and document type
     const fidMap = {
@@ -477,7 +503,9 @@ export class DocumentsService {
 
         if (data.paymentData && data.paymentData.length > 0) {
           prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
+          prefill_data.sumPaymentsTable = await this.transformPaymentsToSumTable(data.paymentData, data.docData);
         }
+
 
         break;
 
@@ -717,6 +745,51 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Transform payments data to sum payments table with withholding tax logic
+   * @param paymentData - Array of payment objects
+   * @param docData - Document data containing withholdingTaxAmount
+   * @returns Array of table rows with description and amount
+   */
+  async transformPaymentsToSumTable(paymentData: any[], docData: any): Promise<any[]> {
+    // Calculate total payments amount
+    const totalPayments = paymentData.reduce((sum, payment) => {
+      const paymentAmount = Number(payment.paymentAmount || payment.paymentSum || 0);
+      return sum + paymentAmount;
+    }, 0);
+
+    const withholdingTaxAmount = Number(docData.withholdingTaxAmount || 0);
+    const sumPaymentsTable: any[] = [];
+
+    if (withholdingTaxAmount === 0) {
+      // If withholding tax is 0, show only total
+      sumPaymentsTable.push({
+        'תיאור': 'סה"כ',
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+      });
+    } else {
+      // If withholding tax is not 0, show: התקבל, ניכוי מס במקור, סה"כ
+      sumPaymentsTable.push({
+        'תיאור': 'התקבל:',
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+      });
+
+      sumPaymentsTable.push({
+        'תיאור': 'ניכוי מס במקור:',
+        'סכום': `₪${this.formatNumberWithCommas(withholdingTaxAmount)}`,
+      });
+
+      // Calculate final total (payments minus withholding tax)
+      const finalTotal = totalPayments - withholdingTaxAmount;
+      sumPaymentsTable.push({
+        'תיאור': 'סה"כ:',
+        'סכום': `₪${this.formatNumberWithCommas(finalTotal)}`,
+      });
+    }
+
+    return sumPaymentsTable;
+  }
+
 
   async transformDocumentData(dto: CreateDocDto): Promise<any> {
 
@@ -724,6 +797,8 @@ export class DocumentsService {
     // 1. TRANSFORM DOCDATA (Documents entity fields)
     // ============================================================================
     const docData = dto.docData;
+    console.log('📧 [transformDocumentData] sendEmailToRecipient from DTO:', docData.sendEmailToRecipient);
+    console.log('📧 [transformDocumentData] withholdingTaxAmount from DTO:', docData.withholdingTaxAmount, 'type:', typeof docData.withholdingTaxAmount);
 
     // Calculate totals
     let sumBefDisBefVat = 0;
@@ -777,7 +852,7 @@ export class DocumentsService {
       sumAftDisBefVAT: Number(sumAftDisBefVAT.toFixed(2)),
       vatSum: Number(vatSum.toFixed(2)),
       sumAftDisWithVAT: Number(sumAftDisWithVAT.toFixed(2)),
-      withholdingTaxAmount: (docData as any).withholdingTaxAmount ? Number((docData as any).withholdingTaxAmount) : 0,
+      withholdingTaxAmount: docData.withholdingTaxAmount !== undefined && docData.withholdingTaxAmount !== null ? Number(docData.withholdingTaxAmount) : 0,
       sumWithoutVat: docData.totalWithoutVat || 0,
       // Dates
       docDate: new Date(docData.docDate),
@@ -790,6 +865,8 @@ export class DocumentsService {
       // Parent document details
       parentDocType: docData.parentDocType || null,
       parentDocNumber: docData.parentDocNumber || null,
+      // Email sending flag
+      sendEmailToRecipient: docData.sendEmailToRecipient || false,
       
     };
 
@@ -797,37 +874,6 @@ export class DocumentsService {
     // 2. TRANSFORM LINESDATA (DocLines entity fields)
     // ============================================================================
     const transformedLinesData = dto.linesData.map((line, index) => {
-      // Convert vatOpts string to enum if needed
-      // let vatOpts: VatOptions;
-      // const vatOptsValue = line.vatOpts as any;
-      // if (typeof vatOptsValue === 'string') {
-      //   const vatOptsUpper = vatOptsValue.toUpperCase();
-      //   if (vatOptsUpper === 'INCLUDE') {
-      //     vatOpts = VatOptions.INCLUDE;
-      //   } else if (vatOptsUpper === 'EXCLUDE') {
-      //     vatOpts = VatOptions.EXCLUDE;
-      //   } else if (vatOptsUpper === 'WITHOUT') {
-      //     vatOpts = VatOptions.WITHOUT;
-      //   } else {
-      //     vatOpts = VatOptions[vatOptsUpper as keyof typeof VatOptions] || VatOptions.INCLUDE;
-      //   }
-      // } else if (typeof vatOptsValue === 'number') {
-      //   vatOpts = vatOptsValue as VatOptions;
-      // } else {
-      //   vatOpts = VatOptions.INCLUDE; // Default
-      // }
-
-      // Convert unitType to enum if needed
-      // let unitType: UnitOfMeasure = UnitOfMeasure.UNIT; // Default
-      // const unitTypeValue = (line as any).unitType;
-      // if (unitTypeValue !== undefined && unitTypeValue !== null) {
-      //   if (typeof unitTypeValue === 'number') {
-      //     unitType = unitTypeValue as unknown as UnitOfMeasure;
-      //   } else if (typeof unitTypeValue === 'string') {
-      //     const unitTypeUpper = unitTypeValue.toUpperCase();
-      //     unitType = UnitOfMeasure[unitTypeUpper as keyof typeof UnitOfMeasure] || UnitOfMeasure.UNIT;
-      //   }
-      // }
 
       return {
         // Required fields
@@ -1096,6 +1142,90 @@ export class DocumentsService {
                 console.log(new Date().toLocaleTimeString(), "Step 10 complete - Parent document status updated to CLOSE");
               }
             }
+          }
+
+          // 11. Send email to recipient if requested
+          console.log(new Date().toLocaleTimeString(), "Step 11 - Checking email sending conditions:");
+          console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
+          console.log("  - recipientEmail:", data.docData.recipientEmail);
+          console.log("  - originalFilePath:", originalFilePath);
+          
+          if (data.docData.sendEmailToRecipient && data.docData.recipientEmail && originalFilePath) {
+            try {
+              console.log(new Date().toLocaleTimeString(), "Step 11.1 - Starting email sending process");
+              console.log("  📧 Email will be sent to:", data.docData.recipientEmail);
+              
+              // Get business info for email content
+              const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber);
+              const businessName = business?.businessName || data.docData.issuerBusinessNumber;
+              console.log("  📧 Business name:", businessName);
+
+              // Get Hebrew document type name
+              const docTypeNames: Partial<Record<DocumentType, string>> = {
+                [DocumentType.RECEIPT]: 'קבלה',
+                [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+                [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
+                [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+                [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+                [DocumentType.GENERAL]: 'מסמך כללי',
+              };
+              const docTypeName = docTypeNames[data.docData.docType] || data.docData.docType;
+              console.log("  📧 Document type:", docTypeName, "Number:", data.docData.docNumber);
+
+              // Download PDF from Firebase
+              console.log("  📧 Downloading PDF from Firebase:", originalFilePath);
+              const pdfBuffer = await this.downloadFromFirebase(originalFilePath);
+              console.log("  📧 PDF downloaded successfully, size:", pdfBuffer.length, "bytes");
+
+              // Get owner name - use issuerName from transformed data if available, otherwise get from user
+              let ownerName = data.docData.issuerName;
+              if (!ownerName && business?.firebaseId) {
+                const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
+                ownerName = user ? `${user.fName} ${user.lName}`.trim() : null;
+              }
+              const finalOwnerName = ownerName?.trim() || businessName;
+              console.log("  📧 Owner name:", finalOwnerName);
+              
+              // Prepare email content
+              const recipientName = data.docData.recipientName || 'לקוח נכבד';
+              
+              const emailSubject = `${docTypeName} #${data.docData.docNumber}`;
+              const emailText = `שלום ${recipientName},
+
+מצורף בזאת ${docTypeName} מספר ${data.docData.docNumber}.
+
+בברכה,
+${finalOwnerName}`;
+
+              // Generate attachment filename
+              const attachmentName = `${data.docData.docType}_${data.docData.docNumber}_${data.docData.generalDocIndex}.pdf`;
+              console.log("  📧 Email subject:", emailSubject);
+              console.log("  📧 Attachment name:", attachmentName);
+
+              // Send email with attachment
+              console.log("  📧 Sending email via BREVO...");
+              const emailResponse = await this.mailService.sendMailWithAttachment(
+                data.docData.recipientEmail,
+                emailSubject,
+                emailText,
+                pdfBuffer,
+                attachmentName
+              );
+
+              console.log(new Date().toLocaleTimeString(), "✅ Step 11 complete - Email sent successfully to:", data.docData.recipientEmail);
+              console.log("  📧 Email response:", JSON.stringify(emailResponse, null, 2));
+            } catch (emailError) {
+              // Don't fail document creation if email fails - just log the error
+              console.error(new Date().toLocaleTimeString(), "❌ Error sending email to recipient:", data.docData.recipientEmail);
+              console.error("  Error details:", emailError);
+              if (emailError instanceof Error) {
+                console.error("  Error message:", emailError.message);
+                console.error("  Error stack:", emailError.stack);
+              }
+              console.error("  Document was created successfully, but email sending failed");
+            }
+          } else {
+            console.log(new Date().toLocaleTimeString(), "Step 11 skipped - Email sending conditions not met");
           }
 
         } catch (uploadError) {

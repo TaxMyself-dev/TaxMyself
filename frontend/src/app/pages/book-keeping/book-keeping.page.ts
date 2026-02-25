@@ -17,7 +17,8 @@ export class BookKeepingPage implements OnInit {
   items = [
     { label: 'הכנסות', icon: 'pi pi-wallet', routerLink: 'incomes' },
     { label: 'הוצאות', icon: 'pi pi-arrow-down', routerLink: 'expenses' },
-    { label: 'לקוחות', icon: 'pi pi-users', routerLink: 'clients' }
+    { label: 'לקוחות', icon: 'pi pi-users', routerLink: 'clients' },
+    { label: 'ספקים', icon: 'pi pi-building', routerLink: 'suppliers' }
   ];
 
   activeItem = signal(this.items[0]);
@@ -29,6 +30,7 @@ export class BookKeepingPage implements OnInit {
       if (url.includes('/incomes')) this.activeItem.set(this.items[0]);
       else if (url.includes('/expenses')) this.activeItem.set(this.items[1]);
       else if (url.includes('/clients')) this.activeItem.set(this.items[2]);
+      else if (url.includes('/suppliers')) this.activeItem.set(this.items[3]);
     });
   }
 

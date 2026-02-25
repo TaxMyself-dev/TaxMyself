@@ -27,6 +27,9 @@ import { ShaamInvoiceApprovalDialogComponent } from 'src/app/components/shaam-in
 import { ToastModule } from 'primeng/toast';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialog } from 'primeng/confirmdialog';
+import { CheckboxModule } from 'primeng/checkbox';
+import { Card } from "primeng/card";
+import { Avatar } from "primeng/avatar";
 
 
 @NgModule({
@@ -52,10 +55,13 @@ import { ConfirmDialog } from 'primeng/confirmdialog';
     InputAutoCompleteComponent,
     ShaamInvoiceApprovalDialogComponent,
     ToastModule,
-    ConfirmDialog
-],
-  declarations: [DocCreatePage, ],
+    ConfirmDialog,
+    CheckboxModule,
+    Card,
+    Avatar
+  ],
+  declarations: [DocCreatePage,],
   providers: [DialogService, ConfirmationService, MessageService]
 })
-export class DocCreatePageModule {}
+export class DocCreatePageModule { }
 

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, OnInit, output, signal, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, OnInit, output, signal, computed, effect } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
@@ -49,35 +49,19 @@ export class InputAutoCompleteComponent implements OnInit {
 
   // State signals
   filteredItems = signal<any[]>([]);
-  inputClasses = signal<string>("");
-
-  constructor() { }
+  readonly inputClasses = computed(() => [this.size(), this.customStyle()].filter(Boolean).join(' '));
 
   ngOnInit() {
-    this.getInputClasses();
     // Initialize filtered items with all items
     this.filteredItems.set(this.items());
   }
 
-  getInputClasses(): void {
-    const classes = [
-      this.size(),   
-      this.customStyle()
-    ]
-      .filter(c => !!c)
-      .join(' ');
-            
-    this.inputClasses.set(classes);
-  }
-
   onComplete(event: AutoCompleteCompleteEvent): void {
-    console.log("🚀 ~ InputAutoCompleteComponent ~ onComplete ~ event:", event)
     // Emit to parent for custom filtering
     this.onCompleteMethod.emit(event);
   }
 
   onSelect(event: any): void {
-    console.log("🚀 ~ InputAutoCompleteComponent ~ onSelect ~ event:", event)
     this.onItemSelect.emit(event);
   }
 

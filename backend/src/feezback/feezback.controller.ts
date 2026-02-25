@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Logger, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
 import { FeezbackService } from './feezback.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
 import { UsersService } from '../users/users.service';
+import type { Request, Response } from 'express';
 import { log } from 'node:console';
 import * as fs from 'fs';
 import * as path from 'path';
+import { FeezbackWebhookRouterService } from './router/feezback-webhook-router.service';
 
 @Controller('feezback')
 export class FeezbackController {
@@ -14,13 +16,28 @@ export class FeezbackController {
   constructor(
     private readonly feezbackService: FeezbackService,
     private readonly usersService: UsersService,
-  ) {}
+    private readonly routerService: FeezbackWebhookRouterService
+  ) { }
+
+  @Post('webhook-router')
+  handleWebhookRouter(@Req() req: Request, @Res() res: Response): void {
+    console.log("webhook-routerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");
+
+    // Return 200 immediately (do not block)
+    res.status(200).json({ received: true });
+
+    // Fire-and-forget forwarding
+    void this.routerService.forward(req).catch((err) => {
+      // Should never throw, but just in case
+      this.logger.error('Unexpected error in forward()', err?.stack || String(err));
+    });
+  }
 
   @Post('consent-link')
   @UseGuards(FirebaseAuthGuard)
   async createConsentLink(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -35,7 +52,7 @@ export class FeezbackController {
 
     // const firebaseId = req.user?.firebaseId;
     const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -54,7 +71,7 @@ export class FeezbackController {
 
     // const firebaseId = req.user?.firebaseId;
     const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -65,44 +82,6 @@ export class FeezbackController {
   }
 
   /**
-   * Webhook endpoint for Feezback events
-   * Receives webhook when user data is available
-   */
-  @Post('webhook')
-  async handleWebhook(@Body() webhookData: any) {
-    this.logger.log(`Received webhook: ${JSON.stringify(webhookData)}`);
-
-    // Handle UserDataIsAvailable event
-    if (webhookData.event === 'UserDataIsAvailable') {
-      const payload = webhookData.payload;
-      const user = payload.user;
-      const context = payload.context;
-
-      // Extract firebaseId from context
-      const firebaseId = this.feezbackService.extractFirebaseIdFromContext(context);
-      
-      this.logger.log(`Processing webhook for firebaseId: ${firebaseId}`);
-      this.logger.log(`User identifier: ${user}`);
-      this.logger.log(`Consent ID: ${payload.consent}`);
-
-      // You can store the webhook data or trigger async processing here
-      // For now, we'll just log it
-      
-      return {
-        success: true,
-        message: 'Webhook received and processed',
-        firebaseId,
-        consent: payload.consent,
-      };
-    }
-
-    return {
-      success: true,
-      message: 'Webhook received',
-    };
-  }
-
-  /**
    * Get user accounts from Feezback
    * Requires authentication
    */
@@ -110,7 +89,7 @@ export class FeezbackController {
   @UseGuards(FirebaseAuthGuard)
   async getUserAccounts(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -124,13 +103,36 @@ export class FeezbackController {
 
     try {
       const accounts = await this.feezbackService.getUserAccounts(sub);
-      // console.log("accounts: ", accounts);
+      console.log("accounts: ", accounts);
       return accounts;
     } catch (error: any) {
       this.logger.error(`Failed to fetch user accounts: ${error.message}`, error.stack);
       throw new Error(`Failed to fetch user accounts: ${error.message}`);
     }
   }
+
+  @Get('consents/sync')
+  @UseGuards(FirebaseAuthGuard)
+  async syncConsents(@Req() req: AuthenticatedRequest) {
+    const firebaseId = req.user?.firebaseId;
+
+    if (!firebaseId) {
+      throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    const sub = `${firebaseId}_sub`;
+
+    this.logger.log(`Syncing Feezback consents for firebaseId: ${firebaseId}, sub: ${sub}`);
+
+    try {
+      const consents = await this.feezbackService.syncUserConsents(firebaseId, sub);
+      return { consents };
+    } catch (error: any) {
+      this.logger.error(`Failed to sync user consents: ${error.message}`, error.stack);
+      throw new Error(`Failed to sync user consents: ${error.message}`);
+    }
+  }
+
 
   /**
    * Get transactions for a specific account
@@ -146,7 +148,7 @@ export class FeezbackController {
     @Query('dateTo') dateTo?: string,
   ) {
     const firebaseId = req.user?.firebaseId;
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -195,7 +197,7 @@ export class FeezbackController {
     @Query('dateTo') dateTo?: string,
   ) {
     const adminFirebaseId = req.user?.firebaseId;
-    
+
     if (!adminFirebaseId) {
       throw new Error('Admin authentication required');
     }
@@ -247,9 +249,6 @@ export class FeezbackController {
     const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
     const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
 
-    this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
-
     try {
       // Step 1: Get all accounts
       let accountsResponse;
@@ -271,7 +270,7 @@ export class FeezbackController {
         // Re-throw other errors
         throw error;
       }
-      
+
       const accounts = accountsResponse?.accounts || [];
 
       if (!accounts || accounts.length === 0) {
@@ -295,7 +294,8 @@ export class FeezbackController {
 
       for (let i = 0; i < accounts.length; i++) {
         const account = accounts[i];
-        
+        console.log("🚀 ~ FeezbackController ~ getAllUserTransactionsInternal ~ account:", account)
+
         // Add delay before each request (except the first one)
         if (i > 0) {
           this.logger.debug(`Waiting ${delayBetweenRequests}ms before next request to avoid rate limiting...`);
@@ -306,7 +306,8 @@ export class FeezbackController {
           this.logger.log(`Fetching transactions for account: ${account.name} (${i + 1}/${accounts.length})`);
           const transactionsResponse = await this.feezbackService.getAccountTransactions(
             sub,
-            account.transactionsLink,
+            account._links.transactions.href,
+            // account.transactionsLink,
             bookingStatus || 'booked',
             defaultDateFrom,
             defaultDateTo,
@@ -314,13 +315,13 @@ export class FeezbackController {
 
           // Extract transactions from response
           let transactions: any[] = [];
-          
+
           // Debug: Log response structure
           this.logger.debug(`Response type: ${Array.isArray(transactionsResponse) ? 'Array' : typeof transactionsResponse}`);
           if (!Array.isArray(transactionsResponse) && transactionsResponse) {
             const keys = Object.keys(transactionsResponse);
             this.logger.debug(`Response keys: ${keys.join(', ')}`);
-            
+
             // Check if transactions key exists and its type
             if ('transactions' in transactionsResponse) {
               const txValue = transactionsResponse.transactions;
@@ -329,7 +330,7 @@ export class FeezbackController {
               this.logger.debug(`transactions key NOT found in response`);
             }
           }
-          
+
           if (Array.isArray(transactionsResponse)) {
             transactions = transactionsResponse;
             this.logger.debug(`Extracted transactions from array response: ${transactions.length}`);
@@ -396,7 +397,7 @@ export class FeezbackController {
           // Handle 429 errors with retry logic
           if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
             this.logger.warn(`Rate limit hit for account ${account.name}, implementing retry logic...`);
-            
+
             let retryCount = 0;
             const maxRetries = 3;
             const retryDelays = [10000, 20000, 30000]; // 10s, 20s, 30s
@@ -404,12 +405,13 @@ export class FeezbackController {
             while (retryCount < maxRetries) {
               await delay(retryDelays[retryCount]);
               retryCount++;
-              
+
               try {
                 this.logger.log(`Retry ${retryCount} for account ${account.name}...`);
                 const retryResponse = await this.feezbackService.getAccountTransactions(
                   sub,
-                  account.transactionsLink,
+                  account._links.transactions.href,
+                  // account.transactionsLink,
                   bookingStatus || 'booked',
                   defaultDateFrom,
                   defaultDateTo,
@@ -490,9 +492,9 @@ export class FeezbackController {
         this.logger.log(`Attempting to save ${allTransactions.length} transactions to database...`);
         let saveResult: any = null;
         let dbError: any = null;
-        
+
         try {
-          saveResult = await this.feezbackService.saveTransactionsToDatabase(
+          saveResult = await this.feezbackService.saveBankTransactionsToDatabase(
             allTransactions,
             firebaseId,
             accountInfoMap,
@@ -506,7 +508,7 @@ export class FeezbackController {
             this.logger.error(`Database error response: ${JSON.stringify(error.response)}`);
           }
         }
-        
+
         // Always return response, even if database save failed
         const response = {
           transactions: allTransactions,
@@ -515,7 +517,7 @@ export class FeezbackController {
           transactionsByAccount: accountTransactionsMap,
           savedFilePaths: savedFilePaths,
         };
-        
+
         if (saveResult) {
           (response as any).databaseSaveResult = saveResult;
         } else if (dbError) {
@@ -523,7 +525,7 @@ export class FeezbackController {
         } else {
           (response as any).databaseSaveResult = { saved: 0, skipped: 0, message: 'Database save was not attempted' };
         }
-        
+
         this.logger.log(`Returning response with ${allTransactions.length} transactions`);
         return response;
       } else {
@@ -557,7 +559,7 @@ export class FeezbackController {
     @Query('dateTo') dateTo?: string,
   ) {
     const firebaseId = req.user?.firebaseId;
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -576,6 +578,46 @@ export class FeezbackController {
     return this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
   }
 
+  @Get('user-card-transactions')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserCardTransactions(
+    @Req() req: AuthenticatedRequest,
+    @Query('bookingStatus') bookingStatus?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('cardResourceId') cardResourceId?: string,
+  ) {
+    const firebaseId = req.user?.firebaseId;
+    console.log('in user-card-transactions');
+
+    if (!firebaseId) {
+      throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    const sub = `${firebaseId}_sub`;
+
+    const today = new Date();
+    const sixtyDaysAgo = new Date(today);
+    sixtyDaysAgo.setDate(today.getDate() - 60);
+
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
+    const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
+
+    this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
+    this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
+
+    // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
+    return this.feezbackService.getAndSaveUserCardTransactions(
+      firebaseId,
+      sub,
+      bookingStatus ?? 'booked',
+      resolvedDateFrom,
+      resolvedDateTo,
+      cardResourceId,
+    );
+  }
+
   /**
    * Save transactions to JSON files for inspection
    * Creates two files: raw response and simplified transactions
@@ -588,15 +630,15 @@ export class FeezbackController {
     accountInfoMap: { [accountName: string]: any } = {},
   ): { raw: string | null; simplified: string | null } {
     const result = { raw: null, simplified: null };
-    
+
     try {
       // Use __dirname relative path or process.cwd()
       const baseDir = process.cwd();
       const outputDir = path.join(baseDir, 'src', 'feezback', 'transactions-data');
-      
+
       this.logger.log(`Attempting to save transactions to: ${outputDir}`);
       this.logger.log(`Current working directory: ${baseDir}`);
-      
+
       // Create directory if it doesn't exist
       if (!fs.existsSync(outputDir)) {
         this.logger.log(`Creating directory: ${outputDir}`);
@@ -621,7 +663,7 @@ export class FeezbackController {
       };
 
       fs.writeFileSync(rawFilePath, JSON.stringify(rawOutput, null, 2), 'utf8');
-      
+
       if (fs.existsSync(rawFilePath)) {
         const stats = fs.statSync(rawFilePath);
         this.logger.log(`✅ Raw transactions saved to: ${rawFilePath}`);
@@ -649,7 +691,7 @@ export class FeezbackController {
         const txId = tx.transactionId;
         const accountName = transactionToAccountMap[txId];
         const accountInfo = accountName ? accountInfoMap[accountName] : null;
-        
+
         // Determine source account identifier
         let sourceAccount: string | null = null;
         if (accountInfo) {
@@ -666,34 +708,34 @@ export class FeezbackController {
             sourceAccount = accountInfo.name;
           }
         }
-        
+
         return {
           // Unique identifier
           transactionId: txId || null,
-          
+
           // Dates
           bookingDate: tx.bookingDate || null,
           valueDate: tx.valueDate || null,
           referenceTime: tx.referenceTime || null,
-          
+
           // Amount
           amount: tx.transactionAmount?.amount || null,
           currency: tx.transactionAmount?.currency || null,
-          
+
           // Category and description
           category: tx._aggregate?.category || null,
           standardName: tx._aggregate?.standardName || null,
           description: tx.remittanceInformationUnstructured || tx.remittanceInformationStructured || null,
-          
+
           // Parties
           creditorName: tx.creditorName || null,
           debtorName: tx.debtorName || null,
-          
+
           // Source account (where transaction comes from)
           sourceAccount: sourceAccount,
           sourceAccountName: accountName || null,
           sourceAccountType: accountInfo?.cashAccountType || null, // CACC for bank, CARD for credit card
-          
+
           // Additional info
           additionalInformation: tx.additionalInformation || null,
           entryReference: tx.entryReference || null,
@@ -728,7 +770,7 @@ export class FeezbackController {
       };
 
       fs.writeFileSync(simplifiedFilePath, JSON.stringify(simplifiedOutput, null, 2), 'utf8');
-      
+
       if (fs.existsSync(simplifiedFilePath)) {
         const stats = fs.statSync(simplifiedFilePath);
         this.logger.log(`✅ Simplified transactions saved to: ${simplifiedFilePath}`);
@@ -753,7 +795,7 @@ export class FeezbackController {
   @UseGuards(FirebaseAuthGuard)
   async analyzeTransactionsStructure(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -787,7 +829,8 @@ export class FeezbackController {
 
       const transactionsResponse = await this.feezbackService.getAccountTransactions(
         sub,
-        firstAccount.transactionsLink,
+        firstAccount._links.transactions.href,
+        // firstAccount.transactionsLink,
         'booked',
         dateFrom,
         dateTo,
@@ -799,7 +842,7 @@ export class FeezbackController {
 
       // Extract transactions using same logic as main endpoint
       let transactions: any[] = [];
-      
+
       if (Array.isArray(transactionsResponse)) {
         transactions = transactionsResponse;
       } else if (transactionsResponse?.transactions) {
@@ -839,17 +882,17 @@ export class FeezbackController {
       const allFields = new Set<string>();
       const fieldTypes: { [key: string]: string } = {};
       const fieldExamples: { [key: string]: any } = {};
-      
+
       transactions.forEach(tx => {
         Object.keys(tx).forEach(key => {
           allFields.add(key);
           const value = tx[key];
           const valueType = typeof value;
-          
+
           if (!fieldTypes[key]) {
             fieldTypes[key] = valueType;
           }
-          
+
           if (!fieldExamples[key] && value !== null && value !== undefined) {
             // Store a sample value (truncate if too long)
             if (typeof value === 'string' && value.length > 100) {
@@ -865,11 +908,11 @@ export class FeezbackController {
 
       // Categorize fields
       const importantFields = [
-        'transactionId', 'bookingDate', 'valueDate', 'transactionAmount', 
+        'transactionId', 'bookingDate', 'valueDate', 'transactionAmount',
         'remittanceInformationUnstructured', 'creditorName', 'debtorName',
         'category', 'standardName', 'amount', 'currency'
       ];
-      
+
       const categorizedFields = {
         identifiers: Array.from(allFields).filter(f => f.includes('Id') || f.includes('Reference')),
         dates: Array.from(allFields).filter(f => f.includes('Date') || f.includes('Time')),
@@ -922,7 +965,7 @@ export class FeezbackController {
   @UseGuards(FirebaseAuthGuard)
   async getTransactionsStructure(@Req() req: AuthenticatedRequest) {
     const firebaseId = req.user?.firebaseId;
-    
+
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
     }
@@ -956,7 +999,8 @@ export class FeezbackController {
 
       const transactionsResponse = await this.feezbackService.getAccountTransactions(
         sub,
-        firstAccount.transactionsLink,
+        firstAccount._links.transactions.href,
+        // firstAccount.transactionsLink,
         'booked',
         dateFrom,
         dateTo,
@@ -987,7 +1031,7 @@ export class FeezbackController {
       // Analyze structure
       const sampleTransaction = transactions[0];
       const allFields = new Set<string>();
-      
+
       transactions.forEach(tx => {
         Object.keys(tx).forEach(key => allFields.add(key));
       });
@@ -1040,7 +1084,7 @@ export class FeezbackController {
     try {
       const baseDir = process.cwd();
       const outputDir = path.join(baseDir, 'src', 'feezback', 'transactions-data');
-      
+
       if (!fs.existsSync(outputDir)) {
         return {
           message: 'No transactions data directory found',

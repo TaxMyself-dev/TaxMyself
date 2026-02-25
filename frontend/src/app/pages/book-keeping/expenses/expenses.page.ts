@@ -71,7 +71,6 @@ export class ExpensesPage implements OnInit {
     { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
-    { name: ExpenseFormColumns.FILE, value: ExpenseFormHebrewColumns.file, type: FormTypes.TEXT },
   ];
 
   // ===========================
@@ -203,10 +202,6 @@ export class ExpensesPage implements OnInit {
             const taxPercent = row.taxPercent ? `${row.taxPercent}%` : '0%';
             const vatPercent = row.vatPercent ? `${row.vatPercent}%` : '0%';
 
-            // Format file - show only if exists
-            const fileDisplay = row.file ? 'קיים' : '';
-            const originalFile = row.file; // Keep original file path for viewing
-
             return {
               ...row,
               sum: sumWithCurrency,
@@ -214,8 +209,6 @@ export class ExpensesPage implements OnInit {
               totalVatPayable: vatPayableWithCurrency,
               taxPercent: taxPercent,
               vatPercent: vatPercent,
-              file: fileDisplay,
-              originalFile: originalFile, // Keep original file path
             };
           });
         }),
@@ -256,11 +249,11 @@ export class ExpensesPage implements OnInit {
         }
       },
       {
-        name: 'view',
+        name: 'preview',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
         action: (event: any, row: IRowDataTable) => {
-          this.onViewFile(row);
+          this.onPreviewFile(row);
         }
       }
     ]);
@@ -337,20 +330,13 @@ export class ExpensesPage implements OnInit {
     });
   }
 
-  onViewFile(row: IRowDataTable): void {
-    console.log("View file:", row);
-    // Check if file exists (use originalFile which contains the actual file path)
-    const filePath = (row as any).originalFile;
-    if (filePath && filePath !== '' && filePath !== 'קיים') {
-      this.filesService.previewFile3(filePath);
+  /** תצוגה מקדימה של קובץ – כמו בטבלת הכנסות */
+  onPreviewFile(row: IRowDataTable): void {
+    const filePath = row.file as string | undefined;
+    if (filePath && filePath !== '') {
+      this.filesService.previewFile(filePath).subscribe();
     } else {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'אין קובץ',
-        detail: 'לא קיים קובץ להוצאה זו',
-        life: 3000,
-        key: 'br'
-      });
+      alert('לא נשמר קובץ עבור הוצאה זו');
     }
   }
 }

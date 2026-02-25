@@ -1,12 +1,13 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { LoadingController, PopoverController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom, from, map, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom, from, fromEvent, map, startWith, switchMap, tap } from 'rxjs';
 import { Business, BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
 import { environment } from 'src/environments/environment';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { BusinessStatus, doubleMonthsList, ReportingPeriodType, singleMonthsList } from '../shared/enums';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 
 @Injectable( {providedIn: 'root'})
@@ -44,6 +45,22 @@ export class GenericService {
   private _bills = signal<[] | null>(null);
   readonly bills = computed(() => this._bills() ?? []);
   readonly isLoadingBills = signal(false);
+
+  private readonly viewportWidthSignal = typeof window !== 'undefined'
+    ? toSignal(
+      fromEvent(window, 'resize').pipe(
+        startWith(null),
+        map(() => window.innerWidth)
+      ),
+      { initialValue: window.innerWidth }
+    )
+    : signal(1024);
+
+  private readonly isMobileSignal = computed(() => this.viewportWidthSignal() <= 768);
+
+  isMobile(): boolean {
+    return this.isMobileSignal();
+  }
 
 
   async loadBusinessesFromServer(): Promise<void> {
