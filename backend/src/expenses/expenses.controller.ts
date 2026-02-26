@@ -68,14 +68,15 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
     @Query() query: GetExpensesDto): Promise<Expense[]> {
     const firebaseId = request.user?.firebaseId;
-    let startDate: Date;
-    let endDate: Date;
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
 
     if (query.startDate) {
       startDate = this.sharedService.convertStringToDateObject(query.startDate);
     }
     if (query.endDate) {
-      endDate = this.sharedService.convertStringToDateObject(query.endDate);
+      const end = this.sharedService.convertStringToDateObject(query.endDate);
+      endDate = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999));
     }
     return await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
   }
@@ -241,9 +242,7 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
   ): Promise<SupplierResponseDto[]> {
     const firebaseId = request.user?.firebaseId;
-    console.log("🚀 ~ ExpensesController ~ getSupplierNamesByUserId ~ firebaseId:", firebaseId)
     const businessNumber = request.user?.businessNumber;
-    console.log("🚀 ~ ExpensesController ~ getSupplierNamesByUserId ~ businessNumber:", businessNumber)
     return this.expensesService.getSupplierNamesByUserId(firebaseId, businessNumber);
   }
 

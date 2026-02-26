@@ -82,20 +82,30 @@ export class PnLReportPage implements OnInit {
       }
     });
     
-    // Now config can be set safely
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 1–12
+
+    // Now config can be set safely (defaultValue לעסק כשאחד בלבד – ה-control נוצר רק ב-filter-tab)
     this.filterConfig = [
       {
         type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems
+        options: this.gs.businessSelectItems,
+        defaultValue: businesses.length === 1 ? businesses[0].businessNumber : undefined
       },
       {
         type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE]
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
+        periodDefaults: {
+          periodMode: ReportingPeriodType.MONTHLY,
+          year: currentYear,
+          month: String(currentMonth),
+        }
       },
     ];
 

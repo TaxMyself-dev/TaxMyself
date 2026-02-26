@@ -114,6 +114,7 @@ export class ExpensesPage implements OnInit {
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
 
     this.filterConfig = [
       {
@@ -130,13 +131,24 @@ export class ExpensesPage implements OnInit {
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
         periodDefaults: {
+          periodMode: ReportingPeriodType.MONTHLY,
           year: currentYear,
+          month: String(currentMonth),
         }
       }
     ];
 
-    // Fetch initial data
-    this.fetchExpenses(this.selectedBusinessNumber());
+    // ברירת מחדל: חודש נוכחי – כמו בדוח רווח והפסד, כדי שהטבלה והדוח יציגו אותה תקופה
+    const { startDate: defaultStart, endDate: defaultEnd } = this.dateService.getStartAndEndDates(
+      ReportingPeriodType.MONTHLY,
+      currentYear,
+      currentMonth,
+      '',
+      ''
+    );
+    this.startDate = defaultStart;
+    this.endDate = defaultEnd;
+    this.fetchExpenses(this.selectedBusinessNumber(), defaultStart, defaultEnd);
   }
 
   // ===========================

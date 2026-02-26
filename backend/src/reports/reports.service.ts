@@ -246,8 +246,14 @@ export class ReportsService {
       //   totalIncome = totalIncome / (1 + vatPercent);
       // }
       
-      //Get expenses
-      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDate);
+      // סוף יום עבור endDate כדי לכלול את כל ההוצאות בתאריך האחרון
+      const endDateEndOfDay = new Date(Date.UTC(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth(),
+        endDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
+      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDateEndOfDay);
 
       // Separate expenses into equipment and non-equipment categories
       const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
@@ -255,14 +261,13 @@ export class ReportsService {
       // Initialize an object to hold the expense sums by category
       const expenseSumByCategory: { [category: string]: number } = {};
 
-      // Loop through each non-equipment expense
+      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות
       for (const expense of nonEquipmentExpenses) {
-          const category = String(expense.category); // Ensure category is treated as a string
+          const category = String(expense.category);
           if (!expenseSumByCategory[category]) {
-              expenseSumByCategory[category] = 0; // Initialize category sum if not already done
+              expenseSumByCategory[category] = 0;
           }
-          // Sum up the total expense amount (sum field), not just tax payable
-          expenseSumByCategory[category] += Number(expense.sum || 0);
+          expenseSumByCategory[category] += Number(expense.totalTaxPayable ?? 0);
       }
 
         // Map the totals by category into an array of ExpenseDto

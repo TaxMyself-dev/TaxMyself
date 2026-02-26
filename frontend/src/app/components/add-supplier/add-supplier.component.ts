@@ -5,7 +5,7 @@ import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { catchError, EMPTY } from 'rxjs';
 import { FormTypes, inputsSize } from 'src/app/shared/enums';
-import { IColumnDataTable, ISelectItem, ISupplier } from 'src/app/shared/interface';
+import { IColumnDataTable, ISelectItem, ISubCategory, ISupplier } from 'src/app/shared/interface';
 import { SupplierKeys, SupplierValues } from 'src/app/shared/types';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
@@ -173,13 +173,28 @@ export class AddSupplierComponent {
   }
 
   onSelectionChange(event: string | boolean, key: string) {
-    console.log("🚀 ~ AddSupplierComponent ~ onSelectionChange ~ key:", key)
-    console.log("event: ", event);
     if (key === 'category') {
       this.addSupplierService.$selectedCategory.set(event as string);
+      this.addSupplierForm.patchValue({ subCategory: null }, { emitEvent: false });
     }
     if (key === 'subCategory') {
-      // this.addSupplierService.$selectedCategory.set(event);
+      this.fillPercentagesFromSubCategory(event);
     }
+  }
+
+  /** ממלא אחוז מוכר למס, אחוז מוכר למע"מ ואחוז פחת לפי התת־קטגוריה שנבחרה (כמו בדיאלוג הוספת הוצאה) */
+  private fillPercentagesFromSubCategory(event: string | boolean): void {
+    const selectedName = event != null ? String(event) : '';
+    const list = this.addSupplierService.subCategoriesResource.value();
+    const subCategory = list?.find((item: ISubCategory) => item.subCategoryName === selectedName);
+    if (!subCategory) return;
+    const vat = subCategory.vatPercent != null ? Number(subCategory.vatPercent) : 0;
+    const tax = subCategory.taxPercent != null ? Number(subCategory.taxPercent) : 0;
+    const reduction = subCategory.reductionPercent != null ? Number(subCategory.reductionPercent) : 0;
+    this.addSupplierForm.patchValue({
+      vatPercent: vat,
+      taxPercent: tax,
+      reductionPercent: reduction,
+    });
   }
 }

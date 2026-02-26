@@ -57,8 +57,6 @@ export class SuppliersPage implements OnInit {
     { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
     { name: 'taxPercent', value: 'אחוז מוכר למס', type: FormTypes.TEXT },
     { name: 'vatPercent', value: 'אחוז מוכר למע"מ', type: FormTypes.TEXT },
-    { name: 'reductionPercent', value: 'אחוז פחת', type: FormTypes.TEXT },
-    { name: 'isEquipment', value: 'רכוש קבוע', type: FormTypes.TEXT },
   ];
 
   // ===========================
@@ -154,10 +152,10 @@ export class SuppliersPage implements OnInit {
             supplierID: supplier.supplierID || '-',
             category: supplier.category || '-',
             subCategory: supplier.subCategory || '-',
-            taxPercent: supplier.taxPercent != null ? supplier.taxPercent : '-',
-            vatPercent: supplier.vatPercent != null ? supplier.vatPercent : '-',
-            reductionPercent: supplier.reductionPercent != null ? supplier.reductionPercent : '-',
-            isEquipment: supplier.isEquipment ? 'כן' : 'לא',
+            taxPercent: supplier.taxPercent != null ? `${supplier.taxPercent}%` : '-',
+            vatPercent: supplier.vatPercent != null ? `${supplier.vatPercent}%` : '-',
+            reductionPercent: supplier.reductionPercent != null ? `${supplier.reductionPercent}%` : '-',
+            isEquipment: supplier.isEquipment === true ? 'כן' : 'לא',
           }));
         }),
         catchError(err => {

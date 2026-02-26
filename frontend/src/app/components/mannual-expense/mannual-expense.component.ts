@@ -693,12 +693,22 @@ export class MannualExpenseComponent implements OnDestroy {
         });
     }
 
-    getSubCategory(category: string | boolean | null): void {
+    /**
+     * @param category קטגוריה שנבחרה
+     * @param preserveSubCategory אם true (למשל בבחירת ספק קיים) לא מאפסים את שדה תת־קטגוריה
+     */
+    getSubCategory(category: string | boolean | null, preserveSubCategory = false): void {
         if (!category) {
             this.mannualExpenseService.$selectedCategory.set("");
+            if (!preserveSubCategory) {
+                this.mannualExpenseForm.patchValue({ subCategory: null }, { emitEvent: false });
+            }
             return;
         }
         this.mannualExpenseService.$selectedCategory.set(category as string);
+        if (!preserveSubCategory) {
+            this.mannualExpenseForm.patchValue({ subCategory: null }, { emitEvent: false });
+        }
     }
 
     selectedFiles(event: File[]): void {
@@ -936,10 +946,17 @@ export class MannualExpenseComponent implements OnDestroy {
     }
 
     onSelectSubCategory(event: string | boolean | null): void {
-        const subCategory = this.mannualExpenseService.subCategoriesResource.value()?.find((item: ISubCategory) => item.subCategoryName === event);
-        this.mannualExpenseForm.patchValue({ reductionPercent: subCategory?.reductionPercent });
-        this.mannualExpenseForm.patchValue({ vatPercent: +(subCategory?.vatPercent) });
-        this.mannualExpenseForm.patchValue({ taxPercent: +(subCategory?.taxPercent) });
+        const selectedName = event != null ? String(event) : '';
+        const list = this.mannualExpenseService.subCategoriesResource.value();
+        const subCategory = list?.find((item: ISubCategory) => item.subCategoryName === selectedName);
+        const reduction = subCategory?.reductionPercent != null ? Number(subCategory.reductionPercent) : 0;
+        const vat = subCategory?.vatPercent != null ? Number(subCategory.vatPercent) : 0;
+        const tax = subCategory?.taxPercent != null ? Number(subCategory.taxPercent) : 0;
+        this.mannualExpenseForm.patchValue({
+            reductionPercent: reduction,
+            vatPercent: vat,
+            taxPercent: tax,
+        });
         this.isDirty.set(true);
     }
 
@@ -974,9 +991,9 @@ export class MannualExpenseComponent implements OnDestroy {
             reductionPercent: supplier.reductionPercent || 0,
         });
         
-        // Trigger category selection to load subcategories
+        // Trigger category selection to load subcategories (בלי לאפס תת־קטגוריה שכבר מולאה מהספק)
         if (supplier.category) {
-            this.getSubCategory(supplier.category);
+            this.getSubCategory(supplier.category, true);
         }
     }
 
