@@ -10,7 +10,7 @@ import { BusinessStatus, doubleMonthsList, ReportingPeriodType, singleMonthsList
 import { toSignal } from '@angular/core/rxjs-interop';
 
 
-@Injectable( {providedIn: 'root'})
+@Injectable({ providedIn: 'root' })
 export class GenericService {
 
   private loaderMessage$ = new BehaviorSubject<string>("Please wait...");
@@ -20,11 +20,11 @@ export class GenericService {
   toast$ = this.toastSubject.asObservable();
 
   constructor(
-    private loader: LoadingController, 
+    private loader: LoadingController,
     private popoverController: PopoverController,
     private http: HttpClient,
-  ) { 
-     // Load from localStorage on app refresh
+  ) {
+    // Load from localStorage on app refresh
     const saved = localStorage.getItem('businesses');
     if (saved) {
       this._businesses.set(JSON.parse(saved));
@@ -62,6 +62,15 @@ export class GenericService {
     return this.isMobileSignal();
   }
 
+  mapLabelToName(
+    options: ISelectItem[]
+  ): Array<{ value: string | number | boolean | Date; label: string | number }> {
+    return options.map(o => ({
+      value: o.value,
+      label: o.name
+    }));
+  }
+
 
   async loadBusinessesFromServer(): Promise<void> {
 
@@ -85,7 +94,8 @@ export class GenericService {
   }
 
 
-  getBusinessData(user: IUserData): { mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
+  getBusinessData(user: IUserData): {
+    mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
   } {
 
     const fullList: BusinessInfo[] = [];
@@ -263,7 +273,7 @@ export class GenericService {
       .subscribe()
   }
 
-  openPopupConfirm(message: string, buttonTextConfirm: string, buttonTextCancel: string ): Observable<any> {
+  openPopupConfirm(message: string, buttonTextConfirm: string, buttonTextCancel: string): Observable<any> {
     return from(this.popoverController.create({
       component: PopupConfirmComponent,
       componentProps: {

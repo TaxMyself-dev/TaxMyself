@@ -840,6 +840,23 @@ ion-content,
   }
 }
 
+.vat-selectbutton {
+  --p-togglebutton-background: #ffffff;
+  --p-togglebutton-border-color: black;
+  --p-togglebutton-color: #000000;
+  --p-togglebutton-border-radius: 10px;
+
+  --p-togglebutton-hover-background: #ffffff;
+  --p-togglebutton-hover-color: #000000;
+
+  --p-togglebutton-checked-border-radius: 10px;
+  --p-togglebutton-checked-background: #000000;
+  --p-togglebutton-checked-border-color: #000000;
+  --p-togglebutton-checked-color: #ffffff;
+
+  --p-togglebutton-content-checked-background: #000000;
+}
+
 
 @media (max-width: 768px) {
   .p-toast {

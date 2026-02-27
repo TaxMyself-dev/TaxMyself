@@ -4,6 +4,14 @@ import { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { FeezbackAuthService } from './feezback-auth.service';
 import { FeezbackHttpError, toFeezbackHttpError } from './feezback-errors';
+import {
+  FEEZBACK_RETRY,
+  calcBackoffMs,
+  isRateLimitError,
+  isRetryableFeezbackError,
+  parseRetryAfterMs,
+  sleep,
+} from './feezback-retry.utils';
 
 interface RequestOptions {
   sub?: string;
@@ -19,7 +27,7 @@ export class FeezbackHttpClient {
   constructor(
     private readonly http: HttpService,
     private readonly authService: FeezbackAuthService,
-  ) {}
+  ) { }
 
   get baseUrl(): string {
     return this.authService.getTppApiUrl();
@@ -40,29 +48,67 @@ export class FeezbackHttpClient {
     options: RequestOptions,
   ): Promise<T> {
     const url = this.resolveUrl(path);
-    const headers = await this.buildHeaders(options);
-    const config: AxiosRequestConfig = {
-      headers,
-      params: options.params,
-      timeout: options.timeout ?? 60_000,
-    };
+    const { maxRetries } = FEEZBACK_RETRY;
 
-    try {
-      this.logDebug(`${method} ${url}`, config);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Rebuild auth headers on every attempt so a fresh token is used after long back-offs.
+      const headers = await this.buildHeaders(options);
+      const config: AxiosRequestConfig = {
+        headers,
+        params: options.params,
+        timeout: options.timeout ?? 60_000,
+      };
 
-      const response: AxiosResponse<T> = await firstValueFrom(
-        method === 'GET'
-          ? this.http.get<T>(url, config)
-          : this.http.post<T>(url, body, config),
-      );
+      try {
+        this.logDebug(`${method} ${url}`, config);
 
-      this.logSuccess(method, url, response.status);
-      return response.data;
-    } catch (error) {
-      const mapped = toFeezbackHttpError(method, url, error);
-      this.logFailure(mapped);
-      throw mapped;
+        const response: AxiosResponse<T> = await firstValueFrom(
+          method === 'GET'
+            ? this.http.get<T>(url, config)
+            : this.http.post<T>(url, body, config),
+        );
+
+        this.logSuccess(method, url, response.status);
+        return response.data;
+      } catch (rawError) {
+        const mapped = toFeezbackHttpError(method, url, rawError);
+        const rateLimit = isRateLimitError(mapped);
+        const shouldRetry = isRetryableFeezbackError(mapped);
+
+        // Non-retryable error, or all attempts exhausted → throw.
+        if (!shouldRetry || attempt === maxRetries) {
+          if (shouldRetry && attempt === maxRetries) {
+            this.logger.error(
+              `${method} ${url} — all ${maxRetries + 1} attempts exhausted ` +
+              `(status=${mapped.status ?? 'unknown'}, code=${mapped.code ?? 'n/a'}): ${mapped.message}`,
+            );
+          } else {
+            this.logFailure(mapped);
+          }
+          throw mapped;
+        }
+
+        // Choose delay: honour Retry-After header when present (429 only), else back-off.
+        const retryAfterMs = rateLimit ? parseRetryAfterMs(mapped.headers) : null;
+        const waitMs = retryAfterMs ?? calcBackoffMs(attempt);
+        const reason = rateLimit ? 'rate-limit (429)' : 'transient network error';
+        const delaySource = retryAfterMs !== null ? 'Retry-After header' : 'exponential backoff';
+
+        this.logger.warn(
+          `[retry ${attempt + 1}/${maxRetries}] ${method} ${url} — ${reason}, ` +
+          `waiting ${waitMs} ms (${delaySource})`,
+        );
+
+        await sleep(waitMs);
+      }
     }
+
+    // Unreachable — loop always returns or throws before here.
+    throw new FeezbackHttpError({
+      method,
+      url,
+      message: `Unexpected retry loop exit for ${method} ${url}`,
+    });
   }
 
   private async buildHeaders(options: RequestOptions): Promise<Record<string, string>> {
