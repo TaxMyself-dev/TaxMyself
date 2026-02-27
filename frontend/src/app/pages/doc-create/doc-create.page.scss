@@ -141,9 +141,8 @@
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-right: 16px;
-  gap: 10px;
+  gap: 18px;
+  margin-top: 20px;
   align-self: baseline;
 }
 
@@ -193,13 +192,22 @@
   row-gap: 30px;
 }
 
+.line-details-header {
+  width: 100%;
+  padding-right: 20px;
+}
+
 @media (max-width: 768px) {
 
   .wrapper-sections {
     align-items: center;
+    display: flex;
+    flex-direction: column;
+    margin-top: 30px;
   }
 
-  .section .section {
+  .section {
+    // .section .section {
     border: solid 1px #EBEBEB;
     padding-right: 16px;
     padding-top: 16px;
@@ -315,9 +323,9 @@
   border: solid 1px #ccc;
 }
 
-::ng-deep .p-inputtext {
-  padding-inline: 1rem !important;
-}
+// ::ng-deep .p-inputtext {
+//   padding-inline: 1rem !important;
+// }
 
 .gender-options-row {
   display: flex;

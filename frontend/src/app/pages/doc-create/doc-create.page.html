@@ -22,7 +22,8 @@
   </p-dialog>
   }
   <!-- Document type selection -->
-  <div class="section wrapper-sections">
+  <div class="wrapper-sections">
+    <!-- <div class="section wrapper-sections"> -->
     <!-- <div class="create-doc-header">
       <div class="icon-title">
         <span class="title">הפקת מסמך</span>
@@ -151,19 +152,28 @@
     </div>
 
     <!-- line details section -->
+    @if (isMobile()) {
+    <div class="line-details-header">
+      <div class="icon-title">
+        <span class="title">פירוט</span>
+      </div>
+    </div>
+    }
     <div class="section">
+      @if (!isMobile()) {
       <div class="create-doc-header">
         <div class="icon-title">
           <span class="title">פירוט</span>
         </div>
       </div>
+      }
 
 
       <div class="line-entry" [formGroup]="lineDetailsForm">
 
         <!-- Desktop header -->
         <div class="line-entry__header">
-          @for (col of lineDetailsColumns; track col.field) {
+          @for (col of lineDetailsColumns; track col.field; let i = $index) {
           <div class="line-entry__cell line-entry__cell--head">
             <span>{{ col.header }}</span>
             @if (col.required) { <span class="req">*</span> }
@@ -174,7 +184,7 @@
         <div class="line-entry__row">
           @for (col of lineDetailsColumns; track col.field) {
           <div class="line-entry__cell" [attr.data-label]="col.header">
-
+            <!-- <span>פריט #{{ i + 1 }}</span> -->
             <!-- label for mobile -->
             <div class="line-entry__label">
               {{ col.header }}
@@ -188,6 +198,11 @@
               placeholder="0">
 
             </p-inputnumber>
+            }
+            @else {
+            <app-input-text [controlName]="col.field" [placeholder]="col.header" [parentForm]="lineDetailsForm"
+              [type]="'number'" [size]="inputsSize.SMALL">
+            </app-input-text>
             }
             }
             @case (FieldsCreateDocValue.UNIT_AMOUNT) {
