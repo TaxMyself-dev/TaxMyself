@@ -152,6 +152,18 @@
     transition: top 0.2s ease;
 }
 
+.empty-data-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.empty-data-text {
+    position: absolute;
+    bottom: 0;
+}
+
 @media (prefers-color-scheme: dark) {
     .buttons-cell,
     .buttons-container,
