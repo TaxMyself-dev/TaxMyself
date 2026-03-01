@@ -18,8 +18,8 @@ p.block-title {
   /* space from edges */
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  // gap: 60px;           /* space between blocks */
+  justify-content: flex-start;
+  row-gap: 70px;
   // border: solid 1px red;
 }
 
@@ -133,7 +133,7 @@ p.block-title {
   height: 233px;              
   flex-shrink: 0;               
   box-sizing: border-box;
-  margin: 60px 0;
+  margin: 0;
 }
 
 .banking-banner__blob {
