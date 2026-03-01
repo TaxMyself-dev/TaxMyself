@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
@@ -35,7 +36,7 @@ import { MessageService } from 'primeng/api';
     AvatarModule,
     AvatarGroupModule,
     ButtonComponent,
-    GenericTableComponent
+    GenericTableComponent,
   ],
   providers: [DialogService]
 })
@@ -51,6 +52,7 @@ export class MyAccountPage implements OnInit {
   // dialogRef = inject(DynamicDialogRef);
   // dialogConfig = inject(DynamicDialogConfig);
   isLoadingDataTable = signal<boolean>(false);
+  // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
   isLoadingUserBankTransactions = signal<boolean>(false);
@@ -62,6 +64,8 @@ export class MyAccountPage implements OnInit {
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
+  isMobile = computed(() => this.genericService.isMobile());
+
 
 
   itemsNavigate: IItemNavigate[] = [
@@ -338,6 +342,14 @@ export class MyAccountPage implements OnInit {
   // openModalAddExpenses(): void {
   //   this.expenseService.openModalAddExpense().subscribe()
   // }
+  // openMobileMenu(): void {
+  //   this.mobileMenuOpen.set(true);
+  // }
+
+  // closeMobileMenu(): void {
+  //   this.mobileMenuOpen.set(false);
+  // }
+
   openMannualExpenses(): void {
     // this.dialogRef = 
     this.dialogService.open(MannualExpenseComponent, {
