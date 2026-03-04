@@ -29,7 +29,7 @@ export class FeezbackController {
     // Fire-and-forget forwarding
     void this.routerService.forward(req).catch((err) => {
       // Should never throw, but just in case
-      this.logger.error('Unexpected error in forward()', err?.stack || String(err));
+      // this.logger.error('Unexpected error in forward()', err?.stack || String(err));
     });
   }
 
@@ -99,14 +99,14 @@ export class FeezbackController {
     // The @TPP_ID is added in the URL, not in the JWT sub field
     const sub = `${firebaseId}_sub`;
 
-    this.logger.log(`Fetching accounts for firebaseId: ${firebaseId}, sub: ${sub}`);
+    // this.logger.log(`Fetching accounts for firebaseId: ${firebaseId}, sub: ${sub}`);
 
     try {
       const accounts = await this.feezbackService.getUserAccounts(sub);
       console.log("accounts: ", accounts);
       return accounts;
     } catch (error: any) {
-      this.logger.error(`Failed to fetch user accounts: ${error.message}`, error.stack);
+      // this.logger.error(`Failed to fetch user accounts: ${error.message}`, error.stack);
       throw new Error(`Failed to fetch user accounts: ${error.message}`);
     }
   }
@@ -122,13 +122,13 @@ export class FeezbackController {
 
     const sub = `${firebaseId}_sub`;
 
-    this.logger.log(`Syncing Feezback consents for firebaseId: ${firebaseId}, sub: ${sub}`);
+    // this.logger.log(`Syncing Feezback consents for firebaseId: ${firebaseId}, sub: ${sub}`);
 
     try {
       const consents = await this.feezbackService.syncUserConsents(firebaseId, sub);
       return { consents };
     } catch (error: any) {
-      this.logger.error(`Failed to sync user consents: ${error.message}`, error.stack);
+      // this.logger.error(`Failed to sync user consents: ${error.message}`, error.stack);
       throw new Error(`Failed to sync user consents: ${error.message}`);
     }
   }
@@ -164,9 +164,9 @@ export class FeezbackController {
     const defaultDateFrom = dateFrom || '2026-01-01';
     const defaultDateTo = dateTo || '2026-03-02'; // Format: YYYY-MM-DD
 
-    this.logger.log(`Fetching transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    this.logger.log(`Transactions link: ${transactionsLink}`);
-    this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
+    // this.logger.log(`Fetching transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
+    // this.logger.log(`Transactions link: ${transactionsLink}`);
+    // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
     try {
       const transactions = await this.feezbackService.getAccountTransactions(
@@ -178,7 +178,7 @@ export class FeezbackController {
       );
       return transactions;
     } catch (error: any) {
-      this.logger.error(`Failed to fetch transactions: ${error.message}`, error.stack);
+      // this.logger.error(`Failed to fetch transactions: ${error.message}`, error.stack);
       throw new Error(`Failed to fetch transactions: ${error.message}`);
     }
   }
@@ -221,16 +221,16 @@ export class FeezbackController {
     const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
     const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
 
-    this.logger.log(`Admin ${adminFirebaseId} fetching transactions for user ${firebaseId}, sub: ${sub}`);
-    this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
+    // this.logger.log(`Admin ${adminFirebaseId} fetching transactions for user ${firebaseId}, sub: ${sub}`);
+    // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
     // Reuse the internal helper method
     try {
       const result = await this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
-      this.logger.log(`✅ Admin transaction fetch completed successfully`);
+      // this.logger.log(`✅ Admin transaction fetch completed successfully`);
       return result;
     } catch (error: any) {
-      this.logger.error(`❌ Error in getAdminUserTransactions: ${error.message}`, error.stack);
+      // this.logger.error(`❌ Error in getAdminUserTransactions: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -257,7 +257,7 @@ export class FeezbackController {
       } catch (error: any) {
         // Handle 404 - user hasn't completed consent
         if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
-          this.logger.warn(`User ${firebaseId} has not completed Feezback consent flow`);
+          // this.logger.warn(`User ${firebaseId} has not completed Feezback consent flow`);
           return {
             transactions: [],
             accountsProcessed: 0,
@@ -282,7 +282,7 @@ export class FeezbackController {
         };
       }
 
-      this.logger.log(`Found ${accounts.length} accounts, fetching transactions...`);
+      // this.logger.log(`Found ${accounts.length} accounts, fetching transactions...`);
 
       // Step 2: Fetch transactions for each account with delay to avoid rate limiting
       const allTransactions: any[] = [];
@@ -298,12 +298,12 @@ export class FeezbackController {
 
         // Add delay before each request (except the first one)
         if (i > 0) {
-          this.logger.debug(`Waiting ${delayBetweenRequests}ms before next request to avoid rate limiting...`);
+          // this.logger.debug(`Waiting ${delayBetweenRequests}ms before next request to avoid rate limiting...`);
           await delay(delayBetweenRequests);
         }
 
         try {
-          this.logger.log(`Fetching transactions for account: ${account.name} (${i + 1}/${accounts.length})`);
+          // this.logger.log(`Fetching transactions for account: ${account.name} (${i + 1}/${accounts.length})`);
           const transactionsResponse = await this.feezbackService.getAccountTransactions(
             sub,
             account._links.transactions.href,
@@ -317,57 +317,57 @@ export class FeezbackController {
           let transactions: any[] = [];
 
           // Debug: Log response structure
-          this.logger.debug(`Response type: ${Array.isArray(transactionsResponse) ? 'Array' : typeof transactionsResponse}`);
+          // this.logger.debug(`Response type: ${Array.isArray(transactionsResponse) ? 'Array' : typeof transactionsResponse}`);
           if (!Array.isArray(transactionsResponse) && transactionsResponse) {
             const keys = Object.keys(transactionsResponse);
-            this.logger.debug(`Response keys: ${keys.join(', ')}`);
+            // this.logger.debug(`Response keys: ${keys.join(', ')}`);
 
             // Check if transactions key exists and its type
             if ('transactions' in transactionsResponse) {
               const txValue = transactionsResponse.transactions;
-              this.logger.debug(`transactions field exists! Type: ${Array.isArray(txValue) ? 'Array' : typeof txValue}, isArray: ${Array.isArray(txValue)}, length: ${Array.isArray(txValue) ? txValue.length : 'N/A'}, value preview: ${JSON.stringify(txValue).substring(0, 200)}`);
+              // this.logger.debug(`transactions field exists! Type: ${Array.isArray(txValue) ? 'Array' : typeof txValue}, isArray: ${Array.isArray(txValue)}, length: ${Array.isArray(txValue) ? txValue.length : 'N/A'}, value preview: ${JSON.stringify(txValue).substring(0, 200)}`);
             } else {
-              this.logger.debug(`transactions key NOT found in response`);
+              // this.logger.debug(`transactions key NOT found in response`);
             }
           }
 
           if (Array.isArray(transactionsResponse)) {
             transactions = transactionsResponse;
-            this.logger.debug(`Extracted transactions from array response: ${transactions.length}`);
+            // this.logger.debug(`Extracted transactions from array response: ${transactions.length}`);
           } else if ('transactions' in transactionsResponse && transactionsResponse.transactions !== undefined && transactionsResponse.transactions !== null) {
             if (Array.isArray(transactionsResponse.transactions)) {
               transactions = transactionsResponse.transactions;
-              this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions' field`);
+              // this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions' field`);
             } else if (transactionsResponse.transactions?.booked && Array.isArray(transactionsResponse.transactions.booked)) {
               // transactions is an object with a 'booked' array
               transactions = transactionsResponse.transactions.booked;
-              this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions.booked' field`);
+              // this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions.booked' field`);
             } else if (transactionsResponse.transactions?.pending && Array.isArray(transactionsResponse.transactions.pending)) {
               // Also check for pending transactions
               transactions = transactionsResponse.transactions.pending;
-              this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions.pending' field`);
+              // this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions.pending' field`);
             } else {
-              this.logger.warn(`⚠️ transactions field exists but is not an array and doesn't have booked/pending. Type: ${typeof transactionsResponse.transactions}, keys: ${Object.keys(transactionsResponse.transactions || {}).join(', ')}`);
+              // this.logger.warn(`⚠️ transactions field exists but is not an array and doesn't have booked/pending. Type: ${typeof transactionsResponse.transactions}, keys: ${Object.keys(transactionsResponse.transactions || {}).join(', ')}`);
             }
           } else if (transactionsResponse?.data?.transactions) {
             if (Array.isArray(transactionsResponse.data.transactions)) {
               transactions = transactionsResponse.data.transactions;
-              this.logger.debug(`Extracted transactions from 'data.transactions' field: ${transactions.length}`);
+              // this.logger.debug(`Extracted transactions from 'data.transactions' field: ${transactions.length}`);
             }
           } else if (transactionsResponse?.data && Array.isArray(transactionsResponse.data)) {
             transactions = transactionsResponse.data;
-            this.logger.debug(`Extracted transactions from 'data' array: ${transactions.length}`);
+            // this.logger.debug(`Extracted transactions from 'data' array: ${transactions.length}`);
           } else if (transactionsResponse?.booked) {
             if (Array.isArray(transactionsResponse.booked)) {
               transactions = transactionsResponse.booked;
-              this.logger.debug(`Extracted transactions from 'booked' field: ${transactions.length}`);
+              // this.logger.debug(`Extracted transactions from 'booked' field: ${transactions.length}`);
             }
           } else {
             // Try to find any array property
             for (const key in transactionsResponse) {
               if (Array.isArray(transactionsResponse[key])) {
                 transactions = transactionsResponse[key];
-                this.logger.debug(`Found transactions array in key: ${key}, length: ${transactions.length}`);
+                // this.logger.debug(`Found transactions array in key: ${key}, length: ${transactions.length}`);
                 break;
               }
             }
@@ -385,70 +385,21 @@ export class FeezbackController {
                 currency: transactions[0].transactionAmount?.currency,
                 description: transactions[0].remittanceInformationUnstructured || transactions[0].description,
               };
-              this.logger.log(`✅ Fetched ${transactions.length} transactions for account: ${account.name} (sample: ${JSON.stringify(sample)})`);
+              // this.logger.log(`✅ Fetched ${transactions.length} transactions for account: ${account.name} (sample: ${JSON.stringify(sample)})`);
             } else {
-              this.logger.log(`✅ Fetched ${transactions.length} transactions for account: ${account.name}`);
+              // this.logger.log(`✅ Fetched ${transactions.length} transactions for account: ${account.name}`);
             }
           } else {
-            this.logger.warn(`⚠️ No transactions found for account: ${account.name}. Response structure: ${JSON.stringify(Object.keys(transactionsResponse || {}))}`);
+            // this.logger.warn(`⚠️ No transactions found for account: ${account.name}. Response structure: ${JSON.stringify(Object.keys(transactionsResponse || {}))}`);
             accountTransactionsMap[account.name] = [];
           }
         } catch (error: any) {
-          // Handle 429 errors with retry logic
-          if (error.response?.status === 429 || error.message?.includes('429') || error.message?.includes('Too Many Requests')) {
-            this.logger.warn(`Rate limit hit for account ${account.name}, implementing retry logic...`);
-
-            let retryCount = 0;
-            const maxRetries = 3;
-            const retryDelays = [10000, 20000, 30000]; // 10s, 20s, 30s
-
-            while (retryCount < maxRetries) {
-              await delay(retryDelays[retryCount]);
-              retryCount++;
-
-              try {
-                this.logger.log(`Retry ${retryCount} for account ${account.name}...`);
-                const retryResponse = await this.feezbackService.getAccountTransactions(
-                  sub,
-                  account._links.transactions.href,
-                  // account.transactionsLink,
-                  bookingStatus || 'booked',
-                  defaultDateFrom,
-                  defaultDateTo,
-                );
-
-                let retryTransactions: any[] = [];
-                if (Array.isArray(retryResponse)) {
-                  retryTransactions = retryResponse;
-                } else if (retryResponse?.transactions) {
-                  if (Array.isArray(retryResponse.transactions)) {
-                    retryTransactions = retryResponse.transactions;
-                  } else if (retryResponse.transactions?.booked && Array.isArray(retryResponse.transactions.booked)) {
-                    retryTransactions = retryResponse.transactions.booked;
-                  } else if (retryResponse.transactions?.pending && Array.isArray(retryResponse.transactions.pending)) {
-                    retryTransactions = retryResponse.transactions.pending;
-                  }
-                } else if (retryResponse?.booked) {
-                  retryTransactions = Array.isArray(retryResponse.booked) ? retryResponse.booked : [];
-                }
-
-                if (retryTransactions.length > 0) {
-                  accountTransactionsMap[account.name] = retryTransactions;
-                  allTransactions.push(...retryTransactions);
-                  this.logger.log(`✅ Retry ${retryCount} succeeded: Fetched ${retryTransactions.length} transactions for account: ${account.name}`);
-                  break;
-                }
-              } catch (retryError: any) {
-                if (retryCount === maxRetries) {
-                  this.logger.error(`Failed after ${maxRetries} retries for account ${account.name}: ${retryError.message}`);
-                } else {
-                  this.logger.warn(`Retry ${retryCount} failed for account ${account.name}: ${retryError.message}`);
-                }
-              }
-            }
-          } else {
-            this.logger.error(`Failed to fetch transactions for account ${account.name}: ${error.message}`, error.stack);
-          }
+          // 429 / transient retries are handled centrally by FeezbackHttpClient.
+          // By the time we reach here all retry attempts have been exhausted; skip this account.
+          this.logger.error(
+            `Failed to fetch transactions for account ${account.name}: ${error.message}`,
+            error.stack,
+          );
         }
       }
 
@@ -473,23 +424,23 @@ export class FeezbackController {
 
       // Save transactions to file for inspection
       let savedFilePaths: { raw: string | null; simplified: string | null } = { raw: null, simplified: null };
-      this.logger.log(`Total transactions collected: ${allTransactions.length}`);
+      // this.logger.log(`Total transactions collected: ${allTransactions.length}`);
       if (allTransactions.length > 0) {
-        this.logger.log(`Attempting to save ${allTransactions.length} transactions to files...`);
-        savedFilePaths = this.saveTransactionsToFile(firebaseId, allTransactions, accountTransactionsMap, accountInfoMap);
+        // this.logger.log(`Attempting to save ${allTransactions.length} transactions to files...`);
+        savedFilePaths = this.feezbackService.saveTransactionsToFile(firebaseId, allTransactions, accountTransactionsMap, accountInfoMap);
         if (savedFilePaths.raw || savedFilePaths.simplified) {
           if (savedFilePaths.raw) {
-            this.logger.log(`✅ Raw file saved: ${savedFilePaths.raw}`);
+            // this.logger.log(`✅ Raw file saved: ${savedFilePaths.raw}`);
           }
           if (savedFilePaths.simplified) {
-            this.logger.log(`✅ Simplified file saved: ${savedFilePaths.simplified}`);
+            // this.logger.log(`✅ Simplified file saved: ${savedFilePaths.simplified}`);
           }
         } else {
-          this.logger.warn(`⚠️ File saving returned null - check logs above for errors`);
+          // this.logger.warn(`⚠️ File saving returned null - check logs above for errors`);
         }
 
         // Save transactions to database
-        this.logger.log(`Attempting to save ${allTransactions.length} transactions to database...`);
+        // this.logger.log(`Attempting to save ${allTransactions.length} transactions to database...`);
         let saveResult: any = null;
         let dbError: any = null;
 
@@ -500,12 +451,12 @@ export class FeezbackController {
             accountInfoMap,
             transactionToAccountMap,
           );
-          this.logger.log(`✅ Database save result: ${JSON.stringify(saveResult)}`);
+          // this.logger.log(`✅ Database save result: ${JSON.stringify(saveResult)}`);
         } catch (error: any) {
           dbError = error;
-          this.logger.error(`❌ Failed to save transactions to database: ${error.message}`, error.stack);
+          // this.logger.error(`❌ Failed to save transactions to database: ${error.message}`, error.stack);
           if (error?.response) {
-            this.logger.error(`Database error response: ${JSON.stringify(error.response)}`);
+            // this.logger.error(`Database error response: ${JSON.stringify(error.response)}`);
           }
         }
 
@@ -526,10 +477,10 @@ export class FeezbackController {
           (response as any).databaseSaveResult = { saved: 0, skipped: 0, message: 'Database save was not attempted' };
         }
 
-        this.logger.log(`Returning response with ${allTransactions.length} transactions`);
+        // this.logger.log(`Returning response with ${allTransactions.length} transactions`);
         return response;
       } else {
-        this.logger.warn(`⚠️ No transactions to save - allTransactions array is empty`);
+        // this.logger.warn(`⚠️ No transactions to save - allTransactions array is empty`);
         return {
           transactions: [],
           accountsProcessed: 0,
@@ -540,7 +491,7 @@ export class FeezbackController {
         };
       }
     } catch (error: any) {
-      this.logger.error(`Error fetching user transactions: ${error.message}`, error.stack);
+      // this.logger.error(`Error fetching user transactions: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -572,8 +523,8 @@ export class FeezbackController {
     const defaultDateFrom = dateFrom || '2026-01-01';
     const defaultDateTo = dateTo || today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
-    this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
+    // this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
+    // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
     return this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
   }
@@ -604,8 +555,8 @@ export class FeezbackController {
     const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
     const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
 
-    this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
+    // this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
+    // this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
 
     // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
     return this.feezbackService.getAndSaveUserCardTransactions(
@@ -618,174 +569,6 @@ export class FeezbackController {
     );
   }
 
-  /**
-   * Save transactions to JSON files for inspection
-   * Creates two files: raw response and simplified transactions
-   * @returns File paths if successful, null if failed
-   */
-  private saveTransactionsToFile(
-    firebaseId: string,
-    transactions: any[],
-    transactionsByAccount: { [accountName: string]: any[] },
-    accountInfoMap: { [accountName: string]: any } = {},
-  ): { raw: string | null; simplified: string | null } {
-    const result = { raw: null, simplified: null };
-
-    try {
-      // Use __dirname relative path or process.cwd()
-      const baseDir = process.cwd();
-      const outputDir = path.join(baseDir, 'src', 'feezback', 'transactions-data');
-
-      this.logger.log(`Attempting to save transactions to: ${outputDir}`);
-      this.logger.log(`Current working directory: ${baseDir}`);
-
-      // Create directory if it doesn't exist
-      if (!fs.existsSync(outputDir)) {
-        this.logger.log(`Creating directory: ${outputDir}`);
-        fs.mkdirSync(outputDir, { recursive: true });
-      }
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-      // ===== FILE 1: Raw response as-is =====
-      const rawFileName = `transactions-raw-${firebaseId}-${timestamp}.json`;
-      const rawFilePath = path.join(outputDir, rawFileName);
-
-      const rawOutput = {
-        transactions: transactions,
-        transactionsByAccount: transactionsByAccount,
-        metadata: {
-          totalTransactions: transactions.length,
-          accountsProcessed: Object.keys(transactionsByAccount).length,
-          dateGenerated: new Date().toISOString(),
-          firebaseId,
-        },
-      };
-
-      fs.writeFileSync(rawFilePath, JSON.stringify(rawOutput, null, 2), 'utf8');
-
-      if (fs.existsSync(rawFilePath)) {
-        const stats = fs.statSync(rawFilePath);
-        this.logger.log(`✅ Raw transactions saved to: ${rawFilePath}`);
-        this.logger.log(`   File size: ${(stats.size / 1024).toFixed(2)} KB`);
-        result.raw = rawFilePath;
-      }
-
-      // ===== FILE 2: Simplified transactions with only essential fields =====
-      const simplifiedFileName = `transactions-simplified-${firebaseId}-${timestamp}.json`;
-      const simplifiedFilePath = path.join(outputDir, simplifiedFileName);
-
-      // Create a map to find which account a transaction belongs to
-      const transactionToAccountMap: { [transactionId: string]: string } = {};
-      Object.keys(transactionsByAccount).forEach(accountName => {
-        const accountTxs = transactionsByAccount[accountName] || [];
-        accountTxs.forEach((tx: any) => {
-          const txId = tx.transactionId;
-          if (txId) {
-            transactionToAccountMap[txId] = accountName;
-          }
-        });
-      });
-
-      const simplifiedTransactions = transactions.map(tx => {
-        const txId = tx.transactionId;
-        const accountName = transactionToAccountMap[txId];
-        const accountInfo = accountName ? accountInfoMap[accountName] : null;
-
-        // Determine source account identifier
-        let sourceAccount: string | null = null;
-        if (accountInfo) {
-          // For bank accounts, use IBAN
-          if (accountInfo.iban) {
-            sourceAccount = accountInfo.iban;
-          }
-          // For credit cards, use maskedPan
-          else if (accountInfo.maskedPan) {
-            sourceAccount = accountInfo.maskedPan;
-          }
-          // Fallback to account name
-          else if (accountInfo.name) {
-            sourceAccount = accountInfo.name;
-          }
-        }
-
-        return {
-          // Unique identifier
-          transactionId: txId || null,
-
-          // Dates
-          bookingDate: tx.bookingDate || null,
-          valueDate: tx.valueDate || null,
-          referenceTime: tx.referenceTime || null,
-
-          // Amount
-          amount: tx.transactionAmount?.amount || null,
-          currency: tx.transactionAmount?.currency || null,
-
-          // Category and description
-          category: tx._aggregate?.category || null,
-          standardName: tx._aggregate?.standardName || null,
-          description: tx.remittanceInformationUnstructured || tx.remittanceInformationStructured || null,
-
-          // Parties
-          creditorName: tx.creditorName || null,
-          debtorName: tx.debtorName || null,
-
-          // Source account (where transaction comes from)
-          sourceAccount: sourceAccount,
-          sourceAccountName: accountName || null,
-          sourceAccountType: accountInfo?.cashAccountType || null, // CACC for bank, CARD for credit card
-
-          // Additional info
-          additionalInformation: tx.additionalInformation || null,
-          entryReference: tx.entryReference || null,
-          consentId: tx.consentId || null,
-        };
-      });
-
-      const simplifiedOutput = {
-        metadata: {
-          totalTransactions: simplifiedTransactions.length,
-          accountsProcessed: Object.keys(transactionsByAccount).length,
-          dateGenerated: new Date().toISOString(),
-          firebaseId,
-        },
-        transactions: simplifiedTransactions,
-        transactionsByAccount: Object.keys(transactionsByAccount).reduce((acc, accountName) => {
-          const accountTxs = transactionsByAccount[accountName] || [];
-          acc[accountName] = accountTxs.map(tx => {
-            return {
-              transactionId: tx.transactionId || null,
-              bookingDate: tx.bookingDate || null,
-              valueDate: tx.valueDate || null,
-              amount: tx.transactionAmount?.amount || null,
-              currency: tx.transactionAmount?.currency || null,
-              category: tx._aggregate?.category || null,
-              standardName: tx._aggregate?.standardName || null,
-              description: tx.remittanceInformationUnstructured || null,
-            };
-          });
-          return acc;
-        }, {} as { [key: string]: any[] }),
-      };
-
-      fs.writeFileSync(simplifiedFilePath, JSON.stringify(simplifiedOutput, null, 2), 'utf8');
-
-      if (fs.existsSync(simplifiedFilePath)) {
-        const stats = fs.statSync(simplifiedFilePath);
-        this.logger.log(`✅ Simplified transactions saved to: ${simplifiedFilePath}`);
-        this.logger.log(`   File size: ${(stats.size / 1024).toFixed(2)} KB`);
-        result.simplified = simplifiedFilePath;
-      }
-
-      return result;
-    } catch (error: any) {
-      this.logger.error(`❌ Failed to save transactions to file: ${error.message}`, error.stack);
-      this.logger.error(`   Error code: ${error.code}`);
-      this.logger.error(`   Error path: ${error.path}`);
-      return result;
-    }
-  }
 
   /**
    * Analyze transaction structure and return field mapping
@@ -837,8 +620,8 @@ export class FeezbackController {
       );
 
       // Log raw response structure
-      this.logger.log(`Raw response type: ${typeof transactionsResponse}`);
-      this.logger.log(`Raw response keys: ${Object.keys(transactionsResponse || {}).join(', ')}`);
+      // this.logger.log(`Raw response type: ${typeof transactionsResponse}`);
+      // this.logger.log(`Raw response keys: ${Object.keys(transactionsResponse || {}).join(', ')}`);
 
       // Extract transactions using same logic as main endpoint
       let transactions: any[] = [];
@@ -952,7 +735,7 @@ export class FeezbackController {
         rawResponseSample: transactionsResponse, // Full raw response for reference
       };
     } catch (error: any) {
-      this.logger.error(`Failed to analyze transactions structure: ${error.message}`, error.stack);
+      // this.logger.error(`Failed to analyze transactions structure: ${error.message}`, error.stack);
       throw new Error(`Failed to analyze transactions structure: ${error.message}`);
     }
   }
@@ -1050,7 +833,7 @@ export class FeezbackController {
         sampleTransactions: transactions.slice(0, 5), // First 5 for inspection
       };
     } catch (error: any) {
-      this.logger.error(`Failed to get transactions structure: ${error.message}`, error.stack);
+      // this.logger.error(`Failed to get transactions structure: ${error.message}`, error.stack);
       throw new Error(`Failed to get transactions structure: ${error.message}`);
     }
   }
@@ -1114,7 +897,7 @@ export class FeezbackController {
         files: files,
       };
     } catch (error: any) {
-      this.logger.error(`Failed to list transaction files: ${error.message}`, error.stack);
+      // this.logger.error(`Failed to list transaction files: ${error.message}`, error.stack);
       throw new Error(`Failed to list transaction files: ${error.message}`);
     }
   }

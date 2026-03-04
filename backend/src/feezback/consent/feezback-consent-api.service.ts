@@ -24,12 +24,12 @@ export class FeezbackConsentApiService {
 
   async getUserCards(sub: string, consentId: string): Promise<{ cards: any[] }> {
     try {
-      this.logger.log(`Getting user cards for sub: ${sub}, consentId: ${consentId}`);
+      // this.logger.log(`Getting user cards for sub: ${sub}, consentId: ${consentId}`);
 
       const userIdentifier = this.buildUserIdentifier(sub);
       const cardsUrl = `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}/consents/${consentId}/cards`;
 
-      this.logger.log(`Requesting cards from URL: ${cardsUrl}`);
+      // this.logger.log(`Requesting cards from URL: ${cardsUrl}`);
 
       const data = await this.httpClient.get(cardsUrl, {
         sub,
@@ -37,7 +37,7 @@ export class FeezbackConsentApiService {
       });
 
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        this.logger.debug(`User cards response keys: ${Object.keys(data).join(', ')}`);
+        // this.logger.debug(`User cards response keys: ${Object.keys(data).join(', ')}`);
       }
 
       let rawCards: any[] = [];
@@ -54,10 +54,10 @@ export class FeezbackConsentApiService {
         const keys = Object.keys(data);
         const arrayKey = keys.find(key => Array.isArray((data as any)[key]));
         if (arrayKey) {
-          this.logger.debug(`Detected cards array in key: ${arrayKey}`);
+          // this.logger.debug(`Detected cards array in key: ${arrayKey}`);
           rawCards = (data as any)[arrayKey];
         } else {
-          this.logger.warn(`No cards array found in response. Keys: ${keys.join(', ')}`);
+          // this.logger.warn(`No cards array found in response. Keys: ${keys.join(', ')}`);
         }
       }
 
@@ -97,21 +97,21 @@ export class FeezbackConsentApiService {
         })
         : [];
 
-      this.logger.debug(`Transformed ${transformedCards.length} cards`);
+      // this.logger.debug(`Transformed ${transformedCards.length} cards`);
 
       return {
         cards: transformedCards,
       };
     } catch (error: any) {
       if (error?.response?.status === 404) {
-        this.logger.warn(
-          `User cards not found (404) for sub: ${sub}, consentId: ${consentId}. This usually means the user hasn't completed the consent flow yet.`,
-        );
+        // this.logger.warn(
+        //   `User cards not found (404) for sub: ${sub}, consentId: ${consentId}. This usually means the user hasn't completed the consent flow yet.`,
+        // );
 
         if (error?.response?.data) {
-          this.logger.warn(
-            `Feezback 404 response: ${JSON.stringify(error.response.data)}`,
-          );
+          // this.logger.warn(
+          //   `Feezback 404 response: ${JSON.stringify(error.response.data)}`,
+          // );
         }
 
         const friendlyError = new Error(
@@ -122,15 +122,15 @@ export class FeezbackConsentApiService {
         throw friendlyError;
       }
 
-      this.logger.error(
-        `Error getting user cards: ${error?.message}`,
-        error?.stack,
-      );
+      // this.logger.error(
+      //   `Error getting user cards: ${error?.message}`,
+      //   error?.stack,
+      // );
 
       if (error?.response?.data) {
-        this.logger.error(
-          `Feezback error response: ${JSON.stringify(error.response.data)}`,
-        );
+        // this.logger.error(
+        //   `Feezback error response: ${JSON.stringify(error.response.data)}`,
+        // );
       }
 
       if (error?.response?.status) {
@@ -143,12 +143,12 @@ export class FeezbackConsentApiService {
 
   async getCardBalances(sub: string, consentId: string, cardResourceId: string): Promise<any> {
     try {
-      this.logger.log(`Getting card balances for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}`);
+      // this.logger.log(`Getting card balances for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}`);
 
       const userIdentifier = this.buildUserIdentifier(sub);
       const balancesUrl = `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}/consents/${consentId}/cards/${cardResourceId}/balances`;
 
-      this.logger.log(`Requesting card balances from URL: ${balancesUrl}`);
+      // this.logger.log(`Requesting card balances from URL: ${balancesUrl}`);
 
       const data = await this.httpClient.get(balancesUrl, {
         sub,
@@ -156,20 +156,20 @@ export class FeezbackConsentApiService {
       });
 
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        this.logger.debug(`Card balances response keys: ${Object.keys(data).join(', ')}`);
+        // this.logger.debug(`Card balances response keys: ${Object.keys(data).join(', ')}`);
       }
 
       return data;
     } catch (error: any) {
       if (error?.response?.status === 404) {
-        this.logger.warn(
-          `Card balances not found (404) for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}.`,
-        );
+        // this.logger.warn(
+        //   `Card balances not found (404) for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}.`,
+        // );
 
         if (error?.response?.data) {
-          this.logger.warn(
-            `Feezback 404 response: ${JSON.stringify(error.response.data)}`,
-          );
+          // this.logger.warn(
+          //   `Feezback 404 response: ${JSON.stringify(error.response.data)}`,
+          // );
         }
 
         const friendlyError = new Error('Card balances not found.');
@@ -177,15 +177,15 @@ export class FeezbackConsentApiService {
         throw friendlyError;
       }
 
-      this.logger.error(
-        `Error getting card balances: ${error?.message}`,
-        error?.stack,
-      );
+      // this.logger.error(
+      //   `Error getting card balances: ${error?.message}`,
+      //   error?.stack,
+      // );
 
       if (error?.response?.data) {
-        this.logger.error(
-          `Feezback error response: ${JSON.stringify(error.response.data)}`,
-        );
+        // this.logger.error(
+        //   `Feezback error response: ${JSON.stringify(error.response.data)}`,
+        // );
       }
 
       if (error?.response?.status) {
@@ -204,73 +204,38 @@ export class FeezbackConsentApiService {
     dateFrom?: string,
     dateTo?: string,
   ): Promise<any> {
+    const userIdentifier = this.buildUserIdentifier(sub);
+
+    const transactionsBaseUrl =
+      `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}` +
+      `/consents/${consentId}/cards/${cardResourceId}/transactions`;
+
+    const url = new URL(transactionsBaseUrl);
+    url.searchParams.set('bookingStatus', bookingStatus || 'booked');
+    if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
+    if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
+
+    this.logger.log(
+      `Getting card transactions for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}`,
+    );
+
+    // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
     try {
-      this.logger.log(`Getting card transactions for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}`);
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const userIdentifier = this.buildUserIdentifier(sub);
-      const transactionsBaseUrl = `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}/consents/${consentId}/cards/${cardResourceId}/transactions`;
-
-      const url = new URL(transactionsBaseUrl);
-      url.searchParams.set('bookingStatus', bookingStatus || 'booked');
-
-      if (dateFrom && dateFrom.trim() !== '') {
-        url.searchParams.set('dateFrom', dateFrom);
-      }
-
-      if (dateTo && dateTo.trim() !== '') {
-        url.searchParams.set('dateTo', dateTo);
-      }
-
-      this.logger.log(`Requesting card transactions from URL: ${url.toString()}`);
-      const data = await this.httpClient.get(url.toString(), {
-        sub,
-        timeout: 60000,
-      });
-
-      return data;
+      return await this.httpClient.get(url.toString(), { sub, timeout: 60_000 });
     } catch (error: any) {
-      const isRateLimit = error?.response?.status === 429
-        || error?.status === 429
-        || error?.message?.includes('429')
-        || error?.code === 'TOO_MANY_REQUESTS';
+      const status = error?.status ?? error?.response?.status;
 
-      if (isRateLimit) {
-        this.logger.warn(
-          `Rate limit error getting card transactions: ${error?.message}`,
-        );
-      } else if (error?.response?.status === 404) {
+      if (status === 404) {
         this.logger.warn(
           `Card transactions not found (404) for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}.`,
         );
-
-        if (error?.response?.data) {
-          this.logger.warn(
-            `Feezback 404 response: ${JSON.stringify(error.response.data)}`,
-          );
-        }
-
         const friendlyError = new Error('Card transactions not found.');
         (friendlyError as any).status = 404;
         throw friendlyError;
-      } else {
-        this.logger.error(
-          `Error getting card transactions: ${error?.message}`,
-          error?.stack,
-        );
       }
 
-      if (error?.response?.data) {
-        this.logger.error(
-          `Feezback error response: ${JSON.stringify(error.response.data)}`,
-        );
-      }
-
-      if (error?.response?.status) {
-        (error as any).status = error.response.status;
-      }
-
+      this.logger.error(`Error getting card transactions: ${error?.message}`, error?.stack);
+      if (error?.response?.status) (error as any).status = error.response.status;
       throw error;
     }
   }

@@ -30,6 +30,7 @@ import { ConfirmDialog } from 'primeng/confirmdialog';
 import { CheckboxModule } from 'primeng/checkbox';
 import { Card } from "primeng/card";
 import { Avatar } from "primeng/avatar";
+import { SelectButton } from "primeng/selectbutton";
 
 
 @NgModule({
@@ -58,7 +59,8 @@ import { Avatar } from "primeng/avatar";
     ConfirmDialog,
     CheckboxModule,
     Card,
-    Avatar
+    Avatar,
+    SelectButton
   ],
   declarations: [DocCreatePage,],
   providers: [DialogService, ConfirmationService, MessageService]

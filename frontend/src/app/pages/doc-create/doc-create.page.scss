@@ -20,12 +20,12 @@
   font-size: 1rem;
   display: inline-block;
   transition: color 0.2s ease;
-  
+
   &:hover {
     color: #0056b3;
     text-decoration: underline;
   }
-  
+
   &.expanded {
     margin-bottom: 1rem;
   }
@@ -36,8 +36,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .allocation-loading-content {
@@ -136,9 +141,8 @@
 .header-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-right: 16px;
-  gap: 10px;
+  gap: 18px;
+  margin-top: 20px;
   align-self: baseline;
 }
 
@@ -188,13 +192,22 @@
   row-gap: 30px;
 }
 
+.line-details-header {
+  width: 100%;
+  padding-right: 20px;
+}
+
 @media (max-width: 768px) {
 
   .wrapper-sections {
     align-items: center;
+    display: flex;
+    flex-direction: column;
+    margin-top: 30px;
   }
 
-  .section .section {
+  .section {
+    // .section .section {
     border: solid 1px #EBEBEB;
     padding-right: 16px;
     padding-top: 16px;
@@ -202,10 +215,9 @@
     width: 90%;
   }
 
-  // :host {
-  //   align-items: stretch;
-  //   background-color: #f7f7f9;
-  // }
+  :host {
+    padding-right: 0px;
+  }
 
   // .page-wrapper {
   //   width: 100%;
@@ -306,6 +318,14 @@
 .plus-minus {
   border: solid 1px #ccc;
 }
+
+.sum-input {
+  border: solid 1px #ccc;
+}
+
+// ::ng-deep .p-inputtext {
+//   padding-inline: 1rem !important;
+// }
 
 .gender-options-row {
   display: flex;
@@ -644,6 +664,8 @@
   font-weight: 600;
   opacity: 0.85;
   margin-bottom: 6px;
+  width: fit-content;
+
 }
 
 /* פעולות */
