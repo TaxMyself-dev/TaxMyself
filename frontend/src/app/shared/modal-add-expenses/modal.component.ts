@@ -531,7 +531,6 @@ export class ModalExpensesComponent {
   addSupplier(): void {
     this.isLoadingAddSupplier = true;
     const formData = this.addExpenseForm.value;
-    console.log("formdata add supplier: ", formData);
 
     formData.isEquipment = formData.isEquipment === '1' ? true : false;
     const { date, file, sum, note, expenseNumber, ...newFormData } = formData;

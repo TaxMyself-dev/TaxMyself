@@ -1,4 +1,3 @@
-import { KeyValuePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, Validators } from '@angular/forms';
 import { MessageService } from 'primeng/api';
@@ -26,7 +25,7 @@ import { CheckboxModule } from 'primeng/checkbox';
   templateUrl: './add-supplier.component.html',
   styleUrls: ['./add-supplier.component.scss'],
   standalone: true,
-  imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent, CheckboxModule],
+  imports: [GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent, CheckboxModule],
   providers: [AddSupplierService]
 })
 export class AddSupplierComponent {
@@ -53,7 +52,7 @@ export class AddSupplierComponent {
   preserveOrder = () => 0;
 
   suppliersTableFields: IColumnDataTable<SupplierKeys, SupplierValues>[] = [
-    { name: 'name', value: 'שם הספק', type: FormTypes.TEXT },
+    { name: 'supplier', value: 'שם הספק', type: FormTypes.TEXT },
     { name: 'supplierID', value: 'מספר ספק', type: FormTypes.TEXT },
     { name: 'category', value: 'קטגוריה', type: FormTypes.TEXT },
     { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
@@ -102,13 +101,14 @@ export class AddSupplierComponent {
     const raw = this.addSupplierForm.getRawValue() as Partial<ISupplier>;
 
     const supplierData = Object.entries(raw).reduce((acc, [key, value]) => {
-      // Map 'name' to 'supplier' for backend compatibility
+      // Map 'name' to 'supplier' for backend compatibility; do not send form's 'supplier' (display-only)
       if (key === 'name') {
         const trimmed = typeof value === 'string' ? value.trim() : value;
         (acc as any)['supplier'] = trimmed === '' ? null : trimmed;
         return acc;
       }
-      
+      if (key === 'supplier') return acc; // skip – we set supplier from name above; form field is for table column only
+
       if (typeof value === 'string') {
         const trimmed = value.trim();
         (acc as any)[key] = trimmed === '' ? null : trimmed;
@@ -159,8 +159,8 @@ export class AddSupplierComponent {
         console.log("res in save supplier: ", res);
         this.messageService.add({
           severity: 'success',
-          summary: 'Success',
-          detail: "ספק נשמר בהצלחה!",
+          summary: 'הצלחה',
+          detail: 'הספק נוסף בהצלחה',
           life: 3000,
           key: 'br'
         })

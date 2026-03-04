@@ -796,10 +796,9 @@ export class MannualExpenseComponent implements OnDestroy {
                 catchError((error) => this.handleAddExpenseError(error, uploadedPath)),
                 finalize(() => this.isLoadingAddExpense.set(false))
             )
-            .subscribe(() => {
+            .subscribe((res) => {
+                this.dialogRef.close(res);
                 this.showToast({ severity: "success", summary: "Success", detail: "ההוצאה נשמרה בהצלחה", sticky: false });
-                // this.resetFormAfterSubmit();
-                this.dialogRef.close();
             });
     }
 
@@ -1005,8 +1004,9 @@ export class MannualExpenseComponent implements OnDestroy {
 
         this.dialogRef = this.dialogService.open(AddSupplierComponent, {
             header: 'הוספת ספק חדש',
-            width: '480px',
+            width: 'min(1100px, 95vw)',
             style: { maxWidth: '95vw' },
+            contentStyle: { minHeight: '400px', overflow: 'visible' },
             rtl: true,
             closable: true,
             dismissableMask: true,
