@@ -2,7 +2,6 @@ import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { AdvanceIncomeTaxReportService } from './advance-income-tax-report.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { IUserData } from 'src/app/shared/interface';
@@ -83,7 +82,6 @@ export class AdvanceIncomeTaxReportPage implements OnInit {
   }
 
   constructor(
-    private dateService: DateService,
     public advanceIncomeTaxReportService: AdvanceIncomeTaxReportService,
     public authService: AuthService
   ) {}
@@ -93,11 +91,9 @@ export class AdvanceIncomeTaxReportPage implements OnInit {
     const businesses = this.gs.businesses();
     this.businessNumber.set(businesses[0]?.businessNumber ?? '');
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1;
-    const defaultPeriodMode = ReportingPeriodType.BIMONTHLY;
-    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, defaultPeriodMode);
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, ReportingPeriodType.BIMONTHLY);
 
     this.filterConfig = [
       {
@@ -113,34 +109,23 @@ export class AdvanceIncomeTaxReportPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY],
-        periodDefaults: {
+        periodDefaults: this.gs.getDefaultPeriodConfig({
           periodMode: ReportingPeriodType.BIMONTHLY,
           year: currentYear,
           month: defaultMonthValue
-        }
+        })
       },
     ];
   }
 
   onSubmit(formValues: unknown): void {
-    const periodMode = this.form.get('periodMode')?.value;
-    const year = this.form.get('year')?.value;
-    const month = this.form.get('month')?.value;
-    const localStartDate = this.form.get('startDate')?.value;
-    const localEndDate = this.form.get('endDate')?.value;
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, (formValues as any)?.businessNumber, this.userData);
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
-    );
-
-    this.businessNumber.set(this.form?.get('businessNumber')?.value);
+    this.businessNumber.set(effectiveBusiness);
     this.startDate.set(startDate);
     this.endDate.set(endDate);
-    this.loadReportData(startDate, endDate, this.businessNumber());
+    this.loadReportData(startDate, endDate, effectiveBusiness);
   }
 
   loadReportData(startDate: string, endDate: string, businessNumber: string): void {

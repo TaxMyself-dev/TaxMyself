@@ -112,9 +112,8 @@ export class ExpensesPage implements OnInit {
       this.fetchExpenses(this.selectedBusinessNumber());
     });
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
 
     this.filterConfig = [
       {
@@ -130,12 +129,7 @@ export class ExpensesPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
-        periodDefaults: {
-          periodMode: ReportingPeriodType.MONTHLY,
-          year: currentYear,
-          month: String(currentMonth),
-          bimonthlyDefaultMonth: '1', // דו-חודשי: ברירת מחדל ינואר-פברואר
-        }
+        periodDefaults: this.gs.getDefaultPeriodConfig({ year: currentYear, month: String(currentMonth) })
       }
     ];
 
@@ -149,7 +143,7 @@ export class ExpensesPage implements OnInit {
     );
     this.startDate = defaultStart;
     this.endDate = defaultEnd;
-    const initialBusiness = this.getEffectiveBusinessNumber();
+    const initialBusiness = this.gs.getEffectiveBusinessNumber(this.form, undefined, this.userData);
     this.selectedBusinessNumber.set(initialBusiness);
     const initialBusinessObj = this.gs.businesses().find(b => b.businessNumber === initialBusiness);
     if (initialBusinessObj) {
@@ -158,27 +152,11 @@ export class ExpensesPage implements OnInit {
     this.fetchExpenses(initialBusiness, defaultStart, defaultEnd);
   }
 
-  /**
-   * Resolve business number for API calls.
-   * When there's only one business, the filter hides the select – use form value and fallback to that business.
-   */
-  private getEffectiveBusinessNumber(formBusinessNumber?: string): string {
-    const fromForm = formBusinessNumber ?? this.form?.get('businessNumber')?.value;
-    if (fromForm) return fromForm;
-    if (this.businessStatus === BusinessStatus.SINGLE_BUSINESS && this.userData?.businessNumber) {
-      return this.userData.businessNumber;
-    }
-    const businesses = this.gs.businesses();
-    return businesses[0]?.businessNumber ?? '';
-  }
-
   // ===========================
   // Handle filter submit
   // ===========================
   onSubmit(formValues: any): void {
-    console.log("Submitted filter (formValues):", formValues);
-
-    const effectiveBusiness = this.getEffectiveBusinessNumber(formValues.businessNumber);
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
     this.selectedBusinessNumber.set(effectiveBusiness);
 
     const business = this.gs.businesses().find(b => b.businessNumber === effectiveBusiness);
@@ -186,32 +164,7 @@ export class ExpensesPage implements OnInit {
       this.selectedBusinessName.set(business.businessName);
     }
 
-    // קריאה ישירה מהטופס כמו בדוח מעמ – מונעת ערך לא מעודכן מ-formValues
-    const periodMode = this.form.get('periodMode')?.value;
-    const year = Number(this.form.get('year')?.value) || new Date().getFullYear();
-    let month = Number(this.form.get('month')?.value);
-    const localStartDate = this.form.get('startDate')?.value;
-    const localEndDate = this.form.get('endDate')?.value;
-
-    console.log('[הוצאות] ערכים מהטופס לפני חישוב תאריכים:', { periodMode, year, month, localStartDate, localEndDate });
-
-    if (periodMode === ReportingPeriodType.BIMONTHLY && !Number.isNaN(month) && month >= 1 && month <= 12) {
-      if (month <= 2) month = 1;
-      else if (month <= 4) month = 3;
-      else if (month <= 6) month = 5;
-      else if (month <= 8) month = 7;
-      else if (month <= 10) month = 9;
-      else month = 11;
-    }
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
-    );
-
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
     this.startDate = startDate;
     this.endDate = endDate;
 
