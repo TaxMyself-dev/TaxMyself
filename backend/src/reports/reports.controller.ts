@@ -7,6 +7,7 @@ import { SharedService } from '../shared/shared.service';
 import { UsersService } from '../users/users.service';
 import { VatReportRequestDto } from './dtos/vat-report-request.dto';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { PnLReportDto } from './dtos/pnl-report.dto';
 import { PnLReportRequestDto } from './dtos/pnl-report-request.dto';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -57,6 +58,31 @@ export class ReportsController {
         }
     }
 
+    @Get('advance-income-tax-report')
+    @UseGuards(FirebaseAuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+    async getAdvanceIncomeTaxReport(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: VatReportRequestDto,
+    ): Promise<AdvanceIncomeTaxReportDto> {
+        try {
+            const firebaseId = request.user?.firebaseId;
+            if (!firebaseId) {
+                throw new BadRequestException('Firebase ID is missing');
+            }
+            const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+            const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+            return await this.reportsService.getAdvanceIncomeTaxReportData(
+                firebaseId,
+                query.businessNumber,
+                startDate,
+                endDate,
+            );
+        } catch (error) {
+            console.error("❌ Error in getAdvanceIncomeTaxReport controller:", error);
+            throw error;
+        }
+    }
 
     @Get('pnl-report')
     @UseGuards(FirebaseAuthGuard)

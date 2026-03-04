@@ -85,6 +85,25 @@
                 <span class="detail-label">סוג עסק:</span>
                 <span class="detail-value">{{ getBusinessTypeLabel(business.businessType) }}</span>
               </div>
+              <div class="detail-row detail-row-edit">
+                <span class="detail-label">אחוז מקדמות מס:</span>
+                <span class="detail-value">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    [value]="getAdvanceTaxDisplay(business)"
+                    (input)="setAdvanceTaxEdit(business.businessNumber, $event)"
+                    placeholder="למשל 30"
+                  />
+                  <button
+                    type="button"
+                    class="save-advance-tax-btn"
+                    (click)="saveAdvanceTax(business)"
+                  >שמור</button>
+                </span>
+              </div>
             </div>
           </div>
         }

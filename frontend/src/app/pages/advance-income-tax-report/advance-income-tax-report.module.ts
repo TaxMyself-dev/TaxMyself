@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
 import { IonicModule } from '@ionic/angular';
 
@@ -8,14 +8,17 @@ import { AdvanceIncomeTaxReportPageRoutingModule } from './advance-income-tax-re
 
 import { AdvanceIncomeTaxReportPage } from './advance-income-tax-report.page';
 import { SharedModule } from '../../shared/shared.module';
+import { FilterTabComponent } from 'src/app/components/filter-tab/filter-tab.component';
 
 @NgModule({
   imports: [
     CommonModule,
     FormsModule,
+    ReactiveFormsModule,
     IonicModule,
     AdvanceIncomeTaxReportPageRoutingModule,
-    SharedModule
+    SharedModule,
+    FilterTabComponent
   ],
   declarations: [AdvanceIncomeTaxReportPage]
 })

@@ -685,7 +685,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         this.resetDocFormsAndDrafts();
       }),
 
-      // Handle errors
+      // Handle errors – הודעה אחידה למשתמש
       catchError((err) => {
         console.error('❌ Error creating document:', err);
         console.error('Error details:', {
@@ -695,17 +695,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
           statusText: err.statusText
         });
 
-        // Show error message to user
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: err.error?.message || err.message || 'שגיאה ביצירת המסמך',
+          detail: 'שגיאה בהפקת המסמך. אנא נסה שנית.',
           life: 5000,
           key: 'br'
         });
 
-        // Backend automatically rolls back the transaction if anything fails
-        return EMPTY; // swallow to allow finalize to run
+        return EMPTY;
       }),
 
       // Turn off loader no matter what

@@ -661,16 +661,24 @@ export class ExpensesService {
         const take = 50;
         const skip = (page - 1) * take;
 
-        return this.expense_repo.find({
-            where: {
-                userId: userId,
-                ...(startDate && endDate ? { date: Between(startDate, endDate) } : {}),
-                ...(businessNumber ? { businessNumber: businessNumber } : {}),
-            },
+        const where: any = {
+            userId: userId,
+            ...(startDate && endDate ? { date: Between(startDate, endDate) } : {}),
+            ...(businessNumber ? { businessNumber: businessNumber } : {}),
+        };
+
+        console.log('[getExpensesByUserID] where לשאילתה:', JSON.stringify(where, null, 2));
+
+        const result = await this.expense_repo.find({
+            where,
             order: { date: 'DESC' },
             take,
             skip,
         });
+
+        console.log('[getExpensesByUserID] מספר הוצאות מהדאטאבייס:', result.length, 'דוגמאות:', result.slice(0, 3).map((e) => ({ id: e.id, date: e.date, businessNumber: e.businessNumber, sum: e.sum })));
+
+        return result;
     }
 
 

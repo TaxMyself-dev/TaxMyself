@@ -76,6 +76,31 @@
   flex: 1;
 }
 
+.detail-row-edit .detail-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+
+  input {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    text-align: right;
+  }
+
+  .save-advance-tax-btn {
+    padding: 6px 12px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    cursor: pointer;
+  }
+}
+
 .businesses-container {
   display: flex;
   flex-direction: column;

@@ -25,6 +25,9 @@ export class SettingsPage implements OnInit {
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
+  /** ערך בזמן עריכה לפני שמירה */
+  advanceTaxEdit: Record<string, number | null> = {};
+  savingBusinessNumber = signal<string | null>(null);
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -38,6 +41,37 @@ export class SettingsPage implements OnInit {
     this.genericService.loadBusinessesFromServer().then(() => {
       this.businesses.set(this.genericService.businesses());
     });
+  }
+
+  getAdvanceTaxDisplay(business: Business): string | number {
+    const num = business.businessNumber ?? '';
+    if (this.advanceTaxEdit[num] !== undefined && this.advanceTaxEdit[num] !== null) {
+      return this.advanceTaxEdit[num] as number;
+    }
+    return business.advanceTaxPercent ?? '';
+  }
+
+  setAdvanceTaxEdit(businessNumber: string | null, event: Event): void {
+    if (!businessNumber) return;
+    const val = (event.target as HTMLInputElement).value;
+    const num = val === '' ? null : Number(val);
+    this.advanceTaxEdit[businessNumber] = num;
+  }
+
+  async saveAdvanceTax(business: Business): Promise<void> {
+    const num = business.businessNumber ?? '';
+    const value = this.advanceTaxEdit[num] ?? business.advanceTaxPercent;
+    if (value == null) return;
+    const percent = Number(value);
+    if (isNaN(percent) || percent < 0 || percent > 100) return;
+    this.savingBusinessNumber.set(num);
+    try {
+      await this.genericService.updateBusinessAdvanceTaxPercent(num, percent);
+      delete this.advanceTaxEdit[num];
+      this.businesses.set(this.genericService.businesses());
+    } finally {
+      this.savingBusinessNumber.set(null);
+    }
   }
 
   shareWithAccountant(): void {

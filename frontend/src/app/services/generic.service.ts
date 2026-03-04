@@ -84,6 +84,16 @@ export class GenericService {
     localStorage.setItem('businesses', JSON.stringify(data));
   }
 
+  /** עדכון אחוז מקדמות מס לעסק */
+  async updateBusinessAdvanceTaxPercent(businessNumber: string, advanceTaxPercent: number): Promise<void> {
+    await firstValueFrom(
+      this.http.patch<Business>(`${environment.apiUrl}business/update`, {
+        businessNumber,
+        advanceTaxPercent,
+      })
+    );
+    await this.loadBusinessesFromServer();
+  }
 
   getBusinessData(user: IUserData): { mode: BusinessStatus; uiList: { name: string; value: string }[]; fullList: BusinessInfo[]; showSelector: boolean;
   } {
