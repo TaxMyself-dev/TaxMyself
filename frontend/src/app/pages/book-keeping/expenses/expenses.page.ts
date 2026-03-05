@@ -18,6 +18,8 @@ import { FilesService } from 'src/app/services/files.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
 
 @Component({
   selector: 'app-expenses',
@@ -37,6 +39,7 @@ export class ExpensesPage implements OnInit {
   private filesService = inject(FilesService);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
+  private dialogService = inject(DialogService);
   private fb = inject(FormBuilder);
 
   // ===========================
@@ -183,12 +186,6 @@ export class ExpensesPage implements OnInit {
     const finalStartDate = startDate || this.startDate || '';
     const finalEndDate = endDate || this.endDate || '';
 
-    console.log('[הוצאות] תאריכים שנשלחים לבקאנד (get-expenses-for-vat-report):', {
-      startDate: finalStartDate,
-      endDate: finalEndDate,
-      businessNumber: businessNumber || '(ריק)',
-    });
-
     this.isLoadingDataTable.set(true);
 
     this.myExpenses = this.expenseDataService
@@ -250,6 +247,7 @@ export class ExpensesPage implements OnInit {
         name: 'edit',
         icon: 'pi pi-pencil',
         title: 'ערוך',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onEditExpense(row);
         }
@@ -258,6 +256,7 @@ export class ExpensesPage implements OnInit {
         name: 'delete',
         icon: 'pi pi-trash',
         title: 'מחק',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteExpense(row);
         }
@@ -266,6 +265,7 @@ export class ExpensesPage implements OnInit {
         name: 'preview',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewFile(row);
         }
@@ -277,28 +277,22 @@ export class ExpensesPage implements OnInit {
   // Actions
   // ===========================
   onEditExpense(row: IRowDataTable): void {
-    console.log("Edit expense:", row);
-    this.expenseDataService.openModalAddExpense(row, true)
-      .pipe(
-        catchError(err => {
-          console.error("Error opening edit modal:", err);
-          return EMPTY;
-        })
-      )
-      .subscribe((result) => {
-        if (result && result.data) {
-          console.log("Expense updated:", result.data);
-          // Refresh expenses after update
-          this.fetchExpenses(this.selectedBusinessNumber(), this.startDate, this.endDate);
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: 'ההוצאה עודכנה בהצלחה',
-            life: 3000,
-            key: 'br'
-          });
-        }
-      });
+    this.authService.setActiveBusinessNumber(this.selectedBusinessNumber());
+    const ref = this.dialogService.open(MannualExpenseComponent, {
+      header: 'עריכת הוצאה',
+      width: '480px',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      data: { editMode: true, expense: row }
+    });
+    ref.onClose.subscribe((result) => {
+      if (result != null) {
+        this.fetchExpenses(this.selectedBusinessNumber(), this.startDate, this.endDate);
+      }
+    });
   }
 
   onDeleteExpense(row: IRowDataTable): void {

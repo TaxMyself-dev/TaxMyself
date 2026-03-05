@@ -44,6 +44,11 @@ export class DocCreateService {
   }
 
   
+  updateClient(clientRowId: number, data: Partial<IClient>): Observable<any> {
+    const url = `${environment.apiUrl}clients/update-client/${clientRowId}`;
+    return this.http.patch<any>(url, data);
+  }
+
   deleteClient(clientId: number): Observable<any> {
     const url = `${environment.apiUrl}clients/delete-client/${clientId}`;
     return this.http.delete<any>(url);

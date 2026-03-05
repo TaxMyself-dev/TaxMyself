@@ -9,6 +9,8 @@ import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.com
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialog } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { DynamicDialogModule } from 'primeng/dynamicdialog';
 
 @NgModule({
   imports: [
@@ -20,10 +22,11 @@ import { ConfirmationService, MessageService } from 'primeng/api';
     GenericTableComponent,
     FilterTabComponent,
     ToastModule,
-    ConfirmDialog
+    ConfirmDialog,
+    DynamicDialogModule
   ],
   declarations: [SuppliersPage],
-  providers: [ConfirmationService, MessageService]
+  providers: [ConfirmationService, MessageService, DialogService]
 })
 export class SuppliersPageModule {}
 

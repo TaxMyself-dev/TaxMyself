@@ -13,6 +13,8 @@ import { PopoverModule } from 'primeng/popover';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialog } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { DynamicDialogModule } from 'primeng/dynamicdialog';
 
 @NgModule({
   imports: [
@@ -28,10 +30,11 @@ import { ConfirmationService, MessageService } from 'primeng/api';
     FilterTabComponent,
     PopoverModule,
     ToastModule,
-    ConfirmDialog
+    ConfirmDialog,
+    DynamicDialogModule
   ],
   declarations: [ExpensesPage],
-  providers: [ConfirmationService, MessageService]
+  providers: [ConfirmationService, MessageService, DialogService]
 })
 export class ExpensesPageModule {}
 

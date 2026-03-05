@@ -7,7 +7,7 @@
     }
   </form>
   <div>
-    <app-p-button [disabled]="addClientForm.invalid" (onButtonClicked)="saveClient()" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [buttonText]="'שמור לקוח חדש'"></app-p-button>
+    <app-p-button [disabled]="addClientForm.invalid" (onButtonClicked)="saveClient()" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [buttonText]="editMode ? 'שמור' : 'שמור לקוח חדש'"></app-p-button>
   </div>
   @if(clients().length > 0) {
   <app-generic-table [title]="'רשימת הלקוחות הקיימים'" [dataTable]="clients()"
