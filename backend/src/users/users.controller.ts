@@ -46,10 +46,10 @@ export class UsersController {
 
 
     @Patch('update-user')
-    async updateUser(@Headers('token') token: string, @Body() body: any) {  
-        //console.log("update-user - data is ", body);
-        const userId = await this.userService.getFirbsaeIdByToken(token)
-        return this.userService.updateUser (userId, body);
+    @UseGuards(FirebaseAuthGuard)
+    async updateUser(@Req() request: AuthenticatedRequest, @Body() body: any) {
+        const userId = request.user?.firebaseId;
+        return this.userService.updateUser(userId, body);
     }
 
     @Get('get-cities')

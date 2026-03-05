@@ -21,4 +21,5 @@ export class UpdateUserDto {
   @IsOptional() @IsDateString() businessDate?: string;
   @IsOptional() @IsBoolean() employee?: boolean;
   @IsOptional() @IsString() familyStatus?: string;
+  @IsOptional() @IsString() employmentStatus?: string;
 }
