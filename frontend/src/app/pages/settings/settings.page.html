@@ -1,101 +1,240 @@
 <p-toast key="br"></p-toast>
+<p-confirmDialog></p-confirmDialog>
+
+<!-- מודל הוספת עסק -->
+<p-dialog header="הוספת עסק" [visible]="addBusinessModalVisible()" [modal]="true" [style]="{ width: '500px' }" [rtl]="true"
+  (onHide)="addBusinessModalVisible.set(false)" [draggable]="false" [resizable]="false">
+  <div class="add-business-form">
+    <div class="detail-field">
+      <span class="detail-label">שם העסק: <span class="required">*</span></span>
+      <input type="text" class="detail-input" [(ngModel)]="newBusinessForm.businessName" placeholder="שם העסק" />
+      @if (addBusinessErrors()['businessName']) {
+        <span class="field-error">{{ addBusinessErrors()['businessName'] }}</span>
+      }
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">מספר עסק: <span class="required">*</span></span>
+      <input type="text" class="detail-input" [(ngModel)]="newBusinessForm.businessNumber" placeholder="מספר עסק" />
+      @if (addBusinessErrors()['businessNumber']) {
+        <span class="field-error">{{ addBusinessErrors()['businessNumber'] }}</span>
+      }
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">סוג עסק: <span class="required">*</span></span>
+      <p-select [options]="businessTypeOptions" optionLabel="name" optionValue="value"
+        [(ngModel)]="newBusinessForm.businessType" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+      @if (addBusinessErrors()['businessType']) {
+        <span class="field-error">{{ addBusinessErrors()['businessType'] }}</span>
+      }
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">אימייל: <span class="required">*</span></span>
+      <input type="email" class="detail-input" [(ngModel)]="newBusinessForm.businessEmail" placeholder="example@gmail.com" />
+      @if (addBusinessErrors()['businessEmail']) {
+        <span class="field-error">{{ addBusinessErrors()['businessEmail'] }}</span>
+      }
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">פלאפון: <span class="required">*</span></span>
+      <input type="tel" class="detail-input" [(ngModel)]="newBusinessForm.businessPhone" placeholder="050-0011223" />
+      @if (addBusinessErrors()['businessPhone']) {
+        <span class="field-error">{{ addBusinessErrors()['businessPhone'] }}</span>
+      }
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">כתובת:</span>
+      <input type="text" class="detail-input" [(ngModel)]="newBusinessForm.businessAddress" placeholder="כתובת" />
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">אחוז מקדמות מס:</span>
+      <input type="number" class="detail-input" min="0" max="100" step="0.01"
+        [(ngModel)]="newBusinessForm.advanceTaxPercent" placeholder="0" />
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="addBusinessModalVisible.set(false)"></app-p-button>
+    <app-p-button [buttonText]="'הוסף'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+      (onButtonClicked)="submitAddBusiness()" [disabled]="addingBusiness()" [isLoading]="addingBusiness()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
 <div class="page-wrapper">
-  <!-- Personal Details Section -->
-  <div class="section-block">
+  <!-- Personal + Spouse + Children – מסגרת אחת כמו עסקים -->
+  <div class="section-block section-personal-wrapper">
     <h2 class="section-title">פרטים אישיים</h2>
-    <div class="details-container">
-      <div class="detail-row three-fields">
-        <div class="detail-field">
-          <span class="detail-label">שם פרטי:</span>
-          <input type="text" class="detail-input" [(ngModel)]="personalForm.fName" placeholder="שם פרטי" />
-        </div>
-        <div class="detail-field">
-          <span class="detail-label">שם משפחה:</span>
-          <input type="text" class="detail-input" [(ngModel)]="personalForm.lName" placeholder="שם משפחה" />
-        </div>
-        <div class="detail-field">
-          <span class="detail-label">תעודת זהות:</span>
-          <input type="text" class="detail-input" [(ngModel)]="personalForm.id" placeholder="ת.ז." />
+    <div class="personal-frame">
+      <!-- פרטי היוזר -->
+      <div class="personal-subsection">
+        <h3 class="subsection-title">פרטי משתמש ראשי</h3>
+        <div class="details-container details-container-fixed">
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <span class="detail-label">שם פרטי:</span>
+              <input type="text" class="detail-input" [(ngModel)]="personalForm.fName" placeholder="שם פרטי" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">שם משפחה:</span>
+              <input type="text" class="detail-input" [(ngModel)]="personalForm.lName" placeholder="שם משפחה" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">תעודת זהות:</span>
+              <input type="text" class="detail-input" [(ngModel)]="personalForm.id" placeholder="ת.ז." />
+            </div>
+          </div>
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <span class="detail-label">אימייל:</span>
+              <input type="email" class="detail-input" [(ngModel)]="personalForm.email" placeholder="אימייל" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">פלאפון:</span>
+              <input type="tel" class="detail-input" [(ngModel)]="personalForm.phone" placeholder="פלאפון" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">תאריך לידה:</span>
+              <input type="text" class="detail-input" [(ngModel)]="personalForm.dateOfBirth" placeholder="dd-mm-yyyy" />
+            </div>
+          </div>
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <span class="detail-label">עיר:</span>
+              <input type="text" class="detail-input" [(ngModel)]="personalForm.city" placeholder="עיר" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">סטטוס משפחתי:</span>
+              <p-select [options]="familyStatusOptions" optionLabel="name" optionValue="value"
+                [(ngModel)]="personalForm.familyStatus" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">סטטוס תעסוקתי:</span>
+              <p-select [options]="employmentTypeOptions" optionLabel="name" optionValue="value"
+                [(ngModel)]="personalForm.employmentStatus" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+            </div>
+          </div>
+          <div class="section-actions">
+            <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+              (onButtonClicked)="updatePersonalDetails()" [disabled]="savingPersonal()"></app-p-button>
+          </div>
         </div>
       </div>
-      <div class="detail-row three-fields">
-        <div class="detail-field">
-          <span class="detail-label">אימייל:</span>
-          <input type="email" class="detail-input" [(ngModel)]="personalForm.email" placeholder="אימייל" />
-        </div>
-        <div class="detail-field">
-          <span class="detail-label">פלאפון:</span>
-          <input type="tel" class="detail-input" [(ngModel)]="personalForm.phone" placeholder="פלאפון" />
-        </div>
-        <div class="detail-field">
-          <span class="detail-label">תאריך לידה:</span>
-          <input type="date" class="detail-input" [(ngModel)]="personalForm.dateOfBirth" placeholder="תאריך לידה" />
+
+      <!-- פרטי בן/בת זוג -->
+      <div class="personal-subsection">
+        <h3 class="subsection-title">פרטי בן/בת זוג</h3>
+        <div class="details-container details-container-fixed">
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <span class="detail-label">שם פרטי:</span>
+              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseFName" placeholder="שם פרטי" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">שם משפחה:</span>
+              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseLName" placeholder="שם משפחה" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">תעודת זהות:</span>
+              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseId" placeholder="ת.ז." />
+            </div>
+          </div>
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <span class="detail-label">אימייל:</span>
+              <input type="email" class="detail-input" [(ngModel)]="spouseForm.spouseEmail" placeholder="אימייל" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">פלאפון:</span>
+              <input type="tel" class="detail-input" [(ngModel)]="spouseForm.spousePhone" placeholder="פלאפון" />
+            </div>
+            <div class="detail-field">
+              <span class="detail-label">תאריך לידה:</span>
+              <input type="text" class="detail-input" [(ngModel)]="spouseForm.spouseDateOfBirth" placeholder="dd-mm-yyyy" />
+            </div>
+          </div>
+          <div class="detail-row three-fields">
+            <div class="detail-field">
+              <span class="detail-label">סטטוס תעסוקתי:</span>
+              <p-select [options]="employmentTypeOptions" optionLabel="name" optionValue="value"
+                [(ngModel)]="spouseForm.spouseEmploymentStatus" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+            </div>
+            <div class="detail-field"></div>
+            <div class="detail-field"></div>
+          </div>
+          <div class="section-actions">
+            <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+              (onButtonClicked)="updateSpouseDetails()" [disabled]="savingSpouse()"></app-p-button>
+          </div>
         </div>
       </div>
-      <div class="detail-row three-fields">
-        <div class="detail-field">
-          <span class="detail-label">עיר:</span>
-          <input type="text" class="detail-input" [(ngModel)]="personalForm.city" placeholder="עיר" />
-        </div>
-        <div class="detail-field">
-          <span class="detail-label">סטטוס משפחתי:</span>
-          <select class="detail-input detail-select" [(ngModel)]="personalForm.familyStatus">
-            @for (opt of familyStatusOptions; track opt.value) {
-              <option [value]="opt.value">{{ opt.name }}</option>
+
+      <!-- פרטי הילדים – שם, שם משפחה, תאריך לידה + הוסף ילד/ה + עדכן -->
+      <div class="personal-subsection">
+        <h3 class="subsection-title">פרטי הילדים</h3>
+        <div class="details-container details-container-fixed">
+          @if (children().length > 0) {
+            @for (child of children(); track child.index ?? $index) {
+              <div class="child-row">
+                <span class="detail-label">שם פרטי:</span>
+                <span class="detail-label">שם משפחה:</span>
+                <span class="detail-label">תאריך לידה:</span>
+                <span class="child-row-spacer" aria-hidden="true"></span>
+                <input type="text" class="detail-input" [(ngModel)]="child.childFName" placeholder="שם פרטי" />
+                <input type="text" class="detail-input" [(ngModel)]="child.childLName" placeholder="שם משפחה" />
+                <input type="text" class="detail-input" [(ngModel)]="child.childDate" placeholder="dd-mm-yyyy" />
+                <button type="button" class="child-remove-btn" (click)="confirmDeleteChild(child)" aria-label="הסר ילד" title="הסר ילד">−</button>
+              </div>
             }
-          </select>
-        </div>
-        <div class="detail-field">
-          <span class="detail-label">סטטוס תעסוקתי:</span>
-          <select class="detail-input detail-select" [(ngModel)]="personalForm.employmentStatus">
-            @for (opt of employmentTypeOptions; track opt.value) {
-              <option [value]="opt.value">{{ opt.name }}</option>
+          }
+          <div class="section-actions section-actions-multiple">
+            <app-p-button [buttonText]="'הוסף ילד/ה'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
+              (onButtonClicked)="addChild()"></app-p-button>
+            @if (children().length > 0) {
+              <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+                (onButtonClicked)="updateChildrenDetails()" [disabled]="savingChildren()"></app-p-button>
             }
-          </select>
+          </div>
         </div>
-      </div>
-      <div class="section-actions">
-        <app-p-button [buttonText]="'עדכן'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
-          (onButtonClicked)="updatePersonalDetails()" [disabled]="savingPersonal()"></app-p-button>
       </div>
     </div>
   </div>
 
   <!-- Businesses Section -->
-  <div class="section-block">
+  <div class="section-block section-businesses-wrapper">
     <h2 class="section-title">עסקים</h2>
-    <div class="businesses-container">
+    <div class="personal-frame">
+      <div class="businesses-container">
       @if (businesses().length === 0) {
         <p class="no-data">אין עסקים זמינים</p>
       } @else {
-        @for (business of businesses(); track business.businessNumber) {
+        @for (business of businesses(); track getBusinessKey(business)) {
           <div class="business-card">
             <div class="business-header">
-              <h3 class="business-name">{{ business.businessName || '-' }}</h3>
+              <h3 class="business-name">{{ business.businessName || 'עסק חדש' }}</h3>
             </div>
-            <div class="business-details details-container">
+            <div class="business-details details-container details-container-fixed">
               <div class="detail-row three-fields">
                 <div class="detail-field">
                   <span class="detail-label">מספר עסק:</span>
-                  <span class="detail-value detail-value-box">{{ business.businessNumber || '-' }}</span>
+                  <input type="text" class="detail-input" [(ngModel)]="business.businessNumber" placeholder="מספר עסק" />
                 </div>
                 <div class="detail-field">
                   <span class="detail-label">כתובת:</span>
-                  <span class="detail-value detail-value-box">{{ business.businessAddress || '-' }}</span>
+                  <input type="text" class="detail-input" [(ngModel)]="business.businessAddress" placeholder="כתובת" />
                 </div>
                 <div class="detail-field">
                   <span class="detail-label">טלפון:</span>
-                  <span class="detail-value detail-value-box">{{ business.businessPhone || '-' }}</span>
+                  <input type="tel" class="detail-input" [(ngModel)]="business.businessPhone" placeholder="טלפון" />
                 </div>
               </div>
               <div class="detail-row three-fields">
                 <div class="detail-field">
                   <span class="detail-label">אימייל:</span>
-                  <span class="detail-value detail-value-box">{{ business.businessEmail || '-' }}</span>
+                  <input type="email" class="detail-input" [(ngModel)]="business.businessEmail" placeholder="אימייל" />
                 </div>
                 <div class="detail-field">
                   <span class="detail-label">סוג עסק:</span>
-                  <span class="detail-value detail-value-box">{{ getBusinessTypeLabel(business.businessType) }}</span>
+                  <p-select [options]="businessTypeOptions" optionLabel="name" optionValue="value"
+                    [(ngModel)]="business.businessType" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
                 </div>
                 <div class="detail-field">
                   <span class="detail-label">אחוז מקדמות מס:</span>
@@ -107,26 +246,39 @@
                       max="100"
                       step="0.01"
                       [value]="getAdvanceTaxDisplay(business)"
-                      (input)="setAdvanceTaxEdit(business.businessNumber, $event)"
+                      (input)="setAdvanceTaxEdit(business, $event)"
                       placeholder="למשל 30"
                     />
                   </span>
                 </div>
               </div>
-              <div class="section-actions">
+              <div class="section-actions section-actions-multiple">
                 <app-p-button
                   [buttonText]="'עדכן'"
                   [buttonColor]="buttonColor.BLACK"
                   [buttonSize]="buttonSize.SMALL"
-                  (onButtonClicked)="saveAdvanceTax(business)"
-                  [disabled]="savingBusinessNumber() === business.businessNumber"
-                  [isLoading]="savingBusinessNumber() === business.businessNumber">
+                  (onButtonClicked)="saveBusiness(business)"
+                  [disabled]="savingBusinessId() === business.id"
+                  [isLoading]="savingBusinessId() === business.id">
                 </app-p-button>
+                @if (business.id != null) {
+                  <app-p-button
+                    [buttonText]="'מחק'"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    (onButtonClicked)="deleteBusiness(business)">
+                  </app-p-button>
+                }
               </div>
             </div>
           </div>
         }
       }
+      <div class="section-actions add-business-actions">
+        <app-p-button [buttonText]="'הוסף עסק'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
+          (onButtonClicked)="openAddBusinessModal()"></app-p-button>
+      </div>
+      </div>
     </div>
   </div>
 </div>

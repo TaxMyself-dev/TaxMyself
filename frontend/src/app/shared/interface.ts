@@ -65,6 +65,15 @@ export interface IUserData {
     vatReportingType: string;
 }
 
+export interface IChild {
+    index?: number;
+    childFName: string;
+    childLName: string;
+    childID?: string;
+    childDate: string;
+    parentUserID?: string;
+}
+
 export interface IRowDataTable {
     [key: string]: string | number | Date | boolean | ISelectItem | File;
 }
@@ -455,6 +464,7 @@ export interface BusinessInfo {
 }
 
 export interface Business {
+    id?: number;
     firebaseId: string;
     businessName: string | null;
     businessField: string | null;

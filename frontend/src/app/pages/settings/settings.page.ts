@@ -5,12 +5,14 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IUserData, Business } from 'src/app/shared/interface';
+import { IUserData, Business, IChild } from 'src/app/shared/interface';
 import { AvatarModule } from 'primeng/avatar';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
-import { BusinessType, BusinessTypeLabels, FamilyStatus, FamilyStatusLabels, EmploymentType, EmploymentTypeLabels } from 'src/app/shared/enums';
-import { familyStatusOptionsList, employmentTypeOptionsList } from 'src/app/shared/enums';
+import { DialogModule } from 'primeng/dialog';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { SelectModule } from 'primeng/select';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-settings',
@@ -22,27 +24,50 @@ import { familyStatusOptionsList, employmentTypeOptionsList } from 'src/app/shar
     FormsModule,
     ButtonComponent,
     AvatarModule,
-    ToastModule
+    ToastModule,
+    DialogModule,
+    ConfirmDialogModule,
+    SelectModule
   ],
-  providers: [MessageService]
+  providers: [MessageService, ConfirmationService]
 })
 export class SettingsPage implements OnInit {
   authService = inject(AuthService);
   genericService = inject(GenericService);
   messageService = inject(MessageService);
+  confirmationService = inject(ConfirmationService);
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
+  children = signal<IChild[]>([]);
   /** ערך בזמן עריכה לפני שמירה */
   advanceTaxEdit: Record<string, number | null> = {};
   savingBusinessNumber = signal<string | null>(null);
+  /** מזהה איזה עסק כרגע בעדכון (למניעת כפתור loading תקוע בעסק חדש עם businessNumber null) */
+  savingBusinessId = signal<number | null>(null);
   savingPersonal = signal<boolean>(false);
+  savingSpouse = signal<boolean>(false);
+  savingChildren = signal<boolean>(false);
+  addingBusiness = signal<boolean>(false);
+  addBusinessModalVisible = signal<boolean>(false);
+  /** הודעות שגיאה לדיאלוג הוספת עסק */
+  addBusinessErrors = signal<Record<string, string>>({});
+  newBusinessForm = {
+    businessName: '',
+    businessNumber: '',
+    businessAddress: '',
+    businessPhone: '',
+    businessEmail: '',
+    businessType: '' as string,
+    advanceTaxPercent: null as number | null
+  };
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
   familyStatusOptions = familyStatusOptionsList;
   employmentTypeOptions = employmentTypeOptionsList;
+  businessTypeOptions = businessTypeOptionsList;
 
   personalForm = {
     fName: '',
@@ -56,10 +81,32 @@ export class SettingsPage implements OnInit {
     employmentStatus: '' as string
   };
 
+  spouseForm = {
+    spouseFName: '',
+    spouseLName: '',
+    spouseId: '',
+    spouseEmail: '',
+    spousePhone: '',
+    spouseDateOfBirth: '' as string,
+    spouseEmploymentStatus: '' as string
+  };
+
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.initPersonalFormFromUserData();
+    this.initSpouseFormFromUserData();
     this.loadBusinesses();
+    this.loadChildren();
+    // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
+    this.authService.restoreUserData().subscribe({
+      next: (data) => {
+        if (data) {
+          this.userData = data;
+          this.initPersonalFormFromUserData();
+          this.initSpouseFormFromUserData();
+        }
+      }
+    });
   }
 
   private initPersonalFormFromUserData(): void {
@@ -70,22 +117,57 @@ export class SettingsPage implements OnInit {
     this.personalForm.id = u.id ?? '';
     this.personalForm.email = u.email ?? '';
     this.personalForm.phone = u.phone ?? '';
-    this.personalForm.dateOfBirth = this.toInputDate(u.dateOfBirth) ?? '';
+    this.personalForm.dateOfBirth = this.toDisplayDate(u.dateOfBirth);
     this.personalForm.city = u.city ?? '';
     this.personalForm.familyStatus = u.familyStatus ?? '';
     this.personalForm.employmentStatus = u.employmentStatus ?? '';
   }
 
-  /** Convert date to yyyy-mm-dd for input[type="date"] */
-  private toInputDate(val: string | null | undefined): string | null {
-    if (val == null || val === '') return null;
+  private initSpouseFormFromUserData(): void {
+    const u = this.userData;
+    if (!u) return;
+    this.spouseForm.spouseFName = u.spouseFName ?? '';
+    this.spouseForm.spouseLName = u.spouseLName ?? '';
+    this.spouseForm.spouseId = u.spouseId ?? '';
+    this.spouseForm.spouseEmail = u.spouseEmail ?? '';
+    this.spouseForm.spousePhone = u.spousePhone ?? '';
+    const rawDate = u.spouseDateOfBirth ?? (u as any).spouse_date_of_birth;
+    this.spouseForm.spouseDateOfBirth = this.toDisplayDate(rawDate);
+    this.spouseForm.spouseEmploymentStatus = u.spouseEmploymentStatus ?? '';
+  }
+
+  /** Convert any date to dd-mm-yyyy for display in the form */
+  toDisplayDate(val: string | Date | null | undefined): string {
+    if (val == null || val === '') return '';
+    if (typeof val === 'object' && 'getTime' in val) val = (val as Date).toISOString?.() ?? String(val);
+    const s = String(val).trim();
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-');
+      return `${d}-${m}-${y}`;
+    }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+
+  /** Convert dd-mm-yyyy or yyyy-mm-dd to yyyy-mm-dd for API */
+  toApiDate(val: string | null | undefined): string | undefined {
+    if (val == null || val === '') return undefined;
     const s = String(val).trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    const d = new Date(val);
-    if (isNaN(d.getTime())) return null;
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+      const [d, m, y] = s.split('-');
+      return `${y}-${m}-${d}`;
+    }
+    const date = new Date(val);
+    if (isNaN(date.getTime())) return undefined;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
 
@@ -103,41 +185,68 @@ export class SettingsPage implements OnInit {
       employmentStatus: this.personalForm.employmentStatus || undefined
     };
     this.authService.updateUser(payload).subscribe({
-      next: () => {
-        this.authService.restoreUserData().subscribe({
-          next: () => {
-            this.userData = this.authService.getUserDataFromLocalStorage();
-            this.savingPersonal.set(false);
-            this.messageService.add({
-              severity: 'success',
-              summary: 'הצלחה',
-              detail: 'הפרטים עודכנו בהצלחה',
-              life: 3000,
-              key: 'br'
-            });
-          },
-          error: () => {
-            this.savingPersonal.set(false);
-            this.messageService.add({
-              severity: 'error',
-              summary: 'שגיאה',
-              detail: 'לא ניתן לרענן את הנתונים',
-              life: 3000,
-              key: 'br'
-            });
-          }
-        });
-      },
+      next: () => this.onUpdateSuccess(false),
+      error: () => this.onUpdateError(false)
+    });
+  }
+
+  updateSpouseDetails(): void {
+    this.savingSpouse.set(true);
+    const payload = {
+      spouseFName: this.spouseForm.spouseFName?.trim() || undefined,
+      spouseLName: this.spouseForm.spouseLName?.trim() || undefined,
+      spouseId: this.spouseForm.spouseId?.trim() || undefined,
+      spouseEmail: this.spouseForm.spouseEmail?.trim() || undefined,
+      spousePhone: this.spouseForm.spousePhone?.trim() || undefined,
+      spouseDateOfBirth: this.toApiDate(this.spouseForm.spouseDateOfBirth) || undefined,
+      spouseEmploymentStatus: this.spouseForm.spouseEmploymentStatus || undefined
+    };
+    this.authService.updateUser(payload).subscribe({
+      next: () => this.onUpdateSuccess(true),
+      error: () => this.onUpdateError(true)
+    });
+  }
+
+  private onUpdateSuccess(_isSpouse: boolean): void {
+    const setDone = () => {
+      this.savingPersonal.set(false);
+      this.savingSpouse.set(false);
+      this.userData = this.authService.getUserDataFromLocalStorage();
+      this.initPersonalFormFromUserData();
+      this.initSpouseFormFromUserData();
+      this.messageService.add({
+        severity: 'success',
+        summary: 'הצלחה',
+        detail: 'הפרטים עודכנו בהצלחה',
+        life: 3000,
+        key: 'br'
+      });
+    };
+    this.authService.restoreUserData().subscribe({
+      next: setDone,
       error: () => {
         this.savingPersonal.set(false);
+        this.savingSpouse.set(false);
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: 'לא ניתן לעדכן את הפרטים. נסה שוב מאוחר יותר.',
+          detail: 'לא ניתן לרענן את הנתונים',
           life: 3000,
           key: 'br'
         });
       }
+    });
+  }
+
+  private onUpdateError(isSpouse: boolean): void {
+    this.savingPersonal.set(false);
+    this.savingSpouse.set(false);
+    this.messageService.add({
+      severity: 'error',
+      summary: 'שגיאה',
+      detail: 'לא ניתן לעדכן את הפרטים. נסה שוב מאוחר יותר.',
+      life: 3000,
+      key: 'br'
     });
   }
 
@@ -147,50 +256,286 @@ export class SettingsPage implements OnInit {
     });
   }
 
-  getAdvanceTaxDisplay(business: Business): string | number {
-    const num = business.businessNumber ?? '';
-    if (this.advanceTaxEdit[num] !== undefined && this.advanceTaxEdit[num] !== null) {
-      return this.advanceTaxEdit[num] as number;
-    }
-    return business.advanceTaxPercent ?? '';
+  addChild(): void {
+    this.children.set([...this.children(), { childFName: '', childLName: '', childDate: '' }]);
   }
 
-  setAdvanceTaxEdit(businessNumber: string | null, event: Event): void {
-    if (!businessNumber) return;
+  private readonly emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  /** טלפון ישראלי: 05X-XXXXXXX (10 ספרות) */
+  private readonly phonePattern = /^05\d{8}$/;
+
+  openAddBusinessModal(): void {
+    this.newBusinessForm = {
+      businessName: '',
+      businessNumber: '',
+      businessAddress: '',
+      businessPhone: '',
+      businessEmail: '',
+      businessType: '',
+      advanceTaxPercent: null
+    };
+    this.addBusinessErrors.set({});
+    this.addBusinessModalVisible.set(true);
+  }
+
+  private validateAddBusinessForm(): boolean {
+    const err: Record<string, string> = {};
+    const name = this.newBusinessForm.businessName?.trim() ?? '';
+    const number = this.newBusinessForm.businessNumber?.trim() ?? '';
+    const type = this.newBusinessForm.businessType?.trim() ?? '';
+    const email = this.newBusinessForm.businessEmail?.trim() ?? '';
+    const phone = this.newBusinessForm.businessPhone?.trim() ?? '';
+
+    if (!name) err['businessName'] = 'שם העסק חובה';
+    if (!number) err['businessNumber'] = 'מספר עסק חובה';
+    if (!type) err['businessType'] = 'סוג עסק חובה';
+    if (!email) err['businessEmail'] = 'אימייל חובה';
+    else if (!this.emailPattern.test(email)) err['businessEmail'] = 'כתובת אימייל לא חוקית';
+    if (!phone) err['businessPhone'] = 'פלאפון חובה';
+    else {
+      const digits = phone.replace(/\D/g, '');
+      const normalized = digits.startsWith('972') ? '0' + digits.slice(3) : digits.startsWith('0') ? digits : '0' + digits;
+      if (normalized.length !== 10 || !this.phonePattern.test(normalized)) err['businessPhone'] = 'מספר פלאפון לא חוקי';
+    }
+
+    this.addBusinessErrors.set(err);
+    return Object.keys(err).length === 0;
+  }
+
+  submitAddBusiness(): void {
+    if (!this.validateAddBusinessForm()) return;
+    this.addingBusiness.set(true);
+    const payload = {
+      businessName: this.newBusinessForm.businessName?.trim() || undefined,
+      businessNumber: this.newBusinessForm.businessNumber?.trim() || undefined,
+      businessAddress: this.newBusinessForm.businessAddress?.trim() || undefined,
+      businessPhone: this.newBusinessForm.businessPhone?.trim() || undefined,
+      businessEmail: this.newBusinessForm.businessEmail?.trim() || undefined,
+      businessType: this.newBusinessForm.businessType || undefined,
+      advanceTaxPercent: this.newBusinessForm.advanceTaxPercent ?? undefined
+    };
+    this.genericService.createBusiness(payload)
+      .then(() => {
+        this.addBusinessModalVisible.set(false);
+        this.businesses.set(this.genericService.businesses());
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'העסק נוסף בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+      })
+      .catch(() => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא ניתן להוסיף עסק. נסה שוב מאוחר יותר.',
+          life: 3000,
+          key: 'br'
+        });
+      })
+      .finally(() => this.addingBusiness.set(false));
+  }
+
+  deleteBusiness(business: Business): void {
+    if (business.id == null) return;
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך למחוק את העסק?',
+      header: 'אישור מחיקה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.genericService.deleteBusiness(business.id!)
+          .then(() => {
+            this.businesses.set(this.genericService.businesses());
+            this.messageService.add({
+              severity: 'success',
+              summary: 'הצלחה',
+              detail: 'העסק נמחק',
+              life: 3000,
+              key: 'br'
+            });
+          })
+          .catch(() => {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'לא ניתן למחוק את העסק.',
+              life: 3000,
+              key: 'br'
+            });
+          });
+      }
+    });
+  }
+
+  confirmDeleteChild(child: IChild): void {
+    const index = child.index;
+    if (index == null) return;
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך להסיר את הילד?',
+      header: 'אישור הסרה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'הסר',
+      rejectLabel: 'ביטול',
+      accept: () => this.doDeleteChild(index)
+    });
+  }
+
+  private doDeleteChild(index: number): void {
+    this.authService.deleteChild(index).subscribe({
+      next: () => {
+        this.loadChildren();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הילד/ה נמחק/ה',
+          life: 3000,
+          key: 'br'
+        });
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא ניתן למחוק.',
+          life: 3000,
+          key: 'br'
+        });
+      }
+    });
+  }
+
+  loadChildren(): void {
+    this.authService.getChildren().subscribe({
+      next: (list) => {
+        const arr = Array.isArray(list) ? list : [];
+        arr.forEach((c: IChild) => {
+          if (c.childDate) c.childDate = this.toDisplayDate(c.childDate);
+        });
+        this.children.set(arr);
+      },
+      error: () => this.children.set([])
+    });
+  }
+
+  updateChildrenDetails(): void {
+    const list = this.children().map(c => ({
+      childFName: c.childFName?.trim() ?? '',
+      childLName: c.childLName?.trim() ?? '',
+      childDate: this.toApiDate(c.childDate) ?? ''
+    }));
+    this.savingChildren.set(true);
+    this.authService.updateChildren(list).subscribe({
+      next: (saved) => {
+        const arr = Array.isArray(saved) ? saved : [];
+        arr.forEach((c: IChild) => {
+          if (c.childDate) c.childDate = this.toDisplayDate(c.childDate);
+        });
+        this.children.set(arr);
+        this.savingChildren.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'פרטי הילדים עודכנו בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+      },
+      error: () => {
+        this.savingChildren.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'לא ניתן לעדכן את פרטי הילדים. נסה שוב מאוחר יותר.',
+          life: 3000,
+          key: 'br'
+        });
+      }
+    });
+  }
+
+  getBusinessKey(business: Business): string | number {
+    if (business.id != null) return `id-${business.id}`;
+    return business.businessNumber ?? '';
+  }
+
+  getAdvanceTaxDisplay(business: Business): string | number {
+    const key = this.getBusinessKey(business);
+    if (this.advanceTaxEdit[key as string] !== undefined && this.advanceTaxEdit[key as string] !== null) {
+      const v = this.advanceTaxEdit[key as string] as number;
+      return (v === 0 || v === null) ? 0 : v;
+    }
+    const p = business.advanceTaxPercent;
+    return (p == null || p === 0) ? 0 : p;
+  }
+
+  setAdvanceTaxEdit(business: Business, event: Event): void {
+    const key = this.getBusinessKey(business);
     const val = (event.target as HTMLInputElement).value;
     const num = val === '' ? null : Number(val);
-    this.advanceTaxEdit[businessNumber] = num;
+    this.advanceTaxEdit[key as string] = num;
   }
 
-  async saveAdvanceTax(business: Business): Promise<void> {
-    const num = business.businessNumber ?? '';
-    const value = this.advanceTaxEdit[num] ?? business.advanceTaxPercent;
-    if (value == null) return;
-    const percent = Number(value);
+  async saveBusiness(business: Business): Promise<void> {
+    const key = this.getBusinessKey(business);
+    const advanceValue = this.advanceTaxEdit[key as string] ?? business.advanceTaxPercent;
+    const percent = advanceValue == null ? 0 : Number(advanceValue);
     if (isNaN(percent) || percent < 0 || percent > 100) return;
-    this.savingBusinessNumber.set(num);
+    const id = business.id ?? undefined;
+    const businessNumber = business.businessNumber ?? undefined;
+    if (id == null && (businessNumber == null || businessNumber === '')) return;
+    this.savingBusinessId.set(business.id ?? null);
+    this.savingBusinessNumber.set(business.businessNumber ?? null);
     try {
-      await this.genericService.updateBusinessAdvanceTaxPercent(num, percent);
-      delete this.advanceTaxEdit[num];
+      await this.genericService.updateBusiness({
+        id,
+        businessNumber: businessNumber || undefined,
+        advanceTaxPercent: percent,
+        businessName: business.businessName ?? undefined,
+        businessAddress: business.businessAddress ?? undefined,
+        businessPhone: business.businessPhone ?? undefined,
+        businessEmail: business.businessEmail ?? undefined,
+        businessType: business.businessType ?? undefined,
+      });
+      delete this.advanceTaxEdit[key as string];
       this.businesses.set(this.genericService.businesses());
+      this.messageService.add({
+        severity: 'success',
+        summary: 'הצלחה',
+        detail: 'פרטי העסק עודכנו בהצלחה',
+        life: 3000,
+        key: 'br'
+      });
+    } catch {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: 'לא ניתן לעדכן את העסק. נסה שוב.',
+        life: 3000,
+        key: 'br'
+      });
     } finally {
+      this.savingBusinessId.set(null);
       this.savingBusinessNumber.set(null);
     }
   }
 
-  getBusinessTypeLabel(businessType: string | null): string {
-    if (!businessType) return '-';
-    return BusinessTypeLabels[businessType as BusinessType] || businessType;
-  }
-
-  getFamilyStatusLabel(familyStatus: string | null): string {
-    if (!familyStatus) return '-';
-    return FamilyStatusLabels[familyStatus as FamilyStatus] || familyStatus;
-  }
-
-  getEmploymentStatusLabel(employmentStatus: string | null): string {
-    if (!employmentStatus) return '-';
-    return EmploymentTypeLabels[employmentStatus as EmploymentType] || employmentStatus;
+  formatChildDate(childDate: string | null | undefined): string {
+    if (!childDate) return '-';
+    const s = String(childDate).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-');
+      return `${d}-${m}-${y}`;
+    }
+    const date = new Date(childDate);
+    if (isNaN(date.getTime())) return childDate;
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
   }
 
   formatDateOfBirth(dateOfBirth: string | null | undefined): string {

@@ -12,6 +12,9 @@ export class UpdateUserDto {
   @IsOptional() @IsString() spouseLName?: string;
   @IsOptional() @IsString() spouseId?: string;
   @IsOptional() @IsDateString() spouseDateOfBirth?: Date;
+  @IsOptional() @IsString() spousePhone?: string;
+  @IsOptional() @IsString() spouseEmail?: string;
+  @IsOptional() @IsString() spouseEmploymentStatus?: string;
   @IsOptional() @IsBoolean() spouseIndependet?: boolean;
   @IsOptional() @IsString() businessName?: string;
   @IsOptional() @IsString() businessField?: string;
