@@ -33,6 +33,7 @@ import { Avatar } from "primeng/avatar";
 import { SelectButton } from "primeng/selectbutton";
 import { DocCreateItemsMobileComponent } from 'src/app/components/doc-create-items-mobile/doc-create-items-mobile.component';
 import { SegmentedControlComponent } from 'src/app/components/segmented-control/segmented-control.component';
+import { ItemsTotalSummaryComponent } from 'src/app/components/items-total-summary/items-total-summary.component';
 
 
 @NgModule({
@@ -65,6 +66,7 @@ import { SegmentedControlComponent } from 'src/app/components/segmented-control/
     SelectButton,
     DocCreateItemsMobileComponent,
     SegmentedControlComponent,
+    ItemsTotalSummaryComponent,
   ],
   declarations: [DocCreatePage,],
   providers: [DialogService, ConfirmationService, MessageService]

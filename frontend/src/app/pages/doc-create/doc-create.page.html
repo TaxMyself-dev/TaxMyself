@@ -166,6 +166,12 @@
       (save)="addLineDetails()" (edit)="editLine($event)" (deleteItem)="deleteLineWithConfirm($event)"
       (cancelEdit)="cancelEdit()">
     </app-doc-create-items-mobile>
+    @if (lineItemsDraft().length > 0) {
+      <app-items-total-summary
+        [summaryItems]="filteredSummaryItems()"
+        [documentSummary]="documentSummary()">
+      </app-items-total-summary>
+    }
     }
 
     @if (!isMobile()) {
