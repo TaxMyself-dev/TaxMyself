@@ -65,21 +65,21 @@ export class FeezbackController {
   }
 
 
-  @Post('get-access-token')
-  // @UseGuards(FirebaseAuthGuard)
-  async getAccessToken(@Req() req: AuthenticatedRequest) {
+  // @Post('get-access-token')
+  // // @UseGuards(FirebaseAuthGuard)
+  // async getAccessToken(@Req() req: AuthenticatedRequest) {
 
-    // const firebaseId = req.user?.firebaseId;
-    const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
+  //   // const firebaseId = req.user?.firebaseId;
+  //   const firebaseId = "AxFm5xBcYlMTV5kb5OAnde5Rbh62"
 
-    if (!firebaseId) {
-      throw new Error('User ID not found — Firebase authentication required');
-    }
+  //   if (!firebaseId) {
+  //     throw new Error('User ID not found — Firebase authentication required');
+  //   }
 
-    const token = await (this.feezbackService as any).feezbackJwtService.generateAccessToken(firebaseId);
+  //   const token = await (this.feezbackService as any).feezbackJwtService.generateAccessToken(firebaseId);
 
-    return { token };
-  }
+  //   return { token };
+  // }
 
   /**
    * Get user accounts from Feezback
@@ -111,27 +111,27 @@ export class FeezbackController {
     }
   }
 
-  @Get('consents/sync')
-  @UseGuards(FirebaseAuthGuard)
-  async syncConsents(@Req() req: AuthenticatedRequest) {
-    const firebaseId = req.user?.firebaseId;
+  // @Get('consents/sync')
+  // @UseGuards(FirebaseAuthGuard)
+  // async syncConsents(@Req() req: AuthenticatedRequest) {
+  //   const firebaseId = req.user?.firebaseId;
 
-    if (!firebaseId) {
-      throw new Error('User ID not found — Firebase authentication required');
-    }
+  //   if (!firebaseId) {
+  //     throw new Error('User ID not found — Firebase authentication required');
+  //   }
 
-    const sub = `${firebaseId}_sub`;
+  //   const sub = `${firebaseId}_sub`;
 
-    // this.logger.log(`Syncing Feezback consents for firebaseId: ${firebaseId}, sub: ${sub}`);
+  //   // this.logger.log(`Syncing Feezback consents for firebaseId: ${firebaseId}, sub: ${sub}`);
 
-    try {
-      const consents = await this.feezbackService.syncUserConsents(firebaseId, sub);
-      return { consents };
-    } catch (error: any) {
-      // this.logger.error(`Failed to sync user consents: ${error.message}`, error.stack);
-      throw new Error(`Failed to sync user consents: ${error.message}`);
-    }
-  }
+  //   try {
+  //     const consents = await this.feezbackService.syncUserConsents(firebaseId, sub);
+  //     return { consents };
+  //   } catch (error: any) {
+  //     // this.logger.error(`Failed to sync user consents: ${error.message}`, error.stack);
+  //     throw new Error(`Failed to sync user consents: ${error.message}`);
+  //   }
+  // }
 
 
   /**
@@ -501,7 +501,7 @@ export class FeezbackController {
    * Fetches all accounts first, then gets transactions for each account
    * Requires authentication
    */
-  @Get('user-transactions')
+  @Get('user-bank-transactions')
   @UseGuards(FirebaseAuthGuard)
   async getAllUserTransactions(
     @Req() req: AuthenticatedRequest,
@@ -569,6 +569,52 @@ export class FeezbackController {
     );
   }
 
+  /**
+   * Get both bank and card transactions in one call.
+   * Uses the same query params for both; date range defaults to last 60 days when not provided.
+   */
+  @Get('user-all-transactions')
+  @UseGuards(FirebaseAuthGuard)
+  async getAllUserAndCardTransactions(
+    @Req() req: AuthenticatedRequest,
+    @Query('bookingStatus') bookingStatus?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('cardResourceId') cardResourceId?: string,
+  ) {
+    const firebaseId = req.user?.firebaseId;
+
+    if (!firebaseId) {
+      throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    const sub = `${firebaseId}_sub`;
+
+    const today = new Date();
+    const sixtyDaysAgo = new Date(today);
+    sixtyDaysAgo.setDate(today.getDate() - 60);
+
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
+    const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
+
+    const [bankTransactions, cardTransactions] = await Promise.all([
+      this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, resolvedDateFrom, resolvedDateTo),
+      this.feezbackService.getAndSaveUserCardTransactions(
+        firebaseId,
+        sub,
+        bookingStatus ?? 'booked',
+        resolvedDateFrom,
+        resolvedDateTo,
+        cardResourceId,
+      ),
+    ]);
+
+    return {
+      bankTransactions,
+      cardTransactions,
+    };
+  }
 
   /**
    * Analyze transaction structure and return field mapping

@@ -55,6 +55,7 @@ export class MyAccountPage implements OnInit {
   isLoadingUserAccounts = signal<boolean>(false);
   isLoadingUserBankTransactions = signal<boolean>(false);
   isLoadingUserCardTransactions = signal<boolean>(false);
+  isLoadingAllTransactions = signal<boolean>(false);
   isProd = signal<boolean>(process.env.NODE_ENV == 'production');
 
   userData: IUserData;
@@ -332,6 +333,52 @@ export class MyAccountPage implements OnInit {
             key: 'br'
           });
         }
+      });
+  }
+
+  fetchAllUserTransactions(): void {
+    this.isLoadingAllTransactions.set(true);
+
+    this.feezbackService.getAllUserTransactions('booked')
+      .pipe(
+        catchError(err => {
+          console.error('Error fetching all user transactions:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.',
+            life: 5000,
+            key: 'br'
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingAllTransactions.set(false))
+      )
+      .subscribe(response => {
+        console.log('All user transactions (bank + card):', response);
+
+        const bank = response?.bankTransactions;
+        const card = response?.cardTransactions;
+
+        const bankTotal = bank?.totalTransactions ?? bank?.transactions?.length ?? 0;
+        const cardTotal = card?.totalTransactions ?? card?.transactions?.length ?? 0;
+        const bankSaved = bank?.databaseSaveResult?.saved ?? 0;
+        const cardSaved = card?.databaseSaveResult?.saved ?? 0;
+
+        let detailMessage = '';
+        if (bankTotal > 0 || cardTotal > 0) {
+          detailMessage = `בנק: ${bankTotal} תנועות (${bankSaved} חדשות). אשראי: ${cardTotal} תנועות (${cardSaved} חדשות).`;
+        } else {
+          detailMessage = 'לא נמצאו תנועות בנק או אשראי.';
+        }
+
+        this.messageService.add({
+          severity: bankTotal > 0 || cardTotal > 0 ? 'success' : 'warn',
+          summary: bankTotal > 0 || cardTotal > 0 ? 'הצלחה' : 'התראה',
+          detail: detailMessage,
+          life: 6000,
+          key: 'br'
+        });
       });
   }
 
