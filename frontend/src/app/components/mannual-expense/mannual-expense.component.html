@@ -11,12 +11,12 @@
 </app-input-date>
 
 
-<app-input-text [customStyle]="'fill-border'" [controlName]="'sum'" [labelText]="'סכום'" [placeholder]="'הקלד סכום'"
+<app-input-text [customStyle]="'rounded-border'" [controlName]="'sum'" [labelText]="'סכום'" [placeholder]="'הקלד סכום'"
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
 <app-input-autocomplete 
-  [customStyle]="'fill-border'" 
+  [customStyle]="'rounded-border'" 
   [controlName]="'supplier'" 
   [labelText]="'ספק'" 
   [placeholder]="'חפש או הוסף ספק'"
@@ -33,12 +33,12 @@
   [forceSelection]="false">
 </app-input-autocomplete>
 
-<app-input-text [customStyle]="'fill-border'" [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'"
+<app-input-text [customStyle]="'rounded-border'" [controlName]="'supplierId'" [labelText]="'ח.פ. ספק'"
   [placeholder]="'הקלד ח.פ. ספק'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
 
-<app-input-text [customStyle]="'fill-border'" [controlName]="'expenseNumber'" [labelText]="'מספר חשבונית'"
+<app-input-text [customStyle]="'rounded-border'" [controlName]="'expenseNumber'" [labelText]="'מספר חשבונית'"
   [placeholder]="'הקלד מספר חשבונית'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'text'">
 </app-input-text>
@@ -71,27 +71,27 @@
 </app-input-select>
 
 @if (!isEquipmentChecked()) {
-<app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'taxPercent'"
+<app-input-text [customStyle]="isDirty() ? 'rounded-border dirty' : 'rounded-border'" [controlName]="'taxPercent'"
   [labelText]="'אחוז מוכר למס'" [placeholder]="'הכנס מס'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 }
 
 @if (!isExemptBusiness()) {
-<app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'vatPercent'"
+<app-input-text [customStyle]="isDirty() ? 'rounded-border dirty' : 'rounded-border'" [controlName]="'vatPercent'"
   [labelText]="'אחוז מוכר למע&quot;מ'" [placeholder]="'הכנס מעמ'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 }
 
 @if (isEquipmentChecked()) {
-<app-input-text [customStyle]="isDirty() ? 'fill-border dirty' : 'fill-border'" [controlName]="'reductionPercent'"
+<app-input-text [customStyle]="isDirty() ? 'rounded-border dirty' : 'rounded-border'" [controlName]="'reductionPercent'"
   [labelText]="'אחוז פחת'" [placeholder]="'אחוז פחת'" [parentForm]="mannualExpenseForm"
   [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'" (onInputText)="onInputText($event)">
 </app-input-text>
 }
 
-<app-input-text [customStyle]="'fill-border'" [controlName]="'note'" [labelText]="'הערה'" [placeholder]="'הקלד הערה'"
+<app-input-text [customStyle]="'rounded-border'" [controlName]="'note'" [labelText]="'הערה'" [placeholder]="'הקלד הערה'"
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.LARGE" [type]="'text'">
 </app-input-text>
 

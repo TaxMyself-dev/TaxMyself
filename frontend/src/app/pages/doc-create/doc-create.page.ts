@@ -1332,6 +1332,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.setSumInPaymentForm();
   }
 
+  /** Mobile-only: delete with a confirmation dialog before removing the line. */
+  deleteLineWithConfirm(index: number): void {
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך למחוק את הפריט?',
+      header: 'מחיקת פריט',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.deleteLine(index),
+    });
+  }
+
   deletePayment(index: number): void {
     this.paymentsDraft.update(items => items.filter((_, i) => i !== index));
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));

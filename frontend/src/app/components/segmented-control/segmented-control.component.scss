@@ -1,0 +1,71 @@
+// ════════════════════════════════════════════════════════════
+// segmented-control — pill-style radio group
+//
+// Token sources (global.scss + Figma node 2463:53034):
+//   border-radius : 40px         ← Figma pill shape
+//   padding       : 6px 16px     ← Figma
+//   #363636       : --main-text  ← selected bg, text color system token
+//   #ebebeb       : --stroke     ← unselected border, selected text token
+//   #0075ff       : --link       ← system focus-ring color
+//   font-family   : inherit      ← picks up Simpler from :root
+// ════════════════════════════════════════════════════════════
+
+:host {
+  display: block;
+}
+
+// ── Container ─────────────────────────────────────────────────
+.segmented-control {
+  display: flex;
+  flex-wrap: wrap;         // wraps on mobile, consistent gap
+  gap: 10px;               // Figma gap between pills
+  justify-content: flex-start; // RTL: options sit on the right
+}
+
+// ── Individual pill ───────────────────────────────────────────
+.segmented-option {
+  // Shape — matches system button pill
+  border-radius: 40px;
+  padding: 6px 16px;
+  flex: none;
+
+  // Unselected: matches white-border button pattern
+  border: 1px solid #ebebeb;  // --stroke
+  background: #ffffff;
+  color: #363636;             // --main-text
+
+  // Typography — inherit app font (Simpler), match system size
+  font-family: inherit;
+  font-size: 16px;
+  line-height: normal;
+  font-style: normal;
+
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+
+  // ── Selected state — matches black button ──────────────────
+  &--selected {
+    background: #363636;    // --main-text
+    border-color: #363636;
+    color: #ebebeb;         // --stroke
+  }
+
+  // ── Hover (unselected only) ────────────────────────────────
+  &:hover:not(&--selected):not(:disabled) {
+    background: #f5f5f5;
+    border-color: #cccccc;
+  }
+
+  // ── Focus ring — uses system link/focus color ──────────────
+  &:focus-visible {
+    outline: 2px solid #0075ff; // --link
+    outline-offset: 2px;
+  }
+
+  // ── Disabled ───────────────────────────────────────────────
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+}
