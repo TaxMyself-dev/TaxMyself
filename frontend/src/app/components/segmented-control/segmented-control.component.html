@@ -1,0 +1,23 @@
+<div
+  class="segmented-control"
+  role="radiogroup"
+  [attr.aria-label]="ariaLabel() ?? null"
+  [attr.aria-disabled]="isDisabled() ? true : null">
+
+  @for (option of options(); track option.value; let i = $index) {
+    <button
+      #optionBtn
+      type="button"
+      role="radio"
+      class="segmented-option"
+      [class.segmented-option--selected]="selectedValue() === option.value"
+      [attr.aria-checked]="selectedValue() === option.value"
+      [tabindex]="tabIndex(i)"
+      [disabled]="isDisabled() ? true : null"
+      (click)="select(option.value)"
+      (keydown)="onKeydown($event, i)">
+      {{ option.label }}
+    </button>
+  }
+
+</div>

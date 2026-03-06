@@ -1,0 +1,326 @@
+<div class="items-mobile" dir="rtl">
+
+  <!-- ── New-item EDIT card — always rendered at the TOP ── -->
+  @if (showEditCard()) {
+    <div #newItemCard class="item-card item-card--edit" [formGroup]="lineDetailsForm()">
+
+      <div class="item-card__title">פריט #{{ newItemNumber() }}</div>
+
+      <!-- Description -->
+      <div class="item-card__field">
+        <app-input-text
+          [controlName]="FieldsCreateDocValue.LINE_DESCRIPTION"
+          [parentForm]="lineDetailsForm()"
+          labelText="תיאור"
+          placeholder="הזן את התיאור"
+          [size]="inputsSize.MOBILE"
+          customStyle="rounded-border transparent">
+        </app-input-text>
+      </div>
+
+      <!-- Amount + Quantity row -->
+      <div class="item-card__row">
+        <div class="item-card__field">
+          <app-input-text
+            [controlName]="FieldsCreateDocValue.SUM"
+            [parentForm]="lineDetailsForm()"
+            labelText="סכום"
+            type="number"
+            [min]="0"
+            placeholder="הזן את הסכום"
+            [size]="inputsSize.SMALL"
+            customStyle="square-border">
+          </app-input-text>
+        </div>
+
+        <div class="item-card__field item-card__field--qty">
+          <span class="field-label">כמות</span>
+          <p-inputnumber
+            [formControlName]="FieldsCreateDocValue.UNIT_AMOUNT"
+            [min]="1"
+            [showButtons]="true"
+            buttonLayout="horizontal"
+            spinnerMode="horizontal"
+            [inputStyle]="{ 'text-align': 'center' }"
+            styleClass="qty-stepper">
+            <ng-template #decrementbuttonicon>
+              <span class="pi pi-minus"></span>
+            </ng-template>
+            <ng-template #incrementbuttonicon>
+              <span class="pi pi-plus"></span>
+            </ng-template>
+          </p-inputnumber>
+        </div>
+      </div>
+
+      <!-- VAT toggle -->
+      @if (showVatOptions()) {
+        <div class="item-card__field">
+          <span class="field-label">מע"מ</span>
+          <app-segmented-control
+            [options]="vatOptions()"
+            [ariaLabel]="'מע\'\'מ'"
+            [formControlName]="FieldsCreateDocValue.VAT_OPTIONS">
+          </app-segmented-control>
+        </div>
+      }
+
+      <!-- Discount -->
+      <div class="item-card__field">
+        @if (allowPercentDiscount()) {
+          <div class="discount-row">
+            <p-selectbutton
+              [options]="discountTypeOptions"
+              [ngModel]="discountMode()"
+              (ngModelChange)="discountMode.set($event)"
+              optionLabel="label"
+              optionValue="value"
+              name="discountModeNew">
+            </p-selectbutton>
+            <app-input-text
+              [controlName]="FieldsCreateDocValue.DISCOUNT"
+              [parentForm]="lineDetailsForm()"
+              type="number"
+              [min]="0"
+              labelText="הנחה"
+              placeholder="הזן את ההנחה"
+              [size]="inputsSize.SMALL"
+              customStyle="rounded-border transparent">
+            </app-input-text>
+          </div>
+        } @else {
+          <app-input-text
+            [controlName]="FieldsCreateDocValue.DISCOUNT"
+            [parentForm]="lineDetailsForm()"
+            type="number"
+            [min]="0"
+            labelText="הנחה"
+            placeholder="הזן את ההנחה"
+            [size]="inputsSize.SMALL"
+            customStyle="rounded-border transparent">
+          </app-input-text>
+        }
+      </div>
+
+      <!-- Actions -->
+      <div class="item-card__actions">
+        <app-p-button
+          buttonText="שמור"
+          [buttonSize]="ButtonSize.X_SMALL"
+          [buttonColor]="ButtonColor.BLACK"
+          [disabled]="!lineDetailsForm().valid"
+          (onButtonClicked)="onSave()">
+        </app-p-button>
+        <app-p-button
+          buttonText="נקה"
+          [buttonSize]="ButtonSize.X_SMALL"
+          [buttonColor]="ButtonColor.WHITE_BORDER"
+          (onButtonClicked)="onClear()">
+        </app-p-button>
+      </div>
+
+    </div><!-- /New-item EDIT card -->
+  }
+
+
+  <!-- ── Saved items (summary or inline-edit of existing) ── -->
+  @for (item of items(); track item.lineNumber ?? $index; let i = $index) {
+
+    @if (isItemBeingEdited(i)) {
+      <!-- ════════ EDIT card (existing item) ════════ -->
+      <div class="item-card item-card--edit" [formGroup]="lineDetailsForm()">
+
+        <div class="item-card__title">פריט #{{ i + 1 }}</div>
+
+        <!-- Description -->
+        <div class="item-card__field">
+          <app-input-text
+            [controlName]="FieldsCreateDocValue.LINE_DESCRIPTION"
+            [parentForm]="lineDetailsForm()"
+            labelText="תיאור"
+            placeholder="הזן את התיאור"
+            [size]="inputsSize.MOBILE"
+            customStyle="rounded-border transparent">
+          </app-input-text>
+        </div>
+
+        <!-- Amount + Quantity row -->
+        <div class="item-card__row">
+          <div class="item-card__field">
+            <app-input-text
+              [controlName]="FieldsCreateDocValue.SUM"
+              [parentForm]="lineDetailsForm()"
+              type="number"
+              [min]="0"
+              labelText="סכום"
+              placeholder="הזן את הסכום"
+              [size]="inputsSize.SMALL"
+              [customStyle]="'square-border'">
+            </app-input-text>
+          </div>
+
+          <div class="item-card__field item-card__field--qty">
+            <span class="field-label">כמות</span>
+            <p-inputnumber
+              [formControlName]="FieldsCreateDocValue.UNIT_AMOUNT"
+              [min]="1"
+              [showButtons]="true"
+              buttonLayout="horizontal"
+              spinnerMode="horizontal"
+              [inputStyle]="{ 'text-align': 'center' }"
+              styleClass="qty-stepper">
+              <ng-template #decrementbuttonicon>
+                <span class="pi pi-minus"></span>
+              </ng-template>
+              <ng-template #incrementbuttonicon>
+                <span class="pi pi-plus"></span>
+              </ng-template>
+            </p-inputnumber>
+          </div>
+        </div>
+
+        <!-- VAT toggle -->
+        @if (showVatOptions()) {
+          <div class="item-card__field">
+            <span class="field-label">מע"מ</span>
+            <app-segmented-control
+              [options]="vatOptions()"
+              [ariaLabel]="'מע\'\'מ'"
+              [formControlName]="FieldsCreateDocValue.VAT_OPTIONS">
+            </app-segmented-control>
+          </div>
+        }
+
+        <!-- Discount -->
+        <div class="item-card__field">
+          @if (allowPercentDiscount()) {
+            <div class="discount-row">
+              <p-selectbutton
+                [options]="discountTypeOptions"
+                [ngModel]="discountMode()"
+                (ngModelChange)="discountMode.set($event)"
+                optionLabel="label"
+                optionValue="value"
+                name="discountModeEdit">
+              </p-selectbutton>
+              <app-input-text
+                [controlName]="FieldsCreateDocValue.DISCOUNT"
+                [parentForm]="lineDetailsForm()"
+                type="number"
+                [min]="0"
+                labelText="הנחה"
+                placeholder="הזן את ההנחה"
+                [size]="inputsSize.SMALL"
+                customStyle="square-border">
+              </app-input-text>
+            </div>
+          } @else {
+            <app-input-text
+                [controlName]="FieldsCreateDocValue.DISCOUNT"
+                [parentForm]="lineDetailsForm()"
+                type="number"
+                [min]="0"
+                labelText="הנחה"
+                placeholder="הזן את ההנחה"
+                [size]="inputsSize.SMALL"
+                customStyle="rounded-border transparent">
+              </app-input-text>
+          }
+        </div>
+
+        <!-- Actions -->
+        <div class="item-card__actions">
+          <app-p-button
+            buttonText="שמור"
+            [buttonSize]="ButtonSize.X_SMALL"
+            [buttonColor]="ButtonColor.BLACK"
+            [disabled]="!lineDetailsForm().valid"
+            (onButtonClicked)="onSave()">
+          </app-p-button>
+          <app-p-button
+            buttonText="נקה"
+            [buttonSize]="ButtonSize.X_SMALL"
+            [buttonColor]="ButtonColor.WHITE_BORDER"
+            (onButtonClicked)="onClear()">
+          </app-p-button>
+        </div>
+
+      </div><!-- /EDIT card (existing) -->
+
+    } @else {
+      <!-- ════════ SUMMARY card ════════ -->
+      <div class="item-card item-card--summary">
+
+        <div class="item-card__summary-header">
+          <span class="item-card__title">פריט #{{ i + 1 }}</span>
+          <div class="item-card__icons">
+            <app-p-button
+              [buttonColor]="ButtonColor.TRANSPARET"
+              [buttonSize]="ButtonSize.ICON"
+              [iconOnly]="true"
+              [severity]="'info'"
+              [variant]="'text'"
+              [icon]="'pi pi-pen-to-square'"
+              (onButtonClicked)="edit.emit(i)"
+              title="עריכה">
+            </app-p-button>
+            <app-p-button
+              [buttonColor]="ButtonColor.TRANSPARET"
+              [buttonSize]="ButtonSize.ICON"
+              [iconOnly]="true"
+              [severity]="'info'"
+              [variant]="'text'"
+              [icon]="'pi pi-trash'"
+              (onButtonClicked)="deleteItem.emit(i)"
+              title="מחיקה">
+            </app-p-button>
+          </div>
+        </div>
+
+        <div class="item-card__description">{{ item.description }}</div>
+
+        @if (item.vatOpts && showVatOptions()) {
+          <span class="vat-badge">{{ getVatLabel(item.vatOpts) }}</span>
+        }
+
+        <div class="item-card__summary-row">
+          <div class="summary-col">
+            <span class="summary-label">סכום</span>
+            <span class="summary-value">
+              <span class="currency-sym">₪</span>
+              {{ (item.sumBefVatPerUnit ?? item.sum ?? 0) | number:'1.2-2' }}
+            </span>
+          </div>
+          <div class="summary-col">
+            <span class="summary-label">הנחה</span>
+            <span class="summary-value">
+              <span class="currency-sym">₪</span>
+              {{ (item.discount ?? 0) | number:'1.2-2' }}
+            </span>
+          </div>
+          <div class="summary-col">
+            <span class="summary-label">כמות</span>
+            <span class="summary-value">{{ item.unitQuantity }}</span>
+          </div>
+        </div>
+
+      </div><!-- /SUMMARY card -->
+    }
+
+  }<!-- /@for -->
+
+
+  <!-- ── "Add Item" button — always at the BOTTOM, outside all cards ── -->
+  @if (showAddButton()) {
+    <div class="add-item-wrapper">
+      <app-p-button
+        buttonText="הוסף פריט"
+        icon="pi pi-plus"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        (onButtonClicked)="onAddNew()">
+      </app-p-button>
+    </div>
+  }
+
+</div><!-- /.items-mobile -->

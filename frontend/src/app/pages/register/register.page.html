@@ -24,14 +24,14 @@
               <!---------first name----->
               <app-input-text [controlName]="registerFormControls.FIRSTNAME" labelText="שם פרטי"
                 [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!--------last name------->
               <app-input-text [controlName]="registerFormControls.LASTNAME" labelText="שם משפחה"
                 [placeholder]="'כתוב כאן'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-------id number------->
               <app-input-text [controlName]="registerFormControls.ID" labelText="תעודת זהות" [placeholder]="'000000000'"
-                [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'fill-border'"
+                [parentForm]="personalForm" [size]="inputsSize.BETWEEN" [customStyle]="'rounded-border'"
                 [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-input-text>
             </div>
             <!-- Second line -->
@@ -39,14 +39,14 @@
               <!-----email ---->
               <app-input-text [controlName]="registerFormControls.EMAIL" labelText="כתובת אימייל"
                 [placeholder]="'example@gmail.com'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
               <!-----date of birth----->
               <app-input-date [controlName]="registerFormControls.DATEOFBIRTH" labelText="תאריך לידה"
                 placeholder="00/00/0000" [parentForm]="personalForm" [customStyle]="'register'"></app-input-date>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.PHONE" labelText="מספר פלאפון"
                 [placeholder]="'050-0011223'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
             </div>
             <!-- Third line -->
             <div class="section-one">
@@ -85,10 +85,10 @@
             <div class="section-one">
               <app-input-text [controlName]="registerFormControls.PASSWORD" labelText="סיסמה"
                 [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'סיסמא לא חוקית'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'סיסמא לא חוקית'"></app-input-text>
               <app-input-text [controlName]="registerFormControls.CONFIRM_PASSWORD" labelText="אימות סיסמה"
                 [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'אימות סיסמא לא תקין'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'אימות סיסמא לא תקין'"></app-input-text>
               <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית
                 ומספרים</span>
             </div>
@@ -106,29 +106,29 @@
               <!---------first name----->
               <app-input-text [controlName]="registerFormControls.SPOUSEFIRSTNAME" labelText="שם פרטי"
                 [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!--------last name------->
               <app-input-text [controlName]="registerFormControls.SPOUSELASTNAME" labelText="שם משפחה"
                 [placeholder]="'כתוב כאן'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
               <!-------id number------->
               <app-input-text [controlName]="registerFormControls.SPOUSEID" labelText="תעודת זהות"
                 [placeholder]="'000000000'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'נא הכנס מספר באורך 9 ספרות'"></app-input-text>
             </div>
             <!-- Second line -->
             <div class="section-one">
               <!-----email ---->
               <app-input-text [controlName]="registerFormControls.SPOUSEEMAIL" labelText="כתובת אימייל"
                 [placeholder]="'example@gmail.com'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'כתובת המייל אינה חוקית'"></app-input-text>
               <!-----date of birth----->
               <app-input-date [controlName]="registerFormControls.SPOUSEDATEOFBIRTH" labelText="תאריך לידה"
                 placeholder="00/00/0000" [parentForm]="spouseForm" [customStyle]="'register'"></app-input-date>
               <!----phone ----->
               <app-input-text [controlName]="registerFormControls.SPOUSEPHONE" labelText="מספר פלאפון"
                 [placeholder]="'050-0011223'" [parentForm]="spouseForm" [size]="inputsSize.BETWEEN"
-                [customStyle]="'fill-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
+                [customStyle]="'rounded-border'" [errorText]="'מספר פלאפון לא חוקי'"></app-input-text>
             </div>
             <!-- Third line -->
             <div class="section-one">
@@ -173,10 +173,10 @@
                   <div class="child-row">
                     <app-input-text [controlName]="registerFormControls.CHILD_FIRST_NAME" labelText="שם פרטי"
                       [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN"
-                      [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                      [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
                     <app-input-text [controlName]="registerFormControls.CHILD_LAST_NAME" labelText="שם משפחה"
                       [placeholder]="'כתוב כאן'" [parentForm]="getChildFormByIndex(i)" [size]="inputsSize.BETWEEN"
-                      [customStyle]="'fill-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
+                      [customStyle]="'rounded-border'" [errorText]="'אנא הכנס תווים בלבד'"></app-input-text>
                     <app-input-date [controlName]="registerFormControls.CHILD_DATE_OF_BIRTH" labelText="תאריך לידה"
                       placeholder="00/00/0000" [parentForm]="getChildFormByIndex(i)"
                       [customStyle]="'register'"></app-input-date>
@@ -214,12 +214,12 @@
                   <div class="business-row">
                     <app-input-text [controlName]="registerFormControls.BUSINESSNAME" labelText="שם העסק"
                       [placeholder]="'כתוב כאן'" [parentForm]="getBusinessFormByIndex(i)" [size]="inputsSize.BETWEEN"
-                      [customStyle]="'fill-border'">
+                      [customStyle]="'rounded-border'">
                     </app-input-text>
 
                     <app-input-text [controlName]="registerFormControls.BUSINESSNUMBER" labelText="מספר העסק"
                       [placeholder]="'כתוב כאן'" [parentForm]="getBusinessFormByIndex(i)" [size]="inputsSize.BETWEEN"
-                      [customStyle]="'fill-border'" [errorText]="'אנא הכנס מספרים בלבד'">
+                      [customStyle]="'rounded-border'" [errorText]="'אנא הכנס מספרים בלבד'">
                     </app-input-text>
 
                     <app-input-select [controlName]="registerFormControls.BUSINESSTYPE" labelText="סוג העסק"
