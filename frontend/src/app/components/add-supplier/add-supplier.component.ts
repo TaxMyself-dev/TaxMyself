@@ -1,9 +1,9 @@
-import { KeyValuePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, Validators } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { catchError, EMPTY } from 'rxjs';
+import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { FormTypes, inputsSize } from 'src/app/shared/enums';
 import { IColumnDataTable, ISelectItem, ISubCategory, ISupplier } from 'src/app/shared/interface';
 import { SupplierKeys, SupplierValues } from 'src/app/shared/types';
@@ -26,14 +26,20 @@ import { CheckboxModule } from 'primeng/checkbox';
   templateUrl: './add-supplier.component.html',
   styleUrls: ['./add-supplier.component.scss'],
   standalone: true,
-  imports: [KeyValuePipe, GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent, CheckboxModule],
+  imports: [GenericTableComponent, InputTextComponent, ReactiveFormsModule, ButtonComponent, InputSelectComponent, CheckboxModule],
   providers: [AddSupplierService]
 })
 export class AddSupplierComponent {
   addSupplierService = inject(AddSupplierService);
   messageService = inject(MessageService);
+  confirmationService = inject(ConfirmationService);
+  expenseDataService = inject(ExpenseDataService);
   dialogRef = inject(DynamicDialogRef);
   dialogConfig = inject(DynamicDialogConfig);
+
+  editMode = this.dialogConfig.data?.editMode === true;
+  supplierId: number | null = this.dialogConfig.data?.supplier?.id != null ? Number(this.dialogConfig.data.supplier.id) : null;
+  businessNumber = this.dialogConfig.data?.businessNumber ?? '';
 
   categories = signal<ISelectItem[]>(this.dialogConfig.data?.categories ?? []);
 
@@ -53,7 +59,7 @@ export class AddSupplierComponent {
   preserveOrder = () => 0;
 
   suppliersTableFields: IColumnDataTable<SupplierKeys, SupplierValues>[] = [
-    { name: 'name', value: 'שם הספק', type: FormTypes.TEXT },
+    { name: 'supplier', value: 'שם הספק', type: FormTypes.TEXT },
     { name: 'supplierID', value: 'מספר ספק', type: FormTypes.TEXT },
     { name: 'category', value: 'קטגוריה', type: FormTypes.TEXT },
     { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
@@ -65,7 +71,27 @@ export class AddSupplierComponent {
 
   constructor() {
     this.addSupplierService.setCategoryEnumValues(this.categories());
-    
+    if (this.editMode && this.dialogConfig.data?.supplier) {
+      const row = this.dialogConfig.data.supplier as any;
+      const parsePercent = (v: any): number => {
+        if (v == null || v === '') return 0;
+        if (typeof v === 'number') return v;
+        const s = String(v).replace(/%/g, '').trim();
+        const n = parseInt(s, 10);
+        return isNaN(n) ? 0 : n;
+      };
+      this.addSupplierForm.patchValue({
+        name: row.supplier ?? '',
+        supplierID: row.supplierID ?? '',
+        category: row.category ?? null,
+        subCategory: row.subCategory ?? null,
+        taxPercent: parsePercent(row.taxPercent),
+        vatPercent: parsePercent(row.vatPercent),
+        reductionPercent: parsePercent(row.reductionPercent),
+        isEquipment: row.isEquipment === 'כן' || row.isEquipment === true
+      });
+      this.addSupplierService.$selectedCategory.set(row.category ?? '');
+    }
     // Initialize isEquipmentChecked signal with form value
     this.isEquipmentChecked.set(this.addSupplierForm.get('isEquipment')?.value === true);
     
@@ -100,26 +126,22 @@ export class AddSupplierComponent {
 
   saveSupplier() {
     const raw = this.addSupplierForm.getRawValue() as Partial<ISupplier>;
-
     const supplierData = Object.entries(raw).reduce((acc, [key, value]) => {
-      // Map 'name' to 'supplier' for backend compatibility
       if (key === 'name') {
         const trimmed = typeof value === 'string' ? value.trim() : value;
         (acc as any)['supplier'] = trimmed === '' ? null : trimmed;
         return acc;
       }
-      
+      if (key === 'supplier') return acc;
       if (typeof value === 'string') {
         const trimmed = value.trim();
         (acc as any)[key] = trimmed === '' ? null : trimmed;
         return acc;
       }
-      // Ensure taxPercent is 0 if isEquipment is true
       if (key === 'taxPercent' && raw.isEquipment) {
         (acc as any)[key] = 0;
         return acc;
       }
-      // Ensure reductionPercent is 0 if isEquipment is false
       if (key === 'reductionPercent' && !raw.isEquipment) {
         (acc as any)[key] = 0;
         return acc;
@@ -128,10 +150,22 @@ export class AddSupplierComponent {
       return acc;
     }, {} as Partial<ISupplier>);
 
+    if (this.editMode && this.supplierId != null) {
+      this.confirmationService.confirm({
+        message: 'האם אתה בטוח שברצונך לעדכן את פרטי הספק?',
+        header: 'עדכון ספק',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'כן, עדכן',
+        rejectLabel: 'ביטול',
+        accept: () => this.doUpdateSupplier(supplierData),
+        reject: () => {}
+      });
+      return;
+    }
+
     this.addSupplierService.saveSupplierDetails(supplierData)
       .pipe(
         catchError((err) => {
-          console.log("err in save supplier: ", err);
           if (err.status === 409) {
             this.messageService.add({
               severity: 'error',
@@ -140,9 +174,8 @@ export class AddSupplierComponent {
               life: 3000,
               sticky: true,
               key: 'br'
-            })
-          }
-          else {
+            });
+          } else {
             this.messageService.add({
               severity: 'error',
               summary: 'Error',
@@ -150,22 +183,49 @@ export class AddSupplierComponent {
               life: 3000,
               sticky: true,
               key: 'br'
-            })
+            });
           }
           return EMPTY;
         })
       )
-      .subscribe((res) => {
-        console.log("res in save supplier: ", res);
+      .subscribe(() => {
         this.messageService.add({
           severity: 'success',
-          summary: 'Success',
-          detail: "ספק נשמר בהצלחה!",
+          summary: 'הצלחה',
+          detail: 'הספק נוסף בהצלחה',
           life: 3000,
           key: 'br'
+        });
+        this.cancel(supplierData);
+      });
+  }
+
+  private doUpdateSupplier(supplierData: Partial<ISupplier>): void {
+    if (this.supplierId == null) return;
+    const payload = { ...supplierData, businessNumber: this.businessNumber };
+    this.expenseDataService.editSupplier(payload, this.supplierId)
+      .pipe(
+        catchError((err) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'לא הצלחנו לעדכן את הספק',
+            life: 3000,
+            key: 'br'
+          });
+          return EMPTY;
         })
-        this.cancel(supplierData)
-      })
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הספק עודכן בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+        this.cancel(supplierData);
+      });
   }
 
   cancel(data?: Partial<ISupplier>) {

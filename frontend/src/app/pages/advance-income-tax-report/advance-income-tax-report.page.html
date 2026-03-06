@@ -1,5 +1,26 @@
-<!-- <app-custom-toolbar></app-custom-toolbar> -->
+<div class="advance-report-wrap-screen">
+  <div class="advance-report-header">
+    <div class="icon-title">
+      <img src="../../../assets/advance_report.svg" alt="Advance Income Tax Report" class="icon" />
+      <span class="title">דוח מקדמות מס הכנסה</span>
+    </div>
+    <p class="text-header">
+      צפייה בדוח מקדמות מס הכנסה לפי תקופה
+    </p>
+  </div>
 
-<ion-content [fullscreen]="true">
-  
-</ion-content>
+  <app-filter-tab
+    [config]="filterConfig"
+    [parentForm]="form"
+    (apply)="onSubmit($event)">
+  </app-filter-tab>
+
+  @if (reportData()) {
+    <div class="wrap-output-report">
+      <div class="output-report" *ngFor="let key of reportOrder">
+        <div class="field-report">{{ reportFieldTitles[key] }}:</div>
+        <div dir="ltr">{{ reportData()[key] ?? '' }}</div>
+      </div>
+    </div>
+  }
+</div>

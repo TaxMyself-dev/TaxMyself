@@ -13,7 +13,6 @@ import {
   ReportingPeriodType
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
-import { DateService } from 'src/app/services/date.service';
 import { FilesService } from 'src/app/services/files.service';
 import { DocTypeDisplayName, DocumentType } from '../../doc-create/doc-cerate.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
@@ -34,7 +33,6 @@ export class IncomesPage implements OnInit {
   // ===========================
   private gs = inject(GenericService);
   private authService = inject(AuthService);
-  private dateService = inject(DateService);
   private documentsService = inject(DocumentsService);
   private filesService = inject(FilesService);
   private confirmationService = inject(ConfirmationService);
@@ -130,8 +128,7 @@ export class IncomesPage implements OnInit {
       this.fetchDocuments(this.selectedBusinessNumber());
     });
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
 
     this.filterConfig = [
       {
@@ -147,9 +144,7 @@ export class IncomesPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
-        periodDefaults: {
-          year: currentYear,
-        }
+        periodDefaults: this.gs.getDefaultPeriodConfig({ year: currentYear })
       },
       {
         type: 'select',
@@ -172,25 +167,13 @@ export class IncomesPage implements OnInit {
   // Handle filter submit
   // ===========================
   onSubmit(formValues: any): void {
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
-    console.log("Submitted filter:", formValues);
-
-    this.selectedBusinessNumber.set(formValues.businessNumber);
-
-    const docType = formValues.docType;
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      formValues.periodMode,
-      formValues.year,
-      formValues.month,
-      formValues.startDate,
-      formValues.endDate
-    );
-
+    this.selectedBusinessNumber.set(effectiveBusiness);
     this.startDate = startDate;
     this.endDate = endDate;
-
-    this.fetchDocuments(this.selectedBusinessNumber(), startDate, endDate, docType);
+    this.fetchDocuments(effectiveBusiness, startDate, endDate, formValues.docType);
   }
 
 

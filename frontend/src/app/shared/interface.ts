@@ -98,6 +98,18 @@ export interface IVatReportData {
     vatRate: string | number;
 }
 
+export interface IAdvanceIncomeTaxReportData {
+    businessType: string;
+    vatableTurnover: string | number;
+    nonVatableTurnover: string | number;
+    vatOnTurnover: string | number;
+    totalIncome: string | number;
+    advanceTaxPercent: string | number;
+    totalAdvanceTax: string | number;
+    taxWithholdingAtSource: string | number;
+    totalToPay: string | number;
+}
+
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
     name: TFormColumns;
     value: TFormHebrewColumns;
@@ -455,6 +467,8 @@ export interface Business {
     businessDate: string | null;
     vatReportingType: VATReportingType | null;
     taxReportingType: TaxReportingType | null;
+    /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
+    advanceTaxPercent: number | null;
     //   bankBeneficiary: string | null;
     //   bankName: string | null;
     //   bankBranch: string | null;

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './business.entity';
 import { Repository } from 'typeorm';
@@ -37,6 +37,23 @@ export class BusinessService {
     }
     
     return await this.businessRepo.findOne({ where });
+  }
+
+  async updateBusiness(
+    firebaseId: string,
+    businessNumber: string,
+    dto: { advanceTaxPercent?: number },
+  ): Promise<Business> {
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    if (!business) {
+      throw new NotFoundException('Business not found or not owned by user');
+    }
+    if (dto.advanceTaxPercent !== undefined) {
+      business.advanceTaxPercent = dto.advanceTaxPercent;
+    }
+    return this.businessRepo.save(business);
   }
 
 }

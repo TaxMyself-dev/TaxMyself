@@ -62,6 +62,10 @@ export class Business {
   })
   taxReportingType: TaxReportingType | null;
 
+  /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, default: null })
+  advanceTaxPercent: number | null;
+
   // SHAAM OAuth tokens (encrypted with AES-256)
   @Column({ type: 'varchar', nullable: true, default: null })
   shaamAccessToken: string | null;

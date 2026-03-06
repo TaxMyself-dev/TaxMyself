@@ -78,7 +78,22 @@ export class ExpensesController {
       const end = this.sharedService.convertStringToDateObject(query.endDate);
       endDate = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999));
     }
-    return await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
+
+    // לוג: ערכים שמגיעים מהפרונט
+    console.log('[get_by_userID] בקשה מהפרונט:', {
+      queryRaw: { startDate: query.startDate, endDate: query.endDate, businessNumber: query.businessNumber, pagination: query.pagination },
+      firebaseId: firebaseId ?? '(חסר)',
+      startDate: startDate?.toISOString?.() ?? '(לא הוגדר)',
+      endDate: endDate?.toISOString?.() ?? '(לא הוגדר)',
+      businessNumber: query.businessNumber ?? '(ריק/לא נשלח)',
+    });
+
+    const result = await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
+
+    // לוג: הוצאות שהתקבלו
+    console.log('[get_by_userID] הוצאות שהתקבלו:', result.length, 'פריטים. ids:', result.map((e) => e.id).join(', ') || '(אין)');
+
+    return result;
   }
 
 
@@ -89,8 +104,17 @@ export class ExpensesController {
     @Query() query: any,
   ) {
     const firebaseId = request.user?.firebaseId;
+    console.log('[get-expenses-for-vat-report] תאריכים שהתקבלו מהפרונט (query):', {
+      startDate: query?.startDate,
+      endDate: query?.endDate,
+      businessNumber: query?.businessNumber,
+    });
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
+    console.log('[get-expenses-for-vat-report] תאריכים אחרי המרה:', {
+      startDate: startDate?.toISOString?.(),
+      endDate: endDate?.toISOString?.(),
+    });
     return await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
   }
 

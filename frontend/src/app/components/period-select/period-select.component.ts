@@ -114,7 +114,10 @@ export class PeriodSelectComponent {
     // Add controls based on selected mode with default values
     if (mode === ReportingPeriodType.MONTHLY || mode === ReportingPeriodType.BIMONTHLY) {
       form.addControl('year', this.fb.control(defaults?.year ?? null, Validators.required));
-      const monthDefault = this.getDefaultMonthForMode(mode, defaults?.month);
+      const monthForDefault = mode === ReportingPeriodType.BIMONTHLY && defaults?.bimonthlyDefaultMonth != null
+        ? defaults.bimonthlyDefaultMonth
+        : defaults?.month;
+      const monthDefault = this.getDefaultMonthForMode(mode, monthForDefault);
       form.addControl('month', this.fb.control(monthDefault, Validators.required));
     } else if (mode === ReportingPeriodType.ANNUAL) {
       form.addControl('year', this.fb.control(defaults?.year || null, Validators.required));

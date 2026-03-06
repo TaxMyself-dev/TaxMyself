@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Clients } from "./clients.entity";
 import { Repository } from "typeorm";
 import { CreateClientDto } from "./create-client.dto";
-import { User } from "src/users/user.entity";
+import { UpdateClientDto } from "./update-client.dto";
 
 @Injectable()
 export class ClientsService {
@@ -47,6 +47,19 @@ export class ClientsService {
 
     }
     catch (error) {
+      throw error;
+    }
+  }
+
+  async updateClient(userId: string, clientRowId: number, updateClientDto: UpdateClientDto) {
+    try {
+      const client = await this.clientsRepo.findOne({ where: { userId, clientRowId } });
+      if (!client) {
+        throw new NotFoundException('Client not found');
+      }
+      Object.assign(client, updateClientDto);
+      return await this.clientsRepo.save(client);
+    } catch (error) {
       throw error;
     }
   }

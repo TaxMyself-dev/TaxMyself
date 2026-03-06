@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, OnDestroy, signal } from "@angular/core";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
-import { DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
+import { DynamicDialogConfig, DialogService, DynamicDialogRef } from "primeng/dynamicdialog";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { FilesService } from "src/app/services/files.service";
 import { GenericService } from "src/app/services/generic.service";
@@ -531,7 +531,12 @@ export class MannualExpenseComponent implements OnDestroy {
     authService = inject(AuthService);
     dialogService = inject(DialogService);
     dialogRef = inject(DynamicDialogRef);
+    dialogConfig = inject(DynamicDialogConfig);
     fileService = inject(FilesService);
+
+    editMode = false;
+    expenseId: number | null = null;
+    existingFilePath: string | null = null;
     genericService = inject(GenericService);
     messageService = inject(MessageService);
     expenseDataService = inject(ExpenseDataService);
@@ -691,6 +696,67 @@ export class MannualExpenseComponent implements OnDestroy {
                 this.authService.setActiveBusinessNumber(businessNumber);
             }
         });
+
+        // Edit mode: prefill form from expense row (when opened from expenses table)
+        const data = this.dialogConfig.data as { editMode?: boolean; expense?: any } | undefined;
+        if (data?.editMode && data?.expense) {
+            const row = data.expense;
+            this.editMode = true;
+            this.expenseId = row.id != null ? Number(row.id) : null;
+            this.existingFilePath = (row.file && row.file !== '') ? row.file : null;
+            const sumVal = this.parseSumFromDisplay(row.sum);
+            const taxVal = this.parsePercentFromDisplay(row.taxPercent);
+            const vatVal = this.parsePercentFromDisplay(row.vatPercent);
+            const dateDisplay = this.apiDateToDisplay(row.date);
+            this.mannualExpenseForm.patchValue({
+                businessNumber: row.businessNumber ?? this.mannualExpenseService.$selectedBusinessNumber(),
+                date: dateDisplay ?? '',
+                sum: sumVal != null ? String(sumVal) : '',
+                supplier: row.supplier ?? '',
+                supplierId: row.supplierID ?? row.supplierId ?? '',
+                expenseNumber: row.expenseNumber ?? '',
+                isEquipment: row.isEquipment === true || row.isEquipment === 'כן' || row.isEquipment === '1',
+                category: row.category ?? null,
+                subCategory: row.subCategory ?? null,
+                vatPercent: vatVal ?? 0,
+                taxPercent: taxVal ?? 0,
+                reductionPercent: this.parsePercentFromDisplay(row.reductionPercent) ?? 0,
+                note: row.note ?? ''
+            }, { emitEvent: false });
+            this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
+            if (row.category) {
+                this.getSubCategory(row.category, true);
+            }
+        }
+    }
+
+    /** Parse display sum like "1,234 ש"ח" to number */
+    private parseSumFromDisplay(v: any): number | null {
+        if (v == null || v === '') return null;
+        if (typeof v === 'number') return v;
+        const s = String(v).replace(/\s*ש"ח\s*/g, '').replace(/,/g, '').trim();
+        const n = parseFloat(s);
+        return isNaN(n) ? null : n;
+    }
+
+    /** Parse display percent like "100%" to number */
+    private parsePercentFromDisplay(v: any): number | null {
+        if (v == null || v === '') return null;
+        if (typeof v === 'number') return v;
+        const s = String(v).replace(/%/g, '').trim();
+        const n = parseInt(s, 10);
+        return isNaN(n) ? null : n;
+    }
+
+    /** Convert API date (yyyy-mm-dd) to display (dd-mm-yy) */
+    private apiDateToDisplay(apiDate: string | null | undefined): string | null {
+        if (apiDate == null || apiDate === '') return null;
+        const s = String(apiDate).trim();
+        const parts = s.split(/[-/]/);
+        if (parts.length !== 3) return null;
+        const [y, m, d] = parts;
+        const yearShort = y!.length === 4 ? y!.slice(-2) : y;
+        return `${d!.padStart(2, '0')}-${m!.padStart(2, '0')}-${yearShort}`;
     }
 
     /**
@@ -781,25 +847,34 @@ export class MannualExpenseComponent implements OnDestroy {
 
         this.isLoadingAddExpense.set(true);
         let uploadedPath: string | null = null;
+        const hasNewFile = this.files().length > 0;
+        const filePath$ = this.editMode && !hasNewFile
+            ? of(this.existingFilePath)
+            : this.uploadFileToFirebase();
 
-        this.uploadFileToFirebase()
+        filePath$
             .pipe(
                 tap((filePath) => {
-                    if (filePath) {
-                        uploadedPath = filePath;
-                    }
+                    if (filePath) uploadedPath = filePath;
                 }),
                 switchMap((filePath) => {
                     const payload = this.buildExpensePayload(filePath);
+                    if (this.editMode && this.expenseId != null) {
+                        return this.expenseDataService.updateExpenseData(payload, this.expenseId);
+                    }
                     return this.expenseDataService.addExpenseData(payload);
                 }),
                 catchError((error) => this.handleAddExpenseError(error, uploadedPath)),
                 finalize(() => this.isLoadingAddExpense.set(false))
             )
-            .subscribe(() => {
-                this.showToast({ severity: "success", summary: "Success", detail: "ההוצאה נשמרה בהצלחה", sticky: false });
-                // this.resetFormAfterSubmit();
-                this.dialogRef.close();
+            .subscribe((res) => {
+                this.dialogRef.close(res);
+                this.showToast({
+                    severity: "success",
+                    summary: "הצלחה",
+                    detail: this.editMode ? "ההוצאה עודכנה בהצלחה" : "ההוצאה נשמרה בהצלחה",
+                    sticky: false
+                });
             });
     }
 
@@ -1005,8 +1080,9 @@ export class MannualExpenseComponent implements OnDestroy {
 
         this.dialogRef = this.dialogService.open(AddSupplierComponent, {
             header: 'הוספת ספק חדש',
-            width: '480px',
+            width: 'min(1100px, 95vw)',
             style: { maxWidth: '95vw' },
+            contentStyle: { minHeight: '400px', overflow: 'visible' },
             rtl: true,
             closable: true,
             dismissableMask: true,
