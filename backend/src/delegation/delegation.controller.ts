@@ -1,11 +1,24 @@
-import { Controller, Post, Delete, Get, Body, Req, Headers, UseGuards, Query, UnauthorizedException, Param } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Headers,
+  UseGuards,
+  Query,
+  Param,
+  Req,
+  HttpCode,
+  HttpStatus,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DelegationService } from './delegation.service';
 import { UsersService } from 'src/users/users.service';
-import * as jwt from 'jsonwebtoken';
-//import { AuthGuard } from '@nestjs/passport'; // Replace with your authentication guard
+import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { CreateClientByAccountantDto } from './dtos/create-client-by-accountant.dto';
 
 @Controller('delegations')
-//@UseGuards(AuthGuard('jwt')) // Apply authentication guard
 export class DelegationController {
   constructor(
     private readonly delegationService: DelegationService,
@@ -41,13 +54,34 @@ export class DelegationController {
 
   @Get('users-for-agent/:agentId')
   async getUsersForAgent(@Param('agentId') agentId: string): Promise<any> {
-    
     const users = await this.delegationService.getUsersForAgent(agentId);
     return users;
-    
   }
 
+  /**
+   * Create a new client by an accountant (רואה חשבון).
+   * Requires: Bearer token, user must have role ACCOUNTANT.
+   * Creates Firebase user (email + password = "KE" + phone), User in DB, and Delegation.
+   */
+  @Post('create-client')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createClient(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateClientByAccountantDto,
+  ): Promise<{ firebaseId: string; fullName: string }> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) {
+      throw new ForbiddenException('לא אותחל משתמש');
+    }
 
+    const isAccountant = await this.usersService.isAccountant(firebaseId);
+    if (!isAccountant) {
+      throw new ForbiddenException('גישה מותרת רק לרואה חשבון');
+    }
+
+    return this.delegationService.createClientByAccountant(firebaseId, dto);
+  }
 
   /**
    * Grant permission to a delegate

@@ -133,10 +133,17 @@ ion-item.selected {
   overflow:hidden;
 }
 
-/* Critical: routed element directly under .app-content */
-.app-content > * {
-  display:flex;
-  flex-direction:column;
-  flex:1 1 auto;
-  min-height:0;
+/* router-outlet לא תופס מקום – הקומפוננטה המוצגת היא האחות שלו */
+.app-content > router-outlet {
+  flex: 0 0 0;
+  overflow: hidden;
+  display: block;
+}
+
+/* רק הקומפוננטה המודרת (אחות ל-router-outlet) תופסת את השטח */
+.app-content > *:not(router-outlet) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }

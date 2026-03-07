@@ -1,22 +1,41 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  ConflictException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Delegation } from './delegation.entity';
+import * as admin from 'firebase-admin';
+import * as jwt from 'jsonwebtoken';
+import { Delegation, DelegationStatus } from './delegation.entity';
 import { User } from 'src/users/user.entity';
 import { MailService } from 'src/mail/mail.service';
-import * as jwt from 'jsonwebtoken';
-import { log } from 'node:console';
-
+import { CreateClientByAccountantDto } from './dtos/create-client-by-accountant.dto';
+import {
+  UserRole,
+  Gender,
+  FamilyStatus,
+  EmploymentType,
+  PayStatus,
+  ModuleName,
+  BusinessStatus,
+} from '../enum';
 
 @Injectable()
 export class DelegationService {
+  private readonly firebaseAuth: admin.auth.Auth;
+
   constructor(
     @InjectRepository(Delegation)
     private readonly delegationRepository: Repository<Delegation>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly mailService: MailService,
-  ) {}
+  ) {
+    this.firebaseAuth = admin.auth();
+  }
 
 
   async handleInvitation(email: string, agentId: string): Promise<any> {
@@ -132,5 +151,91 @@ export class DelegationService {
     }));
   }
 
+  /**
+   * Create a new client by an accountant (רואה חשבון).
+   * Creates: Firebase user (email + password = "KE" + phone), User in DB, Delegation record.
+   * Ensures client does not already exist (by email).
+   */
+  async createClientByAccountant(
+    accountantFirebaseId: string,
+    dto: CreateClientByAccountantDto,
+  ): Promise<{ firebaseId: string; fullName: string }> {
+    // 1. Ensure client does not already exist (by email)
+    const existingUser = await this.userRepository.findOne({
+      where: { email: dto.email.trim().toLowerCase() },
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        `לקוח עם אימייל זה כבר קיים במערכת`,
+      );
+    }
 
+    const password = `KE${dto.phone.replace(/\D/g, '')}`;
+    const displayName =
+      dto.fName && dto.lName
+        ? `${dto.fName.trim()} ${dto.lName.trim()}`
+        : dto.email;
+
+    let firebaseUser: admin.auth.UserRecord;
+
+    // 2. Create Firebase user with email and password = "KE" + phone
+    try {
+      firebaseUser = await this.firebaseAuth.createUser({
+        email: dto.email.trim(),
+        password,
+        displayName,
+        emailVerified: false,
+      });
+    } catch (error: any) {
+      if (error?.code === 'auth/email-already-exists') {
+        throw new ConflictException(
+          `לקוח עם אימייל זה כבר קיים במערכת`,
+        );
+      }
+      throw new InternalServerErrorException(
+        `יצירת משתמש בפיירבייס נכשלה: ${error?.message || error}`,
+      );
+    }
+
+    const firebaseId = firebaseUser.uid;
+
+    // 3. Create User in DB
+    const newUser = this.userRepository.create({
+      firebaseId,
+      email: dto.email.trim(),
+      phone: dto.phone?.trim() ?? '',
+      fName: dto.fName?.trim() ?? '',
+      lName: dto.lName?.trim() ?? '',
+      id: dto.id?.trim() ?? '',
+      finsiteId: null,
+      gender: Gender.MALE,
+      dateOfBirth: new Date(),
+      city: '',
+      employmentStatus: EmploymentType.SELF_EMPLOYED,
+      familyStatus: FamilyStatus.SINGLE,
+      role: [UserRole.REGULAR],
+      businessStatus: BusinessStatus.NO_BUSINESS,
+      payStatus: PayStatus.TRIAL,
+      modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
+      createdAt: new Date(),
+      subscriptionEndDate: new Date(),
+    });
+    newUser.subscriptionEndDate.setMonth(
+      newUser.subscriptionEndDate.getMonth() + 2,
+    );
+    await this.userRepository.save(newUser);
+
+    // 4. Create Delegation (accountant -> client)
+    const delegation = this.delegationRepository.create({
+      userId: firebaseId,
+      agentId: accountantFirebaseId,
+      externalCustomerId: null,
+      status: DelegationStatus.ACTIVE,
+      scopes: ['DOCUMENTS_READ', 'DOCUMENTS_WRITE'],
+    });
+    await this.delegationRepository.save(delegation);
+
+    const fullName = `${newUser.fName} ${newUser.lName}`.trim() || dto.email;
+    return { firebaseId, fullName };
+  }
 }

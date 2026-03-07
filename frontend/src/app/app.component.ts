@@ -91,10 +91,19 @@ export class AppComponent implements OnInit {
 
   hideTopNav(): void {
     this.router.events.pipe(
-      filter(e => e instanceof NavigationEnd)
+      filter(e => e instanceof NavigationEnd),
+      takeUntil(this.destroy$)
     ).subscribe((e: NavigationEnd) => {
       const url = e.urlAfterRedirects || e.url;
       this.showTopNav.set(!(['/login', '/register'].includes(url)));
+      // עדכון תפריט (כולל משרד לרואה חשבון) בכל ניווט – כך שהטאב יופיע גם אחרי כניסה מהדף לוגין
+      const userFromStorage = this.authService.getUserDataFromLocalStorage();
+      console.log('[משרד] NavigationEnd – userFromStorage:', userFromStorage ? { role: userFromStorage.role, email: userFromStorage.email } : null);
+      if (userFromStorage) {
+        this.userData = userFromStorage;
+        this.updateAdminMenuItems();
+        this.getRoleUser();
+      }
     });
   }
 
@@ -124,9 +133,9 @@ export class AppComponent implements OnInit {
   }
 
   getRoleUser(): void {
-
     this.isUserAdmin = this.userData?.role?.includes('ADMIN') || false;
     this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
+    console.log('[משרד] getRoleUser – isAccountant:', this.isAccountant, 'role:', this.userData?.role);
 
     // if (this.userData?.role === 'ADMIN') {
     //   this.isUserAdmin = true;
@@ -192,7 +201,7 @@ export class AppComponent implements OnInit {
 
   async restoreSessionAfterRefresh() {
     const userData = this.authService.getUserDataFromLocalStorage();
-    
+    console.log('[משרד] restoreSessionAfterRefresh – userData:', userData ? { role: userData.role, email: userData.email } : null);
     if (userData) {
       this.userData = userData;
       // Update admin menu items after userData is set
@@ -202,15 +211,27 @@ export class AppComponent implements OnInit {
   }
 
   updateAdminMenuItems(): void {
-    // Remove existing admin panel menu item if it exists
-    this.menuItems = this.menuItems.filter(item => item.label !== 'פאנל ניהול');
-    
-    // Check if user is admin and add menu item
-    if (this.userData?.role && (this.userData.role[0] === 'ADMIN' || this.userData.role.includes('ADMIN'))) {
-      const panelExist = this.menuItems.some(item => item.label === 'פאנל ניהול');
-      if (!panelExist) {
+    const role = this.userData?.role;
+    console.log('[משרד] updateAdminMenuItems – userData.role:', role, 'type:', typeof role, 'includes ACCOUNTANT:', role != null && (Array.isArray(role) ? role.includes('ACCOUNTANT') : String(role).includes('ACCOUNTANT')));
+
+    // Remove role-based items so we can re-add according to current user
+    this.menuItems = this.menuItems.filter(
+      (item) => item.label !== 'פאנל ניהול' && item.label !== 'משרד',
+    );
+
+    if (role && (role[0] === 'ADMIN' || role.includes('ADMIN'))) {
+      if (!this.menuItems.some((item) => item.label === 'פאנל ניהול')) {
         this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
       }
+    }
+    // טאב משרד לרואה חשבון – הלקוחות שלי + הקמת לקוח
+    if (role?.includes('ACCOUNTANT')) {
+      if (!this.menuItems.some((item) => item.label === 'משרד')) {
+        this.menuItems.push({ label: 'משרד', routerLink: '/client-panel' });
+      }
+      console.log('[משרד] הוספת טאב משרד – menuItems אחרי עדכון:', this.menuItems.map((m) => m.label));
+    } else {
+      console.log('[משרד] לא הוספנו משרד – role לא מכיל ACCOUNTANT. תפריט סופי:', this.menuItems.map((m) => m.label));
     }
   }
 
