@@ -1,0 +1,248 @@
+<div class="payments-mobile" dir="rtl">
+
+  <!-- ── New / Edit payment card — always at the top ── -->
+  @if (showForm()) {
+    <div #newPaymentCard class="payment-card payment-card--edit">
+
+      <div class="payment-card__title">תשלום #{{ paymentNumber() }}</div>
+
+      <!-- Payment method selector -->
+      <div class="payment-card__field">
+        <span class="field-label">אמצעי תשלום</span>
+        <app-segmented-control
+          [options]="methodOptions"
+          [ariaLabel]="'אמצעי תשלום'"
+          [ngModel]="activeMethodId()"
+          (valueChange)="onMethodChange($event)">
+        </app-segmented-control>
+      </div>
+
+      <!-- Dynamic fields for the selected payment method -->
+      @for (field of paymentFields(); track field.value) {
+        <div class="payment-card__field">
+          @switch (field.type) {
+
+            @case (FormTypes.DATE) {
+              <app-input-date
+                [controlName]="field.value"
+                [labelText]="field.labelText"
+                [placeholder]="field.placeHolder"
+                [parentForm]="paymentForm()"
+                [size]="inputsSize.MOBILE">
+              </app-input-date>
+            }
+
+            @case (FormTypes.DDL) {
+              <app-input-select
+                [controlName]="field.value"
+                [labelText]="field.labelText"
+                [placeholder]="field.placeHolder"
+                [items]="field.enumValues"
+                [parentForm]="paymentForm()"
+                [size]="inputsSize.MOBILE">
+              </app-input-select>
+            }
+
+            @default {
+              <app-input-text
+                [controlName]="field.value"
+                [labelText]="field.labelText"
+                [placeholder]="field.placeHolder"
+                [parentForm]="paymentForm()"
+                [type]="field.type === FormTypes.NUMBER ? 'number' : 'text'"
+                [size]="inputsSize.MOBILE"
+                customStyle="rounded-border transparent">
+              </app-input-text>
+            }
+
+          }
+        </div>
+      }
+
+      <!-- Actions -->
+      <div class="payment-card__actions">
+        <app-p-button
+          buttonText="שמור"
+          [buttonSize]="ButtonSize.X_SMALL"
+          [buttonColor]="ButtonColor.BLACK"
+          [disabled]="!paymentForm().valid"
+          (onButtonClicked)="onSave()">
+        </app-p-button>
+        <app-p-button
+          buttonText="נקה"
+          [buttonSize]="ButtonSize.X_SMALL"
+          [buttonColor]="ButtonColor.WHITE_BORDER"
+          (onButtonClicked)="onClear()">
+        </app-p-button>
+      </div>
+
+    </div><!-- /New payment card -->
+  }
+
+
+  <!-- ── Saved payment cards ── -->
+  @for (payment of paymentsDraft(); track payment.paymentLineNumber ?? $index; let i = $index) {
+
+    @if (editingIndex() === i && editForm()) {
+      <!-- ── Edit card (inline) ── -->
+      <div class="payment-card payment-card--edit">
+
+        <div class="payment-card__summary-header">
+          <span class="payment-card__title">עריכת תשלום #{{ i + 1 }}</span>
+          <div class="payment-card__icons">
+            <app-p-button
+              [buttonColor]="ButtonColor.TRANSPARET"
+              [buttonSize]="ButtonSize.ICON"
+              [iconOnly]="true"
+              [severity]="'info'"
+              [variant]="'text'"
+              [icon]="'pi pi-trash'"
+              (onButtonClicked)="onDeleteRequest(i)"
+              title="מחיקה">
+            </app-p-button>
+          </div>
+        </div>
+
+        <!-- Payment method selector -->
+        <div class="payment-card__field">
+          <span class="field-label">אמצעי תשלום</span>
+          <app-segmented-control
+            [options]="methodOptions"
+            [ariaLabel]="'אמצעי תשלום'"
+            [ngModel]="editingMethod()"
+            (valueChange)="onEditMethodChange($event)">
+          </app-segmented-control>
+        </div>
+
+        <!-- Dynamic fields for the editing payment method -->
+        @for (field of editFormFields(); track field.value) {
+          <div class="payment-card__field">
+            @switch (field.type) {
+
+              @case (FormTypes.DATE) {
+                <app-input-date
+                  [controlName]="field.value"
+                  [labelText]="field.labelText"
+                  [placeholder]="field.placeHolder"
+                  [parentForm]="editForm()!"
+                  [size]="inputsSize.MOBILE">
+                </app-input-date>
+              }
+
+              @case (FormTypes.DDL) {
+                <app-input-select
+                  [controlName]="field.value"
+                  [labelText]="field.labelText"
+                  [placeholder]="field.placeHolder"
+                  [items]="field.enumValues"
+                  [parentForm]="editForm()!"
+                  [size]="inputsSize.MOBILE">
+                </app-input-select>
+              }
+
+              @default {
+                <app-input-text
+                  [controlName]="field.value"
+                  [labelText]="field.labelText"
+                  [placeholder]="field.placeHolder"
+                  [parentForm]="editForm()!"
+                  [type]="field.type === FormTypes.NUMBER ? 'number' : 'text'"
+                  [size]="inputsSize.MOBILE"
+                  customStyle="rounded-border transparent">
+                </app-input-text>
+              }
+
+            }
+          </div>
+        }
+
+        <!-- Actions -->
+        <div class="payment-card__actions">
+          <app-p-button
+            buttonText="שמור"
+            [buttonSize]="ButtonSize.X_SMALL"
+            [buttonColor]="ButtonColor.BLACK"
+            [disabled]="!editForm()!.valid"
+            (onButtonClicked)="onSaveEdit()">
+          </app-p-button>
+          <app-p-button
+            buttonText="נקה"
+            [buttonSize]="ButtonSize.X_SMALL"
+            [buttonColor]="ButtonColor.WHITE_BORDER"
+            (onButtonClicked)="onClearEdit()">
+          </app-p-button>
+        </div>
+
+      </div><!-- /Edit card -->
+
+    } @else {
+      <!-- ── Summary card ── -->
+      <div #summaryCard class="payment-card payment-card--summary">
+
+        <div class="payment-card__summary-header">
+          <span class="payment-card__title">תשלום #{{ i + 1 }}</span>
+          <div class="payment-card__icons">
+            <app-p-button
+              [buttonColor]="ButtonColor.TRANSPARET"
+              [buttonSize]="ButtonSize.ICON"
+              [iconOnly]="true"
+              [severity]="'info'"
+              [variant]="'text'"
+              [icon]="'pi pi-pen-to-square'"
+              (onButtonClicked)="startEdit(i)"
+              title="עריכה">
+            </app-p-button>
+            <app-p-button
+              [buttonColor]="ButtonColor.TRANSPARET"
+              [buttonSize]="ButtonSize.ICON"
+              [iconOnly]="true"
+              [severity]="'info'"
+              [variant]="'text'"
+              [icon]="'pi pi-trash'"
+              (onButtonClicked)="onDeleteRequest(i)"
+              title="מחיקה">
+            </app-p-button>
+          </div>
+        </div>
+
+        <!-- Payment method as description -->
+        <div class="payment-card__description">{{ getMethodLabel(payment.paymentMethod) }}</div>
+
+        <!-- Field values -->
+        <div class="payment-card__summary-rows">
+          @for (field of getFieldsForMethod(payment.paymentMethod); track field.value) {
+            <div class="summary-row">
+              <span class="summary-label">{{ field.labelText }}</span>
+              <span class="summary-value">
+                @if (field.value === 'paymentSum') {
+                  <span dir="ltr">₪{{ (payment[field.value] ?? 0) | number:'1.2-2' }}</span>
+                } @else if (field.type === FormTypes.DATE) {
+                  {{ payment[field.value] | date:'dd/MM/yyyy' }}
+                } @else {
+                  {{ getDisplayValue(payment, field) }}
+                }
+              </span>
+            </div>
+          }
+        </div>
+
+      </div><!-- /Summary card -->
+    }
+
+  }
+
+
+  <!-- ── "Add Payment" button — shown after first payment is saved ── -->
+  @if (showAddButton()) {
+    <div class="add-payment-wrapper">
+      <app-p-button
+        buttonText="הוסף תשלום"
+        icon="pi pi-plus"
+        [buttonColor]="ButtonColor.BLACK"
+        [buttonSize]="ButtonSize.AUTO"
+        (onButtonClicked)="onAddNew()">
+      </app-p-button>
+    </div>
+  }
+
+</div><!-- /.payments-mobile -->

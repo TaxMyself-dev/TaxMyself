@@ -1,7 +1,7 @@
 :host {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  // min-height: 100vh;
   width: 100%;
   align-items: center;
   overflow: scroll;
@@ -18,8 +18,8 @@ p.block-title {
   /* space from edges */
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  // gap: 60px;           /* space between blocks */
+  justify-content: flex-start;
+  row-gap: 70px;
   // border: solid 1px red;
 }
 
@@ -69,6 +69,7 @@ p.block-title {
 .cards-container {
   display: flex;
   justify-content: space-between;
+  padding-bottom: 30px;
   // gap: 20px;
   //border-color: #EBEBEB;
 }
@@ -82,6 +83,7 @@ p.block-title {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
 }
 
 .avatar-style {
@@ -108,5 +110,330 @@ p.block-title {
 
   .block-title {
     color: #fff;
+  }
+}
+
+// ─── Open Banking CTA Banner (Figma: 2520:53911) ─────────────────────────────
+// Rectangle 117 (2520:53914): base fill #d9ef70, border-radius 10px
+// Rectangle 118 (2520:53915): organic blob overlay (lighter shade of base)
+// Vectors (2520:53916/53917): large organic shapes, approximated via ::before/::after
+
+.banking-banner {
+  position: relative;
+  overflow: hidden;
+  background-color: #d9ef70;   
+  border-radius: 10px;          
+  padding: 30px 30px 19px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  direction: rtl;
+  text-align: right;
+  height: 233px;              
+  flex-shrink: 0;               
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.banking-banner__blob {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+}
+
+.banking-banner__blob--left {
+  left: -151px;
+  top: -40px;
+  width: 336px;
+  height: 294px;
+}
+
+.banking-banner__blob--right {
+  left: 252px;
+  top: -8px;
+  width: 278px;
+  height: 244px;
+}
+
+.banking-banner__text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 268px;
+}
+
+@media (min-width: 769px) {
+
+  .banking-banner {
+    flex-direction: row;          
+    align-items: center;
+    justify-content: space-between;
+    min-height: unset;
+    height: 101px;               
+    padding: 20px 50px;          
+  }
+
+  .banking-banner__text {
+    max-width: none;             
+    flex: 1;                     
+    gap: 1px;                    
+  }
+
+  .banking-banner__blob--left {
+    left: -611px;
+    top: -105px;
+    width: 1278px;
+    height: 568px;
+  }
+
+  .banking-banner__blob--right {
+    left: 1179px;
+    top: -33px;
+    width: 624px;
+    height: 277px;
+  }
+}
+
+.banking-banner__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #204f56;
+  margin: 0;
+  line-height: normal;
+}
+
+.banking-banner__body {
+  font-size: 16px;
+  font-weight: 400;
+  color: #204f56;
+  margin: 0;
+  line-height: normal;
+}
+
+
+.mobile-header,
+.mobile-menu-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+
+  :host {
+    overflow-x: hidden;
+  }
+
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    direction: rtl;
+    height: 67px;
+    padding: 0 16px;
+    border-bottom: 1px solid #ebebeb;
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+  }
+
+  .mobile-header__start {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mobile-header__hamburger {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+
+    span {
+      display: block;
+      width: 28px;
+      height: 2px;
+      background-color: #363636;
+      border-radius: 2px;
+    }
+  }
+
+  .mobile-header__bell {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    font-size: 20px;
+    color: #363636;
+  }
+
+  .mobile-header__logo {
+    font-size: 16px;
+    font-weight: 700;
+    color: #204f56;
+    letter-spacing: 1px;
+  }
+
+  .mobile-menu-overlay {
+    display: block;
+    position: fixed;
+    inset: 0; 
+    z-index: 300;
+    background: transparent;
+    pointer-events: none;
+    transition: background 300ms ease;
+
+    &.mobile-menu--open {
+      background: rgba(0, 0, 0, 0.4);
+      pointer-events: auto;
+    }
+  }
+
+  .mobile-menu-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 229px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    padding: 30px 20px;
+    gap: 16px;
+    transform: translateX(100%);
+    transition: transform 300ms ease;
+    box-shadow: -4px 0 14px rgba(0, 0, 0, 0.15);
+    overflow-y: auto;
+
+    .mobile-menu--open & {
+      transform: translateX(0);
+    }
+  }
+
+  .mobile-menu-panel__top {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mobile-menu-panel__close {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    color: #363636;
+    padding: 0;
+  }
+
+  .mobile-menu-panel__user {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    direction: rtl;
+  }
+
+  .mobile-menu-panel__user-text {
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+  }
+
+  .mobile-menu-panel__name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #363636;
+  }
+
+  .mobile-menu-panel__divider {
+    border: none;
+    border-top: 1px solid #ebebeb;
+    margin: 4px 0;
+  }
+
+  .mobile-menu-panel__links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 49px;
+    text-align: right;
+
+    li {
+      font-size: 16px;
+      color: #363636;
+      cursor: pointer;
+    }
+
+    a {
+      text-decoration: none;
+      color: #363636;
+      font-size: 16px;
+    }
+  }
+
+  .page-wrapper {
+    padding: 0 0 30px 0;
+    justify-content: flex-start;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .user-info-block {
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 20px 24px;
+    gap: 16px;
+  }
+
+  .avatar-text {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .user-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .nevigation-block {
+    padding: 0 24px;
+    gap: 16px;
+  }
+
+  .cards-container {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .cards-container app-dashboard-navigate {
+    flex: 1 1 100%;
+  }
+
+  .block-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #808080;
+  }
+
+  .table-block {
+    padding: 0 24px;
+    height: auto;
+  }
+
+  .banking-banner {
+    margin: 0 24px;
   }
 }

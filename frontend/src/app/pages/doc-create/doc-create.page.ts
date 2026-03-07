@@ -161,7 +161,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   showInitialIndexDialog = true;
   editingLineIndex = signal<number | null>(null); // Track which line is being edited
 
-  activePaymentMethod: MenuItem = this.paymentMethodOptions[0]; // default selected
+  activePaymentMethod: MenuItem = this.paymentMethodOptions.find(m => m.id === 'CREDIT_CARD') ?? this.paymentMethodOptions[0];
 
   paymentInputForm: FormGroup;  // Holds the active entry row
   paymentsDraft = signal([]);     // Stores all added payments
@@ -1239,6 +1239,34 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.setSumInPaymentForm();
   }
 
+  /** Mobile-only: receives a method id string and delegates to onPaymentMethodChange */
+  onMobilePaymentMethodChange(methodId: string): void {
+    const method = this.paymentMethodOptions.find(m => m.id === methodId);
+    if (method) this.onPaymentMethodChange(method as MenuItem);
+  }
+
+  onMobileUpdatePayment(event: { index: number; formValue: any; method: string }): void {
+    const { index, formValue, method } = event;
+    const selectedBank = bankOptionsList.find(bank => bank.value === (formValue.bankNumber ?? formValue.bankName));
+    const hebrewBankName = selectedBank ? selectedBank.name : '';
+    const bankNumber = selectedBank?.value ?? '';
+
+    const updatedPayment = {
+      ...formValue,
+      paymentSum: formValue.paymentSum
+        ? Number(formValue.paymentSum.toString().replace(/^0+(?!\.)/, ''))
+        : null,
+      paymentLineNumber: index + 1,
+      paymentMethod: method,
+      hebrewBankName,
+      bankNumber,
+    };
+
+    this.paymentsDraft.update(items => items.map((p, i) => i === index ? updatedPayment : p));
+    this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
+    this.setSumInPaymentForm();
+  }
+
   getPaymentFields(section: string) {
     return this.docCreateBuilderService.getBaseFieldsBySection(section as SectionKeysEnum);
   }
@@ -1330,6 +1358,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.updateDocumentTotalsFromLines();
     this.calcTotals();
     this.setSumInPaymentForm();
+  }
+
+  /** Mobile-only: delete with a confirmation dialog before removing the line. */
+  deleteLineWithConfirm(index: number): void {
+    this.confirmationService.confirm({
+      message: 'האם אתה בטוח שברצונך למחוק את הפריט?',
+      header: 'מחיקת פריט',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => this.deleteLine(index),
+    });
   }
 
   deletePayment(index: number): void {

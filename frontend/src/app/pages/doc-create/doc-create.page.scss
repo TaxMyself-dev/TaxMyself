@@ -195,94 +195,7 @@
 .line-details-header {
   width: 100%;
   padding-right: 20px;
-}
-
-@media (max-width: 768px) {
-
-  .wrapper-sections {
-    align-items: center;
-    display: flex;
-    flex-direction: column;
-    margin-top: 30px;
-  }
-
-  .section {
-    // .section .section {
-    border: solid 1px #EBEBEB;
-    padding-right: 16px;
-    padding-top: 16px;
-    border-radius: 4px;
-    width: 90%;
-  }
-
-  :host {
-    padding-right: 0px;
-  }
-
-  // .page-wrapper {
-  //   width: 100%;
-  //   padding: 16px 16px 140px;
-  //   box-sizing: border-box;
-  // }
-
-  // .page-wrapper > .section {
-  //   gap: 16px;
-  // }
-
-  // .page-wrapper > .section > .section {
-  //   background-color: #ffffff;
-  //   border: 1px solid #e9e9f0;
-  //   border-radius: 18px;
-  //   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
-  //   padding: 20px 18px;
-  //   box-sizing: border-box;
-  //   display: flex;
-  //   flex-direction: column;
-  //   gap: 18px;
-  // }
-
-  // .page-wrapper > .section > .section .create-doc-header {
-  //   text-align: right;
-  //   display: flex;
-  //   flex-direction: column;
-  //   gap: 6px;
-  // }
-
-  // .page-wrapper > .section > .section .general-fields {
-  //   display: flex;
-  //   flex-direction: column;
-  //   gap: 16px;
-  //   width: 100%;
-  // }
-
-  // .page-wrapper > .section > .section .user-details-section {
-  //   display: flex;
-  //   flex-direction: column;
-  //   gap: 16px;
-  // }
-
-  // .buttons-container {
-  //   position: fixed;
-  //   bottom: 0;
-  //   left: 0;
-  //   width: 100%;
-  //   padding: 16px 18px 24px;
-  //   box-sizing: border-box;
-  //   background: rgba(255, 255, 255, 0.96);
-  //   box-shadow: 0 -12px 24px rgba(15, 23, 42, 0.12);
-  //   display: flex;
-  //   flex-direction: row-reverse;
-  //   gap: 12px;
-  //   z-index: 15;
-  // }
-
-  // .buttons-container > div {
-  //   flex: 1;
-  // }
-
-  // .buttons-container app-p-button {
-  //   width: 100%;
-  // }
+  margin-bottom: 16px;
 }
 
 .table-wrapper {
@@ -545,10 +458,6 @@
     color: #f4f4f5;
   }
 
-  .header-payment-table {
-    // color: #d1d5db;
-  }
-
   .fields-header,
   .sub-title {
     color: #d1d5db;
@@ -690,6 +599,51 @@
 
 /* ------ מובייל ------ */
 @media (max-width: 768px) {
+
+  .wrapper-sections {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    margin-top: 30px;
+    // Account for fixed bars + system safe area at bottom
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .section {
+    border: solid 1px #EBEBEB;
+    padding-right: 16px;
+    padding-top: 16px;
+    border-radius: 4px;
+    width: 90%;
+  }
+
+  :host {
+    padding-right: 0px;
+  }
+
+  .buttons-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    // Extend height to cover the system safe area below
+    height: calc(50px + env(safe-area-inset-bottom, 0px));
+    // Push button content up, above the system gesture/nav bar
+    padding: 0 0 env(safe-area-inset-bottom, 0px) 20px;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-direction: row;
+    gap: 12px;
+    z-index: 15;
+  }
+
+  .buttons-container app-p-button {
+    width: 100%;
+  }
 
   /* אין כותרת במובייל */
   .line-entry__header {
