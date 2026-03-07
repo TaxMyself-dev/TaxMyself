@@ -107,7 +107,9 @@ body {
 }
 
 body {
-  min-height: 100vh;
+  // 100dvh = dynamic viewport height — shrinks/grows as browser UI shows/hides.
+  // Avoids the classic "100vh is too tall" bug on Android Chrome / iOS Safari.
+  min-height: 100dvh;
 }
 
 app-root {

@@ -130,7 +130,21 @@
       <!-- ════════ EDIT card (existing item) ════════ -->
       <div class="item-card item-card--edit" [formGroup]="lineDetailsForm()">
 
-        <div class="item-card__title">פריט #{{ i + 1 }}</div>
+        <div class="item-card__summary-header">
+          <span class="item-card__title">פריט #{{ i + 1 }}</span>
+          <div class="item-card__icons">
+            <app-p-button
+              [buttonColor]="ButtonColor.TRANSPARET"
+              [buttonSize]="ButtonSize.ICON"
+              [iconOnly]="true"
+              [severity]="'info'"
+              [variant]="'text'"
+              [icon]="'pi pi-trash'"
+              (onButtonClicked)="deleteItem.emit(i)"
+              title="מחיקה">
+            </app-p-button>
+          </div>
+        </div>
 
         <!-- Description -->
         <div class="item-card__field">
