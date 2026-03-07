@@ -14,7 +14,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  bottom: 50px; // sits just above the .buttons-container (height: 50px)
+  // Sits just above .buttons-container; account for system safe area the same way
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   z-index: 14;
