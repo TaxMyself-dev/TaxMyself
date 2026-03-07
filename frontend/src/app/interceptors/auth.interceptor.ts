@@ -4,6 +4,7 @@ import { Observable, from, of } from 'rxjs';
 import { switchMap, take } from 'rxjs/operators';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AuthService } from '../services/auth.service';
+import { ClientPanelService } from '../services/clients-panel.service';
 
 // @Injectable()
 // export class AuthInterceptor implements HttpInterceptor {
@@ -53,7 +54,8 @@ export class AuthInterceptor implements HttpInterceptor {
 
   constructor(
     private afAuth: AngularFireAuth,
-    private authService: AuthService
+    private authService: AuthService,
+    private clientPanelService: ClientPanelService,
   ) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler) {
@@ -73,8 +75,11 @@ export class AuthInterceptor implements HttpInterceptor {
           headers['Authorization'] = `Bearer ${token}`;
         }
         if (businessNumber) {
-          // Backend guard expects lowercase 'businessnumber' header
           headers['businessnumber'] = businessNumber;
+        }
+        const clientUserId = this.clientPanelService.getSelectedClientId();
+        if (clientUserId) {
+          headers['x-client-user-id'] = clientUserId;
         }
 
         return next.handle(

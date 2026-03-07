@@ -1,8 +1,15 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { ClientPanelService, CreateClientPayload } from 'src/app/services/clients-panel.service';
-import { ISelectItem } from 'src/app/shared/interface';
+import { Router } from '@angular/router';
+import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
 import { MessageService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+
+/** ערכי סוג העסק כמו בבקאנד */
+const BUSINESS_STATUS_MAP: Record<string, string> = {
+  NO_BUSINESS: 'ללא עסק',
+  SINGLE_BUSINESS: 'עסק בודד',
+  MULTI_BUSINESS: 'מספר עסקים',
+};
 
 @Component({
   selector: 'app-clients-panel',
@@ -13,42 +20,47 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 export class ClientPanelPage implements OnInit {
   private readonly clientService = inject(ClientPanelService);
   private readonly messageService = inject(MessageService);
+  private readonly router = inject(Router);
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
 
-  /** רשימת הלקוחות לתצוגה */
-  readonly myClients = signal<ISelectItem[]>([]);
+  readonly myClients = signal<Client[]>([]);
   readonly loadingClients = signal(false);
 
-  /** מודל הקמת לקוח */
   readonly createClientModalVisible = signal(false);
   readonly creatingClient = signal(false);
-  /** נתוני טופס הקמת לקוח (אובייקט רגיל ל-ngModel) */
-  createClientFormData: CreateClientPayload = {
-    email: '',
-    phone: '',
-    fName: '',
-    lName: '',
-    id: '',
-  };
-  /** הודעות שגיאה ולידציה לטפס הקמת לקוח */
+  createClientFormData: CreateClientPayload = this.getEmptyFormData();
   readonly createClientErrors = signal<Record<string, string>>({});
+
+  readonly businessStatusOptions = [
+    { value: 'NO_BUSINESS', label: 'ללא עסק' },
+    { value: 'SINGLE_BUSINESS', label: 'עסק בודד' },
+    { value: 'MULTI_BUSINESS', label: 'מספר עסקים' },
+  ];
+
+  private getEmptyFormData(): CreateClientPayload {
+    return {
+      email: '',
+      phone: '',
+      fName: '',
+      lName: '',
+      id: '',
+      dateOfBirth: '',
+      businessStatus: '',
+      businessName: '',
+    };
+  }
 
   ngOnInit(): void {
     this.fetchClients();
   }
 
-  /** טעינת רשימת הלקוחות מהשרת */
   fetchClients(): void {
     this.loadingClients.set(true);
     this.clientService.getMyClients().subscribe({
       next: (clients) => {
-        const items: ISelectItem[] = clients.map((c) => ({
-          value: c.id,
-          name: c.name,
-        }));
-        this.myClients.set(items);
+        this.myClients.set(clients);
         this.loadingClients.set(false);
       },
       error: (err) => {
@@ -65,25 +77,26 @@ export class ClientPanelPage implements OnInit {
     });
   }
 
-  /** פתיחת מודל הקמת לקוח */
+  businessStatusLabel(value: string): string {
+    return value ? (BUSINESS_STATUS_MAP[value] ?? value) : '—';
+  }
+
+  /** כניסה לחשבון הלקוח בתור הרואה חשבון */
+  enterClient(clientId: string): void {
+    this.clientService.setSelectedClientId(clientId);
+    this.router.navigate(['/my-account']);
+  }
+
   openCreateClientModal(): void {
-    this.createClientFormData = {
-      email: '',
-      phone: '',
-      fName: '',
-      lName: '',
-      id: '',
-    };
+    this.createClientFormData = this.getEmptyFormData();
     this.createClientErrors.set({});
     this.createClientModalVisible.set(true);
   }
 
-  /** סגירת מודל הקמת לקוח */
   closeCreateClientModal(): void {
     this.createClientModalVisible.set(false);
   }
 
-  /** ולידציה בסיסית לטפס הקמת לקוח */
   private validateCreateClientForm(): boolean {
     const form = this.createClientFormData;
     const err: Record<string, string> = {};
@@ -96,7 +109,6 @@ export class ClientPanelPage implements OnInit {
     return Object.keys(err).length === 0;
   }
 
-  /** שליחת טופס הקמת לקוח */
   submitCreateClient(): void {
     if (!this.validateCreateClientForm()) return;
     this.creatingClient.set(true);
@@ -107,6 +119,9 @@ export class ClientPanelPage implements OnInit {
       fName: form.fName?.trim() || undefined,
       lName: form.lName?.trim() || undefined,
       id: form.id?.trim() || undefined,
+      dateOfBirth: form.dateOfBirth?.trim() || undefined,
+      businessStatus: form.businessStatus?.trim() || undefined,
+      businessName: form.businessName?.trim() || undefined,
     };
     this.clientService.createClient(payload).subscribe({
       next: () => {
@@ -135,5 +150,4 @@ export class ClientPanelPage implements OnInit {
       },
     });
   }
-
 }

@@ -11,6 +11,7 @@ import * as admin from 'firebase-admin';
 import * as jwt from 'jsonwebtoken';
 import { Delegation, DelegationStatus } from './delegation.entity';
 import { User } from 'src/users/user.entity';
+import { Business } from 'src/business/business.entity';
 import { MailService } from 'src/mail/mail.service';
 import { CreateClientByAccountantDto } from './dtos/create-client-by-accountant.dto';
 import {
@@ -32,6 +33,8 @@ export class DelegationService {
     private readonly delegationRepository: Repository<Delegation>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Business)
+    private readonly businessRepository: Repository<Business>,
     private readonly mailService: MailService,
   ) {
     this.firebaseAuth = admin.auth();
@@ -125,29 +128,30 @@ export class DelegationService {
   }
 
 
-  async getUsersForAgent(agentFirebaseId: string): Promise<{ fullName: string; firebaseId: string }[]> {
-
-    // Step 1: Query delegations for the given agent
+  async getUsersForAgent(agentFirebaseId: string): Promise<{
+    firebaseId: string;
+    fullName: string;
+    fName: string;
+    lName: string;
+    id: string;
+    businessStatus: BusinessStatus;
+  }[]> {
     const delegations = await this.delegationRepository.find({
       where: { agentId: agentFirebaseId },
     });
-  
-    // Step 2: Extract userFirebaseIds from delegations
-    const userFirebaseIds = delegations.map((delegation) => delegation.userId);
-  
-    if (userFirebaseIds.length === 0) {
-      return []; // Return an empty array if no delegations exist for this agent
-    }
-  
-    // Step 3: Use `findBy` with `In` to fetch user entities
+    const userFirebaseIds = delegations.map((d) => d.userId);
+    if (userFirebaseIds.length === 0) return [];
+
     const users = await this.userRepository.findBy({
       firebaseId: In(userFirebaseIds),
     });
-  
-    // Step 4: Map the results to include fullName and firebaseId
     return users.map((user) => ({
-      fullName: `${user.fName} ${user.lName}`, // Concatenate fName and lName
-      firebaseId: user.firebaseId,            // Include firebaseId
+      firebaseId: user.firebaseId,
+      fullName: `${user.fName || ''} ${user.lName || ''}`.trim() || user.email,
+      fName: user.fName || '',
+      lName: user.lName || '',
+      id: user.id || '',
+      businessStatus: user.businessStatus,
     }));
   }
 
@@ -199,6 +203,11 @@ export class DelegationService {
 
     const firebaseId = firebaseUser.uid;
 
+    const dateOfBirth = dto.dateOfBirth
+      ? new Date(dto.dateOfBirth)
+      : new Date();
+    const businessStatus = dto.businessStatus ?? BusinessStatus.NO_BUSINESS;
+
     // 3. Create User in DB
     const newUser = this.userRepository.create({
       firebaseId,
@@ -209,12 +218,12 @@ export class DelegationService {
       id: dto.id?.trim() ?? '',
       finsiteId: null,
       gender: Gender.MALE,
-      dateOfBirth: new Date(),
+      dateOfBirth,
       city: '',
       employmentStatus: EmploymentType.SELF_EMPLOYED,
       familyStatus: FamilyStatus.SINGLE,
       role: [UserRole.REGULAR],
-      businessStatus: BusinessStatus.NO_BUSINESS,
+      businessStatus,
       payStatus: PayStatus.TRIAL,
       modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
       createdAt: new Date(),
@@ -224,6 +233,15 @@ export class DelegationService {
       newUser.subscriptionEndDate.getMonth() + 2,
     );
     await this.userRepository.save(newUser);
+
+    // 3b. If business name provided, create first Business for the client
+    if (dto.businessName?.trim()) {
+      const business = this.businessRepository.create({
+        firebaseId,
+        businessName: dto.businessName.trim(),
+      });
+      await this.businessRepository.save(business);
+    }
 
     // 4. Create Delegation (accountant -> client)
     const delegation = this.delegationRepository.create({

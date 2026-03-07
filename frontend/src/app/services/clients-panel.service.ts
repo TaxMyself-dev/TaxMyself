@@ -5,9 +5,14 @@ import { LoadingController } from '@ionic/angular';
 import { Observable, BehaviorSubject, of, map } from 'rxjs';
 import { AuthService } from './auth.service';
 
+/** Client row for accountant panel (from getUsersForAgent). */
 export interface Client {
   id: string;
-  name: string;
+  fName: string;
+  lName: string;
+  idNumber: string;
+  businessStatus: string;
+  fullName: string;
 }
 
 /** Payload for creating a new client by accountant (הקמת לקוח). */
@@ -17,6 +22,9 @@ export interface CreateClientPayload {
   fName?: string;
   lName?: string;
   id?: string;
+  dateOfBirth?: string;
+  businessStatus?: string;
+  businessName?: string;
 }
 
 @Injectable({
@@ -52,38 +60,43 @@ export class ClientPanelService {
    * Fetch the list of clients (לקוחות) for the current accountant.
    * Uses firebaseId from AuthService as agentId.
    */
-  getMyClients(): Observable<{ id: string; name: string }[]> {
+  getMyClients(): Observable<Client[]> {
     const agentId = this.authService.getUserDataFromLocalStorage()?.firebaseId;
-    if (!agentId) {
-      return of([]);
-    }
-
-    if (this.clientsLoaded) {
-      return of(this.cachedClients);
-    }
+    if (!agentId) return of([]);
+    if (this.clientsLoaded) return of(this.cachedClients);
 
     const url = `${environment.apiUrl}delegations/users-for-agent/${agentId}`;
-    // AuthInterceptor adds Bearer token from Firebase idToken
-    return this.http.get<{ fullName: string; firebaseId: string }[]>(url).pipe(
-      map((response) => {
-        if (!response || !Array.isArray(response)) {
-          return [];
-        }
-        const clients = response.map((user) => ({
-          id: user.firebaseId,
-          name: user.fullName,
-        }));
-        this.cachedClients = clients;
-        this.clientsLoaded = true;
-        return clients;
-      }),
-    );
+    return this.http
+      .get<{
+        firebaseId: string;
+        fullName: string;
+        fName: string;
+        lName: string;
+        id: string;
+        businessStatus: string;
+      }[]>(url)
+      .pipe(
+        map((response) => {
+          if (!response || !Array.isArray(response)) return [];
+          const clients: Client[] = response.map((u) => ({
+            id: u.firebaseId,
+            fullName: u.fullName,
+            fName: u.fName,
+            lName: u.lName,
+            idNumber: u.id,
+            businessStatus: u.businessStatus,
+          }));
+          this.cachedClients = clients;
+          this.clientsLoaded = true;
+          return clients;
+        }),
+      );
   }
 
 
   getFullNameById(userId: string): string | null {
     const user = this.cachedClients.find((c) => c.id === userId);
-    return user ? user.name : null;
+    return user ? user.fullName : null;
   }
 
   /**

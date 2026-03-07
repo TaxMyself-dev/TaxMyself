@@ -38,30 +38,37 @@
     </div>
     <div class="form-field">
       <label class="form-label">שם פרטי</label>
-      <input
-        type="text"
-        class="form-input"
-        [(ngModel)]="createClientFormData.fName"
-        placeholder="שם פרטי"
-      />
+      <input type="text" class="form-input" [(ngModel)]="createClientFormData.fName" placeholder="שם פרטי" />
     </div>
     <div class="form-field">
       <label class="form-label">שם משפחה</label>
-      <input
-        type="text"
-        class="form-input"
-        [(ngModel)]="createClientFormData.lName"
-        placeholder="שם משפחה"
-      />
+      <input type="text" class="form-input" [(ngModel)]="createClientFormData.lName" placeholder="שם משפחה" />
     </div>
     <div class="form-field">
       <label class="form-label">תעודת זהות</label>
+      <input type="text" class="form-input" [(ngModel)]="createClientFormData.id" placeholder="ת.ז." />
+    </div>
+    <div class="form-field">
+      <label class="form-label">תאריך לידה</label>
       <input
-        type="text"
+        type="date"
         class="form-input"
-        [(ngModel)]="createClientFormData.id"
-        placeholder="ת.ז."
+        [(ngModel)]="createClientFormData.dateOfBirth"
+        placeholder="תאריך לידה"
       />
+    </div>
+    <div class="form-field">
+      <label class="form-label">סוג העסק</label>
+      <select class="form-input form-select" [(ngModel)]="createClientFormData.businessStatus">
+        <option value="">בחר סוג עסק</option>
+        @for (opt of businessStatusOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="form-field">
+      <label class="form-label">שם העסק</label>
+      <input type="text" class="form-input" [(ngModel)]="createClientFormData.businessName" placeholder="שם העסק" />
     </div>
   </div>
   <ng-template pTemplate="footer">
@@ -101,13 +108,40 @@
     } @else if (myClients().length === 0) {
       <p class="empty-text">אין עדיין לקוחות. השתמש ב״הקמת לקוח״ כדי להוסיף.</p>
     } @else {
-      <ul class="clients-list">
-        @for (client of myClients(); track client.value) {
-          <li class="client-item">
-            <span class="client-name">{{ client.name }}</span>
-          </li>
-        }
-      </ul>
+      <div class="clients-table-wrap">
+        <table class="clients-table">
+          <thead>
+            <tr>
+              <th>שם</th>
+              <th>שם משפחה</th>
+              <th>ת.ז.</th>
+              <th>סוג העסק</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (client of myClients(); track client.id) {
+              <tr>
+                <td>{{ client.fName }}</td>
+                <td>{{ client.lName }}</td>
+                <td>{{ client.idNumber }}</td>
+                <td>{{ businessStatusLabel(client.businessStatus) }}</td>
+                <td class="cell-action">
+                  <button
+                    type="button"
+                    class="btn-enter-client"
+                    (click)="enterClient(client.id)"
+                    [title]="'כניסה לחשבון הלקוח'"
+                    aria-label="כניסה לחשבון הלקוח"
+                  >
+                    <i class="pi pi-arrow-left"></i>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
   </section>
 </div>

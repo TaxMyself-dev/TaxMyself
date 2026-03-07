@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsNotEmpty, IsEnum } from 'class-validator';
+import { BusinessStatus } from 'src/enum';
 
 /**
  * DTO for creating a new client by an accountant (רואה חשבון).
@@ -24,4 +25,19 @@ export class CreateClientByAccountantDto {
   @IsOptional()
   @IsString()
   id?: string;
+
+  /** תאריך לידה (YYYY-MM-DD או ISO string) */
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
+  /** סוג העסק */
+  @IsOptional()
+  @IsEnum(BusinessStatus)
+  businessStatus?: BusinessStatus;
+
+  /** שם העסק */
+  @IsOptional()
+  @IsString()
+  businessName?: string;
 }

@@ -70,6 +70,68 @@
   color: #333;
 }
 
+.clients-table-wrap {
+  overflow-x: auto;
+}
+
+.clients-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  thead {
+    background: #f5f5f5;
+    th {
+      text-align: right;
+      padding: 12px 10px;
+      font-weight: 600;
+      color: #333;
+      border-bottom: 2px solid #e0e0e0;
+    }
+  }
+  tbody tr {
+    border-bottom: 1px solid #eee;
+    &:hover {
+      background: #fafafa;
+    }
+  }
+  td {
+    padding: 12px 10px;
+    text-align: right;
+    color: #444;
+  }
+  .cell-action {
+    width: 52px;
+    text-align: center;
+  }
+}
+
+.btn-enter-client {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  .pi {
+    font-size: 1rem;
+  }
+  &:hover {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+}
+
+.create-client-form .form-select {
+  cursor: pointer;
+}
+
 /* טופס הקמת לקוח במודל */
 .create-client-form {
   display: flex;
