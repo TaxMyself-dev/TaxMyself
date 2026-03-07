@@ -214,7 +214,7 @@ export class UsersService {
 
   private processDateFields(updateUserDto: any): any {
 
-    const dateFields = ['dateOfBirth', 'businessDate'];  // List of fields expected to be dates
+    const dateFields = ['dateOfBirth', 'businessDate', 'spouseDateOfBirth'];  // List of fields expected to be dates
     const processedData = { ...updateUserDto };
 
     for (const key in processedData) {
@@ -262,6 +262,37 @@ export class UsersService {
 
   async findByFirebaseId(firebaseId: string): Promise<User | null> {
     return this.user_repo.findOne({ where: { firebaseId } });
+  }
+
+  async getChildren(firebaseId: string): Promise<Child[]> {
+    return this.child_repo.find({ where: { parentUserID: firebaseId }, order: { index: 'ASC' } });
+  }
+
+  async updateChildren(firebaseId: string, children: Array<{ childFName: string; childLName: string; childDate: string }>): Promise<Child[]> {
+    await this.child_repo.delete({ parentUserID: firebaseId });
+    const saved: Child[] = [];
+    for (let i = 0; i < children.length; i++) {
+      const c = children[i];
+      if (!c?.childFName?.trim() && !c?.childLName?.trim()) continue;
+      const child = this.child_repo.create({
+        childFName: c.childFName?.trim() ?? '',
+        childLName: c.childLName?.trim() ?? '',
+        childID: null,
+        childDate: c.childDate ?? '',
+        parentUserID: firebaseId,
+      });
+      const s = await this.child_repo.save(child);
+      saved.push(s);
+    }
+    return saved;
+  }
+
+  async deleteChild(firebaseId: string, childIndex: number): Promise<void> {
+    const child = await this.child_repo.findOne({ where: { index: childIndex, parentUserID: firebaseId } });
+    if (!child) {
+      throw new NotFoundException('Child not found or not owned by user');
+    }
+    await this.child_repo.remove(child);
   }
 
 

@@ -36,7 +36,7 @@ export class FeezbackService {
    * @returns Observable with all user transactions data
    */
   getUserBankTransactions(bookingStatus?: string): Observable<any> {
-    let url = `${environment.apiUrl}feezback/user-transactions`;
+    let url = `${environment.apiUrl}feezback/user-bank-transactions`;
     if (bookingStatus) {
       url += `?bookingStatus=${bookingStatus}`;
     }
@@ -51,6 +51,19 @@ export class FeezbackService {
     }
     // The Authorization header is automatically added by AuthInterceptor
     return this.http.get<any>(url);
+  }
+
+  /**
+   * Gets both bank and card transactions in one call (dev use).
+   * @param bookingStatus - Optional booking status filter (default: "booked")
+   * @returns Observable with { bankTransactions, cardTransactions }
+   */
+  getAllUserTransactions(bookingStatus?: string): Observable<{ bankTransactions: any; cardTransactions: any }> {
+    let url = `${environment.apiUrl}feezback/user-all-transactions`;
+    if (bookingStatus) {
+      url += `?bookingStatus=${bookingStatus}`;
+    }
+    return this.http.get<{ bankTransactions: any; cardTransactions: any }>(url);
   }
 }
 

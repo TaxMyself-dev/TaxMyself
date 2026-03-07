@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Patch, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { BusinessService } from './business.service';
 import { UpdateBusinessDto } from './dtos/update-business.dto';
+import { CreateBusinessDto } from './dtos/create-business.dto';
 
 @Controller('business')
 export class BusinessController {
@@ -17,6 +18,27 @@ export class BusinessController {
     return this.businessService.getUserBusinesses(firebaseId);
   }
 
+  @Post('create')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async createBusiness(@Req() request: AuthenticatedRequest, @Body() dto: CreateBusinessDto) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) {
+      throw new BadRequestException('Firebase ID is missing');
+    }
+    return this.businessService.createBusiness(firebaseId, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteBusiness(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) {
+      throw new BadRequestException('Firebase ID is missing');
+    }
+    await this.businessService.deleteBusiness(firebaseId, id);
+  }
+
   @Patch('update')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))
@@ -25,6 +47,6 @@ export class BusinessController {
     if (!firebaseId) {
       throw new BadRequestException('Firebase ID is missing');
     }
-    return this.businessService.updateBusiness(firebaseId, dto.businessNumber, dto);
+    return this.businessService.updateBusiness(firebaseId, dto);
   }
 }

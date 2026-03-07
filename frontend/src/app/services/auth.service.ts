@@ -265,6 +265,21 @@ export class AuthService {
     return this.http.patch(url, updatedData);
   }
 
+  getChildren(): Observable<any[]> {
+    const url = `${environment.apiUrl}auth/children`;
+    return this.http.get<any[]>(url);
+  }
+
+  updateChildren(children: Array<{ childFName: string; childLName: string; childDate: string }>): Observable<any[]> {
+    const url = `${environment.apiUrl}auth/children`;
+    return this.http.patch<any[]>(url, { children });
+  }
+
+  deleteChild(childIndex: number): Observable<void> {
+    const url = `${environment.apiUrl}auth/children/${childIndex}`;
+    return this.http.delete<void>(url);
+  }
+
 
   async SignOut() {
     return this.afAuth.signOut().then(() => {

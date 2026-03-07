@@ -99,11 +99,48 @@ export class GenericService {
 
   /** עדכון אחוז מקדמות מס לעסק */
   async updateBusinessAdvanceTaxPercent(businessNumber: string, advanceTaxPercent: number): Promise<void> {
+    await this.updateBusiness({ businessNumber, advanceTaxPercent });
+  }
+
+  /** עדכון פרטי עסק (תמיכה בעדכון לפי id לעסק חדש או לפי businessNumber) */
+  async updateBusiness(payload: {
+    id?: number;
+    businessNumber?: string;
+    advanceTaxPercent?: number;
+    businessName?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    businessType?: string;
+  }): Promise<Business> {
+    const business = await firstValueFrom(
+      this.http.patch<Business>(`${environment.apiUrl}business/update`, payload)
+    );
+    await this.loadBusinessesFromServer();
+    return business;
+  }
+
+  /** יצירת עסק חדש למשתמש המחובר (עם פרטים אופציונליים מהמודל) */
+  async createBusiness(payload?: {
+    businessName?: string;
+    businessNumber?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    businessType?: string;
+    advanceTaxPercent?: number;
+  }): Promise<Business> {
+    const business = await firstValueFrom(
+      this.http.post<Business>(`${environment.apiUrl}business/create`, payload ?? {})
+    );
+    await this.loadBusinessesFromServer();
+    return business;
+  }
+
+  /** מחיקת עסק לפי id */
+  async deleteBusiness(id: number): Promise<void> {
     await firstValueFrom(
-      this.http.patch<Business>(`${environment.apiUrl}business/update`, {
-        businessNumber,
-        advanceTaxPercent,
-      })
+      this.http.delete(`${environment.apiUrl}business/${id}`)
     );
     await this.loadBusinessesFromServer();
   }

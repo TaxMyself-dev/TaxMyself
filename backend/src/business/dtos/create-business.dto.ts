@@ -1,23 +1,13 @@
 import { IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
 
-export class UpdateBusinessDto {
+export class CreateBusinessDto {
   @IsOptional()
-  @IsNumber()
-  id?: number;
+  @IsString()
+  businessName?: string;
 
   @IsOptional()
   @IsString()
   businessNumber?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  advanceTaxPercent?: number;
-
-  @IsOptional()
-  @IsString()
-  businessName?: string;
 
   @IsOptional()
   @IsString()
@@ -34,4 +24,10 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsString()
   businessType?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  advanceTaxPercent?: number;
 }
