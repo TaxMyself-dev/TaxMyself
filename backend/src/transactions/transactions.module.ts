@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
+import { TransactionProcessingService } from './transaction-processing.service';
 import { AuthService } from '../users/auth.service';
 import { Expense } from '../expenses/expenses.entity';
 import { User } from '../users/user.entity';
@@ -37,11 +38,12 @@ import { Business } from 'src/business/business.entity';
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
+    TransactionProcessingService,
     SharedService,
     ExpensesService,
     AuthService,
     FinsiteService
   ],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, TransactionProcessingService],
 })
 export class ExcelModule {}

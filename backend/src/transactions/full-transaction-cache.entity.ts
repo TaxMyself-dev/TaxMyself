@@ -9,6 +9,9 @@ import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('full_transactions_cache')
 @Index('UQ_cache_user_external', ['userId', 'externalTransactionId'], { unique: true })
+@Index('IDX_cache_userId', ['userId'])
+@Index('IDX_cache_billId', ['billId'])
+@Index('IDX_cache_transactionDate', ['transactionDate'])
 export class FullTransactionCache {
 
   @PrimaryGeneratedColumn()

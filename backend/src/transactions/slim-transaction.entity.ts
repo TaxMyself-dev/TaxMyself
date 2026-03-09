@@ -11,6 +11,7 @@ import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('slim_transactions')
 @Index('UQ_slim_user_external', ['userId', 'externalTransactionId'], { unique: true })
+@Index('IDX_slim_userId', ['userId'])
 export class SlimTransaction {
 
   @PrimaryGeneratedColumn()
@@ -22,6 +23,11 @@ export class SlimTransaction {
   @Column({ type: 'varchar' })
   userId: string;
 
+  /**
+   * Required. Classification is account-specific.
+   * A slim row must never exist without a billId.
+   * Enforced at service layer: transactions without billId are cache-only.
+   */
   @Column({ type: 'int' })
   billId: number;
 
@@ -30,6 +36,13 @@ export class SlimTransaction {
     enum: ClassificationType,
   })
   classificationType: ClassificationType;
+
+  /**
+   * References the classified_transactions rule that produced this classification.
+   * Null for ONE_TIME classifications.
+   */
+  @Column({ type: 'int', nullable: true, default: null })
+  classificationRuleId: number | null;
 
   @Column({ type: 'varchar' })
   category: string;
@@ -71,3 +84,4 @@ export class SlimTransaction {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+
