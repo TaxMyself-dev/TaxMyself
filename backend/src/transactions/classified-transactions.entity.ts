@@ -1,11 +1,13 @@
 import { ExpenseNecessity } from 'src/enum';
-import { 
-    Entity, 
-    Column, 
-    PrimaryGeneratedColumn
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    Index,
 } from 'typeorm'
 
 @Entity()
+@Index('UQ_rule_user_bill_merchant', ['userId', 'billId', 'transactionName'], { unique: true })
 export class ClassifiedTransactions {
 
   @PrimaryGeneratedColumn()
@@ -17,8 +19,8 @@ export class ClassifiedTransactions {
   @Column()
   transactionName: string;
 
-  @Column()
-  billName: string;
+  @Column({ type: 'int' })
+  billId: number;
 
   @Column()
   category: string;
@@ -59,11 +61,8 @@ export class ClassifiedTransactions {
   @Column('decimal', { precision: 10, scale: 2, nullable: true, default: null })
   maxAbsSum: number;
 
-  // @Column({ type: 'varchar', nullable: true, default: null })
-  // comment: string | null;
-
   @Column({ nullable: true })
-  commentPattern?: string; // the keyword or exact comment
+  commentPattern?: string;
 
   @Column({
     type: 'enum',

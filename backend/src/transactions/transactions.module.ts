@@ -12,6 +12,9 @@ import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { SharedService } from '../shared/shared.service';
 import { ClassifiedTransactions } from './classified-transactions.entity';
+import { SlimTransaction } from './slim-transaction.entity';
+import { FullTransactionCache } from './full-transaction-cache.entity';
+import { UserTransactionCacheState } from './user-transaction-cache-state.entity';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
@@ -26,8 +29,9 @@ import { Business } from 'src/business/business.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
-            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
+    TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
+            Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState,
+            Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
     UsersModule
   ],
   controllers: [TransactionsController],
@@ -38,5 +42,6 @@ import { Business } from 'src/business/business.entity';
     AuthService,
     FinsiteService
   ],
+  exports: [TypeOrmModule],
 })
 export class ExcelModule {}

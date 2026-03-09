@@ -152,14 +152,17 @@ export class TransactionsService {
 
                 const billName = await this.getBillNameBySourceName(firebaseId, method.paymentId);
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
+                const billId = await this.getBillIdByBillName(firebaseId, billName);
 
-                const classifiedTransaction = await this.classifiedTransactionsRepo.findOne({
-                  where: {
-                    userId: firebaseId,
-                    transactionName: transaction.Notes1,
-                    billName: billName,
-                  },
-                });
+                const classifiedTransaction = billId
+                  ? await this.classifiedTransactionsRepo.findOne({
+                      where: {
+                        userId: firebaseId,
+                        transactionName: transaction.Notes1,
+                        billId,
+                      },
+                    })
+                  : null;
 
                 const newTransaction: Partial<Transactions> = {
                   userId: firebaseId,
@@ -260,13 +263,15 @@ export class TransactionsService {
 
     const classifiedTransactions = await this.classifiedTransactionsRepo.find({ where: { userId } });
 
-    // Fetch user's bills and create a mapping from paymentIdentifier to billName
+    // Fetch user's bills and create mappings from paymentIdentifier to billName and billId
     const userBills = await this.billRepo.find({ where: { userId }, relations: ['sources'] });
     const paymentIdentifierToBillName = new Map<string, string>();
+    const paymentIdentifierToBillId = new Map<string, number>();
 
     userBills.forEach(bill => {
       bill.sources.forEach(source => {
         paymentIdentifierToBillName.set(source.sourceName, bill.billName);
+        paymentIdentifierToBillId.set(source.sourceName, bill.id);
       });
     });
 
@@ -330,7 +335,8 @@ export class TransactionsService {
       }
 
       // Check if there's a matching classified transaction
-      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billName === transaction.billName);
+      const billId = paymentIdentifierToBillId?.get(transaction.paymentIdentifier);
+      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billId === billId);
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         console.log("matchingClassifiedTransaction is ", matchingClassifiedTransaction);
@@ -373,6 +379,24 @@ export class TransactionsService {
     return bill ? bill.businessNumber : null; // Return the businessNumber if found, otherwise null
   }
 
+
+  async getBillIdByBillName(userId: string, billName: string): Promise<number | null> {
+    if (!billName) return null;
+    const bill = await this.billRepo.findOne({
+      where: { userId, billName },
+      select: ['id'],
+    });
+    return bill ? bill.id : null;
+  }
+
+  async getBillNameByBillId(userId: string, billId: number): Promise<string | null> {
+    if (!billId) return null;
+    const bill = await this.billRepo.findOne({
+      where: { userId, id: billId },
+      select: ['billName'],
+    });
+    return bill ? bill.billName : null;
+  }
 
   async getBillNameBySourceName(userId: string, sourceName: string): Promise<string | null> {
     const source = await this.sourceRepo.findOne({
@@ -471,7 +495,7 @@ export class TransactionsService {
       id,
       isSingleUpdate,
       name,
-      billName,
+      billId,
       category,
       subCategory,
       taxPercent,
@@ -529,7 +553,7 @@ export class TransactionsService {
       .createQueryBuilder('t')
       .where('t.userId = :userId', { userId })
       .andWhere('t.name = :name', { name })
-      .andWhere('t.billName = :billName', { billName })
+      .andWhere('t.billName = :billName', { billName: await this.getBillNameByBillId(userId, billId) })
       .andWhere(subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0');
 
     // Optional date filter
@@ -562,7 +586,7 @@ export class TransactionsService {
 
     if (!transactions.length) {
       throw new NotFoundException(
-        `No matching transactions found for "${name}" (${billName})`,
+        `No matching transactions found for "${name}" (billId: ${billId})`,
       );
     }
 
@@ -584,7 +608,7 @@ export class TransactionsService {
       where: {
         userId,
         transactionName: name,
-        billName,
+        billId,
         isExpense: subCategoryDetails.isExpense ?? false,
         startDate: startDate ?? null,
         endDate: endDate ?? null,
@@ -599,7 +623,7 @@ export class TransactionsService {
       classified = this.classifiedTransactionsRepo.create({
         userId,
         transactionName: name,
-        billName,
+        billId,
         category: subCategoryDetails.categoryName,
         subCategory: subCategoryDetails.subCategoryName,
         taxPercent: subCategoryDetails.taxPercent,

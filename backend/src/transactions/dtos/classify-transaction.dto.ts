@@ -11,8 +11,8 @@ export class ClassifyTransactionDto {
   @IsString()
   name: string;
 
-  @IsString()
-  billName: string;
+  @IsNumber()
+  billId: number;
 
   @IsString()
   @IsOptional()
