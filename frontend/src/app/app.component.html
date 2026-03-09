@@ -1,4 +1,14 @@
 <p-toast [position]="'bottom-right'" [key]="'br'" />
+@if (showTopNav() && selectedClientId) {
+  <div class="accountant-context-banner" dir="rtl">
+    <span class="banner-text">
+      רואה החשבון: {{ userData?.fName }} {{ userData?.lName }} | בחשבון של: {{ selectedClientName }}
+    </span>
+    <button type="button" class="banner-exit-btn" (click)="exitClientView()">
+      יציאה מחשבון הלקוח
+    </button>
+  </div>
+}
 @if (showTopNav()) {
   <app-p-topNav [menuItems]="menuItems" contentId="main-content"></app-p-topNav>
 }

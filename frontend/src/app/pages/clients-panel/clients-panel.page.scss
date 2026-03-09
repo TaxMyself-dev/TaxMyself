@@ -99,13 +99,19 @@
     text-align: right;
     color: #444;
   }
-  .cell-action {
-    width: 52px;
+  .cell-actions {
+    width: 100px;
     text-align: center;
+    white-space: nowrap;
+    .btn-enter-client,
+    .btn-delete-client {
+      margin: 0 2px;
+    }
   }
 }
 
-.btn-enter-client {
+.btn-enter-client,
+.btn-delete-client {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -126,6 +132,11 @@
     color: #fff;
     border-color: #1a1a1a;
   }
+}
+
+.btn-delete-client:hover {
+  background: #c62828;
+  border-color: #c62828;
 }
 
 .create-client-form .form-select {

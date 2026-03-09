@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { LoadingController } from '@ionic/angular';
-import { Observable, BehaviorSubject, of, map } from 'rxjs';
+import { Observable, BehaviorSubject, of, map, catchError } from 'rxjs';
 import { AuthService } from './auth.service';
 
 /** Client row for accountant panel (from getUsersForAgent). */
@@ -11,8 +11,10 @@ export interface Client {
   fName: string;
   lName: string;
   idNumber: string;
-  businessStatus: string;
+  /** סוג העסק: EXEMPT, LICENSED, COMPANY (עוסק פטור, עוסק מורשה, חברה בע"מ) */
+  businessType: string;
   fullName: string;
+  email: string;
 }
 
 /** Payload for creating a new client by accountant (הקמת לקוח). */
@@ -23,8 +25,10 @@ export interface CreateClientPayload {
   lName?: string;
   id?: string;
   dateOfBirth?: string;
-  businessStatus?: string;
+  businessType?: string;
   businessName?: string;
+  businessNumber?: string;
+  address?: string;
 }
 
 @Injectable({
@@ -38,7 +42,9 @@ export class ClientPanelService {
   private cachedClients: Client[] = [];
   private clientsLoaded = false;
   private readonly selectedClientIdSubject = new BehaviorSubject<string | null>(null);
+  private readonly selectedClientNameSubject = new BehaviorSubject<string | null>(null);
   readonly selectedClientId$ = this.selectedClientIdSubject.asObservable();
+  readonly selectedClientName$ = this.selectedClientNameSubject.asObservable();
 
   constructor() {}
 
@@ -46,8 +52,23 @@ export class ClientPanelService {
     this.selectedClientIdSubject.next(clientUserId);
   }
 
+  /** כשנכנסים לחשבון לקוח – שומרים גם את השם לתצוגה בראש המסך */
+  setSelectedClient(clientUserId: string, clientName: string): void {
+    this.selectedClientIdSubject.next(clientUserId);
+    this.selectedClientNameSubject.next(clientName);
+  }
+
+  clearSelectedClient(): void {
+    this.selectedClientIdSubject.next(null);
+    this.selectedClientNameSubject.next(null);
+  }
+
   getSelectedClientId(): string | null {
     return this.selectedClientIdSubject.value;
+  }
+
+  getSelectedClientName(): string | null {
+    return this.selectedClientNameSubject.value;
   }
 
   /** Clear clients cache so next getMyClients() will refetch from API. */
@@ -66,31 +87,28 @@ export class ClientPanelService {
     if (this.clientsLoaded) return of(this.cachedClients);
 
     const url = `${environment.apiUrl}delegations/users-for-agent/${agentId}`;
-    return this.http
-      .get<{
-        firebaseId: string;
-        fullName: string;
-        fName: string;
-        lName: string;
-        id: string;
-        businessStatus: string;
-      }[]>(url)
-      .pipe(
-        map((response) => {
-          if (!response || !Array.isArray(response)) return [];
-          const clients: Client[] = response.map((u) => ({
-            id: u.firebaseId,
-            fullName: u.fullName,
-            fName: u.fName,
-            lName: u.lName,
-            idNumber: u.id,
-            businessStatus: u.businessStatus,
-          }));
-          this.cachedClients = clients;
-          this.clientsLoaded = true;
-          return clients;
-        }),
-      );
+    return this.http.get(url).pipe(
+      map((response: unknown) => {
+        const arr = Array.isArray(response) ? response : (response as any)?.data;
+        const list = Array.isArray(arr) ? arr : [];
+        const clients: Client[] = list.map((u: any) => ({
+          id: u?.firebaseId ?? '',
+          fullName: [u?.fName, u?.lName].filter(Boolean).join(' ').trim() || u?.fullName || '',
+          fName: u?.fName ?? '',
+          lName: u?.lName ?? '',
+          idNumber: u?.id ?? '',
+          businessType: u?.businessType ?? '',
+          email: u?.email ?? '',
+        }));
+        this.cachedClients = clients;
+        this.clientsLoaded = true;
+        return clients;
+      }),
+      catchError((err) => {
+        console.error('getMyClients failed:', err?.status, err?.error ?? err?.message, err);
+        throw err;
+      }),
+    );
   }
 
 
@@ -107,6 +125,12 @@ export class ClientPanelService {
     const url = `${environment.apiUrl}delegations/create-client`;
     // AuthInterceptor adds Bearer token from Firebase idToken
     return this.http.post<{ firebaseId: string; fullName: string }>(url, payload);
+  }
+
+  /** Remove client from accountant's list (deletes delegation only). */
+  deleteClient(clientId: string): Observable<void> {
+    const url = `${environment.apiUrl}delegations/client/${encodeURIComponent(clientId)}`;
+    return this.http.delete<void>(url);
   }
 
   /** Send invitation email to an existing user to grant access. */

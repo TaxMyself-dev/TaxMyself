@@ -1,10 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent } from '@angular/common/http';
-import { Observable, from, of } from 'rxjs';
 import { switchMap, take } from 'rxjs/operators';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AuthService } from '../services/auth.service';
-import { ClientPanelService } from '../services/clients-panel.service';
 
 // @Injectable()
 // export class AuthInterceptor implements HttpInterceptor {
@@ -55,7 +53,6 @@ export class AuthInterceptor implements HttpInterceptor {
   constructor(
     private afAuth: AngularFireAuth,
     private authService: AuthService,
-    private clientPanelService: ClientPanelService,
   ) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler) {
@@ -63,23 +60,16 @@ export class AuthInterceptor implements HttpInterceptor {
       take(1),
       switchMap(token => {
         const businessNumber = this.authService.getActiveBusinessNumber();
-        console.log("🚀 ~ AuthInterceptor ~ intercept ~ businessNumber:", businessNumber)
         if (!token && !businessNumber) {
           return next.handle(req);
         }
 
         const headers: any = {};
-        // Only add Firebase token if Authorization header doesn't already exist
-        // This allows services (like Shaam) to set their own Authorization header
         if (token && !req.headers.has('Authorization')) {
           headers['Authorization'] = `Bearer ${token}`;
         }
         if (businessNumber) {
           headers['businessnumber'] = businessNumber;
-        }
-        const clientUserId = this.clientPanelService.getSelectedClientId();
-        if (clientUserId) {
-          headers['x-client-user-id'] = clientUserId;
         }
 
         return next.handle(

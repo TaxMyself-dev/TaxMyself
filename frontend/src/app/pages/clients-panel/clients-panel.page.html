@@ -49,6 +49,10 @@
       <input type="text" class="form-input" [(ngModel)]="createClientFormData.id" placeholder="ת.ז." />
     </div>
     <div class="form-field">
+      <label class="form-label">כתובת</label>
+      <input type="text" class="form-input" [(ngModel)]="createClientFormData.address" placeholder="כתובת" />
+    </div>
+    <div class="form-field">
       <label class="form-label">תאריך לידה</label>
       <input
         type="date"
@@ -59,16 +63,20 @@
     </div>
     <div class="form-field">
       <label class="form-label">סוג העסק</label>
-      <select class="form-input form-select" [(ngModel)]="createClientFormData.businessStatus">
-        <option value="">בחר סוג עסק</option>
-        @for (opt of businessStatusOptions; track opt.value) {
-          <option [value]="opt.value">{{ opt.label }}</option>
+      <select class="form-input form-select" [(ngModel)]="createClientFormData.businessType">
+        <option value="">בחר/י</option>
+        @for (opt of businessTypeOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.name }}</option>
         }
       </select>
     </div>
     <div class="form-field">
       <label class="form-label">שם העסק</label>
       <input type="text" class="form-input" [(ngModel)]="createClientFormData.businessName" placeholder="שם העסק" />
+    </div>
+    <div class="form-field">
+      <label class="form-label">מספר עסק</label>
+      <input type="text" class="form-input" [(ngModel)]="createClientFormData.businessNumber" placeholder="מספר עסק" />
     </div>
   </div>
   <ng-template pTemplate="footer">
@@ -115,8 +123,9 @@
               <th>שם</th>
               <th>שם משפחה</th>
               <th>ת.ז.</th>
+              <th>אימייל</th>
               <th>סוג העסק</th>
-              <th></th>
+              <th class="cell-actions"></th>
             </tr>
           </thead>
           <tbody>
@@ -125,16 +134,26 @@
                 <td>{{ client.fName }}</td>
                 <td>{{ client.lName }}</td>
                 <td>{{ client.idNumber }}</td>
-                <td>{{ businessStatusLabel(client.businessStatus) }}</td>
-                <td class="cell-action">
+                <td>{{ client.email }}</td>
+                <td>{{ businessTypeLabel(client.businessType) }}</td>
+                <td class="cell-actions">
                   <button
                     type="button"
                     class="btn-enter-client"
-                    (click)="enterClient(client.id)"
+                    (click)="enterClient(client)"
                     [title]="'כניסה לחשבון הלקוח'"
                     aria-label="כניסה לחשבון הלקוח"
                   >
                     <i class="pi pi-arrow-left"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-delete-client"
+                    (click)="confirmDeleteClient(client)"
+                    [title]="'מחיקת לקוח'"
+                    aria-label="מחיקת לקוח"
+                  >
+                    <i class="pi pi-trash"></i>
                   </button>
                 </td>
               </tr>

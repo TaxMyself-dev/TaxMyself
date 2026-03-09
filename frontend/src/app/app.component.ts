@@ -4,6 +4,7 @@ import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
 import { LoadingController, ModalController, PopoverController } from '@ionic/angular';
 import { AuthService } from './services/auth.service';
+import { ClientPanelService } from './services/clients-panel.service';
 import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
@@ -62,14 +63,23 @@ export class AppComponent implements OnInit {
   isUserAdmin: boolean = false;
   isAccountant: boolean = false;
   destroy$ = new Subject<void>();
+  /** כשהרואה חשבון נכנס לחשבון לקוח – לתצוגה בראש המסך */
+  selectedClientId: string | null = null;
+  selectedClientName: string | null = null;
 
-  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) {
-  };
+  constructor(
+    private expenseDataServise: ExpenseDataService,
+    private router: Router,
+    private modalCtrl: ModalController,
+    private authService: AuthService,
+    private messageService: MessageService,
+    private clientPanelService: ClientPanelService,
+  ) {}
   showTopNav = signal(true);
-  
+
   ngOnInit() {
     this.hideTopNav();
-
+    this.subscribeToSelectedClient();
     this.restoreSessionAfterRefresh();
     // Check admin status after userData is loaded
     this.updateAdminMenuItems();
@@ -179,10 +189,26 @@ export class AppComponent implements OnInit {
 
   async signOut() {
     console.log("sign out");
+    this.clientPanelService.clearSelectedClient();
     await this.authService.SignOut();
-    this.isPopoverOpen = !this.isPopoverOpen
-    this.router.navigate(["/login"])
+    this.isPopoverOpen = !this.isPopoverOpen;
+    this.router.navigate(["/login"]);
+  }
 
+  /** יציאה מחשבון הלקוח – חזרה למשרד */
+  exitClientView(): void {
+    this.clientPanelService.clearSelectedClient();
+    this.router.navigate(['/client-panel']);
+  }
+
+  private subscribeToSelectedClient(): void {
+    this.clientPanelService.selectedClientId$.pipe(takeUntil(this.destroy$)).subscribe((id) => {
+      this.selectedClientId = id;
+      this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
+    });
+    this.clientPanelService.selectedClientName$.pipe(takeUntil(this.destroy$)).subscribe((name) => {
+      this.selectedClientName = name;
+    });
   }
 
   toggleMenu() {

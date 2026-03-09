@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Headers,
   UseGuards,
@@ -81,6 +82,24 @@ export class DelegationController {
     }
 
     return this.delegationService.createClientByAccountant(firebaseId, dto);
+  }
+
+  /**
+   * Remove a client from the accountant's list (delete delegation only).
+   * Only the accountant who owns the delegation can delete it.
+   */
+  @Delete('client/:clientId')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteClient(
+    @Req() request: AuthenticatedRequest,
+    @Param('clientId') clientId: string,
+  ): Promise<void> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    const isAccountant = await this.usersService.isAccountant(firebaseId);
+    if (!isAccountant) throw new ForbiddenException('גישה מותרת רק לרואה חשבון');
+    await this.delegationService.deleteClientByAccountant(firebaseId, clientId);
   }
 
   /**

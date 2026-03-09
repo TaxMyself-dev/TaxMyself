@@ -1,15 +1,9 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
-import { MessageService } from 'primeng/api';
+import { MessageService, ConfirmationService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-
-/** ערכי סוג העסק כמו בבקאנד */
-const BUSINESS_STATUS_MAP: Record<string, string> = {
-  NO_BUSINESS: 'ללא עסק',
-  SINGLE_BUSINESS: 'עסק בודד',
-  MULTI_BUSINESS: 'מספר עסקים',
-};
+import { businessTypeOptionsList, BusinessTypeLabels } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-clients-panel',
@@ -20,6 +14,7 @@ const BUSINESS_STATUS_MAP: Record<string, string> = {
 export class ClientPanelPage implements OnInit {
   private readonly clientService = inject(ClientPanelService);
   private readonly messageService = inject(MessageService);
+  private readonly confirmationService = inject(ConfirmationService);
   private readonly router = inject(Router);
 
   readonly ButtonColor = ButtonColor;
@@ -33,11 +28,8 @@ export class ClientPanelPage implements OnInit {
   createClientFormData: CreateClientPayload = this.getEmptyFormData();
   readonly createClientErrors = signal<Record<string, string>>({});
 
-  readonly businessStatusOptions = [
-    { value: 'NO_BUSINESS', label: 'ללא עסק' },
-    { value: 'SINGLE_BUSINESS', label: 'עסק בודד' },
-    { value: 'MULTI_BUSINESS', label: 'מספר עסקים' },
-  ];
+  /** עוסק פטור, עוסק מורשה, חברה בע"מ – כמו בעמוד ההרשמה */
+  readonly businessTypeOptions = businessTypeOptionsList;
 
   private getEmptyFormData(): CreateClientPayload {
     return {
@@ -47,12 +39,15 @@ export class ClientPanelPage implements OnInit {
       lName: '',
       id: '',
       dateOfBirth: '',
-      businessStatus: '',
+      businessType: '',
       businessName: '',
+      businessNumber: '',
+      address: '',
     };
   }
 
   ngOnInit(): void {
+    this.clientService.clearSelectedClient();
     this.fetchClients();
   }
 
@@ -77,14 +72,53 @@ export class ClientPanelPage implements OnInit {
     });
   }
 
-  businessStatusLabel(value: string): string {
-    return value ? (BUSINESS_STATUS_MAP[value] ?? value) : '—';
+  /** תרגום סוג העסק: עוסק פטור, עוסק מורשה, חברה בע"מ */
+  businessTypeLabel(value: string): string {
+    return value ? (BusinessTypeLabels[value as keyof typeof BusinessTypeLabels] ?? value) : '—';
   }
 
   /** כניסה לחשבון הלקוח בתור הרואה חשבון */
-  enterClient(clientId: string): void {
-    this.clientService.setSelectedClientId(clientId);
+  enterClient(client: Client): void {
+    this.clientService.setSelectedClient(client.id, client.fullName);
     this.router.navigate(['/my-account']);
+  }
+
+  /** מחיקת לקוח מהרשימה (הסרת הקישור בלבד) */
+  confirmDeleteClient(client: Client): void {
+    this.confirmationService.confirm({
+      message: `האם למחוק את הלקוח "${client.fullName}" מהרשימה? הפעולה תסיר את הקישור בלבד.`,
+      header: 'אישור מחיקה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      accept: () => this.deleteClient(client.id),
+    });
+  }
+
+  private deleteClient(clientId: string): void {
+    this.clientService.deleteClient(clientId).subscribe({
+      next: () => {
+        this.clientService.clearClientsCache();
+        this.fetchClients();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הלקוח הוסר מהרשימה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        const detail = err?.error?.message ?? err?.message ?? 'מחיקה נכשלה. נסה שוב.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
   }
 
   openCreateClientModal(): void {
@@ -120,8 +154,10 @@ export class ClientPanelPage implements OnInit {
       lName: form.lName?.trim() || undefined,
       id: form.id?.trim() || undefined,
       dateOfBirth: form.dateOfBirth?.trim() || undefined,
-      businessStatus: form.businessStatus?.trim() || undefined,
+      businessType: form.businessType?.trim() || undefined,
       businessName: form.businessName?.trim() || undefined,
+      businessNumber: form.businessNumber?.trim() || undefined,
+      address: form.address?.trim() || undefined,
     };
     this.clientService.createClient(payload).subscribe({
       next: () => {

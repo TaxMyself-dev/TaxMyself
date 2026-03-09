@@ -20,8 +20,8 @@ import {
   FamilyStatus,
   EmploymentType,
   PayStatus,
-  ModuleName,
   BusinessStatus,
+  BusinessType,
 } from '../enum';
 
 @Injectable()
@@ -134,7 +134,8 @@ export class DelegationService {
     fName: string;
     lName: string;
     id: string;
-    businessStatus: BusinessStatus;
+    businessType: BusinessType | null;
+    email: string;
   }[]> {
     const delegations = await this.delegationRepository.find({
       where: { agentId: agentFirebaseId },
@@ -145,14 +146,42 @@ export class DelegationService {
     const users = await this.userRepository.findBy({
       firebaseId: In(userFirebaseIds),
     });
+    const businesses = await this.businessRepository.find({
+      where: { firebaseId: In(userFirebaseIds) },
+      select: ['firebaseId', 'businessType'],
+    });
+    const businessTypeByFirebaseId = new Map<string, BusinessType>();
+    for (const b of businesses) {
+      if (b.businessType && !businessTypeByFirebaseId.has(b.firebaseId)) {
+        businessTypeByFirebaseId.set(b.firebaseId, b.businessType);
+      }
+    }
     return users.map((user) => ({
       firebaseId: user.firebaseId,
       fullName: `${user.fName || ''} ${user.lName || ''}`.trim() || user.email,
       fName: user.fName || '',
       lName: user.lName || '',
       id: user.id || '',
-      businessStatus: user.businessStatus,
+      businessType: businessTypeByFirebaseId.get(user.firebaseId) ?? null,
+      email: user.email || '',
     }));
+  }
+
+  /**
+   * Remove a client from the accountant's list (delete delegation only).
+   * The User and Firebase account remain; only the delegation link is removed.
+   */
+  async deleteClientByAccountant(
+    accountantFirebaseId: string,
+    clientFirebaseId: string,
+  ): Promise<void> {
+    const delegation = await this.delegationRepository.findOne({
+      where: { agentId: accountantFirebaseId, userId: clientFirebaseId },
+    });
+    if (!delegation) {
+      throw new NotFoundException('לא נמצא קישור ללקוח זה');
+    }
+    await this.delegationRepository.remove(delegation);
   }
 
   /**
@@ -169,9 +198,7 @@ export class DelegationService {
       where: { email: dto.email.trim().toLowerCase() },
     });
     if (existingUser) {
-      throw new ConflictException(
-        `לקוח עם אימייל זה כבר קיים במערכת`,
-      );
+      throw new ConflictException(`העסק כבר קיים במערכת`);
     }
 
     const password = `KE${dto.phone.replace(/\D/g, '')}`;
@@ -192,9 +219,7 @@ export class DelegationService {
       });
     } catch (error: any) {
       if (error?.code === 'auth/email-already-exists') {
-        throw new ConflictException(
-          `לקוח עם אימייל זה כבר קיים במערכת`,
-        );
+        throw new ConflictException(`העסק כבר קיים במערכת`);
       }
       throw new InternalServerErrorException(
         `יצירת משתמש בפיירבייס נכשלה: ${error?.message || error}`,
@@ -206,9 +231,9 @@ export class DelegationService {
     const dateOfBirth = dto.dateOfBirth
       ? new Date(dto.dateOfBirth)
       : new Date();
-    const businessStatus = dto.businessStatus ?? BusinessStatus.NO_BUSINESS;
+    const addressOrCity = dto.address?.trim() ?? '';
 
-    // 3. Create User in DB
+    // 3. Create User in DB (כתובת נשמרת בשדה city)
     const newUser = this.userRepository.create({
       firebaseId,
       email: dto.email.trim(),
@@ -219,13 +244,14 @@ export class DelegationService {
       finsiteId: null,
       gender: Gender.MALE,
       dateOfBirth,
-      city: '',
+      city: addressOrCity,
+      address: null,
       employmentStatus: EmploymentType.SELF_EMPLOYED,
       familyStatus: FamilyStatus.SINGLE,
       role: [UserRole.REGULAR],
-      businessStatus,
+      businessStatus: BusinessStatus.SINGLE_BUSINESS,
       payStatus: PayStatus.TRIAL,
-      modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
+      modulesAccess: null,
       createdAt: new Date(),
       subscriptionEndDate: new Date(),
     });
@@ -234,14 +260,17 @@ export class DelegationService {
     );
     await this.userRepository.save(newUser);
 
-    // 3b. If business name provided, create first Business for the client
-    if (dto.businessName?.trim()) {
-      const business = this.businessRepository.create({
-        firebaseId,
-        businessName: dto.businessName.trim(),
-      });
-      await this.businessRepository.save(business);
-    }
+    // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
+    const business = this.businessRepository.create({
+      firebaseId,
+      businessName: dto.businessName?.trim() ?? null,
+      businessNumber: dto.businessNumber?.trim() ?? null,
+      businessType: dto.businessType ?? BusinessType.EXEMPT,
+      businessAddress: addressOrCity || null,
+      businessPhone: dto.phone?.trim() ?? null,
+      businessEmail: dto.email.trim() || null,
+    });
+    await this.businessRepository.save(business);
 
     // 4. Create Delegation (accountant -> client)
     const delegation = this.delegationRepository.create({
