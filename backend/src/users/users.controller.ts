@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus} from '@nestjs/common';
+         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
@@ -31,23 +31,22 @@ export class UsersController {
 
 
     @Get('/get-user')
-    async getUser(@Headers('token') token: string) {
-        try {
-            const userId = await this.userService.getFirbsaeIdByToken(token);
-            const user = await this.userService.findFireUser(userId);
-            if (user) {                
-                return user;
-            }
-            throw new NotFoundException("user not exist");
-        } 
-        catch (error) { 
-        }
+    @UseGuards(FirebaseAuthGuard)
+    async getUser(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        if (!userId) throw new NotFoundException("user not exist");
+        const user = await this.userService.findFireUser(userId);
+        if (user) return user;
+        throw new NotFoundException("user not exist");
     }
 
 
     @Patch('update-user')
     @UseGuards(FirebaseAuthGuard)
     async updateUser(@Req() request: AuthenticatedRequest, @Body() body: any) {
+        if (request.user?.role === 'agent') {
+            throw new HttpException('לרואה חשבון הרשאה לצפייה בלבד', HttpStatus.FORBIDDEN);
+        }
         const userId = request.user?.firebaseId;
         return this.userService.updateUser(userId, body);
     }

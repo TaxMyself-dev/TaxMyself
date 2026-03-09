@@ -104,17 +104,8 @@ export class ExpensesController {
     @Query() query: any,
   ) {
     const firebaseId = request.user?.firebaseId;
-    console.log('[get-expenses-for-vat-report] תאריכים שהתקבלו מהפרונט (query):', {
-      startDate: query?.startDate,
-      endDate: query?.endDate,
-      businessNumber: query?.businessNumber,
-    });
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    console.log('[get-expenses-for-vat-report] תאריכים אחרי המרה:', {
-      startDate: startDate?.toISOString?.(),
-      endDate: endDate?.toISOString?.(),
-    });
     return await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
   }
 

@@ -51,7 +51,6 @@ export class AppComponent implements OnInit {
     // { label: 'פרופיל אישי' },
     { label: 'תזרים', routerLink: '/transactions' },
     { label: 'דוחות', routerLink: '/reports' },
-    // { label: 'הגדרות', routerLink: '/my-status' },
     // { label: 'צור קשר' },
   ]
 
@@ -205,6 +204,22 @@ export class AppComponent implements OnInit {
     this.clientPanelService.selectedClientId$.pipe(takeUntil(this.destroy$)).subscribe((id) => {
       this.selectedClientId = id;
       this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
+      if (id) {
+        this.authService.loadViewAsUserData().subscribe((data) => {
+          if (data) {
+            this.userData = data;
+            this.updateAdminMenuItems();
+            this.getRoleUser();
+          }
+        });
+        this.genericService.loadBusinessesFromServer();
+      } else {
+        this.authService.clearViewAsUserData();
+        this.genericService.loadBusinessesFromServer();
+        this.userData = this.authService.getUserDataFromLocalStorage();
+        this.updateAdminMenuItems();
+        this.getRoleUser();
+      }
     });
     this.clientPanelService.selectedClientName$.pipe(takeUntil(this.destroy$)).subscribe((name) => {
       this.selectedClientName = name;

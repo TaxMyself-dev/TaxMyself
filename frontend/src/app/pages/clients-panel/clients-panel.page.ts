@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { businessTypeOptionsList, BusinessTypeLabels } from 'src/app/shared/enums';
@@ -13,6 +14,7 @@ import { businessTypeOptionsList, BusinessTypeLabels } from 'src/app/shared/enum
 })
 export class ClientPanelPage implements OnInit {
   private readonly clientService = inject(ClientPanelService);
+  private readonly authService = inject(AuthService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly router = inject(Router);
@@ -77,9 +79,10 @@ export class ClientPanelPage implements OnInit {
     return value ? (BusinessTypeLabels[value as keyof typeof BusinessTypeLabels] ?? value) : '—';
   }
 
-  /** כניסה לחשבון הלקוח בתור הרואה חשבון */
+  /** כניסה לחשבון הלקוח בתור הרואה חשבון – מגדיר גם את מספר העסק של הלקוח להקשר הבקשות */
   enterClient(client: Client): void {
     this.clientService.setSelectedClient(client.id, client.fullName);
+    this.authService.setActiveBusinessNumber(client.businessNumber ?? null);
     this.router.navigate(['/my-account']);
   }
 

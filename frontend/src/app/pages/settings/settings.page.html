@@ -59,6 +59,35 @@
   </ng-template>
 </p-dialog>
 
+<!-- דיאלוג הוספת הרשאה -->
+<p-dialog
+  header="הוספת הרשאה"
+  [(visible)]="addPermissionDialogVisible"
+  [modal]="true"
+  [style]="{ width: '380px' }"
+  [rtl]="true"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="addPermissionEmail = ''">
+  <div class="add-permission-form">
+    <label class="form-label">כתובת אימייל</label>
+    <input
+      type="email"
+      class="detail-input"
+      [(ngModel)]="addPermissionEmail"
+      placeholder="example&#64;gmail.com" />
+    @if (addPermissionError()) {
+      <span class="field-error">{{ addPermissionError() }}</span>
+    }
+  </div>
+  <ng-template pTemplate="footer">
+    <button type="button" class="p-button p-button-text" (click)="closeAddPermissionDialog()">ביטול</button>
+    <button type="button" class="p-button" (click)="submitAddPermission()" [disabled]="addingPermission()">
+      {{ addingPermission() ? 'שולח...' : 'הוסף' }}
+    </button>
+  </ng-template>
+</p-dialog>
+
 <div class="page-wrapper">
   <!-- Personal + Spouse + Children – מסגרת אחת כמו עסקים -->
   <div class="section-block section-personal-wrapper">
@@ -278,6 +307,32 @@
         <app-p-button [buttonText]="'הוסף עסק'" [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.SMALL"
           (onButtonClicked)="openAddBusinessModal()"></app-p-button>
       </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ההרשאות שלי -->
+  <div class="section-block section-permissions">
+    <h2 class="section-title">ההרשאות שלי</h2>
+    <div class="permissions-frame">
+      @if (permissionsLoading()) {
+        <p class="permissions-loading">טוען...</p>
+      } @else if (myPermissions().length === 0) {
+        <p class="permissions-empty">אין הרשאות. הוסף משתמש עם כפתור "הוספת הרשאה".</p>
+      } @else {
+        <ul class="permissions-list">
+          @for (p of myPermissions(); track p.agentId) {
+            <li>{{ p.fullName || p.email || p.agentId }}</li>
+          }
+        </ul>
+      }
+      <div class="section-actions permissions-actions">
+        <app-p-button
+          [buttonText]="'הוספת הרשאה'"
+          [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.SMALL"
+          (onButtonClicked)="openAddPermissionDialog()">
+        </app-p-button>
       </div>
     </div>
   </div>

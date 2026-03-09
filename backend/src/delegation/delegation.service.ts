@@ -127,7 +127,121 @@ export class DelegationService {
     }
   }
 
+  /**
+   * Get list of users who have view (or other) permission on the current user's data.
+   * Delegations where userId = ownerFirebaseId.
+   */
+  async getDelegationsForOwner(ownerFirebaseId: string): Promise<{
+    agentId: string;
+    email: string;
+    fullName: string;
+    scopes: string[];
+  }[]> {
+    const delegations = await this.delegationRepository.find({
+      where: { userId: ownerFirebaseId, status: DelegationStatus.ACTIVE },
+    });
+    if (delegations.length === 0) return [];
+    const agentIds = delegations.map((d) => d.agentId);
+    const agents = await this.userRepository.find({
+      where: { firebaseId: In(agentIds) },
+      select: ['firebaseId', 'email', 'fName', 'lName'],
+    });
+    const agentByFirebaseId = new Map(agents.map((a) => [a.firebaseId, a]));
+    return delegations.map((d) => {
+      const agent = agentByFirebaseId.get(d.agentId);
+      return {
+        agentId: d.agentId,
+        email: agent?.email ?? '',
+        fullName: ([agent?.fName, agent?.lName].filter(Boolean).join(' ').trim() || agent?.email) ?? '',
+        scopes: d.scopes ?? [],
+      };
+    });
+  }
 
+  /**
+   * Grant view-only permission to an existing user by email.
+   * Owner = current user; the user with the given email gets DOCUMENTS_READ.
+   * Sends email to the user that view permission was granted.
+   */
+  async grantViewPermissionByEmail(
+    ownerFirebaseId: string,
+    email: string,
+  ): Promise<{ message: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const agent = await this.userRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+    if (!agent) {
+      throw new NotFoundException('המשתמש לא קיים במערכת');
+    }
+    const existing = await this.delegationRepository.findOne({
+      where: { userId: ownerFirebaseId, agentId: agent.firebaseId },
+    });
+    if (existing) {
+      return { message: 'למשתמש זה כבר ניתנה הרשאה' };
+    }
+    const owner = await this.userRepository.findOne({
+      where: { firebaseId: ownerFirebaseId },
+      select: ['fName', 'lName', 'email'],
+    });
+    const ownerName = owner
+      ? [owner.fName, owner.lName].filter(Boolean).join(' ').trim() || owner.email
+      : 'משתמש';
+    const delegation = this.delegationRepository.create({
+      userId: ownerFirebaseId,
+      agentId: agent.firebaseId,
+      status: DelegationStatus.ACTIVE,
+      scopes: ['DOCUMENTS_READ'],
+    });
+    await this.delegationRepository.save(delegation);
+    await this.sendViewPermissionGrantedEmail(agent, ownerName);
+    return { message: 'ההרשאה ניתנה בהצלחה' };
+  }
+
+  private async sendViewPermissionGrantedEmail(
+    agent: { email: string; fName?: string; lName?: string },
+    ownerName: string,
+  ): Promise<void> {
+    const subject = 'ניתנה לך הרשאה לצפייה';
+    const greeting = agent.fName ? `שלום ${agent.fName},` : 'שלום,';
+    const bodyLine = `ניתנה לך הרשאה לצפייה בחשבון Keepintax של ${ownerName}.`;
+    const text = `${greeting}\n\n${bodyLine}\n\nתודה.`;
+    const htmlContent = this.buildRtlEmailHtml([greeting, '', bodyLine, '', 'תודה.']);
+    await this.mailService.sendMail(agent.email, subject, text, htmlContent);
+  }
+
+  /** בונה HTML למייל בעברית עם כיוון RTL */
+  private buildRtlEmailHtml(paragraphs: string[]): string {
+    const body = paragraphs
+      .map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return '<br>';
+        return `<p dir="rtl" style="direction: rtl; text-align: right; unicode-bidi: embed; margin: 10px 0;">${trimmed}</p>`;
+      })
+      .join('');
+    return `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <style>
+    * { direction: rtl; text-align: right; }
+    body { font-family: Arial, Helvetica, sans-serif; direction: rtl; text-align: right; margin: 0; padding: 20px; }
+    p { direction: rtl; text-align: right; margin: 10px 0; unicode-bidi: embed; }
+  </style>
+</head>
+<body>
+  <div dir="rtl" style="direction: rtl; text-align: right; unicode-bidi: embed;">${body}</div>
+</body>
+</html>`;
+  }
+
+
+  /**
+   * Returns one row per (user, business) for the accountant's clients.
+   * When a user has granted permission, the accountant sees all businesses under that user.
+   * If a user has no businesses, one row is still returned with user data and null business fields.
+   */
   async getUsersForAgent(agentFirebaseId: string): Promise<{
     firebaseId: string;
     fullName: string;
@@ -136,6 +250,9 @@ export class DelegationService {
     id: string;
     businessType: BusinessType | null;
     email: string;
+    businessId: number | null;
+    businessNumber: string | null;
+    businessName: string | null;
   }[]> {
     const delegations = await this.delegationRepository.find({
       where: { agentId: agentFirebaseId },
@@ -146,25 +263,64 @@ export class DelegationService {
     const users = await this.userRepository.findBy({
       firebaseId: In(userFirebaseIds),
     });
+    const userByFirebaseId = new Map(users.map((u) => [u.firebaseId, u]));
+
     const businesses = await this.businessRepository.find({
       where: { firebaseId: In(userFirebaseIds) },
-      select: ['firebaseId', 'businessType'],
+      select: ['id', 'firebaseId', 'businessType', 'businessNumber', 'businessName'],
     });
-    const businessTypeByFirebaseId = new Map<string, BusinessType>();
+    const businessesByFirebaseId = new Map<string, typeof businesses>();
     for (const b of businesses) {
-      if (b.businessType && !businessTypeByFirebaseId.has(b.firebaseId)) {
-        businessTypeByFirebaseId.set(b.firebaseId, b.businessType);
+      const list = businessesByFirebaseId.get(b.firebaseId) ?? [];
+      list.push(b);
+      businessesByFirebaseId.set(b.firebaseId, list);
+    }
+
+    const rows: {
+      firebaseId: string;
+      fullName: string;
+      fName: string;
+      lName: string;
+      id: string;
+      businessType: BusinessType | null;
+      email: string;
+      businessId: number | null;
+      businessNumber: string | null;
+      businessName: string | null;
+    }[] = [];
+
+    for (const user of users) {
+      const fullName = `${user.fName || ''} ${user.lName || ''}`.trim() || user.email;
+      const base = {
+        firebaseId: user.firebaseId,
+        fullName,
+        fName: user.fName || '',
+        lName: user.lName || '',
+        id: user.id || '',
+        email: user.email || '',
+      };
+      const userBusinesses = businessesByFirebaseId.get(user.firebaseId) ?? [];
+      if (userBusinesses.length === 0) {
+        rows.push({
+          ...base,
+          businessType: null,
+          businessId: null,
+          businessNumber: null,
+          businessName: null,
+        });
+      } else {
+        for (const b of userBusinesses) {
+          rows.push({
+            ...base,
+            businessType: b.businessType ?? null,
+            businessId: b.id,
+            businessNumber: b.businessNumber ?? null,
+            businessName: b.businessName ?? null,
+          });
+        }
       }
     }
-    return users.map((user) => ({
-      firebaseId: user.firebaseId,
-      fullName: `${user.fName || ''} ${user.lName || ''}`.trim() || user.email,
-      fName: user.fName || '',
-      lName: user.lName || '',
-      id: user.id || '',
-      businessType: businessTypeByFirebaseId.get(user.firebaseId) ?? null,
-      email: user.email || '',
-    }));
+    return rows;
   }
 
   /**

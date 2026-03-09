@@ -5,9 +5,12 @@ import { LoadingController } from '@ionic/angular';
 import { Observable, BehaviorSubject, of, map, catchError } from 'rxjs';
 import { AuthService } from './auth.service';
 
-/** Client row for accountant panel (from getUsersForAgent). */
+/** Client row for accountant panel (from getUsersForAgent). One row per (user, business). */
 export interface Client {
+  /** User firebaseId – use for x-client-user-id and for delete delegation */
   id: string;
+  /** Unique key for table row (user + business) */
+  rowId: string;
   fName: string;
   lName: string;
   idNumber: string;
@@ -15,6 +18,9 @@ export interface Client {
   businessType: string;
   fullName: string;
   email: string;
+  businessId: number | null;
+  businessNumber: string | null;
+  businessName: string | null;
 }
 
 /** Payload for creating a new client by accountant (הקמת לקוח). */
@@ -91,15 +97,24 @@ export class ClientPanelService {
       map((response: unknown) => {
         const arr = Array.isArray(response) ? response : (response as any)?.data;
         const list = Array.isArray(arr) ? arr : [];
-        const clients: Client[] = list.map((u: any) => ({
-          id: u?.firebaseId ?? '',
-          fullName: [u?.fName, u?.lName].filter(Boolean).join(' ').trim() || u?.fullName || '',
-          fName: u?.fName ?? '',
-          lName: u?.lName ?? '',
-          idNumber: u?.id ?? '',
-          businessType: u?.businessType ?? '',
-          email: u?.email ?? '',
-        }));
+        const clients: Client[] = list.map((u: any) => {
+          const firebaseId = u?.firebaseId ?? '';
+          const businessId = u?.businessId ?? null;
+          const rowId = businessId != null ? `${firebaseId}_${businessId}` : `${firebaseId}_u`;
+          return {
+            id: firebaseId,
+            rowId,
+            fullName: [u?.fName, u?.lName].filter(Boolean).join(' ').trim() || u?.fullName || '',
+            fName: u?.fName ?? '',
+            lName: u?.lName ?? '',
+            idNumber: u?.id ?? '',
+            businessType: u?.businessType ?? '',
+            email: u?.email ?? '',
+            businessId: businessId ?? null,
+            businessNumber: u?.businessNumber ?? null,
+            businessName: u?.businessName ?? null,
+          };
+        });
         this.cachedClients = clients;
         this.clientsLoaded = true;
         return clients;

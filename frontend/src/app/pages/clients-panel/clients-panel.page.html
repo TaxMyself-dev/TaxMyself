@@ -124,17 +124,19 @@
               <th>שם משפחה</th>
               <th>ת.ז.</th>
               <th>אימייל</th>
+              <th>שם העסק</th>
               <th>סוג העסק</th>
               <th class="cell-actions"></th>
             </tr>
           </thead>
           <tbody>
-            @for (client of myClients(); track client.id) {
+            @for (client of myClients(); track client.rowId) {
               <tr>
                 <td>{{ client.fName }}</td>
                 <td>{{ client.lName }}</td>
                 <td>{{ client.idNumber }}</td>
                 <td>{{ client.email }}</td>
+                <td>{{ client.businessName || '—' }}</td>
                 <td>{{ businessTypeLabel(client.businessType) }}</td>
                 <td class="cell-actions">
                   <button

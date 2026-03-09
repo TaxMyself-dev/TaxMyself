@@ -60,6 +60,35 @@ export class DelegationController {
   }
 
   /**
+   * Get list of users who have permission on my data (ההרשאות שלי).
+   */
+  @Get('my-permissions')
+  @UseGuards(FirebaseAuthGuard)
+  async getMyPermissions(@Req() request: AuthenticatedRequest): Promise<any> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    return this.delegationService.getDelegationsForOwner(firebaseId);
+  }
+
+  /**
+   * Grant view-only permission to a user by email. Sends email to that user.
+   */
+  @Post('grant-view')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async grantViewByEmail(
+    @Req() request: AuthenticatedRequest,
+    @Body('email') email: string,
+  ): Promise<{ message: string }> {
+    const firebaseId = request.user?.firebaseId;
+    if (!firebaseId) throw new ForbiddenException('לא אותחל משתמש');
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      throw new ForbiddenException('נא להזין כתובת אימייל');
+    }
+    return this.delegationService.grantViewPermissionByEmail(firebaseId, email);
+  }
+
+  /**
    * Create a new client by an accountant (רואה חשבון).
    * Requires: Bearer token, user must have role ACCOUNTANT.
    * Creates Firebase user (email + password = "KE" + phone), User in DB, and Delegation.
