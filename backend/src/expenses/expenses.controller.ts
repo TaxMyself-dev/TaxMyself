@@ -68,16 +68,32 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
     @Query() query: GetExpensesDto): Promise<Expense[]> {
     const firebaseId = request.user?.firebaseId;
-    let startDate: Date;
-    let endDate: Date;
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
 
     if (query.startDate) {
       startDate = this.sharedService.convertStringToDateObject(query.startDate);
     }
     if (query.endDate) {
-      endDate = this.sharedService.convertStringToDateObject(query.endDate);
+      const end = this.sharedService.convertStringToDateObject(query.endDate);
+      endDate = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate(), 23, 59, 59, 999));
     }
-    return await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
+
+    // לוג: ערכים שמגיעים מהפרונט
+    console.log('[get_by_userID] בקשה מהפרונט:', {
+      queryRaw: { startDate: query.startDate, endDate: query.endDate, businessNumber: query.businessNumber, pagination: query.pagination },
+      firebaseId: firebaseId ?? '(חסר)',
+      startDate: startDate?.toISOString?.() ?? '(לא הוגדר)',
+      endDate: endDate?.toISOString?.() ?? '(לא הוגדר)',
+      businessNumber: query.businessNumber ?? '(ריק/לא נשלח)',
+    });
+
+    const result = await this.expensesService.getExpensesByUserID(firebaseId, startDate, endDate, query.businessNumber, Number(query.pagination));
+
+    // לוג: הוצאות שהתקבלו
+    console.log('[get_by_userID] הוצאות שהתקבלו:', result.length, 'פריטים. ids:', result.map((e) => e.id).join(', ') || '(אין)');
+
+    return result;
   }
 
 
@@ -241,9 +257,7 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
   ): Promise<SupplierResponseDto[]> {
     const firebaseId = request.user?.firebaseId;
-    console.log("🚀 ~ ExpensesController ~ getSupplierNamesByUserId ~ firebaseId:", firebaseId)
     const businessNumber = request.user?.businessNumber;
-    console.log("🚀 ~ ExpensesController ~ getSupplierNamesByUserId ~ businessNumber:", businessNumber)
     return this.expensesService.getSupplierNamesByUserId(firebaseId, businessNumber);
   }
 

@@ -47,6 +47,9 @@ export class User {
     @Column()
     city: string;
 
+    @Column({ type: 'varchar', nullable: true, default: null })
+    address: string | null;
+
     @Column({
       type: 'enum',
       enum: EmploymentType,

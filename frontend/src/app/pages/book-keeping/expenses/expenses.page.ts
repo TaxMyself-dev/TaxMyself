@@ -18,6 +18,8 @@ import { FilesService } from 'src/app/services/files.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
 
 @Component({
   selector: 'app-expenses',
@@ -37,6 +39,7 @@ export class ExpensesPage implements OnInit {
   private filesService = inject(FilesService);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
+  private dialogService = inject(DialogService);
   private fb = inject(FormBuilder);
 
   // ===========================
@@ -88,8 +91,8 @@ export class ExpensesPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
     const businesses = this.gs.businesses();
-    this.selectedBusinessNumber.set(businesses[0].businessNumber);
-    this.selectedBusinessName.set(businesses[0].businessName);
+    this.selectedBusinessNumber.set(businesses[0]?.businessNumber ?? '');
+    this.selectedBusinessName.set(businesses[0]?.businessName ?? '');
 
     // Create the form with essential controls early
     this.form = this.fb.group({
@@ -112,8 +115,8 @@ export class ExpensesPage implements OnInit {
       this.fetchExpenses(this.selectedBusinessNumber());
     });
 
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
 
     this.filterConfig = [
       {
@@ -129,36 +132,46 @@ export class ExpensesPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
-        periodDefaults: {
-          year: currentYear,
-        }
+        periodDefaults: this.gs.getDefaultPeriodConfig({ year: currentYear, month: String(currentMonth) })
       }
     ];
 
-    // Fetch initial data
-    this.fetchExpenses(this.selectedBusinessNumber());
+    // ברירת מחדל: חודש נוכחי – כמו בדוח רווח והפסד, כדי שהטבלה והדוח יציגו אותה תקופה
+    const { startDate: defaultStart, endDate: defaultEnd } = this.dateService.getStartAndEndDates(
+      ReportingPeriodType.MONTHLY,
+      currentYear,
+      currentMonth,
+      '',
+      ''
+    );
+    this.startDate = defaultStart;
+    this.endDate = defaultEnd;
+    const initialBusiness = this.gs.getEffectiveBusinessNumber(this.form, undefined, this.userData);
+    this.selectedBusinessNumber.set(initialBusiness);
+    const initialBusinessObj = this.gs.businesses().find(b => b.businessNumber === initialBusiness);
+    if (initialBusinessObj) {
+      this.selectedBusinessName.set(initialBusinessObj.businessName);
+    }
+    this.fetchExpenses(initialBusiness, defaultStart, defaultEnd);
   }
 
   // ===========================
   // Handle filter submit
   // ===========================
   onSubmit(formValues: any): void {
-    console.log("Submitted filter:", formValues);
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    this.selectedBusinessNumber.set(effectiveBusiness);
 
-    this.selectedBusinessNumber.set(formValues.businessNumber);
+    const business = this.gs.businesses().find(b => b.businessNumber === effectiveBusiness);
+    if (business) {
+      this.selectedBusinessName.set(business.businessName);
+    }
 
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      formValues.periodMode,
-      formValues.year,
-      formValues.month,
-      formValues.startDate,
-      formValues.endDate
-    );
-
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
     this.startDate = startDate;
     this.endDate = endDate;
 
-    this.fetchExpenses(this.selectedBusinessNumber(), startDate, endDate);
+    this.fetchExpenses(effectiveBusiness, startDate, endDate);
   }
 
   // ===========================
@@ -169,19 +182,17 @@ export class ExpensesPage implements OnInit {
     startDate?: string,
     endDate?: string
   ): void {
-    console.log("fetchExpenses →", { businessNumber, startDate, endDate });
-
-    this.isLoadingDataTable.set(true);
-
     // Use default dates if not provided
     const finalStartDate = startDate || this.startDate || '';
     const finalEndDate = endDate || this.endDate || '';
 
+    this.isLoadingDataTable.set(true);
+
     this.myExpenses = this.expenseDataService
-      .getExpenseByUser(finalStartDate, finalEndDate, businessNumber)
+      .getExpenseForVatReport(finalStartDate, finalEndDate, businessNumber)
       .pipe(
         map((rows: any[]) => {
-          console.log("📄 Expenses fetched:", rows);
+          console.log('[הוצאות] תשובה מהבקאנד: מספר הוצאות=', rows?.length ?? 0, 'פרטים:', rows?.map((r) => ({ id: r.id, date: r.date, businessNumber: r.businessNumber, sum: r.sum })) ?? []);
           return rows.map(row => {
             // Format sum with currency
             const sumValue = row.sum as number;
@@ -236,6 +247,7 @@ export class ExpensesPage implements OnInit {
         name: 'edit',
         icon: 'pi pi-pencil',
         title: 'ערוך',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onEditExpense(row);
         }
@@ -244,6 +256,7 @@ export class ExpensesPage implements OnInit {
         name: 'delete',
         icon: 'pi pi-trash',
         title: 'מחק',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteExpense(row);
         }
@@ -252,6 +265,7 @@ export class ExpensesPage implements OnInit {
         name: 'preview',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewFile(row);
         }
@@ -263,28 +277,22 @@ export class ExpensesPage implements OnInit {
   // Actions
   // ===========================
   onEditExpense(row: IRowDataTable): void {
-    console.log("Edit expense:", row);
-    this.expenseDataService.openModalAddExpense(row, true)
-      .pipe(
-        catchError(err => {
-          console.error("Error opening edit modal:", err);
-          return EMPTY;
-        })
-      )
-      .subscribe((result) => {
-        if (result && result.data) {
-          console.log("Expense updated:", result.data);
-          // Refresh expenses after update
-          this.fetchExpenses(this.selectedBusinessNumber(), this.startDate, this.endDate);
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: 'ההוצאה עודכנה בהצלחה',
-            life: 3000,
-            key: 'br'
-          });
-        }
-      });
+    this.authService.setActiveBusinessNumber(this.selectedBusinessNumber());
+    const ref = this.dialogService.open(MannualExpenseComponent, {
+      header: 'עריכת הוצאה',
+      width: '480px',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      data: { editMode: true, expense: row }
+    });
+    ref.onClose.subscribe((result) => {
+      if (result != null) {
+        this.fetchExpenses(this.selectedBusinessNumber(), this.startDate, this.endDate);
+      }
+    });
   }
 
   onDeleteExpense(row: IRowDataTable): void {

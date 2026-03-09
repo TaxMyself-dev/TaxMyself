@@ -768,10 +768,9 @@ export class DocumentsService {
         'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
       });
     } else {
-      // If withholding tax is not 0, show: התקבל, ניכוי מס במקור, סה"כ
       sumPaymentsTable.push({
         'תיאור': 'התקבל:',
-        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments - withholdingTaxAmount)}`,
       });
 
       sumPaymentsTable.push({
@@ -779,11 +778,9 @@ export class DocumentsService {
         'סכום': `₪${this.formatNumberWithCommas(withholdingTaxAmount)}`,
       });
 
-      // Calculate final total (payments minus withholding tax)
-      const finalTotal = totalPayments - withholdingTaxAmount;
       sumPaymentsTable.push({
         'תיאור': 'סה"כ:',
-        'סכום': `₪${this.formatNumberWithCommas(finalTotal)}`,
+        'סכום': `₪${this.formatNumberWithCommas(totalPayments)}`,
       });
     }
 
@@ -1114,7 +1111,7 @@ export class DocumentsService {
             data.docData.docDescription,
             'copy'
           );
-          console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Copy PDF uploaded");
+          console.log(new Date().toLocaleTimeString(), "Step 8.2 complete - Copy PDF uploaded");
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);

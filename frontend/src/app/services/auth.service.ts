@@ -18,6 +18,8 @@ export class AuthService {
 
   token: string;
   private userDetails: IUserData = null;
+  /** כשהרואה חשבון צופה בלקוח – נתוני הלקוח (לא נשמר ב-localStorage) */
+  private viewAsUserData: IUserData | null = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
 
@@ -70,10 +72,33 @@ export class AuthService {
   }
 
   logout(): void {
+    this.viewAsUserData = null;
     this.afAuth.signOut().then(() => {
       localStorage.clear();
       sessionStorage.clear();
     });
+  }
+
+  /** טעינת נתוני המשתמש "האפקטיבי" – כשהרואה חשבון צופה בלקוח מחזיר נתוני הלקוח */
+  loadViewAsUserData(): Observable<IUserData | null> {
+    return this.signIn().pipe(
+      tap((data: unknown) => {
+        this.viewAsUserData = (data as IUserData) ?? null;
+      }),
+      catchError(() => {
+        this.viewAsUserData = null;
+        return [null];
+      })
+    );
+  }
+
+  clearViewAsUserData(): void {
+    this.viewAsUserData = null;
+  }
+
+  /** האם כרגע במצב צפייה כרואה חשבון (לא יכול לערוך/להפיק) */
+  isViewingAsClient(): boolean {
+    return this.viewAsUserData != null;
   }
 
 
@@ -89,6 +114,9 @@ export class AuthService {
 
 
   getUserDataFromLocalStorage(): IUserData | null {
+    if (this.viewAsUserData != null) {
+      return this.viewAsUserData;
+    }
     const tempA = localStorage.getItem('userData');
     if (!tempA) {
       return null;
@@ -261,11 +289,23 @@ export class AuthService {
 
 
   updateUser(updatedData: any): Observable<any> {
-    console.log("updatedData is ", updatedData);
-    const token = localStorage.getItem('token');  // Assuming you have a token stored
-    const headers = { 'token': token };  // Add the token to the headers
-    const url = `${environment.apiUrl}auth/update-user`;  // Backend endpoint for updating user
-    return this.http.patch(url, updatedData, { headers });
+    const url = `${environment.apiUrl}auth/update-user`;
+    return this.http.patch(url, updatedData);
+  }
+
+  getChildren(): Observable<any[]> {
+    const url = `${environment.apiUrl}auth/children`;
+    return this.http.get<any[]>(url);
+  }
+
+  updateChildren(children: Array<{ childFName: string; childLName: string; childDate: string }>): Observable<any[]> {
+    const url = `${environment.apiUrl}auth/children`;
+    return this.http.patch<any[]>(url, { children });
+  }
+
+  deleteChild(childIndex: number): Observable<void> {
+    const url = `${environment.apiUrl}auth/children/${childIndex}`;
+    return this.http.delete<void>(url);
   }
 
 

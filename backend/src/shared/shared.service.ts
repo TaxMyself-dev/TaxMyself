@@ -144,38 +144,59 @@ export class SharedService {
     }
 
 
+    /**
+     * Accepts dd/MM/yyyy, yyyy-mm-dd, or dd-mm-yyyy.
+     */
     convertStringToDateObject(dateString: string): Date {
-        const parts = dateString.split('/');
-        if (parts.length !== 3) {
-            throw new Error("Invalid date format. Expected 'dd/MM/yyyy'.");
+        if (!dateString || typeof dateString !== 'string') {
+            throw new Error("Invalid date: empty or not a string.");
+        }
+        const trimmed = dateString.trim();
+        let day: number;
+        let month: number; // 1-12
+        let year: number;
+
+        if (trimmed.includes('/')) {
+            const parts = trimmed.split('/');
+            if (parts.length !== 3) throw new Error("Invalid date format. Expected 'dd/MM/yyyy'.");
+            day = Number(parts[0]);
+            month = Number(parts[1]);
+            year = Number(parts[2]);
+        } else if (trimmed.includes('-')) {
+            const parts = trimmed.split('-');
+            if (parts.length !== 3) throw new Error("Invalid date format.");
+            const p0 = Number(parts[0]);
+            const p1 = Number(parts[1]);
+            const p2 = Number(parts[2]);
+            if (parts[0].length === 4) {
+                year = p0;
+                month = p1;
+                day = p2;
+            } else {
+                day = p0;
+                month = p1;
+                year = p2 <= 99 ? 2000 + p2 : p2;
+            }
+        } else {
+            throw new Error("Invalid date format. Use dd/MM/yyyy, yyyy-mm-dd, or dd-mm-yyyy.");
         }
 
-        const day = Number(parts[0]);
-        const month = Number(parts[1]) - 1; // zero-index
-        const year = Number(parts[2]);
-
-        // Basic numeric validation
-        if (!Number.isInteger(day) || !Number.isInteger(month + 1) || !Number.isInteger(year)) {
+        const monthZero = month - 1;
+        if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) {
             throw new Error("Invalid numeric values in date.");
         }
-
-        // Range validation BEFORE creating Date
         if (day < 1 || day > 31) throw new Error(`Invalid day '${day}'.`);
-        if (month < 0 || month > 11) throw new Error(`Invalid month '${month + 1}'.`);
+        if (month < 1 || month > 12) throw new Error(`Invalid month '${month}'.`);
         if (year < 1000 || year > 9999) throw new Error(`Invalid year '${year}'.`);
 
-        // Create UTC date
-        const date = new Date(Date.UTC(year, month, day));
-
-        // Validate real calendar date (catches 31/02, 29/02 non-leap-year, etc.)
+        const date = new Date(Date.UTC(year, monthZero, day));
         if (
             date.getUTCFullYear() !== year ||
-            date.getUTCMonth() !== month ||
+            date.getUTCMonth() !== monthZero ||
             date.getUTCDate() !== day
         ) {
             throw new Error("Invalid date: does not exist on the calendar.");
         }
-
         return date;
     }
 

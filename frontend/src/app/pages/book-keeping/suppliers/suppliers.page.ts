@@ -12,6 +12,8 @@ import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { AddSupplierComponent } from 'src/app/components/add-supplier/add-supplier.component';
 
 @Component({
   selector: 'app-suppliers',
@@ -29,6 +31,7 @@ export class SuppliersPage implements OnInit {
   private expenseDataService = inject(ExpenseDataService);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
+  private dialogService = inject(DialogService);
   private fb = inject(FormBuilder);
 
   // ===========================
@@ -57,8 +60,6 @@ export class SuppliersPage implements OnInit {
     { name: 'subCategory', value: 'תת קטגוריה', type: FormTypes.TEXT },
     { name: 'taxPercent', value: 'אחוז מוכר למס', type: FormTypes.TEXT },
     { name: 'vatPercent', value: 'אחוז מוכר למע"מ', type: FormTypes.TEXT },
-    { name: 'reductionPercent', value: 'אחוז פחת', type: FormTypes.TEXT },
-    { name: 'isEquipment', value: 'רכוש קבוע', type: FormTypes.TEXT },
   ];
 
   // ===========================
@@ -154,10 +155,10 @@ export class SuppliersPage implements OnInit {
             supplierID: supplier.supplierID || '-',
             category: supplier.category || '-',
             subCategory: supplier.subCategory || '-',
-            taxPercent: supplier.taxPercent != null ? supplier.taxPercent : '-',
-            vatPercent: supplier.vatPercent != null ? supplier.vatPercent : '-',
-            reductionPercent: supplier.reductionPercent != null ? supplier.reductionPercent : '-',
-            isEquipment: supplier.isEquipment ? 'כן' : 'לא',
+            taxPercent: supplier.taxPercent != null ? `${supplier.taxPercent}%` : '-',
+            vatPercent: supplier.vatPercent != null ? `${supplier.vatPercent}%` : '-',
+            reductionPercent: supplier.reductionPercent != null ? `${supplier.reductionPercent}%` : '-',
+            isEquipment: supplier.isEquipment === true ? 'כן' : 'לא',
           }));
         }),
         catchError(err => {
@@ -175,6 +176,7 @@ export class SuppliersPage implements OnInit {
         name: 'edit',
         icon: 'pi pi-pencil',
         title: 'ערוך',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onEditSupplier(row);
         }
@@ -183,6 +185,7 @@ export class SuppliersPage implements OnInit {
         name: 'delete',
         icon: 'pi pi-trash',
         title: 'מחק',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteSupplier(row);
         }
@@ -191,14 +194,27 @@ export class SuppliersPage implements OnInit {
   }
 
   onEditSupplier(supplier: IRowDataTable): void {
-    // TODO: Implement edit supplier functionality
-    console.log('Edit supplier:', supplier);
-    this.messageService.add({
-      severity: 'info',
-      summary: 'עריכה',
-      detail: 'פונקציונליות עריכה תתווסף בקרוב',
-      life: 3000,
-      key: 'br'
+    this.expenseDataService.getcategry(false, true).subscribe((cats) => {
+      const categories = (cats ?? []).map((c: any) => ({ name: c.categoryName ?? c.name, value: c.categoryName ?? c.name }));
+      const ref = this.dialogService.open(AddSupplierComponent, {
+        header: 'עריכת ספק',
+        width: 'min(1100px, 95vw)',
+        contentStyle: { minHeight: '400px', overflow: 'visible' },
+        rtl: true,
+        closable: true,
+        dismissableMask: true,
+        modal: true,
+        data: {
+          supplier: supplier as any,
+          categories,
+          suppliers: [],
+          editMode: true,
+          businessNumber: this.selectedBusinessNumber()
+        }
+      });
+      ref.onClose.subscribe(() => {
+        this.fetchSuppliers(this.selectedBusinessNumber());
+      });
     });
   }
 

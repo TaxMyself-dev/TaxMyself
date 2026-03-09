@@ -9,13 +9,15 @@ import { SharedModule } from 'src/shared/shared.module';
 import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { Agents } from 'src/delegation/agents.entity';
+import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents]), SharedModule],
   controllers: [UsersController],
   providers: [
-    UsersService, 
-    AuthService, 
+    UsersService,
+    AuthService,
+    FirebaseAuthGuard,
   ],
   exports: [UsersService],
 })

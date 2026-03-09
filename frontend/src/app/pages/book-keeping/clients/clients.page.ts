@@ -4,6 +4,8 @@ import { catchError, finalize, map } from 'rxjs/operators';
 import { DocCreateService } from 'src/app/pages/doc-create/doc-create.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { DialogService } from 'primeng/dynamicdialog';
+import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import {
   BusinessStatus,
   ClientsTableColumns,
@@ -31,6 +33,7 @@ export class ClientsPage implements OnInit {
   private docCreateService = inject(DocCreateService);
   private confirmationService = inject(ConfirmationService);
   private messageService = inject(MessageService);
+  private dialogService = inject(DialogService);
   private fb = inject(FormBuilder);
 
   // ===========================
@@ -166,6 +169,7 @@ export class ClientsPage implements OnInit {
         name: 'edit',
         icon: 'pi pi-pencil',
         title: 'ערוך',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onEditClient(row);
         }
@@ -174,6 +178,7 @@ export class ClientsPage implements OnInit {
         name: 'delete',
         icon: 'pi pi-trash',
         title: 'מחק',
+        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteClient(row);
         }
@@ -182,14 +187,23 @@ export class ClientsPage implements OnInit {
   }
 
   onEditClient(client: IRowDataTable): void {
-    // TODO: Implement edit client functionality
-    console.log('Edit client:', client);
-    this.messageService.add({
-      severity: 'info',
-      summary: 'עריכה',
-      detail: 'פונקציונליות עריכה תתווסף בקרוב',
-      life: 3000,
-      key: 'br'
+    const ref = this.dialogService.open(AddClientComponent, {
+      header: 'עריכת לקוח',
+      width: '90%',
+      style: { maxWidth: '95vw' },
+      rtl: true,
+      closable: true,
+      dismissableMask: true,
+      modal: true,
+      data: {
+        client,
+        businessNumber: this.selectedBusinessNumber(),
+        clients: [],
+        editMode: true
+      }
+    });
+    ref.onClose.subscribe(() => {
+      this.fetchClients(this.selectedBusinessNumber());
     });
   }
 

@@ -1,5 +1,6 @@
 export const SupplierType = {
     name: 'שם הספק',
+    supplier: 'שם הספק', // שם השדה שמגיע מהשרת
     category: 'קטגוריה',
     supplierID: 'מספר ספק',
     subCategory: 'תת קטגוריה',

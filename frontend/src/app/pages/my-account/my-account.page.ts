@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
@@ -35,7 +36,7 @@ import { MessageService } from 'primeng/api';
     AvatarModule,
     AvatarGroupModule,
     ButtonComponent,
-    GenericTableComponent
+    GenericTableComponent,
   ],
   providers: [DialogService]
 })
@@ -51,25 +52,37 @@ export class MyAccountPage implements OnInit {
   // dialogRef = inject(DynamicDialogRef);
   // dialogConfig = inject(DynamicDialogConfig);
   isLoadingDataTable = signal<boolean>(false);
+  // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
   isLoadingUserBankTransactions = signal<boolean>(false);
   isLoadingUserCardTransactions = signal<boolean>(false);
+  isLoadingAllTransactions = signal<boolean>(false);
+  isProd = signal<boolean>(process.env.NODE_ENV == 'production');
 
   userData: IUserData;
   transToClassify: any;
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
+  isMobile = computed(() => this.genericService.isMobile());
 
 
-  itemsNavigate: IItemNavigate[] = [
+
+  private readonly allItemsNavigate: IItemNavigate[] = [
     { name: "הפקת מסמך", link: "/doc-create", image: "../../../assets/icon-doc-create.svg", content: 'מפיקים מסמך בקלי קלות', id: '0', index: 'zero' },
     { name: "הנהלת חשבונות", link: "/book-keeping", image: "../../../assets/icon-my-docs.svg", content: 'ניהול הכנסות והוצאות העסק', id: '1', index: 'one' },
-    // { name: "הוספת הוצאה", link: "/add-expenses", image: "cloud-upload-outline", id: '1', index: 'one' }, 
     { name: "התזרים שלי", link: "/transactions", image: "../../../assets/icon-my-trans.svg", content: 'צפייה וסיווג תנועות בחשבון', id: '2', index: 'two' },
     { name: "דוחות", link: "/reports", image: "../../../assets/icon-report-create.svg", content: 'דוחות לרשויות בקליק', id: '3', index: 'three' },
   ];
+
+  /** במצב צפייה כרואה חשבון – לא מציגים הפקת מסמך (צפייה בלבד) */
+  get itemsNavigate(): IItemNavigate[] {
+    if (this.authService.isViewingAsClient()) {
+      return this.allItemsNavigate.filter((item) => item.link !== '/doc-create');
+    }
+    return this.allItemsNavigate;
+  }
 
   fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
     { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
@@ -334,9 +347,63 @@ export class MyAccountPage implements OnInit {
       });
   }
 
+  fetchAllUserTransactions(): void {
+    this.isLoadingAllTransactions.set(true);
+
+    this.feezbackService.getAllUserTransactions('booked')
+      .pipe(
+        catchError(err => {
+          console.error('Error fetching all user transactions:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.',
+            life: 5000,
+            key: 'br'
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingAllTransactions.set(false))
+      )
+      .subscribe(response => {
+        console.log('All user transactions (bank + card):', response);
+
+        const bank = response?.bankTransactions;
+        const card = response?.cardTransactions;
+
+        const bankTotal = bank?.totalTransactions ?? bank?.transactions?.length ?? 0;
+        const cardTotal = card?.totalTransactions ?? card?.transactions?.length ?? 0;
+        const bankSaved = bank?.databaseSaveResult?.saved ?? 0;
+        const cardSaved = card?.databaseSaveResult?.saved ?? 0;
+
+        let detailMessage = '';
+        if (bankTotal > 0 || cardTotal > 0) {
+          detailMessage = `בנק: ${bankTotal} תנועות (${bankSaved} חדשות). אשראי: ${cardTotal} תנועות (${cardSaved} חדשות).`;
+        } else {
+          detailMessage = 'לא נמצאו תנועות בנק או אשראי.';
+        }
+
+        this.messageService.add({
+          severity: bankTotal > 0 || cardTotal > 0 ? 'success' : 'warn',
+          summary: bankTotal > 0 || cardTotal > 0 ? 'הצלחה' : 'התראה',
+          detail: detailMessage,
+          life: 6000,
+          key: 'br'
+        });
+      });
+  }
+
   // openModalAddExpenses(): void {
   //   this.expenseService.openModalAddExpense().subscribe()
   // }
+  // openMobileMenu(): void {
+  //   this.mobileMenuOpen.set(true);
+  // }
+
+  // closeMobileMenu(): void {
+  //   this.mobileMenuOpen.set(false);
+  // }
+
   openMannualExpenses(): void {
     // this.dialogRef = 
     this.dialogService.open(MannualExpenseComponent, {

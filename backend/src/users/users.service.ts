@@ -191,6 +191,7 @@ export class UsersService {
 
   async signin(firebaseId: string) {
     const user = await this.findFireUser(firebaseId);
+    console.log('[signin] user found – email:', user?.email, 'role:', user?.role, 'firebaseId:', firebaseId);
     return user;
   }
 
@@ -214,7 +215,7 @@ export class UsersService {
 
   private processDateFields(updateUserDto: any): any {
 
-    const dateFields = ['dateOfBirth', 'businessDate'];  // List of fields expected to be dates
+    const dateFields = ['dateOfBirth', 'businessDate', 'spouseDateOfBirth'];  // List of fields expected to be dates
     const processedData = { ...updateUserDto };
 
     for (const key in processedData) {
@@ -264,6 +265,37 @@ export class UsersService {
     return this.user_repo.findOne({ where: { firebaseId } });
   }
 
+  async getChildren(firebaseId: string): Promise<Child[]> {
+    return this.child_repo.find({ where: { parentUserID: firebaseId }, order: { index: 'ASC' } });
+  }
+
+  async updateChildren(firebaseId: string, children: Array<{ childFName: string; childLName: string; childDate: string }>): Promise<Child[]> {
+    await this.child_repo.delete({ parentUserID: firebaseId });
+    const saved: Child[] = [];
+    for (let i = 0; i < children.length; i++) {
+      const c = children[i];
+      if (!c?.childFName?.trim() && !c?.childLName?.trim()) continue;
+      const child = this.child_repo.create({
+        childFName: c.childFName?.trim() ?? '',
+        childLName: c.childLName?.trim() ?? '',
+        childID: null,
+        childDate: c.childDate ?? '',
+        parentUserID: firebaseId,
+      });
+      const s = await this.child_repo.save(child);
+      saved.push(s);
+    }
+    return saved;
+  }
+
+  async deleteChild(firebaseId: string, childIndex: number): Promise<void> {
+    const child = await this.child_repo.findOne({ where: { index: childIndex, parentUserID: firebaseId } });
+    if (!child) {
+      throw new NotFoundException('Child not found or not owned by user');
+    }
+    await this.child_repo.remove(child);
+  }
+
 
   async getFirbsaeIdByToken(token: string): Promise<string> {
     let uid: string;
@@ -298,6 +330,15 @@ export class UsersService {
   async isAdmin(userId: string): Promise<boolean> {
     const user = await this.user_repo.findOneBy({ firebaseId: userId });
     return user?.role?.includes(UserRole.ADMIN) || false;
+  }
+
+  /**
+   * Check if the user (by Firebase UID) has the ACCOUNTANT role.
+   * Used to authorize "create client" and office panel access.
+   */
+  async isAccountant(firebaseId: string): Promise<boolean> {
+    const user = await this.user_repo.findOneBy({ firebaseId });
+    return user?.role?.includes(UserRole.ACCOUNTANT) || false;
   }
 
 

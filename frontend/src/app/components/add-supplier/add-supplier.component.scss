@@ -2,14 +2,16 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
-    margin-top: 30px;
+    margin-top: 10px;
     width: 100%;
 }
 
 .client-container {
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: 20px;
+    width: 100%;
+    min-width: 0;
 }
 
 .form-row {
@@ -20,9 +22,33 @@
     align-items: flex-start;
 }
 
+.form-row-all-fields {
+    flex-wrap: nowrap;
+    gap: 12px;
+    align-items: flex-end;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    min-height: 72px;
+}
+
+.form-field-inline {
+    flex: 0 0 auto;
+    min-width: 120px;
+    max-width: 160px;
+}
+
+.form-field-quarter {
+    flex: 1;
+    min-width: 0;
+}
+
 .form-field-half {
     flex: 1;
     min-width: 0;
+}
+
+.form-row-2 {
+    align-items: center;
 }
 
 .form-field-full {
@@ -33,10 +59,27 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    width: 100%;
+}
+
+.checkbox-field.form-field-inline {
+    min-width: 140px;
+    max-width: 180px;
 }
 
 .checkbox-label {
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
+}
+
+.button-row {
+    flex-shrink: 0;
+}
+
+.suppliers-table-wrap {
+    width: 100%;
+    min-height: 280px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }

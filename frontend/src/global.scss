@@ -107,7 +107,9 @@ body {
 }
 
 body {
-  min-height: 100vh;
+  // 100dvh = dynamic viewport height — shrinks/grows as browser UI shows/hides.
+  // Avoids the classic "100vh is too tall" bug on Android Chrome / iOS Safari.
+  min-height: 100dvh;
 }
 
 app-root {
@@ -454,6 +456,13 @@ app-root {
   border-bottom: 1px solid #ebe8e8 !important;
   border-radius: 0px !important;
 
+  &.square-border {
+    border: 1px solid #ebe8e8 !important;
+    padding-inline: var(--p-inputtext-padding-x) !important;
+    border-radius: 5px !important;
+    // background-color: #e0e0e054;
+  }
+
   &.wide {
     width: 420px !important;
   }
@@ -478,11 +487,15 @@ app-root {
     width: 120px;
   }
 
-  &.fill-border {
+  &.rounded-border {
     border: 1px solid #ebe8e8 !important;
     padding-inline: var(--p-inputtext-padding-x) !important;
     border-radius: 26px !important;
     background-color: #e0e0e054;
+
+    &.transparent {
+      background-color: transparent !important;
+    }
 
     &.dirty {
       border: 1px solid #204F56 !important;
@@ -787,7 +800,7 @@ ion-content,
     border-color: #3d3d3d !important;
     color: #f4f4f5 !important;
 
-    &.fill-border,
+    &.rounded-border,
     &.white-style,
     &.p-datepicker-input {
       background-color: #111 !important;
@@ -840,7 +853,6 @@ ion-content,
   }
 }
 
-
 @media (max-width: 768px) {
   .p-toast {
     width: calc(100vw - 24px) !important;
@@ -856,4 +868,49 @@ ion-content,
 
 .p-fileupload.p-fileupload-advanced {
   display: none !important;
+}
+
+.p-avatar.my-account-avatar .p-avatar-text {
+  padding-bottom: 4px;
+}
+
+// ── doc-create-items-mobile: quantity stepper ─────────────────
+.qty-stepper {
+  direction: ltr;
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  width: 100%;
+
+  .p-inputnumber-button {
+    border: none !important;
+    background: transparent !important;
+    color: #0075ff !important;
+    border-radius: 0 !important;
+    flex-shrink: 0;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .p-inputnumber-input {
+    flex: 1;
+    min-width: 0;
+    width: auto !important;
+    border: none !important;
+    box-shadow: none !important;
+    text-align: center;
+  }
+}
+
+// ── doc-create-items-mobile: discount input ───────────────────
+.discount-input {
+  width: 130px !important;
+
+  .p-inputnumber-input {
+    border: 1px solid #cccccc !important;
+    border-radius: 4px !important;
+    width: 100% !important;
+  }
 }

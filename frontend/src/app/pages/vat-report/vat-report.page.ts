@@ -87,8 +87,6 @@ export class VatReportPage implements OnInit {
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
     { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
   ];
 
@@ -125,13 +123,10 @@ export class VatReportPage implements OnInit {
     const businesses = this.gs.businesses();
     this.businessNumber.set(businesses[0].businessNumber);
 
-    // Now config can be set safely
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
-    const defaultPeriodMode = ReportingPeriodType.BIMONTHLY;
-    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, defaultPeriodMode);
-    
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, ReportingPeriodType.BIMONTHLY);
+
     this.filterConfig = [
       {
         type: 'select',
@@ -146,11 +141,11 @@ export class VatReportPage implements OnInit {
         controlName: 'period',
         required: true,
         allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY],
-        periodDefaults: {
+        periodDefaults: this.gs.getDefaultPeriodConfig({
           periodMode: ReportingPeriodType.BIMONTHLY,
           year: currentYear,
           month: defaultMonthValue
-        }
+        })
       },
     ];
 
@@ -243,29 +238,15 @@ export class VatReportPage implements OnInit {
   }
 
   onSubmit(formValues: any): void {
-
-    console.log("Submitted filter:", formValues);
-    const periodMode = this.form.get('periodMode')?.value;
-    const year = this.form.get('year')?.value;
-    const month = this.form.get('month')?.value;
-    const localStartDate = this.form.get('startDate')?.value;
-    const localEndDate = this.form.get('endDate')?.value;
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(
-      periodMode,
-      year,
-      month,
-      localStartDate,
-      localEndDate
-    );
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
     this.isLoadingStatePeryodSelectButton.set(true);
-    this.businessNumber.set(this.form?.get('businessNumber')?.value);
+    this.businessNumber.set(effectiveBusiness);
     this.startDate.set(startDate);
     this.endDate.set(endDate);
     this.getTransToConfirm();
     this.isRequestSent.set(true);
-
   }
 
   

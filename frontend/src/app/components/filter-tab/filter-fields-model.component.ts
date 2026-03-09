@@ -13,8 +13,9 @@ export type FilterFieldType =
 export interface PeriodDefaults {
   periodMode?: ReportingPeriodType;
   year?: number;
-  // month?: number;
   month?: string;
+  /** כשמוגדר, בדו-חודשי יוצג ברירת מחדל זו (למשל '1' = ינואר-פברואר) */
+  bimonthlyDefaultMonth?: string;
   startDate?: string;
   endDate?: string;
 }

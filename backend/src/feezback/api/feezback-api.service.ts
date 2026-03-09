@@ -15,18 +15,18 @@ export class FeezbackApiService {
 
   async createConsentLink(firebaseId: string): Promise<any> {
     const token = await this.feezbackJwtService.generateConsentJwt(firebaseId);
-    this.logger.debug(`Requesting consent link for firebaseId=${firebaseId}`);
+    // this.logger.debug(`Requesting consent link for firebaseId=${firebaseId}`);
     return this.httpClient.post(this.authService.getLgsUrl(), { token });
   }
 
   async getUserConsents(sub: string): Promise<{ consents: any[] }> {
-    this.logger.log(`Fetching user consents for sub=${sub}`);
+    // this.logger.log(`Fetching user consents for sub=${sub}`);
     const data = await this.getFromUserPath(sub, '/consents');
     return this.normalizeConsentsResponse(data);
   }
 
   async getUserAccounts(sub: string): Promise<any> {
-    this.logger.log(`Fetching user accounts for sub=${sub}`);
+    // this.logger.log(`Fetching user accounts for sub=${sub}`);
     return this.getFromUserPath(sub, '/accounts');
   }
 
@@ -34,7 +34,7 @@ export class FeezbackApiService {
     sub: string,
     options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
   ): Promise<{ cards: any[] }> {
-    this.logger.log(`Fetching user cards for sub=${sub}`);
+    // this.logger.log(`Fetching user cards for sub=${sub}`);
 
     const queryParams: Record<string, string> = {};
 
@@ -68,7 +68,7 @@ export class FeezbackApiService {
     dateFrom?: string,
     dateTo?: string,
   ): Promise<any> {
-    this.logger.log(`Fetching account transactions sub=${sub} bookingStatus=${bookingStatus}`);
+    // this.logger.log(`Fetching account transactions sub=${sub} bookingStatus=${bookingStatus}`);
     const url = this.buildTransactionsUrl(transactionsLink, bookingStatus, dateFrom, dateTo);
     return this.httpClient.get(url.toString(), {
       sub,

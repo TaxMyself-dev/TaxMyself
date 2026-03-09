@@ -1,216 +1,192 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { ClientPanelService } from 'src/app/services/clients-panel.service';
-import { ISelectItem } from 'src/app/shared/interface';
+import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
+import { AuthService } from 'src/app/services/auth.service';
+import { MessageService, ConfirmationService } from 'primeng/api';
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { businessTypeOptionsList, BusinessTypeLabels } from 'src/app/shared/enums';
 
 @Component({
-    selector: 'app-clients-panel',
-    templateUrl: './clients-panel.page.html',
-    styleUrls: ['./clients-panel.page.scss', '../../shared/shared-styling.scss'],
-    standalone: false
+  selector: 'app-clients-panel',
+  templateUrl: './clients-panel.page.html',
+  styleUrls: ['./clients-panel.page.scss', '../../shared/shared-styling.scss'],
+  standalone: false,
 })
 export class ClientPanelPage implements OnInit {
-  myClients: ISelectItem[] = []; // Clients formatted as ISelectItem[]
-  selectedClientId: string | null = null; // Selected client ID
-  selectedClientName: string | null = null; // Selected client Name
-  inviteEmail: string = '';
+  private readonly clientService = inject(ClientPanelService);
+  private readonly authService = inject(AuthService);
+  private readonly messageService = inject(MessageService);
+  private readonly confirmationService = inject(ConfirmationService);
+  private readonly router = inject(Router);
 
-  constructor(
-    private clientService: ClientPanelService, 
-    private router: Router
-  ) {}
+  readonly ButtonColor = ButtonColor;
+  readonly ButtonSize = ButtonSize;
 
-  ngOnInit() {
-    this.fetchClients();
+  readonly myClients = signal<Client[]>([]);
+  readonly loadingClients = signal(false);
 
-    // ✅ Subscribe to selected client changes
-    this.clientService.selectedClientId$.subscribe(clientId => {
-      this.selectedClientId = clientId;
-    });
+  readonly createClientModalVisible = signal(false);
+  readonly creatingClient = signal(false);
+  createClientFormData: CreateClientPayload = this.getEmptyFormData();
+  readonly createClientErrors = signal<Record<string, string>>({});
+
+  /** עוסק פטור, עוסק מורשה, חברה בע"מ – כמו בעמוד ההרשמה */
+  readonly businessTypeOptions = businessTypeOptionsList;
+
+  private getEmptyFormData(): CreateClientPayload {
+    return {
+      email: '',
+      phone: '',
+      fName: '',
+      lName: '',
+      id: '',
+      dateOfBirth: '',
+      businessType: '',
+      businessName: '',
+      businessNumber: '',
+      address: '',
+    };
   }
 
-  // ✅ Fetch clients from the backend and update dropdown list
+  ngOnInit(): void {
+    this.clientService.clearSelectedClient();
+    this.fetchClients();
+  }
+
   fetchClients(): void {
+    this.loadingClients.set(true);
     this.clientService.getMyClients().subscribe({
       next: (clients) => {
-        console.log("clients is ", clients);
-        
-        this.myClients = clients.map(client => ({
-          value: client.id,
-          name: client.name,
-        }));
-
-        console.log("myClients is ", this.myClients);
-
-        // ✅ Auto-select first client if none is selected
-        if (!this.selectedClientId && this.myClients.length > 0) {
-          this.onClientSelectionChange(this.myClients[0].value);
-        }
+        this.myClients.set(clients);
+        this.loadingClients.set(false);
       },
-      error: (error) => console.error('Failed to fetch clients:', error),
-      complete: () => console.log('Client fetching completed successfully!'),
+      error: (err) => {
+        console.error('Failed to fetch clients:', err);
+        this.loadingClients.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'טעינת רשימת הלקוחות נכשלה',
+          life: 3000,
+          key: 'br',
+        });
+      },
     });
   }
 
-  // ✅ Handle client selection from dropdown
-  onClientSelectionChange(selectedValue: any): void {
-    const client = this.myClients.find(client => client.value === selectedValue.value);
-
-    if (!client) return;
-
-    this.selectedClientId = selectedValue.value;
-    this.selectedClientName = client.name as string;
-
-    // ✅ Store selected client globally in the service
-    this.clientService.setSelectedClientId(this.selectedClientId);
+  /** תרגום סוג העסק: עוסק פטור, עוסק מורשה, חברה בע"מ */
+  businessTypeLabel(value: string): string {
+    return value ? (BusinessTypeLabels[value as keyof typeof BusinessTypeLabels] ?? value) : '—';
   }
 
-  // ✅ Navigate to another page while maintaining selected client
-  setClient(): void {
-    if (!this.selectedClientId) {
-      console.warn('No client selected!');
-      return;
-    }
-
-    this.router.navigate(['my-account']);
+  /** כניסה לחשבון הלקוח בתור הרואה חשבון – מגדיר גם את מספר העסק של הלקוח להקשר הבקשות */
+  enterClient(client: Client): void {
+    this.clientService.setSelectedClient(client.id, client.fullName);
+    this.authService.setActiveBusinessNumber(client.businessNumber ?? null);
+    this.router.navigate(['/my-account']);
   }
 
-  // ✅ Send an invitation to a new user
-  sendInvitation() {
-    if (!this.inviteEmail) {
-      console.error('Email is required');
-      return;
-    }
+  /** מחיקת לקוח מהרשימה (הסרת הקישור בלבד) */
+  confirmDeleteClient(client: Client): void {
+    this.confirmationService.confirm({
+      message: `האם למחוק את הלקוח "${client.fullName}" מהרשימה? הפעולה תסיר את הקישור בלבד.`,
+      header: 'אישור מחיקה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'מחק',
+      rejectLabel: 'ביטול',
+      accept: () => this.deleteClient(client.id),
+    });
+  }
 
-    this.clientService.sendInvitation(this.inviteEmail).subscribe({
-      next: (response) => {
-        console.log('Invitation sent successfully:', response);
-        alert('Invitation sent successfully!');
+  private deleteClient(clientId: string): void {
+    this.clientService.deleteClient(clientId).subscribe({
+      next: () => {
+        this.clientService.clearClientsCache();
+        this.fetchClients();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הלקוח הוסר מהרשימה',
+          life: 3000,
+          key: 'br',
+        });
       },
-      error: (error) => {
-        console.error('Failed to send invitation:', error);
-        alert('Failed to send invitation.');
+      error: (err) => {
+        const detail = err?.error?.message ?? err?.message ?? 'מחיקה נכשלה. נסה שוב.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
       },
-      complete: () => console.log('Invitation process completed.'),
+    });
+  }
+
+  openCreateClientModal(): void {
+    this.createClientFormData = this.getEmptyFormData();
+    this.createClientErrors.set({});
+    this.createClientModalVisible.set(true);
+  }
+
+  closeCreateClientModal(): void {
+    this.createClientModalVisible.set(false);
+  }
+
+  private validateCreateClientForm(): boolean {
+    const form = this.createClientFormData;
+    const err: Record<string, string> = {};
+    const email = (form.email ?? '').trim();
+    const phone = (form.phone ?? '').trim();
+    if (!email) err['email'] = 'אימייל חובה';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) err['email'] = 'כתובת אימייל לא חוקית';
+    if (!phone) err['phone'] = 'פלאפון חובה';
+    this.createClientErrors.set(err);
+    return Object.keys(err).length === 0;
+  }
+
+  submitCreateClient(): void {
+    if (!this.validateCreateClientForm()) return;
+    this.creatingClient.set(true);
+    const form = this.createClientFormData;
+    const payload: CreateClientPayload = {
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      fName: form.fName?.trim() || undefined,
+      lName: form.lName?.trim() || undefined,
+      id: form.id?.trim() || undefined,
+      dateOfBirth: form.dateOfBirth?.trim() || undefined,
+      businessType: form.businessType?.trim() || undefined,
+      businessName: form.businessName?.trim() || undefined,
+      businessNumber: form.businessNumber?.trim() || undefined,
+      address: form.address?.trim() || undefined,
+    };
+    this.clientService.createClient(payload).subscribe({
+      next: () => {
+        this.clientService.clearClientsCache();
+        this.fetchClients();
+        this.closeCreateClientModal();
+        this.creatingClient.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'הלקוח נוסף בהצלחה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        this.creatingClient.set(false);
+        const detail = err?.error?.message ?? err?.message ?? 'לא ניתן להוסיף לקוח. נסה שוב.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
     });
   }
 }
-
-
-
-// import { Component, OnInit } from '@angular/core';
-// import { FormBuilder } from '@angular/forms';
-// import { Router } from '@angular/router';
-// import { ClientPanelService } from 'src/app/services/clients-panel.service';
-// import { ISelectItem } from 'src/app/shared/interface';
-
-
-// @Component({
-//   selector: 'app-clients-panel',
-//   templateUrl: './clients-panel.page.html',
-//   styleUrls: ['./clients-panel.page.scss', '../../shared/shared-styling.scss'],
-// })
-// export class ClientPanelPage implements OnInit {
-
-//   myClients: ISelectItem[] = []; // List of clients formatted as ISelectItem[]
-//   selectedClientId: string; // Currently selected client ID
-//   selectedClientName: string; // Currently selected client Name
-//   inviteEmail: string = '';
-
-
-//   constructor(private clientService: ClientPanelService, private router: Router) {
-//   }  
-
-
-//   ngOnInit() {
-//     this.fetchClients();
-//   }
-
-
-//   sendInvitation() {
-//     if (!this.inviteEmail) {
-//       console.error('Email is required');
-//       return;
-//     }
-//     this.clientService.sendInvitation(this.inviteEmail).subscribe({
-//       next: (response) => {
-//         console.log('Invitation sent successfully:', response);
-//         alert('Invitation sent successfully!');
-//       },
-//       error: (error) => {
-//         console.error('Failed to send invitation:', error);
-//         alert('Failed to send invitation.');
-//       },
-//       complete: () => {
-//         console.log('Invitation process completed.');
-//       },
-//     });
-//   }
-
-
-//   // Fetch clients from the backend and format them for the dropdown
-//   fetchClients(): void {
-//     this.clientService.getMyClients().subscribe({
-//       next: (clients) => {
-//         console.log("clients is ", clients);
-        
-//         this.myClients = clients.users.map(client => ({
-//           value: client.firebaseId,
-//           name: client.fullName,
-//         }));
-//         console.log("myClients is ", this.myClients);
-//       },
-      
-      
-//       error: (error) => {
-//         console.error('Failed to fetch clients:', error);
-//       },
-//       complete: () => {
-//         console.log('Client fetching completed successfully!');
-//       },
-//     });
-    
-//   }
-  
-
-//   onClientSelectionChange(selectedValue: any): void {
-//     const client = this.myClients.find((client)=>client.value === selectedValue.value);
-//     this.selectedClientId = selectedValue.value;
-//     this.selectedClientName = client.name as string;
-//   }
-
-
-//   setClient(): void {
-//     localStorage.setItem('clientId', JSON.stringify(this.selectedClientId));
-//     localStorage.setItem('clientName', JSON.stringify(this.selectedClientName)); 
-//     //this.updateTokenFields(this.selectedClientId)   
-//     this.router.navigate(['my-account']);
-//   }
-
-  
-//   // updateTokenFields(newfield) {
-//   //   // Get the token from localStorage
-//   //   let token = localStorage.getItem("token");
-  
-//   //   if (!token) {
-//   //     console.warn("No token found in localStorage.");
-//   //     return;
-//   //   }
-  
-//   //   try {
-//   //     // Parse it as an object (if it's JSON formatted)
-//   //     //let tokenObj = JSON.parse(token);
-//   //     let tokenObj = {token: token , userId: newfield};
-  
-//   //     // Save the updated token back to localStorage
-//   //     localStorage.setItem("token", JSON.stringify(tokenObj));
-  
-//   //     console.log("Token updated:", tokenObj);
-//   //   } catch (error) {
-//   //     console.error("Token is not a valid JSON object:", error);
-//   //   }
-//   // }
-  
-
-
-// }

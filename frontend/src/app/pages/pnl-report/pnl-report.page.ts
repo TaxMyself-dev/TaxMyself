@@ -3,7 +3,6 @@ import { PnLReportService } from './pnl-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ICreateDataDoc, IPnlReportData, ISelectItem, IUserData } from 'src/app/shared/interface';
 import { GenericService } from 'src/app/services/generic.service';
-import { DateService } from 'src/app/services/date.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { catchError, EMPTY, finalize, map, tap } from 'rxjs';
 import { FilesService } from 'src/app/services/files.service';
@@ -49,7 +48,7 @@ export class PnLReportPage implements OnInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
 
-  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, private dateService: DateService, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
+  constructor(public pnlReportService: PnLReportService, private formBuilder: FormBuilder, public authService: AuthService, private genericService: GenericService, private fileService: FilesService) {
   }
 
 
@@ -82,20 +81,24 @@ export class PnLReportPage implements OnInit {
       }
     });
     
-    // Now config can be set safely
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
     this.filterConfig = [
       {
         type: 'select',
         controlName: 'businessNumber',
         label: 'בחר עסק',
         required: true,
-        options: this.gs.businessSelectItems
+        options: this.gs.businessSelectItems,
+        defaultValue: businesses.length === 1 ? businesses[0].businessNumber : undefined
       },
       {
         type: 'period',
         controlName: 'period',
         required: true,
-        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE]
+        allowedPeriodModes: [ReportingPeriodType.MONTHLY, ReportingPeriodType.BIMONTHLY, ReportingPeriodType.ANNUAL, ReportingPeriodType.DATE_RANGE],
+        periodDefaults: this.gs.getDefaultPeriodConfig({ year: currentYear, month: String(currentMonth) })
       },
     ];
 
@@ -103,43 +106,18 @@ export class PnLReportPage implements OnInit {
 
 
   onSubmit(formValues: any): void {
+    const effectiveBusiness = this.gs.getEffectiveBusinessNumber(this.form, formValues.businessNumber, this.userData);
+    const { startDate, endDate } = this.gs.getPeriodDatesFromForm(this.form);
 
-    console.log("Submitted filter:", formValues);
-    const periodMode = this.form.get('periodMode')?.value;
-    const year = this.form.get('year')?.value;
-    const month = this.form.get('month')?.value;
-    const localStartDate = this.form.get('startDate')?.value;
-    const localEndDate = this.form.get('endDate')?.value;
-
-    // // period object
-    // const period = formValues.period;
-    // const {
-    //   periodMode,
-    //   year,
-    //   month,
-    //   startDate: localStartDate,
-    //   endDate: localEndDate
-    // } = period;
-
-    const { startDate, endDate } = this.dateService.getStartAndEndDates(periodMode, year, month, localStartDate, localEndDate);
-    
-    // Update business number and name
-    const selectedBusinessNumber = this.form?.get('businessNumber')?.value;
-    this.businessNumber.set(selectedBusinessNumber);
-    
-    // Find and set business name
-    const business = this.gs.businesses().find(
-      b => b.businessNumber === selectedBusinessNumber
-    );
+    this.businessNumber.set(effectiveBusiness);
+    const business = this.gs.businesses().find(b => b.businessNumber === effectiveBusiness);
     if (business) {
       this.businessName.set(business.businessName);
     }
-    
+
     this.startDate.set(startDate);
     this.endDate.set(endDate);
-
-    this.getPnLReportData(startDate, endDate, this.businessNumber());
-
+    this.getPnLReportData(startDate, endDate, effectiveBusiness);
   }
 
 

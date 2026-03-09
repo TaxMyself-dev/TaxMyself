@@ -658,37 +658,27 @@ export class ExpensesService {
         businessNumber?: string,
         page: number = 1 // default to the first page
     ): Promise<Expense[]> {
-        // Build the query object
-        const where: any = { userId };
+        const take = 50;
+        const skip = (page - 1) * take;
 
-        // Add date filtering if provided
-        if (startDate) {
-            where.date = { ...where.date, $gte: startDate };
-        }
-        if (endDate) {
-            where.date = { ...where.date, $lte: endDate };
-        }
-        // Add business number filtering if provided
-        if (businessNumber) {
-            where.businessNumber = businessNumber;
-        }
+        const where: any = {
+            userId: userId,
+            ...(startDate && endDate ? { date: Between(startDate, endDate) } : {}),
+            ...(businessNumber ? { businessNumber: businessNumber } : {}),
+        };
 
-        // Query the database
-        const expenses = await this.expense_repo.find({
+        console.log('[getExpensesByUserID] where לשאילתה:', JSON.stringify(where, null, 2));
 
-            where: {
-                userId: userId,
-                ...(startDate && endDate ? { date: Between(startDate, endDate) } : {}),
-                ...(businessNumber ? { businessNumber: businessNumber } : {})
-            },
-            order: { date: 'DESC' }, // Sort by the most recent date
-            take: 50, // Limit the results to 50
-            skip: (page - 1) * 50, // Offset for pagination
-        }
+        const result = await this.expense_repo.find({
+            where,
+            order: { date: 'DESC' },
+            take,
+            skip,
+        });
 
-        );
+        console.log('[getExpensesByUserID] מספר הוצאות מהדאטאבייס:', result.length, 'דוגמאות:', result.slice(0, 3).map((e) => ({ id: e.id, date: e.date, businessNumber: e.businessNumber, sum: e.sum })));
 
-        return expenses;
+        return result;
     }
 
 
@@ -737,10 +727,6 @@ export class ExpensesService {
 
 
     async getExpensesForReductionReport(userId: string, businessNumber: string, year: number): Promise<Expense[]> {
-
-        console.log("businessNumber is ", businessNumber);
-        console.log("year is ", year);
-        console.log("userId is ", userId);
 
         return this.expense_repo.find({
             where: {

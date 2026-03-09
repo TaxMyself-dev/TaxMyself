@@ -95,6 +95,11 @@ export class AddClientService {
     return this.http.post<any>(url, data);
   }
 
+  updateClient(clientRowId: number, data: Partial<IClient>): Observable<any> {
+    const url = `${environment.apiUrl}clients/update-client/${clientRowId}`;
+    return this.http.patch<any>(url, data);
+  }
+
 }
 
 

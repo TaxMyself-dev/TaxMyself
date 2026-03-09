@@ -1,12 +1,56 @@
 <div class="page-wrapper">
 
+    <!-- ─── MOBILE HEADER (display:none on desktop via CSS) ─── -->
+    <!-- ─── MOBILE SIDE MENU OVERLAY (display:none on desktop via CSS) ─── -->
+    <!-- <div class="mobile-header">
+        <div class="mobile-header__start">
+            <button class="mobile-header__hamburger" (click)="openMobileMenu()" aria-label="פתח תפריט">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <button class="mobile-header__bell" aria-label="התראות">
+                <i class="pi pi-bell"></i>
+            </button>
+        </div>
+        <div class="mobile-header__logo" aria-label="Keep In Tax">KIT</div>
+    </div>
+
+    <div class="mobile-menu-overlay"
+         [class.mobile-menu--open]="mobileMenuOpen()"
+         (click)="closeMobileMenu()">
+        <nav class="mobile-menu-panel" (click)="$event.stopPropagation()">
+            <div class="mobile-menu-panel__top">
+                <button class="mobile-menu-panel__close" (click)="closeMobileMenu()" aria-label="סגור תפריט">
+                    <i class="pi pi-times"></i>
+                </button>
+                <div class="mobile-menu-panel__user">
+                    <div class="mobile-menu-panel__user-text">
+                        <span class="mobile-menu-panel__name">{{ userData?.fName }} {{ userData?.lName }}</span>
+                    </div>
+                    <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
+                </div>
+            </div>
+            <hr class="mobile-menu-panel__divider" />
+            <ul class="mobile-menu-panel__links">
+                @for (item of itemsNavigate; track $index) {
+                    <li>
+                        <a [routerLink]="item.link" (click)="closeMobileMenu()">{{ item.name }}</a>
+                    </li>
+                }
+                <li>הגדרות</li>
+                <li>צור קשר</li>
+            </ul>
+        </nav>
+    </div> -->
+
     <div class="user-info-block">
         <div class="avatar-with-name">
             <!-- <p-avatar icon="pi pi-user" [style]="{ backgroundColor: '#dee9fc', color: '#1a2551' }" shape="circle"></p-avatar> -->
-            <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
+            <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="large" shape="circle"></p-avatar>
             <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
         </div>
-        <div class="user-actions">
+        <div class="user-actions" [class.hidden]="isProd()">
             <app-p-button class="feezback-connect-button" [buttonText]="'התחבר לבנקאות פתוחה'"
                 [buttonColor]="buttonColor.YELLOW" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingFeezback()"
                 (onButtonClicked)="connectToOpenBanking()">
@@ -27,10 +71,39 @@
                 [isLoading]="isLoadingUserCardTransactions()" (onButtonClicked)="fetchUserCardTransactions()">
                 <i class="pi pi-list"></i>
             </app-p-button>
+            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות בנק ואשראי'"
+                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+                [isLoading]="isLoadingAllTransactions()" (onButtonClicked)="fetchAllUserTransactions()">
+                <i class="pi pi-list"></i>
+            </app-p-button>
         </div>
         <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
             [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
+        </app-p-button>
+    </div>
+     <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
+     <div class="banking-banner">
+        <!-- Figma Vector 2520:53916 — left organic blob. TODO: save to assets/banner-blob-left.png -->
+        <img class="banking-banner__blob banking-banner__blob--left"
+             src="https://www.figma.com/api/mcp/asset/4cc630e2-7cce-4b5d-9c33-f853e432ca4e"
+             alt="" aria-hidden="true" />
+        <!-- Figma Vector 2520:53917 — right organic blob. TODO: save to assets/banner-blob-right.png -->
+        <img class="banking-banner__blob banking-banner__blob--right"
+             src="https://www.figma.com/api/mcp/asset/dbaa2bee-fdfb-4b7c-9745-f7b1ee8afd87"
+             alt="" aria-hidden="true" />
+        <div class="banking-banner__text">
+            <p class="banking-banner__title">רוצה לראות את התנועות בחשבון שלך?</p>
+            <p class="banking-banner__body">
+                באמצעות חיבור לבנקאות פתוחה תוכל לקבל תמונה רחבה יותר על החשבון שלך,
+                גישה ליכולות נוספות ושליטה טובה יותר בניהול הכסף
+            </p>
+        </div>
+        <app-p-button
+            [buttonText]="'אני רוצה'"
+            [buttonColor]="buttonColor.BLACK"
+            [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="connectToOpenBanking()">
         </app-p-button>
     </div>
     <div class="nevigation-block">
@@ -42,16 +115,17 @@
             }
         </div>
     </div>
+   
 
+@if (!isMobile()) {
     <div class="table-block">
         <p class="block-title">התנועות הלא מסווגות שלי</p>
         <app-generic-table [isLoadingState]="isLoadingDataTable()" class="table" [columnsTitle]="fieldsNamesExpenses"
             [dataTable]="transToClassify | async" [selectionModeCheckBox]="null"
             [tableHeight]="'500px'"></app-generic-table>
     </div>
-
+}
 </div>
-
 <!-- <ion-content>
     <div class="my-account-screen">
         <app-item-navigate [navigationItems]="itemsNavigate" navigationItemStyle="button-item-navigate-my-account"></app-item-navigate>

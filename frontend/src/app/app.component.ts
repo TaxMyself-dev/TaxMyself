@@ -4,6 +4,7 @@ import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
 import { LoadingController, ModalController, PopoverController } from '@ionic/angular';
 import { AuthService } from './services/auth.service';
+import { ClientPanelService } from './services/clients-panel.service';
 import { ExpenseDataService } from './services/expense-data.service';
 import { ModalExpensesComponent } from './shared/modal-add-expenses/modal.component';
 import { ExpenseFormColumns, ExpenseFormHebrewColumns } from './shared/enums';
@@ -50,7 +51,6 @@ export class AppComponent implements OnInit {
     // { label: 'פרופיל אישי' },
     { label: 'תזרים', routerLink: '/transactions' },
     { label: 'דוחות', routerLink: '/reports' },
-    // { label: 'הגדרות', routerLink: '/my-status' },
     // { label: 'צור קשר' },
   ]
 
@@ -62,14 +62,23 @@ export class AppComponent implements OnInit {
   isUserAdmin: boolean = false;
   isAccountant: boolean = false;
   destroy$ = new Subject<void>();
+  /** כשהרואה חשבון נכנס לחשבון לקוח – לתצוגה בראש המסך */
+  selectedClientId: string | null = null;
+  selectedClientName: string | null = null;
 
-  constructor(private expenseDataServise: ExpenseDataService, private router: Router, private modalCtrl: ModalController, private authService: AuthService, private messageService: MessageService) {
-  };
+  constructor(
+    private expenseDataServise: ExpenseDataService,
+    private router: Router,
+    private modalCtrl: ModalController,
+    private authService: AuthService,
+    private messageService: MessageService,
+    private clientPanelService: ClientPanelService,
+  ) {}
   showTopNav = signal(true);
-  
+
   ngOnInit() {
     this.hideTopNav();
-
+    this.subscribeToSelectedClient();
     this.restoreSessionAfterRefresh();
     // Check admin status after userData is loaded
     this.updateAdminMenuItems();
@@ -91,10 +100,19 @@ export class AppComponent implements OnInit {
 
   hideTopNav(): void {
     this.router.events.pipe(
-      filter(e => e instanceof NavigationEnd)
+      filter(e => e instanceof NavigationEnd),
+      takeUntil(this.destroy$)
     ).subscribe((e: NavigationEnd) => {
       const url = e.urlAfterRedirects || e.url;
       this.showTopNav.set(!(['/login', '/register'].includes(url)));
+      // עדכון תפריט (כולל משרד לרואה חשבון) בכל ניווט – כך שהטאב יופיע גם אחרי כניסה מהדף לוגין
+      const userFromStorage = this.authService.getUserDataFromLocalStorage();
+      console.log('[משרד] NavigationEnd – userFromStorage:', userFromStorage ? { role: userFromStorage.role, email: userFromStorage.email } : null);
+      if (userFromStorage) {
+        this.userData = userFromStorage;
+        this.updateAdminMenuItems();
+        this.getRoleUser();
+      }
     });
   }
 
@@ -124,9 +142,9 @@ export class AppComponent implements OnInit {
   }
 
   getRoleUser(): void {
-
     this.isUserAdmin = this.userData?.role?.includes('ADMIN') || false;
     this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
+    console.log('[משרד] getRoleUser – isAccountant:', this.isAccountant, 'role:', this.userData?.role);
 
     // if (this.userData?.role === 'ADMIN') {
     //   this.isUserAdmin = true;
@@ -170,10 +188,42 @@ export class AppComponent implements OnInit {
 
   async signOut() {
     console.log("sign out");
+    this.clientPanelService.clearSelectedClient();
     await this.authService.SignOut();
-    this.isPopoverOpen = !this.isPopoverOpen
-    this.router.navigate(["/login"])
+    this.isPopoverOpen = !this.isPopoverOpen;
+    this.router.navigate(["/login"]);
+  }
 
+  /** יציאה מחשבון הלקוח – חזרה למשרד */
+  exitClientView(): void {
+    this.clientPanelService.clearSelectedClient();
+    this.router.navigate(['/client-panel']);
+  }
+
+  private subscribeToSelectedClient(): void {
+    this.clientPanelService.selectedClientId$.pipe(takeUntil(this.destroy$)).subscribe((id) => {
+      this.selectedClientId = id;
+      this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
+      if (id) {
+        this.authService.loadViewAsUserData().subscribe((data) => {
+          if (data) {
+            this.userData = data;
+            this.updateAdminMenuItems();
+            this.getRoleUser();
+          }
+        });
+        this.genericService.loadBusinessesFromServer();
+      } else {
+        this.authService.clearViewAsUserData();
+        this.genericService.loadBusinessesFromServer();
+        this.userData = this.authService.getUserDataFromLocalStorage();
+        this.updateAdminMenuItems();
+        this.getRoleUser();
+      }
+    });
+    this.clientPanelService.selectedClientName$.pipe(takeUntil(this.destroy$)).subscribe((name) => {
+      this.selectedClientName = name;
+    });
   }
 
   toggleMenu() {
@@ -192,7 +242,7 @@ export class AppComponent implements OnInit {
 
   async restoreSessionAfterRefresh() {
     const userData = this.authService.getUserDataFromLocalStorage();
-    
+    console.log('[משרד] restoreSessionAfterRefresh – userData:', userData ? { role: userData.role, email: userData.email } : null);
     if (userData) {
       this.userData = userData;
       // Update admin menu items after userData is set
@@ -202,15 +252,27 @@ export class AppComponent implements OnInit {
   }
 
   updateAdminMenuItems(): void {
-    // Remove existing admin panel menu item if it exists
-    this.menuItems = this.menuItems.filter(item => item.label !== 'פאנל ניהול');
-    
-    // Check if user is admin and add menu item
-    if (this.userData?.role && (this.userData.role[0] === 'ADMIN' || this.userData.role.includes('ADMIN'))) {
-      const panelExist = this.menuItems.some(item => item.label === 'פאנל ניהול');
-      if (!panelExist) {
+    const role = this.userData?.role;
+    console.log('[משרד] updateAdminMenuItems – userData.role:', role, 'type:', typeof role, 'includes ACCOUNTANT:', role != null && (Array.isArray(role) ? role.includes('ACCOUNTANT') : String(role).includes('ACCOUNTANT')));
+
+    // Remove role-based items so we can re-add according to current user
+    this.menuItems = this.menuItems.filter(
+      (item) => item.label !== 'פאנל ניהול' && item.label !== 'משרד',
+    );
+
+    if (role && (role[0] === 'ADMIN' || role.includes('ADMIN'))) {
+      if (!this.menuItems.some((item) => item.label === 'פאנל ניהול')) {
         this.menuItems.push({ label: 'פאנל ניהול', routerLink: '/admin-panel' });
       }
+    }
+    // טאב משרד לרואה חשבון – הלקוחות שלי + הקמת לקוח
+    if (role?.includes('ACCOUNTANT')) {
+      if (!this.menuItems.some((item) => item.label === 'משרד')) {
+        this.menuItems.push({ label: 'משרד', routerLink: '/client-panel' });
+      }
+      console.log('[משרד] הוספת טאב משרד – menuItems אחרי עדכון:', this.menuItems.map((m) => m.label));
+    } else {
+      console.log('[משרד] לא הוספנו משרד – role לא מכיל ACCOUNTANT. תפריט סופי:', this.menuItems.map((m) => m.label));
     }
   }
 

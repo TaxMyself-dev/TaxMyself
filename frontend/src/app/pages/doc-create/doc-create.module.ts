@@ -30,6 +30,11 @@ import { ConfirmDialog } from 'primeng/confirmdialog';
 import { CheckboxModule } from 'primeng/checkbox';
 import { Card } from "primeng/card";
 import { Avatar } from "primeng/avatar";
+import { SelectButton } from "primeng/selectbutton";
+import { DocCreateItemsMobileComponent } from 'src/app/components/doc-create-items-mobile/doc-create-items-mobile.component';
+import { SegmentedControlComponent } from 'src/app/components/segmented-control/segmented-control.component';
+import { ItemsTotalSummaryComponent } from 'src/app/components/items-total-summary/items-total-summary.component';
+import { DocCreatePaymentsMobileComponent } from 'src/app/components/doc-create-payments-mobile/doc-create-payments-mobile.component';
 
 
 @NgModule({
@@ -58,7 +63,12 @@ import { Avatar } from "primeng/avatar";
     ConfirmDialog,
     CheckboxModule,
     Card,
-    Avatar
+    Avatar,
+    SelectButton,
+    DocCreateItemsMobileComponent,
+    SegmentedControlComponent,
+    ItemsTotalSummaryComponent,
+    DocCreatePaymentsMobileComponent,
   ],
   declarations: [DocCreatePage,],
   providers: [DialogService, ConfirmationService, MessageService]

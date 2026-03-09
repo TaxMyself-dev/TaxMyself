@@ -46,7 +46,6 @@ export class AddSupplierService {
   readonly addSupplierFields: Record<SupplierKeys, IBaseFieldData> = {
     // General Details 
     ['name']: {
-      //name: FieldsCreateDocName.typeFile,
       value: 'name',
       labelText: 'שם הספק',
       placeHolder: 'הקלד את שם הספק',
@@ -55,6 +54,16 @@ export class AddSupplierService {
       enumValues: [],
       validators: [Validators.required]
     },
+    /** שדה לתצוגה בטבלה (מגיע מהשרת כ-supplier) – לא מוצג בטופס */
+    ['supplier']: {
+      value: 'supplier',
+      labelText: 'שם הספק',
+      placeHolder: '',
+      type: FormTypes.TEXT,
+      initialValue: '',
+      enumValues: [],
+      validators: []
+    },
     ['supplierID']: {
       value: 'supplierID',
       labelText: 'מספר ספק',
@@ -62,7 +71,7 @@ export class AddSupplierService {
       type: FormTypes.TEXT,
       initialValue: '',
       enumValues: [],
-      validators: []
+      validators: [Validators.pattern(/^\d*$/)]
     },
     ['isEquipment']: {
       value: 'isEquipment',

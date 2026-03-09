@@ -65,6 +65,15 @@ export interface IUserData {
     vatReportingType: string;
 }
 
+export interface IChild {
+    index?: number;
+    childFName: string;
+    childLName: string;
+    childID?: string;
+    childDate: string;
+    parentUserID?: string;
+}
+
 export interface IRowDataTable {
     [key: string]: string | number | Date | boolean | ISelectItem | File;
 }
@@ -96,6 +105,18 @@ export interface IVatReportData {
     vatRefundOnExpenses: string | number;
     vatPayment: string | number;
     vatRate: string | number;
+}
+
+export interface IAdvanceIncomeTaxReportData {
+    businessType: string;
+    vatableTurnover: string | number;
+    nonVatableTurnover: string | number;
+    vatOnTurnover: string | number;
+    totalIncome: string | number;
+    advanceTaxPercent: string | number;
+    totalAdvanceTax: string | number;
+    taxWithholdingAtSource: string | number;
+    totalToPay: string | number;
 }
 
 export interface IColumnDataTable<TFormColumns, TFormHebrewColumns> {
@@ -443,6 +464,7 @@ export interface BusinessInfo {
 }
 
 export interface Business {
+    id?: number;
     firebaseId: string;
     businessName: string | null;
     businessField: string | null;
@@ -455,6 +477,8 @@ export interface Business {
     businessDate: string | null;
     vatReportingType: VATReportingType | null;
     taxReportingType: TaxReportingType | null;
+    /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
+    advanceTaxPercent: number | null;
     //   bankBeneficiary: string | null;
     //   bankName: string | null;
     //   bankBranch: string | null;

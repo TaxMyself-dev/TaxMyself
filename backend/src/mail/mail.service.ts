@@ -12,13 +12,22 @@ export class MailService {
     this.client = new Brevo.TransactionalEmailsApi();
   }
 
-  async sendMail(to: string, subject: string, text: string) {
-    const email = {
+  async sendMail(to: string, subject: string, text: string, htmlContent?: string) {
+    const email: {
+      sender: { email: string; name: string };
+      to: { email: string }[];
+      subject: string;
+      textContent: string;
+      htmlContent?: string;
+    } = {
       sender: { email: process.env.BREVO_SENDER, name: 'Keepintax' },
       to: [{ email: to }],
       subject: subject,
       textContent: text,
     };
+    if (htmlContent) {
+      email.htmlContent = htmlContent;
+    }
 
     try {
       const response = await this.client.sendTransacEmail(email);

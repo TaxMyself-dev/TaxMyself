@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
 import { ExpensesService } from '../expenses/expenses.service';
@@ -216,6 +217,173 @@ export class ReportsService {
     }
   }
 
+  async getAdvanceIncomeTaxReportData(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<AdvanceIncomeTaxReportDto> {
+    try {
+      const business = await this.businessRepo.findOne({
+        where: { businessNumber, firebaseId },
+      });
+      const businessType = business?.businessType ?? null;
+
+      if (businessType === BusinessType.EXEMPT) {
+        return this.getAdvanceIncomeTaxReportDataForExempt(
+          businessNumber,
+          startDate,
+          endDate,
+          business,
+        );
+      }
+      return this.getAdvanceIncomeTaxReportDataForLicensed(
+        businessNumber,
+        startDate,
+        endDate,
+        business,
+      );
+    } catch (error) {
+      console.error("❌ Error in getAdvanceIncomeTaxReportData:", error);
+      console.error("Error stack:", error.stack);
+      throw error;
+    }
+  }
+
+  /** דוח מקדמות מס – עוסק מורשה/חברה: עסקאות חייבות, עסקאות פטורות, מע"מ עסקאות */
+  private async getAdvanceIncomeTaxReportDataForLicensed(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    business: { advanceTaxPercent?: number | null; businessType?: BusinessType | null } | null,
+  ): Promise<AdvanceIncomeTaxReportDto> {
+    const advanceTaxPercent = business?.advanceTaxPercent != null ? Number(business.advanceTaxPercent) : 0;
+
+    const { vatableIncome: vatableTurnover, nonVatableIncome: nonVatableTurnover } =
+      await this.getVatIncomeFromLines(businessNumber, startDate, endDate);
+    const totalIncome = await this.getIncomeBeforeVat(businessNumber, startDate, endDate);
+
+    const { totalTurnoverIncludingVat, vatOnTurnover } = await this.getTotalTurnoverIncludingVatAndVatOnTurnover(
+      businessNumber,
+      startDate,
+      endDate,
+      business?.businessType ?? null,
+    );
+    const taxWithholdingAtSource = await this.getWithholdingAtSourceSum(businessNumber, startDate, endDate);
+    const totalAdvanceTax = Math.round(totalTurnoverIncludingVat * (advanceTaxPercent / 100));
+    const totalToPay = totalAdvanceTax - taxWithholdingAtSource;
+
+    return {
+      businessType: business?.businessType ?? 'LICENSED',
+      vatableTurnover,
+      nonVatableTurnover,
+      vatOnTurnover,
+      totalIncome,
+      advanceTaxPercent,
+      totalAdvanceTax,
+      taxWithholdingAtSource,
+      totalToPay,
+    };
+  }
+
+  /** דוח מקדמות מס – עוסק פטור: רק סך עסקאות (ללא פירוט מע"מ) */
+  private async getAdvanceIncomeTaxReportDataForExempt(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    business: { advanceTaxPercent?: number | null; businessType?: BusinessType | null } | null,
+  ): Promise<AdvanceIncomeTaxReportDto> {
+    const advanceTaxPercent = business?.advanceTaxPercent != null ? Number(business.advanceTaxPercent) : 0;
+
+    const { totalTurnoverIncludingVat } = await this.getTotalTurnoverIncludingVatAndVatOnTurnover(
+      businessNumber,
+      startDate,
+      endDate,
+      BusinessType.EXEMPT,
+    );
+    const totalIncome = totalTurnoverIncludingVat;
+    const taxWithholdingAtSource = await this.getWithholdingAtSourceSum(businessNumber, startDate, endDate);
+    const totalAdvanceTax = Math.round(totalTurnoverIncludingVat * (advanceTaxPercent / 100));
+    const totalToPay = totalAdvanceTax - taxWithholdingAtSource;
+
+    return {
+      businessType: 'EXEMPT',
+      vatableTurnover: 0,
+      nonVatableTurnover: 0,
+      vatOnTurnover: 0,
+      totalIncome,
+      advanceTaxPercent,
+      totalAdvanceTax,
+      taxWithholdingAtSource,
+      totalToPay,
+    };
+  }
+
+  /** סה"כ עסקאות כולל מע"מ + סך מע"מ עסקאות לתקופה (לפי סוג עסק) */
+  private async getTotalTurnoverIncludingVatAndVatOnTurnover(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    businessType: BusinessType | null,
+  ): Promise<{ totalTurnoverIncludingVat: number; vatOnTurnover: number }> {
+    const base = this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false');
+
+    if (businessType === BusinessType.EXEMPT) {
+      const res = await base
+        .clone()
+        .andWhere('doc.docType = :type', { type: 'RECEIPT' })
+        .andWhere('doc.valueDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+        .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'totalInclVat')
+        .addSelect('COALESCE(SUM(doc.vatSum), 0)', 'vat')
+        .getRawOne<{ totalInclVat: string; vat: string }>();
+      return {
+        totalTurnoverIncludingVat: Number(res?.totalInclVat ?? 0),
+        vatOnTurnover: Number(res?.vat ?? 0),
+      };
+    }
+
+    const regular = await base
+      .clone()
+      .andWhere('doc.docType IN (:...types)', { types: ['TAX_INVOICE', 'TAX_INVOICE_RECEIPT'] })
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'totalInclVat')
+      .addSelect('COALESCE(SUM(doc.vatSum), 0)', 'vat')
+      .getRawOne<{ totalInclVat: string; vat: string }>();
+
+    const credit = await this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false')
+      .andWhere('doc.docType = :type', { type: 'CREDIT_INVOICE' })
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .select('COALESCE(SUM(doc.sumAftDisWithVAT), 0)', 'totalInclVat')
+      .addSelect('COALESCE(SUM(doc.vatSum), 0)', 'vat')
+      .getRawOne<{ totalInclVat: string; vat: string }>();
+
+    const totalInclVat = Number(regular?.totalInclVat ?? 0) - Number(credit?.totalInclVat ?? 0);
+    const vatSum = Number(regular?.vat ?? 0) - Number(credit?.vat ?? 0);
+    return { totalTurnoverIncludingVat: totalInclVat, vatOnTurnover: vatSum };
+  }
+
+  /** סך ניכוי מס במקור ממסמכים בתקופה */
+  private async getWithholdingAtSourceSum(
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number> {
+    const res = await this.documentsRepo
+      .createQueryBuilder('doc')
+      .where('doc.issuerBusinessNumber = :businessNumber', { businessNumber })
+      .andWhere('doc.isCancelled = false')
+      .andWhere('doc.docDate BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .select('COALESCE(SUM(doc.withholdingTaxAmount), 0)', 'total')
+      .getRawOne<{ total: string }>();
+    return Number(res?.total ?? 0);
+  }
+
 
   async createPnLReport(
       firebaseId: string,
@@ -246,8 +414,14 @@ export class ReportsService {
       //   totalIncome = totalIncome / (1 + vatPercent);
       // }
       
-      //Get expenses
-      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDate);
+      // סוף יום עבור endDate כדי לכלול את כל ההוצאות בתאריך האחרון
+      const endDateEndOfDay = new Date(Date.UTC(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth(),
+        endDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
+      const expenses = await this.expensesService.getExpensesByDates(firebaseId, businessNumber, startDate, endDateEndOfDay);
 
       // Separate expenses into equipment and non-equipment categories
       const nonEquipmentExpenses = expenses.filter(expense => !expense.isEquipment);
@@ -255,14 +429,13 @@ export class ReportsService {
       // Initialize an object to hold the expense sums by category
       const expenseSumByCategory: { [category: string]: number } = {};
 
-      // Loop through each non-equipment expense
+      // Loop through each non-equipment expense – סכום לפי totalTaxPayable השמור בטבלת ההוצאות
       for (const expense of nonEquipmentExpenses) {
-          const category = String(expense.category); // Ensure category is treated as a string
+          const category = String(expense.category);
           if (!expenseSumByCategory[category]) {
-              expenseSumByCategory[category] = 0; // Initialize category sum if not already done
+              expenseSumByCategory[category] = 0;
           }
-          // Sum up the total expense amount (sum field), not just tax payable
-          expenseSumByCategory[category] += Number(expense.sum || 0);
+          expenseSumByCategory[category] += Number(expense.totalTaxPayable ?? 0);
       }
 
         // Map the totals by category into an array of ExpenseDto
