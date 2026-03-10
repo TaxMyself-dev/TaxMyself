@@ -51,20 +51,16 @@
 
   </div>
 
-  <!-- ─── Summary section (always visible) ─────────────────────────────── -->
+  <!-- ─── All detail rows in one shared grid so columns align ─────────── -->
   @if (summaryColumns().length) {
-    <div class="mrc__summary">
+    <div class="mrc__fields">
       @for (col of summaryColumns(); track col.name) {
         <ng-container *ngTemplateOutlet="detailRow; context: { col: col }"></ng-container>
       }
-    </div>
-  }
-
-  <!-- ─── Expanded section ─────────────────────────────────────────────── -->
-  @if (expanded() && expandedColumns().length) {
-    <div class="mrc__expanded">
-      @for (col of expandedColumns(); track col.name) {
-        <ng-container *ngTemplateOutlet="detailRow; context: { col: col }"></ng-container>
+      @if (expanded()) {
+        @for (col of expandedColumns(); track col.name) {
+          <ng-container *ngTemplateOutlet="detailRow; context: { col: col }"></ng-container>
+        }
       }
     </div>
   }

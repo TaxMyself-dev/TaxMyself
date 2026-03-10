@@ -100,13 +100,13 @@
 
 // ─── Detail rows (summary + expanded) ────────────────────────────────────────
 
-.mrc__summary,
-.mrc__expanded {
+.mrc__fields {
   display: grid;
   grid-template-columns: 0.7fr auto;
   column-gap: 12px;
   row-gap: 6px;
   align-items: baseline;
+  border-top: 1px solid #f0f0f0;
   padding-top: 8px;
 }
 
