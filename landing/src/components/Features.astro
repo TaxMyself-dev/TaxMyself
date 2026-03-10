@@ -1,0 +1,92 @@
+---
+---
+
+<section class="features section" id="features" aria-labelledby="features-title">
+	<div class="container">
+		<h2 class="features-title" id="features-title">מה אפשר לעשות ב-KeepInTax</h2>
+		<p class="features-intro">
+			כלים פשוטים לניהול הכספים של העסק או המשק הבית — במקום אחד.
+		</p>
+		<ul class="features-grid">
+			<li class="card features-card">
+				<h3 class="features-card-title">הפקת חשבוניות וקבלות</h3>
+				<p class="features-card-desc">יצירת חשבוניות וקבלות מקצועיות בקליק, עם שמירה ומעקב.</p>
+			</li>
+			<li class="card features-card">
+				<h3 class="features-card-title">מעקב אוטומטי אחרי הוצאות</h3>
+				<p class="features-card-desc">חיבור לחשבון ולכרטיסים, וסיווג אוטומטי של תנועות.</p>
+			</li>
+			<li class="card features-card">
+				<h3 class="features-card-title">שמירת מסמכים בענן</h3>
+				<p class="features-card-desc">כל המסמכים במקום אחד — גישה מכל מכשיר ושמירה מאובטחת.</p>
+			</li>
+			<li class="card features-card">
+				<h3 class="features-card-title">הפקת דוחות פיננסיים</h3>
+				<p class="features-card-desc">דוחות מס, רווח והפסד והתזרים — מוכנים להגשה.</p>
+			</li>
+		</ul>
+	</div>
+</section>
+
+<style>
+	.features-title {
+		text-align: center;
+		margin-bottom: 0.5rem;
+		font-size: clamp(1.375rem, 3vw, 1.75rem);
+	}
+
+	.features-intro {
+		text-align: center;
+		max-inline-size: 32rem;
+		margin: 0 auto 2.5rem;
+		font-size: clamp(0.9375rem, 2vw, 1rem);
+		color: var(--color-text-secondary);
+		line-height: 1.55;
+	}
+
+	.features-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 1.25rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.features-card {
+		margin: 0;
+	}
+
+	.features-card-title {
+		margin: 0 0 0.5rem;
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.features-card-desc {
+		margin: 0;
+		font-size: 0.9375rem;
+		color: var(--color-text-secondary);
+		line-height: 1.5;
+	}
+
+	@media (max-width: 768px) {
+		.features-intro {
+			margin-bottom: 2rem;
+		}
+	}
+
+	@media (max-width: 600px) {
+		.features-grid {
+			grid-template-columns: 1fr;
+			gap: 1rem;
+		}
+	}
+
+	@media (max-width: 390px) {
+		.features-card-title {
+			font-size: 1rem;
+		}
+	}
+</style>

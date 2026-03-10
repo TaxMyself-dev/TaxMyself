@@ -1,0 +1,91 @@
+---
+const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? 'https://app.keepintax.co.il/login';
+---
+
+<nav class="navbar" aria-label="ניווט ראשי">
+	<div class="container navbar-inner">
+		<a href="/" class="navbar-logo" aria-label="KeepInTax - דף הבית">
+			<img src="/logo.svg" alt="לוגו KeepInTax" width="39" height="38" />
+		</a>
+		<div class="navbar-links">
+			<a href="#features">יכולות</a>
+			<a href="#how-it-works">איך זה עובד</a>
+			<a href="#faq">שאלות נפוצות</a>
+		</div>
+		<a href={loginUrl} class="btn btn-secondary navbar-login" target="_blank" rel="noopener noreferrer">התחברות</a>
+	</div>
+</nav>
+
+<style>
+	.navbar {
+		position: sticky;
+		top: 0;
+		z-index: 100;
+		background: rgba(255, 255, 255, 0.85);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.navbar-inner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		padding-block: 0.875rem;
+		min-width: 0;
+	}
+
+	.navbar-logo {
+		flex-shrink: 0;
+		text-decoration: none;
+	}
+
+	.navbar-logo:hover {
+		text-decoration: none;
+	}
+
+	.navbar-logo img {
+		height: 36px;
+		width: auto;
+	}
+
+	.navbar-login {
+		flex-shrink: 1;
+		min-width: 0;
+	}
+
+	.navbar-links {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+	}
+
+	.navbar-links a {
+		font-size: 0.9375rem;
+		font-weight: 500;
+		color: var(--color-text-secondary);
+		text-decoration: none;
+	}
+
+	.navbar-links a:hover {
+		color: var(--color-primary);
+		text-decoration: none;
+	}
+
+	@media (max-width: 768px) {
+		.navbar-links {
+			display: none;
+		}
+	}
+
+	@media (max-width: 390px) {
+		.navbar-inner {
+			gap: 0.5rem;
+		}
+
+		.navbar-logo img {
+			height: 32px;
+		}
+	}
+</style>

@@ -8,6 +8,9 @@
       "hosting": {
         "app": [
           "taxmyself-5d8a0"
+        ],
+        "landing": [
+          "keepintax-landing-dev"
         ]
       }
     },
@@ -15,8 +18,12 @@
       "hosting": {
         "app": [
           "taxmyself-prod"
+        ],
+        "landing": [
+          "keepintax-landing-prod"
         ]
       }
     }
-  }
+  },
+  "etags": {}
 }

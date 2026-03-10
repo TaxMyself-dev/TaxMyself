@@ -1,0 +1,54 @@
+---
+const currentYear = new Date().getFullYear();
+---
+
+<footer class="footer" role="contentinfo">
+	<div class="container footer-inner">
+		<a href="/" class="footer-logo" aria-label="KeepInTax - דף הבית">
+			<img src="/logo.svg" alt="לוגו KeepInTax" width="39" height="38" />
+		</a>
+		<p class="footer-copyright">© {currentYear} KeepInTax. כל הזכויות שמורות.</p>
+	</div>
+</footer>
+
+<style>
+	.footer {
+		padding-block: 1.5rem;
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.footer-inner {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.footer-logo,
+	.footer-logo:hover {
+		text-decoration: none;
+	}
+
+	.footer-logo img {
+		height: 28px;
+		width: auto;
+		display: block;
+	}
+
+	.footer-copyright {
+		margin: 0;
+		font-size: 0.875rem;
+		color: var(--color-text-secondary);
+		text-align: center;
+	}
+
+	@media (max-width: 390px) {
+		.footer {
+			padding-block: 1.25rem;
+		}
+
+		.footer-logo img {
+			height: 24px;
+		}
+	}
+</style>

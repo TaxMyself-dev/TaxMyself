@@ -1,0 +1,128 @@
+---
+const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? 'https://app.keepintax.co.il/register';
+---
+
+<section class="hero section" aria-labelledby="hero-heading">
+	<div class="container hero-inner">
+		<div class="hero-content">
+			<p class="hero-badge">ניהול פיננסי חכם לעסקים ולמשקי בית</p>
+			<h1 class="hero-headline" id="hero-heading">פשוט להיות על זה.</h1>
+			<p class="hero-subheadline">
+				כל העולם הפיננסי שלך — עסקי ואישי — במקום אחד. מעקב אוטומטי אחרי הוצאות, הפקת מסמכים ודוחות בלי בירוקרטיה.
+			</p>
+			<div class="hero-actions">
+				<a href={registerUrl} class="btn btn-primary" target="_blank" rel="noopener noreferrer">ניסיון חינם לחודשיים</a>
+				<a href="#how-it-works" class="btn btn-secondary">איך זה עובד</a>
+			</div>
+			<ul class="hero-bullets">
+				<li>חיבור לבנקאות פתוחה ולכרטיסי אשראי</li>
+				<li>לא מפספסים הוצאות</li>
+				<li>חשבוניות, קבלות ודוחות במקום אחד</li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.hero {
+		padding-block: 4rem 3rem;
+	}
+
+	.hero-inner {
+		display: flex;
+		justify-content: center;
+	}
+
+	.hero-content {
+		max-inline-size: 32rem;
+		text-align: center;
+	}
+
+	.hero-badge {
+		display: inline-block;
+		margin: 0 0 1rem;
+		padding: 0.35rem 0.75rem;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: var(--color-primary);
+		background: var(--color-bg-soft);
+		border-radius: 999px;
+	}
+
+	.hero-headline {
+		margin: 0 0 1rem;
+		font-size: clamp(1.75rem, 4vw, 2.75rem);
+		font-weight: 700;
+		line-height: 1.2;
+		color: var(--color-text);
+	}
+
+	.hero-subheadline {
+		margin: 0 0 1.75rem;
+		font-size: clamp(0.9375rem, 2vw, 1.0625rem);
+		line-height: 1.6;
+		color: var(--color-text-secondary);
+	}
+
+	.hero-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.75rem;
+		margin-bottom: 2rem;
+	}
+
+	.hero-bullets {
+		display: inline-block;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		text-align: start;
+	}
+
+	.hero-bullets li {
+		position: relative;
+		padding-inline-start: 1.5rem;
+		margin-bottom: 0.5rem;
+		font-size: 0.9375rem;
+		color: var(--color-text-secondary);
+		line-height: 1.5;
+	}
+
+	.hero-bullets li::before {
+		content: '';
+		position: absolute;
+		inset-inline-start: 0;
+		top: 0.45em;
+		width: 0.5rem;
+		height: 0.5rem;
+		background: var(--color-accent);
+		border-radius: 50%;
+	}
+
+	@media (max-width: 768px) {
+		.hero {
+			padding-block: 2.5rem 2rem;
+		}
+
+		.hero-actions {
+			margin-bottom: 1.5rem;
+		}
+	}
+
+	@media (max-width: 390px) {
+		.hero {
+			padding-block: 2rem 1.5rem;
+		}
+
+		.hero-actions {
+			flex-direction: column;
+			align-items: stretch;
+			margin-bottom: 1.25rem;
+		}
+
+		.hero-actions .btn {
+			width: 100%;
+		}
+	}
+</style>
