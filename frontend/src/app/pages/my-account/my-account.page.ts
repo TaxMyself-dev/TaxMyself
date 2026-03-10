@@ -6,17 +6,18 @@ import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
+import { TableCardComponent } from 'src/app/components/table-card/table-card.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IItemNavigate, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IItemNavigate, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
@@ -37,6 +38,7 @@ import { MessageService } from 'primeng/api';
     AvatarGroupModule,
     ButtonComponent,
     GenericTableComponent,
+    TableCardComponent,
   ],
   providers: [DialogService]
 })
@@ -61,7 +63,7 @@ export class MyAccountPage implements OnInit {
   isProd = signal<boolean>(process.env.NODE_ENV == 'production');
 
   userData: IUserData;
-  transToClassify: any;
+  transToClassify: Observable<ITransactionData[]>;
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -121,7 +123,7 @@ export class MyAccountPage implements OnInit {
                 row?.businessNumber === this.userData?.businessNumber
                   ? this.userData?.businessName
                   : this.userData?.spouseBusinessName
-            }))
+            })) as ITransactionData[]
         )
       );
   }
@@ -396,6 +398,10 @@ export class MyAccountPage implements OnInit {
   // closeMobileMenu(): void {
   //   this.mobileMenuOpen.set(false);
   // }
+
+  onTransactionMenuClick(transaction: ITransactionData): void {
+    console.log('Transaction menu clicked:', transaction);
+  }
 
   openMannualExpenses(): void {
     // this.dialogRef = 
