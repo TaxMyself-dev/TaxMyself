@@ -301,6 +301,17 @@ export interface ITableRowAction {
     alwaysShow?: boolean; // If true, show button even when row has no file
 }
 
+export interface IMobileCardConfig {
+    /** Column name(s) used as the card's primary title (hero section) */
+    primaryFields: string[];
+    /** Column name whose value is rendered as the highlighted amount/value */
+    highlightedField: string;
+    /** Column name rendered as the date in the card header */
+    dateField: string;
+    /** Column names to hide entirely from the card (not rendered anywhere) */
+    hiddenFields?: string[];
+}
+
 export interface IButtons {
     text: string;
     icon?: string;

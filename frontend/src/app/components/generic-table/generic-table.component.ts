@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, ElementRef, HostListener, inject, input, OnInit, output, signal, ViewChild, WritableSignal } from '@angular/core';
+import { MobileRowCardComponent } from 'src/app/components/mobile-row-card/mobile-row-card.component';
 import { ButtonModule } from 'primeng/button';
 import { ButtonGroupModule } from 'primeng/buttongroup';
 import { InputIcon } from 'primeng/inputicon';
@@ -11,7 +12,8 @@ import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { GenericService } from 'src/app/services/generic.service';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -35,7 +37,7 @@ import { AuthService } from 'src/app/services/auth.service';
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe, MobileRowCardComponent],
   providers: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
@@ -59,6 +61,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   messageService = inject(MessageService);
   authService = inject(AuthService);
   transactionService = inject(TransactionsService);
+  genericService = inject(GenericService);
   confirmationService = inject(ConfirmationService);
   title = input<string>();
   fileActions = input<ITableRowAction[]>([]);
@@ -78,6 +81,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
+  mobileCardConfig = input<IMobileCardConfig>();
+  mobileCardActions = input<ITableRowAction[]>();
   visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
   visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
   // filters = output<FormGroup>();
@@ -120,6 +125,30 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   readonly iterableArrayFilter = computed(() => {
     const filter = this.arrayFilters();
     return filter ? [filter] : [];
+  });
+
+  isMobile = computed(() => this.genericService.isMobile());
+
+  mobileEffectiveActions = computed((): ITableRowAction[] => {
+    if (this.mobileCardActions()?.length) {
+      return this.mobileCardActions()!;
+    }
+    const actions: ITableRowAction[] = [...this.fileActions()];
+    if (this.showButtons()) {
+      actions.push({
+        name: 'classify',
+        title: 'סיווג תנועה',
+        icon: 'pi pi-tag',
+        action: (_e, row) => row && this.onVisibleClassifyTranClicked(row),
+      });
+      actions.push({
+        name: 'quickClassify',
+        title: 'סיווג מהיר',
+        icon: 'pi pi-bolt',
+        action: (_e, row) => row && this.quickClassify(row),
+      });
+    }
+    return actions;
   });
 
 
@@ -320,6 +349,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   //   console.log('openAccountAssociation');
   //   this.visibleAccountAssociationDialog.set(true);
   // }
+
+  onCardActionClicked(event: { action: ITableRowAction; row: IRowDataTable }): void {
+    event.action.action(undefined, event.row);
+  }
 
   close(): void {
     console.log('close');

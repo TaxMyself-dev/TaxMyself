@@ -12,12 +12,11 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
-import { TableCardComponent } from 'src/app/components/table-card/table-card.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IItemNavigate, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IItemNavigate, IRowDataTable, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
@@ -38,7 +37,6 @@ import { MessageService } from 'primeng/api';
     AvatarGroupModule,
     ButtonComponent,
     GenericTableComponent,
-    TableCardComponent,
   ],
   providers: [DialogService]
 })
@@ -90,6 +88,23 @@ export class MyAccountPage implements OnInit {
     // { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
     // { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
+  ];
+
+  // ─── Mobile card configuration ───────────────────────────────────────────
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields:    [TransactionsOutcomesColumns.NAME],
+    highlightedField:  TransactionsOutcomesColumns.SUM,
+    dateField:         TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields:      [],
+  };
+
+  mobileCardActions: ITableRowAction[] = [
+    {
+      name:  'classify',
+      title: 'סיווג תנועה',
+      icon:  'pi pi-tag',
+      action: (_event?: any, _row?: IRowDataTable) => { /* handled via actionClicked output */ },
+    },
   ];
 
   constructor(private authService: AuthService) { }
@@ -399,8 +414,8 @@ export class MyAccountPage implements OnInit {
   //   this.mobileMenuOpen.set(false);
   // }
 
-  onTransactionMenuClick(transaction: ITransactionData): void {
-    console.log('Transaction menu clicked:', transaction);
+  onCardActionClicked(event: { action: ITableRowAction; row: IRowDataTable }): void {
+    event.action.action(undefined, event.row);
   }
 
   openMannualExpenses(): void {

@@ -1,4 +1,4 @@
-<div class="table-container">
+<div class="table-container" [class.table-container--cards]="isMobile() && mobileCardConfig()">
   <div class="table-header">
 
     <div class="input-title-container">
@@ -44,6 +44,33 @@
     </div>
     }
   </div>
+  @if (isMobile() && mobileCardConfig()) {
+    <div class="mobile-cards">
+      @if (isLoadingState()) {
+        <div class="mobile-cards__loading">
+          <i class="pi pi-spin pi-spinner"></i>
+        </div>
+      } @else if (filteredDataTable()?.length) {
+        @for (row of filteredDataTable(); track row['id']) {
+          <app-mobile-row-card
+            [row]="row"
+            [columns]="$any(columnsTitle())"
+            [config]="mobileCardConfig()!"
+            [actions]="mobileEffectiveActions()"
+            [searchTerm]="searchTerm()"
+            (actionClicked)="onCardActionClicked($event)">
+          </app-mobile-row-card>
+        }
+      } @else {
+        <div class="empty-data-container">
+          <img src="../../../assets/not_data.svg" alt="No Data" style="width: 200px; height: 200px;" />
+          <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!isMobile() || !mobileCardConfig()) {
   <div class="table">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
@@ -177,4 +204,6 @@
     }
 
   </div>
+  }
+
 </div>
