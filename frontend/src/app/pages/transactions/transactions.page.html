@@ -42,7 +42,8 @@
         [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()" [dataTable]="filteredExpensesData()"
         [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)"
         (visibleClassifyTranClicked)="openClassifyTran($event)"
-        (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
+        (onQuickClassifyClicked)="onQuickClassifyClicked($event)" [mobileCardConfig]="mobileCardConfig"
+        [mobileCardActions]="[]"></app-generic-table>
     </div>
     <!-- incomes table -->
     <div class="table-wrap">

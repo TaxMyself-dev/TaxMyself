@@ -1,7 +1,7 @@
 import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
-import { IColumnDataTable, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, BusinessStatus, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
@@ -57,7 +57,12 @@ export class TransactionsPage implements OnInit {
   reportingPeriodType = ReportingPeriodType;
   bussinesesList: ISelectItem[] = [];
 
-
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields:    [TransactionsOutcomesColumns.NAME],
+    highlightedField:  TransactionsOutcomesColumns.SUM,
+    dateField:         TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields:      [],
+  };
 
 
   // editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
