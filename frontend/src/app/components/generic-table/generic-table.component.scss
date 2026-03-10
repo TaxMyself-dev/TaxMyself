@@ -188,6 +188,28 @@
     }
 }
 
+// ─── Mobile empty-state fix ───────────────────────────────────────────────────
+
+@media (max-width: 768px) {
+    .empty-data-container {
+        padding: 32px 16px;
+        gap: 12px;
+    }
+
+    .empty-data-img {
+        width: 160px;
+        height: 160px;
+    }
+
+    .empty-data-text {
+        position: static;
+        text-align: center;
+        font-size: 16px;
+        color: #808080;
+        margin: 0;
+    }
+}
+
 // ─── Mobile cards view ────────────────────────────────────────────────────────
 
 .mobile-cards {
@@ -195,6 +217,7 @@
     flex-direction: column;
     gap: 12px;
     padding: 8px 0;
+    width: 100%;
 }
 
 .mobile-cards__loading {
