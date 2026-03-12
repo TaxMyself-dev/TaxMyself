@@ -121,6 +121,7 @@
     <p class="block-title">התנועות הלא מסווגות שלי</p>
     <app-generic-table
         class="table"
+        [showButtons]="true"
         [isLoadingState]="isLoadingDataTable()"
         [columnsTitle]="fieldsNamesExpenses"
         [dataTable]="$any(transToClassify | async)"

@@ -51,7 +51,8 @@
         [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'" [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
         (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-        (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
+        (visibleClassifyTranClicked)="openClassifyTran($event)" [mobileCardConfig]="mobileCardConfig"
+        [mobileCardActions]="[]"></app-generic-table>
     </div>
     @if (visibleAccountAssociationDialog()){
     <app-account-association-dialog (visibleChange)="closeAccountAssociation($event)"
