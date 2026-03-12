@@ -16,6 +16,8 @@
     <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
     <!-- <div> -->
     @if(arrayFilters()) {
+
+    <!-- Desktop chips (hidden on mobile via CSS) -->
     <div class="show-filters-container">
       @if(arrayFilters()?.periodType) {
       <div class="filter-header">
@@ -42,6 +44,71 @@
       </div>
       }
     </div>
+
+    <!-- Mobile filter summary (hidden on desktop via CSS) -->
+    <div class="mobile-fs-container" dir="rtl">
+
+      <!-- ── Single unified expandable block ── -->
+      <div class="mobile-fs__block"
+           [class.mobile-fs__block--open]="filterSummaryExpanded()"
+           (click)="toggleFilterSummary()">
+
+        <!-- 3-line summary grid (collapsed state) -->
+        <div class="mobile-fs">
+          @if (mobileTimeLabel()) {
+            <span class="mobile-fs__label">זמן:</span>
+            <span class="mobile-fs__value">{{ mobileTimeLabel() }}</span>
+          }
+          <span class="mobile-fs__label">חשבונות:</span>
+          <span class="mobile-fs__value">{{ mobileAccountLabel() }}</span>
+          <span class="mobile-fs__label">קטגוריות:</span>
+          <span class="mobile-fs__value">{{ mobileCategoryLabel() }}</span>
+          @if (mobileSourcesLabel()) {
+            <span class="mobile-fs__label">אמצעי תשלום:</span>
+            <span class="mobile-fs__value">{{ mobileSourcesLabel() }}</span>
+          }
+        </div>
+
+        <!-- Chevron inside the block -->
+        <i class="mobile-fs__chevron"
+           [class.pi-chevron-down]="!filterSummaryExpanded()"
+           [class.pi-chevron-up]="filterSummaryExpanded()"
+           class="pi"></i>
+
+      </div>
+
+      <!-- ── Expanded details ── -->
+      @if (filterSummaryExpanded()) {
+        <div class="mobile-fs__details">
+          @if (arrayFilters()?.periodType) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">זמן:</span>
+              <span class="mobile-fs__value">{{ getFullPeriodDisplay(arrayFilters()) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.account?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">חשבונות:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.account) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.category?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">קטגוריות:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.category) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.sources?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">אמצעי תשלום:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.sources) }}</span>
+            </div>
+          }
+        </div>
+      }
+
+    </div>
+
     }
   </div>
   @if (isMobile() && mobileCardConfig()) {

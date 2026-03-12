@@ -129,6 +129,41 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   isMobile = computed(() => this.genericService.isMobile());
 
+  // ─── Mobile filter summary ────────────────────────────────────────────────
+  filterSummaryExpanded = signal(false);
+
+  mobileTimeLabel = computed((): string => {
+    const f = this.arrayFilters();
+    if (!f?.periodType) return '';
+    const labels: Record<string, string> = {
+      MONTHLY:    'חודשי',
+      BIMONTHLY:  'דו חודשי',
+      ANNUAL:     'שנתי',
+      DATE_RANGE: 'טווח תאריכים',
+    };
+    return labels[f.periodType] ?? '';
+  });
+
+  mobileAccountLabel = computed((): string => {
+    const count = this.arrayFilters()?.account?.length ?? 0;
+    return count === 0 ? 'הכל' : `${count}`;
+  });
+
+  mobileCategoryLabel = computed((): string => {
+    const count = this.arrayFilters()?.category?.length ?? 0;
+    return count === 0 ? 'הכל' : `${count}`;
+  });
+
+  // null = field not present / no sources selected → hidden from summary
+  mobileSourcesLabel = computed((): string | null => {
+    const count = this.arrayFilters()?.sources?.length ?? 0;
+    return count === 0 ? null : `${count}`;
+  });
+
+  toggleFilterSummary(): void {
+    this.filterSummaryExpanded.update(v => !v);
+  }
+
   mobileEffectiveActions = computed((): ITableRowAction[] => {
     if (this.mobileCardActions()?.length) {
       return this.mobileCardActions()!;
