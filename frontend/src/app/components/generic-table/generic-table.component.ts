@@ -30,6 +30,12 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
       transition('void => visible', animate('400ms ease-out')),
       transition('visible => void', animate('200ms ease-in')),
     ]),
+    trigger('slideToggle', [
+      state('expanded', style({ height: '*', opacity: 1, overflow: 'hidden' })),
+      state('collapsed', style({ height: '0px', opacity: 0, overflow: 'hidden' })),
+      transition('expanded => collapsed', animate('300ms ease-in-out')),
+      transition('collapsed => expanded', animate('300ms ease-in-out')),
+    ]),
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
@@ -116,6 +122,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   // ─── Mobile filter summary ────────────────────────────────────────────────
   filterSummaryExpanded = signal(false);
 
+  // ─── Mobile table section collapse/expand ────────────────────────────────
+  mobileTableExpanded = signal(true);
+
   mobileTimeLabel = computed((): string => {
     const f = this.arrayFilters();
     if (!f?.periodType) return '';
@@ -146,6 +155,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   toggleFilterSummary(): void {
     this.filterSummaryExpanded.update(v => !v);
+  }
+
+  toggleMobileSection(): void {
+    this.mobileTableExpanded.update(v => !v);
   }
 
   /** Returns rowActions filtered by showWhen for the given row. */

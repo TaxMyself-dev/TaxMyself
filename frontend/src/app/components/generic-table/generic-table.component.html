@@ -12,6 +12,24 @@
         <p-inputicon styleClass="pi pi-search" />
       </p-iconfield>
       }
+      <!-- Mobile-only section toggle -->
+      @if (isMobile() && mobileCardConfig()) {
+      <button
+        class="mobile-section-toggle"
+        type="button"
+        [attr.aria-expanded]="mobileTableExpanded()"
+        [attr.aria-label]="mobileTableExpanded() ? 'כווץ טבלה' : 'הרחב טבלה'"
+        (click)="toggleMobileSection()">
+        <span class="mobile-section-icon-wrap">
+          <!-- expand icon: visible when table is collapsed -->
+          <i class="pi pi-arrow-up-right-and-arrow-down-left-from-center mobile-section-icon"
+             [class.mobile-section-icon--hidden]="mobileTableExpanded()"></i>
+          <!-- collapse icon: visible when table is expanded -->
+          <i class="pi pi-arrow-down-left-and-arrow-up-right-to-center mobile-section-icon"
+             [class.mobile-section-icon--hidden]="!mobileTableExpanded()"></i>
+        </span>
+      </button>
+      }
     </div>
     <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
     <!-- <div> -->
@@ -112,28 +130,31 @@
     }
   </div>
   @if (isMobile() && mobileCardConfig()) {
-    <div class="mobile-cards">
-      @if (isLoadingState()) {
-        <div class="mobile-cards__loading">
-          <i class="pi pi-spin pi-spinner"></i>
-        </div>
-      } @else if (filteredDataTable()?.length) {
-        @for (row of filteredDataTable(); track row['id']) {
-          <app-mobile-row-card
-            [row]="row"
-            [columns]="$any(columnsTitle())"
-            [config]="mobileCardConfig()!"
-            [actions]="mobileActionsForRow(row)"
-            [searchTerm]="searchTerm()"
-            (actionClicked)="onCardActionClicked($event)">
-          </app-mobile-row-card>
+    <div class="mobile-section-wrapper"
+         [@slideToggle]="mobileTableExpanded() ? 'expanded' : 'collapsed'">
+      <div class="mobile-cards">
+        @if (isLoadingState()) {
+          <div class="mobile-cards__loading">
+            <i class="pi pi-spin pi-spinner"></i>
+          </div>
+        } @else if (filteredDataTable()?.length) {
+          @for (row of filteredDataTable(); track row['id']) {
+            <app-mobile-row-card
+              [row]="row"
+              [columns]="$any(columnsTitle())"
+              [config]="mobileCardConfig()!"
+              [actions]="mobileActionsForRow(row)"
+              [searchTerm]="searchTerm()"
+              (actionClicked)="onCardActionClicked($event)">
+            </app-mobile-row-card>
+          }
+        } @else {
+          <div class="empty-data-container">
+            <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
+            <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+          </div>
         }
-      } @else {
-        <div class="empty-data-container">
-          <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
-          <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
-        </div>
-      }
+      </div>
     </div>
   }
 

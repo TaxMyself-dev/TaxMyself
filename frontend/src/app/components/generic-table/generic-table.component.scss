@@ -28,12 +28,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: fit-content;
+    // width: fit-content;
 }
 
 .table-title {
     font-size: x-large;
-    margin-left: 20px;
+    margin: 18px;
 }
 
 .table-input-search {
@@ -196,6 +196,10 @@
 
 @media (max-width: 768px) {
 
+    .input-title-container {
+        margin-right: 0;
+    }
+
     // hide the desktop long chips row
     .show-filters-container {
         display: none;
@@ -296,6 +300,10 @@
 // ─── Mobile empty-state fix ───────────────────────────────────────────────────
 
 @media (max-width: 768px) {
+
+    .table-title {
+        margin-right: 0;
+    }
     .empty-data-container {
         padding: 32px 16px;
         gap: 12px;
@@ -312,6 +320,71 @@
         font-size: 16px;
         color: #808080;
         margin: 0;
+    }
+}
+
+// ─── Mobile section toggle (chevron next to title) ───────────────────────────
+
+.mobile-section-toggle {
+    display: none; // desktop: completely hidden
+}
+
+// ─── Mobile section animated wrapper ─────────────────────────────────────────
+
+.mobile-section-wrapper {
+    width: 100%;
+    overflow: hidden;
+}
+
+@media (max-width: 768px) {
+    .mobile-section-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        padding: 4px 6px;
+        margin-inline-start: 8px;
+        cursor: pointer;
+        border-radius: 50%;
+        transition: background 0.2s ease;
+        color: #555;
+
+        &:hover {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        &:focus-visible {
+            outline: 2px solid #007aff;
+            outline-offset: 2px;
+        }
+    }
+
+    .mobile-section-icon-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+    }
+
+    .mobile-section-icon {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        opacity: 1;
+        transform: scale(1);
+        transition: opacity 0.22s ease, transform 0.22s ease;
+
+        &--hidden {
+            opacity: 0;
+            transform: scale(0.6);
+            pointer-events: none;
+        }
     }
 }
 
