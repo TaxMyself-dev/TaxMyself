@@ -296,9 +296,25 @@ export interface ITableRowAction {
     name: string;
     icon: string;
     fieldName?: string;
-    title?: string,
+    title?: string;
     action: (event?: any, row?: IRowDataTable) => void;
-    alwaysShow?: boolean; // If true, show button even when row has no file
+    /** If true, show button even when row has no file (fileActions only) */
+    alwaysShow?: boolean;
+    /** Per-row predicate — action is shown only when this returns true (or is undefined) */
+    showWhen?: (row: IRowDataTable) => boolean;
+    /** Optional loading-state getter for the desktop button spinner */
+    isLoading?: () => boolean;
+}
+
+export interface IMobileCardConfig {
+    /** Column name(s) used as the card's primary title (hero section) */
+    primaryFields: string[];
+    /** Column name whose value is rendered as the highlighted amount/value */
+    highlightedField: string;
+    /** Column name rendered as the date in the card header */
+    dateField: string;
+    /** Column names to hide entirely from the card (not rendered anywhere) */
+    hiddenFields?: string[];
 }
 
 export interface IButtons {

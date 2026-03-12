@@ -3,7 +3,7 @@ import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   BusinessType,
@@ -57,6 +57,14 @@ export class IncomesPage implements OnInit {
   isLoadingDataTable = signal<boolean>(false);
   myDocuments: any;
   fileActions = signal<ITableRowAction[]>([]);
+
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields: [DocumentsTableColumns.DOC_TYPE],
+    highlightedField: DocumentsTableColumns.DOC_SUM,
+    dateField: DocumentsTableColumns.DOC_DATE,
+    hiddenFields: [],
+  };
+
 
   // ===========================
   // Table config
@@ -213,8 +221,8 @@ export class IncomesPage implements OnInit {
         const formattedSum = this.gs.addComma(absValue);
         // For negative numbers in RTL: put minus on the right, e.g., "123- ש"ח"
         const sumWithCurrency = isNegative 
-          ? `${formattedSum}- ש"ח`
-          : `${formattedSum} ש"ח`;
+          ? `${formattedSum}-`
+          : `${formattedSum}`;
         
         return {
         ...row,

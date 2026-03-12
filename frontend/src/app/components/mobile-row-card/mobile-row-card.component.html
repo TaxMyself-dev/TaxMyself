@@ -1,0 +1,92 @@
+<div class="mrc" dir="rtl" (click)="closeMenu()">
+
+  <!-- ─── Hero section ──────────────────────────────────────────────────── -->
+  <div class="mrc__hero">
+
+    <!-- Row 1: date + menu -->
+    <div class="mrc__hero-top">
+      <span class="mrc__date">
+        @if (dateColumn()) {
+          {{ resolveValue(dateColumn()!) | dateFormat }}
+        }
+      </span>
+
+      @if (actions().length) {
+        <div class="mrc__menu-wrap">
+          <app-p-button
+            [icon]="'pi pi-ellipsis-v'"
+            [iconOnly]="true"
+            [buttonSize]="ButtonSize.ICON"
+            [buttonColor]="ButtonColor.WHITE_BORDER_LIGHT"
+            (onButtonClicked)="toggleMenu($event)">
+          </app-p-button>
+
+          @if (menuOpen()) {
+            <ul class="mrc__menu-dropdown" (click)="$event.stopPropagation()">
+              @for (action of actions(); track action.name) {
+                <li class="mrc__menu-item" (click)="onActionClick(action)">
+                  <i [class]="action.icon"></i>
+                  <span>{{ action.title ?? action.name }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Row 2: title + highlighted value -->
+    <div class="mrc__hero-bottom">
+      <span class="mrc__title">
+        @if (titleColumn()) {
+          {{ resolveValue(titleColumn()!) }}
+        }
+      </span>
+      <span class="mrc__highlighted">
+        @if (highlightedColumn()) {
+          {{ resolveValue(highlightedColumn()!) }} ₪
+        }
+      </span>
+    </div>
+
+  </div>
+
+  <!-- ─── All detail rows in one shared grid so columns align ─────────── -->
+  @if (summaryColumns().length) {
+    <div class="mrc__fields">
+      @for (col of summaryColumns(); track col.name) {
+        <ng-container *ngTemplateOutlet="detailRow; context: { col: col }"></ng-container>
+      }
+      @if (expanded()) {
+        @for (col of expandedColumns(); track col.name) {
+          <ng-container *ngTemplateOutlet="detailRow; context: { col: col }"></ng-container>
+        }
+      }
+    </div>
+  }
+
+  <!-- ─── Expand / collapse toggle ─────────────────────────────────────── -->
+  @if (hasExpanded()) {
+    <button class="mrc__expand-btn" (click)="toggleExpand()">
+      <i [class]="expanded() ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
+      <span>{{ expanded() ? 'פחות' : 'עוד פרטים' }}</span>
+    </button>
+  }
+
+</div>
+
+<!-- ─── Shared detail-row template ─────────────────────────────────────── -->
+<ng-template #detailRow let-col="col">
+  <div class="mrc__row">
+    <span class="mrc__label">{{ col.value }}</span>
+    <span class="mrc__value">
+      @if (col.listItems?.length) {
+        {{ resolveListLabel(col) }}
+      } @else if (col.cellRenderer === CellRenderer.DATE) {
+        {{ resolveValue(col) | dateFormat }}
+      } @else {
+        {{ resolveValue(col) }}
+      }
+    </span>
+  </div>
+</ng-template>

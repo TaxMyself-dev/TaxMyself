@@ -6,7 +6,7 @@ import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
@@ -16,7 +16,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IItemNavigate, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IItemNavigate, IRowDataTable, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
@@ -61,7 +61,7 @@ export class MyAccountPage implements OnInit {
   isProd = signal<boolean>(process.env.NODE_ENV == 'production');
 
   userData: IUserData;
-  transToClassify: any;
+  transToClassify: Observable<ITransactionData[]>;
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -97,6 +97,40 @@ export class MyAccountPage implements OnInit {
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
+  // ─── Mobile card configuration ───────────────────────────────────────────
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields:    [TransactionsOutcomesColumns.NAME],
+    highlightedField:  TransactionsOutcomesColumns.SUM,
+    dateField:         TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields:      [],
+  };
+
+  // ─── Row actions — same showWhen conditions as transactions page.
+  //     Callbacks are stubs until classify/associate dialogs are wired into this page.
+  rowActions: ITableRowAction[] = [
+    {
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire account-association dialog */ },
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
+      title: 'סיווג תנועה',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire classify dialog */ },
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire quick classify */ },
+    },
+  ];
+
   constructor(private authService: AuthService) { }
 
   ngOnInit() {
@@ -128,7 +162,7 @@ export class MyAccountPage implements OnInit {
                 row?.businessNumber === this.userData?.businessNumber
                   ? this.userData?.businessName
                   : this.userData?.spouseBusinessName
-            }))
+            })) as ITransactionData[]
         )
       );
   }
@@ -351,6 +385,7 @@ export class MyAccountPage implements OnInit {
   // closeMobileMenu(): void {
   //   this.mobileMenuOpen.set(false);
   // }
+
 
   openMannualExpenses(): void {
     // this.dialogRef = 
