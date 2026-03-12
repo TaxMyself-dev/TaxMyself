@@ -1,20 +1,26 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
 
 import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { UserTransactionCacheState } from './user-transaction-cache-state.entity';
 import { ClassifiedTransactions } from './classified-transactions.entity';
+import { DefaultCategory } from '../expenses/default-categories.entity';
+import { UserCategory } from '../expenses/user-categories.entity';
+import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 
 import { NormalizedTransaction } from './interfaces/normalized-transaction.interface';
 import { ProcessingResult } from './interfaces/processing-result.interface';
 import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
+import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
+import { ClassifyWithRuleResult } from './interfaces/classify-with-rule-result.interface';
 import { ClassificationType } from './enums/classification-type.enum';
 
 /** Hours before a user's full_transactions_cache is considered stale. */
@@ -23,6 +29,7 @@ const CACHE_TTL_HOURS = 24;
 interface BillInfo {
   billId: number;
   billName: string;
+  businessNumber: string | null;
 }
 
 /**
@@ -41,6 +48,8 @@ interface BillInfo {
  */
 @Injectable()
 export class TransactionProcessingService {
+  private readonly logger = new Logger(TransactionProcessingService.name);
+
   constructor(
     @InjectRepository(SlimTransaction)
     private readonly slimRepo: Repository<SlimTransaction>,
@@ -56,6 +65,15 @@ export class TransactionProcessingService {
 
     @InjectRepository(Source)
     private readonly sourceRepo: Repository<Source>,
+
+    @InjectRepository(DefaultCategory)
+    private readonly categoryRepo: Repository<DefaultCategory>,
+
+    @InjectRepository(UserCategory)
+    private readonly userCategoryRepo: Repository<UserCategory>,
+
+    @InjectRepository(Bill)
+    private readonly billRepo: Repository<Bill>,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -85,8 +103,14 @@ export class TransactionProcessingService {
       savedToCacheOnly: 0,
       ruleMatched: 0,
       skippedNoBillId: 0,
-      duplicatesInCache: 0,
+      newlySavedToCache: 0,
+      alreadyExistingInCache: 0,
     };
+
+    const inputUniqueIds = new Set(transactions.map(tx => tx.externalTransactionId));
+    this.logger.log(
+      `[DIAG] PROCESS_INPUT | userId=${userId} | totalReceived=${transactions.length} | uniqueExternalIds=${inputUniqueIds.size}`,
+    );
 
     if (transactions.length === 0) {
       return result;
@@ -104,6 +128,7 @@ export class TransactionProcessingService {
         ...tx,
         billId: tx.billId ?? resolved?.billId ?? null,
         billName: tx.billName ?? resolved?.billName ?? null,
+        businessNumber: tx.businessNumber ?? resolved?.businessNumber ?? null,
       };
     });
 
@@ -188,13 +213,52 @@ export class TransactionProcessingService {
         .execute();
     }
 
-    // UPSERT full_transactions_cache: refresh provider data and overlay on
-    // conflict (userId, externalTransactionId).
+    // Count existing cache rows before upsert to distinguish inserts from updates.
     if (cacheUpserts.length > 0) {
-      await this.cacheRepo.upsert(cacheUpserts as FullTransactionCache[], [
-        'userId',
-        'externalTransactionId',
-      ]);
+      const upsertExternalIds = [
+        ...new Set(
+          cacheUpserts
+            .map((r) => r.externalTransactionId)
+            .filter((id): id is string => !!id),
+        ),
+      ];
+
+      const existingCacheRows = upsertExternalIds.length > 0
+        ? await this.cacheRepo
+            .createQueryBuilder('c')
+            .select('c.externalTransactionId')
+            .where('c.userId = :userId', { userId })
+            .andWhere('c.externalTransactionId IN (:...ids)', { ids: upsertExternalIds })
+            .getCount()
+        : 0;
+
+      result.alreadyExistingInCache = existingCacheRows;
+      result.newlySavedToCache = upsertExternalIds.length - existingCacheRows;
+
+      this.logger.log(
+        `[DIAG] PROCESS_CACHE | userId=${userId} | cacheUpsertsCount=${cacheUpserts.length} | uniqueForCache=${upsertExternalIds.length} | alreadyExisting=${existingCacheRows} | newlySaved=${result.newlySavedToCache}`,
+      );
+
+      // UPSERT full_transactions_cache: refresh provider data and overlay on
+      // conflict (userId, externalTransactionId).
+      //
+      // NOTE: cacheRepo.upsert() is NOT used here because FullTransactionCache has
+      // several columns with `default:` values (e.g. isRecognized, vatPercent).
+      // TypeORM includes those in getInsertionReturningColumns(), then tries to
+      // SELECT them back after the MySQL INSERT — but needs entity.id to do so,
+      // which is absent in a Partial<> upsert payload.  Using the query builder
+      // with .updateEntity(false) skips that re-select entirely.
+      const upsertUpdateColumns = Object.keys(cacheUpserts[0]).filter(
+        (k) => k !== 'userId' && k !== 'externalTransactionId',
+      );
+      await this.cacheRepo
+        .createQueryBuilder()
+        .insert()
+        .into(FullTransactionCache)
+        .values(cacheUpserts as FullTransactionCache[])
+        .orUpdate(upsertUpdateColumns, ['userId', 'externalTransactionId'])
+        .updateEntity(false)
+        .execute();
     }
 
     await this.updateCacheState(userId);
@@ -283,6 +347,370 @@ export class TransactionProcessingService {
     );
   }
 
+  /**
+   * Rule-based classification (isSingleUpdate = false).
+   *
+   * Guard order (checked BEFORE any write):
+   *
+   *  1. billId must not be null.
+   *
+   *  2. vatReportingDate != null → HARD STOP.
+   *     Nothing is written. Returns status = 'blocked_vat_reported'.
+   *
+   *  3. classificationType = ONE_TIME (without confirmOverride) →
+   *     Nothing is written. Returns status = 'confirm_override'.
+   *     The frontend must re-send the request with confirmOverride = true
+   *     after the user explicitly agrees.
+   *
+   * When no blocker exists (or ONE_TIME override is confirmed):
+   *  - Create or update a rule in classified_transactions.
+   *  - Upsert slim row with classificationType = RULE, classificationRuleId.
+   *  - Update cache overlay for the classified transaction.
+   *  - Backfill: apply the rule to all existing matching cache rows within
+   *    the effective date range, skipping ONE_TIME and VAT-reported rows.
+   *    Effective date range lower bound: dto.startDate ?? cacheRow.transactionDate.
+   *    Effective date range upper bound: dto.endDate (absent = no upper bound).
+   *  - Returns status = 'applied' with backfillCount.
+   */
+  async classifyWithRule(
+    userId: string,
+    dto: ClassifyWithRuleDto,
+  ): Promise<ClassifyWithRuleResult> {
+    // 1. Locate in cache.
+    const cacheRow = await this.cacheRepo.findOne({
+      where: { userId, externalTransactionId: dto.externalTransactionId },
+    });
+    if (!cacheRow) {
+      throw new NotFoundException(
+        `Transaction "${dto.externalTransactionId}" not found in cache.`,
+      );
+    }
+
+    // 2. billId guard.
+    if (cacheRow.billId === null) {
+      throw new BadRequestException(
+        `Transaction "${dto.externalTransactionId}" has no billId and cannot be classified.`,
+      );
+    }
+
+    // 3. Load existing slim to check guards.
+    const slim = await this.slimRepo.findOne({
+      where: { userId, externalTransactionId: dto.externalTransactionId },
+    });
+
+    // Guard: VAT-reported → absolute stop. No writes at all.
+    if (slim?.vatReportingDate != null) {
+      return {
+        status: 'blocked_vat_reported',
+        message:
+          'Transaction was already VAT-reported and cannot be changed.',
+      };
+    }
+
+    // Guard: ONE_TIME → require explicit confirmation before override.
+    if (
+      slim?.classificationType === ClassificationType.ONE_TIME &&
+      !dto.confirmOverride
+    ) {
+      return {
+        status: 'confirm_override',
+        message:
+          'This transaction was previously classified as one-time. ' +
+          'Resend with confirmOverride = true to replace it with a rule.',
+      };
+    }
+
+    // 4. Create or update rule.
+    //    Rule identity: full constraint signature (same logic as legacy flow).
+    const constraintWhere: Record<string, any> = {
+      userId,
+      billId: cacheRow.billId,
+      transactionName: cacheRow.merchantName,
+      startDate: dto.startDate ?? null,
+      endDate: dto.endDate ?? null,
+      minAbsSum: dto.minAbsSum ?? null,
+      maxAbsSum: dto.maxAbsSum ?? null,
+      commentPattern: dto.commentPattern ?? null,
+      commentMatchType: dto.commentMatchType ?? 'equals',
+    };
+
+    let rule = await this.rulesRepo.findOne({ where: constraintWhere });
+
+    const classificationFields = {
+      category: dto.category,
+      subCategory: dto.subCategory,
+      vatPercent: dto.vatPercent,
+      taxPercent: dto.taxPercent,
+      reductionPercent: dto.reductionPercent,
+      isEquipment: dto.isEquipment,
+      isRecognized: dto.isRecognized,
+      isExpense: dto.isExpense ?? false,
+    };
+
+    if (rule) {
+      Object.assign(rule, classificationFields);
+    } else {
+      rule = this.rulesRepo.create({
+        ...constraintWhere,
+        ...classificationFields,
+      });
+    }
+
+    const savedRule = await this.rulesRepo.save(rule);
+
+    // 5. Upsert slim row with RULE classification.
+    await this.slimRepo.upsert(
+      {
+        userId,
+        externalTransactionId: dto.externalTransactionId,
+        billId: cacheRow.billId,
+        classificationType: ClassificationType.RULE,
+        classificationRuleId: savedRule.id,
+        category: dto.category,
+        subCategory: dto.subCategory,
+        vatPercent: dto.vatPercent,
+        taxPercent: dto.taxPercent,
+        reductionPercent: dto.reductionPercent,
+        isEquipment: dto.isEquipment,
+        isRecognized: dto.isRecognized,
+        confirmed: slim?.confirmed ?? false,
+        vatReportingDate: null,
+        businessNumber: slim?.businessNumber ?? null,
+      } as SlimTransaction,
+      ['userId', 'externalTransactionId'],
+    );
+
+    // 6. Update cache overlay for the classified transaction.
+    await this.cacheRepo.update(
+      { userId, externalTransactionId: dto.externalTransactionId },
+      {
+        category: dto.category,
+        subCategory: dto.subCategory,
+        vatPercent: dto.vatPercent,
+        taxPercent: dto.taxPercent,
+        reductionPercent: dto.reductionPercent,
+        isEquipment: dto.isEquipment,
+        isRecognized: dto.isRecognized,
+        classificationType: ClassificationType.RULE,
+      },
+    );
+
+    // 7. Backfill: apply rule to all other existing matching transactions.
+    const backfillCount = await this.applyRuleToExistingTransactions(
+      userId,
+      cacheRow,
+      savedRule,
+      dto,
+    );
+
+    return {
+      status: 'applied',
+      ruleId: savedRule.id,
+      backfillCount,
+      message: `Rule created and classification applied. ${backfillCount} existing transaction(s) updated.`,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Read queries (classification domain)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns cache rows that have NO matching slim_transactions row.
+   * These are the unclassified transactions the user needs to classify.
+   *
+   * Uses LEFT JOIN ... IS NULL (not NOT IN) for SQL safety.
+   *
+   * Returns the rows mapped to the legacy Transactions response shape so the
+   * frontend can consume them without changes.
+   */
+  async getTransactionsToClassify(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+    businessNumber?: string,
+  ): Promise<any[]> {
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .leftJoin(
+        SlimTransaction,
+        's',
+        's.userId = c.userId AND s.externalTransactionId = c.externalTransactionId',
+      )
+      .where('c.userId = :userId', { userId })
+      .andWhere('s.id IS NULL');
+
+    if (startDate && endDate) {
+      qb.andWhere('c.transactionDate BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    } else if (startDate) {
+      qb.andWhere('c.transactionDate >= :startDate', { startDate });
+    } else if (endDate) {
+      qb.andWhere('c.transactionDate <= :endDate', { endDate });
+    }
+
+    if (businessNumber) {
+      qb.andWhere('c.businessNumber = :businessNumber', { businessNumber });
+    }
+
+    qb.orderBy('c.transactionDate', 'DESC');
+
+    const rows = await qb.getMany();
+
+    return rows.map((r) => this.mapCacheToLegacyShape(r));
+  }
+
+  /**
+   * Finds a single cache row by its PK id (the numeric id the frontend sends).
+   * Returns null if not found or not owned by the user.
+   */
+  async findCacheRowById(
+    id: number,
+    userId: string,
+  ): Promise<FullTransactionCache | null> {
+    return this.cacheRepo.findOne({ where: { id, userId } });
+  }
+
+  /**
+   * Finds a single cache row by externalTransactionId (= finsiteId).
+   * This is the stable lookup used by classification endpoints, since the
+   * frontend row may carry either a legacy Transactions.id or a cache id,
+   * but finsiteId / externalTransactionId is consistent across both.
+   */
+  async findCacheRowByExternalId(
+    externalTransactionId: string,
+    userId: string,
+  ): Promise<FullTransactionCache | null> {
+    return this.cacheRepo.findOne({ where: { externalTransactionId, userId } });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Transactions page read paths (replaces legacy `transactions` table reads)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns income rows (amount > 0) from full_transactions_cache, mapped to
+   * the legacy Transactions response shape so the frontend needs no changes.
+   *
+   * Filters:
+   *   - userId (always scoped)
+   *   - date range → transactionDate
+   *   - billIds  → billId (numeric) | 'notBelong' → billId IS NULL
+   *   - sources  → paymentIdentifier
+   *   - categories → category (null rows always included)
+   */
+  async getIncomesFromCache(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    billIds: string[] | null,
+    categories: string[] | null,
+    sources: string[] | null,
+  ): Promise<Record<string, unknown>[]> {
+    return this.getPageTransactions(
+      userId, startDate, endDate, billIds, categories, sources, 'positive',
+    );
+  }
+
+  /**
+   * Returns expense rows (amount < 0) from full_transactions_cache, mapped to
+   * the legacy Transactions response shape so the frontend needs no changes.
+   */
+  async getExpensesFromCache(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    billIds: string[] | null,
+    categories: string[] | null,
+    sources: string[] | null,
+  ): Promise<Record<string, unknown>[]> {
+    return this.getPageTransactions(
+      userId, startDate, endDate, billIds, categories, sources, 'negative',
+    );
+  }
+
+  /**
+   * Core read query for the Transactions page.
+   *
+   * Bill filter logic:
+   *   billIds = null        → no bill filter (all rows for user)
+   *   billIds = ['notBelong'] → only unlinked rows (billId IS NULL)
+   *   billIds = ['1','2']   → rows where billId IN (1, 2)
+   *   'notBelong' can be combined with numeric ids.
+   *
+   * NOT IN is never used; unlinked rows are matched with IS NULL.
+   */
+  private async getPageTransactions(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+    billIds: string[] | null,
+    categories: string[] | null,
+    sources: string[] | null,
+    amountSign: 'positive' | 'negative',
+  ): Promise<Record<string, unknown>[]> {
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .where('c.userId = :userId', { userId })
+      .andWhere('DATE(c.transactionDate) BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      })
+      .andWhere(amountSign === 'positive' ? 'c.amount > 0' : 'c.amount < 0');
+
+    // Bill filter
+    if (billIds !== null) {
+      const numericBillIds = billIds
+        .filter((id) => id !== 'notBelong')
+        .map((id) => parseInt(id, 10))
+        .filter((id) => !isNaN(id));
+      const includeUnlinked = billIds.includes('notBelong');
+
+      if (numericBillIds.length === 0 && !includeUnlinked) {
+        // Nothing can possibly match — skip the DB round-trip.
+        return [];
+      }
+
+      if (numericBillIds.length > 0 && includeUnlinked) {
+        qb.andWhere(
+          new Brackets((qb2) => {
+            qb2
+              .where('c.billId IN (:...numericBillIds)', { numericBillIds })
+              .orWhere('c.billId IS NULL');
+          }),
+        );
+      } else if (numericBillIds.length > 0) {
+        qb.andWhere('c.billId IN (:...numericBillIds)', { numericBillIds });
+      } else {
+        // includeUnlinked only
+        qb.andWhere('c.billId IS NULL');
+      }
+    }
+
+    // Sources filter — paymentIdentifier exact match list.
+    if (sources && sources.length > 0) {
+      qb.andWhere('c.paymentIdentifier IN (:...sources)', { sources });
+    }
+
+    // Category filter — always include NULL category (unclassified) rows.
+    if (categories && categories.length > 0) {
+      qb.andWhere(
+        new Brackets((qb2) => {
+          qb2
+            .where('c.category IN (:...categories)', { categories })
+            .orWhere('c.category IS NULL');
+        }),
+      );
+    }
+
+    qb.orderBy('c.transactionDate', 'DESC');
+
+    const rows = await qb.getMany();
+    return rows.map((r) => this.mapCacheToLegacyShape(r));
+  }
+
   // ---------------------------------------------------------------------------
   // Cache lifecycle
   // ---------------------------------------------------------------------------
@@ -323,6 +751,7 @@ export class TransactionProcessingService {
         map.set(source.sourceName, {
           billId: source.bill.id,
           billName: source.bill.billName,
+          businessNumber: source.bill.businessNumber ?? null,
         });
       }
     }
@@ -343,6 +772,144 @@ export class TransactionProcessingService {
       where: { userId, externalTransactionId: In(externalIds) },
     });
     return new Map(rows.map((r) => [r.externalTransactionId, r]));
+  }
+
+  /**
+   * Backfills a freshly saved RULE classification to all existing matching
+   * cache rows for the same user.
+   *
+   * Effective date range:
+   *   lower bound = dto.startDate ?? cacheRow.transactionDate
+   *   upper bound = dto.endDate    (no upper bound when absent)
+   *
+   * Skips rows where the slim row has:
+   *   - classificationType = ONE_TIME
+   *   - vatReportingDate   != null
+   *
+   * Also post-filters by the rule's optional constraints (commentPattern,
+   * minAbsSum, maxAbsSum) so that only genuinely matching rows are updated.
+   *
+   * Returns the count of rows updated.
+   */
+  private async applyRuleToExistingTransactions(
+    userId: string,
+    cacheRow: FullTransactionCache,
+    savedRule: ClassifiedTransactions,
+    dto: ClassifyWithRuleDto,
+  ): Promise<number> {
+    const effectiveStart = dto.startDate
+      ? new Date(dto.startDate)
+      : new Date(cacheRow.transactionDate);
+
+    // 1. Candidate cache rows: same merchant + bill, within date range,
+    //    excluding the transaction that was just classified.
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.merchantName = :merchantName', {
+        merchantName: cacheRow.merchantName,
+      })
+      .andWhere('c.billId = :billId', { billId: cacheRow.billId })
+      .andWhere('c.externalTransactionId != :currentId', {
+        currentId: dto.externalTransactionId,
+      })
+      .andWhere('c.transactionDate >= :startDate', {
+        startDate: effectiveStart,
+      });
+
+    if (dto.endDate) {
+      qb.andWhere('c.transactionDate <= :endDate', {
+        endDate: new Date(dto.endDate),
+      });
+    }
+
+    const candidates = await qb.getMany();
+    if (candidates.length === 0) return 0;
+
+    // 2. Post-filter by the rule's optional constraints.
+    const filtered = candidates.filter((row) => {
+      const absAmount = Math.abs(Number(row.amount));
+      if (savedRule.minAbsSum != null && absAmount < savedRule.minAbsSum) return false;
+      if (savedRule.maxAbsSum != null && absAmount > savedRule.maxAbsSum) return false;
+
+      if (savedRule.commentPattern != null) {
+        const note = row.note ?? '';
+        if (savedRule.commentMatchType === 'equals') {
+          if (note !== savedRule.commentPattern) return false;
+        } else {
+          if (!note.includes(savedRule.commentPattern)) return false;
+        }
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) return 0;
+
+    // 3. Load slim rows in one query.
+    const externalIds = filtered.map((r) => r.externalTransactionId);
+    const slimRows = await this.slimRepo.find({
+      where: { userId, externalTransactionId: In(externalIds) },
+    });
+    const slimByExternalId = new Map(
+      slimRows.map((s) => [s.externalTransactionId, s]),
+    );
+
+    // 4. Exclude protected rows (ONE_TIME or VAT-reported).
+    const eligible = filtered.filter((row) => {
+      const slim = slimByExternalId.get(row.externalTransactionId);
+      if (!slim) return true;
+      if (slim.classificationType === ClassificationType.ONE_TIME) return false;
+      if (slim.vatReportingDate != null) return false;
+      return true;
+    });
+
+    if (eligible.length === 0) return 0;
+
+    // 5. Upsert slim rows.
+    const classificationPayload = {
+      category: dto.category,
+      subCategory: dto.subCategory,
+      vatPercent: dto.vatPercent,
+      taxPercent: dto.taxPercent,
+      reductionPercent: dto.reductionPercent,
+      isEquipment: dto.isEquipment,
+      isRecognized: dto.isRecognized,
+    };
+
+    const slimUpserts: Partial<SlimTransaction>[] = eligible.map((row) => {
+      const existingSlim = slimByExternalId.get(row.externalTransactionId);
+      return {
+        userId,
+        externalTransactionId: row.externalTransactionId,
+        billId: row.billId!,
+        classificationType: ClassificationType.RULE,
+        classificationRuleId: savedRule.id,
+        ...classificationPayload,
+        confirmed: existingSlim?.confirmed ?? false,
+        vatReportingDate: null,
+        businessNumber: existingSlim?.businessNumber ?? null,
+      };
+    });
+
+    await this.slimRepo.upsert(slimUpserts as SlimTransaction[], [
+      'userId',
+      'externalTransactionId',
+    ]);
+
+    // 6. Bulk-update cache overlay.
+    const eligibleIds = eligible.map((r) => r.externalTransactionId);
+    await this.cacheRepo
+      .createQueryBuilder()
+      .update(FullTransactionCache)
+      .set({
+        ...classificationPayload,
+        classificationType: ClassificationType.RULE,
+      })
+      .where('userId = :userId', { userId })
+      .andWhere('externalTransactionId IN (:...ids)', { ids: eligibleIds })
+      .execute();
+
+    return eligible.length;
   }
 
   /**
@@ -487,6 +1054,35 @@ export class TransactionProcessingService {
       isEquipment: rule.isEquipment,
       isRecognized: rule.isRecognized,
       classificationType: ClassificationType.RULE,
+    };
+  }
+
+  /**
+   * Maps a FullTransactionCache row to the legacy Transactions response shape.
+   * Keeps the frontend working without changes during the cutover.
+   */
+  private mapCacheToLegacyShape(row: FullTransactionCache): Record<string, any> {
+    return {
+      id: row.id,
+      finsiteId: row.externalTransactionId,
+      userId: row.userId,
+      paymentIdentifier: row.paymentIdentifier,
+      billName: row.billName,
+      businessNumber: row.businessNumber,
+      name: row.merchantName,
+      note2: row.note,
+      billDate: row.transactionDate,
+      payDate: row.paymentDate,
+      sum: row.amount,
+      category: row.category,
+      subCategory: row.subCategory,
+      isRecognized: row.isRecognized,
+      vatPercent: row.vatPercent,
+      taxPercent: row.taxPercent,
+      isEquipment: row.isEquipment,
+      reductionPercent: row.reductionPercent,
+      vatReportingDate: row.vatReportingDate,
+      confirmed: row.confirmed,
     };
   }
 

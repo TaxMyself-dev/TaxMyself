@@ -46,4 +46,4 @@ import { Business } from 'src/business/business.entity';
   ],
   exports: [TypeOrmModule, TransactionProcessingService],
 })
-export class ExcelModule {}
+export class TransactionsModule {}

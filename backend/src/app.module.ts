@@ -9,7 +9,7 @@ import { ClientsModule } from './clients/clients.module';
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
-import { ExcelModule } from './transactions/transactions.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { CloudModule } from './cloud/cloud.module';
 import { SharedModule } from './shared/shared.module';
 import { FinsiteModule } from './finsite/finsite.module';
@@ -117,7 +117,7 @@ import { BusinessService } from './business/business.service';
       FeezbackWebhookEvent
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
   controllers: [AppController],
   providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

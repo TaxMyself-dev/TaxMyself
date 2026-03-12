@@ -8,6 +8,8 @@ import { FeezbackAuthService } from './core/feezback-auth.service';
 import { FeezbackApiService } from './api/feezback-api.service';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
 import { ConsentSyncService } from './consent/consent-sync.service';
+import { TransactionProcessingService } from '../transactions/transaction-processing.service';
+import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
 import * as fs from 'fs';
 import * as path from 'path';
 @Injectable()
@@ -23,6 +25,7 @@ export class FeezbackService {
     private readonly feezbackApiService: FeezbackApiService,
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
     private readonly consentSyncService: ConsentSyncService,
+    private readonly processingService: TransactionProcessingService,
   ) {
     this.tppId = this.authService.getTppId();
   }
@@ -741,7 +744,12 @@ export class FeezbackService {
     }> = [];
 
     // ✅ PACING
-    const pacingMs = 500;
+    const pacingMs = 1500;
+
+    // cooldown after GET /cards before first cardTransactions request
+    if (filteredCards.length > 0) {
+      await this.sleep(1500);
+    }
 
     for (let i = 0; i < filteredCards.length; i++) {
       const card = filteredCards[i];
@@ -786,6 +794,10 @@ export class FeezbackService {
 
         const transactions = this.extractCardTransactions(transactionsResponse);
 
+        this.logger.log(
+          `[DIAG] CARD_FETCH | card=${cardName} | index=${i + 1}/${filteredCards.length} | extracted=${transactions.length}`,
+        );
+
         // ✅ מטא שנוסיף לכל טרנזקציה (לקובץ בלבד)
         const cardMeta = {
           cardResourceId: cardId,
@@ -819,7 +831,7 @@ export class FeezbackService {
         const message = err?.message || 'Unknown error';
 
         this.logger.warn(
-          `Skipping card due to error. card=${cardId} consent=${consentId} status=${status} message=${message}`,
+          `[DIAG] CARD_FAILED | card=${cardName} | cardId=${cardId} | index=${i + 1}/${filteredCards.length} | consent=${consentId} | status=${status} | error=${message}`,
         );
 
         cardErrors.push({
@@ -857,6 +869,10 @@ export class FeezbackService {
       }
     }
 
+    this.logger.log(
+      `[DIAG] CARD_EXTRACTION_TOTAL | cards_attempted=${filteredCards.length} | cards_succeeded=${cardsResult.length} | cards_failed=${cardErrors.length} | total_extracted=${allTransactionsForDb.length}`,
+    );
+
     // ✅ שמירה לקובץ פעם אחת בסוף (עם __cardMeta)
     const savedFilePaths = this.saveTransactionsToFile(
       userId,
@@ -866,12 +882,40 @@ export class FeezbackService {
     );
     this.logger.log(`Saved raw/simplified card transactions files: ${JSON.stringify(savedFilePaths)}`);
 
-    // ✅ שמירה ל-DB (בלי __cardMeta)
+    // Legacy save to Transactions table
     const saveResult = await this.saveCardTransactionsToDatabase(
       allTransactionsForDb,
       userId,
       cardInfoMap,
     );
+
+    // New pipeline: normalize → process
+    let processingResult: any = null;
+    let processingError: string | null = null;
+    try {
+      const normalized = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap);
+      if (normalized.length > 0) {
+        processingResult = await this.processingService.process(userId, normalized);
+        this.logger.log(`Card pipeline: ${JSON.stringify(processingResult)}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Card processing pipeline failed: ${err.message}`, err.stack);
+      processingError = err.message;
+    }
+
+    const cardProcessedCount = processingResult?.totalReceived ?? 0;
+    const syncSummary = {
+      bank: { banksProcessed: 0, transactionsFetched: 0 },
+      card: {
+        cardsProcessed: cardsResult.length,
+        transactionsFetched: cardProcessedCount,
+      },
+      system: {
+        totalProcessed: cardProcessedCount,
+        savedInCurrentImport: processingResult?.newlySavedToCache ?? 0,
+        alreadyExisting: processingResult?.alreadyExistingInCache ?? 0,
+      },
+    };
 
     return {
       asOf: new Date().toISOString(),
@@ -879,14 +923,25 @@ export class FeezbackService {
       dateFrom,
       dateTo,
 
+      // Normalized fields (aligned with bank response shape)
+      transactions: allTransactionsForDb,
+      totalTransactions: allTransactionsForDb.length,
+      accountsProcessed: filteredCards.length,
+      databaseSaveResult: saveResult,
+
+      // Card-specific fields
       cardsProcessed: filteredCards.length,
       cardsSucceeded: cardsResult.length,
       cardsFailed: cardErrors.length,
 
       savedFilePaths,
       saveResult,
+      processingResult,
+      processingError,
       cards: cardsResult,
       cardErrors,
+
+      syncSummary,
     };
   }
 
@@ -927,6 +982,312 @@ export class FeezbackService {
 
     this.runningCardSyncByUser.set(key, promise);
     return promise;
+  }
+
+  /**
+   * Fetches all bank account transactions, saves to legacy DB + new processing pipeline.
+   * Moves orchestration that was previously in the controller into the service.
+   */
+  async getAndSaveBankTransactions(
+    firebaseId: string,
+    sub: string,
+    bookingStatus: string = 'booked',
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<any> {
+    // Step 1: Get all accounts
+    let accountsResponse;
+    try {
+      accountsResponse = await this.feezbackApiService.getUserAccounts(sub);
+    } catch (error: any) {
+      if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
+        return {
+          transactions: [],
+          accountsProcessed: 0,
+          totalTransactions: 0,
+          transactionsByAccount: {},
+          error: 'CONSENT_REQUIRED',
+          message: 'User accounts not found. Please complete the Feezback consent flow first.',
+        };
+      }
+      throw error;
+    }
+
+    const accounts = accountsResponse?.accounts || [];
+    if (!accounts || accounts.length === 0) {
+      return {
+        transactions: [],
+        accountsProcessed: 0,
+        totalTransactions: 0,
+        transactionsByAccount: {},
+      };
+    }
+
+    // Step 2: Fetch transactions per account
+    const allTransactions: any[] = [];
+    const accountTransactionsMap: { [accountName: string]: any[] } = {};
+    const delayBetweenRequests = 5000;
+
+    // cooldown after GET /accounts before first accountTransactions request
+    await this.sleep(1500);
+
+    for (let i = 0; i < accounts.length; i++) {
+      const account = accounts[i];
+
+      if (i > 0) {
+        await this.sleep(delayBetweenRequests);
+      }
+
+      try {
+        const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
+          sub,
+          account._links.transactions.href,
+          bookingStatus,
+          dateFrom,
+          dateTo,
+        );
+
+        const transactions = this.extractBankTransactions(transactionsResponse);
+
+        this.logger.log(
+          `[DIAG] BANK_ACCOUNT_FETCH | account=${account.name} | index=${i + 1}/${accounts.length} | extracted=${transactions.length}`,
+        );
+
+        if (transactions.length > 0) {
+          accountTransactionsMap[account.name] = transactions;
+          allTransactions.push(...transactions);
+        } else {
+          accountTransactionsMap[account.name] = [];
+        }
+      } catch (error: any) {
+        this.logger.error(
+          `[DIAG] BANK_ACCOUNT_FAILED | account=${account.name} | index=${i + 1}/${accounts.length} | error=${error.message}`,
+          error.stack,
+        );
+      }
+    }
+
+    const bankAccountsSucceeded = Object.keys(accountTransactionsMap).length;
+    this.logger.log(
+      `[DIAG] BANK_EXTRACTION_TOTAL | accounts_attempted=${accounts.length} | accounts_succeeded=${bankAccountsSucceeded} | accounts_failed=${accounts.length - bankAccountsSucceeded} | total_extracted=${allTransactions.length}`,
+    );
+
+    // Build account info/mapping for legacy save + normalization
+    const accountInfoMap: { [accountName: string]: any } = {};
+    (accountsResponse?.accounts || []).forEach((acc: any) => {
+      accountInfoMap[acc.name] = acc;
+    });
+
+    const transactionToAccountMap: { [transactionId: string]: string } = {};
+    Object.keys(accountTransactionsMap).forEach(accountName => {
+      (accountTransactionsMap[accountName] || []).forEach((tx: any) => {
+        if (tx.transactionId) {
+          transactionToAccountMap[tx.transactionId] = accountName;
+        }
+      });
+    });
+
+    // Save to file for inspection
+    let savedFilePaths: { raw: string | null; simplified: string | null } = { raw: null, simplified: null };
+    if (allTransactions.length > 0) {
+      savedFilePaths = this.saveTransactionsToFile(firebaseId, allTransactions, accountTransactionsMap, accountInfoMap);
+    }
+
+    const response: any = {
+      transactions: allTransactions,
+      accountsProcessed: Object.keys(accountTransactionsMap).length,
+      totalTransactions: allTransactions.length,
+      transactionsByAccount: accountTransactionsMap,
+      savedFilePaths,
+    };
+
+    if (allTransactions.length === 0) {
+      response.databaseSaveResult = { saved: 0, skipped: 0, message: 'No transactions to save' };
+      response.syncSummary = {
+        bank: { banksProcessed: response.accountsProcessed, transactionsFetched: 0 },
+        card: { cardsProcessed: 0, transactionsFetched: 0 },
+        system: { totalProcessed: 0, savedInCurrentImport: 0, alreadyExisting: 0 },
+      };
+      return response;
+    }
+
+    // Legacy save to Transactions table
+    try {
+      const saveResult = await this.saveBankTransactionsToDatabase(
+        allTransactions,
+        firebaseId,
+        accountInfoMap,
+        transactionToAccountMap,
+      );
+      response.databaseSaveResult = saveResult;
+    } catch (error: any) {
+      this.logger.error(`Legacy bank save failed: ${error.message}`, error.stack);
+      response.databaseSaveError = error.message;
+    }
+
+    // New pipeline: normalize → process
+    try {
+      const normalized = this.normalizeBankTransactions(
+        allTransactions,
+        accountInfoMap,
+        transactionToAccountMap,
+      );
+      if (normalized.length > 0) {
+        const processingResult = await this.processingService.process(firebaseId, normalized);
+        response.processingResult = processingResult;
+        this.logger.log(`Bank pipeline: ${JSON.stringify(processingResult)}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Bank processing pipeline failed: ${error.message}`, error.stack);
+      response.processingError = error.message;
+    }
+
+    const bankProcessedCount = response.processingResult?.totalReceived ?? 0;
+    response.syncSummary = {
+      bank: {
+        banksProcessed: response.accountsProcessed,
+        transactionsFetched: bankProcessedCount,
+      },
+      card: { cardsProcessed: 0, transactionsFetched: 0 },
+      system: {
+        totalProcessed: bankProcessedCount,
+        savedInCurrentImport: response.processingResult?.newlySavedToCache ?? 0,
+        alreadyExisting: response.processingResult?.alreadyExistingInCache ?? 0,
+      },
+    };
+
+    // cooldown after BANK flow completes before GET /cards begins
+    await this.sleep(2000);
+
+    return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Normalization: raw Feezback data → NormalizedTransaction[]
+  // ---------------------------------------------------------------------------
+
+  private normalizeBankTransactions(
+    transactions: any[],
+    accountInfoMap: { [accountName: string]: any },
+    transactionToAccountMap: { [transactionId: string]: string },
+  ): NormalizedTransaction[] {
+    const result: NormalizedTransaction[] = [];
+    let droppedMissingId = 0;
+    let droppedInvalidDate = 0;
+    let droppedInvalidAmount = 0;
+
+    for (const tx of transactions) {
+      const externalId = tx?.transactionId;
+      if (!externalId || typeof externalId !== 'string' || externalId.trim() === '') {
+        droppedMissingId++;
+        continue;
+      }
+
+      const transactionDate = this.parseTxDate(tx, 'BANK');
+      if (!transactionDate) { droppedInvalidDate++; continue; }
+
+      const amount = this.parseTxAmount(tx, 'BANK');
+      if (amount === null) { droppedInvalidAmount++; continue; }
+
+      const accountName = transactionToAccountMap[externalId] || null;
+      const accountInfo = accountName ? accountInfoMap[accountName] : null;
+
+      // .slice(-6) matches the format stored in Source.sourceName for bank accounts.
+      // TransactionProcessingService.buildBillMap() looks up paymentIdentifier
+      // against source.sourceName, so the format must be identical.
+      const fullIdentifier = this.resolveBankPaymentIdentifier(tx, accountInfo);
+
+      result.push({
+        externalTransactionId: externalId,
+        merchantName: this.resolveBankMerchantName(tx),
+        amount,
+        transactionDate,
+        paymentDate: this.parseDateCandidate(tx?.valueDate),
+        paymentIdentifier: fullIdentifier.slice(-6),
+        billId: null,
+        billName: null,
+        businessNumber: null,
+        note: tx?.remittanceInformationUnstructured || tx?.additionalInformation || null,
+      });
+    }
+
+    const uniqueIds = new Set(result.map(r => r.externalTransactionId));
+    this.logger.log(
+      `[DIAG] BANK_NORMALIZATION | input=${transactions.length} | output=${result.length} | unique_ids=${uniqueIds.size} | dropped_missing_id=${droppedMissingId} | dropped_invalid_date=${droppedInvalidDate} | dropped_invalid_amount=${droppedInvalidAmount}`,
+    );
+
+    return result;
+  }
+
+  private normalizeCardTransactions(
+    transactions: any[],
+    cardInfoMap: Record<string, any>,
+  ): NormalizedTransaction[] {
+    const result: NormalizedTransaction[] = [];
+    let droppedMissingId = 0;
+    let droppedInvalidDate = 0;
+    let droppedInvalidAmount = 0;
+
+    for (const tx of transactions) {
+      const externalId = this.extractCardExternalId(tx);
+      if (!externalId) { droppedMissingId++; continue; }
+
+      const transactionDate = this.parseTxDate(tx, 'CARD');
+      if (!transactionDate) { droppedInvalidDate++; continue; }
+
+      const amount = this.parseTxAmount(tx, 'CARD');
+      if (amount === null) { droppedInvalidAmount++; continue; }
+
+      const cardMeta = tx?.__cardMeta || null;
+      const cardInfo = cardMeta?.cardResourceId ? cardInfoMap[cardMeta.cardResourceId] : null;
+      const { identifier: paymentIdentifier } = this.resolveCardPaymentIdentifier(tx, cardMeta, cardInfo);
+
+      result.push({
+        externalTransactionId: externalId,
+        merchantName: this.resolveCardMerchantName(tx),
+        amount,
+        transactionDate,
+        paymentDate: null,
+        paymentIdentifier,
+        billId: null,
+        billName: null,
+        businessNumber: null,
+        note: tx?.transactionDetails || null,
+      });
+    }
+
+    const uniqueIds = new Set(result.map(r => r.externalTransactionId));
+    this.logger.log(
+      `[DIAG] CARD_NORMALIZATION | input=${transactions.length} | output=${result.length} | unique_ids=${uniqueIds.size} | dropped_missing_id=${droppedMissingId} | dropped_invalid_date=${droppedInvalidDate} | dropped_invalid_amount=${droppedInvalidAmount}`,
+    );
+
+    return result;
+  }
+
+  /**
+   * Extracts bank transactions from various Feezback response formats.
+   */
+  private extractBankTransactions(response: any): any[] {
+    if (!response) return [];
+
+    if (Array.isArray(response)) return response;
+
+    if (response?.transactions) {
+      if (Array.isArray(response.transactions)) return response.transactions;
+      if (Array.isArray(response.transactions?.booked)) return response.transactions.booked;
+      if (Array.isArray(response.transactions?.pending)) return response.transactions.pending;
+    }
+
+    if (Array.isArray(response?.data?.transactions)) return response.data.transactions;
+    if (Array.isArray(response?.data)) return response.data;
+    if (Array.isArray(response?.booked)) return response.booked;
+
+    // Fallback: find first array property
+    for (const key in response) {
+      if (Array.isArray(response[key])) return response[key];
+    }
+
+    return [];
   }
 
   private extractCardTransactions(response: any): any[] {

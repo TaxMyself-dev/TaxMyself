@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, UsePipes, ValidationPipe, Put, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
+import { TransactionProcessingService } from './transaction-processing.service';
 import { SharedService } from '../shared/shared.service';
 import { Transactions } from './transactions.entity';
 import { UsersService } from '../users/users.service';
@@ -18,6 +19,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 export class TransactionsController {
   constructor(
     private readonly transactionsService: TransactionsService,
+    private readonly processingService: TransactionProcessingService,
     private readonly sharedService: SharedService,
     private usersService: UsersService,) {}
 
@@ -55,7 +57,7 @@ export class TransactionsController {
     @Req() request: AuthenticatedRequest,
     @Body() body: CreateBillDto) {
     const userId = request.user?.firebaseId;
-    return await this.transactionsService.addBill(userId, body); 
+    return await this.transactionsService.addBill(userId, body);
   }
 
 
@@ -80,7 +82,7 @@ export class TransactionsController {
     console.log('User Business Number:', businessNumber);
     return this.transactionsService.getBillsByUserId(userId);
   }
-  
+
 
   @Get('get-sources')
   @UseGuards(FirebaseAuthGuard)
@@ -95,7 +97,6 @@ export class TransactionsController {
   async getSourcesByBillId(@Req() request: AuthenticatedRequest, @Param('billId') billId: string) {
     const userId = request.user?.firebaseId;
     const numericBillId = Number(billId);
-    console.log("🚀 ~ TransactionsController ~ getSourcesByBillId ~ numericBillId:", numericBillId)
     if (!Number.isFinite(numericBillId)) {
       throw new BadRequestException('Invalid billId parameter');
     }
@@ -108,27 +109,18 @@ export class TransactionsController {
   async getIncomesForBill(
     @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
-  ): Promise<Transactions[]> {
+  ): Promise<any[]> {
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-  // Handle billId
-  let billIds: string[] | null = null;
-  if (query.billId && query.billId !== 'null' && query.billId.trim() !== '') {
-    billIds = query.billId.split(',');
-  }
+    const billIds = parseCsvParam(query.billId);
+    const categories = parseCsvParam(query.categories);
+    const sources = parseCsvParam(query.sources);
 
-  let categories: string[] | null = null;
-  if (query.categories && query.categories !== 'null' && query.categories.trim() !== '') {
-    categories = query.categories.split(',');
-  }
-
-  let sources: string[] | null = null;
-  if (query.sources && query.sources !== 'null' && query.sources.trim() !== '') {
-    sources = query.sources.split(',');
-  }
-    return this.transactionsService.getIncomesTransactions(userId, startDate, endDate, billIds, categories, sources);
+    return this.processingService.getIncomesFromCache(
+      userId, startDate, endDate, billIds, categories, sources,
+    );
   }
 
 
@@ -138,64 +130,169 @@ export class TransactionsController {
   async getForBill(
     @Req() request: AuthenticatedRequest,
     @Query() query: GetTransactionsDto,
-  ): Promise<Transactions[]> {
- 
+  ): Promise<any[]> {
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-  // Handle billId
-  let billIds: string[] | null = null;
-  if (query.billId && query.billId !== 'null' && query.billId.trim() !== '') {
-    billIds = query.billId.split(',');
+    const billIds = parseCsvParam(query.billId);
+    const categories = parseCsvParam(query.categories);
+    const sources = parseCsvParam(query.sources);
+
+    return this.processingService.getExpensesFromCache(
+      userId, startDate, endDate, billIds, categories, sources,
+    );
   }
 
-  let categories: string[] | null = null;
-  if (query.categories && query.categories !== 'null' && query.categories.trim() !== '') {
-    categories = query.categories.split(',');
-  }
 
-  let sources: string[] | null = null;
-  if (query.sources && query.sources !== 'null' && query.sources.trim() !== '') {
-    sources = query.sources.split(',');
-  }
+  // ---------------------------------------------------------------------------
+  // Classification domain — routed to the new pipeline
+  // ---------------------------------------------------------------------------
 
-    return this.transactionsService.getExpensesTransactions(userId, startDate, endDate, billIds, categories, sources);
-  }
-  
-
+  /**
+   * POST /transactions/classify-trans
+   *
+   * Frontend sends the legacy ClassifyTransactionDto shape.
+   * Controller resolves the cache row by its numeric id, then delegates to
+   * the new pipeline:
+   *   isSingleUpdate = true  → classifyManually()  (ONE_TIME)
+   *   isSingleUpdate = false → classifyWithRule()   (RULE)
+   *
+   * Response contract:
+   *   200 — classification applied
+   *   400 — validation error or VAT lock
+   *   409 — ONE_TIME override confirmation required (classifyWithRule only)
+   */
   @Post('classify-trans')
   @UseGuards(FirebaseAuthGuard)
   async classifyTransaction(
     @Req() request: AuthenticatedRequest,
-    @Body() classifyDto: ClassifyTransactionDto,
-  ): Promise<void> {
+    @Body() dto: ClassifyTransactionDto,
+  ): Promise<any> {
+    console.log("🚀 ~ TransactionsController ~ classifyTransaction ~ dto:", dto)
     const userId = request.user?.firebaseId;
-    console.log("classifyDto is ", classifyDto);
-    return this.transactionsService.classifyTransaction(classifyDto, userId);
+
+    // Resolve cache row using the stable externalTransactionId (= finsiteId).
+    // The frontend row may carry either a legacy Transactions.id or a cache PK,
+    // but finsiteId is consistent across both data sources.
+    const cacheRow = await this.processingService.findCacheRowByExternalId(dto.finsiteId, userId);
+    if (!cacheRow) {
+      throw new BadRequestException(
+        `Transaction with finsiteId ${dto.finsiteId} not found in cache.`,
+      );
+    }
+
+    const externalTransactionId = cacheRow.externalTransactionId;
+
+    if (dto.isSingleUpdate) {
+      // ONE_TIME manual classification
+      await this.processingService.classifyManually(userId, {
+        externalTransactionId,
+        category: dto.category,
+        subCategory: dto.subCategory,
+        vatPercent: dto.vatPercent ?? 0,
+        taxPercent: dto.taxPercent ?? 0,
+        reductionPercent: dto.reductionPercent ?? 0,
+        isEquipment: dto.isEquipment ?? false,
+        isRecognized: dto.isRecognized ?? false,
+      });
+      return;
+    }
+
+    // RULE classification
+    const result = await this.processingService.classifyWithRule(userId, {
+      externalTransactionId,
+      category: dto.category,
+      subCategory: dto.subCategory,
+      vatPercent: dto.vatPercent ?? 0,
+      taxPercent: dto.taxPercent ?? 0,
+      reductionPercent: dto.reductionPercent ?? 0,
+      isEquipment: dto.isEquipment ?? false,
+      isRecognized: dto.isRecognized ?? false,
+      isExpense: dto.isExpense,
+      startDate: dto.startDate ?? null,
+      endDate: dto.endDate ?? null,
+      minAbsSum: dto.minSum ?? null,
+      maxAbsSum: dto.maxSum ?? null,
+      commentPattern: dto.comment ?? null,
+      commentMatchType: dto.matchType ?? 'equals',
+      confirmOverride: dto.confirmOverride,
+    });
+
+    if (result.status === 'blocked_vat_reported') {
+      throw new BadRequestException(result.message);
+    }
+
+    if (result.status === 'confirm_override') {
+      // 409 so the frontend can show confirmation dialog.
+      // The frontend re-sends with confirmOverride = true.
+      throw new ConflictException(result.message);
+    }
+
+    return { ruleId: result.ruleId };
   }
 
 
+  /**
+   * POST /transactions/quick-classify
+   *
+   * Quick-classifies a transaction with default values (שונות / שונות).
+   * Delegates to classifyManually() with ONE_TIME classification.
+   */
   @Post('quick-classify')
   @UseGuards(FirebaseAuthGuard)
   async quickClassifyTransaction(
     @Req() request: AuthenticatedRequest,
-    @Body('transactionId') transactionId: string,
+    @Body('finsiteId') finsiteId: string,
   ): Promise<void> {
     const userId = request.user?.firebaseId;
 
-    if (!transactionId) {
-      throw new BadRequestException('transactionId is required');
+    if (!finsiteId) {
+      throw new BadRequestException('finsiteId is required');
     }
 
-    const numericTransId = Number(transactionId);
-    if (isNaN(numericTransId)) {
-      throw new BadRequestException('transactionId must be a valid number');
+    const cacheRow = await this.processingService.findCacheRowByExternalId(finsiteId, userId);
+    if (!cacheRow) {
+      throw new BadRequestException(
+        `Transaction with finsiteId ${finsiteId} not found in cache.`,
+      );
     }
 
-    return this.transactionsService.quickClassify(numericTransId, userId);
+    await this.processingService.classifyManually(userId, {
+      externalTransactionId: cacheRow.externalTransactionId,
+      category: 'שונות',
+      subCategory: 'שונות',
+      vatPercent: 0,
+      taxPercent: 0,
+      reductionPercent: 0,
+      isEquipment: false,
+      isRecognized: false,
+    });
   }
 
+
+  /**
+   * GET /transactions/get-trans-to-classify
+   *
+   * Returns cache rows that have no matching slim_transactions row.
+   * Response is mapped to the legacy Transactions shape for frontend compat.
+   */
+  @Get('get-trans-to-classify')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getTransToClassify(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: any,
+  ): Promise<any[]> {
+    const userId = request.user?.firebaseId;
+    const startDate = query.startDate ? this.sharedService.convertStringToDateObject(query.startDate) : undefined;
+    const endDate = query.endDate ? this.sharedService.convertStringToDateObject(query.endDate) : undefined;
+    return this.processingService.getTransactionsToClassify(userId, startDate, endDate, query.businessNumber);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Endpoints still on legacy (outside classification domain scope)
+  // ---------------------------------------------------------------------------
 
   @Patch('update-trans')
   @UseGuards(FirebaseAuthGuard)
@@ -220,28 +317,12 @@ export class TransactionsController {
   async getExpensesToBuildReport(
     @Req() request: AuthenticatedRequest,
     @Query() query: any,
-    // @Query() query: GetTransactionsDto,
   ): Promise<Transactions[]> {
     console.log("query is: ", query);
     const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     return this.transactionsService.getTransactionToConfirmAndAddToExpenses(userId, query.businessNumber, startDate, endDate);
-
-  }
-
-
-  @Get('get-trans-to-classify')
-  @UseGuards(FirebaseAuthGuard)
-  @UsePipes(new ValidationPipe({ transform: true }))
-  async getTransToClassify(
-    @Req() request: AuthenticatedRequest,
-    @Query() query: any,
-  ): Promise<Transactions[]> {
-      const userId = request.user?.firebaseId;
-      const startDate = query.startDate ? this.sharedService.convertStringToDateObject(query.startDate) : undefined;
-      const endDate = query.endDate ? this.sharedService.convertStringToDateObject(query.endDate) : undefined;
-      return this.transactionsService.getTransactionToClassify(userId, startDate, endDate, query.businessNumber);
   }
 
 
@@ -265,10 +346,17 @@ export class TransactionsController {
     @Req() request: AuthenticatedRequest,
     @Body() transactionData: {id: number, file?: string | null}[],
   ): Promise<{ message: string }> {
-    console.log("🚀 ~ TransactionsController ~ saveTransToExpenses ~ transactionData:", transactionData)
     const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
   }
 
+}
 
+/**
+ * Parses a comma-separated query-param string into a string array.
+ * Returns null when the param is absent, empty, or the literal "null".
+ */
+function parseCsvParam(value: string | undefined | null): string[] | null {
+  if (!value || value === 'null' || value.trim() === '') return null;
+  return value.split(',');
 }

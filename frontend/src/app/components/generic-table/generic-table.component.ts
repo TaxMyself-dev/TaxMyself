@@ -336,6 +336,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   onVisibleClassifyTranClicked(row: IRowDataTable): void {
+    console.log("🚀 ~ GenericTableComponent ~ onVisibleClassifyTranClicked ~ row.businessNumber:", row.businessNumber)
     this.authService.setActiveBusinessNumberByName(row.businessNumber as string)
     this.visibleClassifyTranClicked.emit({ state: true, data: row, incomeMode: this.incomeMode() });
   }
@@ -348,7 +349,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   quickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.id as number)
+    this.transactionService.quickClassify(row.finsiteId as string)
       .pipe(
         catchError((err) => {
           console.log("error in quick classify", err);

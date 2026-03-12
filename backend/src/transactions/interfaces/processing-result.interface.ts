@@ -4,5 +4,6 @@ export interface ProcessingResult {
   savedToCacheOnly: number;
   ruleMatched: number;
   skippedNoBillId: number;
-  duplicatesInCache: number;
+  newlySavedToCache: number;
+  alreadyExistingInCache: number;
 }

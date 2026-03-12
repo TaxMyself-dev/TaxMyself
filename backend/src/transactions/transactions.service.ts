@@ -492,10 +492,10 @@ export class TransactionsService {
     userId: string,
   ): Promise<void> {
     const {
-      id,
+      finsiteId,
       isSingleUpdate,
       name,
-      billId,
+      billName,
       category,
       subCategory,
       taxPercent,
@@ -513,14 +513,17 @@ export class TransactionsService {
 
     console.log('classifyDto is ', classifyDto);
 
+    // Resolve billId from billName
+    const billId = await this.getBillIdByBillName(userId, billName);
+
     // ✅ Case 1: Single update
     if (isSingleUpdate) {
       const transaction = await this.transactionsRepo.findOne({
-        where: { id, userId },
+        where: { finsiteId, userId },
       });
 
       if (!transaction) {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
+        throw new NotFoundException(`Transaction with finsiteId ${finsiteId} not found`);
       }
 
       transaction.category = category;
@@ -553,7 +556,7 @@ export class TransactionsService {
       .createQueryBuilder('t')
       .where('t.userId = :userId', { userId })
       .andWhere('t.name = :name', { name })
-      .andWhere('t.billName = :billName', { billName: await this.getBillNameByBillId(userId, billId) })
+      .andWhere('t.billName = :billName', { billName })
       .andWhere(subCategoryDetails.isExpense ? 't.sum < 0' : 't.sum > 0');
 
     // Optional date filter
