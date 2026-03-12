@@ -18,10 +18,6 @@ import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
 import { animate, state, style, transition, trigger } from '@angular/animations';
-import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
-import { catchError, EMPTY, finalize } from 'rxjs';
-import { ConfirmationService, MessageService } from 'primeng/api';
-import { AuthService } from 'src/app/services/auth.service';
 
 
 @Component({
@@ -58,21 +54,16 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     }
   }
 
-  messageService = inject(MessageService);
-  authService = inject(AuthService);
-  transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
-  confirmationService = inject(ConfirmationService);
   title = input<string>();
   fileActions = input<ITableRowAction[]>([]);
+  rowActions = input<ITableRowAction[]>([]);
   immediateActions = input<boolean>(true);
   filesAttached = input<Map<number, File>>(new Map());
-  immediateFileOperation = input<boolean>(false); // If true, file operations happen immediately
+  immediateFileOperation = input<boolean>(false);
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   incomeMode = input<boolean>(false);
-  // filterButtonDisplay = input<boolean>(false);
-  showButtons = input<boolean>(false);
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
   columnSearch = input<string>('name');
@@ -83,9 +74,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   mobileCardConfig = input<IMobileCardConfig>();
   mobileCardActions = input<ITableRowAction[]>();
-  visibleAccountAssociationClicked = output<{ state: boolean, data: IRowDataTable }>();
-  visibleClassifyTranClicked = output<{ state: boolean, data: IRowDataTable, incomeMode: boolean }>();
-  // filters = output<FormGroup>();
   isAllChecked = output<boolean>();
   resetFilters = output<string>();
   rowsChecked = output<IRowDataTable[]>();
@@ -94,7 +82,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   searchTerm = signal<string>('');
   isHovering = signal<number>(null);
   selectedTrans: IRowDataTable[] = [];
-  // isAllChecked = signal<boolean>(false);
 
 
 
@@ -107,13 +94,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   hoverTimeout: any;
   hoveredRowInfo = signal<{ row: any, top: number } | null>(null);
   isRowHovered = signal<boolean>(false);
-  isLoadingQuickClassify = signal<boolean>(false);
   isFloatingHovered = signal<boolean>(false);
   isSlideIn = signal<boolean>(false);
 
-  onQuickClassifyClicked = output<boolean>();
-
-  fileChange = output<{ row: IRowDataTable, file?: File }>();
+  fileChange = output<{ row: IRowDataTable, file?: File }>(); 
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -164,27 +148,19 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.filterSummaryExpanded.update(v => !v);
   }
 
-  mobileEffectiveActions = computed((): ITableRowAction[] => {
-    if (this.mobileCardActions()?.length) {
-      return this.mobileCardActions()!;
-    }
-    const actions: ITableRowAction[] = [...this.fileActions()];
-    if (this.showButtons()) {
-      actions.push({
-        name: 'classify',
-        title: 'סיווג תנועה',
-        icon: 'pi pi-tag',
-        action: (_e, row) => row && this.onVisibleClassifyTranClicked(row),
-      });
-      actions.push({
-        name: 'quickClassify',
-        title: 'סיווג מהיר',
-        icon: 'pi pi-bolt',
-        action: (_e, row) => row && this.quickClassify(row),
-      });
-    }
-    return actions;
-  });
+  /** Returns rowActions filtered by showWhen for the given row. */
+  getRowActions(row: IRowDataTable): ITableRowAction[] {
+    if (!row) return [];
+    return this.rowActions().filter(a => !a.showWhen || a.showWhen(row));
+  }
+
+  /** Actions passed to a mobile card: mobileCardActions override takes priority,
+   *  otherwise use the row-filtered rowActions. */
+  mobileActionsForRow(row: IRowDataTable): ITableRowAction[] {
+    const override = this.mobileCardActions();
+    if (override?.length) return override;
+    return this.getRowActions(row);
+  }
 
 
 
@@ -389,62 +365,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     event.action.action(undefined, event.row);
   }
 
-  close(): void {
-    console.log('close');
-    this.visibleAccountAssociationDialog.set(false);
-
-  }
-
-  onVisibleAccountAssociationClicked(row: IRowDataTable): void {
-    console.log('row in onVisibleAccountAssociationClicked:', row);
-    console.log('event in onVisibleAccountAssociationClicked:', true);
-
-    console.log('onVisibleAccountAssociationClicked');
-    this.visibleAccountAssociationClicked.emit({ state: true, data: row });
-  }
-
-  onVisibleClassifyTranClicked(row: IRowDataTable): void {
-    this.authService.setActiveBusinessNumberByName(row.businessNumber as string)
-    this.visibleClassifyTranClicked.emit({ state: true, data: row, incomeMode: this.incomeMode() });
-  }
-
   // applyFilters(filters: FormGroup): void {
   //   console.log('applyFilters', filters);
   //   this.visibleFilterPannel.set(false);
   //   this.filters.emit(filters);
   // }
-
-  quickClassify(row: IRowDataTable): void {
-    this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.id as number)
-      .pipe(
-        catchError((err) => {
-          console.log("error in quick classify", err);
-          this.messageService.add({
-            severity: 'error',
-            summary: 'Error',
-            detail: "סיווג ההוצאה נכשל אנא נסה/י שנית",
-            sticky: true,
-            life: 3000,
-            key: 'br'
-          })
-          return EMPTY;
-        }),
-        finalize(() => {
-          this.isLoadingQuickClassify.set(false);
-        })
-      )
-      .subscribe(() => {
-        this.onQuickClassifyClicked.emit(true);
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Success',
-          detail: "סיווג מהיר הצליח",
-          life: 3000,
-          key: 'br'
-        })
-      });
-  }
 
   onFileChange(event: Event, row?: IRowDataTable) {
     const input = event.target as HTMLInputElement;
@@ -508,16 +433,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     const result = hasInMap || hasCount;
     // console.log(`hasFileAttached for row ${row.id}:`, { hasInMap, hasCount, result, mapSize: this.filesAttached().size });
     return result;
-  }
-
-  isBillNotAssociated(row?: IRowDataTable): boolean {
-    if (!row) return false;
-    return row['billName'] === 'לא שוייך';
-  }
-
-  isBillAssociated(row?: IRowDataTable): boolean {
-    if (!row) return false;
-    return row['billName'] !== 'לא שוייך';
   }
 
   getCurrentRow(): IRowDataTable | undefined {

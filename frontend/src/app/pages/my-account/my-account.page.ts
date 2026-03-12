@@ -98,12 +98,29 @@ export class MyAccountPage implements OnInit {
     hiddenFields:      [],
   };
 
-  mobileCardActions: ITableRowAction[] = [
+  // ─── Row actions — same showWhen conditions as transactions page.
+  //     Callbacks are stubs until classify/associate dialogs are wired into this page.
+  rowActions: ITableRowAction[] = [
     {
-      name:  'classify',
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire account-association dialog */ },
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
       title: 'סיווג תנועה',
-      icon:  'pi pi-tag',
-      action: (_event?: any, _row?: IRowDataTable) => { /* handled via actionClicked output */ },
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire classify dialog */ },
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire quick classify */ },
     },
   ];
 
@@ -414,9 +431,6 @@ export class MyAccountPage implements OnInit {
   //   this.mobileMenuOpen.set(false);
   // }
 
-  onCardActionClicked(event: { action: ITableRowAction; row: IRowDataTable }): void {
-    event.action.action(undefined, event.row);
-  }
 
   openMannualExpenses(): void {
     // this.dialogRef = 

@@ -123,7 +123,7 @@
             [row]="row"
             [columns]="$any(columnsTitle())"
             [config]="mobileCardConfig()!"
-            [actions]="mobileEffectiveActions()"
+            [actions]="mobileActionsForRow(row)"
             [searchTerm]="searchTerm()"
             (actionClicked)="onCardActionClicked($event)">
           </app-mobile-row-card>
@@ -206,7 +206,7 @@
       </ng-template>
     </p-table>
 
-    @if (hoveredRowInfo() && (showButtons() || fileActions().length > 0)) {
+    @if (hoveredRowInfo() && (getRowActions(hoveredRowInfo()?.row).length > 0 || fileActions().length > 0)) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
       [style.top.px]="hoveredRowInfo()?.top" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
@@ -217,11 +217,9 @@
         accept=".pdf,.jpg,.jpeg,.png" />
       }
 
-      <!-- File Actions Section -->
+      <!-- File Actions Section (untouched) -->
       @if (fileActions().length > 0) {
-      <!-- Check if any action should always show (doesn't require file) -->
       @if (hasAlwaysShowAction()) {
-      <!-- Show actions that should always be visible -->
       @for (action of fileActions(); track action.name) {
       @if (shouldShowAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
@@ -231,7 +229,6 @@
       }
       }
       }
-      <!-- If file exists on server: show action buttons -->
       @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
       !== null) {
       @for (action of fileActions(); track action.name) {
@@ -244,7 +241,6 @@
       }
       }
       @else if (!hasAlwaysShowAction()) {
-      <!-- No file exists and no alwaysShow actions: show attach button -->
       <app-p-button [iconOnly]="true" [icon]="'pi pi-paperclip'" (onButtonClicked)="triggerFileInput()"
         [buttonText]="hasFileAttached(hoveredRowInfo()?.row) ? 'שנה קובץ: ' + getFileName(hoveredRowInfo()?.row) : 'צרף קובץ'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
@@ -252,20 +248,14 @@
       }
       }
 
-      <!-- Classification Buttons Section -->
-      @if (showButtons()) {
-      @if (isBillNotAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(getCurrentRow())" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      <!-- Row Actions Section — rendered from rowActions filtered by showWhen(row) -->
+      @for (action of getRowActions(hoveredRowInfo()?.row); track action.name) {
+      <app-p-button
+        (onButtonClicked)="action.action(null, getCurrentRow())"
+        [buttonText]="action.title || action.name"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false">
       </app-p-button>
-      }
-      @if (isBillAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(getCurrentRow())" [buttonText]="'סיווג תנועה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
-      </app-p-button>
-      }
-      @if (isBillAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="quickClassify(getCurrentRow())" [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
-      </app-p-button>
-      }
       }
     </div>
     }

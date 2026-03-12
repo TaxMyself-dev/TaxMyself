@@ -296,9 +296,14 @@ export interface ITableRowAction {
     name: string;
     icon: string;
     fieldName?: string;
-    title?: string,
+    title?: string;
     action: (event?: any, row?: IRowDataTable) => void;
-    alwaysShow?: boolean; // If true, show button even when row has no file
+    /** If true, show button even when row has no file (fileActions only) */
+    alwaysShow?: boolean;
+    /** Per-row predicate — action is shown only when this returns true (or is undefined) */
+    showWhen?: (row: IRowDataTable) => boolean;
+    /** Optional loading-state getter for the desktop button spinner */
+    isLoading?: () => boolean;
 }
 
 export interface IMobileCardConfig {

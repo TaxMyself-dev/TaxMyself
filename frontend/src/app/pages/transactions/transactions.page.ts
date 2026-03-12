@@ -1,4 +1,5 @@
 import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { MessageService } from 'primeng/api';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
@@ -63,6 +64,61 @@ export class TransactionsPage implements OnInit {
     dateField:         TransactionsOutcomesColumns.BILL_DATE,
     hiddenFields:      [],
   };
+
+  // ─── Row-level action loading state ─────────────────────────────────────────
+  isLoadingQuickClassify = signal<boolean>(false);
+
+  // ─── Row actions: expenses (incomeMode = false) ──────────────────────────────
+  expenseRowActions: ITableRowAction[] = [
+    {
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_, row) => row && this.onAssociateAccount(row),
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
+      title: 'סיווג תנועה',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_, row) => row && this.onClassifyTransaction(row, false),
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      isLoading: () => this.isLoadingQuickClassify(),
+      action: (_, row) => row && this.onQuickClassify(row),
+    },
+  ];
+
+  // ─── Row actions: incomes (incomeMode = true) ────────────────────────────────
+  incomeRowActions: ITableRowAction[] = [
+    {
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_, row) => row && this.onAssociateAccount(row),
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
+      title: 'סיווג תנועה',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_, row) => row && this.onClassifyTransaction(row, true),
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      isLoading: () => this.isLoadingQuickClassify(),
+      action: (_, row) => row && this.onQuickClassify(row),
+    },
+  ];
 
 
   // editFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
@@ -229,6 +285,8 @@ export class TransactionsPage implements OnInit {
   userData: IUserData;
   businessSelect: string = "";
 
+
+  private messageService = inject(MessageService);
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
 
@@ -577,6 +635,52 @@ export class TransactionsPage implements OnInit {
       })
   }
 
+
+  // ─── Row-action handlers (moved from GenericTable) ───────────────────────────
+
+  onAssociateAccount(row: IRowDataTable): void {
+    this.visibleAccountAssociationDialog.set(true);
+    this.leftPanelData.set(row);
+  }
+
+  onClassifyTransaction(row: IRowDataTable, incomeMode: boolean): void {
+    this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    this.visibleClassifyTran.set(true);
+    this.leftPanelData.set(row);
+    this.incomeMode.set(incomeMode);
+  }
+
+  onQuickClassify(row: IRowDataTable): void {
+    this.isLoadingQuickClassify.set(true);
+    this.transactionService.quickClassify(row.id as number)
+      .pipe(
+        catchError((err) => {
+          console.log('error in quick classify', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'סיווג ההוצאה נכשל אנא נסה/י שנית',
+            sticky: true,
+            life: 3000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingQuickClassify.set(false))
+      )
+      .subscribe(() => {
+        this.getTransactions(this.filterData());
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'סיווג מהיר הצליח',
+          life: 3000,
+          key: 'br',
+        });
+      });
+  }
+
+  // ─── GenericTable output handlers (kept for dialog responses) ────────────────
 
   openAccountAssociation(event: { state: boolean, data: IRowDataTable }): void {
     this.visibleAccountAssociationDialog.set(event.state);
