@@ -21,6 +21,7 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { FeezbackPersistenceModule } from './consent/feezback-persistence.module';
 import { FeezbackWebhookRouterModule } from './router/feezback-webhook-router.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 
 @Module({
   imports: [
@@ -32,7 +33,7 @@ import { FeezbackWebhookRouterModule } from './router/feezback-webhook-router.mo
     UsersModule,
     FeezbackPersistenceModule,
     FeezbackWebhookRouterModule,
-
+    TransactionsModule,
   ],
   controllers: [FeezbackController],
   providers: [

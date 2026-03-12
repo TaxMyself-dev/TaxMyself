@@ -58,12 +58,12 @@ export class FeezbackService {
    * @param bookingStatus - Optional booking status filter (default: "booked")
    * @returns Observable with { bankTransactions, cardTransactions }
    */
-  getAllUserTransactions(bookingStatus?: string): Observable<{ bankTransactions: any; cardTransactions: any }> {
+  getAllUserTransactions(bookingStatus?: string): Observable<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }> {
     let url = `${environment.apiUrl}feezback/user-all-transactions`;
     if (bookingStatus) {
       url += `?bookingStatus=${bookingStatus}`;
     }
-    return this.http.get<{ bankTransactions: any; cardTransactions: any }>(url);
+    return this.http.get<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }>(url);
   }
 }
 

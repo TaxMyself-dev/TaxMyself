@@ -239,47 +239,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(response => {
         console.log('User transactions data:', response);
-
-        if (response?.transactions && Array.isArray(response.transactions)) {
-          // Show message with saved count from database
-          const savedCount = response?.databaseSaveResult?.saved || 0;
-          const skippedCount = response?.databaseSaveResult?.skipped || 0;
-          const totalFetched = response?.totalTransactions || response.transactions.length || 0;
-          const accountsProcessed = response?.accountsProcessed || 0;
-
-          let detailMessage = '';
-          if (savedCount > 0) {
-            detailMessage = `נשמרו ${savedCount} תנועות חדשות מ-${accountsProcessed} חשבונות בהצלחה`;
-            if (skippedCount > 0) {
-              detailMessage += ` (${skippedCount} תנועות כבר קיימות, ${totalFetched} סה"כ נטענו)`;
-            } else {
-              detailMessage += ` (${totalFetched} סה"כ נטענו)`;
-            }
-          } else if (skippedCount > 0) {
-            detailMessage = `כל התנועות כבר קיימות במערכת (${skippedCount} תנועות, ${totalFetched} סה"כ נטענו מ-${accountsProcessed} חשבונות)`;
-          } else {
-            detailMessage = `נטענו ${totalFetched} תנועות מ-${accountsProcessed} חשבונות`;
-          }
-
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: detailMessage,
-            life: 6000,
-            key: 'br'
-          });
-
-          // כאן תוכל לעשות משהו עם הנתונים - למשל לשמור ב-DB או להציג בטבלה
-          // TODO: Process and store the transactions data
-        } else {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'התראה',
-            detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
-            life: 5000,
-            key: 'br'
-          });
-        }
+        this.showSyncToast(response?.syncSummary);
       });
   }
 
@@ -303,47 +263,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(response => {
         console.log('User transactions data:', response);
-
-        if (response?.transactions && Array.isArray(response.transactions)) {
-          // Show message with saved count from database
-          const savedCount = response?.databaseSaveResult?.saved || 0;
-          const skippedCount = response?.databaseSaveResult?.skipped || 0;
-          const totalFetched = response?.totalTransactions || response.transactions.length || 0;
-          const accountsProcessed = response?.accountsProcessed || 0;
-
-          let detailMessage = '';
-          if (savedCount > 0) {
-            detailMessage = `נשמרו ${savedCount} תנועות חדשות מ-${accountsProcessed} חשבונות בהצלחה`;
-            if (skippedCount > 0) {
-              detailMessage += ` (${skippedCount} תנועות כבר קיימות, ${totalFetched} סה"כ נטענו)`;
-            } else {
-              detailMessage += ` (${totalFetched} סה"כ נטענו)`;
-            }
-          } else if (skippedCount > 0) {
-            detailMessage = `כל התנועות כבר קיימות במערכת (${skippedCount} תנועות, ${totalFetched} סה"כ נטענו מ-${accountsProcessed} חשבונות)`;
-          } else {
-            detailMessage = `נטענו ${totalFetched} תנועות מ-${accountsProcessed} חשבונות`;
-          }
-
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: detailMessage,
-            life: 6000,
-            key: 'br'
-          });
-
-          // כאן תוכל לעשות משהו עם הנתונים - למשל לשמור ב-DB או להציג בטבלה
-          // TODO: Process and store the transactions data
-        } else {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'התראה',
-            detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
-            life: 5000,
-            key: 'br'
-          });
-        }
+        this.showSyncToast(response?.syncSummary);
       });
   }
 
@@ -367,30 +287,58 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(response => {
         console.log('All user transactions (bank + card):', response);
-
-        const bank = response?.bankTransactions;
-        const card = response?.cardTransactions;
-
-        const bankTotal = bank?.totalTransactions ?? bank?.transactions?.length ?? 0;
-        const cardTotal = card?.totalTransactions ?? card?.transactions?.length ?? 0;
-        const bankSaved = bank?.databaseSaveResult?.saved ?? 0;
-        const cardSaved = card?.databaseSaveResult?.saved ?? 0;
-
-        let detailMessage = '';
-        if (bankTotal > 0 || cardTotal > 0) {
-          detailMessage = `בנק: ${bankTotal} תנועות (${bankSaved} חדשות). אשראי: ${cardTotal} תנועות (${cardSaved} חדשות).`;
-        } else {
-          detailMessage = 'לא נמצאו תנועות בנק או אשראי.';
-        }
-
-        this.messageService.add({
-          severity: bankTotal > 0 || cardTotal > 0 ? 'success' : 'warn',
-          summary: bankTotal > 0 || cardTotal > 0 ? 'הצלחה' : 'התראה',
-          detail: detailMessage,
-          life: 6000,
-          key: 'br'
-        });
+        this.showSyncToast(response?.syncSummary);
       });
+  }
+
+  private showSyncToast(syncSummary: any): void {
+    if (!syncSummary) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'התראה',
+        detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
+        life: 5000,
+        key: 'br'
+      });
+      return;
+    }
+
+    const bank = syncSummary.bank;
+    const card = syncSummary.card;
+    const system = syncSummary.system;
+
+    const hasBank = bank?.transactionsFetched > 0;
+    const hasCard = card?.transactionsFetched > 0;
+
+    if (!hasBank && !hasCard) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'התראה',
+        detail: 'לא נמצאו תנועות בנק או אשראי.',
+        life: 5000,
+        key: 'br'
+      });
+      return;
+    }
+
+    const lines: string[] = ['הייבוא הושלם בהצלחה.'];
+
+    if (hasBank) {
+      lines.push(`נטענו ${bank.transactionsFetched} תנועות בנק מ־${bank.banksProcessed} חשבונות.`);
+    }
+    if (hasCard) {
+      lines.push(`נטענו ${card.transactionsFetched} תנועות כרטיסי אשראי מ־${card.cardsProcessed} כרטיסים.`);
+    }
+
+    lines.push(`בסך הכול עובדו ${system.totalProcessed} תנועות: ${system.savedInCurrentImport} נשמרו בייבוא הנוכחי, ו־${system.alreadyExisting} כבר היו קיימות במערכת.`);
+
+    this.messageService.add({
+      severity: 'success',
+      summary: 'הצלחה',
+      detail: lines.join('\n'),
+      life: 8000,
+      key: 'br'
+    });
   }
 
   // openModalAddExpenses(): void {
