@@ -365,3 +365,46 @@
     }
   }
 }
+
+/* ההרשאות שלי */
+.section-permissions .permissions-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background-color: #fff;
+  padding: 24px;
+  border-radius: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  min-height: 100px;
+}
+
+.permissions-loading,
+.permissions-empty {
+  margin: 0;
+  color: #666;
+}
+
+.permissions-list {
+  margin: 0;
+  padding-right: 1.25rem;
+  list-style: none;
+  li {
+    padding: 0.25rem 0;
+  }
+}
+
+.section-permissions .permissions-actions {
+  margin-top: 8px;
+}
+
+.add-permission-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  .form-label {
+    font-weight: 500;
+  }
+}

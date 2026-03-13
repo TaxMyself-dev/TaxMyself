@@ -5,6 +5,7 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
+import { MyPermissionsService } from 'src/app/services/my-permissions.service';
 import { IUserData, Business, IChild } from 'src/app/shared/interface';
 import { AvatarModule } from 'primeng/avatar';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -36,6 +37,7 @@ export class SettingsPage implements OnInit {
   genericService = inject(GenericService);
   messageService = inject(MessageService);
   confirmationService = inject(ConfirmationService);
+  myPermissionsService = inject(MyPermissionsService);
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
@@ -91,12 +93,21 @@ export class SettingsPage implements OnInit {
     spouseEmploymentStatus: '' as string
   };
 
+  /** ההרשאות שלי */
+  myPermissions = signal<{ agentId: string; email: string; fullName: string; scopes: string[] }[]>([]);
+  permissionsLoading = signal(false);
+  addPermissionDialogVisible = false;
+  addPermissionEmail = '';
+  addingPermission = signal(false);
+  addPermissionError = signal('');
+
   ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.initPersonalFormFromUserData();
     this.initSpouseFormFromUserData();
     this.loadBusinesses();
     this.loadChildren();
+    this.fetchMyPermissions();
     // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
     this.authService.restoreUserData().subscribe({
       next: (data) => {
@@ -258,6 +269,64 @@ export class SettingsPage implements OnInit {
 
   addChild(): void {
     this.children.set([...this.children(), { childFName: '', childLName: '', childDate: '' }]);
+  }
+
+  fetchMyPermissions(): void {
+    this.permissionsLoading.set(true);
+    this.myPermissionsService.getMyPermissions().subscribe({
+      next: (list) => {
+        this.myPermissions.set(list ?? []);
+        this.permissionsLoading.set(false);
+      },
+      error: () => {
+        this.permissionsLoading.set(false);
+        this.myPermissions.set([]);
+      }
+    });
+  }
+
+  openAddPermissionDialog(): void {
+    this.addPermissionError.set('');
+    this.addPermissionEmail = '';
+    this.addPermissionDialogVisible = true;
+  }
+
+  closeAddPermissionDialog(): void {
+    this.addPermissionDialogVisible = false;
+    this.addPermissionError.set('');
+  }
+
+  submitAddPermission(): void {
+    const email = this.addPermissionEmail?.trim();
+    if (!email) {
+      this.addPermissionError.set('נא להזין כתובת אימייל');
+      return;
+    }
+    this.addPermissionError.set('');
+    this.addingPermission.set(true);
+    this.myPermissionsService.grantViewPermission(email).subscribe({
+      next: (res) => {
+        this.addingPermission.set(false);
+        this.closeAddPermissionDialog();
+        this.fetchMyPermissions();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: res.message ?? 'ההרשאה ניתנה בהצלחה',
+          life: 3000,
+          key: 'br'
+        });
+      },
+      error: (err) => {
+        this.addingPermission.set(false);
+        const msg = err?.error?.message ?? err?.message ?? '';
+        if (err?.status === 404 || (msg && msg.includes('לא קיים'))) {
+          this.addPermissionError.set('המשתמש לא קיים במערכת');
+        } else {
+          this.addPermissionError.set(msg || 'אירעה שגיאה. נסה שוב.');
+        }
+      }
+    });
   }
 
   private readonly emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

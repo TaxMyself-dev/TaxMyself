@@ -191,6 +191,7 @@ export class UsersService {
 
   async signin(firebaseId: string) {
     const user = await this.findFireUser(firebaseId);
+    console.log('[signin] user found – email:', user?.email, 'role:', user?.role, 'firebaseId:', firebaseId);
     return user;
   }
 
@@ -329,6 +330,15 @@ export class UsersService {
   async isAdmin(userId: string): Promise<boolean> {
     const user = await this.user_repo.findOneBy({ firebaseId: userId });
     return user?.role?.includes(UserRole.ADMIN) || false;
+  }
+
+  /**
+   * Check if the user (by Firebase UID) has the ACCOUNTANT role.
+   * Used to authorize "create client" and office panel access.
+   */
+  async isAccountant(firebaseId: string): Promise<boolean> {
+    const user = await this.user_repo.findOneBy({ firebaseId });
+    return user?.role?.includes(UserRole.ACCOUNTANT) || false;
   }
 
 

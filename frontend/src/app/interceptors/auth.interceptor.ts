@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent } from '@angular/common/http';
-import { Observable, from, of } from 'rxjs';
 import { switchMap, take } from 'rxjs/operators';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AuthService } from '../services/auth.service';
+import { ClientPanelService } from '../services/clients-panel.service';
 
 // @Injectable()
 // export class AuthInterceptor implements HttpInterceptor {
@@ -53,7 +53,8 @@ export class AuthInterceptor implements HttpInterceptor {
 
   constructor(
     private afAuth: AngularFireAuth,
-    private authService: AuthService
+    private authService: AuthService,
+    private clientPanelService: ClientPanelService,
   ) {}
 
   intercept(req: HttpRequest<any>, next: HttpHandler) {
@@ -61,20 +62,22 @@ export class AuthInterceptor implements HttpInterceptor {
       take(1),
       switchMap(token => {
         const businessNumber = this.authService.getActiveBusinessNumber();
-        console.log("🚀 ~ AuthInterceptor ~ intercept ~ businessNumber:", businessNumber)
-        if (!token && !businessNumber) {
+        const clientId = this.clientPanelService.getSelectedClientId();
+        if (!token && !businessNumber && !clientId) {
           return next.handle(req);
         }
 
-        const headers: any = {};
-        // Only add Firebase token if Authorization header doesn't already exist
-        // This allows services (like Shaam) to set their own Authorization header
+        const headers: Record<string, string> = {};
         if (token && !req.headers.has('Authorization')) {
           headers['Authorization'] = `Bearer ${token}`;
         }
+        console.log("🚀 ~ AuthInterceptor ~ intercept ~ businessNumber:", businessNumber)
         if (businessNumber) {
-          // Backend guard expects lowercase 'businessnumber' header
           headers['businessnumber'] = businessNumber;
+        }
+        /** כשהרואה חשבון צופה בלקוח – כל הבקשות עם מזהה הלקוח כדי להציג את נתוניו */
+        if (clientId) {
+          headers['x-client-user-id'] = clientId;
         }
 
         return next.handle(

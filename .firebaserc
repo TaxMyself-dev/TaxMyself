@@ -1,0 +1,29 @@
+{
+  "projects": {
+    "dev": "taxmyself-5d8a0",
+    "prod": "taxmyself-prod"
+  },
+  "targets": {
+    "taxmyself-5d8a0": {
+      "hosting": {
+        "app": [
+          "taxmyself-5d8a0"
+        ],
+        "landing": [
+          "keepintax-landing-dev"
+        ]
+      }
+    },
+    "taxmyself-prod": {
+      "hosting": {
+        "app": [
+          "taxmyself-prod"
+        ],
+        "landing": [
+          "keepintax-landing-prod"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

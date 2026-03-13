@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 // route guard
 import { AuthGuard } from './shared/guard/auth.guard';
+import { ViewOnlyBlockDocGuard } from './shared/guard/view-only-block-doc.guard';
 const routes: Routes = [
   {
     path: '',
@@ -48,11 +49,6 @@ const routes: Routes = [
     canActivate: [AuthGuard] 
   },
   {
-    path: 'my-status',
-    loadChildren: () => import('./pages/my-status/my-status.module').then( m => m.MyStatusPageModule),
-    canActivate: [AuthGuard] 
-  },
-  {
     path: 'vat-report',
     loadChildren: () => import('./pages/vat-report/vat-report.module').then( m => m.VatReportPageModule),
     canActivate: [AuthGuard] 
@@ -91,7 +87,8 @@ const routes: Routes = [
   },
   {
     path: 'doc-create',
-    loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule)
+    loadChildren: () => import('./pages/doc-create/doc-create.module').then( m => m.DocCreatePageModule),
+    canActivate: [AuthGuard, ViewOnlyBlockDocGuard]
   },
   {
     path: 'add-expense',

@@ -133,10 +133,45 @@ ion-item.selected {
   overflow:hidden;
 }
 
-/* Critical: routed element directly under .app-content */
-.app-content > * {
-  display:flex;
-  flex-direction:column;
-  flex:1 1 auto;
-  min-height:0;
+/* router-outlet לא תופס מקום – הקומפוננטה המוצגת היא האחות שלו */
+.app-content > router-outlet {
+  flex: 0 0 0;
+  overflow: hidden;
+  display: block;
+}
+
+/* רק הקומפוננטה המודרת (אחות ל-router-outlet) תופסת את השטח */
+.app-content > *:not(router-outlet) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* פס כשהרואה חשבון נכנס לחשבון לקוח */
+.accountant-context-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 0.95rem;
+  .banner-text {
+    font-weight: 500;
+  }
+  .banner-exit-btn {
+    padding: 6px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+  }
 }

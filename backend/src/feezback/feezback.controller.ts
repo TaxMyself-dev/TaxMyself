@@ -236,7 +236,8 @@ export class FeezbackController {
   }
 
   /**
-   * Internal helper method to fetch transactions for a user
+   * Delegates to FeezbackService.getAndSaveBankTransactions().
+   * Kept as a thin helper so controller endpoints remain concise.
    */
   private async getAllUserTransactionsInternal(
     firebaseId: string,
@@ -245,255 +246,16 @@ export class FeezbackController {
     dateFrom?: string,
     dateTo?: string,
   ) {
-    // Use provided dates or defaults
     const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
     const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
 
-    try {
-      // Step 1: Get all accounts
-      let accountsResponse;
-      try {
-        accountsResponse = await this.feezbackService.getUserAccounts(sub);
-      } catch (error: any) {
-        // Handle 404 - user hasn't completed consent
-        if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
-          // this.logger.warn(`User ${firebaseId} has not completed Feezback consent flow`);
-          return {
-            transactions: [],
-            accountsProcessed: 0,
-            totalTransactions: 0,
-            transactionsByAccount: {},
-            error: 'CONSENT_REQUIRED',
-            message: 'User accounts not found. Please complete the Feezback consent flow first.',
-          };
-        }
-        // Re-throw other errors
-        throw error;
-      }
-
-      const accounts = accountsResponse?.accounts || [];
-
-      if (!accounts || accounts.length === 0) {
-        return {
-          transactions: [],
-          accountsProcessed: 0,
-          totalTransactions: 0,
-          transactionsByAccount: {},
-        };
-      }
-
-      // this.logger.log(`Found ${accounts.length} accounts, fetching transactions...`);
-
-      // Step 2: Fetch transactions for each account with delay to avoid rate limiting
-      const allTransactions: any[] = [];
-      const accountTransactionsMap: { [accountName: string]: any[] } = {};
-      const delayBetweenRequests = 5000; // 5 seconds delay between requests
-
-      // Helper function to add delay
-      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-      for (let i = 0; i < accounts.length; i++) {
-        const account = accounts[i];
-        console.log("🚀 ~ FeezbackController ~ getAllUserTransactionsInternal ~ account:", account)
-
-        // Add delay before each request (except the first one)
-        if (i > 0) {
-          // this.logger.debug(`Waiting ${delayBetweenRequests}ms before next request to avoid rate limiting...`);
-          await delay(delayBetweenRequests);
-        }
-
-        try {
-          // this.logger.log(`Fetching transactions for account: ${account.name} (${i + 1}/${accounts.length})`);
-          const transactionsResponse = await this.feezbackService.getAccountTransactions(
-            sub,
-            account._links.transactions.href,
-            // account.transactionsLink,
-            bookingStatus || 'booked',
-            defaultDateFrom,
-            defaultDateTo,
-          );
-
-          // Extract transactions from response
-          let transactions: any[] = [];
-
-          // Debug: Log response structure
-          // this.logger.debug(`Response type: ${Array.isArray(transactionsResponse) ? 'Array' : typeof transactionsResponse}`);
-          if (!Array.isArray(transactionsResponse) && transactionsResponse) {
-            const keys = Object.keys(transactionsResponse);
-            // this.logger.debug(`Response keys: ${keys.join(', ')}`);
-
-            // Check if transactions key exists and its type
-            if ('transactions' in transactionsResponse) {
-              const txValue = transactionsResponse.transactions;
-              // this.logger.debug(`transactions field exists! Type: ${Array.isArray(txValue) ? 'Array' : typeof txValue}, isArray: ${Array.isArray(txValue)}, length: ${Array.isArray(txValue) ? txValue.length : 'N/A'}, value preview: ${JSON.stringify(txValue).substring(0, 200)}`);
-            } else {
-              // this.logger.debug(`transactions key NOT found in response`);
-            }
-          }
-
-          if (Array.isArray(transactionsResponse)) {
-            transactions = transactionsResponse;
-            // this.logger.debug(`Extracted transactions from array response: ${transactions.length}`);
-          } else if ('transactions' in transactionsResponse && transactionsResponse.transactions !== undefined && transactionsResponse.transactions !== null) {
-            if (Array.isArray(transactionsResponse.transactions)) {
-              transactions = transactionsResponse.transactions;
-              // this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions' field`);
-            } else if (transactionsResponse.transactions?.booked && Array.isArray(transactionsResponse.transactions.booked)) {
-              // transactions is an object with a 'booked' array
-              transactions = transactionsResponse.transactions.booked;
-              // this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions.booked' field`);
-            } else if (transactionsResponse.transactions?.pending && Array.isArray(transactionsResponse.transactions.pending)) {
-              // Also check for pending transactions
-              transactions = transactionsResponse.transactions.pending;
-              // this.logger.debug(`✅ Extracted ${transactions.length} transactions from 'transactions.pending' field`);
-            } else {
-              // this.logger.warn(`⚠️ transactions field exists but is not an array and doesn't have booked/pending. Type: ${typeof transactionsResponse.transactions}, keys: ${Object.keys(transactionsResponse.transactions || {}).join(', ')}`);
-            }
-          } else if (transactionsResponse?.data?.transactions) {
-            if (Array.isArray(transactionsResponse.data.transactions)) {
-              transactions = transactionsResponse.data.transactions;
-              // this.logger.debug(`Extracted transactions from 'data.transactions' field: ${transactions.length}`);
-            }
-          } else if (transactionsResponse?.data && Array.isArray(transactionsResponse.data)) {
-            transactions = transactionsResponse.data;
-            // this.logger.debug(`Extracted transactions from 'data' array: ${transactions.length}`);
-          } else if (transactionsResponse?.booked) {
-            if (Array.isArray(transactionsResponse.booked)) {
-              transactions = transactionsResponse.booked;
-              // this.logger.debug(`Extracted transactions from 'booked' field: ${transactions.length}`);
-            }
-          } else {
-            // Try to find any array property
-            for (const key in transactionsResponse) {
-              if (Array.isArray(transactionsResponse[key])) {
-                transactions = transactionsResponse[key];
-                // this.logger.debug(`Found transactions array in key: ${key}, length: ${transactions.length}`);
-                break;
-              }
-            }
-          }
-
-          if (transactions.length > 0) {
-            accountTransactionsMap[account.name] = transactions;
-            allTransactions.push(...transactions);
-            // Log only relevant fields of first transaction as sample
-            if (transactions[0]) {
-              const sample = {
-                transactionId: transactions[0].transactionId,
-                bookingDate: transactions[0].bookingDate,
-                amount: transactions[0].transactionAmount?.amount,
-                currency: transactions[0].transactionAmount?.currency,
-                description: transactions[0].remittanceInformationUnstructured || transactions[0].description,
-              };
-              // this.logger.log(`✅ Fetched ${transactions.length} transactions for account: ${account.name} (sample: ${JSON.stringify(sample)})`);
-            } else {
-              // this.logger.log(`✅ Fetched ${transactions.length} transactions for account: ${account.name}`);
-            }
-          } else {
-            // this.logger.warn(`⚠️ No transactions found for account: ${account.name}. Response structure: ${JSON.stringify(Object.keys(transactionsResponse || {}))}`);
-            accountTransactionsMap[account.name] = [];
-          }
-        } catch (error: any) {
-          // 429 / transient retries are handled centrally by FeezbackHttpClient.
-          // By the time we reach here all retry attempts have been exhausted; skip this account.
-          this.logger.error(
-            `Failed to fetch transactions for account ${account.name}: ${error.message}`,
-            error.stack,
-          );
-        }
-      }
-
-      // Get account information for mapping transactions to source accounts
-      const accountsInfo = accountsResponse?.accounts || [];
-      const accountInfoMap: { [accountName: string]: any } = {};
-      accountsInfo.forEach((acc: any) => {
-        accountInfoMap[acc.name] = acc;
-      });
-
-      // Create a map to find which account each transaction belongs to
-      const transactionToAccountMap: { [transactionId: string]: string } = {};
-      Object.keys(accountTransactionsMap).forEach(accountName => {
-        const accountTxs = accountTransactionsMap[accountName] || [];
-        accountTxs.forEach((tx: any) => {
-          const txId = tx.transactionId;
-          if (txId) {
-            transactionToAccountMap[txId] = accountName;
-          }
-        });
-      });
-
-      // Save transactions to file for inspection
-      let savedFilePaths: { raw: string | null; simplified: string | null } = { raw: null, simplified: null };
-      // this.logger.log(`Total transactions collected: ${allTransactions.length}`);
-      if (allTransactions.length > 0) {
-        // this.logger.log(`Attempting to save ${allTransactions.length} transactions to files...`);
-        savedFilePaths = this.feezbackService.saveTransactionsToFile(firebaseId, allTransactions, accountTransactionsMap, accountInfoMap);
-        if (savedFilePaths.raw || savedFilePaths.simplified) {
-          if (savedFilePaths.raw) {
-            // this.logger.log(`✅ Raw file saved: ${savedFilePaths.raw}`);
-          }
-          if (savedFilePaths.simplified) {
-            // this.logger.log(`✅ Simplified file saved: ${savedFilePaths.simplified}`);
-          }
-        } else {
-          // this.logger.warn(`⚠️ File saving returned null - check logs above for errors`);
-        }
-
-        // Save transactions to database
-        // this.logger.log(`Attempting to save ${allTransactions.length} transactions to database...`);
-        let saveResult: any = null;
-        let dbError: any = null;
-
-        try {
-          saveResult = await this.feezbackService.saveBankTransactionsToDatabase(
-            allTransactions,
-            firebaseId,
-            accountInfoMap,
-            transactionToAccountMap,
-          );
-          // this.logger.log(`✅ Database save result: ${JSON.stringify(saveResult)}`);
-        } catch (error: any) {
-          dbError = error;
-          // this.logger.error(`❌ Failed to save transactions to database: ${error.message}`, error.stack);
-          if (error?.response) {
-            // this.logger.error(`Database error response: ${JSON.stringify(error.response)}`);
-          }
-        }
-
-        // Always return response, even if database save failed
-        const response = {
-          transactions: allTransactions,
-          accountsProcessed: Object.keys(accountTransactionsMap).length,
-          totalTransactions: allTransactions.length,
-          transactionsByAccount: accountTransactionsMap,
-          savedFilePaths: savedFilePaths,
-        };
-
-        if (saveResult) {
-          (response as any).databaseSaveResult = saveResult;
-        } else if (dbError) {
-          (response as any).databaseSaveError = dbError.message || 'Unknown database error';
-        } else {
-          (response as any).databaseSaveResult = { saved: 0, skipped: 0, message: 'Database save was not attempted' };
-        }
-
-        // this.logger.log(`Returning response with ${allTransactions.length} transactions`);
-        return response;
-      } else {
-        // this.logger.warn(`⚠️ No transactions to save - allTransactions array is empty`);
-        return {
-          transactions: [],
-          accountsProcessed: 0,
-          totalTransactions: 0,
-          transactionsByAccount: {},
-          savedFilePaths: { raw: null, simplified: null },
-          databaseSaveResult: { saved: 0, skipped: 0, message: 'No transactions to save' },
-        };
-      }
-    } catch (error: any) {
-      // this.logger.error(`Error fetching user transactions: ${error.message}`, error.stack);
-      throw error;
-    }
+    return this.feezbackService.getAndSaveBankTransactions(
+      firebaseId,
+      sub,
+      bookingStatus || 'booked',
+      defaultDateFrom,
+      defaultDateTo,
+    );
   }
 
   /**
@@ -547,13 +309,18 @@ export class FeezbackController {
 
     const sub = `${firebaseId}_sub`;
 
-    const today = new Date();
-    const sixtyDaysAgo = new Date(today);
-    sixtyDaysAgo.setDate(today.getDate() - 60);
+    // const today = new Date();
+    // const sixtyDaysAgo = new Date(today);
+    // sixtyDaysAgo.setDate(today.getDate() - 60);
+
+      // Set default dates: from 1/1/2026 to today if not provided
+      const today = new Date();
+      const defaultDateFrom = dateFrom || '2026-01-01';
+      const defaultDateTo = dateTo || today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
-    const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
-    const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
+    // const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
+    // const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
 
     // this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
@@ -563,8 +330,10 @@ export class FeezbackController {
       firebaseId,
       sub,
       bookingStatus ?? 'booked',
-      resolvedDateFrom,
-      resolvedDateTo,
+      // resolvedDateFrom,
+      // resolvedDateTo,
+      defaultDateFrom,
+      defaultDateTo,
       cardResourceId,
     );
   }
@@ -590,29 +359,56 @@ export class FeezbackController {
 
     const sub = `${firebaseId}_sub`;
 
-    const today = new Date();
-    const sixtyDaysAgo = new Date(today);
-    sixtyDaysAgo.setDate(today.getDate() - 60);
+    // const today = new Date();
+    // const sixtyDaysAgo = new Date(today);
+    // sixtyDaysAgo.setDate(today.getDate() - 60);
+
+      // Set default dates: from 1/1/2026 to today if not provided
+      const today = new Date();
+      const defaultDateFrom = dateFrom || '2026-01-01';
+      const defaultDateTo = dateTo || today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+    
 
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
-    const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
-    const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
+    // const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
+    // const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
 
-    const [bankTransactions, cardTransactions] = await Promise.all([
-      this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, resolvedDateFrom, resolvedDateTo),
-      this.feezbackService.getAndSaveUserCardTransactions(
-        firebaseId,
-        sub,
-        bookingStatus ?? 'booked',
-        resolvedDateFrom,
-        resolvedDateTo,
-        cardResourceId,
-      ),
-    ]);
+    const bankTransactions = await this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+    const cardTransactions = await this.feezbackService.getAndSaveUserCardTransactions(
+      firebaseId,
+      sub,
+      bookingStatus ?? 'booked',
+      // resolvedDateFrom,
+      // resolvedDateTo,
+      defaultDateFrom,
+      defaultDateTo,
+      cardResourceId,
+    );
+
+    const bankSync = bankTransactions?.syncSummary;
+    const cardSync = cardTransactions?.syncSummary;
+
+    const syncSummary = {
+      bank: bankSync?.bank ?? { banksProcessed: 0, transactionsFetched: 0 },
+      card: cardSync?.card ?? { cardsProcessed: 0, transactionsFetched: 0 },
+      system: {
+        totalProcessed:
+          (bankSync?.system?.totalProcessed ?? 0) +
+          (cardSync?.system?.totalProcessed ?? 0),
+        savedInCurrentImport:
+          (bankSync?.system?.savedInCurrentImport ?? 0) +
+          (cardSync?.system?.savedInCurrentImport ?? 0),
+        alreadyExisting:
+          (bankSync?.system?.alreadyExisting ?? 0) +
+          (cardSync?.system?.alreadyExisting ?? 0),
+      },
+    };
 
     return {
       bankTransactions,
       cardTransactions,
+      syncSummary,
     };
   }
 

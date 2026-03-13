@@ -326,7 +326,7 @@ export interface IButtons {
 }
 
 export interface IClassifyTrans {
-    id: number;
+    finsiteId: string;
     isSingleUpdate: boolean | number;
     isNewCategory?: boolean; // todo: delete beabause the flow changed
     name: string;
@@ -338,16 +338,18 @@ export interface IClassifyTrans {
     taxPercent: number;
     isEquipment: boolean | number;
     reductionPercent: number;
-    isExpense: boolean
+    isExpense: boolean;
+    confirmOverride?: boolean;
 }
 
 export interface IClassifyTransMinimal {
-    id: number;
+    finsiteId: string;
     isSingleUpdate: boolean | number;
     name: string;
     billName: string;
     category: string;
     subCategory: string;
+    confirmOverride?: boolean;
 }
 
 export interface ISelectItem {

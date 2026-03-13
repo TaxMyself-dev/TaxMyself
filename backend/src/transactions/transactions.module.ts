@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
+import { TransactionProcessingService } from './transaction-processing.service';
 import { AuthService } from '../users/auth.service';
 import { Expense } from '../expenses/expenses.entity';
 import { User } from '../users/user.entity';
@@ -12,6 +13,9 @@ import { Bill } from './bill.entity';
 import { Source } from './source.entity';
 import { SharedService } from '../shared/shared.service';
 import { ClassifiedTransactions } from './classified-transactions.entity';
+import { SlimTransaction } from './slim-transaction.entity';
+import { FullTransactionCache } from './full-transaction-cache.entity';
+import { UserTransactionCacheState } from './user-transaction-cache-state.entity';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
@@ -26,17 +30,20 @@ import { Business } from 'src/business/business.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, 
-            Supplier, ClassifiedTransactions, Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
+    TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
+            Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState,
+            Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
     UsersModule
   ],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
+    TransactionProcessingService,
     SharedService,
     ExpensesService,
     AuthService,
     FinsiteService
   ],
+  exports: [TypeOrmModule, TransactionProcessingService],
 })
-export class ExcelModule {}
+export class TransactionsModule {}

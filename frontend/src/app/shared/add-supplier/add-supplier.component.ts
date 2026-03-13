@@ -16,7 +16,6 @@ import { GenericService } from 'src/app/services/generic.service';
 export class addSupplierComponent implements OnInit {
 
   @Input() set supplier(val: ICreateSupplier) {
-    console.log("in add sup", val);
     val.reductionPercent = val.reductionPercent.toString();
     this.id = val.id;
     if (val.isEquipment) {

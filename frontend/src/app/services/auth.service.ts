@@ -18,6 +18,8 @@ export class AuthService {
 
   token: string;
   private userDetails: IUserData = null;
+  /** כשהרואה חשבון צופה בלקוח – נתוני הלקוח (לא נשמר ב-localStorage) */
+  private viewAsUserData: IUserData | null = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
 
@@ -70,10 +72,33 @@ export class AuthService {
   }
 
   logout(): void {
+    this.viewAsUserData = null;
     this.afAuth.signOut().then(() => {
       localStorage.clear();
       sessionStorage.clear();
     });
+  }
+
+  /** טעינת נתוני המשתמש "האפקטיבי" – כשהרואה חשבון צופה בלקוח מחזיר נתוני הלקוח */
+  loadViewAsUserData(): Observable<IUserData | null> {
+    return this.signIn().pipe(
+      tap((data: unknown) => {
+        this.viewAsUserData = (data as IUserData) ?? null;
+      }),
+      catchError(() => {
+        this.viewAsUserData = null;
+        return [null];
+      })
+    );
+  }
+
+  clearViewAsUserData(): void {
+    this.viewAsUserData = null;
+  }
+
+  /** האם כרגע במצב צפייה כרואה חשבון (לא יכול לערוך/להפיק) */
+  isViewingAsClient(): boolean {
+    return this.viewAsUserData != null;
   }
 
 
@@ -89,6 +114,9 @@ export class AuthService {
 
 
   getUserDataFromLocalStorage(): IUserData | null {
+    if (this.viewAsUserData != null) {
+      return this.viewAsUserData;
+    }
     const tempA = localStorage.getItem('userData');
     if (!tempA) {
       return null;

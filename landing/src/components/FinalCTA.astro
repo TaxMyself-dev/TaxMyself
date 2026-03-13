@@ -1,0 +1,53 @@
+---
+const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? 'https://app.keepintax.co.il/register';
+---
+
+<section class="final-cta section section-soft" aria-labelledby="final-cta-heading">
+	<div class="container final-cta-inner">
+		<h2 class="final-cta-headline" id="final-cta-heading">כל העולם הפיננסי שלך — במקום אחד</h2>
+		<p class="final-cta-text">
+			מעקב, מסמכים ודוחות. עסקי ואישי. מתחילים בחינם.
+		</p>
+		<a href={registerUrl} class="btn btn-primary final-cta-button" target="_blank" rel="noopener noreferrer">ניסיון חינם לחודשיים</a>
+	</div>
+</section>
+
+<style>
+	.final-cta-inner {
+		text-align: center;
+		max-inline-size: 32rem;
+		margin-inline: auto;
+	}
+
+	.final-cta-headline {
+		margin: 0 0 0.75rem;
+		font-size: clamp(1.375rem, 3vw, 1.875rem);
+		font-weight: 700;
+		line-height: 1.25;
+		color: var(--color-text);
+	}
+
+	.final-cta-text {
+		margin: 0 0 1.5rem;
+		font-size: 1.0625rem;
+		color: var(--color-text-secondary);
+		line-height: 1.5;
+	}
+
+	.final-cta-button,
+	.final-cta-button:hover {
+		text-decoration: none;
+	}
+
+	@media (max-width: 768px) {
+		.final-cta-text {
+			margin-bottom: 1.25rem;
+		}
+	}
+
+	@media (max-width: 390px) {
+		.final-cta-button {
+			width: 100%;
+		}
+	}
+</style>

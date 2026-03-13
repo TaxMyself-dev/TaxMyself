@@ -104,17 +104,8 @@ export class ExpensesController {
     @Query() query: any,
   ) {
     const firebaseId = request.user?.firebaseId;
-    console.log('[get-expenses-for-vat-report] תאריכים שהתקבלו מהפרונט (query):', {
-      startDate: query?.startDate,
-      endDate: query?.endDate,
-      businessNumber: query?.businessNumber,
-    });
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
-    console.log('[get-expenses-for-vat-report] תאריכים אחרי המרה:', {
-      startDate: startDate?.toISOString?.(),
-      endDate: endDate?.toISOString?.(),
-    });
     return await this.expensesService.getExpensesForVatReport(firebaseId, query.businessNumber, startDate, endDate);
   }
 
@@ -212,11 +203,15 @@ export class ExpensesController {
   ): Promise<any[]> {
 
     const businessNumber = request.user?.businessNumber;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ businessNumber:", businessNumber)
     const firebaseId = request.user?.firebaseId;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ firebaseId:", firebaseId)
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ isEquipmentValue:", isEquipmentValue)
     const isExpenseValue = isExpense === 'true' ? true : isExpense === 'false' ? false : null;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ isExpenseValue:", isExpenseValue)
 
     // Call the service method to get the sub-categories
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpenseValue, categoryName, businessNumber);
