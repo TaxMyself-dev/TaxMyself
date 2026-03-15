@@ -87,6 +87,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   docIndexes: IDocIndexes = { docIndex: 0, generalIndex: 0, isInitial: false };
   createPDFIsLoading = signal(false);
   createPreviewPDFIsLoading = signal(false);
+  showCreateDocErrorDialog = signal(false); // Error dialog when document creation fails
   allocationNumberLoading = signal(false); // Loading state for allocation number request
   clients = signal<IClient[]>([]);
   filteredClients = signal<IClient[]>([]);
@@ -685,7 +686,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         this.resetDocFormsAndDrafts();
       }),
 
-      // Handle errors – הודעה אחידה למשתמש
+      // Handle errors – דיאלוג שגיאה למשתמש
       catchError((err) => {
         console.error('❌ Error creating document:', err);
         console.error('Error details:', {
@@ -694,6 +695,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
           status: err.status,
           statusText: err.statusText
         });
+
+        this.showCreateDocErrorDialog.set(true);
 
         this.messageService.add({
           severity: 'error',
@@ -711,6 +714,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
         this.createPDFIsLoading.set(false);
       })
     ).subscribe();
+  }
+
+  closeCreateDocErrorDialog(): void {
+    this.showCreateDocErrorDialog.set(false);
   }
 
   private resetDocFormsAndDrafts(): void {
