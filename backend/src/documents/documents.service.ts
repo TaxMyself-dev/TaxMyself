@@ -596,15 +596,9 @@ export class DocumentsService {
     });
   }
 
-  async transformSumsToSumTable(docData: any, issuerBusinessNumber: string): Promise<any[]> {
-    
-    // Get businessType from database
-    const business = await this.businessRepo.findOne({
-      where: { businessNumber: issuerBusinessNumber },
-      select: ['businessType'],
-    });
-
-    const businessType = business?.businessType || null;
+  async transformSumsToSumTable(docData: any, _issuerBusinessNumber?: string): Promise<any[]> {
+    // Use businessType from docData (DTO) to avoid an extra DB query
+    const businessType = docData.businessType ?? null;
     const docType = docData.docType;
     const sumBefDisBefVat = Number(docData.sumWithoutVat || 0);
     const disSum = Number(docData.disSum || 0);
@@ -864,7 +858,8 @@ export class DocumentsService {
       parentDocNumber: docData.parentDocNumber || null,
       // Email sending flag
       sendEmailToRecipient: docData.sendEmailToRecipient || false,
-      
+      // Business type (from DTO, used by transformSumsToSumTable without extra DB call)
+      businessType: docData.businessType ?? business?.businessType ?? null,
     };
 
     // ============================================================================

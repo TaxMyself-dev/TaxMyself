@@ -606,6 +606,18 @@
     </div>
   </p-dialog>
 
+  <!-- Error dialog when document creation fails -->
+  <p-dialog header="שגיאה" [visible]="showCreateDocErrorDialog()" [modal]="true" [rtl]="true"
+    [style]="{ width: '400px' }" (onHide)="closeCreateDocErrorDialog()"
+    [closable]="true" [dismissableMask]="true">
+    <p>שגיאה בהפקת המסמך, אנא נסה שנית.</p>
+    <ng-template pTemplate="footer">
+      <app-p-button [buttonText]="'אישור'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK"
+        (onButtonClicked)="closeCreateDocErrorDialog()">
+      </app-p-button>
+    </ng-template>
+  </p-dialog>
+
   <!-- Toast for messages -->
   <!-- <p-toast key="br"></p-toast> -->
 
