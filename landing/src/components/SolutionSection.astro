@@ -1,16 +1,12 @@
 ---
 ---
 
-<section class="features section" id="features" aria-labelledby="features-title">
+<section class="solution-section section section-soft" id="solution" aria-label="הפתרון לעסק ולבית">
 	<div class="container">
-		<h2 class="features-title" id="features-title">איך KeepInTax עוזרת לך</h2>
-		<p class="features-intro">
-			הפלטפורמה תומכת גם בניהול פיננסי לעסק וגם במעקב תקציב למשק הבית — הכל במקום אחד.
-		</p>
-		<div class="features-columns">
-			<div class="card features-column">
-				<h3 class="features-column-title">לעסק</h3>
-				<ul class="features-list">
+		<div class="solution-columns">
+			<div class="card solution-column">
+				<h3 class="solution-column-title">לעסק</h3>
+				<ul class="solution-list">
 					<li>הפקת חשבוניות וקבלות</li>
 					<li>מעקב אוטומטי אחרי הכנסות והוצאות</li>
 					<li>חיבור לבנקאות פתוחה ולכרטיסי אשראי</li>
@@ -19,9 +15,9 @@
 					<li>אפשרות לעבודה עצמאית או עם ייצוג</li>
 				</ul>
 			</div>
-			<div class="card features-column">
-				<h3 class="features-column-title">לבית</h3>
-				<ul class="features-list">
+			<div class="card solution-column">
+				<h3 class="solution-column-title">לבית</h3>
+				<ul class="solution-list">
 					<li>מעקב אחר הוצאות יומיומיות</li>
 					<li>הבנה ברורה של כמה מוציאים על אוכל, דלק והוצאות שוטפות</li>
 					<li>ניהול תקציב פשוט ונוח</li>
@@ -33,45 +29,30 @@
 </section>
 
 <style>
-	.features-title {
-		text-align: center;
-		margin-bottom: 0.5rem;
-		font-size: clamp(1.375rem, 3vw, 1.75rem);
-	}
-
-	.features-intro {
-		text-align: center;
-		max-inline-size: 32rem;
-		margin: 0 auto 2.5rem;
-		font-size: clamp(0.9375rem, 2vw, 1rem);
-		color: var(--color-text-secondary);
-		line-height: 1.55;
-	}
-
-	.features-columns {
+	.solution-columns {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
 		gap: 1.5rem;
 	}
 
-	.features-column {
+	.solution-column {
 		margin: 0;
 	}
 
-	.features-column-title {
+	.solution-column-title {
 		margin: 0 0 1rem;
 		font-size: 1.125rem;
 		font-weight: 600;
 		color: var(--color-text);
 	}
 
-	.features-list {
+	.solution-list {
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 
-	.features-list li {
+	.solution-list li {
 		position: relative;
 		padding-inline-start: 1.5rem;
 		margin-bottom: 0.5rem;
@@ -80,7 +61,7 @@
 		line-height: 1.5;
 	}
 
-	.features-list li::before {
+	.solution-list li::before {
 		content: '';
 		position: absolute;
 		inset-inline-start: 0;
@@ -91,29 +72,23 @@
 		border-radius: 50%;
 	}
 
-	.features-list li:last-child {
+	.solution-list li:last-child {
 		margin-bottom: 0;
 	}
 
-	@media (max-width: 768px) {
-		.features-intro {
-			margin-bottom: 2rem;
-		}
-	}
-
 	@media (max-width: 600px) {
-		.features-columns {
+		.solution-columns {
 			grid-template-columns: 1fr;
 			gap: 1rem;
 		}
 	}
 
 	@media (max-width: 390px) {
-		.features-column-title {
+		.solution-column-title {
 			font-size: 1rem;
 		}
 
-		.features-list li {
+		.solution-list li {
 			font-size: 0.875rem;
 		}
 	}

@@ -3,16 +3,18 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? 'https://app.keepintax.
 ---
 
 <nav class="navbar" aria-label="ניווט ראשי">
-	<div class="container navbar-inner">
-		<a href="/" class="navbar-logo" aria-label="KeepInTax - דף הבית">
-			<img src="/logo.svg" alt="לוגו KeepInTax" width="39" height="38" />
-		</a>
-		<div class="navbar-links">
-			<a href="#features">יכולות</a>
-			<a href="#how-it-works">איך זה עובד</a>
-			<a href="#faq">שאלות נפוצות</a>
+	<div class="navbar-inner">
+		<div class="navbar-brand-and-links">
+			<a href="/" class="navbar-logo" aria-label="KeepInTax - דף הבית">
+				<img src="/logo.svg" alt="לוגו KeepInTax" width="39" height="38" />
+			</a>
+			<div class="navbar-links">
+				<a href="#solution">הפתרון</a>
+				<a href="#pricing">תמחור</a>
+				<a href="#faq">שאלות נפוצות</a>
+			</div>
 		</div>
-		<a href={loginUrl} class="btn btn-secondary navbar-login" target="_blank" rel="noopener noreferrer">התחברות</a>
+		<a href={loginUrl} class="btn navbar-login" target="_blank" rel="noopener noreferrer">התחברות</a>
 	</div>
 </nav>
 
@@ -31,9 +33,21 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? 'https://app.keepintax.
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.75rem;
+		gap: 1.5rem;
+		width: 100%;
+		margin-inline: auto;
+		padding-inline-start: 0.75rem;
+		padding-inline-end: 1.25rem;
 		padding-block: 0.875rem;
 		min-width: 0;
+	}
+
+	.navbar-brand-and-links {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+		min-width: 0;
+		flex-shrink: 0;
 	}
 
 	.navbar-logo {
@@ -51,8 +65,14 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? 'https://app.keepintax.
 	}
 
 	.navbar-login {
-		flex-shrink: 1;
-		min-width: 0;
+		flex-shrink: 0;
+		background-color: var(--color-accent);
+		color: var(--color-primary);
+	}
+
+	.navbar-login:hover {
+		background-color: var(--color-accent);
+		opacity: 0.9;
 	}
 
 	.navbar-links {
@@ -77,11 +97,17 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? 'https://app.keepintax.
 		.navbar-links {
 			display: none;
 		}
+
+		.navbar-brand-and-links {
+			gap: 0.75rem;
+		}
 	}
 
 	@media (max-width: 390px) {
 		.navbar-inner {
-			gap: 0.5rem;
+			gap: 0.75rem;
+			padding-inline-start: 0.75rem;
+			padding-inline-end: 1rem;
 		}
 
 		.navbar-logo img {

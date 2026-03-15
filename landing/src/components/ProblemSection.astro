@@ -1,0 +1,100 @@
+---
+---
+
+<section class="problem-section section" id="problem" aria-label="שאלות להכרה">
+	<div class="container">
+		<ul class="problem-list">
+			<li class="problem-item">לא באמת יודעים לאן הכסף הולך כל חודש ❓</li>
+			<li class="problem-item">מפספסים הוצאות של העסק כי פשוט נמאס לעקוב אחרי כל קבלה ❓</li>
+			<li class="problem-item">שולחים מסמכים לרואה החשבון אבל לא באמת יודעים מה נכנס לדוחות ❓</li>
+			<li class="problem-item">ההוצאות של העסק והבית מתערבבות ואין לכם כוח לעשות סדר ❓</li>
+		</ul>
+		<p class="problem-solution">
+			KeepInTax עושה לכם סדר — גם בעסק וגם בבית. והכול במקום אחד.
+		</p>
+		<h3 class="problem-transition">
+			<a href="#how-it-works" class="problem-transition-link">אז איך זה עובד בפועל?</a>
+		</h3>
+	</div>
+</section>
+
+<style>
+	.problem-section {
+		padding-block-start: 0.75rem;
+	}
+
+	.problem-list {
+		margin: 0 auto 2.5rem;
+		padding: 0;
+		list-style: none;
+		max-inline-size: 42rem;
+		margin-inline: auto;
+		text-align: center;
+	}
+
+	.problem-item {
+		padding: 0.75rem 0;
+		font-size: clamp(1.0625rem, 2.2vw, 1.1875rem);
+		color: var(--color-text);
+		line-height: 1.5;
+	}
+
+	.problem-item:first-child {
+		padding-top: 0;
+	}
+
+	.problem-solution {
+		text-align: center;
+		max-inline-size: 42rem;
+		margin: 0 auto 2rem;
+		padding: 1.5rem 2rem;
+		font-size: clamp(1.0625rem, 2.2vw, 1.125rem);
+		font-weight: 600;
+		color: var(--color-text);
+		line-height: 1.55;
+		background: var(--color-bg-soft);
+		border-radius: var(--radius);
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+	}
+
+	.problem-transition {
+		text-align: center;
+		margin: 0;
+		font-size: clamp(1rem, 2vw, 1.125rem);
+		font-weight: 600;
+		color: var(--color-text-secondary);
+	}
+
+	.problem-transition-link {
+		color: var(--color-primary);
+		text-decoration: none;
+	}
+
+	.problem-transition-link:hover {
+		text-decoration: underline;
+	}
+
+	@media (max-width: 768px) {
+		.problem-list {
+			margin-bottom: 2rem;
+			max-inline-size: 36rem;
+		}
+
+		.problem-solution {
+			margin-bottom: 1.5rem;
+			padding: 1.25rem 1.5rem;
+			max-inline-size: 36rem;
+		}
+	}
+
+	@media (max-width: 390px) {
+		.problem-item {
+			font-size: 1.0625rem;
+			padding: 0.5rem 0;
+		}
+
+		.problem-solution {
+			padding: 1.25rem 1.25rem;
+		}
+	}
+</style>
