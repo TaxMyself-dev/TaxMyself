@@ -273,13 +273,23 @@ app-root {
   &.white-border {
     background-color: white;
     border-color: black;
-    // border-color: white;
     color: black;
 
     &.white-border:hover {
       background-color: white;
       border-color: black;
-      // border-color: white;
+      color: black;
+    }
+  }
+
+  &.white-border-light {
+    background-color: white;
+    border-color: #ebebeb;
+    color: black;
+
+    &.white-border-light:hover {
+      background-color: white;
+      border-color: #ebebeb;
       color: black;
     }
   }

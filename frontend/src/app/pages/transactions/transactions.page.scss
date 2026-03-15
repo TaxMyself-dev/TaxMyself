@@ -70,6 +70,16 @@
   top: 54px;
 }
 
+@media (max-width: 768px) {
+  // RTL: sort-button sits on the physical LEFT side of the viewport.
+  // Anchor container to left: 0 so the panel opens rightward into the screen.
+  .filter-panel-container {
+    left: 0;
+    right: unset;
+    top: 44px;
+  }
+}
+
 .open-filter-panel {
   visibility: visible;
 }

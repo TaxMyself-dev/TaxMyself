@@ -7,8 +7,13 @@
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
     border-radius: 5px;
     margin-bottom: 50px;
-    //height: 100vh;
-    //border: 1px solid black;
+
+    &.table-container--cards {
+        box-shadow: none;
+        border-radius: 0;
+        background: transparent;
+        margin-bottom: 0;
+    }
 }
 
 .table-header {
@@ -23,12 +28,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    width: fit-content;
+    // width: fit-content;
 }
 
 .table-title {
     font-size: x-large;
-    margin-left: 20px;
+    margin: 18px;
 }
 
 .table-input-search {
@@ -181,4 +186,222 @@
     .filter-header-text {
         color: #fff;
     }
+}
+
+// ─── Mobile filter summary ────────────────────────────────────────────────────
+
+.mobile-fs {
+    display: none; // activated only inside the media query
+}
+
+@media (max-width: 768px) {
+
+    .input-title-container {
+        margin-right: 0;
+    }
+
+    // hide the desktop long chips row
+    .show-filters-container {
+        display: none;
+    }
+
+    // outer wrapper
+    .mobile-fs-container{
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 0;
+        padding: 4px 0 2px;
+    }
+
+    // ── unified clickable block ──────────────────────────────────────────────
+    .mobile-fs__block {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        background: #fafafa;
+        border: 1px solid #ebebeb;
+        border-radius: 8px;
+        cursor: pointer;
+        user-select: none;
+
+        &:hover {
+            background: #f0f0f0;
+        }
+
+        &.mobile-fs__block--open {
+            border-radius: 8px 8px 0 0;
+            border-bottom-color: transparent;
+        }
+    }
+
+    // ── shared two-column grid used by both block & details ──────────────────
+    .mobile-fs{
+        display: flex;
+        // display: grid;
+        // grid-template-columns: auto 1fr;
+        column-gap: 10px;
+        row-gap: 3px;
+        align-items: baseline;
+        flex: 1;
+    }
+
+    .mobile-fs__details {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 30px;
+        row-gap: 6px;
+        align-items: baseline;
+        justify-items: flex-start;
+        padding: 8px 12px;
+        border: 1px solid #ebebeb;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        background: #fff;
+    }
+
+    .mobile-fs__details-item {
+        display: contents;
+    }
+
+    .mobile-fs__label {
+        font-size: 13px;
+        font-weight: 900;
+        color: #808080;
+        white-space: nowrap;
+        text-align: end;
+    }
+
+    .mobile-fs__value {
+        font-size: 13px;
+        color: #363636;
+    }
+
+    // ── chevron inside the block ─────────────────────────────────────────────
+    .mobile-fs__chevron {
+        font-size: 12px;
+        color: #808080;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+    // ── expanded details section ─────────────────────────────────────────────
+    // .mobile-fs__details {
+    //     padding: 8px 12px;
+    //     border: 1px solid #ebebeb;
+    //     border-top: none;
+    //     border-radius: 0 0 8px 8px;
+    //     background: #fff;
+    // }
+}
+
+// ─── Mobile empty-state fix ───────────────────────────────────────────────────
+
+@media (max-width: 768px) {
+
+    .table-title {
+        margin-right: 0;
+    }
+    .empty-data-container {
+        padding: 32px 16px;
+        gap: 12px;
+    }
+
+    .empty-data-img {
+        width: 160px;
+        height: 160px;
+    }
+
+    .empty-data-text {
+        position: static;
+        text-align: center;
+        font-size: 16px;
+        color: #808080;
+        margin: 0;
+    }
+}
+
+// ─── Mobile section toggle (chevron next to title) ───────────────────────────
+
+.mobile-section-toggle {
+    display: none; // desktop: completely hidden
+}
+
+// ─── Mobile section animated wrapper ─────────────────────────────────────────
+
+.mobile-section-wrapper {
+    width: 100%;
+    overflow: hidden;
+}
+
+@media (max-width: 768px) {
+    .mobile-section-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        padding: 4px 6px;
+        margin-inline-start: 8px;
+        cursor: pointer;
+        border-radius: 50%;
+        transition: background 0.2s ease;
+        color: #555;
+
+        &:hover {
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        &:focus-visible {
+            outline: 2px solid #007aff;
+            outline-offset: 2px;
+        }
+    }
+
+    .mobile-section-icon-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+    }
+
+    .mobile-section-icon {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        opacity: 1;
+        transform: scale(1);
+        transition: opacity 0.22s ease, transform 0.22s ease;
+
+        &--hidden {
+            opacity: 0;
+            transform: scale(0.6);
+            pointer-events: none;
+        }
+    }
+}
+
+// ─── Mobile cards view ────────────────────────────────────────────────────────
+
+.mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px 0;
+    width: 100%;
+}
+
+.mobile-cards__loading {
+    display: flex;
+    justify-content: center;
+    padding: 40px;
+    font-size: 24px;
+    color: #808080;
 }

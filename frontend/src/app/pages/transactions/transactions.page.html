@@ -38,19 +38,17 @@
       </div>
 
       <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()"
-        [isLoadingState]="isLoadingStateTable()" [showButtons]="true" [placeholderSearch]="'חיפוש לפי שם עסק'"
-        [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()" [dataTable]="filteredExpensesData()"
-        [tableHeight]="'500px'" (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-        (visibleClassifyTranClicked)="openClassifyTran($event)"
-        (onQuickClassifyClicked)="onQuickClassifyClicked($event)"></app-generic-table>
+        [isLoadingState]="isLoadingStateTable()" [rowActions]="expenseRowActions"
+        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()"
+        [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
+        [mobileCardConfig]="mobileCardConfig"></app-generic-table>
     </div>
     <!-- incomes table -->
     <div class="table-wrap">
-      <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()" [showButtons]="true"
-        [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'" [columnsTitle]="fieldsNamesExpenses()"
-        [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
-        (visibleAccountAssociationClicked)="openAccountAssociation($event)"
-        (visibleClassifyTranClicked)="openClassifyTran($event)"></app-generic-table>
+      <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()"
+        [rowActions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
+        [columnsTitle]="fieldsNamesExpenses()" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
+        [mobileCardConfig]="mobileCardConfig"></app-generic-table>
     </div>
     @if (visibleAccountAssociationDialog()){
     <app-account-association-dialog (visibleChange)="closeAccountAssociation($event)"

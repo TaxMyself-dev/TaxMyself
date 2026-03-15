@@ -71,6 +71,7 @@ export class AuthInterceptor implements HttpInterceptor {
         if (token && !req.headers.has('Authorization')) {
           headers['Authorization'] = `Bearer ${token}`;
         }
+        console.log("🚀 ~ AuthInterceptor ~ intercept ~ businessNumber:", businessNumber)
         if (businessNumber) {
           headers['businessnumber'] = businessNumber;
         }

@@ -1,11 +1,28 @@
 import { ExpenseNecessity } from 'src/enum';
-import { 
-    Entity, 
-    Column, 
-    PrimaryGeneratedColumn
+import {
+    Entity,
+    Column,
+    PrimaryGeneratedColumn,
+    Index,
+    CreateDateColumn,
+    UpdateDateColumn,
 } from 'typeorm'
 
+/**
+ * Stores smart classification rules.
+ *
+ * transactionName = the merchant identifier used for rule matching.
+ * Multiple rules for the same merchant are allowed when their smart-matching
+ * conditions (commentPattern, sum range, date range) differ.
+ *
+ * Rule precedence (deterministic):
+ *   1. Filter rules that fully match the transaction.
+ *   2. Score each matched rule (+1 per condition defined: commentPattern,
+ *      sum range, date range). Higher score wins.
+ *   3. Tie-break: newest updatedAt wins.
+ */
 @Entity()
+@Index('IDX_rule_user_bill_merchant', ['userId', 'billId', 'transactionName'])
 export class ClassifiedTransactions {
 
   @PrimaryGeneratedColumn()
@@ -14,11 +31,12 @@ export class ClassifiedTransactions {
   @Column()
   userId: string;
 
+  /** Merchant identifier used for rule matching. */
   @Column()
   transactionName: string;
 
-  @Column()
-  billName: string;
+  @Column({ type: 'int' })
+  billId: number;
 
   @Column()
   category: string;
@@ -54,16 +72,13 @@ export class ClassifiedTransactions {
   endDate: Date | null;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true, default: null })
-  minAbsSum: number;
+  minAbsSum: number | null;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true, default: null })
-  maxAbsSum: number;
+  maxAbsSum: number | null;
 
-  // @Column({ type: 'varchar', nullable: true, default: null })
-  // comment: string | null;
-
-  @Column({ nullable: true })
-  commentPattern?: string; // the keyword or exact comment
+  @Column({ nullable: true, default: null })
+  commentPattern: string | null;
 
   @Column({
     type: 'enum',
@@ -71,5 +86,12 @@ export class ClassifiedTransactions {
     default: 'equals',
   })
   commentMatchType: 'equals' | 'contains';
+
+  /** Used as tie-breaker in rule selection: newest updatedAt wins. */
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 
 }

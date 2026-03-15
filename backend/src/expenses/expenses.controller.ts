@@ -203,11 +203,15 @@ export class ExpensesController {
   ): Promise<any[]> {
 
     const businessNumber = request.user?.businessNumber;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ businessNumber:", businessNumber)
     const firebaseId = request.user?.firebaseId;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ firebaseId:", firebaseId)
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ isEquipmentValue:", isEquipmentValue)
     const isExpenseValue = isExpense === 'true' ? true : isExpense === 'false' ? false : null;
+    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ isExpenseValue:", isExpenseValue)
 
     // Call the service method to get the sub-categories
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpenseValue, categoryName, businessNumber);

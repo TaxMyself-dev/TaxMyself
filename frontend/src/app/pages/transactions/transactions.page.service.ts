@@ -210,8 +210,8 @@ export class TransactionsService implements OnInit {
     return this.http.post<string>(url, IDs)
   }
 
-  quickClassify(transactionId: number): Observable<any> {
+  quickClassify(finsiteId: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/quick-classify`;
-    return this.http.post<any>(url, { transactionId });
+    return this.http.post<any>(url, { finsiteId });
   }
 }

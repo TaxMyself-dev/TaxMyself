@@ -78,3 +78,43 @@
   display: flex;
   justify-content: end;
 }
+
+// ─── Mobile layout ────────────────────────────────────────────────────────────
+@media (max-width: 768px) {
+  // RTL: panel container is anchored to left:0 of sort-button (left side).
+  // Explicitly set left:0 so the panel extends RIGHTWARD into the viewport.
+  .filter-panel {
+    left: 0;
+    right: auto;
+    width: min(300px, calc(100vw - 32px));
+    height: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  // Only filter rows (those with a .title label) stack label above input.
+  // The top bar keeps its horizontal layout.
+  .header:has(.title) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 6px 0;
+  }
+
+  .title {
+    width: auto;
+    font-size: large;
+  }
+
+  // Keep time-options as absolute (preserve the open/close animation),
+  // but widen it to use the available panel width instead of the desktop 175px.
+  .time-options-container {
+    left: 10px;
+    width: calc(100% - 20px);
+  }
+
+  .wrap-inner-inputs {
+    padding-right: 0;
+    width: 100%;
+  }
+}
