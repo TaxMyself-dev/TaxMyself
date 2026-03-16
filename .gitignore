@@ -9,3 +9,4 @@ prod-keys/
 keys/
 *.key
 *.pem
+.firebase/hosting.*.cache
