@@ -12,9 +12,6 @@
 		<p class="problem-solution">
 			KeepInTax עושה לכם סדר — גם בעסק וגם בבית. והכול במקום אחד.
 		</p>
-		<h3 class="problem-transition">
-			<a href="#how-it-works" class="problem-transition-link">אז איך זה עובד בפועל?</a>
-		</h3>
 	</div>
 </section>
 
@@ -46,7 +43,7 @@
 	.problem-solution {
 		text-align: center;
 		max-inline-size: 42rem;
-		margin: 0 auto 2rem;
+		margin: 0 auto 0.75rem;
 		padding: 1.5rem 2rem;
 		font-size: clamp(1.0625rem, 2.2vw, 1.125rem);
 		font-weight: 600;
@@ -57,23 +54,6 @@
 		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 	}
 
-	.problem-transition {
-		text-align: center;
-		margin: 0;
-		font-size: clamp(1rem, 2vw, 1.125rem);
-		font-weight: 600;
-		color: var(--color-text-secondary);
-	}
-
-	.problem-transition-link {
-		color: var(--color-primary);
-		text-decoration: none;
-	}
-
-	.problem-transition-link:hover {
-		text-decoration: underline;
-	}
-
 	@media (max-width: 768px) {
 		.problem-list {
 			margin-bottom: 2rem;
@@ -81,7 +61,7 @@
 		}
 
 		.problem-solution {
-			margin-bottom: 1.5rem;
+			margin-bottom: 0.75rem;
 			padding: 1.25rem 1.5rem;
 			max-inline-size: 36rem;
 		}
