@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
 import { SharedService } from '../shared/shared.service';
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept only for the return-type annotation on getIncomesToBuildReport. Remove when that endpoint is migrated.
 import { Transactions } from './transactions.entity';
 import { UsersService } from '../users/users.service';
 import { CreateBillDto } from './dtos/create-bill.dto';
@@ -23,6 +24,7 @@ export class TransactionsController {
     private readonly sharedService: SharedService,
     private usersService: UsersService,) {}
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
   @Get('get-trans')
   //TODO: Add Admin guard
   async getTrans(@Query() query: any) {
@@ -30,6 +32,7 @@ export class TransactionsController {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: file-upload endpoint that writes parsed Excel rows to the legacy transactions table via saveTransactions(). Remove when replaced by a cache-based ingest.
   @Post('load-file')
   @UseGuards(FirebaseAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
@@ -317,7 +320,7 @@ export class TransactionsController {
   async getExpensesToBuildReport(
     @Req() request: AuthenticatedRequest,
     @Query() query: any,
-  ): Promise<Transactions[]> {
+  ): Promise<Record<string, any>[]> {
     console.log("query is: ", query);
     const userId = request.user?.firebaseId;
     const startDate = this.sharedService.convertStringToDateObject(query.startDate);
@@ -326,6 +329,7 @@ export class TransactionsController {
   }
 
 
+  // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint reads recognised income rows from the legacy transactions table via getIncomesToBuildReport(). Migrate to full_transactions_cache then remove.
   @Get('get-incomes-to-build-report')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true }))

@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, EntityTarget, FindOptionsWhere, Between, Timestamp } from 'typeorm';
 import { parse, format, getDayOfYear } from 'date-fns';
 import { Expense } from '../expenses/expenses.entity';
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: Transactions is injected into SharedService solely to power the generic getRepository() helper. Remove the import, the @InjectRepository injection, and the Transactions case in getRepository() when the legacy table is dropped.
 import { Transactions } from '../transactions/transactions.entity';
 import { VATReportingType, SingleMonthReport, DualMonthReport, VAT_RATES } from 'src/enum';
 import * as annualParams from 'src/annual.params.json';
