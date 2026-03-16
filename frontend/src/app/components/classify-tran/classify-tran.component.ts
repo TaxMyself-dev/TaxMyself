@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MessageService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
 import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
@@ -31,12 +32,15 @@ import { LeftPanelComponent } from "../left-panel/left-panel.component";
     CheckboxModule,
     CommonModule,
     ReactiveFormsModule,
+    ConfirmDialogModule,
   ],
   standalone: true,
+  providers: [ConfirmationService],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassifyTranComponent implements OnInit {
   messageService = inject(MessageService);
+  confirmationService = inject(ConfirmationService);
   transactionService = inject(TransactionsService);
   expenseDataService = inject(ExpenseDataService);
   formBuilder = inject(FormBuilder);
@@ -131,7 +135,7 @@ export class ClassifyTranComponent implements OnInit {
     const raw = this.myForm.getRawValue() as any;
     const isSingle = !!raw.isSingleUpdate;
     const formData: any = {
-      id: this.rowData().id,
+      finsiteId: this.rowData().finsiteId,
       name: this.rowData().name,
       billName: this.rowData().billName,
       category: raw.categoryName,
@@ -161,10 +165,28 @@ export class ClassifyTranComponent implements OnInit {
 
     console.log('🚀 classifyTransaction formData:', formData);
 
+    this.sendClassification(formData);
+  }
+
+  private sendClassification(formData: any): void {
     this.transactionService
       .addClassifiction(formData)
       .pipe(
         catchError((err) => {
+          if (err.status === 409) {
+            this.isLoading.set(false);
+            this.confirmationService.confirm({
+              message: 'עסקה זו כבר סווגה באופן חד פעמי. האם ברצונך לדרוס את הסיווג הקיים?',
+              header: 'אישור דריסת סיווג',
+              acceptLabel: 'כן, דרוס',
+              rejectLabel: 'ביטול',
+              accept: () => {
+                this.isLoading.set(true);
+                this.sendClassification({ ...formData, confirmOverride: true });
+              },
+            });
+            return EMPTY;
+          }
           console.error('Error classify transaction', err);
           this.messageService.add({
             severity: 'error',

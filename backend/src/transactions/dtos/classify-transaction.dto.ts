@@ -2,8 +2,8 @@ import { IsNumber, IsString, IsOptional, IsBoolean, ValidateIf, IsDate, IsIn } f
 
 export class ClassifyTransactionDto {
 
-  @IsNumber()
-  id: number;
+  @IsString()
+  finsiteId: string;
 
   @IsBoolean()
   isSingleUpdate: boolean;
@@ -27,47 +27,51 @@ export class ClassifyTransactionDto {
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsNumber()
-  vatPercent: number;
+  vatPercent?: number;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsNumber()
-  taxPercent: number;
+  taxPercent?: number;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsBoolean()
-  isEquipment: boolean;
+  isEquipment?: boolean;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsNumber()
-  reductionPercent: number;
+  reductionPercent?: number;
 
   @ValidateIf((o) => o.isSingleUpdate === true)
   @IsBoolean()
   isExpense?: boolean;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
   @IsDate()
-  startDate: Date;
+  startDate?: Date;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
   @IsDate()
-  endDate: Date;
+  endDate?: Date;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
   @IsNumber()
-  minSum: number;
+  minSum?: number;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
   @IsNumber()
-  maxSum: number;
+  maxSum?: number;
 
-  @ValidateIf((o) => o.isSingleUpdate === true)
+  @IsOptional()
   @IsString()
-  comment: string;
+  comment?: string;
 
   @IsOptional()
   @IsIn(['equals', 'contains'])
   @IsString()
   matchType?: 'equals' | 'contains';
+
+  @IsOptional()
+  @IsBoolean()
+  confirmOverride?: boolean;
 
 }

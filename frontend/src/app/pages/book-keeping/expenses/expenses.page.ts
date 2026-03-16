@@ -3,7 +3,7 @@ import { EMPTY } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   ExpenseFormColumns,
@@ -75,6 +75,14 @@ export class ExpensesPage implements OnInit {
     { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
   ];
+
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields: [ExpenseFormColumns.SUPPLIER],
+    highlightedField: ExpenseFormColumns.SUM,
+    dateField: ExpenseFormColumns.DATE,
+    hiddenFields: [],
+  };
+
 
   // ===========================
   // Filter config (used by FilterTab)

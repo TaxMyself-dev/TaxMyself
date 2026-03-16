@@ -66,6 +66,35 @@ p.block-title {
   width: 100%;
 }
 
+.cards-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 30px;
+}
+
+.cards-loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+  font-size: 24px;
+  color: #808080;
+}
+
+.transaction-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cards-empty {
+  text-align: center;
+  color: #808080;
+  font-size: 16px;
+  padding: 24px 0;
+  margin: 0;
+}
+
 .cards-container {
   display: flex;
   justify-content: space-between;
@@ -431,6 +460,10 @@ p.block-title {
   .table-block {
     padding: 0 24px;
     height: auto;
+  }
+
+  .cards-block {
+    padding: 0 24px;
   }
 
   .banking-banner {

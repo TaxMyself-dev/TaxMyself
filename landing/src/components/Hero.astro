@@ -1,31 +1,22 @@
 ---
-const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? 'https://app.keepintax.co.il/register';
 ---
 
 <section class="hero section" aria-labelledby="hero-heading">
 	<div class="container hero-inner">
 		<div class="hero-content">
-			<p class="hero-badge">ניהול פיננסי חכם לעסקים ולמשקי בית</p>
+			<a href="/" class="hero-logo" aria-label="KeepInTax - דף הבית">
+				<img src="/logo.svg" alt="לוגו KeepInTax" width="48" height="47" />
+			</a>
 			<h1 class="hero-headline" id="hero-heading">פשוט להיות על זה.</h1>
-			<p class="hero-subheadline">
-				כל העולם הפיננסי שלך — עסקי ואישי — במקום אחד. מעקב אוטומטי אחרי הוצאות, הפקת מסמכים ודוחות בלי בירוקרטיה.
-			</p>
-			<div class="hero-actions">
-				<a href={registerUrl} class="btn btn-primary" target="_blank" rel="noopener noreferrer">ניסיון חינם לחודשיים</a>
-				<a href="#how-it-works" class="btn btn-secondary">איך זה עובד</a>
-			</div>
-			<ul class="hero-bullets">
-				<li>חיבור לבנקאות פתוחה ולכרטיסי אשראי</li>
-				<li>לא מפספסים הוצאות</li>
-				<li>חשבוניות, קבלות ודוחות במקום אחד</li>
-			</ul>
+			<hr class="hero-divider" aria-hidden="true" />
+			<p class="hero-badge">ניהול פיננסי חכם לעסקים ולמשקי בית</p>
 		</div>
 	</div>
 </section>
 
 <style>
 	.hero {
-		padding-block: 4rem 3rem;
+		padding-block: 4rem 1.5rem;
 	}
 
 	.hero-inner {
@@ -38,9 +29,45 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? 'https://app.keep
 		text-align: center;
 	}
 
-	.hero-badge {
+	.hero-logo {
 		display: inline-block;
 		margin: 0 0 1rem;
+		text-decoration: none;
+	}
+
+	.hero-logo:hover {
+		text-decoration: none;
+	}
+
+	.hero-logo img {
+		display: block;
+		height: 52px;
+		width: auto;
+	}
+
+	.hero-headline {
+		margin: 0;
+		font-size: clamp(1.75rem, 4vw, 2.75rem);
+		font-weight: 700;
+		line-height: 1.2;
+		color: var(--color-text);
+	}
+
+	.hero-divider {
+		display: block;
+		width: 100%;
+		height: 4px;
+		margin: 0.75rem 0 0.5rem;
+		padding: 0;
+		border: none;
+		background: var(--color-accent);
+		opacity: 0.9;
+		border-radius: 3px;
+	}
+
+	.hero-badge {
+		display: inline-block;
+		margin: 0.5rem 0 0;
 		padding: 0.35rem 0.75rem;
 		font-size: 0.8125rem;
 		font-weight: 500;
@@ -49,80 +76,40 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? 'https://app.keep
 		border-radius: 999px;
 	}
 
-	.hero-headline {
-		margin: 0 0 1rem;
-		font-size: clamp(1.75rem, 4vw, 2.75rem);
-		font-weight: 700;
-		line-height: 1.2;
-		color: var(--color-text);
-	}
-
-	.hero-subheadline {
-		margin: 0 0 1.75rem;
-		font-size: clamp(0.9375rem, 2vw, 1.0625rem);
-		line-height: 1.6;
-		color: var(--color-text-secondary);
-	}
-
-	.hero-actions {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 0.75rem;
-		margin-bottom: 2rem;
-	}
-
-	.hero-bullets {
-		display: inline-block;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-		text-align: start;
-	}
-
-	.hero-bullets li {
-		position: relative;
-		padding-inline-start: 1.5rem;
-		margin-bottom: 0.5rem;
-		font-size: 0.9375rem;
-		color: var(--color-text-secondary);
-		line-height: 1.5;
-	}
-
-	.hero-bullets li::before {
-		content: '';
-		position: absolute;
-		inset-inline-start: 0;
-		top: 0.45em;
-		width: 0.5rem;
-		height: 0.5rem;
-		background: var(--color-accent);
-		border-radius: 50%;
-	}
-
 	@media (max-width: 768px) {
 		.hero {
-			padding-block: 2.5rem 2rem;
+			padding-block: 2.5rem 1.25rem;
 		}
 
-		.hero-actions {
-			margin-bottom: 1.5rem;
+		.hero-logo img {
+			height: 44px;
+		}
+
+		.hero-divider {
+			margin: 0.625rem 0 0.375rem;
+			height: 2px;
+		}
+
+		.hero-badge {
+			margin: 0.375rem 0 0;
 		}
 	}
 
 	@media (max-width: 390px) {
 		.hero {
-			padding-block: 2rem 1.5rem;
+			padding-block: 2rem 1rem;
 		}
 
-		.hero-actions {
-			flex-direction: column;
-			align-items: stretch;
-			margin-bottom: 1.25rem;
+		.hero-logo img {
+			height: 40px;
 		}
 
-		.hero-actions .btn {
-			width: 100%;
+		.hero-divider {
+			margin: 0.5rem 0 0.375rem;
+		}
+
+		.hero-badge {
+			margin: 0.375rem 0 0;
 		}
 	}
 </style>

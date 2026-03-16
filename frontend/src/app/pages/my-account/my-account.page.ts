@@ -6,7 +6,7 @@ import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
@@ -16,7 +16,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IItemNavigate, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IItemNavigate, IRowDataTable, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
@@ -61,7 +61,7 @@ export class MyAccountPage implements OnInit {
   isProd = signal<boolean>(process.env.NODE_ENV == 'production');
 
   userData: IUserData;
-  transToClassify: any;
+  transToClassify: Observable<ITransactionData[]>;
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
@@ -97,6 +97,40 @@ export class MyAccountPage implements OnInit {
     { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
   ];
 
+  // ─── Mobile card configuration ───────────────────────────────────────────
+  mobileCardConfig: IMobileCardConfig = {
+    primaryFields:    [TransactionsOutcomesColumns.NAME],
+    highlightedField:  TransactionsOutcomesColumns.SUM,
+    dateField:         TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields:      [],
+  };
+
+  // ─── Row actions — same showWhen conditions as transactions page.
+  //     Callbacks are stubs until classify/associate dialogs are wired into this page.
+  rowActions: ITableRowAction[] = [
+    {
+      name: 'associate',
+      icon: 'pi pi-link',
+      title: 'שייך לחשבון',
+      showWhen: (row) => row['billName'] === 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire account-association dialog */ },
+    },
+    {
+      name: 'classify',
+      icon: 'pi pi-tag',
+      title: 'סיווג תנועה',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire classify dialog */ },
+    },
+    {
+      name: 'quickClassify',
+      icon: 'pi pi-bolt',
+      title: 'סיווג מהיר',
+      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire quick classify */ },
+    },
+  ];
+
   constructor(private authService: AuthService) { }
 
   ngOnInit() {
@@ -128,7 +162,7 @@ export class MyAccountPage implements OnInit {
                 row?.businessNumber === this.userData?.businessNumber
                   ? this.userData?.businessName
                   : this.userData?.spouseBusinessName
-            }))
+            })) as ITransactionData[]
         )
       );
   }
@@ -239,47 +273,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(response => {
         console.log('User transactions data:', response);
-
-        if (response?.transactions && Array.isArray(response.transactions)) {
-          // Show message with saved count from database
-          const savedCount = response?.databaseSaveResult?.saved || 0;
-          const skippedCount = response?.databaseSaveResult?.skipped || 0;
-          const totalFetched = response?.totalTransactions || response.transactions.length || 0;
-          const accountsProcessed = response?.accountsProcessed || 0;
-
-          let detailMessage = '';
-          if (savedCount > 0) {
-            detailMessage = `נשמרו ${savedCount} תנועות חדשות מ-${accountsProcessed} חשבונות בהצלחה`;
-            if (skippedCount > 0) {
-              detailMessage += ` (${skippedCount} תנועות כבר קיימות, ${totalFetched} סה"כ נטענו)`;
-            } else {
-              detailMessage += ` (${totalFetched} סה"כ נטענו)`;
-            }
-          } else if (skippedCount > 0) {
-            detailMessage = `כל התנועות כבר קיימות במערכת (${skippedCount} תנועות, ${totalFetched} סה"כ נטענו מ-${accountsProcessed} חשבונות)`;
-          } else {
-            detailMessage = `נטענו ${totalFetched} תנועות מ-${accountsProcessed} חשבונות`;
-          }
-
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: detailMessage,
-            life: 6000,
-            key: 'br'
-          });
-
-          // כאן תוכל לעשות משהו עם הנתונים - למשל לשמור ב-DB או להציג בטבלה
-          // TODO: Process and store the transactions data
-        } else {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'התראה',
-            detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
-            life: 5000,
-            key: 'br'
-          });
-        }
+        this.showSyncToast(response?.syncSummary);
       });
   }
 
@@ -303,47 +297,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(response => {
         console.log('User transactions data:', response);
-
-        if (response?.transactions && Array.isArray(response.transactions)) {
-          // Show message with saved count from database
-          const savedCount = response?.databaseSaveResult?.saved || 0;
-          const skippedCount = response?.databaseSaveResult?.skipped || 0;
-          const totalFetched = response?.totalTransactions || response.transactions.length || 0;
-          const accountsProcessed = response?.accountsProcessed || 0;
-
-          let detailMessage = '';
-          if (savedCount > 0) {
-            detailMessage = `נשמרו ${savedCount} תנועות חדשות מ-${accountsProcessed} חשבונות בהצלחה`;
-            if (skippedCount > 0) {
-              detailMessage += ` (${skippedCount} תנועות כבר קיימות, ${totalFetched} סה"כ נטענו)`;
-            } else {
-              detailMessage += ` (${totalFetched} סה"כ נטענו)`;
-            }
-          } else if (skippedCount > 0) {
-            detailMessage = `כל התנועות כבר קיימות במערכת (${skippedCount} תנועות, ${totalFetched} סה"כ נטענו מ-${accountsProcessed} חשבונות)`;
-          } else {
-            detailMessage = `נטענו ${totalFetched} תנועות מ-${accountsProcessed} חשבונות`;
-          }
-
-          this.messageService.add({
-            severity: 'success',
-            summary: 'הצלחה',
-            detail: detailMessage,
-            life: 6000,
-            key: 'br'
-          });
-
-          // כאן תוכל לעשות משהו עם הנתונים - למשל לשמור ב-DB או להציג בטבלה
-          // TODO: Process and store the transactions data
-        } else {
-          this.messageService.add({
-            severity: 'warn',
-            summary: 'התראה',
-            detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
-            life: 5000,
-            key: 'br'
-          });
-        }
+        this.showSyncToast(response?.syncSummary);
       });
   }
 
@@ -367,30 +321,58 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(response => {
         console.log('All user transactions (bank + card):', response);
-
-        const bank = response?.bankTransactions;
-        const card = response?.cardTransactions;
-
-        const bankTotal = bank?.totalTransactions ?? bank?.transactions?.length ?? 0;
-        const cardTotal = card?.totalTransactions ?? card?.transactions?.length ?? 0;
-        const bankSaved = bank?.databaseSaveResult?.saved ?? 0;
-        const cardSaved = card?.databaseSaveResult?.saved ?? 0;
-
-        let detailMessage = '';
-        if (bankTotal > 0 || cardTotal > 0) {
-          detailMessage = `בנק: ${bankTotal} תנועות (${bankSaved} חדשות). אשראי: ${cardTotal} תנועות (${cardSaved} חדשות).`;
-        } else {
-          detailMessage = 'לא נמצאו תנועות בנק או אשראי.';
-        }
-
-        this.messageService.add({
-          severity: bankTotal > 0 || cardTotal > 0 ? 'success' : 'warn',
-          summary: bankTotal > 0 || cardTotal > 0 ? 'הצלחה' : 'התראה',
-          detail: detailMessage,
-          life: 6000,
-          key: 'br'
-        });
+        this.showSyncToast(response?.syncSummary);
       });
+  }
+
+  private showSyncToast(syncSummary: any): void {
+    if (!syncSummary) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'התראה',
+        detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
+        life: 5000,
+        key: 'br'
+      });
+      return;
+    }
+
+    const bank = syncSummary.bank;
+    const card = syncSummary.card;
+    const system = syncSummary.system;
+
+    const hasBank = bank?.transactionsFetched > 0;
+    const hasCard = card?.transactionsFetched > 0;
+
+    if (!hasBank && !hasCard) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'התראה',
+        detail: 'לא נמצאו תנועות בנק או אשראי.',
+        life: 5000,
+        key: 'br'
+      });
+      return;
+    }
+
+    const lines: string[] = ['הייבוא הושלם בהצלחה.'];
+
+    if (hasBank) {
+      lines.push(`נטענו ${bank.transactionsFetched} תנועות בנק מ־${bank.banksProcessed} חשבונות.`);
+    }
+    if (hasCard) {
+      lines.push(`נטענו ${card.transactionsFetched} תנועות כרטיסי אשראי מ־${card.cardsProcessed} כרטיסים.`);
+    }
+
+    lines.push(`בסך הכול עובדו ${system.totalProcessed} תנועות: ${system.savedInCurrentImport} נשמרו בייבוא הנוכחי, ו־${system.alreadyExisting} כבר היו קיימות במערכת.`);
+
+    this.messageService.add({
+      severity: 'success',
+      summary: 'הצלחה',
+      detail: lines.join('\n'),
+      life: 8000,
+      key: 'br'
+    });
   }
 
   // openModalAddExpenses(): void {
@@ -403,6 +385,7 @@ export class MyAccountPage implements OnInit {
   // closeMobileMenu(): void {
   //   this.mobileMenuOpen.set(false);
   // }
+
 
   openMannualExpenses(): void {
     // this.dialogRef = 

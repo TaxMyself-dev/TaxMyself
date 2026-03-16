@@ -9,7 +9,7 @@ import { ClientsModule } from './clients/clients.module';
 import { UsersModule } from './users/users.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expense.module';
-import { ExcelModule } from './transactions/transactions.module';
+import { TransactionsModule } from './transactions/transactions.module';
 import { CloudModule } from './cloud/cloud.module';
 import { SharedModule } from './shared/shared.module';
 import { FinsiteModule } from './finsite/finsite.module';
@@ -33,6 +33,9 @@ import { Child } from './users/child.entity';
 import { Bill } from './transactions/bill.entity';
 import { Source } from './transactions/source.entity';
 import { ClassifiedTransactions } from './transactions/classified-transactions.entity';
+import { SlimTransaction } from './transactions/slim-transaction.entity';
+import { FullTransactionCache } from './transactions/full-transaction-cache.entity';
+import { UserTransactionCacheState } from './transactions/user-transaction-cache-state.entity';
 import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
 import { Agents } from './delegation/agents.entity';
@@ -73,7 +76,9 @@ import { BusinessService } from './business/business.service';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
-      entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions, Bill, Source,
+      entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions,
+        SlimTransaction, FullTransactionCache, UserTransactionCacheState,
+        Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents,
         FeezbackConsent, FeezbackWebhookEvent],
@@ -87,6 +92,9 @@ import { BusinessService } from './business/business.service';
       Supplier,
       Transactions,
       ClassifiedTransactions,
+      SlimTransaction,
+      FullTransactionCache,
+      UserTransactionCacheState,
       Bill,
       Source,
       Expense,
@@ -109,7 +117,7 @@ import { BusinessService } from './business/business.service';
       FeezbackWebhookEvent
     ]),
     ScheduleModule.forRoot(),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, ExcelModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
   controllers: [AppController],
   providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })

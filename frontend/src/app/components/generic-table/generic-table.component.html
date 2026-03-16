@@ -1,4 +1,4 @@
-<div class="table-container">
+<div class="table-container" [class.table-container--cards]="isMobile() && mobileCardConfig()">
   <div class="table-header">
 
     <div class="input-title-container">
@@ -12,10 +12,30 @@
         <p-inputicon styleClass="pi pi-search" />
       </p-iconfield>
       }
+      <!-- Mobile-only section toggle -->
+      @if (isMobile() && mobileCardConfig()) {
+      <button
+        class="mobile-section-toggle"
+        type="button"
+        [attr.aria-expanded]="mobileTableExpanded()"
+        [attr.aria-label]="mobileTableExpanded() ? 'כווץ טבלה' : 'הרחב טבלה'"
+        (click)="toggleMobileSection()">
+        <span class="mobile-section-icon-wrap">
+          <!-- expand icon: visible when table is collapsed -->
+          <i class="pi pi-arrow-up-right-and-arrow-down-left-from-center mobile-section-icon"
+             [class.mobile-section-icon--hidden]="mobileTableExpanded()"></i>
+          <!-- collapse icon: visible when table is expanded -->
+          <i class="pi pi-arrow-down-left-and-arrow-up-right-to-center mobile-section-icon"
+             [class.mobile-section-icon--hidden]="!mobileTableExpanded()"></i>
+        </span>
+      </button>
+      }
     </div>
     <!-- @for (filter of iterableArrayFilter(); track filter.periodType + filter.year) { -->
     <!-- <div> -->
     @if(arrayFilters()) {
+
+    <!-- Desktop chips (hidden on mobile via CSS) -->
     <div class="show-filters-container">
       @if(arrayFilters()?.periodType) {
       <div class="filter-header">
@@ -42,8 +62,103 @@
       </div>
       }
     </div>
+
+    <!-- Mobile filter summary (hidden on desktop via CSS) -->
+    <div class="mobile-fs-container" dir="rtl">
+
+      <!-- ── Single unified expandable block ── -->
+      <div class="mobile-fs__block"
+           [class.mobile-fs__block--open]="filterSummaryExpanded()"
+           (click)="toggleFilterSummary()">
+
+        <!-- 3-line summary grid (collapsed state) -->
+        <div class="mobile-fs">
+          @if (mobileTimeLabel()) {
+            <span class="mobile-fs__label">זמן:</span>
+            <span class="mobile-fs__value">{{ mobileTimeLabel() }}</span>
+          }
+          <span class="mobile-fs__label">חשבונות:</span>
+          <span class="mobile-fs__value">{{ mobileAccountLabel() }}</span>
+          <span class="mobile-fs__label">קטגוריות:</span>
+          <span class="mobile-fs__value">{{ mobileCategoryLabel() }}</span>
+          @if (mobileSourcesLabel()) {
+            <span class="mobile-fs__label">אמצעי תשלום:</span>
+            <span class="mobile-fs__value">{{ mobileSourcesLabel() }}</span>
+          }
+        </div>
+
+        <!-- Chevron inside the block -->
+        <i class="mobile-fs__chevron"
+           [class.pi-chevron-down]="!filterSummaryExpanded()"
+           [class.pi-chevron-up]="filterSummaryExpanded()"
+           class="pi"></i>
+
+      </div>
+
+      <!-- ── Expanded details ── -->
+      @if (filterSummaryExpanded()) {
+        <div class="mobile-fs__details">
+          @if (arrayFilters()?.periodType) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">זמן:</span>
+              <span class="mobile-fs__value">{{ getFullPeriodDisplay(arrayFilters()) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.account?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">חשבונות:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.account) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.category?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">קטגוריות:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.category) }}</span>
+            </div>
+          }
+          @if ((arrayFilters()?.sources?.length ?? 0) > 0) {
+            <div class="mobile-fs__details-item">
+              <span class="mobile-fs__label">אמצעי תשלום:</span>
+              <span class="mobile-fs__value">{{ formatNames(arrayFilters()?.sources) }}</span>
+            </div>
+          }
+        </div>
+      }
+
+    </div>
+
     }
   </div>
+  @if (isMobile() && mobileCardConfig()) {
+    <div class="mobile-section-wrapper"
+         [@slideToggle]="mobileTableExpanded() ? 'expanded' : 'collapsed'">
+      <div class="mobile-cards">
+        @if (isLoadingState()) {
+          <div class="mobile-cards__loading">
+            <i class="pi pi-spin pi-spinner"></i>
+          </div>
+        } @else if (filteredDataTable()?.length) {
+          @for (row of filteredDataTable(); track row['id']) {
+            <app-mobile-row-card
+              [row]="row"
+              [columns]="$any(columnsTitle())"
+              [config]="mobileCardConfig()!"
+              [actions]="mobileActionsForRow(row)"
+              [searchTerm]="searchTerm()"
+              (actionClicked)="onCardActionClicked($event)">
+            </app-mobile-row-card>
+          }
+        } @else {
+          <div class="empty-data-container">
+            <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
+            <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (!isMobile() || !mobileCardConfig()) {
   <div class="table">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
@@ -112,7 +227,7 @@
       </ng-template>
     </p-table>
 
-    @if (hoveredRowInfo() && (showButtons() || fileActions().length > 0)) {
+    @if (hoveredRowInfo() && (getRowActions(hoveredRowInfo()?.row).length > 0 || fileActions().length > 0)) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
       [style.top.px]="hoveredRowInfo()?.top" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
@@ -123,11 +238,9 @@
         accept=".pdf,.jpg,.jpeg,.png" />
       }
 
-      <!-- File Actions Section -->
+      <!-- File Actions Section (untouched) -->
       @if (fileActions().length > 0) {
-      <!-- Check if any action should always show (doesn't require file) -->
       @if (hasAlwaysShowAction()) {
-      <!-- Show actions that should always be visible -->
       @for (action of fileActions(); track action.name) {
       @if (shouldShowAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
@@ -137,7 +250,6 @@
       }
       }
       }
-      <!-- If file exists on server: show action buttons -->
       @if (hoveredRowInfo()?.row?.['file'] && hoveredRowInfo()?.row?.['file'] !== '' && hoveredRowInfo()?.row?.['file']
       !== null) {
       @for (action of fileActions(); track action.name) {
@@ -150,7 +262,6 @@
       }
       }
       @else if (!hasAlwaysShowAction()) {
-      <!-- No file exists and no alwaysShow actions: show attach button -->
       <app-p-button [iconOnly]="true" [icon]="'pi pi-paperclip'" (onButtonClicked)="triggerFileInput()"
         [buttonText]="hasFileAttached(hoveredRowInfo()?.row) ? 'שנה קובץ: ' + getFileName(hoveredRowInfo()?.row) : 'צרף קובץ'"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
@@ -158,23 +269,19 @@
       }
       }
 
-      <!-- Classification Buttons Section -->
-      @if (showButtons()) {
-      @if (isBillNotAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="onVisibleAccountAssociationClicked(getCurrentRow())" [buttonText]="'שייך לחשבון'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+      <!-- Row Actions Section — rendered from rowActions filtered by showWhen(row) -->
+      @for (action of getRowActions(hoveredRowInfo()?.row); track action.name) {
+      <app-p-button
+        (onButtonClicked)="action.action(null, getCurrentRow())"
+        [buttonText]="action.title || action.name"
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false">
       </app-p-button>
-      }
-      @if (isBillAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="onVisibleClassifyTranClicked(getCurrentRow())" [buttonText]="'סיווג תנועה'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
-      </app-p-button>
-      }
-      @if (isBillAssociated(hoveredRowInfo()?.row)) {
-      <app-p-button (onButtonClicked)="quickClassify(getCurrentRow())" [buttonText]="'סיווג מהיר'" [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingQuickClassify()">
-      </app-p-button>
-      }
       }
     </div>
     }
 
   </div>
+  }
+
 </div>
