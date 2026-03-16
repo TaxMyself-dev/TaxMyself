@@ -1,8 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
-import { Transactions } from '../transactions/transactions.entity';
 import { FeezbackConsent } from './consent/entities/feezback-consent.entity';
 import { FeezbackAuthService } from './core/feezback-auth.service';
 import { FeezbackApiService } from './api/feezback-api.service';
@@ -20,8 +17,6 @@ export class FeezbackService {
   constructor(
     private readonly feezbackJwtService: FeezbackJwtService,
     private readonly authService: FeezbackAuthService,
-    @InjectRepository(Transactions)
-    private readonly transactionsRepo: Repository<Transactions>,
     private readonly feezbackApiService: FeezbackApiService,
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
     private readonly consentSyncService: ConsentSyncService,
@@ -312,137 +307,6 @@ export class FeezbackService {
     return parts[0];
   }
 
-  /**
-   * Saves Feezback transactions to the database (bank flow)
-   * Provided for backward compatibility with existing bank sync flows.
-   */
-  async saveTransactionsToDatabase(
-    transactions: any[],
-    userId: string,
-    accountInfoMap: { [accountName: string]: any } = {},
-    transactionToAccountMap: { [transactionId: string]: string } = {},
-  ): Promise<{ saved: number; skipped: number; message: string }> {
-    return this.saveBankTransactionsToDatabase(transactions, userId, accountInfoMap, transactionToAccountMap);
-  }
-
-  /**
-   * Saves bank transactions to the database.
-   */
-  async saveBankTransactionsToDatabase(
-    transactions: any[],
-    userId: string,
-    accountInfoMap: { [accountName: string]: any } = {},
-    transactionToAccountMap: { [transactionId: string]: string } = {},
-  ): Promise<{ saved: number; skipped: number; message: string }> {
-    // this.logger.log(`Saving ${transactions.length} bank transactions to database for user: ${userId}`);
-
-    const externalIds = transactions
-      .map(tx => tx?.transactionId)
-      .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
-
-    const existingSet = await this.buildExistingTransactionSet(userId, externalIds);
-
-    const transactionsToSave: Transactions[] = [];
-    let skippedCount = 0;
-
-    for (const tx of transactions) {
-      const externalId = tx?.transactionId;
-
-      if (!externalId || typeof externalId !== 'string' || externalId.trim() === '') {
-        // this.logger.warn('Skipping bank transaction without transactionId');
-        skippedCount++;
-        continue;
-      }
-
-      if (existingSet.has(externalId)) {
-        // this.logger.debug(`Bank transaction with finsiteId ${externalId} already exists, skipping`);
-        skippedCount++;
-        continue;
-      }
-
-      const transaction = this.buildBaseTransactionEntity(tx, userId, 'BANK');
-      if (!transaction) {
-        skippedCount++;
-        continue;
-      }
-
-      const accountName = transactionToAccountMap[externalId] || null;
-      const accountInfo = accountName ? accountInfoMap[accountName] : null;
-
-      transaction.finsiteId = externalId;
-      transaction.paymentIdentifier = this.resolveBankPaymentIdentifier(tx, accountInfo).slice(-6);
-
-      transactionsToSave.push(transaction);
-    }
-
-    return this.persistTransactions(transactionsToSave, skippedCount);
-  }
-
-  async saveCardTransactionsToDatabase(
-    transactions: any[],
-    userId: string,
-    cardInfoMap: { [cardId: string]: any } = {},
-  ): Promise<{ saved: number; skipped: number; message: string }> {
-    this.logger.log(`Saving ${transactions.length} card transactions to database for user: ${userId}`);
-
-    const externalIds = transactions
-      .map(tx => this.extractCardExternalId(tx))
-      .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
-
-    const existingSet = await this.buildExistingTransactionSet(userId, externalIds);
-
-    const transactionsToSave: Transactions[] = [];
-    let skippedCount = 0;
-
-    for (const tx of transactions) {
-      const externalId = this.extractCardExternalId(tx);
-
-      if (!externalId) {
-        // this.logger.warn('Skipping card transaction without external identifier');
-        skippedCount++;
-        continue;
-      }
-
-      if (existingSet.has(externalId)) {
-        // this.logger.debug(`Card transaction with finsiteId ${externalId} already exists, skipping`);
-        skippedCount++;
-        continue;
-      }
-
-      const transaction = this.buildBaseTransactionEntity(tx, userId, 'CARD');
-      if (!transaction) {
-        skippedCount++;
-        continue;
-      }
-
-      const cardMeta = tx?.__cardMeta || null;
-      const cardInfo = cardMeta?.cardResourceId ? cardInfoMap[cardMeta.cardResourceId] : null;
-      const { identifier: paymentIdentifier, warning: paymentWarning } = this.resolveCardPaymentIdentifier(tx, cardMeta, cardInfo);
-
-      if (paymentWarning) {
-        const warnId = tx?.cardTransactionId || externalId;
-        this.logger.warn(`Card transaction ${warnId}: ${paymentWarning}`);
-      }
-
-      transaction.finsiteId = externalId;
-      transaction.paymentIdentifier = paymentIdentifier;
-
-      const logPayload = {
-        cardTransactionId: tx?.cardTransactionId || null,
-        transactionAmount: tx?.transactionAmount?.amount ?? null,
-        originalAmount: tx?.originalAmount?.amount ?? null,
-        metaMaskedPan: cardMeta?.maskedPan ?? null,
-        txMaskedPan: tx?.maskedPan ?? null,
-        chosenAmount: transaction.sum,
-        chosenPaymentIdentifier: transaction.paymentIdentifier ?? null,
-      };
-      this.logger.debug(`Card transaction persistence: ${JSON.stringify(logPayload)}`);
-
-      transactionsToSave.push(transaction);
-    }
-
-    return this.persistTransactions(transactionsToSave, skippedCount);
-  }
 
   // async getAndSaveUserCardTransactions(
   //   userId: string,
@@ -717,6 +581,7 @@ export class FeezbackService {
       withInvalid: true,
       preventUpdate: false,
     });
+    console.log("🚀 ~ FeezbackService ~ getAndSaveUserCardTransactionsInternal ~ cardsResponse:", cardsResponse)
 
     const cards = cardsResponse?.cards || [];
     const filteredCards = cardResourceId
@@ -882,20 +747,19 @@ export class FeezbackService {
     );
     this.logger.log(`Saved raw/simplified card transactions files: ${JSON.stringify(savedFilePaths)}`);
 
-    // Legacy save to Transactions table
-    const saveResult = await this.saveCardTransactionsToDatabase(
-      allTransactionsForDb,
-      userId,
-      cardInfoMap,
-    );
-
-    // New pipeline: normalize → process
+    // New pipeline: normalize → process → persist to full_transactions_cache
     let processingResult: any = null;
     let processingError: string | null = null;
+    let databaseSaveResult: { saved: number; skipped: number; message: string } | null = null;
     try {
       const normalized = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap);
       if (normalized.length > 0) {
         processingResult = await this.processingService.process(userId, normalized);
+        databaseSaveResult = {
+          saved: processingResult.newlySavedToCache,
+          skipped: processingResult.alreadyExistingInCache,
+          message: `Saved ${processingResult.newlySavedToCache} new transactions. ${processingResult.alreadyExistingInCache} already existed.`,
+        };
         this.logger.log(`Card pipeline: ${JSON.stringify(processingResult)}`);
       }
     } catch (err: any) {
@@ -927,7 +791,7 @@ export class FeezbackService {
       transactions: allTransactionsForDb,
       totalTransactions: allTransactionsForDb.length,
       accountsProcessed: filteredCards.length,
-      databaseSaveResult: saveResult,
+      databaseSaveResult,
 
       // Card-specific fields
       cardsProcessed: filteredCards.length,
@@ -935,7 +799,6 @@ export class FeezbackService {
       cardsFailed: cardErrors.length,
 
       savedFilePaths,
-      saveResult,
       processingResult,
       processingError,
       cards: cardsResult,
@@ -999,6 +862,7 @@ export class FeezbackService {
     let accountsResponse;
     try {
       accountsResponse = await this.feezbackApiService.getUserAccounts(sub);
+      console.log("🚀 ~ FeezbackService ~ getAndSaveBankTransactions ~ accountsResponse:", accountsResponse)
     } catch (error: any) {
       if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
         return {
@@ -1111,21 +975,7 @@ export class FeezbackService {
       return response;
     }
 
-    // Legacy save to Transactions table
-    try {
-      const saveResult = await this.saveBankTransactionsToDatabase(
-        allTransactions,
-        firebaseId,
-        accountInfoMap,
-        transactionToAccountMap,
-      );
-      response.databaseSaveResult = saveResult;
-    } catch (error: any) {
-      this.logger.error(`Legacy bank save failed: ${error.message}`, error.stack);
-      response.databaseSaveError = error.message;
-    }
-
-    // New pipeline: normalize → process
+    // New pipeline: normalize → process → persist to full_transactions_cache
     try {
       const normalized = this.normalizeBankTransactions(
         allTransactions,
@@ -1135,11 +985,17 @@ export class FeezbackService {
       if (normalized.length > 0) {
         const processingResult = await this.processingService.process(firebaseId, normalized);
         response.processingResult = processingResult;
+        response.databaseSaveResult = {
+          saved: processingResult.newlySavedToCache,
+          skipped: processingResult.alreadyExistingInCache,
+          message: `Saved ${processingResult.newlySavedToCache} new transactions. ${processingResult.alreadyExistingInCache} already existed.`,
+        };
         this.logger.log(`Bank pipeline: ${JSON.stringify(processingResult)}`);
       }
     } catch (error: any) {
       this.logger.error(`Bank processing pipeline failed: ${error.message}`, error.stack);
       response.processingError = error.message;
+      response.databaseSaveError = error.message;
     }
 
     const bankProcessedCount = response.processingResult?.totalReceived ?? 0;
@@ -1325,69 +1181,6 @@ export class FeezbackService {
     return typeof externalId === 'string' && externalId.trim() !== '' ? externalId : null;
   }
 
-  private async buildExistingTransactionSet(userId: string, finsiteIds: string[]): Promise<Set<string>> {
-    if (!finsiteIds || finsiteIds.length === 0) {
-      return new Set();
-    }
-
-    const uniqueIds = Array.from(new Set(finsiteIds));
-
-    const existing = await this.transactionsRepo.find({
-      select: ['finsiteId'],
-      where: {
-        userId,
-        finsiteId: In(uniqueIds),
-      },
-    });
-
-    return new Set(existing.map(item => item.finsiteId));
-  }
-
-  private buildBaseTransactionEntity(tx: any, userId: string, source: 'BANK' | 'CARD'): Transactions | null {
-    // console.log("🚀 ~ FeezbackService ~ buildBaseTransactionEntity ~ txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:", tx)
-    const transaction = new Transactions();
-
-    transaction.userId = userId;
-    transaction.name = source === 'CARD'
-      ? this.resolveCardMerchantName(tx)
-      : this.resolveBankMerchantName(tx);
-    // transaction.name = tx?.remittanceInformationUnstructured
-    //   || tx?._aggregate?.standardName
-    //   || tx?.description
-    //   || 'Unknown Transaction';
-
-    const billDate = this.parseTxDate(tx, source);
-    if (!billDate) {
-      // this.logger.warn('Skipping transaction without valid date');
-      return null;
-    }
-    transaction.billDate = billDate;
-
-    const amount = this.parseTxAmount(tx, source);
-    if (amount === null) {
-      // this.logger.warn('Skipping transaction with invalid amount');
-      return null;
-    }
-    transaction.sum = amount;
-
-    transaction.note2 = source === 'CARD'
-      ? tx?.transactionDetails || null
-      : tx?.remittanceInformationUnstructured || tx?.additionalInformation || null;
-    // transaction.category = tx?._aggregate?.category || null;
-
-    transaction.billName = null;
-    transaction.businessNumber = null;
-    transaction.subCategory = null;
-    transaction.isRecognized = false;
-    transaction.vatPercent = 0;
-    transaction.taxPercent = 0;
-    transaction.isEquipment = false;
-    transaction.reductionPercent = 0;
-    transaction.vatReportingDate = null;
-    transaction.confirmed = false;
-
-    return transaction;
-  }
 
   private parseTxDate(tx: any, source: 'BANK' | 'CARD'): Date | null {
     const candidates = source === 'CARD'
@@ -1457,6 +1250,8 @@ export class FeezbackService {
   }
 
   private resolveBankPaymentIdentifier(tx: any, accountInfo: any): string {
+    console.log("🚀 ~ FeezbackService ~ resolveBankPaymentIdentifier ~ accountInfo:", accountInfo)
+    console.log("🚀 ~ FeezbackService ~ resolveBankPaymentIdentifier ~ tx:", tx)
     const accountReference = this.extractBankAccountReference(tx, accountInfo);
     if (accountReference) {
       return accountReference;
@@ -1472,12 +1267,12 @@ export class FeezbackService {
 
   private extractBankAccountReference(tx: any, accountInfo: any): string | null {
     const candidates = [
-      tx?.accountReference,
-      tx?.accountId,
-      tx?.creditorAccount?.iban,
-      tx?.debtorAccount?.iban,
-      tx?.creditorAccount?.maskedPan,
-      tx?.debtorAccount?.maskedPan,
+      // tx?.accountReference,
+      // tx?.accountId,
+      // tx?.creditorAccount?.iban,
+      // tx?.debtorAccount?.iban,
+      // tx?.creditorAccount?.maskedPan,
+      // tx?.debtorAccount?.maskedPan,
       accountInfo?.iban,
       accountInfo?.maskedPan,
     ];
@@ -1589,39 +1384,5 @@ export class FeezbackService {
     return 'לא זוהה בית עסק';
   }
 
-  private async persistTransactions(
-    transactions: Transactions[],
-    skippedCount: number,
-  ): Promise<{ saved: number; skipped: number; message: string }> {
-    if (transactions.length === 0) {
-      this.logger.log('No new transactions to save (all were duplicates or invalid)');
-      return {
-        saved: 0,
-        skipped: skippedCount,
-        message: `Successfully saved 0 transactions. Skipped ${skippedCount} duplicate or invalid transactions.`,
-      };
-    }
-
-    try {
-      this.logger.log(`Attempting to save ${transactions.length} transactions in batch...`);
-      const savedResult = await this.transactionsRepo.save(transactions);
-      const savedCount = Array.isArray(savedResult)
-        ? savedResult.length
-        : savedResult
-          ? 1
-          : 0;
-
-      this.logger.log(`✅ Successfully saved ${savedCount} transactions to database`);
-
-      return {
-        saved: savedCount,
-        skipped: skippedCount,
-        message: `Successfully saved ${savedCount} transactions. Skipped ${skippedCount} duplicate or invalid transactions.`,
-      };
-    } catch (error: any) {
-      this.logger.error(`❌ Error during batch save: ${error.message}`, error.stack);
-      throw new Error(`Failed to save transactions to database: ${error.message}`);
-    }
-  }
 
 }

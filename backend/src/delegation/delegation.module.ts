@@ -9,6 +9,7 @@ import { UsersModule } from 'src/users/users.module';
 import { SharedService } from 'src/shared/shared.service';
 import { Child } from 'src/users/child.entity';
 import { Expense } from 'src/expenses/expenses.entity';
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: wiring leftover — Transactions registered to satisfy SharedService injection. Not used by DelegationService directly. Remove when SharedService is cleaned up.
 import { Transactions } from 'src/transactions/transactions.entity';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';

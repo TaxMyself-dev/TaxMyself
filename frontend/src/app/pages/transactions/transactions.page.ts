@@ -590,6 +590,7 @@ export class TransactionsPage implements OnInit {
     const rows = [];
     //const businesses = this.genericService.businesses();
     const businesses = this.genericService.businessSelectItems();
+    console.log("🚀 ~ TransactionsPage ~ handleTableData ~ businesses:", businesses)
 
     if (data.length) {
 
@@ -644,6 +645,7 @@ export class TransactionsPage implements OnInit {
   }
 
   onClassifyTransaction(row: IRowDataTable, incomeMode: boolean): void {
+    console.log("🚀 ~ TransactionsPage ~ onClassifyTransaction ~ row:", row)
     this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
     this.visibleClassifyTran.set(true);
     this.leftPanelData.set(row);
