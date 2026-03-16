@@ -2,6 +2,7 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
+  Logger,
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -14,6 +15,8 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
+  private readonly logger = new Logger(FirebaseAuthGuard.name);
+
   constructor(
     @InjectRepository(Delegation)
     private readonly delegationRepository: Repository<Delegation>,
@@ -45,6 +48,8 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Attach the authenticated user (agent) info
     request.user = { firebaseId: authenticatedFirebaseId, role: 'user', businessNumber: businessNumberHeader, }; // ✅ Now TypeScript recognizes `request.user`
 
+    const maskedId = authenticatedFirebaseId?.length >= 8 ? authenticatedFirebaseId.substring(0, 8) + '...' : '?';
+    this.logger.log(`Auth OK, firebaseId=${maskedId}`);
 
     //TODO: If this agent need to update the business number to client, not of agent.
     // ✅ Extract `x-client-user-id` from headers (if exists)
@@ -70,7 +75,9 @@ export class FirebaseAuthGuard implements CanActivate {
     // ✅ Modify `request.user` to represent the client
     request.user.firebaseId = clientUserId; // ✅ Switch Firebase ID to client
     request.user.role = 'agent'; // ✅ Mark that the request is on behalf of a client
-    
+    const maskedClient = clientUserId?.length >= 8 ? clientUserId.substring(0, 8) + '...' : '?';
+    this.logger.log(`Acting as client, firebaseId=${maskedClient}`);
+
     return true;
   }
 
