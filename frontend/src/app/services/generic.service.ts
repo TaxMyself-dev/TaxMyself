@@ -77,11 +77,12 @@ export class GenericService {
 
 
   async loadBusinessesFromServer(): Promise<void> {
-
+    console.log("🚀 ~ GenericService ~ loadBusinessesFromServer ~ loadBusinessesFromServer");
     try {
       const res = await firstValueFrom(
         this.http.get<Business[]>(`${environment.apiUrl}business/get-businesses`)
       );
+      console.log("🚀 ~ GenericService ~ loadBusinessesFromServer ~ res:", res)
 
       this.saveBusinesses(res ?? []);
 

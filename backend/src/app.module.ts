@@ -23,6 +23,7 @@ import { AgentsModule } from './agents/agents.module';
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
 import { Supplier } from './expenses/suppliers.entity';
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy entity still registered in root TypeORM config and global forFeature. Remove from entities array, from forFeature, and delete this import when legacy table is dropped.
 import { Transactions } from './transactions/transactions.entity';
 import { DefaultCategory } from './expenses/default-categories.entity';
 import { DefaultSubCategory } from './expenses/default-sub-categories.entity';
@@ -119,7 +120,7 @@ import { BusinessService } from './business/business.service';
     ScheduleModule.forRoot(),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, CloudModule, SharedModule, FinsiteModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, AgentsModule, FeezbackWebhookModule],
   controllers: [AppController],
-  providers: [AppService, TransactionsService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, FinsiteService, ExpensesService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

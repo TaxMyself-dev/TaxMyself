@@ -6,6 +6,7 @@ import { TransactionProcessingService } from './transaction-processing.service';
 import { AuthService } from '../users/auth.service';
 import { Expense } from '../expenses/expenses.entity';
 import { User } from '../users/user.entity';
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: entity import and forFeature registration kept while TransactionsService still injects transactionsRepo. Remove import and remove Transactions from forFeature when all legacy methods are deleted.
 import { Transactions } from './transactions.entity';
 import { UsersModule } from '../users/users.module';
 import { Child } from '../users/child.entity';
@@ -44,6 +45,6 @@ import { Business } from 'src/business/business.entity';
     AuthService,
     FinsiteService
   ],
-  exports: [TypeOrmModule, TransactionProcessingService],
+  exports: [TypeOrmModule, TransactionsService, TransactionProcessingService],
 })
 export class TransactionsModule {}
