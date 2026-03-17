@@ -10,3 +10,4 @@ keys/
 *.key
 *.pem
 .firebase/hosting.*.cache
+backend/src/feezback/transactions-data/transactions-*.json

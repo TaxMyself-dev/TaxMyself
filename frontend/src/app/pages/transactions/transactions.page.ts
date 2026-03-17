@@ -654,7 +654,7 @@ export class TransactionsPage implements OnInit {
 
   onQuickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.id as string)
+    this.transactionService.quickClassify(row.finsiteId as string)
       .pipe(
         catchError((err) => {
           console.log('error in quick classify', err);
@@ -723,7 +723,9 @@ export class TransactionsPage implements OnInit {
 
   closeAddCategory(event: { visible: boolean, data?: boolean }): void {
     this.visibleAddCategory.set(event.visible);
-    event.data ? this.transactionService.getCategories().subscribe() : null;
+    if (event.data) {
+      this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
+    }
   }
 
   onAddBill(event: FormGroup): void {

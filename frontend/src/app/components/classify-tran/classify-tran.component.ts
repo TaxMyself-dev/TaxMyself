@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, OnInit, output, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -117,6 +117,14 @@ export class ClassifyTranComponent implements OnInit {
       commentMatchType: ['equals'],
     });
     this.toggleDetailControls(false);
+    // When categories/subcategories were added (e.g. after closing add-category), refresh subcategory list for current category.
+    effect(() => {
+      this.transactionService.categoryListRefreshTrigger();
+      const categoryName = this.myForm?.get('categoryName')?.value;
+      if (categoryName) {
+        this.getSubCategory(categoryName);
+      }
+    });
   }
 
   ngOnInit() {
@@ -160,6 +168,12 @@ export class ClassifyTranComponent implements OnInit {
         maxSum: raw.maxSum,
         comment: raw.comment,
         matchType: raw.commentMatchType,
+        isRecognized: !!raw.isRecognized,
+        vatPercent: +(raw.vatPercent ?? 0),
+        taxPercent: +(raw.taxPercent ?? 0),
+        isEquipment: !!raw.isEquipment,
+        reductionPercent: +(raw.reductionPercent ?? 0),
+        isExpense: !!raw.isExpense,
       });
     }
 

@@ -8,8 +8,8 @@
   align-items: center;
   justify-content: space-between;
   position: absolute;
-  // top: 254px;
-  // left: 40px;
+  right: 0;
+  left: auto;
   z-index: 9999;
   background: white;
 }
@@ -81,11 +81,10 @@
 
 // ─── Mobile layout ────────────────────────────────────────────────────────────
 @media (max-width: 768px) {
-  // RTL: panel container is anchored to left:0 of sort-button (left side).
-  // Explicitly set left:0 so the panel extends RIGHTWARD into the viewport.
+  // RTL: panel anchored to right so it extends LEFTWARD into the viewport.
   .filter-panel {
-    left: 0;
-    right: auto;
+    right: 0;
+    left: auto;
     width: min(300px, calc(100vw - 32px));
     height: auto;
     max-height: 70vh;

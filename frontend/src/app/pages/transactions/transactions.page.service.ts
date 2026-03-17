@@ -17,6 +17,8 @@ export class TransactionsService implements OnInit {
 
   businessList: [{ businessName: string, businessNumber: string }];
   categories = signal<ISelectItem[]>([]);
+  /** Bump when categories/subcategories were added so dropdowns can refresh (e.g. classify-tran subcategory list). */
+  categoryListRefreshTrigger = signal(0);
 
   constructor(private http: HttpClient) {
     console.log("in transaction service");
@@ -199,6 +201,7 @@ export class TransactionsService implements OnInit {
         tap((res: ISelectItem[]) => {
           console.log("category", res);
           this.categories.set(res);
+          this.categoryListRefreshTrigger.update((v) => v + 1);
           console.log("categories", this.categories());
         })
       )

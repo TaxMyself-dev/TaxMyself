@@ -250,10 +250,6 @@ export class TransactionsController {
   ): Promise<void> {
     const userId = request.user?.firebaseId;
 
-    if (!finsiteId) {
-      throw new BadRequestException('finsiteId is required');
-    }
-
     const cacheRow = await this.processingService.findCacheRowByExternalId(finsiteId, userId);
     if (!cacheRow) {
       throw new BadRequestException(
