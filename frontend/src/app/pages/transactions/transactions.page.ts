@@ -740,6 +740,24 @@ export class TransactionsPage implements OnInit {
         finalize(() => this.genericService.dismissLoader()),
         catchError((err) => {
           console.log('err in add bill: ', err);
+          const isConflict = err?.status === 409 || err?.error?.status === 409;
+          if (isConflict) {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'חשבון בשם הזה כבר קיים במערכת.',
+              life: 5000,
+              key: 'br'
+            });
+          } else {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'שגיאה',
+              detail: 'אירעה שגיאה בהוספת החשבון. אנא נסה שנית.',
+              life: 5000,
+              key: 'br'
+            });
+          }
           return EMPTY;
         })
       )
