@@ -590,6 +590,7 @@ export class TransactionsPage implements OnInit {
     const rows = [];
     //const businesses = this.genericService.businesses();
     const businesses = this.genericService.businessSelectItems();
+    console.log("🚀 ~ TransactionsPage ~ handleTableData ~ businesses:", businesses)
 
     if (data.length) {
 
@@ -644,6 +645,7 @@ export class TransactionsPage implements OnInit {
   }
 
   onClassifyTransaction(row: IRowDataTable, incomeMode: boolean): void {
+    console.log("🚀 ~ TransactionsPage ~ onClassifyTransaction ~ row:", row)
     this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
     this.visibleClassifyTran.set(true);
     this.leftPanelData.set(row);
@@ -652,7 +654,7 @@ export class TransactionsPage implements OnInit {
 
   onQuickClassify(row: IRowDataTable): void {
     this.isLoadingQuickClassify.set(true);
-    this.transactionService.quickClassify(row.id as string)
+    this.transactionService.quickClassify(row.finsiteId as string)
       .pipe(
         catchError((err) => {
           console.log('error in quick classify', err);
@@ -721,7 +723,9 @@ export class TransactionsPage implements OnInit {
 
   closeAddCategory(event: { visible: boolean, data?: boolean }): void {
     this.visibleAddCategory.set(event.visible);
-    event.data ? this.transactionService.getCategories().subscribe() : null;
+    if (event.data) {
+      this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
+    }
   }
 
   onAddBill(event: FormGroup): void {

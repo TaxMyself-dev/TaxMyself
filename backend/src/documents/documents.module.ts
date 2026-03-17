@@ -11,6 +11,7 @@ import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { Expense } from 'src/expenses/expenses.entity';
+// TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: wiring leftover — Transactions registered to satisfy SharedService injection. Not used by DocumentsService or BookkeepingService directly. Remove when SharedService is cleaned up.
 import { Transactions } from 'src/transactions/transactions.entity';
 import { BookkeepingService } from 'src/bookkeeping/bookkeeping.service';
 import { DocPayments } from './doc-payments.entity';

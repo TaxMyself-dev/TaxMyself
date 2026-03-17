@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { Any, LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
@@ -15,6 +15,7 @@ import { Business } from 'src/business/business.entity';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
 
   public defaultApp: any;
   private readonly firebaseAuth: admin.auth.Auth;
@@ -237,7 +238,10 @@ export class UsersService {
   //   return x
   // }
   async findFireUser(firebaseId: string) {
+    const maskedId = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId ?? '?';
+    this.logger.log(`findFireUser called, firebaseId=${maskedId}`);
     try {
+      this.logger.log(`findFireUser: querying DB for firebaseId=${maskedId}`);
       const user = await this.user_repo.findOne({
         where: { firebaseId },
       });
@@ -254,6 +258,10 @@ export class UsersService {
         throw error;
       }
 
+      this.logger.error(
+        `findFireUser failed for firebaseId=${firebaseId}: ${error?.message ?? error}`,
+        (error as Error)?.stack,
+      );
       throw new InternalServerErrorException(
         'Failed to fetch user'
       );

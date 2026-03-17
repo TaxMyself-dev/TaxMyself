@@ -10,10 +10,8 @@ import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
 import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
-import { TransactionsService } from 'src/transactions/transactions.service';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
-import { Transactions } from 'src/transactions/transactions.entity';
 import axios from 'axios';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -42,12 +40,9 @@ export class ReportsService {
 
   constructor(
     private expensesService: ExpensesService,
-    private transactionsService: TransactionsService,
     private sharedService: SharedService,
     @InjectRepository(Expense)
     private expenseRepo: Repository<Expense>,
-    @InjectRepository(Transactions)
-    private transactionsRepo: Repository<Transactions>,
     @InjectRepository(Business)
     private businessRepo: Repository<Business>,
     @InjectRepository(Documents)

@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus } from '@nestjs/common';
+         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 
 @Controller('auth')
 export class UsersController {
+    private readonly logger = new Logger(UsersController.name);
 
     constructor(
         private userService: UsersService,
@@ -23,9 +24,11 @@ export class UsersController {
 
     @Get('/signin')
     @UseGuards(FirebaseAuthGuard)
-    async signin(@Req() request: AuthenticatedRequest) { 
-        const userId = request.user?.firebaseId;    
-        const user = await this.userService.signin(userId);  
+    async signin(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';
+        this.logger.log(`signin called, userId=${maskedId}`);
+        const user = await this.userService.signin(userId);
         return user;
     }
 

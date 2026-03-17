@@ -20,6 +20,7 @@
   overflow-y: auto;
   /* vertical scroll when needed */
   padding-bottom: 75px;
+  padding-top: 50px;
   align-items: center;
 }
 
@@ -66,16 +67,16 @@
 
 .filter-panel-container {
   position: absolute;
-  left: 450px;
+  right: 0;
+  left: auto;
   top: 54px;
 }
 
 @media (max-width: 768px) {
-  // RTL: sort-button sits on the physical LEFT side of the viewport.
-  // Anchor container to left: 0 so the panel opens rightward into the screen.
+  // RTL: anchor container to right so the panel opens leftward into the screen.
   .filter-panel-container {
-    left: 0;
-    right: unset;
+    right: 0;
+    left: auto;
     top: 44px;
   }
 }

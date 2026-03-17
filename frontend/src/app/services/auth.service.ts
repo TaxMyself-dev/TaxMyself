@@ -50,6 +50,7 @@ export class AuthService {
   }
 
   setActiveBusinessNumberByName(businessName: string | null): void {
+    console.log("🚀 ~ AuthService ~ setActiveBusinessNumberByName ~ businessName:", businessName)
     if (!businessName) {
       this.setActiveBusinessNumber(null);
       return;

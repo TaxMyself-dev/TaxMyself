@@ -6,10 +6,12 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
 import * as bodyParser from 'body-parser';
+import { HttpExceptionFilter } from './filters/http-exception.filter';
 
 async function bootstrap() {
   console.log("🔥 NestJS bootstrap started");
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.useGlobalFilters(new HttpExceptionFilter());
   app.use(require('cors')('*'));
 
   // Capture raw body for agent authentication (only for /agent routes)
