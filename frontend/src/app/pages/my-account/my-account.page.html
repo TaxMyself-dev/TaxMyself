@@ -118,9 +118,11 @@
    
 
 <div class="table-block">
-    <!-- <p class="block-title">התנועות הלא מסווגות שלי</p> -->
+    @if (!isMobile()) {
+        <p class="block-title">התנועות הלא מסווגות שלי</p>
+    }
     <app-generic-table
-    [title]="'התנועות הלא מסווגות שלי'"
+        [title]="isMobile() ? 'התנועות הלא מסווגות שלי' : null"
         class="table"
         [rowActions]="rowActions"
         [isLoadingState]="isLoadingDataTable()"
