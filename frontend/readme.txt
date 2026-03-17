@@ -10,8 +10,7 @@ npm run build
 # if needed: 
 firebase login --reauth
 
-firebase deploy --only hosting:app
-#firebase deploy -P prod --only hosting
+firebase deploy -P prod --only hosting:app
 
 
 ########################################
@@ -24,4 +23,4 @@ npm run build
 
 firebase use prod
 
-firebase deploy --only hosting:landing
+firebase deploy -P prod --only hosting:landing
