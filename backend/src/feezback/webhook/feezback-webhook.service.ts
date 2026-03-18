@@ -19,7 +19,8 @@ export class FeezbackWebhookService {
     private readonly consentSyncService: ConsentSyncService,
   ) {}
 
-  async handleWebhook(body: FeezbackWebhookEventBody): Promise<void> {
+  async handleWebhook(body: any): Promise<void> {
+    console.log("🚀 ~ FeezbackWebhookService ~ handleWebhook ~ body:", body);
     const eventType = body?.event ?? 'unknown';
     const payloadHash = computeFeezbackEventHash(body);
 
