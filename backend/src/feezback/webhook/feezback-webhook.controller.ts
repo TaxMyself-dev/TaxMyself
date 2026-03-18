@@ -2,17 +2,19 @@ import { Body, Controller, Headers, Logger, Post } from '@nestjs/common';
 import { FeezbackWebhookService } from './feezback-webhook.service';
 import { FeezbackWebhookEventBody } from './dto/feezback-webhook.dto';
 
-@Controller('webhooks')
+@Controller('feezback')
 export class FeezbackWebhookController {
   private readonly logger = new Logger(FeezbackWebhookController.name);
 
   constructor(private readonly webhookService: FeezbackWebhookService) {}
 
-  @Post('feezback')
+  @Post('webhook')
   async handleWebhook(
-    @Body() body: FeezbackWebhookEventBody,
+    // @Body() body: FeezbackWebhookEventBody,
+    @Body() body: any,
     @Headers('x-feezback-secret') providedSecret?: string,
   ) {
+    console.log("🚀 ~ FeezbackWebhookController ~ handleWebhook ~ body:", body);
     const expectedSecret = process.env.FEEZBACK_WEBHOOK_SECRET;
 
     if (expectedSecret && expectedSecret.trim() !== '') {
