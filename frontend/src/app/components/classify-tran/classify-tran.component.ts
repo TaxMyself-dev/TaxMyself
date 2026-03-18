@@ -53,12 +53,20 @@ export class ClassifyTranComponent implements OnInit {
   openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; data: IRowDataTable; category: string }>();
   rowData = input<IRowDataTable>();
 
+  /** Subtitle: business name in quotes when classifying a row, else default description. */
+  classifyPanelSubtitle = computed(() => {
+    const name = this.rowData()?.['name'];
+    return name ? `"${name}"` : 'מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע\'\'מ ומס הכנסה';
+  });
+
   // Signals
   isLoading = signal<boolean>(false);
   categoryList = signal<ISelectItem[]>([]);
   groupedSubCategory = signal([{ label: '', items: [] }]);
   originalSubCategoryList = signal<ISubCategory[]>([]);
   selectedSubCategory = signal<ISubCategory | null>(null);
+  /** Toggle to force subcategory select to re-create after list refresh (fixes selection of newly added subcategory). */
+  showSubCategorySelect = signal(true);
   showAdvancedSection = signal(false);
 
   // UI constants
@@ -122,7 +130,7 @@ export class ClassifyTranComponent implements OnInit {
       this.transactionService.categoryListRefreshTrigger();
       const categoryName = this.myForm?.get('categoryName')?.value;
       if (categoryName) {
-        this.getSubCategory(categoryName);
+        this.getSubCategory(categoryName, true); // forceRecreateSelect so newly added subcategory can be selected
       }
     });
   }
@@ -230,7 +238,7 @@ export class ClassifyTranComponent implements OnInit {
     this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
   }
 
-  getSubCategory(event: string | boolean): void {
+  getSubCategory(event: string | boolean, forceRecreateSelect = false): void {
     this.myForm.patchValue({ subCategoryName: '' });
     this.selectedSubCategory.set(null);
     const isEq = this.expenseDataService.getSubCategory(event as string, true, !this.incomeMode());
@@ -245,6 +253,11 @@ export class ClassifyTranComponent implements OnInit {
             eq.length ? { label: 'רכוש קבוע', items: eq.map((x: any) => ({ name: x.subCategoryName, value: x.subCategoryName })) } : null,
           ].filter(Boolean);
           this.groupedSubCategory.set(group);
+          // After adding a subcategory, re-create the dropdown so the new option can be selected (PrimeNG group select quirk).
+          if (forceRecreateSelect) {
+            this.showSubCategorySelect.set(false);
+            setTimeout(() => this.showSubCategorySelect.set(true), 0);
+          }
         })
       )
       .subscribe();

@@ -1,7 +1,7 @@
 <p-confirmDialog></p-confirmDialog>
 <app-left-panel
-  headerText="מיפוי עסקה"
-  subHeaderText="מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע''מ ומס הכנסה"
+  headerText="סיווג תנועה"
+  [subHeaderText]="classifyPanelSubtitle()"
   [visible]="isVisible()"
   (visibleChanged)="onVisibleChange($event)"
 >
@@ -29,6 +29,7 @@
           (onChangeInputSelect)="getSubCategory($event)">
         </app-input-select>
 
+        @if (showSubCategorySelect()) {
         <app-input-select
           [group]="true"
           [ariaLabel]="'בחר תת קטגוריה'"
@@ -41,6 +42,7 @@
           (addSubCategoryClicked)="openAddSubCategory($event)"
           (onChangeInputSelect)="subCategorySelected($event)">
         </app-input-select>
+        }
       </div>
 
       <div class="buttons">
