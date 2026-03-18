@@ -94,6 +94,13 @@ export class TransactionsController {
     return this.transactionsService.getSources(userId);
   }
 
+  @Get('get-sources-with-types')
+  @UseGuards(FirebaseAuthGuard)
+  async getSourcesWithTypes(@Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    return this.transactionsService.getSourcesWithTypes(userId);
+  }
+
 
   @Get('get-sources-by-bill/:billId')
   @UseGuards(FirebaseAuthGuard)

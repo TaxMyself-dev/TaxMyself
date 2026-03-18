@@ -13,7 +13,9 @@ import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType } from 'src/app/shared/enums';
+import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { SharedModule } from 'src/app/shared/shared.module';
 
 @Component({
   selector: 'app-settings',
@@ -28,7 +30,8 @@ import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptions
     ToastModule,
     DialogModule,
     ConfirmDialogModule,
-    SelectModule
+    SelectModule,
+    SharedModule
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -38,6 +41,7 @@ export class SettingsPage implements OnInit {
   messageService = inject(MessageService);
   confirmationService = inject(ConfirmationService);
   myPermissionsService = inject(MyPermissionsService);
+  transactionsService = inject(TransactionsService);
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
@@ -66,6 +70,13 @@ export class SettingsPage implements OnInit {
 
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
+
+  tabs = [
+    { label: 'פרטים אישיים', value: 'personal' },
+    { label: 'העסקים שלי', value: 'businesses' },
+    { label: 'ניהול הרשאות וחשבונות', value: 'permissions' },
+  ];
+  selectedTab: string = 'personal';
 
   familyStatusOptions = familyStatusOptionsList;
   employmentTypeOptions = employmentTypeOptionsList;
@@ -96,6 +107,12 @@ export class SettingsPage implements OnInit {
   /** ההרשאות שלי */
   myPermissions = signal<{ agentId: string; email: string; fullName: string; scopes: string[] }[]>([]);
   permissionsLoading = signal(false);
+
+  /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
+  accountSourcesLoading = signal(false);
+  accountSources = signal<
+    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null }[]
+  >([]);
   addPermissionDialogVisible = false;
   addPermissionEmail = '';
   addingPermission = signal(false);
@@ -108,6 +125,7 @@ export class SettingsPage implements OnInit {
     this.loadBusinesses();
     this.loadChildren();
     this.fetchMyPermissions();
+    this.fetchAccountSources();
     // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
     this.authService.restoreUserData().subscribe({
       next: (data) => {
@@ -118,6 +136,29 @@ export class SettingsPage implements OnInit {
         }
       }
     });
+  }
+
+  onTabChange(newTabValue: string): void {
+    this.selectedTab = newTabValue;
+  }
+
+  private fetchAccountSources(): void {
+    this.accountSourcesLoading.set(true);
+    this.transactionsService.getSourcesWithTypes().subscribe({
+      next: (sources) => {
+        const rows = Array.isArray(sources) ? sources : [];
+        this.accountSources.set(rows);
+        this.accountSourcesLoading.set(false);
+      },
+      error: () => {
+        this.accountSources.set([]);
+        this.accountSourcesLoading.set(false);
+      },
+    });
+  }
+
+  getSourceTypeLabel(sourceType: paymentIdentifierType): string {
+    return sourceType === paymentIdentifierType.CREDIT_CARD ? 'כרטיס אשראי' : 'חשבון בנק';
   }
 
   private initPersonalFormFromUserData(): void {

@@ -1112,6 +1112,33 @@ export class TransactionsService {
     return sources;
   }
 
+  /**
+   * Returns all source identifiers together with their type (credit card vs bank account).
+   * Used by Settings → "ניהול חשבונות".
+   */
+  async getSourcesWithTypes(
+    userId: string,
+  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null }[]> {
+    const rows = await this.sourceRepo.find({
+      where: { userId },
+      relations: ['bill'],
+    });
+
+    // De-duplicate by (sourceType, sourceName) to avoid duplicates in case of data overlap.
+    const unique = new Map<string, { sourceName: string; sourceType: SourceType; billName: string | null }>();
+    for (const r of rows) {
+      const key = `${r.sourceType}:${r.sourceName}`;
+      if (!unique.has(key)) {
+        unique.set(key, {
+          sourceName: r.sourceName,
+          sourceType: r.sourceType,
+          billName: r.bill?.billName ?? null,
+        });
+      }
+    }
+    return [...unique.values()];
+  }
+
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: core read query against the legacy transactions table. Feeds getIncomesTransactions, getExpensesTransactions, and tax-income calculations.
   // Replace with equivalent queries against full_transactions_cache, then remove this method and all callers below.

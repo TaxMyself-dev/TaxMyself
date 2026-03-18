@@ -192,7 +192,6 @@ export class UsersService {
 
   async signin(firebaseId: string) {
     const user = await this.findFireUser(firebaseId);
-    console.log('[signin] user found – email:', user?.email, 'role:', user?.role, 'firebaseId:', firebaseId);
     return user;
   }
 

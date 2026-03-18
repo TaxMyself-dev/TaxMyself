@@ -102,7 +102,6 @@ export class ShaamController {
       redirect_uri: redirectUri || 'NOT_PROVIDED',
       timestamp: new Date().toISOString(),
     };
-    console.log('Incoming query params:', JSON.stringify(incomingParams, null, 2));
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8100';
 
@@ -119,12 +118,8 @@ export class ShaamController {
       const errorMsg = encodeURIComponent('Redirect URI is not configured');
       return res.redirect(`${frontendUrl}/shaam/callback?error=missing_redirect_uri&error_description=${errorMsg}`);
     }
-
-    console.log('Using redirect URI:', redirectUriToUse);
     
-    try {
-      console.log('Starting token exchange...');
-      
+    try {      
       const tokenResponse = await this.oauthService.exchangeCodeForToken(
         code,
         redirectUriToUse,
