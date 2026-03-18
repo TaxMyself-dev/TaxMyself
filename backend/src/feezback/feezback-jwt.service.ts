@@ -132,11 +132,11 @@ export class FeezbackJwtService {
           "SIX_MONTHS",
           "TWELVE_MONTHS"
         ],
-        "defaultTimePeriod": "ONE_DAY",
+        "defaultTimePeriod": "TWELVE_MONTHS",
         "userIdentifier": {
           "type": "ID",
           "value": userId,
-          "editable": false
+          "editable": true
         },
         "context": firebaseId + "_context",
         "redirects": redirects,
