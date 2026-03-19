@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
@@ -34,7 +34,7 @@ import { Business } from 'src/business/business.entity';
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState,
             Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
-    UsersModule
+    forwardRef(() => UsersModule)
   ],
   controllers: [TransactionsController],
   providers: [

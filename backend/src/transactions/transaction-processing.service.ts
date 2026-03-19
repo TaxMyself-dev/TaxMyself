@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
 
@@ -1095,5 +1096,36 @@ export class TransactionProcessingService {
       { userId, lastBuiltAt: now, expiresAt } as UserTransactionCacheState,
       ['userId'],
     );
+  }
+
+  /**
+   * Runs every day at 03:00 AM Israel time (Asia/Jerusalem).
+   * Deletes all rows from full_transactions_cache and user_transaction_cache_state
+   * so that the cache is rebuilt fresh on the next user request.
+   *
+   * Israel Standard Time  = UTC+2  → fires at 01:00 UTC in winter.
+   * Israel Daylight Time  = UTC+3  → fires at 00:00 UTC in summer.
+   * The timeZone option in @Cron handles DST automatically.
+   */
+  @Cron('0 0 3 * * *', { timeZone: 'Asia/Jerusalem' })
+  async handleDailyCacheCleanup(): Promise<void> {
+    this.logger.log('Daily cache cleanup started (03:00 Asia/Jerusalem)');
+    try {
+      const cacheResult = await this.cacheRepo
+        .createQueryBuilder()
+        .delete()
+        .from(FullTransactionCache)
+        .execute();
+      const stateResult = await this.cacheStateRepo
+        .createQueryBuilder()
+        .delete()
+        .from(UserTransactionCacheState)
+        .execute();
+      this.logger.log(
+        `Daily cache cleanup done — full_transactions_cache rows deleted: ${cacheResult.affected ?? 0}, user_transaction_cache_state rows deleted: ${stateResult.affected ?? 0}`,
+      );
+    } catch (err: any) {
+      this.logger.error('Daily cache cleanup failed', err?.stack ?? err);
+    }
   }
 }

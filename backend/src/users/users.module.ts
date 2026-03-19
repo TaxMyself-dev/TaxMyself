@@ -1,4 +1,4 @@
-import { Module, MiddlewareConsumer } from '@nestjs/common';
+import { forwardRef, Module, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -10,9 +10,14 @@ import { Delegation } from 'src/delegation/delegation.entity';
 import { Business } from 'src/business/business.entity';
 import { Agents } from 'src/delegation/agents.entity';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
+import { FeezbackModule } from '../feezback/feezback.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents]), SharedModule],
+  imports: [
+    TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents]),
+    SharedModule,
+    forwardRef(() => FeezbackModule),
+  ],
   controllers: [UsersController],
   providers: [
     UsersService,

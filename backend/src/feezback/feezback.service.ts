@@ -1048,7 +1048,7 @@ export class FeezbackService {
       const accountName = transactionToAccountMap[externalId] || null;
       const accountInfo = accountName ? accountInfoMap[accountName] : null;
 
-      // .slice(-6) matches the format stored in Source.sourceName for bank accounts.
+      // .slice(-7) matches the format stored in Source.sourceName for bank accounts.
       // TransactionProcessingService.buildBillMap() looks up paymentIdentifier
       // against source.sourceName, so the format must be identical.
       const fullIdentifier = this.resolveBankPaymentIdentifier(tx, accountInfo);
@@ -1059,7 +1059,7 @@ export class FeezbackService {
         amount,
         transactionDate,
         paymentDate: this.parseDateCandidate(tx?.valueDate),
-        paymentIdentifier: fullIdentifier.slice(-6),
+        paymentIdentifier: fullIdentifier.slice(-7),
         billId: null,
         billName: null,
         businessNumber: null,
