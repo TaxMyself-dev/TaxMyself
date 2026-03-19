@@ -122,6 +122,24 @@ export class ExpenseDataService {
     return this.http.get<any>(url, { params: params });
   }
 
+  /** Admin: get all default sub-categories for category management. */
+  getAllDefaultSubCategories(): Observable<any[]> {
+    const url = `${environment.apiUrl}expenses/get-all-default-sub-categories`;
+    return this.http.get<any[]>(url);
+  }
+
+  /** Admin: update a default sub-category. */
+  updateDefaultSubCategory(id: number, body: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/update-default-sub-category/${id}`;
+    return this.http.patch(url, body);
+  }
+
+  /** Admin: add a new default sub-category. */
+  addDefaultSubCategory(body: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/add-default-sub-category`;
+    return this.http.post(url, body);
+  }
+
 
   getcategry(isDefault?: boolean, isExpense: boolean = true): Observable<any[]> {
     const url = `${environment.apiUrl}expenses/get-categories`;

@@ -74,8 +74,7 @@ export class LoadFileComponent implements OnInit, OnChanges {
         this.selectedFile = null
         if (res) {
           this.genericService.showToast(res.message, "success");
-          // this.isToastOpen = true;
-          // this.messageToast = res.message;
+          this.onSend.emit({ status: true, message: res?.message ?? '' });
         }
       })
 

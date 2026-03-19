@@ -563,6 +563,27 @@ export class ExpensesService {
         return defaultMatch?.isEquipment ?? null;
     }
 
+    /** Admin: get all default sub-categories (for category management). */
+    async getAllDefaultSubCategories(): Promise<DefaultSubCategory[]> {
+        return this.defaultSubCategoryRepo.find({ order: { categoryName: 'ASC', subCategoryName: 'ASC' } });
+    }
+
+    /** Admin: update a default sub-category by id. */
+    async updateDefaultSubCategory(id: number, dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
+        const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });
+        if (!existing) {
+            throw new NotFoundException(`Default sub-category with id ${id} not found`);
+        }
+        Object.assign(existing, dto);
+        return this.defaultSubCategoryRepo.save(existing);
+    }
+
+    /** Admin: create a new default sub-category. */
+    async createDefaultSubCategory(dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
+        const entity = this.defaultSubCategoryRepo.create(dto);
+        return this.defaultSubCategoryRepo.save(entity);
+    }
+
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////               Suppliers             /////////////////////////////
