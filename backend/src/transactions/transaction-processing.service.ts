@@ -437,6 +437,14 @@ export class TransactionProcessingService {
 
     let rule = await this.rulesRepo.findOne({ where: constraintWhere });
 
+    // Guard: existing rule with same signature → require explicit confirmation before override.
+    if (rule && !dto.confirmOverride) {
+      return {
+        status: 'confirm_rule_override' as const,
+        message: 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?',
+      };
+    }
+
     const classificationFields = {
       category: dto.category,
       subCategory: dto.subCategory,
@@ -715,6 +723,12 @@ export class TransactionProcessingService {
   // ---------------------------------------------------------------------------
   // Cache lifecycle
   // ---------------------------------------------------------------------------
+
+  /** Returns true if the user has at least one row in full_transactions_cache. */
+  async hasTransactionCache(userId: string): Promise<boolean> {
+    const row = await this.cacheRepo.findOne({ where: { userId }, select: ['id'] });
+    return row !== null;
+  }
 
   /** Returns true if this user's cache exists and has not expired. */
   async isCacheValid(userId: string): Promise<boolean> {

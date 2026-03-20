@@ -232,6 +232,12 @@ export class TransactionsController {
       throw new ConflictException(result.message);
     }
 
+    if (result.status === 'confirm_rule_override') {
+      // 409 with a typed payload so the frontend can distinguish this from
+      // the ONE_TIME confirm_override case and show the correct dialog.
+      throw new ConflictException({ type: 'confirm_rule_override', message: result.message });
+    }
+
     return { ruleId: result.ruleId };
   }
 

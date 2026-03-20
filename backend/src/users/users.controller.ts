@@ -107,53 +107,15 @@ export class UsersController {
     }
 
     /**
-     * Background Feezback sync triggered after every successful login.
-     *
-     * Pull 1: current month + 2 previous full months  → ~90 days, fast.
-     * Pull 2: 12 months backward → full backfill.
-     *
-     * Bank and card are pulled in parallel within each pull.
-     * Pull 2 starts only after Pull 2 is fully resolved to avoid the
-     * in-flight deduplication guard on getAndSaveUserCardTransactions
-     * reusing Pull 1's promise with the wrong date range.
+     * Delegates to the shared FeezbackService.triggerFullSync orchestration.
+     * All pull logic, date-range computation, logging, and dedup now live there.
      */
     private async triggerPostLoginSync(firebaseId: string): Promise<void> {
-        const sub = `${firebaseId}_sub`;
-        const today = new Date();
-        const fmt = (d: Date): string => d.toISOString().split('T')[0];
-
-        // Pull 1: first day of the month 2 months ago → today
-        const pull1From = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
-        const pull1To   = fmt(today);
-
-        this.logger.log(`[PostLoginSync] Pull 1 start: ${pull1From} → ${pull1To}`);
-
-        await Promise.all([
-            this.feezbackService
-                .getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
-                .catch(e => this.logger.error('[PostLoginSync] Pull 1 bank error', e?.stack ?? e)),
-            this.feezbackService
-                .getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
-                .catch(e => this.logger.error('[PostLoginSync] Pull 1 card error', e?.stack ?? e)),
-        ]);
-
-        this.logger.log('[PostLoginSync] Pull 1 done');
-
-        // Pull 2: 12 months back → same dateTo as Pull 1
-        const pull2From = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-
-        this.logger.log(`[PostLoginSync] Pull 2 start: ${pull2From} → ${pull1To}`);
-
-        await Promise.all([
-            this.feezbackService
-                .getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To)
-                .catch(e => this.logger.error('[PostLoginSync] Pull 2 bank error', e?.stack ?? e)),
-            this.feezbackService
-                .getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To)
-                .catch(e => this.logger.error('[PostLoginSync] Pull 2 card error', e?.stack ?? e)),
-        ]);
-
-        this.logger.log('[PostLoginSync] Pull 2 done');
+        // Log #16
+        this.logger.log(`[PostLoginSync] Triggered fire-and-forget | firebaseId=${firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?')}`);
+        // Log #14 (failure) is in the .catch below
+        void this.feezbackService.triggerFullSync(firebaseId, 'login')
+            .catch(err => this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err));
     }
 
 }

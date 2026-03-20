@@ -8,6 +8,7 @@ import { extractFirebaseIdFromContext, parseFeezbackUserIdentifier } from '../ut
 import { FeezbackConsentService } from '../consent/feezback-consent.service';
 import { ConsentSyncService } from '../consent/consent-sync.service';
 import { FeezbackApiService } from '../api/feezback-api.service';
+import { FeezbackService } from '../feezback.service';
 import { User } from '../../users/user.entity';
 import { Source } from '../../transactions/source.entity';
 import { ModuleName, SourceType } from '../../enum';
@@ -26,6 +27,7 @@ export class FeezbackWebhookService {
     private readonly consentService: FeezbackConsentService,
     private readonly consentSyncService: ConsentSyncService,
     private readonly feezbackApiService: FeezbackApiService,
+    private readonly feezbackService: FeezbackService,
   ) {}
 
   async handleWebhook(body: any): Promise<void> {
@@ -272,5 +274,11 @@ export class FeezbackWebhookService {
     } catch (error: any) {
       this.logger.error(`Failed to update modulesAccess for firebaseId=${firebaseId}: ${error?.message}`, error?.stack);
     }
+
+    // Log #17 — trigger full transaction sync fire-and-forget
+    this.logger.log(`[WebhookSync] Triggered fire-and-forget | firebaseId=${firebaseId}`);
+    // Log #15 (failure) is in the .catch below
+    void this.feezbackService.triggerFullSync(firebaseId, 'webhook')
+      .catch(err => this.logger.error(`[WebhookSync] triggerFullSync failed | firebaseId=${firebaseId}`, err?.stack ?? err));
   }
 }

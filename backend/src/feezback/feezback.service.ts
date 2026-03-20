@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
 import { FeezbackConsent } from './consent/entities/feezback-consent.entity';
 import { FeezbackAuthService } from './core/feezback-auth.service';
@@ -7,6 +9,8 @@ import { FeezbackConsentApiService } from './consent/feezback-consent-api.servic
 import { ConsentSyncService } from './consent/consent-sync.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
 import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
+import { User } from '../users/user.entity';
+import { ModuleName } from '../enum';
 import * as fs from 'fs';
 import * as path from 'path';
 @Injectable()
@@ -21,6 +25,7 @@ export class FeezbackService {
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
     private readonly consentSyncService: ConsentSyncService,
     private readonly processingService: TransactionProcessingService,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {
     this.tppId = this.authService.getTppId();
   }
@@ -1384,5 +1389,99 @@ export class FeezbackService {
     return 'לא זוהה בית עסק';
   }
 
+  // ---------------------------------------------------------------------------
+  // Full-sync orchestration (shared by login and webhook)
+  // ---------------------------------------------------------------------------
+
+  private readonly runningFullSyncByUser = new Map<string, Promise<void>>();
+
+  /**
+   * Entry point for the two-pull Feezback full-sync flow.
+   * Safe to call concurrently from login and webhook: a per-user in-flight guard
+   * returns the existing promise if a sync is already running for that user.
+   */
+  async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook'): Promise<void> {
+    const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
+
+    // Log #1 — requested
+    this.logger.log(`[FullSync] Requested | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+    // In-flight guard — reuse existing promise if sync is already running
+    const existing = this.runningFullSyncByUser.get(firebaseId);
+    if (existing) {
+      // Log #2 — reused
+      this.logger.log(`[FullSync] Skipped — already running, reusing in-flight promise | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      return existing;
+    }
+
+    // Log #3 — starting
+    this.logger.log(`[FullSync] Starting | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+    const promise = this.doFullSync(firebaseId, triggeredBy, masked).finally(() => {
+      this.runningFullSyncByUser.delete(firebaseId);
+    });
+
+    this.runningFullSyncByUser.set(firebaseId, promise);
+    return promise;
+  }
+
+  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook', masked: string): Promise<void> {
+    // Gate — only proceed for users who have OPEN_BANKING module access.
+    const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
+    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+      this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      return;
+    }
+
+    // Log #4 gate — check whether cached transactions already exist
+    const hasCached = await this.processingService.hasTransactionCache(firebaseId);
+    if (hasCached) {
+      this.logger.log(`[FullSync] Skipped — cached transactions already exist | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      return;
+    }
+
+    const sub = `${firebaseId}_sub`;
+    const today = new Date();
+    const fmt = (d: Date): string => d.toISOString().split('T')[0];
+
+    const pull1From = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
+    const pull1To   = fmt(today);
+    const pull2From = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+
+    // Pull 1
+    // Log #5
+    this.logger.log(`[FullSync] Pull1 start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
+
+    await Promise.all([
+      this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+        // Log #6
+        .catch(e => this.logger.error(`[FullSync] Pull1 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
+      this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+        // Log #7
+        .catch(e => this.logger.error(`[FullSync] Pull1 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
+    ]);
+
+    // Log #8
+    this.logger.log(`[FullSync] Pull1 done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+    // Pull 2
+    // Log #9
+    this.logger.log(`[FullSync] Pull2 start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
+
+    await Promise.all([
+      this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To)
+        // Log #10
+        .catch(e => this.logger.error(`[FullSync] Pull2 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
+      this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To)
+        // Log #11
+        .catch(e => this.logger.error(`[FullSync] Pull2 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
+    ]);
+
+    // Log #12
+    this.logger.log(`[FullSync] Pull2 done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+    // Log #13
+    this.logger.log(`[FullSync] Completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+  }
 
 }

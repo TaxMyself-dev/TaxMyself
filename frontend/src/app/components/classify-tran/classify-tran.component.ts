@@ -189,9 +189,12 @@ export class ClassifyTranComponent implements OnInit {
         catchError((err) => {
           if (err.status === 409) {
             this.isLoading.set(false);
+            const isRuleOverride = err.error?.type === 'confirm_rule_override';
             this.confirmationService.confirm({
-              message: 'עסקה זו כבר סווגה באופן חד פעמי. האם ברצונך לדרוס את הסיווג הקיים?',
-              header: 'אישור דריסת סיווג',
+              message: isRuleOverride
+                ? (err.error?.message ?? 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?')
+                : 'עסקה זו כבר סווגה באופן חד פעמי. האם ברצונך לדרוס את הסיווג הקיים?',
+              header: isRuleOverride ? 'אישור דריסת כלל סיווג' : 'אישור דריסת סיווג',
               acceptLabel: 'כן, דרוס',
               rejectLabel: 'ביטול',
               accept: () => {
@@ -202,11 +205,12 @@ export class ClassifyTranComponent implements OnInit {
             return EMPTY;
           }
           console.error('Error classify transaction', err);
+          const errorDetail = err.error?.message ?? 'מיפוי התנועה נכשל';
           this.messageService.add({
             severity: 'error',
-            summary: 'Error',
-            detail: 'מיפוי התנועה נכשל',
-            life: 3000,
+            summary: 'שגיאה',
+            detail: errorDetail,
+            life: 5000,
             key: 'br',
           });
           return EMPTY;
