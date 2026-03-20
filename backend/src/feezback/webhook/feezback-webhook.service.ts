@@ -7,6 +7,11 @@ import { computeFeezbackEventHash } from '../utils/feezback-event.utils';
 import { extractFirebaseIdFromContext, parseFeezbackUserIdentifier } from '../utils/feezback-user.utils';
 import { FeezbackConsentService } from '../consent/feezback-consent.service';
 import { ConsentSyncService } from '../consent/consent-sync.service';
+import { FeezbackApiService } from '../api/feezback-api.service';
+import { FeezbackService } from '../feezback.service';
+import { User } from '../../users/user.entity';
+import { Source } from '../../transactions/source.entity';
+import { ModuleName, SourceType } from '../../enum';
 
 @Injectable()
 export class FeezbackWebhookService {
@@ -15,8 +20,14 @@ export class FeezbackWebhookService {
   constructor(
     @InjectRepository(FeezbackWebhookEvent)
     private readonly webhookRepository: Repository<FeezbackWebhookEvent>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Source)
+    private readonly sourceRepository: Repository<Source>,
     private readonly consentService: FeezbackConsentService,
     private readonly consentSyncService: ConsentSyncService,
+    private readonly feezbackApiService: FeezbackApiService,
+    private readonly feezbackService: FeezbackService,
   ) {}
 
   async handleWebhook(body: any): Promise<void> {
@@ -64,6 +75,9 @@ export class FeezbackWebhookService {
     switch (event.eventType) {
       case 'ConsentStatusChanged':
         await this.handleConsentStatusChanged(body);
+        break;
+      case 'UserDataIsAvailable':
+        await this.handleUserDataIsAvailable(body);
         break;
       default:
         this.logger.debug(`Ignoring unsupported Feezback webhook event type: ${event.eventType}`);
@@ -125,5 +139,146 @@ export class FeezbackWebhookService {
       this.logger.error(`Consent reconciliation failed for firebaseId=${firebaseId}, sub=${sub}: ${error?.message}`, error?.stack);
       throw error;
     }
+
+    await this.syncUserSourcesAndAccess(firebaseId, sub, 'ConsentStatusChanged');
+  }
+
+  private async handleUserDataIsAvailable(body: FeezbackWebhookEventBody): Promise<void> {
+    const payload = body?.payload as Record<string, any> | undefined;
+    if (!payload) {
+      this.logger.warn('UserDataIsAvailable webhook missing payload data');
+      return;
+    }
+
+    const userIdentifier = typeof payload.user === 'string' ? payload.user : null;
+    const parsedUser = parseFeezbackUserIdentifier(userIdentifier, payload?.tpp || null);
+    const sub = userIdentifier?.split('@')?.[0] || (parsedUser.firebaseId ? `${parsedUser.firebaseId}_sub` : null);
+
+    let firebaseId = parsedUser.firebaseId;
+    if (!firebaseId && typeof payload.context === 'string') {
+      firebaseId = extractFirebaseIdFromContext(payload.context);
+    }
+
+    if (!firebaseId || !sub) {
+      this.logger.warn(`UserDataIsAvailable webhook missing identifiers. firebaseId=${firebaseId} sub=${sub}`);
+      return;
+    }
+
+    await this.syncUserSourcesAndAccess(firebaseId, sub, 'UserDataIsAvailable');
+  }
+
+  // Shared sync logic: resolve user, persist accounts/cards into sources, update moduleAccess.
+  // Called by both ConsentStatusChanged and UserDataIsAvailable handlers.
+  // Always fetches fresh data from the Feezback API — does not use payload.fetchedAccounts.
+  private async syncUserSourcesAndAccess(firebaseId: string, sub: string, eventType: string): Promise<void> {
+    // Resolve internal User entity — needed for source persistence and moduleAccess update.
+    let user: User | null = null;
+    try {
+      user = await this.userRepository.findOne({ where: { firebaseId } });
+      if (!user) {
+        this.logger.warn(`${eventType}: no internal user found for firebaseId=${firebaseId}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to resolve user for firebaseId=${firebaseId}: ${error?.message}`, error?.stack);
+    }
+
+    // Fetch and persist bank accounts into sources table.
+    try {
+      const accountsResponse = await this.feezbackApiService.getUserAccounts(sub);
+      const accounts: any[] = accountsResponse?.accounts ?? [];
+
+      for (const account of accounts) {
+        const iban: string | undefined = account?.iban;
+        if (!iban || iban.trim() === '') {
+          this.logger.warn(`Skipping bank account without IBAN. resourceId=${account?.resourceId ?? 'unknown'}`);
+          continue;
+        }
+
+        const sourceName = iban.trim().slice(-7);
+        const feezbackResourceId: string | null = account?.resourceId ?? null;
+
+        const existing = await this.sourceRepository.findOne({
+          where: { userId: firebaseId, sourceType: SourceType.BANK_ACCOUNT, sourceName },
+        });
+
+        if (existing) {
+          existing.feezbackResourceId = feezbackResourceId;
+          await this.sourceRepository.save(existing);
+        } else {
+          await this.sourceRepository.save(
+            this.sourceRepository.create({
+              userId: firebaseId,
+              sourceName,
+              sourceType: SourceType.BANK_ACCOUNT,
+              feezbackResourceId,
+              bill: null,
+            }),
+          );
+        }
+      }
+
+      this.logger.log(`Bank account sync complete for firebaseId=${firebaseId}. Processed ${accounts.length} account(s).`);
+    } catch (error: any) {
+      this.logger.error(`Bank account sync failed for firebaseId=${firebaseId}: ${error?.message}`, error?.stack);
+    }
+
+    // Fetch and persist credit cards into sources table.
+    try {
+      const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
+      const cards: any[] = cardsResponse?.cards ?? [];
+
+      for (const card of cards) {
+        const maskedPan: string | undefined = card?.maskedPan;
+        const last4Match = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/) : null;
+
+        if (!last4Match) {
+          this.logger.warn(`Skipping card without extractable last-4 maskedPan. resourceId=${card?.resourceId ?? 'unknown'}`);
+          continue;
+        }
+
+        const sourceName = last4Match[1];
+        const feezbackResourceId: string | null = card?.resourceId ?? null;
+
+        const existing = await this.sourceRepository.findOne({
+          where: { userId: firebaseId, sourceType: SourceType.CREDIT_CARD, sourceName },
+        });
+
+        if (existing) {
+          existing.feezbackResourceId = feezbackResourceId;
+          await this.sourceRepository.save(existing);
+        } else {
+          await this.sourceRepository.save(
+            this.sourceRepository.create({
+              userId: firebaseId,
+              sourceName,
+              sourceType: SourceType.CREDIT_CARD,
+              feezbackResourceId,
+              bill: null,
+            }),
+          );
+        }
+      }
+
+      this.logger.log(`Card sync complete for firebaseId=${firebaseId}. Processed ${cards.length} card(s).`);
+    } catch (error: any) {
+      this.logger.error(`Card sync failed for firebaseId=${firebaseId}: ${error?.message}`, error?.stack);
+    }
+
+    // Ensure user.modulesAccess includes OPEN_BANKING.
+    try {
+      if (user && !user.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+        user.modulesAccess = [...(user.modulesAccess ?? []), ModuleName.OPEN_BANKING];
+        await this.userRepository.save(user);
+        this.logger.log(`Added OPEN_BANKING module access for firebaseId=${firebaseId}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to update modulesAccess for firebaseId=${firebaseId}: ${error?.message}`, error?.stack);
+    }
+
+    // Log #17 — trigger full transaction sync fire-and-forget
+    this.logger.log(`[WebhookSync] Triggered fire-and-forget | firebaseId=${firebaseId}`);
+    // Log #15 (failure) is in the .catch below
+    void this.feezbackService.triggerFullSync(firebaseId, 'webhook')
+      .catch(err => this.logger.error(`[WebhookSync] triggerFullSync failed | firebaseId=${firebaseId}`, err?.stack ?? err));
   }
 }

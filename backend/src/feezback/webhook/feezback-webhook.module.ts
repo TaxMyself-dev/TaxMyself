@@ -5,10 +5,12 @@ import { FeezbackWebhookService } from './feezback-webhook.service';
 import { FeezbackWebhookEvent } from './entities/feezback-webhook-event.entity';
 import { FeezbackPersistenceModule } from '../consent/feezback-persistence.module';
 import { FeezbackModule } from '../feezback.module';
+import { User } from '../../users/user.entity';
+import { Source } from '../../transactions/source.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([FeezbackWebhookEvent]),
+    TypeOrmModule.forFeature([FeezbackWebhookEvent, User, Source]),
     FeezbackPersistenceModule,
     FeezbackModule,
   ],
