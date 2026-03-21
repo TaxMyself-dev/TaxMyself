@@ -7,6 +7,7 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
+import { subYears } from 'date-fns';
 
 import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
@@ -369,8 +370,9 @@ export class TransactionProcessingService {
    *  - Update cache overlay for the classified transaction.
    *  - Backfill: apply the rule to all existing matching cache rows within
    *    the effective date range, skipping ONE_TIME and VAT-reported rows.
-   *    Effective date range lower bound: dto.startDate ?? cacheRow.transactionDate.
-   *    Effective date range upper bound: dto.endDate (absent = no upper bound).
+   *    Lower bound: dto.startDate if the client sent one; otherwise one calendar year
+   *    before the classified transaction’s date (see getEffectiveBackfillStartDate).
+   *    Upper bound: dto.endDate (absent = no upper bound).
    *  - Returns status = 'applied' with backfillCount.
    */
   async classifyWithRule(
@@ -423,6 +425,9 @@ export class TransactionProcessingService {
 
     // 4. Create or update rule.
     //    Rule identity: full constraint signature (same logic as legacy flow).
+    //    הערה: startDate/endDate נשמרים רק אם המשתמש שלח אותם. ברירת המחדל ל־backfill
+    //    (שנה אחורה מתאריך התנועה) לא נכתבת לכאן — כדי שלא ייווצר חתך תחתון ב־matchRule
+    //    על תנועות שייובאו מאוחר יותר עם תאריך ישן.
     const constraintWhere: Record<string, any> = {
       userId,
       billId: cacheRow.billId,
@@ -790,11 +795,28 @@ export class TransactionProcessingService {
   }
 
   /**
+   * תחתית טווח ה־backfill כשמסווגים בכלל בלי לבחור תאריך התחלה בצד הלקוח.
+   * משתמשים בתאריך התנועה פחות שנה קלנדרית אחת, כדי לכלול תנועות היסטוריות
+   * אחורה בלי לחסום התאמות עתידיות בכלל (שדה startDate ב־DB נשאר null).
+   */
+  private getEffectiveBackfillStartDate(
+    dto: ClassifyWithRuleDto,
+    cacheRow: FullTransactionCache,
+  ): Date {
+    if (dto.startDate) {
+      return new Date(dto.startDate);
+    }
+    return subYears(new Date(cacheRow.transactionDate), 1);
+  }
+
+  /**
    * Backfills a freshly saved RULE classification to all existing matching
    * cache rows for the same user.
    *
    * Effective date range:
-   *   lower bound = dto.startDate ?? cacheRow.transactionDate
+   *   lower bound = dto.startDate if provided; otherwise
+   *                 getEffectiveBackfillStartDate() (one calendar year before
+   *                 the classified transaction’s date).
    *   upper bound = dto.endDate    (no upper bound when absent)
    *
    * Skips rows where the slim row has:
@@ -812,9 +834,8 @@ export class TransactionProcessingService {
     savedRule: ClassifiedTransactions,
     dto: ClassifyWithRuleDto,
   ): Promise<number> {
-    const effectiveStart = dto.startDate
-      ? new Date(dto.startDate)
-      : new Date(cacheRow.transactionDate);
+    // טווח תאריכים ל־SQL: transactionDate >= effectiveStart (וגם <= endDate אם הוגדר).
+    const effectiveStart = this.getEffectiveBackfillStartDate(dto, cacheRow);
 
     // 1. Candidate cache rows: same merchant + bill, within date range,
     //    excluding the transaction that was just classified.
