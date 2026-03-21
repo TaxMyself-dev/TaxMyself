@@ -81,6 +81,9 @@
             [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
         </app-p-button>
+        <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
+        </app-p-button>
     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
      <div class="banking-banner">
@@ -103,7 +106,8 @@
             [buttonText]="'אני רוצה'"
             [buttonColor]="buttonColor.BLACK"
             [buttonSize]="buttonSize.SMALL"
-            (onButtonClicked)="connectToOpenBanking()">
+            (onButtonClicked)="connectToOpenBanking()"
+            [isLoading]="isLoadingFeezback()">
         </app-p-button>
     </div>
     <div class="nevigation-block">

@@ -1,9 +1,11 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger } from '@nestjs/common';
+         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
+         Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { FeezbackService } from '../feezback/feezback.service';
 
 @Controller('auth')
 export class UsersController {
@@ -11,7 +13,8 @@ export class UsersController {
 
     constructor(
         private userService: UsersService,
-        private authService: AuthService
+        private authService: AuthService,
+        @Inject(forwardRef(() => FeezbackService)) private readonly feezbackService: FeezbackService,
     ) {}
 
     
@@ -29,6 +32,14 @@ export class UsersController {
         const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';
         this.logger.log(`signin called, userId=${maskedId}`);
         const user = await this.userService.signin(userId);
+
+        // Fire-and-forget — do not block the login response.
+        // Pull 1 (short window) runs first; Pull 2 (12-month backfill) starts
+        // only after Pull 1 fully resolves.
+        void this.triggerPostLoginSync(userId).catch(err =>
+            this.logger.error('[PostLoginSync] unhandled top-level error', err?.stack ?? err),
+        );
+
         return user;
     }
 
@@ -93,6 +104,18 @@ export class UsersController {
       }
 
       return this.userService.getAllUsers();
+    }
+
+    /**
+     * Delegates to the shared FeezbackService.triggerFullSync orchestration.
+     * All pull logic, date-range computation, logging, and dedup now live there.
+     */
+    private async triggerPostLoginSync(firebaseId: string): Promise<void> {
+        // Log #16
+        this.logger.log(`[PostLoginSync] Triggered fire-and-forget | firebaseId=${firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?')}`);
+        // Log #14 (failure) is in the .catch below
+        void this.feezbackService.triggerFullSync(firebaseId, 'login')
+            .catch(err => this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err));
     }
 
 }

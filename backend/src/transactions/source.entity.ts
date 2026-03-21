@@ -23,6 +23,9 @@ export class Source {
   })
   sourceType: SourceType;
 
+  @Column({ name: 'feezback_resource_id', type: 'varchar', length: 256, nullable: true, default: null })
+  feezbackResourceId: string | null;
+
   @ManyToOne(type => Bill, bill => bill.sources)
   bill: Bill;
 
