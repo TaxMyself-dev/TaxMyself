@@ -1255,8 +1255,6 @@ export class FeezbackService {
   }
 
   private resolveBankPaymentIdentifier(tx: any, accountInfo: any): string {
-    console.log("🚀 ~ FeezbackService ~ resolveBankPaymentIdentifier ~ accountInfo:", accountInfo)
-    console.log("🚀 ~ FeezbackService ~ resolveBankPaymentIdentifier ~ tx:", tx)
     const accountReference = this.extractBankAccountReference(tx, accountInfo);
     if (accountReference) {
       return accountReference;
@@ -1419,6 +1417,7 @@ export class FeezbackService {
 
     const promise = this.doFullSync(firebaseId, triggeredBy, masked).finally(() => {
       this.runningFullSyncByUser.delete(firebaseId);
+      this.logger.debug(`[FullSync] In-flight map cleanup done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
     });
 
     this.runningFullSyncByUser.set(firebaseId, promise);
@@ -1434,11 +1433,13 @@ export class FeezbackService {
     }
 
     // Log #4 gate — check whether cached transactions already exist
+    this.logger.debug(`[FullSync] Checking transaction cache | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
     const hasCached = await this.processingService.hasTransactionCache(firebaseId);
     if (hasCached) {
       this.logger.log(`[FullSync] Skipped — cached transactions already exist | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
       return;
     }
+    this.logger.log(`[FullSync] Cache empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
     const sub = `${firebaseId}_sub`;
     const today = new Date();
@@ -1453,12 +1454,22 @@ export class FeezbackService {
     this.logger.log(`[FullSync] Pull1 start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
 
     await Promise.all([
-      this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+      (async () => {
+        this.logger.log(`[FullSync] Pull1 bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
+        await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
+        this.logger.log(`[FullSync] Pull1 bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      })().catch(e => {
         // Log #6
-        .catch(e => this.logger.error(`[FullSync] Pull1 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
-      this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+        this.logger.error(`[FullSync] Pull1 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+      }),
+      (async () => {
+        this.logger.log(`[FullSync] Pull1 card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
+        await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
+        this.logger.log(`[FullSync] Pull1 card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      })().catch(e => {
         // Log #7
-        .catch(e => this.logger.error(`[FullSync] Pull1 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
+        this.logger.error(`[FullSync] Pull1 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+      }),
     ]);
 
     // Log #8
@@ -1469,12 +1480,22 @@ export class FeezbackService {
     this.logger.log(`[FullSync] Pull2 start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
 
     await Promise.all([
-      this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To)
+      (async () => {
+        this.logger.log(`[FullSync] Pull2 bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
+        await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
+        this.logger.log(`[FullSync] Pull2 bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      })().catch(e => {
         // Log #10
-        .catch(e => this.logger.error(`[FullSync] Pull2 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
-      this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To)
+        this.logger.error(`[FullSync] Pull2 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+      }),
+      (async () => {
+        this.logger.log(`[FullSync] Pull2 card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
+        await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
+        this.logger.log(`[FullSync] Pull2 card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      })().catch(e => {
         // Log #11
-        .catch(e => this.logger.error(`[FullSync] Pull2 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack)),
+        this.logger.error(`[FullSync] Pull2 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+      }),
     ]);
 
     // Log #12
