@@ -3,7 +3,7 @@ import { Any, LessThan, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, PayStatus, ModuleName, BusinessStatus } from '../enum';
+import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, PayStatus, ModuleName, BusinessStatus, DocumentType } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -11,6 +11,7 @@ import { SharedService } from 'src/shared/shared.service';
 import { CityDto } from '../cities/city.dto';
 import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
+import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 
 
 @Injectable()
@@ -25,7 +26,9 @@ export class UsersService {
       private readonly sharedService: SharedService,
       @InjectRepository(User) private user_repo: Repository<User>,
       @InjectRepository(Business) private business_repo: Repository<Business>,
-      @InjectRepository(Child) private child_repo: Repository<Child>
+      @InjectRepository(Child) private child_repo: Repository<Child>,
+      @InjectRepository(SettingDocuments)
+      private readonly settingDocumentsRepo: Repository<SettingDocuments>,
     ) {
     this.firebaseAuth = admin.auth();
   }
@@ -370,18 +373,42 @@ export class UsersService {
     return cities;
   }
 
+  /** Baseline for the general document counter (see documents.service settingGeneralIndex). */
+  private static readonly GENERAL_COUNTER_BASE = 1_000_000;
+
   /**
-   * Get all users (admin only)
-   * @returns Array of all users with basic information
+   * Get all users (admin only).
+   * Adds `generalDocumentsCount`: מספר מסמכים = currentIndex − 1_000_000 (המונה מתחיל ב־1000000).
+   * שורה אחת לכל (userId, עוסק); אם יש כמה שורות GENERAL למשתמש — לוקחים MAX(currentIndex).
    */
-  async getAllUsers(): Promise<User[]> {
+  async getAllUsers(): Promise<(User & { generalDocumentsCount: number })[]> {
     try {
       const users = await this.user_repo.find({
         order: {
           createdAt: 'DESC', // Most recent first
         },
       });
-      return users;
+
+      const base = UsersService.GENERAL_COUNTER_BASE;
+      const aggregates = await this.settingDocumentsRepo
+        .createQueryBuilder('s')
+        .select('s.userId', 'userId')
+        .addSelect(`GREATEST(0, MAX(s.currentIndex) - :base)`, 'cnt')
+        .where('s.docType = :dt', { dt: DocumentType.GENERAL })
+        .setParameter('base', base)
+        .groupBy('s.userId')
+        .getRawMany<{ userId: string; cnt: string | null }>();
+
+      const countByFirebaseId = new Map<string, number>();
+      for (const row of aggregates) {
+        const n = row.cnt != null ? Number(row.cnt) : 0;
+        countByFirebaseId.set(row.userId, Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
+      }
+
+      return users.map((u) => ({
+        ...u,
+        generalDocumentsCount: countByFirebaseId.get(u.firebaseId) ?? 0,
+      }));
     } catch (error) {
       throw new InternalServerErrorException('Failed to fetch users');
     }

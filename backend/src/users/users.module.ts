@@ -11,10 +11,11 @@ import { Business } from 'src/business/business.entity';
 import { Agents } from 'src/delegation/agents.entity';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { FeezbackModule } from '../feezback/feezback.module';
+import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents]),
+    TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents, SettingDocuments]),
     SharedModule,
     forwardRef(() => FeezbackModule),
   ],

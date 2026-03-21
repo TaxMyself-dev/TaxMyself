@@ -202,8 +202,8 @@
               @else if (col.name === 'parentDoc' && row[col.name]) {
               <span [innerHTML]="row[col.name]"></span>
               }
-              <!-- Default row -->
-              @else if (col.name?.toLowerCase().includes('date')) {
+              <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
+              @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}
               }
               @else {

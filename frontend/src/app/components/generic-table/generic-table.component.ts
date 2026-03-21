@@ -14,6 +14,7 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { FormTypes } from 'src/app/shared/enums';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -94,6 +95,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
+  /** Exposed for template: `col.type === FormTypes.DATE` alongside name-based date detection */
+  readonly FormTypes = FormTypes;
 
 
   expandedRows = new Set<number>();

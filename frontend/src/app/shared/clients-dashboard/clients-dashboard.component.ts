@@ -23,6 +23,7 @@ export class ClientsDashboardComponent implements OnInit {
     { name: 'phone', value: 'טלפון', type: FormTypes.TEXT },
     { name: 'city', value: 'עיר', type: FormTypes.TEXT },
     { name: 'payStatus', value: 'סטטוס תשלום', type: FormTypes.TEXT },
+    { name: 'generalDocumentsCount', value: 'מסמכים (כללי)', type: FormTypes.NUMBER },
     { name: 'createdAt', value: 'תאריך רישום', type: FormTypes.DATE },
     { name: 'subscriptionEndDate', value: 'תאריך סיום מנוי', type: FormTypes.DATE },
   ];
@@ -63,6 +64,8 @@ export class ClientsDashboardComponent implements OnInit {
             ...user,
             fullName: `${user.fName || ''} ${user.lName || ''}`.trim(),
             payStatus: this.getPayStatusLabel(user.payStatus),
+            generalDocumentsCount:
+              user.generalDocumentsCount != null ? Number(user.generalDocumentsCount) : 0,
           };
           
           // Ensure dates are properly formatted
