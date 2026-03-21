@@ -9,6 +9,7 @@ import { FilesService } from 'src/app/services/files.service';
 import { BusinessStatus, ReportingPeriodType } from 'src/app/shared/enums';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
+import { format as formatDateFns } from 'date-fns';
 
 
 @Component({
@@ -170,18 +171,24 @@ export class PnLReportPage implements OnInit {
     this.isLoading = true;
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
-      dataTable.push([String(expense.total), expense.category]);
+      // טבלת הוצאות לפילפאסטר: אותו פורמט כמו הכותרות (ש"ח + 2 ספרות אחרי נקודה)
+      dataTable.push([this.formatShekelAmount(expense.total), expense.category]);
     })
+    
+    const effectiveBusinessNumber = (this.businessNumber() ?? this.userData?.businessNumber ?? '').toString();
+    // תאריך הפקת הדוח (issue date) - פורמט עקבי עם שאר תאריכי הדוחות שנשלחים לפילפאסטר
+    const issueDate = formatDateFns(new Date(), 'dd/MM/yyyy');
      
     const data: ICreateDataDoc = {
       fid: "ydAEQsvSbC",
       prefill_data: {
         name: this.userData.fName + " " + this.userData.lName,
-        id: this.userData.businessNumber,
+        businessNumber: effectiveBusinessNumber,
         period: `${this.startDate()} - ${this.endDate()}`,
-        income: this.pnlReport.income as string,
-        profit: this.pnlReport.netProfitBeforeTax as string,
-        expenses: String(this.totalExpense),
+        income: this.formatShekelAmount(this.pnlReport.income),
+        profit: this.formatShekelAmount(this.pnlReport.netProfitBeforeTax),
+        expenses: this.formatShekelAmount(this.totalExpense),
+        issueDate,
         table: dataTable,
       },
     }
@@ -201,6 +208,27 @@ export class PnLReportPage implements OnInit {
         console.log('res of create pdf: ', res);
         this.fileService.downloadFile("my pdf", res)
       })
+  }
+
+  formatReportDate(dateStr: string): string {
+    // backend date strings are currently dd/MM/yyyy (or dd-MM-yyyy),
+    // display them in dd.MM.yyyy for this page.
+    if (!dateStr) return '';
+    return String(dateStr).replace(/[\/-]/g, '.');
+  }
+
+  private formatShekelAmount(value: number | string | null | undefined): string {
+    const raw = value ?? 0;
+    const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, ''));
+    const safeNum = Number.isFinite(num) ? num : 0;
+    const isNegative = safeNum < 0;
+    const abs = Math.abs(safeNum);
+    const fixed = abs.toFixed(2); // uses '.' as decimal separator
+    const [intPart, fracPart] = fixed.split('.');
+    const intWithCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const formatted = `${intWithCommas}.${fracPart}`;
+    // Put minus on the right for RTL-like appearance, before currency sign
+    return isNegative ? `${formatted}- ש"ח` : `${formatted} ש"ח`;
   }
 
 

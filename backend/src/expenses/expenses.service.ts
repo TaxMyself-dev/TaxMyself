@@ -248,9 +248,13 @@ export class ExpensesService {
         });
 
         if (existingSubs.length) {
+            const dupNames = existingSubs.map((s) => s.subCategoryName);
             throw new ConflictException({
-                message: `Some sub-categories already exist`,
-                duplicates: existingSubs.map(s => s.subCategoryName),
+                message:
+                    dupNames.length === 1
+                        ? 'תת קטגוריה זו כבר קיימת אצלך (באותה קטגוריית אב)'
+                        : 'חלק מתתי הקטגוריות כבר קיימות אצלך (באותה קטגוריית אב)',
+                duplicates: dupNames,
             });
         }
 
@@ -318,10 +322,8 @@ export class ExpensesService {
             throw new NotFoundException(`User with ID ${firebaseId} not found`);
         }
 
-        const category = await this.getUserCategory(firebaseId, businessNumber, categoryName);
-        if (!category) {
-            throw new NotFoundException(`Category with name ${categoryName} not found`);
-        }
+        // אין דרישה שקטגוריית-אב תופיע ב-user_category (יכולה להיות רק ברירת מחדל).
+        // כפילות תת־קטגוריה לאותו משתמש/עסק/קטגוריה נבדקת ב-saveUserSubCategories.
 
         return this.saveUserSubCategories(
             firebaseId,

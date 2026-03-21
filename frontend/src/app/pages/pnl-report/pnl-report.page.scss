@@ -69,8 +69,22 @@
   flex-direction: column;
   text-align: right;
   margin-top: 25px;
-  font-size: 1.5rem; /* You can increase to 2rem or more if needed */
-  line-height: 0;
+  font-size: 1.25rem; /* הקטנת פונט לטייטל */
+  line-height: 1.2;
+
+  p {
+    margin: 0;
+  }
+
+  /* להקטין את המרווח בין שורה של שם העסק לשורת מספר העסק */
+  p:nth-child(1) + p:nth-child(2) {
+    margin-top: 2px;
+  }
+
+  /* להוסיף מעט רווח לפני שורת "דו\"ח רווח והפסד לתקופה" */
+  p:nth-child(2) + p:nth-child(3) {
+    margin-top: 20px;
+  }
 }
 
 .output-pnl-report {
