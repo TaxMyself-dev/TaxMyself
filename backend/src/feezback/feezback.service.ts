@@ -635,18 +635,10 @@ export class FeezbackService {
         continue;
       }
 
-      // Feezback API schema: card.consentId is the primary consent ID field.
-      // card.relatedConsents is an array of plain consent ID strings (e.g. ['aDICmp2p']),
-      // NOT an array of objects — so .resourceId would always be undefined and must not be used.
-      const consentId: string | null =
-        (typeof card?.consentId === 'string' && card.consentId.trim() !== '' ? card.consentId : null) ||
-        (typeof card?.relatedConsents?.[0] === 'string' && card.relatedConsents[0].trim() !== ''
-          ? card.relatedConsents[0]
-          : null);
-
-      this.logger.log(
-        `[DIAG] CARD_CONSENT_RESOLVE | cardId=${cardId} | cardName=${card?.displayName ?? card?.maskedPan ?? cardId} | consentId=${consentId ?? 'NULL'} | relatedConsents=${JSON.stringify(card?.relatedConsents ?? null)}`,
-      );
+      const consentId =
+        card?.consentId ||
+        card?.relatedConsents?.[0]?.resourceId ||
+        null;
 
       const cardName =
         card?.displayName ||
