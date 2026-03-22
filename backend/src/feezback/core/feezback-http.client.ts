@@ -84,6 +84,18 @@ export class FeezbackHttpClient {
         return response.data;
       } catch (rawError) {
         const mapped = toFeezbackHttpError(method, url, rawError);
+
+        if (mapped.status === 403) {
+          const bodyStr = mapped.responseBody == null
+            ? 'null'
+            : (typeof mapped.responseBody === 'string'
+                ? mapped.responseBody
+                : JSON.stringify(mapped.responseBody)).slice(0, 500);
+          this.logger.error(
+            `[FB_403] method=${method} | url=${url} | status=403 | body=${bodyStr}`,
+          );
+        }
+
         const rateLimit = isRateLimitError(mapped);
         const shouldRetry = isRetryableFeezbackError(mapped);
 
