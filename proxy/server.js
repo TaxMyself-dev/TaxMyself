@@ -37,8 +37,41 @@ if (MODE === "feezback-dev") {
 // ===========================
 // Body parsing middleware
 // ===========================
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ type: "*/*" })); // parse JSON regardless of Content-Type
+app.use((req, res, next) => {
+  // If express.json() didn't parse (body is still empty/undefined), try manual JSON parse
+  if (req.body === undefined || (typeof req.body === "object" && Object.keys(req.body).length === 0)) {
+    let raw = "";
+    req.on("data", (chunk) => { raw += chunk.toString(); });
+    req.on("end", () => {
+      if (raw) {
+        try {
+          req.body = JSON.parse(raw);
+          req.rawBody = raw;
+        } catch {
+          req.body = raw;
+          req.rawBody = raw;
+        }
+      }
+      next();
+    });
+  } else {
+    // express.json() already parsed — but check for the "JSON as URL-encoded key" bug:
+    // happens when Content-Type is wrong and urlencoded parser runs instead.
+    // Result: { '{"event":...}': '' }  ← entire JSON became a key
+    const keys = Object.keys(req.body);
+    if (keys.length === 1 && typeof keys[0] === "string" && keys[0].trimStart().startsWith("{")) {
+      try {
+        const fixed = JSON.parse(keys[0]);
+        console.log("⚠️  Body was mis-parsed as URL-encoded. Fixed by re-parsing JSON key.");
+        req.body = fixed;
+      } catch {
+        // not valid JSON — leave as is
+      }
+    }
+    next();
+  }
+});
 
 // ===========================
 // Log incoming requests
