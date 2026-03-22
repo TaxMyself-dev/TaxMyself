@@ -61,13 +61,14 @@ app.get("/myip", async (req, res) => {
   }
 });
 
+app.get("/feezback/webhook", (req, res) => {
+  console.log("🔍 GET /feezback/webhook — Feezback verification request");
+  res.status(200).json({ ok: true });
+});
+
 app.post("/feezback/webhook", (req, res) => {
   const eventType = req.body?.event ?? "unknown";
-  console.log("🛰️ Webhook received:", eventType);
 
-  // Whitelist-only headers — never forward hop-by-hop headers (connection,
-  // transfer-encoding, keep-alive, content-length) that cause Cloud Run to
-  // reset the TCP connection and return 502.
   const forwardHeaders = {
     "content-type": "application/json",
   };
@@ -78,12 +79,18 @@ app.post("/feezback/webhook", (req, res) => {
   const payload = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
   const targetUrl = "https://taxmys16elf-prod-146140406969.me-west1.run.app/feezback/webhook-router";
 
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("📨 WEBHOOK RECEIVED FROM FEEZBACK");
+  console.log("   event    :", eventType);
+  console.log("   secret   :", req.headers["x-feezback-secret"] ? "present" : "missing");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
   // ACK Feezback immediately — do not block on the backend call
   res.status(200).json({ received: true });
-  console.log("✅ ACK sent to Feezback | event:", eventType);
+  console.log("✅ ACK 200 sent back to Feezback");
 
   // Fire-and-forget — backend forwarding runs in the background
-  console.log("📤 Forwarding webhook to:", targetUrl, "| event:", eventType);
+  console.log("📤 FORWARDING →", targetUrl);
   fetch(targetUrl, {
     method: "POST",
     headers: forwardHeaders,
@@ -91,10 +98,15 @@ app.post("/feezback/webhook", (req, res) => {
     signal: AbortSignal.timeout(30000), // 30s hard limit — never hang forever
   })
     .then((response) => {
-      console.log("📥 Forward response status:", response.status, "| event:", eventType);
+      console.log("📥 FORWARD RESPONSE ←", targetUrl);
+      console.log("   status   :", response.status, response.status === 200 ? "✅" : "❌");
+      console.log("   event    :", eventType);
     })
     .catch((err) => {
-      console.error("💥 Forward failed | event:", eventType, "| error:", err.message, "| cause:", err.cause?.message ?? "none");
+      console.error("💥 FORWARD FAILED →", targetUrl);
+      console.error("   event    :", eventType);
+      console.error("   error    :", err.message);
+      console.error("   cause    :", err.cause?.message ?? "none");
     });
 });
 
@@ -116,15 +128,25 @@ app.use(
     router: (req) => {
       const path = req.path || req.url || req.originalUrl;
       const cleanPath = path.replace("/proxy/feezback", "");
-      
-      // אם זה TPP API (/tpp/v1/...), פנה ל-TPP domain
+
       if (cleanPath.includes('/tpp/v1/') || cleanPath.startsWith('/tpp/')) {
-        console.log(`🔄 Routing to TPP API: ${TPP_TARGET}`);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("📤 PROXY ROUTING →", `${TPP_TARGET}${cleanPath}`);
+        console.log("   type     : TPP");
+        console.log("   method   :", req.method);
+        console.log("   incoming :", req.originalUrl);
+        console.log("   target   :", `${TPP_TARGET}${cleanPath}`);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         return TPP_TARGET;
       }
-      
-      // אחרת, פנה ל-LGS domain (token, link)
-      console.log(`🔄 Routing to LGS: ${LGS_TARGET}`);
+
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📤 PROXY ROUTING →", `${LGS_TARGET}${cleanPath}`);
+      console.log("   type     : LGS");
+      console.log("   method   :", req.method);
+      console.log("   incoming :", req.originalUrl);
+      console.log("   target   :", `${LGS_TARGET}${cleanPath}`);
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       return LGS_TARGET;
     },
 
@@ -325,8 +347,14 @@ app.use(
       },
 
       proxyRes: (proxyRes, req, res) => {
-        console.log("🔥 PROXY RES FIRED");
-        console.log("📦 Status:", proxyRes.statusCode);
+        const path = req.path || req.url || req.originalUrl;
+        const cleanPath = path.replace("/proxy/feezback", "");
+        const target = cleanPath.includes('/tpp/v1/') || cleanPath.startsWith('/tpp/')
+          ? TPP_TARGET
+          : LGS_TARGET;
+        const status = proxyRes.statusCode;
+        console.log("📥 PROXY RESPONSE ←", `${target}${cleanPath}`);
+        console.log("   status   :", status, status < 400 ? "✅" : "❌");
       },
 
       error: (err, req, res) => {

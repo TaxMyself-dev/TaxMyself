@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Logger, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Logger, Post } from '@nestjs/common';
 import { FeezbackWebhookService } from './feezback-webhook.service';
 import { FeezbackWebhookEventBody } from './dto/feezback-webhook.dto';
 
@@ -7,6 +7,12 @@ export class FeezbackWebhookController {
   private readonly logger = new Logger(FeezbackWebhookController.name);
 
   constructor(private readonly webhookService: FeezbackWebhookService) {}
+
+  @Get('webhook')
+  handleWebhookVerification() {
+    this.logger.log('[FeezbackWebhook] GET /feezback/webhook — verification request received');
+    return { ok: true };
+  }
 
   @Post('webhook')
   async handleWebhook(
