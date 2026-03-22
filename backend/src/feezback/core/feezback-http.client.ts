@@ -93,20 +93,6 @@ export class FeezbackHttpClient {
             `[DIAG] FB_FAILED | endpoint=${endpoint} | resource=${resource} | attempts=${attempt + 1} | lastStatus=${mapped.status ?? 'unknown'} | code=${mapped.code ?? 'n/a'} | elapsed=${Date.now() - requestStartMs}ms`,
           );
 
-          // Log the upstream response body so the real Feezback / proxy error
-          // message (e.g. INSUFFICIENT_CONSENT, INVALID_CONSENT, proxy 403 reason)
-          // is visible in logs. Truncated to 1 000 chars to avoid flooding.
-          // Auth headers / tokens are NOT present in responseBody — safe to log.
-          if (mapped.responseBody !== undefined && mapped.responseBody !== null) {
-            const bodyStr =
-              typeof mapped.responseBody === 'string'
-                ? mapped.responseBody
-                : JSON.stringify(mapped.responseBody);
-            this.logger.warn(
-              `[DIAG] FB_FAILED_BODY | method=${method} | url=${url} | status=${mapped.status ?? 'unknown'} | body=${bodyStr.slice(0, 1_000)}`,
-            );
-          }
-
           if (shouldRetry && attempt === maxRetries) {
             this.logger.error(
               `${method} ${url} — all ${maxRetries + 1} attempts exhausted ` +
