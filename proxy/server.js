@@ -61,52 +61,41 @@ app.get("/myip", async (req, res) => {
   }
 });
 
-app.post("/feezback/webhook", async (req, res) => {
+app.post("/feezback/webhook", (req, res) => {
   const eventType = req.body?.event ?? "unknown";
   console.log("🛰️ Webhook received:", eventType);
 
-  try {
-    // Whitelist-only headers — never forward hop-by-hop headers (connection,
-    // transfer-encoding, keep-alive, content-length) that cause Cloud Run to
-    // reset the TCP connection and return 502.
-    const forwardHeaders = {
-      "content-type": "application/json",
-    };
-    if (req.headers["x-feezback-secret"]) {
-      forwardHeaders["x-feezback-secret"] = req.headers["x-feezback-secret"];
-    }
-
-    const payload = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
-
-    const targetUrl = "https://taxmys16elf-prod-146140406969.me-west1.run.app/feezback/webhook-router";
-    console.log("📤 Forwarding webhook to:", targetUrl, "| event:", eventType);
-
-    const response = await fetch(targetUrl, {
-      method: "POST",
-      headers: forwardHeaders,
-      body: payload,
-    });
-
-    console.log("📥 Forward response status:", response.status, "| event:", eventType);
-
-    const responseText = await response.text();
-    const contentType = response.headers.get("content-type") || "";
-
-    if (contentType.includes("application/json")) {
-      try {
-        const json = JSON.parse(responseText);
-        res.status(response.status).json(json);
-        return;
-      } catch (parseErr) {
-        // fall back to sending raw response text below
-      }
-    }
-
-    res.status(response.status).send(responseText);
-  } catch (err) {
-    console.error("💥 fetch() threw for event:", eventType, "| error:", err.message, "| cause:", err.cause?.message ?? "none");
-    res.status(502).send({ error: "Failed to forward webhook", details: err.message });
+  // Whitelist-only headers — never forward hop-by-hop headers (connection,
+  // transfer-encoding, keep-alive, content-length) that cause Cloud Run to
+  // reset the TCP connection and return 502.
+  const forwardHeaders = {
+    "content-type": "application/json",
+  };
+  if (req.headers["x-feezback-secret"]) {
+    forwardHeaders["x-feezback-secret"] = req.headers["x-feezback-secret"];
   }
+
+  const payload = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
+  const targetUrl = "https://taxmys16elf-prod-146140406969.me-west1.run.app/feezback/webhook-router";
+
+  // ACK Feezback immediately — do not block on the backend call
+  res.status(200).json({ received: true });
+  console.log("✅ ACK sent to Feezback | event:", eventType);
+
+  // Fire-and-forget — backend forwarding runs in the background
+  console.log("📤 Forwarding webhook to:", targetUrl, "| event:", eventType);
+  fetch(targetUrl, {
+    method: "POST",
+    headers: forwardHeaders,
+    body: payload,
+    signal: AbortSignal.timeout(30000), // 30s hard limit — never hang forever
+  })
+    .then((response) => {
+      console.log("📥 Forward response status:", response.status, "| event:", eventType);
+    })
+    .catch((err) => {
+      console.error("💥 Forward failed | event:", eventType, "| error:", err.message, "| cause:", err.cause?.message ?? "none");
+    });
 });
 
 // ===========================

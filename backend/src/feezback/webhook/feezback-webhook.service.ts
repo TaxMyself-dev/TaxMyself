@@ -85,12 +85,17 @@ export class FeezbackWebhookService {
       case 'UserDataIsAvailable':
         await this.handleUserDataIsAvailable(body);
         break;
+      case 'DataRefreshComplete':
+        this.logger.log('[FeezbackWebhook] Handling DataRefreshComplete as data-ready trigger');
+        await this.handleUserDataIsAvailable(body);
+        break;
       default:
         this.logger.debug(`[FeezbackWebhook] Ignoring unsupported event type=${event.eventType}`);
     }
   }
 
   private async handleConsentStatusChanged(body: FeezbackWebhookEventBody): Promise<void> {
+    console.log("🚀 ~ FeezbackWebhookService ~ handleConsentStatusChanged ~ body:", body);
     const payload = body?.payload as Record<string, any> | undefined;
     if (!payload) {
       this.logger.warn('[FeezbackWebhook][ConsentStatusChanged] Missing payload data');
