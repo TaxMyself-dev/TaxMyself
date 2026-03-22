@@ -39,7 +39,7 @@ export class FeezbackJwtService {
 
     if (privateKeyFromEnv) {
       // Use the key directly from environment variable
-      this.privateKey = privateKeyFromEnv;
+      this.privateKey = privateKeyFromEnv.replace(/\\n/g, '\n').trim();
       // this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
     } else if (keyPath) {
       // Read from file
