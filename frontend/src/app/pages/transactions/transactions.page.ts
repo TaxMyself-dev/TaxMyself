@@ -1,4 +1,5 @@
-import { Component, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, OnInit, Signal, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MessageService } from 'primeng/api';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
@@ -15,7 +16,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
-import { log } from 'console';
+import { SyncStatusService } from 'src/app/services/sync-status.service';
 
 @Component({
   selector: 'app-transactions',
@@ -286,6 +287,8 @@ export class TransactionsPage implements OnInit {
   businessSelect: string = "";
 
 
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly syncStatusService = inject(SyncStatusService);
   private messageService = inject(MessageService);
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
@@ -362,6 +365,7 @@ export class TransactionsPage implements OnInit {
   async ngOnInit(): Promise<void> {
     this.filterData = this.transactionService.filterData;
     this.getTransactions(null);
+    this.startSyncStatusPolling();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData?.businessNumber });
     this.bussinesesList.push({ name: this.userData?.spouseBusinessName, value: this.userData?.spouseBusinessNumber });
@@ -380,6 +384,17 @@ export class TransactionsPage implements OnInit {
     this.transactionService.getAllBills();
     this.accountsList = this.transactionService.accountsList;
     this.getCategory();
+  }
+
+  /**
+   * Waits for the background Feezback sync to complete (if it was still running
+   * when this page loaded), then refreshes the transaction tables.
+   * No-ops silently if sync was already done when the page opened.
+   */
+  private startSyncStatusPolling(): void {
+    this.syncStatusService.onSyncComplete()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.getTransactions(null));
   }
 
   ngOnDestroy() {

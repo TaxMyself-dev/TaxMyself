@@ -14,6 +14,7 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { UserSyncStateService } from './user-sync-state.service';
 
 
 @Controller('transactions')
@@ -22,7 +23,35 @@ export class TransactionsController {
     private readonly transactionsService: TransactionsService,
     private readonly processingService: TransactionProcessingService,
     private readonly sharedService: SharedService,
+    private readonly userSyncStateService: UserSyncStateService,
     private usersService: UsersService,) {}
+
+  @Get('sync-status')
+  @UseGuards(FirebaseAuthGuard)
+  async getSyncStatus(@Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    const state = await this.userSyncStateService.getSyncState(userId);
+    if (!state) {
+      const runningStage = { status: 'running', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null };
+      return { quickSync: runningStage, fullSync: { ...runningStage, status: 'pending' } };
+    }
+    return {
+      quickSync: {
+        status: state.quickStatus,
+        rowsWritten: state.quickRowsWritten,
+        finishedAt: state.quickFinishedAt ?? null,
+        failureReason: state.quickFailureReason ?? null,
+        skipReason: state.quickSkipReason ?? null,
+      },
+      fullSync: {
+        status: state.fullStatus,
+        rowsWritten: state.fullRowsWritten,
+        finishedAt: state.fullFinishedAt ?? null,
+        failureReason: state.fullFailureReason ?? null,
+        skipReason: state.fullSkipReason ?? null,
+      },
+    };
+  }
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
   @Get('get-trans')

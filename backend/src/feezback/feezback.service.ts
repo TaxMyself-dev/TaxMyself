@@ -8,6 +8,7 @@ import { FeezbackApiService } from './api/feezback-api.service';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
 import { ConsentSyncService } from './consent/consent-sync.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
+import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
 import { User } from '../users/user.entity';
 import { ModuleName } from '../enum';
@@ -25,6 +26,7 @@ export class FeezbackService {
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
     private readonly consentSyncService: ConsentSyncService,
     private readonly processingService: TransactionProcessingService,
+    private readonly userSyncStateService: UserSyncStateService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {
     this.tppId = this.authService.getTppId();
@@ -581,12 +583,15 @@ export class FeezbackService {
     dateTo?: string,
     cardResourceId?: string,
   ): Promise<any> {
+    this.logger.log(`[DIAG] CARD_START | userId=${userId?.substring(0, 8)}... | dateFrom=${dateFrom} | dateTo=${dateTo}`);
+
     const cardsResponse = await this.feezbackApiService.getUserCards(sub, {
       withBalances: true,
       withInvalid: true,
       preventUpdate: false,
     });
-    console.log("🚀 ~ FeezbackService ~ getAndSaveUserCardTransactionsInternal ~ cardsResponse:", cardsResponse)
+    const cardCount = cardsResponse?.cards?.length ?? 0;
+    this.logger.log(`[DIAG] CARD_CARDS_FETCHED | count=${cardCount} | userId=${userId?.substring(0, 8)}...`);
 
     const cards = cardsResponse?.cards || [];
     const filteredCards = cardResourceId
@@ -757,18 +762,23 @@ export class FeezbackService {
     let processingError: string | null = null;
     let databaseSaveResult: { saved: number; skipped: number; message: string } | null = null;
     try {
+      this.logger.log(`[DIAG] CARD_NORMALIZE_START | input=${allTransactionsForDb.length} | userId=${userId?.substring(0, 8)}...`);
       const normalized = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap);
       if (normalized.length > 0) {
+        this.logger.log(`[DIAG] CARD_PROCESS_START | normalized=${normalized.length} | userId=${userId?.substring(0, 8)}...`);
         processingResult = await this.processingService.process(userId, normalized);
+        this.logger.log(`[DIAG] CARD_PROCESS_DONE | saved=${processingResult.newlySavedToCache} | skipped=${processingResult.alreadyExistingInCache} | total=${processingResult.totalReceived} | userId=${userId?.substring(0, 8)}...`);
         databaseSaveResult = {
           saved: processingResult.newlySavedToCache,
           skipped: processingResult.alreadyExistingInCache,
           message: `Saved ${processingResult.newlySavedToCache} new transactions. ${processingResult.alreadyExistingInCache} already existed.`,
         };
         this.logger.log(`Card pipeline: ${JSON.stringify(processingResult)}`);
+      } else {
+        this.logger.log(`[DIAG] CARD_NORMALIZE_EMPTY — all transactions dropped during normalization | userId=${userId?.substring(0, 8)}...`);
       }
     } catch (err: any) {
-      this.logger.error(`Card processing pipeline failed: ${err.message}`, err.stack);
+      this.logger.error(`[DIAG] CARD_PIPELINE_FAILED | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
       processingError = err.message;
     }
 
@@ -829,9 +839,11 @@ export class FeezbackService {
 
     const existing = this.runningCardSyncByUser.get(key);
     if (existing) {
-      this.logger.warn(`Card sync already running for ${key}. Reusing in-flight promise.`);
+      this.logger.warn(`[DIAG] CARD_SYNC_REUSED — already running for key=${key}`);
       return existing;
     }
+
+    this.logger.log(`[DIAG] CARD_SYNC_STARTING | userId=${userId?.substring(0, 8)}... | dateFrom=${dateFrom} | dateTo=${dateTo}`);
 
     const promise = (async () => {
       try {
@@ -845,6 +857,7 @@ export class FeezbackService {
         );
       } finally {
         this.runningCardSyncByUser.delete(key);
+        this.logger.log(`[DIAG] CARD_SYNC_FINISHED | userId=${userId?.substring(0, 8)}... | key=${key}`);
       }
     })();
 
@@ -863,12 +876,16 @@ export class FeezbackService {
     dateFrom?: string,
     dateTo?: string,
   ): Promise<any> {
+    this.logger.log(`[DIAG] BANK_START | firebaseId=${firebaseId?.substring(0, 8)}... | dateFrom=${dateFrom} | dateTo=${dateTo}`);
+
     // Step 1: Get all accounts
     let accountsResponse;
     try {
       accountsResponse = await this.feezbackApiService.getUserAccounts(sub);
-      console.log("🚀 ~ FeezbackService ~ getAndSaveBankTransactions ~ accountsResponse:", accountsResponse)
+      const accountCount = accountsResponse?.accounts?.length ?? 0;
+      this.logger.log(`[DIAG] BANK_ACCOUNTS_FETCHED | count=${accountCount} | firebaseId=${firebaseId?.substring(0, 8)}...`);
     } catch (error: any) {
+      this.logger.error(`[DIAG] BANK_ACCOUNTS_FETCH_FAILED | firebaseId=${firebaseId?.substring(0, 8)}... | status=${error?.status ?? 'unknown'} | error=${error?.message}`, error?.stack);
       if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
         return {
           transactions: [],
@@ -884,6 +901,7 @@ export class FeezbackService {
 
     const accounts = accountsResponse?.accounts || [];
     if (!accounts || accounts.length === 0) {
+      this.logger.log(`[DIAG] BANK_ACCOUNTS_EMPTY — no accounts returned, skipping transaction fetch | firebaseId=${firebaseId?.substring(0, 8)}...`);
       return {
         transactions: [],
         accountsProcessed: 0,
@@ -982,13 +1000,16 @@ export class FeezbackService {
 
     // New pipeline: normalize → process → persist to full_transactions_cache
     try {
+      this.logger.log(`[DIAG] BANK_NORMALIZE_START | input=${allTransactions.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
       const normalized = this.normalizeBankTransactions(
         allTransactions,
         accountInfoMap,
         transactionToAccountMap,
       );
       if (normalized.length > 0) {
+        this.logger.log(`[DIAG] BANK_PROCESS_START | normalized=${normalized.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
         const processingResult = await this.processingService.process(firebaseId, normalized);
+        this.logger.log(`[DIAG] BANK_PROCESS_DONE | saved=${processingResult.newlySavedToCache} | skipped=${processingResult.alreadyExistingInCache} | total=${processingResult.totalReceived} | firebaseId=${firebaseId?.substring(0, 8)}...`);
         response.processingResult = processingResult;
         response.databaseSaveResult = {
           saved: processingResult.newlySavedToCache,
@@ -996,9 +1017,11 @@ export class FeezbackService {
           message: `Saved ${processingResult.newlySavedToCache} new transactions. ${processingResult.alreadyExistingInCache} already existed.`,
         };
         this.logger.log(`Bank pipeline: ${JSON.stringify(processingResult)}`);
+      } else {
+        this.logger.log(`[DIAG] BANK_NORMALIZE_EMPTY — all transactions dropped during normalization | firebaseId=${firebaseId?.substring(0, 8)}...`);
       }
     } catch (error: any) {
-      this.logger.error(`Bank processing pipeline failed: ${error.message}`, error.stack);
+      this.logger.error(`[DIAG] BANK_PIPELINE_FAILED | firebaseId=${firebaseId?.substring(0, 8)}... | error=${error.message}`, error.stack);
       response.processingError = error.message;
       response.databaseSaveError = error.message;
     }
@@ -1415,6 +1438,11 @@ export class FeezbackService {
     // Log #3 — starting
     this.logger.log(`[FullSync] Starting | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
+    // Persist quick-sync start so the frontend can begin polling immediately.
+    await this.userSyncStateService.markQuickRunning(firebaseId, triggeredBy).catch(err => {
+      this.logger.error(`[FullSync] Failed to write running state | firebaseId=${masked} | error=${err?.message}`, err?.stack);
+    });
+
     const promise = this.doFullSync(firebaseId, triggeredBy, masked).finally(() => {
       this.runningFullSyncByUser.delete(firebaseId);
       this.logger.debug(`[FullSync] In-flight map cleanup done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
@@ -1425,84 +1453,120 @@ export class FeezbackService {
   }
 
   private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook', masked: string): Promise<void> {
-    // Gate — only proceed for users who have OPEN_BANKING module access.
-    const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
-    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-      this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      return;
+    /** Extracts the count of newly written cache rows from a pull result. */
+    const extractRows = (result: any): number => result?.processingResult?.newlySavedToCache ?? 0;
+
+    try {
+      // Gate — only proceed for users who have OPEN_BANKING module access.
+      const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
+      if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+        this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+        await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
+          this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
+        });
+        return;
+      }
+
+      // Log #4 gate — check whether cached transactions already exist
+      this.logger.debug(`[FullSync] Checking transaction cache | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      const hasCached = await this.processingService.hasTransactionCache(firebaseId);
+      if (hasCached) {
+        this.logger.log(`[FullSync] Skipped — cached transactions already exist | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+        await this.userSyncStateService.markBothSkipped(firebaseId, 'cache_exists').catch(err => {
+          this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
+        });
+        return;
+      }
+      this.logger.log(`[FullSync] Cache empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+      const sub = `${firebaseId}_sub`;
+      const today = new Date();
+      const fmt = (d: Date): string => d.toISOString().split('T')[0];
+
+      const pull1From = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
+      const pull1To   = fmt(today);
+      const pull2From = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+
+      // ── Quick sync (Pull 1): current month + previous 2 full calendar months ────
+      // Log #5
+      this.logger.log(`[FullSync] QuickSync start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
+
+      const [bankRes1, cardRes1] = await Promise.all([
+        (async () => {
+          this.logger.log(`[FullSync] QuickSync bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          const r = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
+          this.logger.log(`[FullSync] QuickSync bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          return r;
+        })().catch(e => {
+          // Log #6
+          this.logger.error(`[FullSync] QuickSync bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+          return null;
+        }),
+        (async () => {
+          this.logger.log(`[FullSync] QuickSync card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          const r = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
+          this.logger.log(`[FullSync] QuickSync card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          return r;
+        })().catch(e => {
+          // Log #7
+          this.logger.error(`[FullSync] QuickSync card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+          return null;
+        }),
+      ]);
+
+      const quickRows = extractRows(bankRes1) + extractRows(cardRes1);
+      const quickStatus = quickRows > 0 ? 'completed' : 'completed_empty';
+      this.logger.log(`[FullSync] QuickSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${quickStatus} | rowsWritten=${quickRows}`);
+
+      await this.userSyncStateService.markQuickFinished(firebaseId, quickStatus, quickRows).catch(err => {
+        this.logger.error(`[FullSync] Failed to write quickFinished state | firebaseId=${masked} | error=${err?.message}`);
+      });
+
+      // ── Full sync (Pull 2): up to 12-month backfill ──────────────────────────
+      // Log #9
+      this.logger.log(`[FullSync] FullSync start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
+
+      await this.userSyncStateService.markFullRunning(firebaseId).catch(err => {
+        this.logger.error(`[FullSync] Failed to write fullRunning state | firebaseId=${masked} | error=${err?.message}`);
+      });
+
+      const [bankRes2, cardRes2] = await Promise.all([
+        (async () => {
+          this.logger.log(`[FullSync] FullSync bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          const r = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
+          this.logger.log(`[FullSync] FullSync bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          return r;
+        })().catch(e => {
+          // Log #10
+          this.logger.error(`[FullSync] FullSync bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+          return null;
+        }),
+        (async () => {
+          this.logger.log(`[FullSync] FullSync card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          const r = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
+          this.logger.log(`[FullSync] FullSync card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+          return r;
+        })().catch(e => {
+          // Log #11
+          this.logger.error(`[FullSync] FullSync card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
+          return null;
+        }),
+      ]);
+
+      const fullRows = extractRows(bankRes2) + extractRows(cardRes2);
+      const fullFinalStatus = fullRows > 0 ? 'completed' : 'completed_empty';
+      this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${fullFinalStatus} | rowsWritten=${fullRows}`);
+
+      await this.userSyncStateService.markFullFinished(firebaseId, fullFinalStatus, fullRows).catch(err => {
+        this.logger.error(`[FullSync] Failed to write fullFinished state | firebaseId=${masked} | error=${err?.message}`);
+      });
+
+    } catch (err: any) {
+      this.logger.error(`[FullSync] Failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}`, err?.stack);
+      await this.userSyncStateService.markBothFailed(firebaseId, err?.message ?? 'UNKNOWN_ERROR').catch(writeErr => {
+        this.logger.error(`[FullSync] Failed to write failed state | firebaseId=${masked} | error=${writeErr?.message}`);
+      });
     }
-
-    // Log #4 gate — check whether cached transactions already exist
-    this.logger.debug(`[FullSync] Checking transaction cache | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-    const hasCached = await this.processingService.hasTransactionCache(firebaseId);
-    if (hasCached) {
-      this.logger.log(`[FullSync] Skipped — cached transactions already exist | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      return;
-    }
-    this.logger.log(`[FullSync] Cache empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-
-    const sub = `${firebaseId}_sub`;
-    const today = new Date();
-    const fmt = (d: Date): string => d.toISOString().split('T')[0];
-
-    const pull1From = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
-    const pull1To   = fmt(today);
-    const pull2From = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-
-    // Pull 1
-    // Log #5
-    this.logger.log(`[FullSync] Pull1 start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
-
-    await Promise.all([
-      (async () => {
-        this.logger.log(`[FullSync] Pull1 bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
-        await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
-        this.logger.log(`[FullSync] Pull1 bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      })().catch(e => {
-        // Log #6
-        this.logger.error(`[FullSync] Pull1 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-      }),
-      (async () => {
-        this.logger.log(`[FullSync] Pull1 card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
-        await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
-        this.logger.log(`[FullSync] Pull1 card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      })().catch(e => {
-        // Log #7
-        this.logger.error(`[FullSync] Pull1 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-      }),
-    ]);
-
-    // Log #8
-    this.logger.log(`[FullSync] Pull1 done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-
-    // Pull 2
-    // Log #9
-    this.logger.log(`[FullSync] Pull2 start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
-
-    await Promise.all([
-      (async () => {
-        this.logger.log(`[FullSync] Pull2 bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
-        await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
-        this.logger.log(`[FullSync] Pull2 bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      })().catch(e => {
-        // Log #10
-        this.logger.error(`[FullSync] Pull2 bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-      }),
-      (async () => {
-        this.logger.log(`[FullSync] Pull2 card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
-        await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
-        this.logger.log(`[FullSync] Pull2 card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      })().catch(e => {
-        // Log #11
-        this.logger.error(`[FullSync] Pull2 card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-      }),
-    ]);
-
-    // Log #12
-    this.logger.log(`[FullSync] Pull2 done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-
-    // Log #13
-    this.logger.log(`[FullSync] Completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
   }
 
 }
