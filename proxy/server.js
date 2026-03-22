@@ -62,24 +62,32 @@ app.get("/myip", async (req, res) => {
 });
 
 app.post("/feezback/webhook", async (req, res) => {
-  console.log("🚀 Incoming webhook:", req.body);
-  
-  try {
-    const forwardHeaders = { ...req.headers };
-    delete forwardHeaders.host;
+  const eventType = req.body?.event ?? "unknown";
+  console.log("🛰️ Webhook received:", eventType);
 
-    if (!forwardHeaders["content-type"]) {
-      forwardHeaders["content-type"] = "application/json";
+  try {
+    // Whitelist-only headers — never forward hop-by-hop headers (connection,
+    // transfer-encoding, keep-alive, content-length) that cause Cloud Run to
+    // reset the TCP connection and return 502.
+    const forwardHeaders = {
+      "content-type": "application/json",
+    };
+    if (req.headers["x-feezback-secret"]) {
+      forwardHeaders["x-feezback-secret"] = req.headers["x-feezback-secret"];
     }
 
     const payload = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
 
-    // const response = await fetch("http://localhost:3000/feezback/webhook-router", {
-    const response = await fetch("https://taxmys16elf-prod-146140406969.me-west1.run.app/feezback/webhook-router", {
+    const targetUrl = "https://taxmys16elf-prod-146140406969.me-west1.run.app/feezback/webhook-router";
+    console.log("📤 Forwarding webhook to:", targetUrl, "| event:", eventType);
+
+    const response = await fetch(targetUrl, {
       method: "POST",
       headers: forwardHeaders,
       body: payload,
     });
+
+    console.log("📥 Forward response status:", response.status, "| event:", eventType);
 
     const responseText = await response.text();
     const contentType = response.headers.get("content-type") || "";
@@ -96,6 +104,7 @@ app.post("/feezback/webhook", async (req, res) => {
 
     res.status(response.status).send(responseText);
   } catch (err) {
+    console.error("💥 fetch() threw for event:", eventType, "| error:", err.message, "| cause:", err.cause?.message ?? "none");
     res.status(502).send({ error: "Failed to forward webhook", details: err.message });
   }
 });

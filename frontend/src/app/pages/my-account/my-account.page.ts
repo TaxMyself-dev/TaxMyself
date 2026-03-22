@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
@@ -20,6 +21,7 @@ import { IColumnDataTable, IMobileCardConfig, IItemNavigate, IRowDataTable, ITab
 import { SharedModule } from 'src/app/shared/shared.module';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
+import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
 
 @Component({
@@ -47,6 +49,8 @@ export class MyAccountPage implements OnInit {
   expenseService = inject(ExpenseDataService);
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
+  private readonly syncStatusService = inject(SyncStatusService);
+  private readonly destroyRef = inject(DestroyRef);
 
   dialogService = inject(DialogService);
   // dialogRef = inject(DynamicDialogRef);
@@ -138,8 +142,15 @@ export class MyAccountPage implements OnInit {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.getTransToClassify();
+    this.startSyncStatusPolling();
   }
 
+
+  private startSyncStatusPolling(): void {
+    this.syncStatusService.onSyncComplete()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.getTransToClassify());
+  }
 
   getTransToClassify(): void {
     console.log("Fetching transactions to classify...");
