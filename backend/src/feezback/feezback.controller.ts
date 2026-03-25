@@ -288,7 +288,23 @@ export class FeezbackController {
     // this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
-    return this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+    const result = await this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+
+    const normalized = result?.normalizedTransactions ?? [];
+    let processingResult: any = null;
+    if (normalized.length > 0) {
+      try {
+        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, normalized);
+      } catch (err: any) {
+        this.logger.error(`[PERSIST] bank persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
+      }
+    }
+
+    return {
+      ...result,
+      processingResult,
+      persistedToDb: processingResult !== null,
+    };
   }
 
   @Get('user-card-transactions')
@@ -326,7 +342,7 @@ export class FeezbackController {
     // this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
 
     // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
-    return this.feezbackService.getAndSaveUserCardTransactions(
+    const result = await this.feezbackService.getAndSaveUserCardTransactions(
       firebaseId,
       sub,
       bookingStatus ?? 'booked',
@@ -336,6 +352,22 @@ export class FeezbackController {
       defaultDateTo,
       cardResourceId,
     );
+
+    const normalized = result?.normalizedTransactions ?? [];
+    let processingResult: any = null;
+    if (normalized.length > 0) {
+      try {
+        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, normalized);
+      } catch (err: any) {
+        this.logger.error(`[PERSIST] card persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
+      }
+    }
+
+    return {
+      ...result,
+      processingResult,
+      persistedToDb: processingResult !== null,
+    };
   }
 
   /**
@@ -386,6 +418,20 @@ export class FeezbackController {
       cardResourceId,
     );
 
+    // Combine normalized arrays from both sources and persist in a single process() call.
+    const combinedNormalized = [
+      ...(bankTransactions?.normalizedTransactions ?? []),
+      ...(cardTransactions?.normalizedTransactions ?? []),
+    ];
+    let processingResult: any = null;
+    if (combinedNormalized.length > 0) {
+      try {
+        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, combinedNormalized);
+      } catch (err: any) {
+        this.logger.error(`[PERSIST] all-transactions persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
+      }
+    }
+
     const bankSync = bankTransactions?.syncSummary;
     const cardSync = cardTransactions?.syncSummary;
 
@@ -396,12 +442,8 @@ export class FeezbackController {
         totalProcessed:
           (bankSync?.system?.totalProcessed ?? 0) +
           (cardSync?.system?.totalProcessed ?? 0),
-        savedInCurrentImport:
-          (bankSync?.system?.savedInCurrentImport ?? 0) +
-          (cardSync?.system?.savedInCurrentImport ?? 0),
-        alreadyExisting:
-          (bankSync?.system?.alreadyExisting ?? 0) +
-          (cardSync?.system?.alreadyExisting ?? 0),
+        savedInCurrentImport: processingResult?.newlySavedToCache ?? 0,
+        alreadyExisting: processingResult?.alreadyExistingInCache ?? 0,
       },
     };
 
@@ -409,6 +451,8 @@ export class FeezbackController {
       bankTransactions,
       cardTransactions,
       syncSummary,
+      processingResult,
+      persistedToDb: processingResult !== null,
     };
   }
 

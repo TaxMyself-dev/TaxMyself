@@ -55,13 +55,15 @@ export class UserSyncStateService {
   /** Called after Pull 1 (quick sync) completes. Only updates quick-stage columns. */
   async markQuickFinished(
     userId: string,
-    status: 'completed' | 'completed_empty',
+    status: 'success' | 'partial_success' | 'failed',
     rowsWritten: number,
+    failureReason?: string,
   ): Promise<void> {
     await this.repo.update({ userId }, {
       quickStatus: status,
       quickRowsWritten: rowsWritten,
       quickFinishedAt: new Date(),
+      ...(failureReason ? { quickFailureReason: failureReason.slice(0, 255) } : {}),
     });
   }
 
@@ -76,13 +78,15 @@ export class UserSyncStateService {
   /** Called after Pull 2 (full sync) completes. Only updates full-stage columns. */
   async markFullFinished(
     userId: string,
-    status: 'completed' | 'completed_empty',
+    status: 'success' | 'partial_success' | 'failed',
     rowsWritten: number,
+    failureReason?: string,
   ): Promise<void> {
     await this.repo.update({ userId }, {
       fullStatus: status,
       fullRowsWritten: rowsWritten,
       fullFinishedAt: new Date(),
+      ...(failureReason ? { fullFailureReason: failureReason.slice(0, 255) } : {}),
     });
   }
 

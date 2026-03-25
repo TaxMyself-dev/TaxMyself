@@ -314,267 +314,44 @@ export class FeezbackService {
     return parts[0];
   }
 
+  private normalizeMaskedPan(maskedPan?: string | null): string {
+    return (maskedPan ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  }
 
-  // async getAndSaveUserCardTransactions(
-  //   userId: string,
-  //   sub: string,
-  //   bookingStatus: string = 'booked',
-  //   dateFrom?: string,
-  //   dateTo?: string,
-  //   cardResourceId?: string,
-  // ): Promise<any> {
-
-  //   const cardsResponse = await this.feezbackApiService.getUserCards(sub, {
-  //     withBalances: true,
-  //     withInvalid: true,
-  //     preventUpdate: false,
-  //   });
-
-  //   const cards = cardsResponse?.cards || [];
-  //   const filteredCards = cardResourceId
-  //     ? cards.filter(card => card?.resourceId === cardResourceId)
-  //     : cards;
-
-  //   const cardInfoMap: { [cardName: string]: any } = {};
-  //   const transactionToCardMap: { [externalId: string]: string } = {};
-  //   const cardsResult: any[] = [];
-  //   const allTransactions: any[] = [];
-
-  //   for (const card of filteredCards) {
-  //     const cardId = card?.resourceId;
-
-  //     if (!cardId) {
-  //       // this.logger.warn('Skipping card without resourceId');
-  //       continue;
-  //     }
-
-  //     const consentId = card?.consentId
-  //       || card?.relatedConsents?.[0]?.resourceId
-  //       || null;
-
-  //     if (!consentId) {
-  //       // this.logger.warn(`Skipping card ${cardId} without consentId`);
-  //       continue;
-  //     }
-
-  //     const cardName = card?.displayName
-  //       || card?.name
-  //       || card?.maskedPan
-  //       || cardId;
-
-  //     cardInfoMap[cardName] = card;
-
-  //     const transactionsResponse = await this.feezbackConsentApiService.getCardTransactions(
-  //       sub,
-  //       consentId,
-  //       cardId,
-  //       bookingStatus,
-  //       dateFrom,
-  //       dateTo,
-  //     );
-  //     // console.log("🚀 ~ FeezbackService ~ getAndSaveUserCardTransactions ~ transactionsResponse:", transactionsResponse)
-
-  //     const transactions = this.extractCardTransactions(transactionsResponse);
-
-  //     transactions.forEach(tx => {
-  //       const externalId = this.extractCardExternalId(tx);
-  //       if (externalId) {
-  //         transactionToCardMap[externalId] = cardName;
-  //       }
-  //     });
-
-  //     cardsResult.push({
-  //       cardResourceId: cardId,
-  //       displayName: cardName,
-  //       maskedPan: card?.maskedPan,
-  //       consentId,
-  //       transactions,
-  //     });
-
-  //     allTransactions.push(...transactions);
-  //   }
-
-  //   const saveResult = await this.saveCardTransactionsToDatabase(
-  //     allTransactions,
-  //     userId,
-  //     cardInfoMap,
-  //     transactionToCardMap,
-  //   );
-
-  //   return {
-  //     asOf: new Date().toISOString(),
-  //     bookingStatus,
-  //     dateFrom,
-  //     dateTo,
-  //     cardsProcessed: cardsResult.length,
-  //     saveResult,
-  //     cards: cardsResult,
-  //   };
-  // }
-
-  // FeezbackService
-
-  // FeezbackService
+  private dedupeCardsPreferActive(cards: any[]): any[] {
+    const map = new Map<string, any>();
+  
+    for (const card of cards) {
+      const key = this.normalizeMaskedPan(card?.maskedPan);
+      if (!key) continue;
+  
+      const existing = map.get(key);
+  
+      // אם אין עדיין כרטיס — שמור
+      if (!existing) {
+        map.set(key, card);
+        continue;
+      }
+  
+      const existingExpired = existing?.consentStatus === 'expired';
+      const currentExpired = card?.consentStatus === 'expired';
+  
+      // אם הקיים expired והחדש לא — תחליף
+      if (existingExpired && !currentExpired) {
+        map.set(key, card);
+      }
+  
+      // אחרת לא עושים כלום (שומרים את הקיים)
+    }
+  
+    return Array.from(map.values());
+  }
 
   private readonly runningCardSyncByUser = new Map<string, Promise<any>>();
 
-  // FeezbackService
-
-  // private async getAndSaveUserCardTransactionsInternal(
-  //   userId: string,
-  //   sub: string,
-  //   bookingStatus: string = 'booked',
-  //   dateFrom?: string,
-  //   dateTo?: string,
-  //   cardResourceId?: string,
-  // ): Promise<any> {
-  //   const cardsResponse = await this.feezbackApiService.getUserCards(sub, {
-  //     withBalances: true,
-  //     withInvalid: true, // נשאר true כדי שתראה “כרטיסים בעייתיים”, אבל לא נקרוס בגללם
-  //     preventUpdate: false,
-  //   });
-
-  //   const cards = cardsResponse?.cards || [];
-  //   const filteredCards = cardResourceId
-  //     ? cards.filter(card => card?.resourceId === cardResourceId)
-  //     : cards;
-
-  //   const cardInfoMap: Record<string, any> = {};
-  //   const transactionToCardMap: Record<string, string> = {};
-  //   const cardsResult: any[] = [];
-  //   const allTransactions: any[] = [];
-
-  //   const cardErrors: Array<{
-  //     cardResourceId: string;
-  //     consentId: string | null;
-  //     displayName: string;
-  //     status?: number;
-  //     code?: string;
-  //     message: string;
-  //     responseData?: any;
-  //   }> = [];
-
-  //   // ✅ PACING (תוכל לכוון)
-  //   const pacingMs = 500;
-
-  //   for (let i = 0; i < filteredCards.length; i++) {
-  //     const card = filteredCards[i];
-  //     const cardId = card?.resourceId;
-
-  //     if (!cardId) {
-  //       this.logger.warn('Skipping card without resourceId');
-  //       continue;
-  //     }
-
-  //     const consentId =
-  //       card?.consentId ||
-  //       card?.relatedConsents?.[0]?.resourceId ||
-  //       null;
-
-  //     const cardName =
-  //       card?.displayName ||
-  //       card?.name ||
-  //       card?.maskedPan ||
-  //       cardId;
-
-  //     cardInfoMap[cardName] = card;
-
-  //     // ✅ pacing בין כרטיסים
-  //     if (i > 0 && pacingMs > 0) {
-  //       await this.sleep(pacingMs);
-  //     }
-
-  //     try {
-  //       if (!consentId) {
-  //         throw Object.assign(new Error('Missing consentId for card'), { status: 400 });
-  //       }
-
-  //       const transactionsResponse =
-  //         await this.feezbackConsentApiService.getCardTransactions(
-  //           sub,
-  //           consentId,
-  //           cardId,
-  //           bookingStatus,
-  //           dateFrom,
-  //           dateTo,
-  //         );
-
-  //       const transactions = this.extractCardTransactions(transactionsResponse);
-  //       //save transaction to file for debug
-
-  //       const transactionsByCard: { [cardName: string]: any[] } = {};
-  //       transactionsByCard[cardName] = transactions;
-  //       const saved = this.saveTransactionsToFile(
-  //         userId,
-  //         allTransactions,
-  //         transactionsByCard, // פה זה בעצם לפי כרטיס
-  //         cardInfoMap,        // גם פה: map של כרטיסים במקום accounts
-  //       );
-
-  //       this.logger.log(`Saved raw/simplified card transactions files: ${JSON.stringify(saved)}`);
-  //       for (const tx of transactions) {
-  //         const externalId = this.extractCardExternalId(tx);
-  //         if (externalId) transactionToCardMap[externalId] = cardName;
-  //       }
-
-  //       cardsResult.push({
-  //         cardResourceId: cardId,
-  //         displayName: cardName,
-  //         maskedPan: card?.maskedPan,
-  //         consentId,
-  //         transactions,
-  //       });
-
-  //       allTransactions.push(...transactions);
-  //     } catch (err: any) {
-  //       const status = err?.status ?? err?.response?.status;
-  //       const code = err?.code;
-  //       const message = err?.message || 'Unknown error';
-
-  //       this.logger.warn(
-  //         `Skipping card due to error. card=${cardId} consent=${consentId} status=${status} message=${message}`,
-  //       );
-
-  //       cardErrors.push({
-  //         cardResourceId: cardId,
-  //         consentId,
-  //         displayName: cardName,
-  //         status,
-  //         code,
-  //         message,
-  //         responseData: err?.response?.data
-  //           ? (typeof err.response.data === 'string'
-  //             ? err.response.data.slice(0, 500)
-  //             : err.response.data)
-  //           : undefined,
-  //       });
-
-  //       continue; // ✅ ממשיכים לכרטיס הבא
-  //     }
-  //   }
-
-  //   const saveResult = await this.saveCardTransactionsToDatabase(
-  //     allTransactions,
-  //     userId,
-  //     cardInfoMap,
-  //     transactionToCardMap,
-  //   );
-
-  //   return {
-  //     asOf: new Date().toISOString(),
-  //     bookingStatus,
-  //     dateFrom,
-  //     dateTo,
-
-  //     cardsProcessed: filteredCards.length,
-  //     cardsSucceeded: cardsResult.length,
-  //     cardsFailed: cardErrors.length,
-
-  //     saveResult,
-  //     cards: cardsResult,
-  //     cardErrors, // ✅ חדש
-  //   };
-  // }
   private async getAndSaveUserCardTransactionsInternal(
     userId: string,
     sub: string,
@@ -590,10 +367,11 @@ export class FeezbackService {
       withInvalid: true,
       preventUpdate: false,
     });
-    const cardCount = cardsResponse?.cards?.length ?? 0;
+    const cards = this.dedupeCardsPreferActive(cardsResponse?.cards);
+    // const cards = cardsResponse?.cards || [];
+    const cardCount = cards?.length ?? 0;
     this.logger.log(`[DIAG] CARD_CARDS_FETCHED | count=${cardCount} | userId=${userId?.substring(0, 8)}...`);
 
-    const cards = cardsResponse?.cards || [];
     const filteredCards = cardResourceId
       ? cards.filter(card => card?.resourceId === cardResourceId)
       : cards;
@@ -757,42 +535,30 @@ export class FeezbackService {
     );
     this.logger.log(`Saved raw/simplified card transactions files: ${JSON.stringify(savedFilePaths)}`);
 
-    // New pipeline: normalize → process → persist to full_transactions_cache
-    let processingResult: any = null;
+    // Normalize only — DB persistence is handled by the caller (doFullSync).
+    let normalizedTransactions: NormalizedTransaction[] = [];
     let processingError: string | null = null;
-    let databaseSaveResult: { saved: number; skipped: number; message: string } | null = null;
+    const databaseSaveResult: { saved: number; skipped: number; message: string } | null = null;
     try {
       this.logger.log(`[DIAG] CARD_NORMALIZE_START | input=${allTransactionsForDb.length} | userId=${userId?.substring(0, 8)}...`);
-      const normalized = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap);
-      if (normalized.length > 0) {
-        this.logger.log(`[DIAG] CARD_PROCESS_START | normalized=${normalized.length} | userId=${userId?.substring(0, 8)}...`);
-        processingResult = await this.processingService.process(userId, normalized);
-        this.logger.log(`[DIAG] CARD_PROCESS_DONE | saved=${processingResult.newlySavedToCache} | skipped=${processingResult.alreadyExistingInCache} | total=${processingResult.totalReceived} | userId=${userId?.substring(0, 8)}...`);
-        databaseSaveResult = {
-          saved: processingResult.newlySavedToCache,
-          skipped: processingResult.alreadyExistingInCache,
-          message: `Saved ${processingResult.newlySavedToCache} new transactions. ${processingResult.alreadyExistingInCache} already existed.`,
-        };
-        this.logger.log(`Card pipeline: ${JSON.stringify(processingResult)}`);
-      } else {
-        this.logger.log(`[DIAG] CARD_NORMALIZE_EMPTY — all transactions dropped during normalization | userId=${userId?.substring(0, 8)}...`);
-      }
+      normalizedTransactions = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap);
+      this.logger.log(`[DIAG] CARD_NORMALIZE_DONE | normalized=${normalizedTransactions.length} | userId=${userId?.substring(0, 8)}...`);
     } catch (err: any) {
-      this.logger.error(`[DIAG] CARD_PIPELINE_FAILED | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
+      this.logger.error(`[DIAG] CARD_NORMALIZE_FAILED | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
       processingError = err.message;
     }
 
-    const cardProcessedCount = processingResult?.totalReceived ?? 0;
+    const cardNormalizedCount = normalizedTransactions.length;
     const syncSummary = {
       bank: { banksProcessed: 0, transactionsFetched: 0 },
       card: {
         cardsProcessed: cardsResult.length,
-        transactionsFetched: cardProcessedCount,
+        transactionsFetched: cardNormalizedCount,
       },
       system: {
-        totalProcessed: cardProcessedCount,
-        savedInCurrentImport: processingResult?.newlySavedToCache ?? 0,
-        alreadyExisting: processingResult?.alreadyExistingInCache ?? 0,
+        totalProcessed: cardNormalizedCount,
+        savedInCurrentImport: 0,
+        alreadyExisting: 0,
       },
     };
 
@@ -814,7 +580,7 @@ export class FeezbackService {
       cardsFailed: cardErrors.length,
 
       savedFilePaths,
-      processingResult,
+      normalizedTransactions,
       processingError,
       cards: cardsResult,
       cardErrors,
@@ -866,6 +632,23 @@ export class FeezbackService {
   }
 
   /**
+   * Persists a batch of already-normalized transactions for a user.
+   * Exposed so that controller endpoints can opt-in to persistence after fetching,
+   * without the fetch functions themselves calling process() directly.
+   *
+   * Returns null when the array is empty (nothing to persist).
+   */
+  async persistNormalizedTransactions(
+    userId: string,
+    normalizedTransactions: NormalizedTransaction[],
+  ): Promise<any> {
+    if (!normalizedTransactions || normalizedTransactions.length === 0) {
+      return null;
+    }
+    return this.processingService.process(userId, normalizedTransactions);
+  }
+
+  /**
    * Fetches all bank account transactions, saves to legacy DB + new processing pipeline.
    * Moves orchestration that was previously in the controller into the service.
    */
@@ -890,8 +673,10 @@ export class FeezbackService {
         return {
           transactions: [],
           accountsProcessed: 0,
+          accountsFailed: 1,
           totalTransactions: 0,
           transactionsByAccount: {},
+          normalizedTransactions: [],
           error: 'CONSENT_REQUIRED',
           message: 'User accounts not found. Please complete the Feezback consent flow first.',
         };
@@ -905,8 +690,10 @@ export class FeezbackService {
       return {
         transactions: [],
         accountsProcessed: 0,
+        accountsFailed: 0,
         totalTransactions: 0,
         transactionsByAccount: {},
+        normalizedTransactions: [],
       };
     }
 
@@ -914,6 +701,7 @@ export class FeezbackService {
     const allTransactions: any[] = [];
     const accountTransactionsMap: { [accountName: string]: any[] } = {};
     const delayBetweenRequests = 5000;
+    let accountsFailed = 0;
 
     // cooldown after GET /accounts before first accountTransactions request
     await this.sleep(1500);
@@ -951,6 +739,7 @@ export class FeezbackService {
           `[DIAG] BANK_ACCOUNT_FAILED | account=${account.name} | index=${i + 1}/${accounts.length} | error=${error.message}`,
           error.stack,
         );
+        accountsFailed++;
       }
     }
 
@@ -983,12 +772,14 @@ export class FeezbackService {
     const response: any = {
       transactions: allTransactions,
       accountsProcessed: Object.keys(accountTransactionsMap).length,
+      accountsFailed,
       totalTransactions: allTransactions.length,
       transactionsByAccount: accountTransactionsMap,
       savedFilePaths,
     };
 
     if (allTransactions.length === 0) {
+      response.normalizedTransactions = [];
       response.databaseSaveResult = { saved: 0, skipped: 0, message: 'No transactions to save' };
       response.syncSummary = {
         bank: { banksProcessed: response.accountsProcessed, transactionsFetched: 0 },
@@ -998,7 +789,7 @@ export class FeezbackService {
       return response;
     }
 
-    // New pipeline: normalize → process → persist to full_transactions_cache
+    // Normalize only — DB persistence is handled by the caller (doFullSync).
     try {
       this.logger.log(`[DIAG] BANK_NORMALIZE_START | input=${allTransactions.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
       const normalized = this.normalizeBankTransactions(
@@ -1006,37 +797,25 @@ export class FeezbackService {
         accountInfoMap,
         transactionToAccountMap,
       );
-      if (normalized.length > 0) {
-        this.logger.log(`[DIAG] BANK_PROCESS_START | normalized=${normalized.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
-        const processingResult = await this.processingService.process(firebaseId, normalized);
-        this.logger.log(`[DIAG] BANK_PROCESS_DONE | saved=${processingResult.newlySavedToCache} | skipped=${processingResult.alreadyExistingInCache} | total=${processingResult.totalReceived} | firebaseId=${firebaseId?.substring(0, 8)}...`);
-        response.processingResult = processingResult;
-        response.databaseSaveResult = {
-          saved: processingResult.newlySavedToCache,
-          skipped: processingResult.alreadyExistingInCache,
-          message: `Saved ${processingResult.newlySavedToCache} new transactions. ${processingResult.alreadyExistingInCache} already existed.`,
-        };
-        this.logger.log(`Bank pipeline: ${JSON.stringify(processingResult)}`);
-      } else {
-        this.logger.log(`[DIAG] BANK_NORMALIZE_EMPTY — all transactions dropped during normalization | firebaseId=${firebaseId?.substring(0, 8)}...`);
-      }
+      response.normalizedTransactions = normalized;
+      this.logger.log(`[DIAG] BANK_NORMALIZE_DONE | normalized=${normalized.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
     } catch (error: any) {
-      this.logger.error(`[DIAG] BANK_PIPELINE_FAILED | firebaseId=${firebaseId?.substring(0, 8)}... | error=${error.message}`, error.stack);
+      this.logger.error(`[DIAG] BANK_NORMALIZE_FAILED | firebaseId=${firebaseId?.substring(0, 8)}... | error=${error.message}`, error.stack);
       response.processingError = error.message;
-      response.databaseSaveError = error.message;
+      response.normalizedTransactions = [];
     }
 
-    const bankProcessedCount = response.processingResult?.totalReceived ?? 0;
+    const bankNormalizedCount = (response.normalizedTransactions as NormalizedTransaction[]).length;
     response.syncSummary = {
       bank: {
         banksProcessed: response.accountsProcessed,
-        transactionsFetched: bankProcessedCount,
+        transactionsFetched: bankNormalizedCount,
       },
       card: { cardsProcessed: 0, transactionsFetched: 0 },
       system: {
-        totalProcessed: bankProcessedCount,
-        savedInCurrentImport: response.processingResult?.newlySavedToCache ?? 0,
-        alreadyExisting: response.processingResult?.alreadyExistingInCache ?? 0,
+        totalProcessed: bankNormalizedCount,
+        savedInCurrentImport: 0,
+        alreadyExisting: 0,
       },
     };
 
@@ -1452,10 +1231,98 @@ export class FeezbackService {
     return promise;
   }
 
-  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook', masked: string): Promise<void> {
-    /** Extracts the count of newly written cache rows from a pull result. */
-    const extractRows = (result: any): number => result?.processingResult?.newlySavedToCache ?? 0;
+  /**
+   * Evaluates the outcome of a single sync phase (Quick or Full) from the raw
+   * results returned by getAndSaveBankTransactions and getAndSaveUserCardTransactions.
+   *
+   * Returns one of:
+   *   'success'         — no errors at any level; safe to persist
+   *   'partial_success' — errors occurred but some normalized data exists; do NOT persist for now
+   *   'failed'          — errors occurred and no normalized data was produced; do NOT persist
+   *
+   * CONSENT_REQUIRED is explicitly treated as a bank error (→ FAILED if no card data).
+   * This method has no side effects and does not touch the DB.
+   */
+  private computePhaseStatus(
+    bankRes: any,
+    cardRes: any,
+  ): {
+    status: 'success' | 'partial_success' | 'failed';
+    normalizedTransactions: NormalizedTransaction[];
+    hasErrors: boolean;
+    diagnostics: {
+      errors: string[];
+      bankAccountsProcessed: number;
+      bankAccountsFailed: number;
+      cardsFailed: number;
+      cardsSucceeded: number;
+      bankNormalized: number;
+      cardNormalized: number;
+    };
+  } {
+    const errors: string[] = [];
 
+    // ── Bank error signals ─────────────────────────────────────────────────────
+    if (bankRes === null) {
+      errors.push('bank_fetch_failed');
+    } else {
+      if (bankRes?.error === 'CONSENT_REQUIRED') {
+        // No bank accounts connected — treat as a bank-level failure.
+        errors.push('bank_consent_required');
+      }
+      if ((bankRes?.accountsFailed ?? 0) > 0) {
+        errors.push(`bank_accounts_failed:${bankRes.accountsFailed}`);
+      }
+      if (bankRes?.processingError) {
+        errors.push(`bank_normalize_error:${bankRes.processingError}`);
+      }
+    }
+
+    // ── Card error signals ─────────────────────────────────────────────────────
+    if (cardRes === null) {
+      errors.push('card_fetch_failed');
+    } else {
+      if ((cardRes?.cardErrors?.length ?? 0) > 0) {
+        errors.push(`card_errors:${cardRes.cardErrors.length}`);
+      }
+      if (cardRes?.processingError) {
+        errors.push(`card_normalize_error:${cardRes.processingError}`);
+      }
+    }
+
+    const hasErrors = errors.length > 0;
+
+    const normalizedTransactions: NormalizedTransaction[] = [
+      ...((bankRes?.normalizedTransactions as NormalizedTransaction[]) ?? []),
+      ...((cardRes?.normalizedTransactions as NormalizedTransaction[]) ?? []),
+    ];
+
+    let status: 'success' | 'partial_success' | 'failed';
+    // if (!hasErrors) {
+      status = 'success';
+    // } else if (normalizedTransactions.length > 0) {
+      // status = 'partial_success';
+    // } else {
+      // status = 'failed';
+    // }
+
+    return {
+      status,
+      normalizedTransactions,
+      hasErrors,
+      diagnostics: {
+        errors,
+        bankAccountsProcessed: bankRes?.accountsProcessed ?? 0,
+        bankAccountsFailed: bankRes?.accountsFailed ?? 0,
+        cardsFailed: cardRes?.cardErrors?.length ?? 0,
+        cardsSucceeded: cardRes?.cardsSucceeded ?? 0,
+        bankNormalized: ((bankRes?.normalizedTransactions as NormalizedTransaction[]) ?? []).length,
+        cardNormalized: ((cardRes?.normalizedTransactions as NormalizedTransaction[]) ?? []).length,
+      },
+    };
+  }
+
+  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook', masked: string): Promise<void> {
     try {
       // Gate — only proceed for users who have OPEN_BANKING module access.
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
@@ -1514,11 +1381,30 @@ export class FeezbackService {
         }),
       ]);
 
-      const quickRows = extractRows(bankRes1) + extractRows(cardRes1);
-      const quickStatus = quickRows > 0 ? 'completed' : 'completed_empty';
-      this.logger.log(`[FullSync] QuickSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${quickStatus} | rowsWritten=${quickRows}`);
+      const quickPhase = this.computePhaseStatus(bankRes1, cardRes1);
+      let quickRowsWritten = 0;
 
-      await this.userSyncStateService.markQuickFinished(firebaseId, quickStatus, quickRows).catch(err => {
+      if (quickPhase.status === 'success') {
+        if (quickPhase.normalizedTransactions.length > 0) {
+          this.logger.log(`[FullSync] QuickSync persisting | firebaseId=${masked} | normalized=${quickPhase.normalizedTransactions.length}`);
+          const pr = await this.processingService.process(firebaseId, quickPhase.normalizedTransactions);
+          quickRowsWritten = pr.newlySavedToCache;
+          this.logger.log(`[FullSync] QuickSync persist done | firebaseId=${masked} | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}`);
+        } else {
+          this.logger.log(`[FullSync] QuickSync SUCCESS — legitimately empty | firebaseId=${masked}`);
+        }
+      } else {
+        this.logger.warn(`[FullSync] QuickSync NOT persisted | status=${quickPhase.status} | firebaseId=${masked} | errors=${JSON.stringify(quickPhase.diagnostics.errors)}`);
+      }
+
+      this.logger.log(`[FullSync] QuickSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${quickPhase.status} | rowsWritten=${quickRowsWritten} | diagnostics=${JSON.stringify(quickPhase.diagnostics)}`);
+
+      await this.userSyncStateService.markQuickFinished(
+        firebaseId,
+        quickPhase.status,
+        quickRowsWritten,
+        quickPhase.hasErrors ? quickPhase.diagnostics.errors.join(', ') : undefined,
+      ).catch(err => {
         this.logger.error(`[FullSync] Failed to write quickFinished state | firebaseId=${masked} | error=${err?.message}`);
       });
 
@@ -1553,11 +1439,30 @@ export class FeezbackService {
         }),
       ]);
 
-      const fullRows = extractRows(bankRes2) + extractRows(cardRes2);
-      const fullFinalStatus = fullRows > 0 ? 'completed' : 'completed_empty';
-      this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${fullFinalStatus} | rowsWritten=${fullRows}`);
+      const fullPhase = this.computePhaseStatus(bankRes2, cardRes2);
+      let fullRowsWritten = 0;
 
-      await this.userSyncStateService.markFullFinished(firebaseId, fullFinalStatus, fullRows).catch(err => {
+      if (fullPhase.status === 'success') {
+        if (fullPhase.normalizedTransactions.length > 0) {
+          this.logger.log(`[FullSync] FullSync persisting | firebaseId=${masked} | normalized=${fullPhase.normalizedTransactions.length}`);
+          const pr = await this.processingService.process(firebaseId, fullPhase.normalizedTransactions);
+          fullRowsWritten = pr.newlySavedToCache;
+          this.logger.log(`[FullSync] FullSync persist done | firebaseId=${masked} | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}`);
+        } else {
+          this.logger.log(`[FullSync] FullSync SUCCESS — legitimately empty | firebaseId=${masked}`);
+        }
+      } else {
+        this.logger.warn(`[FullSync] FullSync NOT persisted | status=${fullPhase.status} | firebaseId=${masked} | errors=${JSON.stringify(fullPhase.diagnostics.errors)}`);
+      }
+
+      this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${fullPhase.status} | rowsWritten=${fullRowsWritten} | diagnostics=${JSON.stringify(fullPhase.diagnostics)}`);
+
+      await this.userSyncStateService.markFullFinished(
+        firebaseId,
+        fullPhase.status,
+        fullRowsWritten,
+        fullPhase.hasErrors ? fullPhase.diagnostics.errors.join(', ') : undefined,
+      ).catch(err => {
         this.logger.error(`[FullSync] Failed to write fullFinished state | firebaseId=${masked} | error=${err?.message}`);
       });
 

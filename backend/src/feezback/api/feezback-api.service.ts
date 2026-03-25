@@ -57,7 +57,7 @@ export class FeezbackApiService {
     );
 
     const cards = this.normalizeCardsResponse(data);
-    // console.log("🚀 ~ FeezbackApiService ~ getUserCards ~ cards:", cards)
+    console.log("🚀 ~ FeezbackApiService ~ getUserCards ~ cards:", cards)
     return { cards };
   }
 
