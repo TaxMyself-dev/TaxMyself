@@ -3,12 +3,12 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 /**
  * pending         — stage has not started yet (only used for fullStatus before Pull 2 begins)
  * running         — stage is in progress
- * completed       — stage finished and rowsWritten > 0
- * completed_empty — stage finished but no rows were written to full_transactions_cache
- * failed          — an unexpected error stopped the stage
+ * success         — stage finished with no errors (rowsWritten may be 0 if legitimately empty)
+ * partial_success — stage had errors but some normalized data was produced (not persisted for now)
+ * failed          — stage had errors and no normalized data was produced
  * skipped         — stage was intentionally skipped (see skipReason)
  */
-export type SyncStatus = 'pending' | 'running' | 'completed' | 'completed_empty' | 'failed' | 'skipped';
+export type SyncStatus = 'pending' | 'running' | 'success' | 'partial_success' | 'failed' | 'skipped';
 
 /**
  * no_access    — user does not have OPEN_BANKING module access
