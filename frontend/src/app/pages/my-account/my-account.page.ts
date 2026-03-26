@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
@@ -71,6 +71,12 @@ export class MyAccountPage implements OnInit {
   buttonColor = ButtonColor;
   isMobile = computed(() => this.genericService.isMobile());
 
+  // Feezback onboarding dialog (shown only when arriving from Feezback URL)
+  feezbackDialogVisible = signal<boolean>(false);
+  feezbackDialogStatus = signal<'success' | 'failure' | null>(null);
+  feezbackDialogTitle = signal<string>('');
+  feezbackDialogMessage = signal<string>('');
+
 
 
   private readonly allItemsNavigate: IItemNavigate[] = [
@@ -135,7 +141,11 @@ export class MyAccountPage implements OnInit {
     },
   ];
 
-  constructor(private authService: AuthService) { }
+  constructor(
+    private authService: AuthService,
+    private route: ActivatedRoute,
+    private router: Router,
+  ) { }
 
   ngOnInit() {
     console.log("MyAccountPage initialized");
@@ -143,6 +153,45 @@ export class MyAccountPage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.getTransToClassify();
     this.startSyncStatusPolling();
+
+    this.initFeezbackDialogFromReturnUrl();
+  }
+
+  /** Feezback consent redirect lands on `/my-account?feezbackStatus=...` (see backend JWT redirects). */
+  private initFeezbackDialogFromReturnUrl(): void {
+    const status = this.route.snapshot.queryParamMap.get('feezbackStatus');
+    if (status !== 'success' && status !== 'failure') return;
+
+    void this.router.navigate(['/my-account'], {
+      replaceUrl: true,
+      queryParams: {},
+      queryParamsHandling: '',
+    });
+
+    if (status === 'success') {
+      this.feezbackDialogStatus.set('success');
+      this.feezbackDialogTitle.set('איזה כיף שהצטרפת לבנקאות הפתוחה!');
+      this.feezbackDialogMessage.set('ברגעים אלו אנו מושכים את התנועות שלך...');
+      this.feezbackDialogVisible.set(true);
+    } else if (status === 'failure') {
+      this.feezbackDialogStatus.set('failure');
+      this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
+      this.feezbackDialogMessage.set('');
+      this.feezbackDialogVisible.set(true);
+    }
+  }
+
+  closeFeezbackDialog(): void {
+    this.feezbackDialogVisible.set(false);
+    this.feezbackDialogStatus.set(null);
+    this.feezbackDialogTitle.set('');
+    this.feezbackDialogMessage.set('');
+  }
+
+  tryAgainFromDialog(): void {
+    // Re-trigger the same open-banking consent creation used in the main screen.
+    this.closeFeezbackDialog();
+    this.connectToOpenBanking();
   }
 
 

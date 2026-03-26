@@ -10,16 +10,11 @@ import { User } from '../users/user.entity';
 export class FeezbackJwtService {
   private readonly logger = new Logger(FeezbackJwtService.name);
   private privateKey: string | null = null;
-  private readonly baseRedirectUrl: string;
 
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {
-    // Base URL for redirects - should be your frontend URL
-    this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL ||
-      process.env.FRONTEND_URL ||
-      'http://localhost:4200';
   }
 
   /**
@@ -70,14 +65,20 @@ export class FeezbackJwtService {
     failure: string;
     ttlExpired: string;
   } {
-    const baseUrl = this.baseRedirectUrl.endsWith('/')
-      ? this.baseRedirectUrl.slice(0, -1)
-      : this.baseRedirectUrl;
+
+    const qs = (status: 'success' | 'failure') => {
+      const p = new URLSearchParams({
+        feezbackStatus: status,
+        context,
+        flowId,
+      });
+      return p.toString();
+    };
 
     return {
-      success: `${baseUrl}/feezback/success/${flowId}?context=${context}`,
-      failure: `${baseUrl}/feezback/failure/${flowId}?context=${context}`,
-      ttlExpired: `${baseUrl}/feezback/expired/${flowId}?context=${context}`,
+      success: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('success')}`,
+      failure: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('failure')}`,
+      ttlExpired: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('failure')}`,
     };
   }
 
