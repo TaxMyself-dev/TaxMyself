@@ -243,7 +243,7 @@ export class FeezbackWebhookService {
     // NOTE: payload.fetchedAccounts is intentionally NOT used — always fetches fresh from Feezback API.
     try {
       this.logger.log(`${prefix}[Account] Fetching accounts from Feezback API sub=${sub} (payload.fetchedAccounts NOT used)`);
-      const accountsResponse = await this.feezbackApiService.getUserAccounts(sub);
+      const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
       const accounts: any[] = accountsResponse?.accounts ?? [];
       this.logger.log(`${prefix}[Account] Fetched ${accounts.length} account(s) firebaseId=${masked}`);
 

@@ -51,6 +51,7 @@ export class FeezbackHttpClient {
     const { maxRetries } = FEEZBACK_RETRY;
     const { endpoint, resource } = this.classifyUrl(url);
     const requestStartMs = Date.now();
+    const maskedSub = options.sub ? `${options.sub.substring(0, 8)}...` : 'unknown';
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Rebuild auth headers on every attempt so a fresh token is used after long back-offs.
@@ -66,13 +67,26 @@ export class FeezbackHttpClient {
         `[DIAG] FB_REQUEST_START | endpoint=${endpoint} | resource=${resource} | attempt=${attempt + 1}/${maxRetries + 1} | elapsed=${attemptStartMs - requestStartMs}ms`,
       );
 
+      // Timer starts here — after all internal prep (auth headers, config) and immediately
+      // before the outbound HTTP call. Measures pure Feezback network/API time only.
+      const httpStartMs = Date.now();
+      this.logger.log(
+        `[FEEZBACK_HTTP_TIMING] START | method=${method} | url=${url} | attempt=${attempt + 1} | sub=${maskedSub}`,
+      );
+
       try {
-        this.logDebug(`${method} ${url}`, config);
+        // this.logDebug(`${method} ${url}`, config);
 
         const response: AxiosResponse<T> = await firstValueFrom(
           method === 'GET'
             ? this.http.get<T>(url, config)
             : this.http.post<T>(url, body, config),
+        );
+
+        // Timer stops here — immediately after Feezback responds, before any processing.
+        const httpDurationMs = Date.now() - httpStartMs;
+        this.logger.log(
+          `[FEEZBACK_HTTP_TIMING] SUCCESS | method=${method} | url=${url} | status=${response.status} | durationMs=${httpDurationMs} | attempt=${attempt + 1} | sub=${maskedSub}`,
         );
 
         const durationMs = Date.now() - attemptStartMs;
@@ -83,7 +97,28 @@ export class FeezbackHttpClient {
         this.logSuccess(method, url, response.status);
         return response.data;
       } catch (rawError) {
+        // Timer stops here — immediately when Feezback returns an error, before any mapping.
+        const httpDurationMs = Date.now() - httpStartMs;
+
         const mapped = toFeezbackHttpError(method, url, rawError);
+
+        this.logger.warn(
+          `[FEEZBACK_HTTP_TIMING] ERROR | method=${method} | url=${url} | status=${mapped.status ?? 'unknown'} | durationMs=${httpDurationMs} | attempt=${attempt + 1} | sub=${maskedSub}`,
+        );
+
+        // Diagnostic: log the full Feezback response body so we can see what the API returned.
+        if (mapped.responseBody !== undefined) {
+          let dataStr: string;
+          try {
+            dataStr = JSON.stringify(mapped.responseBody);
+          } catch {
+            dataStr = String(mapped.responseBody);
+          }
+          const statusText = (rawError as any)?.response?.statusText ?? '';
+          this.logger.error(
+            `[FeezbackHttpClient] Feezback error response | method=${method} | url=${url} | status=${mapped.status ?? 'unknown'} | statusText=${statusText} | data=${dataStr}`,
+          );
+        }
 
         if (mapped.status === 403) {
           this.logger.error('[FB_403]', {
@@ -128,6 +163,10 @@ export class FeezbackHttpClient {
         const waitMs = retryAfterMs ?? calcBackoffMs(attempt);
         const reason = rateLimit ? 'rate-limit (429)' : 'transient network error';
         const delaySource = retryAfterMs !== null ? 'Retry-After header' : 'exponential backoff';
+
+        this.logger.warn(
+          `[FEEZBACK_HTTP_TIMING] RETRY | method=${method} | url=${url} | status=${mapped.status ?? 'unknown'} | nextAttempt=${attempt + 2} | waitMs=${waitMs} | reason=${reason} | sub=${maskedSub}`,
+        );
 
         this.logger.warn(
           `[DIAG] FB_RETRY | endpoint=${endpoint} | resource=${resource} | attempt=${attempt + 1}/${maxRetries + 1} | status=${mapped.status ?? 'unknown'} | reason=${reason} | waitMs=${waitMs} | delaySource=${delaySource} | elapsed=${Date.now() - requestStartMs}ms`,

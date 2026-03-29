@@ -1,17 +1,23 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, filter, finalize, Observable, of, switchMap, take, takeWhile, tap, timer } from 'rxjs';
+import { catchError, map, Observable, of, switchMap, takeWhile, tap, throwError, timer } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
-export type SyncStatus = 'pending' | 'running' | 'completed' | 'completed_empty' | 'failed' | 'skipped';
-export type SyncSkipReason = 'no_access' | 'cache_exists' | null;
+export type TriggerSyncStatus = 'started' | 'running';
+
+/** Frontend-facing lifecycle status. This is the only field that drives polling and reload decisions. */
+export type ProcessStatus = 'running' | 'completed' | 'failed';
+
+/** Backend-facing outcome quality. Passed through for logging/debugging; must not drive polling logic. */
+export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
 
 export interface StageState {
-  status: SyncStatus;
+  processStatus: ProcessStatus;
+  resultStatus:  ResultStatus;
   rowsWritten: number;
   finishedAt: string | null;
   failureReason: string | null;
-  skipReason: SyncSkipReason;
+  skipReason: 'no_access' | 'cache_exists' | null;
 }
 
 export interface SyncResponse {
@@ -19,29 +25,32 @@ export interface SyncResponse {
   fullSync: StageState;
 }
 
-export interface SyncCompleteOptions {
-  /** Which stage terminal state triggers the reload. Defaults to 'quick'. */
-  reloadOn?: 'quick' | 'full';
-}
-
-const TERMINAL_STATUSES: SyncStatus[] = ['completed', 'completed_empty', 'failed', 'skipped'];
+const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed'];
 
 @Injectable({ providedIn: 'root' })
 export class SyncStatusService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}transactions/sync-status`;
+  private readonly triggerUrl = `${environment.apiUrl}transactions/trigger-sync`;
 
-  private isTerminalStatus(status: SyncStatus): boolean {
-    return TERMINAL_STATUSES.includes(status);
+  /**
+   * Calls POST /transactions/trigger-sync.
+   * Returns { status: 'started' } if the sync was kicked off,
+   * or { status: 'running' } if one is already in progress.
+   * Throws on 403 (no Open Banking access) or other HTTP errors.
+   */
+  triggerSync(): Observable<{ status: TriggerSyncStatus }> {
+    return this.http.post<{ status: TriggerSyncStatus }>(this.triggerUrl, {}).pipe(
+      tap(res => console.log('[SyncStatus] triggerSync response:', res.status)),
+      catchError(err => {
+        console.error('[SyncStatus] triggerSync failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
   }
 
-  private shouldReloadStage(stage: StageState): boolean {
-    switch (stage.status) {
-      case 'completed':       return true;
-      case 'completed_empty': return true;
-      case 'skipped':         return stage.skipReason === 'cache_exists';
-      default:                return false;
-    }
+  private isTerminalStatus(status: ProcessStatus): boolean {
+    return TERMINAL_STATUSES.includes(status);
   }
 
   /** Single HTTP poll — returns null on network/HTTP error. */
@@ -57,94 +66,57 @@ export class SyncStatusService {
   /**
    * Raw polling loop: polls every `intervalMs` ms, emits every response (including
    * nulls on HTTP error), completes when the watched stage is terminal OR after
-   * `maxAttempts` polls.
-   *
-   * Default: 5 s interval, 24 attempts = 2-minute ceiling.
+   * `maxAttempts` polls (2-minute ceiling at 3 s interval).
    */
   private pollUntilDone(
     stage: 'quick' | 'full',
-    intervalMs = 5000,
-    maxAttempts = 24,
+    intervalMs = 3000,
+    maxAttempts = 40,
   ): Observable<SyncResponse | null> {
     let attemptNum = 0;
+  
     return timer(0, intervalMs).pipe(
-      tap(() => console.log(`[SyncStatus] Poll attempt ${++attemptNum} (watching: ${stage}Sync)`)),
+      tap(() =>
+        console.log(`[SyncStatus] Poll attempt ${++attemptNum} (watching: ${stage}Sync)`),
+      ),
       switchMap(() => this.getSyncResponse()),
       tap((res) => console.log('[SyncStatus] Response received:', res)),
-      takeWhile((res) => {
-        const stageStatus = res?.[`${stage}Sync`]?.status;
-        const terminal = stageStatus != null && this.isTerminalStatus(stageStatus);
-        const shouldContinue = !terminal && attemptNum < maxAttempts;
-        if (!shouldContinue && !terminal) {
-          console.log(`[SyncStatus] Polling timed out after ${attemptNum} attempts`);
+      switchMap((res) => {
+        const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
+        const terminal =
+          stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
+  
+        if (terminal) {
+          return of(res);
         }
-        return shouldContinue;
-      }, /* inclusive= */ true),
+  
+        if (attemptNum >= maxAttempts) {
+          console.log(`[SyncStatus] Polling timed out after ${attemptNum} attempts`);
+          return throwError(() => new Error(`Polling timed out for ${stage}Sync`));
+        }
+  
+        return of(res);
+      }),
+      takeWhile((res) => {
+        const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
+        return !(stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus));
+      }, true),
     );
   }
 
   /**
-   * Higher-level helper for pages that depend on cache-backed transaction data.
+   * Single unified polling stream for a page or component.
+   * Emits the watched stage's StageState on every poll (including null on HTTP error).
+   * Completes automatically when the stage reaches a terminal processStatus.
    *
-   * Emits exactly ONCE with the full SyncResponse when the watched stage reaches a
-   * terminal state that requires a data reload — then completes.
-   *
-   * If the watched stage is already terminal on the first poll (returning user whose
-   * cache already exists), this observable completes silently without emitting, so
-   * the page's initial data load is not repeated unnecessarily.
-   *
-   * @param options.reloadOn  Which stage to watch. Defaults to 'quick'.
-   *
-   * Usage in a page:
-   *   this.syncStatusService.onSyncComplete()
-   *     .pipe(takeUntilDestroyed(this.destroyRef))
-   *     .subscribe(() => this.loadData());
-   *
-   *   this.syncStatusService.onSyncComplete({ reloadOn: 'full' })
-   *     .pipe(takeUntilDestroyed(this.destroyRef))
-   *     .subscribe(() => this.loadData());
+   * Use this as the single source of truth for both UI state updates and reload decisions.
+   * Default stage: 'quick'.
    */
-  onSyncComplete(options?: SyncCompleteOptions): Observable<SyncResponse> {
-    const stage = options?.reloadOn ?? 'quick';
+  getSyncStageStream(stage: 'quick' | 'full' = 'quick'): Observable<StageState | null> {
     const stageKey = `${stage}Sync` as 'quickSync' | 'fullSync';
-
-    let seenRunning = false;
-    let didEmitReload = false;
-
-    return this.pollUntilDone(stage).pipe(
-      tap((res) => {
-        const stageState = res?.[stageKey];
-        if (stageState?.status === 'running' && !seenRunning) {
-          seenRunning = true;
-          console.log(`[SyncStatus] Seen running state (${stageKey}) — watching for completion`);
-        }
-        if (stageState && this.isTerminalStatus(stageState.status)) {
-          console.log(`[SyncStatus] Terminal state reached (${stageKey}): ${stageState.status}`, stageState);
-          if (!seenRunning) {
-            console.log(`[SyncStatus] ${stageKey} was already terminal on first poll — no reload needed`);
-          } else if (!this.shouldReloadStage(stageState)) {
-            console.log(`[SyncStatus] Terminal state reached but reload not required (status=${stageState.status}, skipReason=${stageState.skipReason})`);
-          } else {
-            console.log('[SyncStatus] Triggering data reload');
-          }
-        }
-      }),
-      filter((res): res is SyncResponse => {
-        const stageState = res?.[stageKey];
-        return (
-          stageState != null &&
-          seenRunning &&
-          this.isTerminalStatus(stageState.status) &&
-          this.shouldReloadStage(stageState)
-        );
-      }),
-      take(1),
-      tap(() => { didEmitReload = true; }),
-      finalize(() => {
-        if (!didEmitReload) {
-          console.log('[SyncStatus] onSyncComplete completed without emitting a reload event');
-        }
-      }),
+    return this.pollUntilDone(stage, 3000).pipe(
+      map(res => res?.[stageKey] ?? null),
     );
   }
+
 }

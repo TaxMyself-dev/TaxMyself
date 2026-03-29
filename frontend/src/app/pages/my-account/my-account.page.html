@@ -134,6 +134,8 @@
         [dataTable]="$any(transToClassify | async)"
         [selectionModeCheckBox]="null"
         [tableHeight]="'500px'"
+        [useSyncState]="true" [processStatus]="syncProcessStatus()"
+        (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig">
     </app-generic-table>
 </div>

@@ -269,7 +269,7 @@ export class FeezbackService {
   }
 
   async getUserAccounts(sub: string): Promise<any> {
-    return this.feezbackApiService.getUserAccounts(sub);
+    return this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true, withInvalid: false, withBalances: true });
   }
 
   /**
@@ -364,8 +364,8 @@ export class FeezbackService {
 
     const cardsResponse = await this.feezbackApiService.getUserCards(sub, {
       withBalances: true,
-      withInvalid: true,
-      preventUpdate: false,
+      withInvalid: false,
+      preventUpdate: true,
     });
     const cards = this.dedupeCardsPreferActive(cardsResponse?.cards);
     // const cards = cardsResponse?.cards || [];
@@ -401,7 +401,7 @@ export class FeezbackService {
 
     // cooldown after GET /cards before first cardTransactions request
     if (filteredCards.length > 0) {
-      await this.sleep(1500);
+      // await this.sleep(1500);
     }
 
     for (let i = 0; i < filteredCards.length; i++) {
@@ -427,7 +427,7 @@ export class FeezbackService {
       cardInfoMap[cardId] = card;
 
       if (i > 0 && pacingMs > 0) {
-        await this.sleep(pacingMs);
+        // await this.sleep(pacingMs);
       }
 
       try {
@@ -589,9 +589,9 @@ export class FeezbackService {
     };
   }
 
-  private sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
+  // private sleep(ms: number) {
+  //   return new Promise(resolve => setTimeout(resolve, ms));
+  // }
 
   async getAndSaveUserCardTransactions(
     userId: string,
@@ -664,7 +664,7 @@ export class FeezbackService {
     // Step 1: Get all accounts
     let accountsResponse;
     try {
-      accountsResponse = await this.feezbackApiService.getUserAccounts(sub);
+      accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
       const accountCount = accountsResponse?.accounts?.length ?? 0;
       this.logger.log(`[DIAG] BANK_ACCOUNTS_FETCHED | count=${accountCount} | firebaseId=${firebaseId?.substring(0, 8)}...`);
     } catch (error: any) {
@@ -704,13 +704,13 @@ export class FeezbackService {
     let accountsFailed = 0;
 
     // cooldown after GET /accounts before first accountTransactions request
-    await this.sleep(1500);
+    // await this.sleep(1500);
 
     for (let i = 0; i < accounts.length; i++) {
       const account = accounts[i];
 
       if (i > 0) {
-        await this.sleep(delayBetweenRequests);
+        // await this.sleep(delayBetweenRequests);
       }
 
       try {
@@ -820,7 +820,7 @@ export class FeezbackService {
     };
 
     // cooldown after BANK flow completes before GET /cards begins
-    await this.sleep(2000);
+    // await this.sleep(2000);
 
     return response;
   }
@@ -1197,10 +1197,10 @@ export class FeezbackService {
 
   /**
    * Entry point for the two-pull Feezback full-sync flow.
-   * Safe to call concurrently from login and webhook: a per-user in-flight guard
-   * returns the existing promise if a sync is already running for that user.
+   * Safe to call concurrently from login, webhook, and manual triggers: a per-user
+   * in-flight guard returns the existing promise if a sync is already running for that user.
    */
-  async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook'): Promise<void> {
+  async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
 
     // Log #1 — requested
@@ -1232,22 +1232,26 @@ export class FeezbackService {
   }
 
   /**
-   * Evaluates the outcome of a single sync phase (Quick or Full) from the raw
-   * results returned by getAndSaveBankTransactions and getAndSaveUserCardTransactions.
+   * Evaluates the outcome quality of a single sync phase (Quick or Full) from
+   * the raw results returned by getAndSaveBankTransactions and getAndSaveUserCardTransactions.
    *
-   * Returns one of:
+   * Returns the backend-facing resultStatus only. The frontend-facing processStatus
+   * is determined by the orchestration layer (doFullSync) after persistence, so
+   * that it can account for normalizedTransactions.length cleanly.
+   *
+   * resultStatus values:
    *   'success'         — no errors at any level; safe to persist
-   *   'partial_success' — errors occurred but some normalized data exists; do NOT persist for now
+   *   'partial_success' — errors occurred but some normalized data exists; do NOT persist
    *   'failed'          — errors occurred and no normalized data was produced; do NOT persist
    *
-   * CONSENT_REQUIRED is explicitly treated as a bank error (→ FAILED if no card data).
+   * CONSENT_REQUIRED is explicitly treated as a bank error (→ failed if no card data).
    * This method has no side effects and does not touch the DB.
    */
   private computePhaseStatus(
     bankRes: any,
     cardRes: any,
   ): {
-    status: 'success' | 'partial_success' | 'failed';
+    resultStatus: 'success' | 'partial_success' | 'failed';
     normalizedTransactions: NormalizedTransaction[];
     hasErrors: boolean;
     diagnostics: {
@@ -1297,17 +1301,17 @@ export class FeezbackService {
       ...((cardRes?.normalizedTransactions as NormalizedTransaction[]) ?? []),
     ];
 
-    let status: 'success' | 'partial_success' | 'failed';
-    // if (!hasErrors) {
-      status = 'success';
-    // } else if (normalizedTransactions.length > 0) {
-      // status = 'partial_success';
-    // } else {
-      // status = 'failed';
-    // }
+    let resultStatus: 'success' | 'partial_success' | 'failed';
+    if (!hasErrors) {
+      resultStatus = 'success';
+    } else if (normalizedTransactions.length > 0) {
+      resultStatus = 'partial_success';
+    } else {
+      resultStatus = 'failed';
+    }
 
     return {
-      status,
+      resultStatus,
       normalizedTransactions,
       hasErrors,
       diagnostics: {
@@ -1322,7 +1326,7 @@ export class FeezbackService {
     };
   }
 
-  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook', masked: string): Promise<void> {
+  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual', masked: string): Promise<void> {
     try {
       // Gate — only proceed for users who have OPEN_BANKING module access.
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
@@ -1383,30 +1387,50 @@ export class FeezbackService {
 
       const quickPhase = this.computePhaseStatus(bankRes1, cardRes1);
       let quickRowsWritten = 0;
+      let quickProcessStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
 
-      if (quickPhase.status === 'success') {
+      if (!quickPhase.hasErrors) {
         if (quickPhase.normalizedTransactions.length > 0) {
           this.logger.log(`[FullSync] QuickSync persisting | firebaseId=${masked} | normalized=${quickPhase.normalizedTransactions.length}`);
           const pr = await this.processingService.process(firebaseId, quickPhase.normalizedTransactions);
           quickRowsWritten = pr.newlySavedToCache;
           this.logger.log(`[FullSync] QuickSync persist done | firebaseId=${masked} | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}`);
+          quickProcessStatus = 'completed';
         } else {
-          this.logger.log(`[FullSync] QuickSync SUCCESS — legitimately empty | firebaseId=${masked}`);
+          this.logger.log(`[FullSync] QuickSync completed — no transactions in date range | firebaseId=${masked}`);
+          quickProcessStatus = 'completed';
         }
       } else {
-        this.logger.warn(`[FullSync] QuickSync NOT persisted | status=${quickPhase.status} | firebaseId=${masked} | errors=${JSON.stringify(quickPhase.diagnostics.errors)}`);
+        this.logger.warn(`[FullSync] QuickSync NOT persisted | resultStatus=${quickPhase.resultStatus} | firebaseId=${masked} | errors=${JSON.stringify(quickPhase.diagnostics.errors)}`);
+        quickProcessStatus = 'failed';
       }
 
-      this.logger.log(`[FullSync] QuickSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${quickPhase.status} | rowsWritten=${quickRowsWritten} | diagnostics=${JSON.stringify(quickPhase.diagnostics)}`);
+      this.logger.log(`[FullSync] QuickSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | processStatus=${quickProcessStatus} | resultStatus=${quickPhase.resultStatus} | rowsWritten=${quickRowsWritten} | diagnostics=${JSON.stringify(quickPhase.diagnostics)}`);
 
       await this.userSyncStateService.markQuickFinished(
         firebaseId,
-        quickPhase.status,
+        quickProcessStatus,
+        quickPhase.resultStatus,
         quickRowsWritten,
         quickPhase.hasErrors ? quickPhase.diagnostics.errors.join(', ') : undefined,
       ).catch(err => {
         this.logger.error(`[FullSync] Failed to write quickFinished state | firebaseId=${masked} | error=${err?.message}`);
       });
+
+      // ── Gate: do not run Pull 2 if quick sync failed ─────────────────────────
+      if (quickProcessStatus === 'failed') {
+        this.logger.warn(`[FullSync] Skipping full sync — quick sync failed | firebaseId=${masked}`);
+        await this.userSyncStateService.markFullFinished(
+          firebaseId,
+          'failed',
+          'failed',
+          0,
+          'Not run: quick sync failed',
+        ).catch(err => {
+          this.logger.error(`[FullSync] Failed to write fullFinished(skipped-due-to-quick-fail) state | firebaseId=${masked} | error=${err?.message}`);
+        });
+        return;
+      }
 
       // ── Full sync (Pull 2): up to 12-month backfill ──────────────────────────
       // Log #9
@@ -1441,25 +1465,30 @@ export class FeezbackService {
 
       const fullPhase = this.computePhaseStatus(bankRes2, cardRes2);
       let fullRowsWritten = 0;
+      let fullProcessStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
 
-      if (fullPhase.status === 'success') {
+      if (!fullPhase.hasErrors) {
         if (fullPhase.normalizedTransactions.length > 0) {
           this.logger.log(`[FullSync] FullSync persisting | firebaseId=${masked} | normalized=${fullPhase.normalizedTransactions.length}`);
           const pr = await this.processingService.process(firebaseId, fullPhase.normalizedTransactions);
           fullRowsWritten = pr.newlySavedToCache;
           this.logger.log(`[FullSync] FullSync persist done | firebaseId=${masked} | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}`);
+          fullProcessStatus = 'completed';
         } else {
-          this.logger.log(`[FullSync] FullSync SUCCESS — legitimately empty | firebaseId=${masked}`);
+          this.logger.log(`[FullSync] FullSync completed — no transactions in date range | firebaseId=${masked}`);
+          fullProcessStatus = 'completed';
         }
       } else {
-        this.logger.warn(`[FullSync] FullSync NOT persisted | status=${fullPhase.status} | firebaseId=${masked} | errors=${JSON.stringify(fullPhase.diagnostics.errors)}`);
+        this.logger.warn(`[FullSync] FullSync NOT persisted | resultStatus=${fullPhase.resultStatus} | firebaseId=${masked} | errors=${JSON.stringify(fullPhase.diagnostics.errors)}`);
+        fullProcessStatus = 'failed';
       }
 
-      this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | status=${fullPhase.status} | rowsWritten=${fullRowsWritten} | diagnostics=${JSON.stringify(fullPhase.diagnostics)}`);
+      this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | processStatus=${fullProcessStatus} | resultStatus=${fullPhase.resultStatus} | rowsWritten=${fullRowsWritten} | diagnostics=${JSON.stringify(fullPhase.diagnostics)}`);
 
       await this.userSyncStateService.markFullFinished(
         firebaseId,
-        fullPhase.status,
+        fullProcessStatus,
+        fullPhase.resultStatus,
         fullRowsWritten,
         fullPhase.hasErrors ? fullPhase.diagnostics.errors.join(', ') : undefined,
       ).catch(err => {

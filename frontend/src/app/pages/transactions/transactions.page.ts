@@ -2,7 +2,7 @@ import { Component, DestroyRef, ElementRef, HostListener, OnInit, Signal, ViewCh
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MessageService } from 'primeng/api';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, takeUntil, finalize } from 'rxjs';
+import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, take, takeUntil, takeWhile, finalize } from 'rxjs';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, BusinessStatus, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
@@ -65,6 +65,12 @@ export class TransactionsPage implements OnInit {
     dateField:         TransactionsOutcomesColumns.BILL_DATE,
     hiddenFields:      [],
   };
+
+  // ─── Sync status table state ─────────────────────────────────────────────────
+  /** Passed to generic-table via [processStatus]. null = normal rendering. */
+  readonly syncProcessStatus = signal<'running' | 'failed' | null>(null);
+  /** Emitting on this Subject cancels the current polling session so a new one can start cleanly. */
+  private readonly restartPolling$ = new Subject<void>();
 
   // ─── Row-level action loading state ─────────────────────────────────────────
   isLoadingQuickClassify = signal<boolean>(false);
@@ -364,7 +370,6 @@ export class TransactionsPage implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.filterData = this.transactionService.filterData;
-    this.getTransactions(null);
     this.startSyncStatusPolling();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData?.businessNumber });
@@ -387,14 +392,90 @@ export class TransactionsPage implements OnInit {
   }
 
   /**
-   * Waits for the background Feezback sync to complete (if it was still running
-   * when this page loaded), then refreshes the transaction tables.
-   * No-ops silently if sync was already done when the page opened.
+   * Sole gatekeeper for when data may be fetched.
+   *
+   * Reacts immediately to the first emitted status — no seenRunning guard needed
+   * because the backend never returns 'empty' to the frontend.
+   *
+   * running   → show loading state, keep polling
+   * completed → fetch data once, clear loading state, stop polling
+   * failed    → show error state, clear current data, stop polling
+   * error     → treat as failed, stop polling
+   *
+   * hasFetched prevents a duplicate fetch if 'completed' is somehow emitted twice.
+   * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
+   * the stream completes.
    */
   private startSyncStatusPolling(): void {
-    this.syncStatusService.onSyncComplete()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.getTransactions(null));
+    // Cancels any previous polling session before starting a new one.
+    // takeUntil(restartPolling$) in the pipe completes the old stream on this signal.
+    this.restartPolling$.next();
+
+    let hasFetched = false;
+
+    this.syncStatusService.getSyncStageStream()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        takeUntil(this.restartPolling$),
+        takeWhile(
+          stageState => stageState?.processStatus === 'running',
+          /* inclusive */ true,
+        ),
+        catchError(err => {
+          console.warn('[Transactions] Sync status stream error — treating as failed', err);
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+          return EMPTY;
+        }),
+      )
+      .subscribe(stageState => {
+        if (!stageState) {
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+          return;
+        }
+
+        const status = stageState.processStatus;
+
+        if (status === 'running') {
+          this.syncProcessStatus.set('running');
+        } else if (status === 'completed') {
+          this.syncProcessStatus.set(null);
+          if (!hasFetched) {
+            hasFetched = true;
+            this.getTransactions(null);
+          }
+        } else if (status === 'failed') {
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+        }
+      });
+  }
+
+  /**
+   * Called when the generic-table retry button is clicked.
+   * Explicitly triggers a backend sync, shows the loading state immediately,
+   * then restarts the polling/fetch orchestration.
+   *
+   * Both 'started' and 'running' (was 'already_running') responses are treated
+   * identically — a sync is in progress, so we poll for it.
+   */
+  onSyncTriggered(): void {
+    this.syncProcessStatus.set('running');
+    this.syncStatusService.triggerSync()
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.startSyncStatusPolling(),
+        error: (err) => {
+          console.error('[Transactions] triggerSync failed during retry:', err);
+          this.syncProcessStatus.set('failed');
+          this.filteredExpensesData.set(null);
+          this.filteredIncomesData.set(null);
+        },
+      });
   }
 
   ngOnDestroy() {
