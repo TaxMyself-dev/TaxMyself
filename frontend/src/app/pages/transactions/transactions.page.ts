@@ -4,7 +4,8 @@ import { MessageService } from 'primeng/api';
 import { TransactionsService } from './transactions.page.service';
 import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, take, takeUntil, takeWhile, finalize } from 'rxjs';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
-import { bunnerImagePosition, BusinessStatus, FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { bunnerImagePosition, BusinessStatus, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
+import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ModalController } from '@ionic/angular';
 import { AddTransactionComponent } from 'src/app/shared/add-transaction/add-transaction.component';
@@ -144,94 +145,14 @@ export class TransactionsPage implements OnInit {
   //   { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
   // ];
 
-  allFieldsNamesIncome: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER, },
-    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.DDL },
-    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
-  ];
+  // ─── Column definitions: single source of truth is BASE_TRANSACTION_COLUMNS ──
+  fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() =>
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+  );
 
-  allFieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
-    // { name: TransactionsOutcomesColumns.PAY_DATE, value: TransactionsOutcomesHebrewColumns.payDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT, hide: true },
-    // { name: TransactionsOutcomesColumns.BUSINESS_NUMBER, value: TransactionsOutcomesHebrewColumns.businessNumber, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT, hide: true },
-    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
-  ];
-
-  fieldsNamesExpenses = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
-    const onlyHide = this.isOnlyEmployer();
-    const addBiz = this.businessStatus();
-
-    // start from a fresh copy
-    let cols = [...this.allFieldsNamesExpenses];
-
-    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
-    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
-      const businessCol: IColumnDataTable<
-        TransactionsOutcomesColumns,
-        TransactionsOutcomesHebrewColumns
-      > = {
-        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
-        value: TransactionsOutcomesHebrewColumns.businessNumber,
-        type: FormTypes.TEXT
-      };
-
-      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
-      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
-      cols.splice(insertAt, 0, businessCol);
-    }
-
-    // filter out hidden columns when onlyHide = true
-    if (onlyHide) {
-      cols = cols.filter(c => !c.hide);
-    }
-
-    return cols;
-  });
-
-  fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() => {
-    const onlyHide = this.isOnlyEmployer();
-    const addBiz = this.businessStatus();
-
-    // start from a fresh copy
-    let cols = [...this.allFieldsNamesExpenses];
-
-    // add BUSINESS_NUMBER when needed (insert before NOTE, keep NOTE last)
-    if (addBiz && !cols.some(c => c.name === TransactionsOutcomesColumns.BUSINESS_NUMBER)) {
-      const businessCol: IColumnDataTable<
-        TransactionsOutcomesColumns,
-        TransactionsOutcomesHebrewColumns
-      > = {
-        name: TransactionsOutcomesColumns.BUSINESS_NUMBER,
-        value: TransactionsOutcomesHebrewColumns.businessNumber,
-        type: FormTypes.TEXT
-      };
-
-      const noteIdx = cols.findIndex(c => c.name === TransactionsOutcomesColumns.NOTE);
-      const insertAt = noteIdx >= 0 ? noteIdx : cols.length;
-      cols.splice(insertAt, 0, businessCol);
-    }
-
-    // filter out hidden columns when onlyHide = true
-    if (onlyHide) {
-      cols = cols.filter(c => !c.hide);
-    }
-
-    return cols;
-  });
+  fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() =>
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+  );
 
 
 
