@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserSyncState, SyncSkipReason } from './user-sync-state.entity';
+import { UserSyncState, SyncSkipReason, ProcessStatus, ResultStatus } from './user-sync-state.entity';
 
 @Injectable()
 export class UserSyncStateService {
@@ -12,20 +12,34 @@ export class UserSyncStateService {
 
   /**
    * Called from triggerFullSync — creates or resets the row for this sync session.
-   * Sets quickStatus=running and fullStatus=pending.
+   * Both stages start as 'running'; fullProcessStatus will be updated by markFullFinished.
+   *
+   * Guard: if either stage is already running (concurrent trigger), returns without writing.
+   * The caller's in-flight deduplication (runningFullSyncByUser Map, DB guard) should prevent
+   * this, but this is an extra safety net.
    */
-  async markQuickRunning(userId: string, triggeredBy: 'login' | 'webhook'): Promise<void> {
+  async markQuickRunning(userId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
+    const current = await this.repo.findOne({
+      where: { userId },
+      select: ['quickProcessStatus', 'fullProcessStatus'],
+    });
+    if (current?.quickProcessStatus === 'running' || current?.fullProcessStatus === 'running') {
+      return;
+    }
+
     await this.repo.upsert(
       {
         userId,
         triggeredBy,
-        quickStatus: 'running',
+        quickProcessStatus: 'running',
+        quickResultStatus: 'none',
         quickRowsWritten: 0,
         quickStartedAt: new Date(),
         quickFinishedAt: null,
         quickFailureReason: null,
         quickSkipReason: null,
-        fullStatus: 'pending',
+        fullProcessStatus: 'running',
+        fullResultStatus: 'none',
         fullRowsWritten: 0,
         fullStartedAt: null,
         fullFinishedAt: null,
@@ -37,16 +51,21 @@ export class UserSyncStateService {
   }
 
   /**
-   * Called when either gate (no-access or cache-exists) blocks the sync.
-   * Both stages are marked skipped because neither will run.
+   * Called when a gate blocks the sync before any data is fetched.
+   *
+   * no_access   → both stages set to 'failed'  (user cannot sync; retry button shown)
+   * cache_exists → both stages set to 'completed' (cache is already built; data is ready)
    */
   async markBothSkipped(userId: string, skipReason: SyncSkipReason): Promise<void> {
+    const processStatus: ProcessStatus = skipReason === 'no_access' ? 'failed' : 'completed';
     const now = new Date();
     await this.repo.update({ userId }, {
-      quickStatus: 'skipped',
+      quickProcessStatus: processStatus,
+      quickResultStatus: 'none',
       quickFinishedAt: now,
       quickSkipReason: skipReason,
-      fullStatus: 'skipped',
+      fullProcessStatus: processStatus,
+      fullResultStatus: 'none',
       fullFinishedAt: now,
       fullSkipReason: skipReason,
     });
@@ -55,12 +74,14 @@ export class UserSyncStateService {
   /** Called after Pull 1 (quick sync) completes. Only updates quick-stage columns. */
   async markQuickFinished(
     userId: string,
-    status: 'success' | 'partial_success' | 'failed',
+    processStatus: ProcessStatus,
+    resultStatus: ResultStatus,
     rowsWritten: number,
     failureReason?: string,
   ): Promise<void> {
     await this.repo.update({ userId }, {
-      quickStatus: status,
+      quickProcessStatus: processStatus,
+      quickResultStatus: resultStatus,
       quickRowsWritten: rowsWritten,
       quickFinishedAt: new Date(),
       ...(failureReason ? { quickFailureReason: failureReason.slice(0, 255) } : {}),
@@ -70,7 +91,8 @@ export class UserSyncStateService {
   /** Called just before Pull 2 (full sync) begins. Only updates full-stage columns. */
   async markFullRunning(userId: string): Promise<void> {
     await this.repo.update({ userId }, {
-      fullStatus: 'running',
+      fullProcessStatus: 'running',
+      fullResultStatus: 'none',
       fullStartedAt: new Date(),
     });
   }
@@ -78,12 +100,14 @@ export class UserSyncStateService {
   /** Called after Pull 2 (full sync) completes. Only updates full-stage columns. */
   async markFullFinished(
     userId: string,
-    status: 'success' | 'partial_success' | 'failed',
+    processStatus: ProcessStatus,
+    resultStatus: ResultStatus,
     rowsWritten: number,
     failureReason?: string,
   ): Promise<void> {
     await this.repo.update({ userId }, {
-      fullStatus: status,
+      fullProcessStatus: processStatus,
+      fullResultStatus: resultStatus,
       fullRowsWritten: rowsWritten,
       fullFinishedAt: new Date(),
       ...(failureReason ? { fullFailureReason: failureReason.slice(0, 255) } : {}),
@@ -99,10 +123,12 @@ export class UserSyncStateService {
     const now = new Date();
     const reason = failureReason.slice(0, 255);
     await this.repo.update({ userId }, {
-      quickStatus: 'failed',
+      quickProcessStatus: 'failed',
+      quickResultStatus: 'failed',
       quickFinishedAt: now,
       quickFailureReason: reason,
-      fullStatus: 'failed',
+      fullProcessStatus: 'failed',
+      fullResultStatus: 'failed',
       fullFinishedAt: now,
       fullFailureReason: reason,
     });

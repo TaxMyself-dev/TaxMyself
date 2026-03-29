@@ -7,7 +7,7 @@ import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map, Observable } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
@@ -56,6 +56,10 @@ export class MyAccountPage implements OnInit {
   // dialogRef = inject(DynamicDialogRef);
   // dialogConfig = inject(DynamicDialogConfig);
   isLoadingDataTable = signal<boolean>(false);
+  /** Passed to generic-table via [processStatus]. null = normal rendering. */
+  readonly syncProcessStatus = signal<'running' | 'failed' | null>(null);
+  /** Emitting on this Subject cancels the current polling session so a new one can start cleanly. */
+  private readonly restartPolling$ = new Subject<void>();
   // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
@@ -151,7 +155,6 @@ export class MyAccountPage implements OnInit {
     console.log("MyAccountPage initialized");
 
     this.userData = this.authService.getUserDataFromLocalStorage();
-    this.getTransToClassify();
     this.startSyncStatusPolling();
 
     this.initFeezbackDialogFromReturnUrl();
@@ -194,11 +197,86 @@ export class MyAccountPage implements OnInit {
     this.connectToOpenBanking();
   }
 
-
+  /**
+   * Sole gatekeeper for when data may be fetched.
+   *
+   * Reacts immediately to the first emitted status — no seenRunning guard needed
+   * because the backend never returns 'empty' to the frontend.
+   *
+   * running   → show loading state, keep polling
+   * completed → fetch data once, clear loading state, stop polling
+   * failed    → show error state, clear current data, stop polling
+   * error     → treat as failed, stop polling
+   *
+   * hasFetched prevents a duplicate fetch if 'completed' is somehow emitted twice.
+   * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
+   * the stream completes.
+   */
   private startSyncStatusPolling(): void {
-    this.syncStatusService.onSyncComplete()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.getTransToClassify());
+    // Cancels any previous polling session before starting a new one.
+    this.restartPolling$.next();
+
+    let hasFetched = false;
+
+    this.syncStatusService.getSyncStageStream()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        takeUntil(this.restartPolling$),
+        takeWhile(
+          stageState => stageState?.processStatus === 'running',
+          /* inclusive */ true,
+        ),
+        catchError(err => {
+          console.warn('[MyAccount] Sync status stream error — treating as failed', err);
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+          return EMPTY;
+        }),
+      )
+      .subscribe(stageState => {
+        if (!stageState) {
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+          return;
+        }
+
+        const status = stageState.processStatus;
+
+        if (status === 'running') {
+          this.syncProcessStatus.set('running');
+        } else if (status === 'completed') {
+          this.syncProcessStatus.set(null);
+          if (!hasFetched) {
+            hasFetched = true;
+            this.getTransToClassify();
+          }
+        } else if (status === 'failed') {
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+        }
+      });
+  }
+
+  /**
+   * Called when the generic-table retry button is clicked.
+   * Explicitly triggers a backend sync, shows the loading state immediately,
+   * then restarts the polling/fetch orchestration.
+   *
+   * Both 'started' and 'running' (was 'already_running') responses are treated
+   * identically — a sync is in progress, so we poll for it.
+   */
+  onSyncTriggered(): void {
+    this.syncProcessStatus.set('running');
+    this.syncStatusService.triggerSync()
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.startSyncStatusPolling(),
+        error: (err) => {
+          console.error('[MyAccount] triggerSync failed during retry:', err);
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+        },
+      });
   }
 
   getTransToClassify(): void {

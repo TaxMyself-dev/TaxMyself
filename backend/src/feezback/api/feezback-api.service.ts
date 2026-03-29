@@ -25,9 +25,31 @@ export class FeezbackApiService {
     return this.normalizeConsentsResponse(data);
   }
 
-  async getUserAccounts(sub: string): Promise<any> {
+  async getUserAccounts(
+    sub: string,
+    options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
+  ): Promise<any> {
     // this.logger.log(`Fetching user accounts for sub=${sub}`);
-    return this.getFromUserPath(sub, '/accounts');
+
+    const queryParams: Record<string, string> = {};
+
+    if (options?.preventUpdate !== undefined) {
+      queryParams.preventUpdate = String(options.preventUpdate);
+    }
+
+    if (options?.withInvalid !== undefined) {
+      queryParams.withInvalid = String(options.withInvalid);
+    }
+
+    if (options?.withBalances !== undefined) {
+      queryParams.withBalances = String(options.withBalances);
+    }
+
+    return this.getFromUserPath(
+      sub,
+      '/accounts',
+      Object.keys(queryParams).length ? queryParams : undefined,
+    );
   }
 
   async getUserCards(
