@@ -398,6 +398,20 @@
     width: 100%;
 }
 
+.sync-loading-text {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+}
+
+.sync-error-text {
+    margin: 40px auto;
+    font-size: 14px;
+    color: #c0392b;
+    text-align: center;
+}
+
 .mobile-cards__loading {
     display: flex;
     justify-content: center;

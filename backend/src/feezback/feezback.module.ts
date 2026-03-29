@@ -32,7 +32,7 @@ import { TransactionsModule } from '../transactions/transactions.module';
     forwardRef(() => UsersModule),
     FeezbackPersistenceModule,
     FeezbackWebhookRouterModule,
-    TransactionsModule,
+    forwardRef(() => TransactionsModule),
   ],
   controllers: [FeezbackController],
   providers: [

@@ -35,13 +35,18 @@
         [isLoadingState]="isLoadingStateTable()" [rowActions]="expenseRowActions"
         [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
+        [useSyncState]="true" [processStatus]="syncProcessStatus()"
+        (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig"></app-generic-table>
     </div>
     <!-- incomes table -->
     <div class="table-wrap">
-      <app-generic-table [incomeMode]="true" [isLoadingState]="isLoadingStateTable()"
+      <app-generic-table [incomeMode]="true"
+        [isLoadingState]="isLoadingStateTable()"
         [rowActions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
         [columnsTitle]="fieldsNamesExpenses()" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
+        [useSyncState]="true" [processStatus]="syncProcessStatus()"
+        (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig"></app-generic-table>
     </div>
     @if (visibleAccountAssociationDialog()){

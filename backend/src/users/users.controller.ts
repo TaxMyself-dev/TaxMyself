@@ -110,12 +110,33 @@ export class UsersController {
      * Delegates to the shared FeezbackService.triggerFullSync orchestration.
      * All pull logic, date-range computation, logging, and dedup now live there.
      */
+    // private async triggerPostLoginSync(firebaseId: string): Promise<void> {
+    //     // Log #16
+    //     this.logger.log(`[PostLoginSync] Triggered fire-and-forget | firebaseId=${firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?')}`);
+    //     // Log #14 (failure) is in the .catch below
+    //     void this.feezbackService.triggerFullSync(firebaseId, 'login')
+    //         .catch(err => this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err));
+    // }
     private async triggerPostLoginSync(firebaseId: string): Promise<void> {
-        // Log #16
-        this.logger.log(`[PostLoginSync] Triggered fire-and-forget | firebaseId=${firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?')}`);
-        // Log #14 (failure) is in the .catch below
-        void this.feezbackService.triggerFullSync(firebaseId, 'login')
-            .catch(err => this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err));
-    }
-
+        this.logger.log(
+          `[PostLoginSync] Starting sync (await) | firebaseId=${
+            firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?')
+          }`,
+        );
+      
+        try {
+          await this.feezbackService.triggerFullSync(firebaseId, 'login');
+      
+          this.logger.log(
+            `[PostLoginSync] Sync completed | firebaseId=${
+              firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?')
+            }`,
+          );
+        } catch (err) {
+          this.logger.error(
+            `[PostLoginSync] triggerFullSync failed`,
+            err?.stack ?? err,
+          );
+        }
+      }
 }

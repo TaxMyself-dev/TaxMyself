@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { FeezbackModule } from '../feezback/feezback.module';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { TransactionsController } from './transactions.controller';
 import { TransactionsService } from './transactions.service';
@@ -17,6 +18,8 @@ import { ClassifiedTransactions } from './classified-transactions.entity';
 import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { UserTransactionCacheState } from './user-transaction-cache-state.entity';
+import { UserSyncState } from './user-sync-state.entity';
+import { UserSyncStateService } from './user-sync-state.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 import { DefaultSubCategory } from '../expenses/default-sub-categories.entity';
@@ -32,19 +35,21 @@ import { Business } from 'src/business/business.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
-            Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState,
+            Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState,
             Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
-    forwardRef(() => UsersModule)
+    forwardRef(() => UsersModule),
+    forwardRef(() => FeezbackModule),
   ],
   controllers: [TransactionsController],
   providers: [
     TransactionsService,
     TransactionProcessingService,
+    UserSyncStateService,
     SharedService,
     ExpensesService,
     AuthService,
     FinsiteService
   ],
-  exports: [TypeOrmModule, TransactionsService, TransactionProcessingService],
+  exports: [TypeOrmModule, TransactionsService, TransactionProcessingService, UserSyncStateService],
 })
 export class TransactionsModule {}

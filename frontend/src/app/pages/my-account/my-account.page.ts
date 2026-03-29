@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map, Observable } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile } from 'rxjs';
 import { AccountAssociationDialogComponent } from 'src/app/components/account-association-dialog/account-association-dialog.component';
 import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
 import { AddCategoryComponent } from 'src/app/components/add-category/add-category.component';
@@ -25,6 +26,7 @@ import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
+import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
 
 @Component({
@@ -56,11 +58,17 @@ export class MyAccountPage implements OnInit {
   expenseService = inject(ExpenseDataService);
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
+  private readonly syncStatusService = inject(SyncStatusService);
+  private readonly destroyRef = inject(DestroyRef);
 
   dialogService = inject(DialogService);
   // dialogRef = inject(DynamicDialogRef);
   // dialogConfig = inject(DynamicDialogConfig);
   isLoadingDataTable = signal<boolean>(false);
+  /** Passed to generic-table via [processStatus]. null = normal rendering. */
+  readonly syncProcessStatus = signal<'running' | 'failed' | null>(null);
+  /** Emitting on this Subject cancels the current polling session so a new one can start cleanly. */
+  private readonly restartPolling$ = new Subject<void>();
   // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
@@ -75,6 +83,12 @@ export class MyAccountPage implements OnInit {
   buttonSize = ButtonSize;
   buttonColor = ButtonColor;
   isMobile = computed(() => this.genericService.isMobile());
+
+  // Feezback onboarding dialog (shown only when arriving from Feezback URL)
+  feezbackDialogVisible = signal<boolean>(false);
+  feezbackDialogStatus = signal<'success' | 'failure' | null>(null);
+  feezbackDialogTitle = signal<string>('');
+  feezbackDialogMessage = signal<string>('');
 
 
 
@@ -150,7 +164,11 @@ export class MyAccountPage implements OnInit {
     },
   ];
 
-  constructor(private authService: AuthService) { }
+  constructor(
+    private authService: AuthService,
+    private route: ActivatedRoute,
+    private router: Router,
+  ) { }
 
   ngOnInit() {
     console.log("MyAccountPage initialized");
@@ -169,9 +187,129 @@ export class MyAccountPage implements OnInit {
     this.transactionService.getAllBills();
     this.accountsList = this.transactionService.accountsList;
 
-    this.getTransToClassify();
+    this.startSyncStatusPolling();
+
+    this.initFeezbackDialogFromReturnUrl();
   }
 
+  /** Feezback consent redirect lands on `/my-account?feezbackStatus=...` (see backend JWT redirects). */
+  private initFeezbackDialogFromReturnUrl(): void {
+    const status = this.route.snapshot.queryParamMap.get('feezbackStatus');
+    if (status !== 'success' && status !== 'failure') return;
+
+    void this.router.navigate(['/my-account'], {
+      replaceUrl: true,
+      queryParams: {},
+      queryParamsHandling: '',
+    });
+
+    if (status === 'success') {
+      this.feezbackDialogStatus.set('success');
+      this.feezbackDialogTitle.set('איזה כיף שהצטרפת לבנקאות הפתוחה!');
+      this.feezbackDialogMessage.set('ברגעים אלו אנו מושכים את התנועות שלך...');
+      this.feezbackDialogVisible.set(true);
+    } else if (status === 'failure') {
+      this.feezbackDialogStatus.set('failure');
+      this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
+      this.feezbackDialogMessage.set('');
+      this.feezbackDialogVisible.set(true);
+    }
+  }
+
+  closeFeezbackDialog(): void {
+    this.feezbackDialogVisible.set(false);
+    this.feezbackDialogStatus.set(null);
+    this.feezbackDialogTitle.set('');
+    this.feezbackDialogMessage.set('');
+  }
+
+  tryAgainFromDialog(): void {
+    // Re-trigger the same open-banking consent creation used in the main screen.
+    this.closeFeezbackDialog();
+    this.connectToOpenBanking();
+  }
+
+  /**
+   * Sole gatekeeper for when data may be fetched.
+   *
+   * Reacts immediately to the first emitted status — no seenRunning guard needed
+   * because the backend never returns 'empty' to the frontend.
+   *
+   * running   → show loading state, keep polling
+   * completed → fetch data once, clear loading state, stop polling
+   * failed    → show error state, clear current data, stop polling
+   * error     → treat as failed, stop polling
+   *
+   * hasFetched prevents a duplicate fetch if 'completed' is somehow emitted twice.
+   * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
+   * the stream completes.
+   */
+  private startSyncStatusPolling(): void {
+    // Cancels any previous polling session before starting a new one.
+    this.restartPolling$.next();
+
+    let hasFetched = false;
+
+    this.syncStatusService.getSyncStageStream()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        takeUntil(this.restartPolling$),
+        takeWhile(
+          stageState => stageState?.processStatus === 'running',
+          /* inclusive */ true,
+        ),
+        catchError(err => {
+          console.warn('[MyAccount] Sync status stream error — treating as failed', err);
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+          return EMPTY;
+        }),
+      )
+      .subscribe(stageState => {
+        if (!stageState) {
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+          return;
+        }
+
+        const status = stageState.processStatus;
+
+        if (status === 'running') {
+          this.syncProcessStatus.set('running');
+        } else if (status === 'completed') {
+          this.syncProcessStatus.set(null);
+          if (!hasFetched) {
+            hasFetched = true;
+            this.getTransToClassify();
+          }
+        } else if (status === 'failed') {
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+        }
+      });
+  }
+
+  /**
+   * Called when the generic-table retry button is clicked.
+   * Explicitly triggers a backend sync, shows the loading state immediately,
+   * then restarts the polling/fetch orchestration.
+   *
+   * Both 'started' and 'running' (was 'already_running') responses are treated
+   * identically — a sync is in progress, so we poll for it.
+   */
+  onSyncTriggered(): void {
+    this.syncProcessStatus.set('running');
+    this.syncStatusService.triggerSync()
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.startSyncStatusPolling(),
+        error: (err) => {
+          console.error('[MyAccount] triggerSync failed during retry:', err);
+          this.syncProcessStatus.set('failed');
+          this.transToClassify = of([]);
+        },
+      });
+  }
   // ─── Row-action handlers ──────────────────────────────────────────────────
 
   onAssociateAccount(row: IRowDataTable): void {

@@ -133,9 +133,18 @@
     <div class="mobile-section-wrapper"
          [@slideToggle]="mobileTableExpanded() ? 'expanded' : 'collapsed'">
       <div class="mobile-cards">
-        @if (isLoadingState()) {
+        @if (effectiveIsLoading()) {
           <div class="mobile-cards__loading">
             <i class="pi pi-spin pi-spinner"></i>
+          </div>
+          @if (useSyncState() && processStatus() === 'running') {
+            <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+          }
+        } @else if (useSyncState() && processStatus() === 'failed') {
+          <div class="empty-data-container">
+            <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
+            <p class="sync-error-text">נראה שהייתה שגיאה במשיכת הנתונים. כדאי לנסות שוב</p>
+            <app-p-button [icon]="'pi pi-refresh'" (onButtonClicked)="triggerFullSync()" [buttonText]="'נסה שוב'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="buttonSize.AUTO"></app-p-button>
           </div>
         } @else if (filteredDataTable()?.length) {
           @for (row of filteredDataTable(); track row['id']) {
@@ -160,9 +169,12 @@
 
   @if (!isMobile() || !mobileCardConfig()) {
   <div class="table">
+    @if (useSyncState() && processStatus() === 'running') {
+      <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+    }
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
-      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="isLoadingState()"
+      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="effectiveIsLoading()"
       loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()"
       [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">
       <ng-template pTemplate="header" let-columns>
@@ -218,10 +230,18 @@
       <ng-template pTemplate="emptymessage">
         <tr>
           <td colspan="100%" style="text-align: center; padding: 2rem;">
-            <div class="empty-data-container">
-            <img src="../../../assets/not_data.svg" alt="No Data" style="width: 300px; height: 300px;" />
-            <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
-            </div>
+            <!-- @else { -->
+              <div class="empty-data-container">
+                <img src="../../../assets/not_data.svg" alt="No Data" style="width: 300px; height: 300px;" />
+                @if (useSyncState() && processStatus() === 'failed') {
+                  <p class="sync-error-text">נראה שהייתה שגיאה במשיכת הנתונים. כדאי לנסות שוב</p>
+                  <app-p-button [icon]="'pi pi-refresh'" (onButtonClicked)="triggerFullSync()" [buttonText]="'נסה שוב'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="buttonSize.AUTO"></app-p-button>
+                } 
+                @else {
+                  <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+                }
+              </div>
+            <!-- } -->
           </td>
         </tr>
       </ng-template>

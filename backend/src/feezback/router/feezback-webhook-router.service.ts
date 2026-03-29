@@ -18,14 +18,15 @@ export class FeezbackWebhookRouterService {
         // but fallback to parsed body for normal JSON posting.
         const payload = (req as any).rawBody ?? req.body;
 
+        const eventType = (payload as any)?.event ?? 'unknown';
         const startedAt = Date.now();
         this.logger.log(
-            `Webhook router: forwarding -> ${targetUrl} | target=${process.env.FEEZBACK_WEBHOOK_TARGET ?? 'missing'}`,
+            `[WebhookRouter] Forwarding | event=${eventType} | target=${process.env.FEEZBACK_WEBHOOK_TARGET ?? 'missing'} | url=${targetUrl}`,
         );
 
         try {
             // Important: keep timeout sensible so we don't hang on network issues.
-            await axios.post(targetUrl, payload, {
+            const response = await axios.post(targetUrl, payload, {
                 headers,
                 timeout: Number(process.env.FEEZBACK_WEBHOOK_FORWARD_TIMEOUT_MS ?? 10_000),
                 // If payload is raw Buffer, axios will send it as-is.
@@ -33,12 +34,19 @@ export class FeezbackWebhookRouterService {
                 validateStatus: () => true, // don't throw on non-2xx; we will log it
             });
 
-            this.logger.log(
-                `Webhook router: forwarded OK (${Date.now() - startedAt}ms) -> ${targetUrl}`,
-            );
+            const elapsed = Date.now() - startedAt;
+            if (response.status >= 400) {
+                this.logger.error(
+                    `[WebhookRouter] Forward failed | status=${response.status} | url=${targetUrl} | event=${eventType} | elapsed=${elapsed}ms`,
+                );
+            } else {
+                this.logger.log(
+                    `[WebhookRouter] Forward success | status=${response.status} | url=${targetUrl} | event=${eventType} | elapsed=${elapsed}ms`,
+                );
+            }
         } catch (err: any) {
             this.logger.error(
-                `Webhook router: forward FAILED (${Date.now() - startedAt}ms) -> ${targetUrl}`,
+                `[WebhookRouter] Forward threw (network error) | url=${targetUrl} | event=${eventType} | elapsed=${Date.now() - startedAt}ms | error=${err?.message}`,
                 err?.stack || String(err),
             );
         }

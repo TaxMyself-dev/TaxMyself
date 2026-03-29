@@ -70,6 +70,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   immediateFileOperation = input<boolean>(false);
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
+  useSyncState = input<boolean>(false);
+  processStatus = input<'running' | 'completed' | 'failed' | null>(null);
   incomeMode = input<boolean>(false);
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
@@ -84,6 +86,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isAllChecked = output<boolean>();
   resetFilters = output<string>();
   rowsChecked = output<IRowDataTable[]>();
+  syncTriggered = output<void>();
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
@@ -107,6 +110,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isSlideIn = signal<boolean>(false);
 
   fileChange = output<{ row: IRowDataTable, file?: File }>(); 
+
+  effectiveIsLoading = computed(() =>
+    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')
+  );
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -286,6 +293,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     console.log('redefineFilters', event);
     //this.arrayFilters.set(event);
     this.resetFilters.emit(event);
+  }
+
+  triggerFullSync(): void {
+    // Delegate: emit to parent, who owns the sync trigger and polling lifecycle.
+    this.syncTriggered.emit();
   }
 
   onSelectionChange(event: any) {
