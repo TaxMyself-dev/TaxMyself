@@ -113,12 +113,20 @@ export class ExpenseDataService {
   }
 
   
-  getSubCategory(categoryName: string, isEquipment: boolean, isExpense: boolean): Observable<any> {
+  getSubCategory(
+    categoryName: string,
+    isEquipment: boolean,
+    isExpense: boolean,
+    businessNumber?: string | null,
+  ): Observable<any> {
     const url = `${environment.apiUrl}expenses/get-sub-categories`;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('isEquipment', isEquipment)
       .set('isExpense', isExpense)
       .set('categoryName', categoryName);
+    if (businessNumber != null && String(businessNumber).trim() !== '') {
+      params = params.set('businessNumber', String(businessNumber));
+    }
     return this.http.get<any>(url, { params: params });
   }
 

@@ -113,7 +113,11 @@ export class MyAccountPage implements OnInit {
 
   // ─── Column definitions: derived from shared config ───────────────────────
   fieldsNamesExpenses = computed(() =>
-    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+    buildTransactionColumns({
+      businessStatus: this.businessStatus(),
+      isOnlyEmployer: this.isOnlyEmployer(),
+      myAccountUnclassified: true,
+    })
   );
 
   // ─── Mobile card configuration ───────────────────────────────────────────
@@ -138,27 +142,32 @@ export class MyAccountPage implements OnInit {
   accountsList      = signal<ISelectItem[]>([]);
   isLoadingQuickClassify = signal<boolean>(false);
 
+  private static isBillUnassigned(row: IRowDataTable): boolean {
+    const b = row?.['billName'];
+    return !b || String(b).trim() === '' || b === 'לא שוייך';
+  }
+
   // ─── Row actions ─────────────────────────────────────────────────────────
   rowActions: ITableRowAction[] = [
     {
       name: 'associate',
       icon: 'pi pi-link',
       title: 'שייך לחשבון',
-      showWhen: (row) => row['billName'] === 'לא שוייך',
+      showWhen: (row) => MyAccountPage.isBillUnassigned(row),
       action: (_, row) => row && this.onAssociateAccount(row),
     },
     {
       name: 'classify',
       icon: 'pi pi-tag',
       title: 'סיווג תנועה',
-      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      showWhen: (row) => !MyAccountPage.isBillUnassigned(row),
       action: (_, row) => row && this.onClassifyTransaction(row),
     },
     {
       name: 'quickClassify',
       icon: 'pi pi-bolt',
       title: 'סיווג מהיר',
-      showWhen: (row) => row['billName'] !== 'לא שוייך',
+      showWhen: (row) => !MyAccountPage.isBillUnassigned(row),
       isLoading: () => this.isLoadingQuickClassify(),
       action: (_, row) => row && this.onQuickClassify(row),
     },
@@ -318,7 +327,12 @@ export class MyAccountPage implements OnInit {
   }
 
   onClassifyTransaction(row: IRowDataTable): void {
-    this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    const rawBn = row?.['__businessNumberRaw'];
+    if (rawBn != null && String(rawBn).trim() !== '') {
+      this.authService.setActiveBusinessNumber(String(rawBn));
+    } else {
+      this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    }
     this.visibleClassifyTran.set(true);
     this.leftPanelData.set(row);
     this.incomeMode.set(false);
@@ -388,15 +402,21 @@ export class MyAccountPage implements OnInit {
         finalize(() => this.isLoadingDataTable.set(false)),
         map(data =>
           data
-            // .filter(row => row.isRecognized)
-            .map(row => ({
-              ...row,
-              sum: this.genericService.addComma(Math.abs(row.sum as number)),
-              businessNumber:
-                row?.businessNumber === this.userData?.businessNumber
-                  ? this.userData?.businessName
-                  : this.userData?.spouseBusinessName
-            })) as ITransactionData[]
+            .map(row => {
+              const n = Number(row.sum);
+              const rawBn = row?.businessNumber;
+              return {
+                ...row,
+                __businessNumberRaw:
+                  rawBn != null && rawBn !== '' ? String(rawBn) : undefined,
+                sum: this.genericService.addComma(Math.abs(n)),
+                __sumNumeric: n,
+                businessNumber:
+                  rawBn === this.userData?.businessNumber
+                    ? this.userData?.businessName
+                    : this.userData?.spouseBusinessName,
+              };
+            }) as unknown as ITransactionData[]
         )
       );
   }

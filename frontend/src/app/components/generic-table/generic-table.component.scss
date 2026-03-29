@@ -118,6 +118,21 @@
     color: red;
 }
 
+.sum-sign--expense {
+    color: #c62828;
+    font-weight: 600;
+}
+
+.sum-sign--income {
+    color: #2e7d32;
+    font-weight: 600;
+}
+
+.bill-unassigned {
+    color: #c62828;
+    font-weight: 600;
+}
+
 .action-cell {
     display: flex;
     height: 76px;

@@ -7,6 +7,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
 import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
 import { IRowDataTable, ISelectItem, ISubCategory } from 'src/app/shared/interface';
@@ -43,6 +44,7 @@ export class ClassifyTranComponent implements OnInit {
   confirmationService = inject(ConfirmationService);
   transactionService = inject(TransactionsService);
   expenseDataService = inject(ExpenseDataService);
+  authService = inject(AuthService);
   formBuilder = inject(FormBuilder);
 
   // Inputs / Outputs
@@ -242,11 +244,35 @@ export class ClassifyTranComponent implements OnInit {
     this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
   }
 
+  /** Resolves business number for API (header / query); prefers active context then row cache. */
+  private resolveBusinessNumberForSubcategories(): string | null {
+    const fromAuth = this.authService.getActiveBusinessNumber();
+    if (fromAuth && String(fromAuth).trim() !== '') {
+      return fromAuth;
+    }
+    const raw = this.rowData()?.['__businessNumberRaw'];
+    if (raw != null && String(raw).trim() !== '') {
+      return String(raw);
+    }
+    return null;
+  }
+
   getSubCategory(event: string | boolean, forceRecreateSelect = false): void {
     this.myForm.patchValue({ subCategoryName: '' });
     this.selectedSubCategory.set(null);
-    const isEq = this.expenseDataService.getSubCategory(event as string, true, !this.incomeMode());
-    const notEq = this.expenseDataService.getSubCategory(event as string, false, !this.incomeMode());
+    const bn = this.resolveBusinessNumberForSubcategories();
+    const isEq = this.expenseDataService.getSubCategory(
+      event as string,
+      true,
+      !this.incomeMode(),
+      bn,
+    );
+    const notEq = this.expenseDataService.getSubCategory(
+      event as string,
+      false,
+      !this.incomeMode(),
+      bn,
+    );
 
     zip(isEq, notEq)
       .pipe(

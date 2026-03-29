@@ -622,6 +622,11 @@ export class TransactionsPage implements OnInit {
         data.sum = this.genericService.addComma(data.sum);
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
+        const rawBusinessNumber = data.businessNumber;
+        (data as IRowDataTable & { __businessNumberRaw?: string }).__businessNumberRaw =
+          rawBusinessNumber != null && rawBusinessNumber !== ''
+            ? String(rawBusinessNumber)
+            : undefined;
         const matchedBusiness = businesses.find(b => b.value === data.businessNumber);
         data.businessNumber = String(matchedBusiness ? matchedBusiness.name : "לא משוייך");
         rows.push(data);
@@ -663,7 +668,12 @@ export class TransactionsPage implements OnInit {
 
   onClassifyTransaction(row: IRowDataTable, incomeMode: boolean): void {
     console.log("🚀 ~ TransactionsPage ~ onClassifyTransaction ~ row:", row)
-    this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    const rawBn = row?.['__businessNumberRaw'];
+    if (rawBn != null && String(rawBn).trim() !== '') {
+      this.authService.setActiveBusinessNumber(String(rawBn));
+    } else {
+      this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    }
     this.visibleClassifyTran.set(true);
     this.leftPanelData.set(row);
     this.incomeMode.set(incomeMode);

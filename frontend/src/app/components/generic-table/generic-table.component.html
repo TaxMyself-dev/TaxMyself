@@ -154,6 +154,8 @@
               [config]="mobileCardConfig()!"
               [actions]="mobileActionsForRow(row)"
               [searchTerm]="searchTerm()"
+              [sumSignColors]="sumSignColors()"
+              [unassignedBillRed]="unassignedBillRed()"
               (actionClicked)="onCardActionClicked($event)">
             </app-mobile-row-card>
           }
@@ -217,6 +219,16 @@
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
               @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}
+              }
+              @else if (col.name === 'billName' && unassignedBillRed() && rowBillUnassigned(row)) {
+              <span class="bill-unassigned">לא משוייך</span>
+              }
+              @else if (col.name === 'sum' && sumSignColors()) {
+              <span
+                [class.sum-sign--expense]="(row['__sumNumeric'] ?? 0) < 0"
+                [class.sum-sign--income]="(row['__sumNumeric'] ?? 0) > 0">
+                {{ row[col.name] }}
+              </span>
               }
               @else {
               {{ row[col.name] }}

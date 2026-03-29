@@ -83,6 +83,15 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   mobileCardConfig = input<IMobileCardConfig>();
   mobileCardActions = input<ITableRowAction[]>();
+  /** When true, negative `sum` (expenses) renders red and positive (income) green; expects `__sumNumeric` on rows. */
+  sumSignColors = input<boolean>(false);
+  /** When true, unlinked account column shows fixed "לא משוייך" in red (My Account unclassified). */
+  unassignedBillRed = input<boolean>(false);
+
+  rowBillUnassigned(row: IRowDataTable): boolean {
+    const b = row?.['billName'];
+    return !b || String(b).trim() === '' || b === 'לא שוייך';
+  }
   isAllChecked = output<boolean>();
   resetFilters = output<string>();
   rowsChecked = output<IRowDataTable[]>();

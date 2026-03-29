@@ -35,6 +35,9 @@ export class MobileRowCardComponent {
   config     = input.required<IMobileCardConfig>();
   actions    = input<ITableRowAction[]>([]);
   searchTerm = input<string>('');
+  /** Color highlighted `sum` by sign when row has `__sumNumeric` (My Account unclassified). */
+  sumSignColors = input<boolean>(false);
+  unassignedBillRed = input<boolean>(false);
 
   // ─── Outputs ─────────────────────────────────────────────────────────────
   actionClicked = output<{ action: ITableRowAction; row: IRowDataTable }>();
@@ -55,6 +58,24 @@ export class MobileRowCardComponent {
   highlightedColumn = computed(() =>
     this.columns().find(c => (c.name as string) === this.config().highlightedField) ?? null
   );
+
+  sumExpenseHighlight = computed(() => {
+    if (!this.sumSignColors()) return false;
+    const hc = this.highlightedColumn();
+    if (!hc || String(hc.name) !== 'sum') return false;
+    const raw = this.row()['__sumNumeric'];
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isFinite(n) && n < 0;
+  });
+
+  sumIncomeHighlight = computed(() => {
+    if (!this.sumSignColors()) return false;
+    const hc = this.highlightedColumn();
+    if (!hc || String(hc.name) !== 'sum') return false;
+    const raw = this.row()['__sumNumeric'];
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isFinite(n) && n > 0;
+  });
 
   // ─── Computed: excluded column names set ─────────────────────────────────
   private excludedNames = computed(() => new Set<string>([
@@ -107,5 +128,10 @@ export class MobileRowCardComponent {
   onActionClick(action: ITableRowAction): void {
     this.menuOpen.set(false);
     this.actionClicked.emit({ action, row: this.row() });
+  }
+
+  billUnassigned(): boolean {
+    const b = this.row()['billName'];
+    return !b || String(b).trim() === '' || b === 'לא שוייך';
   }
 }

@@ -10,6 +10,8 @@ import { IColumnDataTable } from './interface';
 export interface TransactionColumnOptions {
   businessStatus: BusinessStatus;
   isOnlyEmployer: boolean;
+  /** My Account — unclassified table: slimmer columns (no category, business, month report, etc.). */
+  myAccountUnclassified?: boolean;
 }
 
 /**
@@ -54,6 +56,17 @@ export function buildTransactionColumns(
 
   if (options.isOnlyEmployer) {
     cols = cols.filter(c => !c.hide);
+  }
+
+  if (options.myAccountUnclassified) {
+    const omit = new Set([
+      TransactionsOutcomesColumns.CATEGORY,
+      TransactionsOutcomesColumns.SUBCATEGORY,
+      TransactionsOutcomesColumns.IS_RECOGNIZED,
+      TransactionsOutcomesColumns.MONTH_REPORT,
+      TransactionsOutcomesColumns.BUSINESS_NUMBER,
+    ]);
+    cols = cols.filter(c => !omit.has(c.name));
   }
 
   return cols;
