@@ -130,13 +130,50 @@
         class="table"
         [rowActions]="rowActions"
         [isLoadingState]="isLoadingDataTable()"
-        [columnsTitle]="fieldsNamesExpenses"
+        [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="$any(transToClassify | async)"
         [selectionModeCheckBox]="null"
         [tableHeight]="'500px'"
         [mobileCardConfig]="mobileCardConfig">
     </app-generic-table>
 </div>
+
+@if (visibleAccountAssociationDialog()) {
+    <app-account-association-dialog
+        (visibleChange)="closeAccountAssociation($event)"
+        [isVisible]="visibleAccountAssociationDialog()"
+        [accounts]="accountsList()"
+        [rowData]="leftPanelData()"
+        (openAddBillClicked)="openAddBill($event)">
+    </app-account-association-dialog>
+}
+
+@if (visibleAddBill()) {
+    <app-add-bill2 [isVisible]="visibleAddBill()" (visibleChange)="closeAddBill($event)"></app-add-bill2>
+}
+
+@if (visibleClassifyTran()) {
+    <app-classify-tran
+        (openAddCategoryClicked)="openAddCategory($event)"
+        (openAddSubCategoryClicked)="openAddCategory($event)"
+        [isVisible]="visibleClassifyTran()"
+        (visibleChange)="closeClassifyTran($event)"
+        [rowData]="leftPanelData()"
+        [incomeMode]="incomeMode()">
+    </app-classify-tran>
+}
+
+@if (visibleAddCategory()) {
+    <app-add-category
+        [isVisible]="visibleAddCategory()"
+        (visibleChange)="closeAddCategory($event)"
+        [subCategoryMode]="subCategoryMode()"
+        [categoryName]="categoryName()"
+        [incomeMode]="incomeMode()"
+        [rowData]="leftPanelData()">
+    </app-add-category>
+}
+
 </div>
 <!-- <ion-content>
     <div class="my-account-screen">

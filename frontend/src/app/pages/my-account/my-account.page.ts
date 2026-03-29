@@ -7,17 +7,22 @@ import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { DialogService } from 'primeng/dynamicdialog';
 import { catchError, EMPTY, finalize, map, Observable } from 'rxjs';
+import { AccountAssociationDialogComponent } from 'src/app/components/account-association-dialog/account-association-dialog.component';
+import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
+import { AddCategoryComponent } from 'src/app/components/add-category/add-category.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
+import { ClassifyTranComponent } from 'src/app/components/classify-tran/classify-tran.component';
 import { DashboardNavigateComponent } from 'src/app/components/dashboard-navigate/dashboard-navigate.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { MannualExpenseComponent } from 'src/app/components/mannual-expense/mannual-expense.component';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { FormTypes, ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
-import { IColumnDataTable, IMobileCardConfig, IItemNavigate, IRowDataTable, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { BusinessStatus, TransactionsOutcomesColumns } from 'src/app/shared/enums';
+import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
+import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { MessageService } from 'primeng/api';
@@ -37,6 +42,10 @@ import { MessageService } from 'primeng/api';
     AvatarGroupModule,
     ButtonComponent,
     GenericTableComponent,
+    AccountAssociationDialogComponent,
+    AddBillComponent,
+    ClassifyTranComponent,
+    AddCategoryComponent,
   ],
   providers: [DialogService]
 })
@@ -84,18 +93,14 @@ export class MyAccountPage implements OnInit {
     return this.allItemsNavigate;
   }
 
-  fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
-    { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.BILL_NUMBER, value: TransactionsOutcomesHebrewColumns.paymentIdentifier, type: FormTypes.NUMBER },
-    // { name: TransactionsOutcomesColumns.BILL_NAME, value: TransactionsOutcomesHebrewColumns.billName, type: FormTypes.TEXT, cellRenderer: ICellRenderer.BILL },
-    // { name: TransactionsOutcomesColumns.CATEGORY, value: TransactionsOutcomesHebrewColumns.category, type: FormTypes.TEXT, cellRenderer: ICellRenderer.CATEGORY },
-    // { name: TransactionsOutcomesColumns.SUBCATEGORY, value: TransactionsOutcomesHebrewColumns.subCategory, type: FormTypes.TEXT, cellRenderer: ICellRenderer.SUBCATEGORY },
-    { name: TransactionsOutcomesColumns.SUM, value: TransactionsOutcomesHebrewColumns.sum, type: FormTypes.NUMBER },
-    { name: TransactionsOutcomesColumns.BILL_DATE, value: TransactionsOutcomesHebrewColumns.billDate, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    // { name: TransactionsOutcomesColumns.IS_RECOGNIZED, value: TransactionsOutcomesHebrewColumns.isRecognized, type: FormTypes.TEXT },
-    // { name: TransactionsOutcomesColumns.MONTH_REPORT, value: TransactionsOutcomesHebrewColumns.monthReport, type: FormTypes.TEXT },
-    { name: TransactionsOutcomesColumns.NOTE, value: TransactionsOutcomesHebrewColumns.note, type: FormTypes.TEXT },
-  ];
+  // ─── User-context signals (set in ngOnInit from userData) ────────────────
+  isOnlyEmployer = signal<boolean>(false);
+  businessStatus = signal<BusinessStatus>(BusinessStatus.NO_BUSINESS);
+
+  // ─── Column definitions: derived from shared config ───────────────────────
+  fieldsNamesExpenses = computed(() =>
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+  );
 
   // ─── Mobile card configuration ───────────────────────────────────────────
   mobileCardConfig: IMobileCardConfig = {
@@ -105,29 +110,43 @@ export class MyAccountPage implements OnInit {
     hiddenFields:      [],
   };
 
-  // ─── Row actions — same showWhen conditions as transactions page.
-  //     Callbacks are stubs until classify/associate dialogs are wired into this page.
+  // ─── Dialog visibility signals ────────────────────────────────────────────
+  visibleAccountAssociationDialog = signal<boolean>(false);
+  visibleClassifyTran             = signal<boolean>(false);
+  visibleAddBill                  = signal<boolean>(false);
+  visibleAddCategory              = signal<boolean>(false);
+
+  // ─── Shared panel data ────────────────────────────────────────────────────
+  leftPanelData     = signal<IRowDataTable>(null);
+  incomeMode        = signal<boolean>(false);
+  subCategoryMode   = signal<boolean>(false);
+  categoryName      = signal<string>('');
+  accountsList      = signal<ISelectItem[]>([]);
+  isLoadingQuickClassify = signal<boolean>(false);
+
+  // ─── Row actions ─────────────────────────────────────────────────────────
   rowActions: ITableRowAction[] = [
     {
       name: 'associate',
       icon: 'pi pi-link',
       title: 'שייך לחשבון',
       showWhen: (row) => row['billName'] === 'לא שוייך',
-      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire account-association dialog */ },
+      action: (_, row) => row && this.onAssociateAccount(row),
     },
     {
       name: 'classify',
       icon: 'pi pi-tag',
       title: 'סיווג תנועה',
       showWhen: (row) => row['billName'] !== 'לא שוייך',
-      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire classify dialog */ },
+      action: (_, row) => row && this.onClassifyTransaction(row),
     },
     {
       name: 'quickClassify',
       icon: 'pi pi-bolt',
       title: 'סיווג מהיר',
       showWhen: (row) => row['billName'] !== 'לא שוייך',
-      action: (_event?: any, _row?: IRowDataTable) => { /* TODO: wire quick classify */ },
+      isLoading: () => this.isLoadingQuickClassify(),
+      action: (_, row) => row && this.onQuickClassify(row),
     },
   ];
 
@@ -137,7 +156,84 @@ export class MyAccountPage implements OnInit {
     console.log("MyAccountPage initialized");
 
     this.userData = this.authService.getUserDataFromLocalStorage();
+
+    if (this.userData?.employmentStatus === 'employee' && this.userData?.spouseEmploymentStatus === 'employee') {
+      this.isOnlyEmployer.set(true);
+    }
+    if (this.userData?.businessStatus === BusinessStatus.MULTI_BUSINESS) {
+      this.businessStatus.set(BusinessStatus.MULTI_BUSINESS);
+    } else if (this.userData?.businessStatus === BusinessStatus.SINGLE_BUSINESS) {
+      this.businessStatus.set(BusinessStatus.SINGLE_BUSINESS);
+    }
+
+    this.transactionService.getAllBills();
+    this.accountsList = this.transactionService.accountsList;
+
     this.getTransToClassify();
+  }
+
+  // ─── Row-action handlers ──────────────────────────────────────────────────
+
+  onAssociateAccount(row: IRowDataTable): void {
+    this.visibleAccountAssociationDialog.set(true);
+    this.leftPanelData.set(row);
+  }
+
+  onClassifyTransaction(row: IRowDataTable): void {
+    this.authService.setActiveBusinessNumberByName(row.businessNumber as string);
+    this.visibleClassifyTran.set(true);
+    this.leftPanelData.set(row);
+    this.incomeMode.set(false);
+  }
+
+  onQuickClassify(row: IRowDataTable): void {
+    this.isLoadingQuickClassify.set(true);
+    this.transactionService.quickClassify(row.finsiteId as string)
+      .pipe(
+        catchError(() => {
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: 'סיווג ההוצאה נכשל אנא נסה/י שנית', life: 3000, key: 'br' });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingQuickClassify.set(false))
+      )
+      .subscribe(() => {
+        this.getTransToClassify();
+        this.messageService.add({ severity: 'success', summary: 'Success', detail: 'סיווג מהיר הצליח', life: 3000, key: 'br' });
+      });
+  }
+
+  // ─── Dialog close handlers ────────────────────────────────────────────────
+
+  closeAccountAssociation(event: { visible: boolean; data: boolean }): void {
+    this.visibleAccountAssociationDialog.set(event.visible);
+    if (event.data) { this.getTransToClassify(); }
+  }
+
+  openAddBill(event: any): void {
+    this.visibleAddBill.set(event);
+  }
+
+  closeAddBill(event: { visible: boolean; data?: boolean }): void {
+    this.visibleAddBill.set(event.visible);
+  }
+
+  closeClassifyTran(event: { visible: boolean; data: boolean }): void {
+    this.visibleClassifyTran.set(event.visible);
+    if (event.data) { this.getTransToClassify(); }
+  }
+
+  openAddCategory(event: { state: boolean; subCategoryMode: boolean; data: IRowDataTable; category?: string }): void {
+    this.visibleAddCategory.set(event.state);
+    this.subCategoryMode.set(event.subCategoryMode);
+    this.leftPanelData.set(event.data);
+    this.categoryName.set(event.category ?? '');
+  }
+
+  closeAddCategory(event: { visible: boolean; data?: boolean }): void {
+    this.visibleAddCategory.set(event.visible);
+    if (event.data) {
+      this.transactionService.getCategories(null, true).subscribe();
+    }
   }
 
 
