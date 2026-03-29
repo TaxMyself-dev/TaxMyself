@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
+import { DataSource, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
 import { subYears } from 'date-fns';
 
 import { SlimTransaction } from './slim-transaction.entity';
@@ -24,6 +24,8 @@ import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
 import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
 import { ClassifyWithRuleResult } from './interfaces/classify-with-rule-result.interface';
 import { ClassificationType } from './enums/classification-type.enum';
+import { UserSyncStateService } from './user-sync-state.service';
+import { UserSyncState } from './user-sync-state.entity';
 
 /** Hours before a user's full_transactions_cache is considered stale. */
 const CACHE_TTL_HOURS = 24;
@@ -76,6 +78,9 @@ export class TransactionProcessingService {
 
     @InjectRepository(Bill)
     private readonly billRepo: Repository<Bill>,
+
+    private readonly userSyncStateService: UserSyncStateService,
+    private readonly dataSource: DataSource,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -1134,33 +1139,93 @@ export class TransactionProcessingService {
   }
 
   /**
-   * Runs every day at 03:00 AM Israel time (Asia/Jerusalem).
-   * Deletes all rows from full_transactions_cache and user_transaction_cache_state
-   * so that the cache is rebuilt fresh on the next user request.
-   *
-   * Israel Standard Time  = UTC+2  → fires at 01:00 UTC in winter.
-   * Israel Daylight Time  = UTC+3  → fires at 00:00 UTC in summer.
-   * The timeZone option in @Cron handles DST automatically.
+   * Runs every day at 03:00 AM Israel time.
+   * First of two daily cleanup runs — see runDailyCacheCleanup for shared logic.
    */
   @Cron('0 0 3 * * *', { timeZone: 'Asia/Jerusalem' })
   async handleDailyCacheCleanup(): Promise<void> {
-    this.logger.log('Daily cache cleanup started (03:00 Asia/Jerusalem)');
+    await this.runDailyCacheCleanup('03:00');
+  }
+
+  /**
+   * Runs every day at 03:05 AM Israel time.
+   * Retry run — picks up any users whose sync finished between 03:00 and 03:05
+   * and were skipped by the first run.
+   */
+  @Cron('0 5 3 * * *', { timeZone: 'Asia/Jerusalem' })
+  async handleDailyCacheCleanupRetry(): Promise<void> {
+    await this.runDailyCacheCleanup('03:05');
+  }
+
+  /**
+   * Shared cleanup logic for both daily runs.
+   *
+   * Runs entirely inside a single DB transaction:
+   *   1. SELECT eligible user IDs (WHERE neither stage is 'running') — SQL-filtered, no JS loop.
+   *   2. DELETE their rows from full_transactions_cache.
+   *   3. DELETE their row from user_transaction_cache_state.
+   *   4. UPDATE user_sync_state to empty — with a WHERE NOT running guard for race safety.
+   *
+   * If any step fails the transaction rolls back and no partial state is written.
+   * Users whose sync starts between the SELECT and the UPDATE are protected by the guard
+   * in step 4 — their row simply won't be updated.
+   *
+   * Israel Standard Time = UTC+2 → 03:00 fires at 01:00 UTC in winter.
+   * Israel Daylight Time = UTC+3 → 03:00 fires at 00:00 UTC in summer.
+   */
+  private async runDailyCacheCleanup(label: string): Promise<void> {
+    this.logger.log(`Daily cache cleanup started (${label} Asia/Jerusalem)`);
     try {
-      const cacheResult = await this.cacheRepo
-        .createQueryBuilder()
-        .delete()
-        .from(FullTransactionCache)
-        .execute();
-      const stateResult = await this.cacheStateRepo
-        .createQueryBuilder()
-        .delete()
-        .from(UserTransactionCacheState)
-        .execute();
+      let cleanedCount = 0;
+      let cacheDeleted = 0;
+      let stateDeleted = 0;
+
+      await this.dataSource.transaction(async (manager) => {
+        // Step 1 — SQL-efficient: get eligible user IDs directly from DB, no JS filtering.
+        const rows = await manager
+          .createQueryBuilder(UserSyncState, 'uss')
+          .select('uss.userId', 'userId')
+          .where('uss.quickProcessStatus != :r', { r: 'running' })
+          .andWhere('uss.fullProcessStatus != :r', { r: 'running' })
+          .getRawMany<{ userId: string }>();
+
+        const eligibleUserIds = rows.map(r => r.userId);
+        cleanedCount = eligibleUserIds.length;
+
+        if (eligibleUserIds.length === 0) return;
+
+        // Step 2 — delete cache rows for eligible users only.
+        const cacheResult = await manager.delete(FullTransactionCache, { userId: In(eligibleUserIds) });
+        cacheDeleted = cacheResult.affected ?? 0;
+
+        // Step 3 — delete cache-state rows for eligible users only.
+        const stateResult = await manager.delete(UserTransactionCacheState, { userId: In(eligibleUserIds) });
+        stateDeleted = stateResult.affected ?? 0;
+
+        // Step 4 — mark eligible users as empty, guarded against races.
+        await manager
+          .createQueryBuilder()
+          .update(UserSyncState)
+          .set({ quickProcessStatus: 'empty', fullProcessStatus: 'empty' })
+          .where('userId IN (:...userIds)', { userIds: eligibleUserIds })
+          .andWhere('quickProcessStatus != :r', { r: 'running' })
+          .andWhere('fullProcessStatus != :r', { r: 'running' })
+          .execute();
+      });
+
+      if (cleanedCount === 0) {
+        this.logger.log(`Daily cache cleanup (${label}) — no eligible users (all currently running)`);
+        return;
+      }
+
       this.logger.log(
-        `Daily cache cleanup done — full_transactions_cache rows deleted: ${cacheResult.affected ?? 0}, user_transaction_cache_state rows deleted: ${stateResult.affected ?? 0}`,
+        `Daily cache cleanup (${label}) done — ` +
+        `users cleaned: ${cleanedCount}, ` +
+        `cache rows deleted: ${cacheDeleted}, ` +
+        `cache-state rows deleted: ${stateDeleted}`,
       );
     } catch (err: any) {
-      this.logger.error('Daily cache cleanup failed', err?.stack ?? err);
+      this.logger.error(`Daily cache cleanup (${label}) failed`, err?.stack ?? err);
     }
   }
 }

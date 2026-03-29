@@ -8,6 +8,7 @@ import { log } from 'node:console';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FeezbackWebhookRouterService } from './router/feezback-webhook-router.service';
+import { UserSyncStateService } from '../transactions/user-sync-state.service';
 
 @Controller('feezback')
 export class FeezbackController {
@@ -16,7 +17,8 @@ export class FeezbackController {
   constructor(
     private readonly feezbackService: FeezbackService,
     private readonly usersService: UsersService,
-    private readonly routerService: FeezbackWebhookRouterService
+    private readonly routerService: FeezbackWebhookRouterService,
+    private readonly userSyncStateService: UserSyncStateService,
   ) { }
 
   @Post('webhook-router')
@@ -226,7 +228,7 @@ export class FeezbackController {
 
     // Reuse the internal helper method
     try {
-      const result = await this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+      const result = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
       // this.logger.log(`✅ Admin transaction fetch completed successfully`);
       return result;
     } catch (error: any) {
@@ -239,7 +241,7 @@ export class FeezbackController {
    * Delegates to FeezbackService.getAndSaveBankTransactions().
    * Kept as a thin helper so controller endpoints remain concise.
    */
-  private async getAllUserTransactionsInternal(
+  private async getUserBankTransactionsInternal(
     firebaseId: string,
     sub: string,
     bookingStatus?: string,
@@ -288,7 +290,7 @@ export class FeezbackController {
     // this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
-    const result = await this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+    const result = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
 
     const normalized = result?.normalizedTransactions ?? [];
     let processingResult: any = null;
@@ -371,12 +373,20 @@ export class FeezbackController {
   }
 
   /**
-   * Get both bank and card transactions in one call.
-   * Uses the same query params for both; date range defaults to last 60 days when not provided.
+   * Get both bank and card transactions in one call and persist them.
+   *
+   * This endpoint participates in the USER_SYNC_STATE lifecycle:
+   *   - Guards against starting while another sync is running.
+   *   - Sets both stages to 'running' before any fetch.
+   *   - Sets both stages to 'completed' after successful persist.
+   *   - Sets both stages to 'failed' on any error.
+   *
+   * NOTE: user-bank-transactions and user-card-transactions are debug/auxiliary
+   * endpoints and intentionally do NOT update USER_SYNC_STATE.
    */
   @Get('user-all-transactions')
   @UseGuards(FirebaseAuthGuard)
-  async getAllUserAndCardTransactions(
+  async getBankAndCardTransactions(
     @Req() req: AuthenticatedRequest,
     @Query('bookingStatus') bookingStatus?: string,
     @Query('dateFrom') dateFrom?: string,
@@ -389,71 +399,64 @@ export class FeezbackController {
       throw new Error('User ID not found — Firebase authentication required');
     }
 
+    const masked = firebaseId.length >= 8 ? `${firebaseId.substring(0, 8)}...` : firebaseId;
     const sub = `${firebaseId}_sub`;
+    const today = new Date();
+    const defaultDateFrom = dateFrom || '2026-01-01';
+    const defaultDateTo = dateTo || today.toISOString().split('T')[0];
 
-    // const today = new Date();
-    // const sixtyDaysAgo = new Date(today);
-    // sixtyDaysAgo.setDate(today.getDate() - 60);
-
-      // Set default dates: from 1/1/2026 to today if not provided
-      const today = new Date();
-      const defaultDateFrom = dateFrom || '2026-01-01';
-      const defaultDateTo = dateTo || today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-
-    
-
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
-    // const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
-    // const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
-
-    const bankTransactions = await this.getAllUserTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
-    const cardTransactions = await this.feezbackService.getAndSaveUserCardTransactions(
-      firebaseId,
-      sub,
-      bookingStatus ?? 'booked',
-      // resolvedDateFrom,
-      // resolvedDateTo,
-      defaultDateFrom,
-      defaultDateTo,
-      cardResourceId,
-    );
-
-    // Combine normalized arrays from both sources and persist in a single process() call.
-    const combinedNormalized = [
-      ...(bankTransactions?.normalizedTransactions ?? []),
-      ...(cardTransactions?.normalizedTransactions ?? []),
-    ];
-    let processingResult: any = null;
-    if (combinedNormalized.length > 0) {
-      try {
-        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, combinedNormalized);
-      } catch (err: any) {
-        this.logger.error(`[PERSIST] all-transactions persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
-      }
+    // Guard: refuse to start a new sync if one is already running.
+    const currentState = await this.userSyncStateService.getSyncState(firebaseId);
+    if (currentState?.quickProcessStatus === 'running' || currentState?.fullProcessStatus === 'running') {
+      this.logger.warn(`[AllTrans] Skipped — sync already running | firebaseId=${masked}`);
+      return { status: 'running', persistedToDb: false, syncSummary: null };
     }
 
-    const bankSync = bankTransactions?.syncSummary;
-    const cardSync = cardTransactions?.syncSummary;
+    // Mark both stages running before any network calls.
+    await this.userSyncStateService.markQuickRunning(firebaseId, 'manual');
 
-    const syncSummary = {
-      bank: bankSync?.bank ?? { banksProcessed: 0, transactionsFetched: 0 },
-      card: cardSync?.card ?? { cardsProcessed: 0, transactionsFetched: 0 },
-      system: {
-        totalProcessed:
-          (bankSync?.system?.totalProcessed ?? 0) +
-          (cardSync?.system?.totalProcessed ?? 0),
-        savedInCurrentImport: processingResult?.newlySavedToCache ?? 0,
-        alreadyExisting: processingResult?.alreadyExistingInCache ?? 0,
-      },
-    };
+    try {
+      const bankTransactions = await this.getUserBankTransactionsInternal(
+        firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo,
+      );
+      const cardTransactions = await this.feezbackService.getAndSaveUserCardTransactions(
+        firebaseId, sub, bookingStatus ?? 'booked', defaultDateFrom, defaultDateTo, cardResourceId,
+      );
 
-    return {
-      bankTransactions,
-      cardTransactions,
-      syncSummary,
-      processingResult,
-      persistedToDb: processingResult !== null,
-    };
+      const combinedNormalized = [
+        ...(bankTransactions?.normalizedTransactions ?? []),
+        ...(cardTransactions?.normalizedTransactions ?? []),
+      ];
+
+      let processingResult: any = null;
+      if (combinedNormalized.length > 0) {
+        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, combinedNormalized);
+      }
+
+      const rowsWritten = processingResult?.newlySavedToCache ?? 0;
+      await this.userSyncStateService.markQuickFinished(firebaseId, 'completed', 'success', rowsWritten);
+      await this.userSyncStateService.markFullFinished(firebaseId, 'completed', 'success', rowsWritten);
+      this.logger.log(`[AllTrans] Completed | firebaseId=${masked} | rowsWritten=${rowsWritten}`);
+
+      const bankSync = bankTransactions?.syncSummary;
+      const cardSync = cardTransactions?.syncSummary;
+      const syncSummary = {
+        bank: bankSync?.bank ?? { banksProcessed: 0, transactionsFetched: 0 },
+        card: cardSync?.card ?? { cardsProcessed: 0, transactionsFetched: 0 },
+        system: {
+          totalProcessed:
+            (bankSync?.system?.totalProcessed ?? 0) + (cardSync?.system?.totalProcessed ?? 0),
+          savedInCurrentImport: processingResult?.newlySavedToCache ?? 0,
+          alreadyExisting: processingResult?.alreadyExistingInCache ?? 0,
+        },
+      };
+
+      return { bankTransactions, cardTransactions, syncSummary, processingResult, persistedToDb: processingResult !== null };
+    } catch (err: any) {
+      this.logger.error(`[AllTrans] Failed | firebaseId=${masked} | error=${err?.message}`);
+      await this.userSyncStateService.markBothFailed(firebaseId, err?.message ?? 'Unknown error').catch(() => {});
+      throw err;
+    }
   }
 
   /**
