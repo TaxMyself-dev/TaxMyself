@@ -863,6 +863,8 @@ const FEEZBACK_PROD_LGS_URL = "https://lgs-prod.feezback.cloud";
 const FEEZBACK_DEV_TPP_URL = "https://prod-tpp.feezback.cloud";
 const FEEZBACK_PROD_TPP_URL = "https://prod-tpp.feezback.cloud";
 const TEST_URL = "https://webhook.site/85a80efc-8c70-4753-ab94-c6d3237c5cd4";
+const LOCAL_WEBHOOK_URL = process.env.LOCAL_WEBHOOK_URL;
+const ENABLE_LOCAL_FORWARD = process.env.ENABLE_LOCAL_FORWARD === 'true';
 
 // ===========================
 // DIAG: request counter per minute
@@ -1031,6 +1033,28 @@ app.post("/feezback/webhook", (req, res) => {
       console.error("   error    :", err.message);
       console.error("   cause    :", err.cause?.message ?? "none");
     });
+    // ======================
+// Forward to LOCAL (optional, non-blocking)
+// ======================
+if (ENABLE_LOCAL_FORWARD && LOCAL_WEBHOOK_URL) {
+  console.log("🏠 FORWARDING TO LOCAL →", LOCAL_WEBHOOK_URL);
+
+  fetch(LOCAL_WEBHOOK_URL, {
+    method: "POST",
+    headers: forwardHeaders,
+    body: payload,
+    signal: AbortSignal.timeout(10000),
+  })
+    .then((response) => {
+      console.log("🏠 LOCAL RESPONSE ←", response.status, response.status === 200 ? "✅" : "❌");
+      console.log("   event    :", eventType);
+    })
+    .catch((err) => {
+      console.error("⚠️ LOCAL FORWARD FAILED →", LOCAL_WEBHOOK_URL);
+      console.error("   event    :", eventType);
+      console.error("   error    :", err.message);
+    });
+}
 });
 
 // ===========================
