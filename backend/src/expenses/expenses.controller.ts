@@ -199,10 +199,17 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
     @Query('isEquipment') isEquipment: string,
     @Query('isExpense') isExpense: string,
-    @Query('categoryName') categoryName: string
+    @Query('categoryName') categoryName: string,
+    @Query('businessNumber') businessNumberFromQuery?: string,
   ): Promise<any[]> {
 
-    const businessNumber = request.user?.businessNumber;
+    const headerBn = request.user?.businessNumber;
+    const businessNumber =
+      headerBn && String(headerBn).trim() !== ''
+        ? headerBn
+        : businessNumberFromQuery && String(businessNumberFromQuery).trim() !== ''
+          ? businessNumberFromQuery
+          : null;
     const firebaseId = request.user?.firebaseId;
 
     // Convert isEquipment to boolean or null
