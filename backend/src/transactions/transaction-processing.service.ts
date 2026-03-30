@@ -83,6 +83,28 @@ export class TransactionProcessingService {
     private readonly dataSource: DataSource,
   ) {}
 
+  /**
+   * slimRepo.upsert() runs TypeORM's returning-entity updater after INSERT,
+   * which requires PrimaryGeneratedColumn `id` on each row — absent for these payloads.
+   * Same fix as FullTransactionCache batch upserts: query builder + updateEntity(false).
+   */
+  private async upsertSlimTransactions(
+    rows: Partial<SlimTransaction>[],
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const updateColumns = Object.keys(rows[0] as object).filter(
+      (k) => k !== 'userId' && k !== 'externalTransactionId',
+    );
+    await this.slimRepo
+      .createQueryBuilder()
+      .insert()
+      .into(SlimTransaction)
+      .values(rows as SlimTransaction[])
+      .orUpdate(updateColumns, ['userId', 'externalTransactionId'])
+      .updateEntity(false)
+      .execute();
+  }
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
@@ -317,7 +339,7 @@ export class TransactionProcessingService {
     }
 
     // 4. Upsert slim with ONE_TIME.
-    await this.slimRepo.upsert(
+    await this.upsertSlimTransactions([
       {
         userId,
         externalTransactionId: dto.externalTransactionId,
@@ -334,9 +356,8 @@ export class TransactionProcessingService {
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: null,
         businessNumber: slim?.businessNumber ?? null,
-      } as SlimTransaction,
-      ['userId', 'externalTransactionId'],
-    );
+      },
+    ]);
 
     // 5. Update cache overlay.
     await this.cacheRepo.update(
@@ -478,7 +499,7 @@ export class TransactionProcessingService {
     const savedRule = await this.rulesRepo.save(rule);
 
     // 5. Upsert slim row with RULE classification.
-    await this.slimRepo.upsert(
+    await this.upsertSlimTransactions([
       {
         userId,
         externalTransactionId: dto.externalTransactionId,
@@ -495,9 +516,8 @@ export class TransactionProcessingService {
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: null,
         businessNumber: slim?.businessNumber ?? null,
-      } as SlimTransaction,
-      ['userId', 'externalTransactionId'],
-    );
+      },
+    ]);
 
     // 6. Update cache overlay for the classified transaction.
     await this.cacheRepo.update(
@@ -932,10 +952,7 @@ export class TransactionProcessingService {
       };
     });
 
-    await this.slimRepo.upsert(slimUpserts as SlimTransaction[], [
-      'userId',
-      'externalTransactionId',
-    ]);
+    await this.upsertSlimTransactions(slimUpserts);
 
     // 6. Bulk-update cache overlay.
     const eligibleIds = eligible.map((r) => r.externalTransactionId);

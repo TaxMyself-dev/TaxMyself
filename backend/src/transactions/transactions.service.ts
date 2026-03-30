@@ -1039,22 +1039,34 @@ export class TransactionsService {
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
 
     if (!sourceType || !Object.values(SourceType).includes(sourceType)) {
-      throw new Error(`sourceType is required and must be one of: ${Object.values(SourceType).join(', ')}`);
+      throw new BadRequestException(
+        `sourceType is required and must be one of: ${Object.values(SourceType).join(', ')}`,
+      );
     }
 
     const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
     if (!bill) {
-      throw new Error('Bill not found');
+      throw new NotFoundException('Bill not found');
     }
 
-    // Create and save the new source
-    const newSource = this.sourceRepo.create({
-      userId,
-      sourceName,
-      sourceType,
-      bill
+    const existing = await this.sourceRepo.findOne({
+      where: { userId, sourceName },
     });
-    await this.sourceRepo.save(newSource);
+    if (!existing) {
+      throw new NotFoundException(
+        `אמצעי התשלום "${sourceName}" לא נמצא בטבלת המקורות (source). ` +
+          'רק מקורות שכבר קיימים במערכת (למשל לאחר סנכרון בנקאות פתוחה) ניתן לשייך לחשבון.',
+      );
+    }
+
+    if (existing.sourceType !== sourceType) {
+      throw new BadRequestException(
+        `סוג אמצעי התשלום לא תואם לרשומה השמורה (שמור: ${existing.sourceType}, התקבל: ${sourceType}).`,
+      );
+    }
+
+    existing.bill = bill;
+    await this.sourceRepo.save(existing);
 
     // Backfill: update all full_transactions_cache rows that already carry this
     // paymentIdentifier so they become linked to the bill immediately.
@@ -1068,7 +1080,7 @@ export class TransactionsService {
       },
     );
 
-    return newSource;
+    return existing;
   }
 
 
@@ -1117,8 +1129,8 @@ export class TransactionsService {
   }
 
   /**
-   * Returns all source identifiers together with their type (credit card vs bank account).
-   * Used by Settings → "ניהול חשבונות".
+   * כל אמצעי תשלום של המשתמש מטבלת `source`.
+   * אין FK ל־bill → billName null (בפרונט: «לא משויך»). אחרת → שם החשבון מטבלת החשבונות דרך הקשר `bill`.
    */
   async getSourcesWithTypes(
     userId: string,
@@ -1127,20 +1139,11 @@ export class TransactionsService {
       where: { userId },
       relations: ['bill'],
     });
-
-    // De-duplicate by (sourceType, sourceName) to avoid duplicates in case of data overlap.
-    const unique = new Map<string, { sourceName: string; sourceType: SourceType; billName: string | null }>();
-    for (const r of rows) {
-      const key = `${r.sourceType}:${r.sourceName}`;
-      if (!unique.has(key)) {
-        unique.set(key, {
-          sourceName: r.sourceName,
-          sourceType: r.sourceType,
-          billName: r.bill?.billName ?? null,
-        });
-      }
-    }
-    return [...unique.values()];
+    return rows.map((r) => ({
+      sourceName: r.sourceName,
+      sourceType: r.sourceType,
+      billName: r.bill?.billName ?? null,
+    }));
   }
 
 

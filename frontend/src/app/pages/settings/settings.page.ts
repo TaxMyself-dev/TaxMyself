@@ -125,7 +125,7 @@ export class SettingsPage implements OnInit {
     this.loadBusinesses();
     this.loadChildren();
     this.fetchMyPermissions();
-    this.fetchAccountSources();
+    // מקורות חשבון (get-sources-with-types) נטענים בלחיצה על טאב "ניהול הרשאות וחשבונות" — ראה onTabChange
     // רענון נתונים מהשרת כדי להציג תאריך בן/בת זוג ועוד שדות שעודכנו (למשל בדאטאבייס)
     this.authService.restoreUserData().subscribe({
       next: (data) => {
@@ -140,17 +140,26 @@ export class SettingsPage implements OnInit {
 
   onTabChange(newTabValue: string): void {
     this.selectedTab = newTabValue;
+    if (newTabValue === 'permissions') {
+      this.fetchAccountSources();
+    }
   }
 
   private fetchAccountSources(): void {
     this.accountSourcesLoading.set(true);
+    console.log('[Settings] ניהול הרשאות וחשבונות: שולחים GET get-sources-with-types');
     this.transactionsService.getSourcesWithTypes().subscribe({
       next: (sources) => {
         const rows = Array.isArray(sources) ? sources : [];
+        console.log('[Settings] ניהול הרשאות וחשבונות: תגובה מהשרת (get-sources-with-types)', {
+          count: rows.length,
+          rows,
+        });
         this.accountSources.set(rows);
         this.accountSourcesLoading.set(false);
       },
-      error: () => {
+      error: (err) => {
+        console.error('[Settings] ניהול הרשאות וחשבונות: שגיאה ב-get-sources-with-types', err);
         this.accountSources.set([]);
         this.accountSourcesLoading.set(false);
       },

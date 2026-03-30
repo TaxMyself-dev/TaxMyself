@@ -113,10 +113,14 @@ export class TransactionsService implements OnInit {
 
   getSourcesWithTypes(): Observable<{ sourceName: string; sourceType: paymentIdentifierType; billName: string | null }[]> {
     const url = `${environment.apiUrl}transactions/get-sources-with-types`;
+    console.log('[TransactionsService] get-sources-with-types — בקשה:', { method: 'GET', url });
     return this.http.get<any[]>(url).pipe(
+      tap((body) => {
+        console.log('[TransactionsService] get-sources-with-types — גוף תגובה גולמי:', body);
+      }),
       map((rows) => rows ?? []),
       catchError((err) => {
-        console.log('Error in getSourcesWithTypes:', err);
+        console.error('[TransactionsService] get-sources-with-types — שגיאה:', err);
         return EMPTY;
       }),
     );
