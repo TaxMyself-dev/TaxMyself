@@ -262,14 +262,16 @@ export class FeezbackWebhookService {
         this.logger.debug(`${prefix}[Account] Processing resourceId=${resourceId} iban=***${sourceName} sourceName=${sourceName}`);
 
         const existing = await this.sourceRepository.findOne({
-          where: { userId: firebaseId, sourceType: SourceType.BANK_ACCOUNT, sourceName },
+          where: { userId: firebaseId, sourceName },
         });
 
         if (existing) {
           const resourceIdChanged = existing.feezbackResourceId !== feezbackResourceId;
+          const typeChanged = existing.sourceType !== SourceType.BANK_ACCOUNT;
           existing.feezbackResourceId = feezbackResourceId;
+          existing.sourceType = SourceType.BANK_ACCOUNT;
           await this.sourceRepository.save(existing);
-          this.logger.log(`${prefix}[Account] Updated source id=${existing.id} sourceName=${sourceName} resourceIdChanged=${resourceIdChanged}`);
+          this.logger.log(`${prefix}[Account] Updated source id=${existing.id} sourceName=${sourceName} resourceIdChanged=${resourceIdChanged} typeChanged=${typeChanged}`);
         } else {
           const created = await this.sourceRepository.save(
             this.sourceRepository.create({
@@ -313,14 +315,16 @@ export class FeezbackWebhookService {
         this.logger.debug(`${prefix}[Card] Processing resourceId=${resourceId} maskedPan=***${sourceName} sourceName=${sourceName}`);
 
         const existing = await this.sourceRepository.findOne({
-          where: { userId: firebaseId, sourceType: SourceType.CREDIT_CARD, sourceName },
+          where: { userId: firebaseId, sourceName },
         });
 
         if (existing) {
           const resourceIdChanged = existing.feezbackResourceId !== feezbackResourceId;
+          const typeChanged = existing.sourceType !== SourceType.CREDIT_CARD;
           existing.feezbackResourceId = feezbackResourceId;
+          existing.sourceType = SourceType.CREDIT_CARD;
           await this.sourceRepository.save(existing);
-          this.logger.log(`${prefix}[Card] Updated source id=${existing.id} sourceName=${sourceName} resourceIdChanged=${resourceIdChanged}`);
+          this.logger.log(`${prefix}[Card] Updated source id=${existing.id} sourceName=${sourceName} resourceIdChanged=${resourceIdChanged} typeChanged=${typeChanged}`);
         } else {
           const created = await this.sourceRepository.save(
             this.sourceRepository.create({

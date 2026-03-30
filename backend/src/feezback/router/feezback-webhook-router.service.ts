@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Request } from 'express';
-import axios, { AxiosHeaders } from 'axios';
-
-type WebhookTarget = 'dev' | 'prod';
+import axios from 'axios';
 
 @Injectable()
 export class FeezbackWebhookRouterService {
@@ -21,16 +19,13 @@ export class FeezbackWebhookRouterService {
         const eventType = (payload as any)?.event ?? 'unknown';
         const startedAt = Date.now();
         this.logger.log(
-            `[WebhookRouter] Forwarding | event=${eventType} | target=${process.env.FEEZBACK_WEBHOOK_TARGET ?? 'missing'} | url=${targetUrl}`,
+            `[WebhookRouter] Forwarding | event=${eventType} | url=${targetUrl}`,
         );
 
         try {
-            // Important: keep timeout sensible so we don't hang on network issues.
             const response = await axios.post(targetUrl, payload, {
                 headers,
-                timeout: Number(process.env.FEEZBACK_WEBHOOK_FORWARD_TIMEOUT_MS ?? 10_000),
-                // If payload is raw Buffer, axios will send it as-is.
-                // If payload is object, axios will JSON stringify.
+                timeout: Number(process.env.FEEZBACK_WEBHOOK_FORWARD_TIMEOUT_MS ?? 30_000),
                 validateStatus: () => true, // don't throw on non-2xx; we will log it
             });
 
@@ -53,31 +48,15 @@ export class FeezbackWebhookRouterService {
     }
 
     private resolveTargetUrl(): string | null {
-        const target = (process.env.FEEZBACK_WEBHOOK_TARGET ?? '').trim().toLowerCase() as WebhookTarget;
-
-        const devUrl = process.env.DEV_WEBHOOK_URL?.trim();
         const prodUrl = process.env.PROD_WEBHOOK_URL?.trim();
 
-        if (target !== 'dev' && target !== 'prod') {
+        if (!prodUrl) {
             this.logger.error(
-                `Missing/invalid FEEZBACK_WEBHOOK_TARGET. Expected "dev" or "prod", got "${process.env.FEEZBACK_WEBHOOK_TARGET}".`,
+                '[WebhookRouter] PROD_WEBHOOK_URL is not configured — cannot forward webhook.',
             );
             return null;
         }
 
-        if (target === 'dev') {
-            if (!devUrl) {
-                this.logger.error('FEEZBACK_WEBHOOK_TARGET=dev but DEV_WEBHOOK_URL is missing.');
-                return null;
-            }
-            return devUrl;
-        }
-
-        // target === 'prod'
-        if (!prodUrl) {
-            this.logger.error('FEEZBACK_WEBHOOK_TARGET=prod but PROD_WEBHOOK_URL is missing.');
-            return null;
-        }
         return prodUrl;
     }
 
