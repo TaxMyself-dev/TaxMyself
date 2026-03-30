@@ -1038,6 +1038,10 @@ export class TransactionsService {
 
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
 
+    if (!sourceType || !Object.values(SourceType).includes(sourceType)) {
+      throw new Error(`sourceType is required and must be one of: ${Object.values(SourceType).join(', ')}`);
+    }
+
     const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
     if (!bill) {
       throw new Error('Bill not found');

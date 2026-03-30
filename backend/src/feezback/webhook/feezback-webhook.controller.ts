@@ -1,6 +1,5 @@
 import { Body, Controller, Get, Headers, Logger, Post } from '@nestjs/common';
 import { FeezbackWebhookService } from './feezback-webhook.service';
-import { FeezbackWebhookEventBody } from './dto/feezback-webhook.dto';
 
 @Controller('feezback')
 export class FeezbackWebhookController {
@@ -15,11 +14,11 @@ export class FeezbackWebhookController {
   }
 
   @Post('webhook')
-  async handleWebhook(
+  handleWebhook(
     // @Body() body: FeezbackWebhookEventBody,
     @Body() body: any,
     @Headers('x-feezback-secret') providedSecret?: string,
-  ) {
+  ): { success: boolean; ignored?: boolean } {
     const eventType = body?.event ?? 'unknown';
     const payloadTimestamp = body?.timestamp ?? body?.payload?.timestamp ?? null;
     const secretPresent = !!(providedSecret && providedSecret.trim() !== '');
@@ -28,6 +27,7 @@ export class FeezbackWebhookController {
       `[FeezbackWebhook] Received event=${eventType} timestamp=${payloadTimestamp ?? 'none'} secretHeader=${secretPresent ? 'present' : 'missing'}`,
     );
 
+    // Secret validation is synchronous — must complete before ACK is sent.
     const expectedSecret = process.env.FEEZBACK_WEBHOOK_SECRET;
 
     if (expectedSecret && expectedSecret.trim() !== '') {
@@ -37,22 +37,30 @@ export class FeezbackWebhookController {
         );
         return { success: true, ignored: true };
       }
-      this.logger.debug(`[FeezbackWebhook] Secret validation passed event=${eventType}`);
+      this.logger.debug(`[FeezbackWebhook] Secret validated event=${eventType}`);
     } else {
       this.logger.debug(
-        `[FeezbackWebhook] FEEZBACK_WEBHOOK_SECRET not configured — skipping secret validation event=${eventType}`,
+        `[FeezbackWebhook] FEEZBACK_WEBHOOK_SECRET not configured — skipping validation event=${eventType}`,
       );
     }
 
-    try {
-      await this.webhookService.handleWebhook(body);
-      return { success: true };
-    } catch (error: any) {
-      this.logger.error(
-        `[FeezbackWebhook] Unhandled error for event=${eventType}: ${error?.message}`,
-        error?.stack,
-      );
-      return { success: true, error: error?.message };
-    }
+    // ACK immediately — heavy processing runs asynchronously.
+    this.logger.log(`[FeezbackWebhook] ACK sent — async processing starting event=${eventType}`);
+    this.processAsync(body, eventType);
+
+    return { success: true };
+  }
+
+  private processAsync(body: any, eventType: string): void {
+    void this.webhookService.handleWebhook(body)
+      .then(() => {
+        this.logger.log(`[FeezbackWebhook] Async processing completed event=${eventType}`);
+      })
+      .catch((err: any) => {
+        this.logger.error(
+          `[FeezbackWebhook] Async processing failed event=${eventType}: ${err?.message}`,
+          err?.stack,
+        );
+      });
   }
 }
