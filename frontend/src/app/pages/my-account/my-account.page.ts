@@ -448,8 +448,8 @@ export class MyAccountPage implements OnInit {
         const link = response?.link || response?.url || response;
 
         if (link && typeof link === 'string') {
-          // Open the link in a new window/tab
-          window.open(link, '_blank');
+          // Same tab so Feezback redirect returns here instead of a separate window
+          window.location.assign(link);
         } else {
           console.error('Unexpected response format:', response);
           this.messageService.add({
