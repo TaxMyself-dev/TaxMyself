@@ -56,30 +56,25 @@ export class FeezbackApiService {
     sub: string,
     options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
   ): Promise<{ cards: any[] }> {
-    // this.logger.log(`Fetching user cards for sub=${sub}`);
+    const { preventUpdate = true, withInvalid, withBalances } = options ?? {};
 
-    const queryParams: Record<string, string> = {};
+    const queryParams: Record<string, string> = {
+      preventUpdate: String(preventUpdate),
+    };
 
-    if (options?.preventUpdate !== undefined) {
-      queryParams.preventUpdate = String(options.preventUpdate);
+    if (withInvalid !== undefined) {
+      queryParams.withInvalid = String(withInvalid);
     }
 
-    if (options?.withInvalid !== undefined) {
-      queryParams.withInvalid = String(options.withInvalid);
+    if (withBalances !== undefined) {
+      queryParams.withBalances = String(withBalances);
     }
 
-    if (options?.withBalances !== undefined) {
-      queryParams.withBalances = String(options.withBalances);
-    }
+    this.logger.log(`[GETUSERCARDS] sub=${sub} PREVENTUPDATE=${queryParams.preventUpdate} withInvalid=${queryParams.withInvalid ?? 'unset'} withBalances=${queryParams.withBalances ?? 'unset'}`);
 
-    const data = await this.getFromUserPath(
-      sub,
-      '/cards',
-      Object.keys(queryParams).length ? queryParams : undefined,
-    );
+    const data = await this.getFromUserPath(sub, '/cards', queryParams);
 
     const cards = this.normalizeCardsResponse(data);
-    console.log("🚀 ~ FeezbackApiService ~ getUserCards ~ cards:", cards)
     return { cards };
   }
 
