@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TransactionsService } from './transactions/transactions.service';
+import { TransactionProcessingService } from './transactions/transaction-processing.service';
 import { FinsiteService } from './finsite/finsite.service';
 import { MailService } from './mail/mail.service';
 import { UsersService } from './users/users.service';
@@ -8,6 +9,7 @@ import { UsersService } from './users/users.service';
 export class AppService {
   constructor(
     private readonly transactionsService: TransactionsService,
+    private readonly transactionProcessingService: TransactionProcessingService,
     private readonly finsiteService: FinsiteService,
     private readonly mailService: MailService,
     private readonly usersService: UsersService,
@@ -31,28 +33,40 @@ export class AppService {
       statusMessages.push(`❌ updateExpiredTrials: ${err.message}`);
     }
 
-    // 2. Fetch bills and transactions
+    // // 2. Fetch bills and transactions
+    // try {
+    //   const formattedTransactions = await this.getBillsAndTransactions();
+    //   statusMessages.push('✔️ getBillsAndTransactions: SUCCESS');
+    //   statusMessages.push(`Transactions:\n${formattedTransactions}`);
+    // } catch (err) {
+    //   console.error('❌ getBillsAndTransactions failed:', err.message);
+    //   statusMessages.push(`❌ getBillsAndTransactions: ${err.message}`);
+    // }
+
+    // 3. Daily cache cleanup (full_transactions_cache + cache state)
     try {
-      const formattedTransactions = await this.getBillsAndTransactions();
-      statusMessages.push('✔️ getBillsAndTransactions: SUCCESS');
-      statusMessages.push(`Transactions:\n${formattedTransactions}`);
+      await this.transactionProcessingService.handleDailyCacheCleanup();
+      statusMessages.push('✔️ handleDailyCacheCleanup: SUCCESS');
     } catch (err) {
-      console.error('❌ getBillsAndTransactions failed:', err.message);
-      statusMessages.push(`❌ getBillsAndTransactions: ${err.message}`);
+      console.error('❌ handleDailyCacheCleanup failed:', err.message);
+      statusMessages.push(`❌ handleDailyCacheCleanup: ${err.message}`);
     }
 
-    // 3. Send final email
-    const subject = statusMessages.some(m => m.startsWith('❌'))
-      ? 'Daily Task Completed with Errors'
-      : 'Daily Task Success';
+    // 4. Send final email
+    // const subject = statusMessages.some(m => m.startsWith('❌'))
+    //   ? 'Daily Task Completed with Errors'
+    //   : 'Daily Task Success';
 
-    const body = statusMessages.join('\n\n');
+    // const body = statusMessages.join('\n\n');
 
-    await this.mailService.sendMail(
-      process.env.BREVO_SENDER,
-      subject,
-      body,
-    );
+    // await this.mailService.sendMail(
+    //   process.env.BREVO_SENDER,
+    //   subject,
+    //   body,
+    // );
+
+    // 5. Send email to admin
+    
   } catch (fatalError) {
     console.error('💥 Fatal error in daily task:', fatalError.message);
     await this.mailService.sendMail(

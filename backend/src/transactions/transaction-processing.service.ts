@@ -4,7 +4,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
 import { subYears } from 'date-fns';
@@ -1156,22 +1155,11 @@ export class TransactionProcessingService {
   }
 
   /**
-   * Runs every day at 03:00 AM Israel time.
-   * First of two daily cleanup runs — see runDailyCacheCleanup for shared logic.
+   * Daily cache cleanup entrypoint.
+   * Intended to be called from AppService daily-task flow.
    */
-  @Cron('0 0 3 * * *', { timeZone: 'Asia/Jerusalem' })
   async handleDailyCacheCleanup(): Promise<void> {
-    await this.runDailyCacheCleanup('03:00');
-  }
-
-  /**
-   * Runs every day at 03:05 AM Israel time.
-   * Retry run — picks up any users whose sync finished between 03:00 and 03:05
-   * and were skipped by the first run.
-   */
-  @Cron('0 5 3 * * *', { timeZone: 'Asia/Jerusalem' })
-  async handleDailyCacheCleanupRetry(): Promise<void> {
-    await this.runDailyCacheCleanup('03:05');
+    await this.runDailyCacheCleanup('daily-task');
   }
 
   /**
