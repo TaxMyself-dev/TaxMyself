@@ -139,6 +139,23 @@ export class TransactionsController {
     return { status: 'started' };
   }
 
+  @Delete('admin/clear-cache/:firebaseId')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async adminClearUserCache(
+    @Req() request: AuthenticatedRequest,
+    @Param('firebaseId') targetFirebaseId: string,
+  ): Promise<{ status: 'cleared' }> {
+    const adminId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(adminId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    await this.processingService.clearUserCache(targetFirebaseId);
+    this.logger.log(`[AdminClearCache] Cache cleared | targetUser=${targetFirebaseId} | by=${adminId}`);
+    return { status: 'cleared' };
+  }
+
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
   @Get('get-trans')
   //TODO: Add Admin guard
@@ -195,9 +212,6 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async getBills(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const businessNumber = request.user?.businessNumber;
-    console.log('User Firebase ID:', userId);
-    console.log('User Business Number:', businessNumber);
     return this.transactionsService.getBillsByUserId(userId);
   }
 

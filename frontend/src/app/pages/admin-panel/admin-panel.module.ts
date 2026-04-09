@@ -14,6 +14,8 @@ import { AgentManagementComponent } from '../../shared/agent-management/agent-ma
 import { ShaamInvoiceApprovalDialogComponent } from '../../components/shaam-invoice-approval-dialog/shaam-invoice-approval-dialog.component';
 import { ButtonComponent } from '../../components/button/button.component';
 import { ToastModule } from 'primeng/toast';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { ConfirmationService } from 'primeng/api';
 
 @NgModule({
   imports: [
@@ -28,8 +30,10 @@ import { ToastModule } from 'primeng/toast';
     AgentManagementComponent,
     ShaamInvoiceApprovalDialogComponent,
     ButtonComponent,
-    ToastModule
+    ToastModule,
+    ConfirmDialogModule,
   ],
-  declarations: [AdminPanelPage]
+  declarations: [AdminPanelPage],
+  providers: [ConfirmationService],
 })
 export class AdminPanelPageModule {}

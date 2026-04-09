@@ -137,4 +137,22 @@ export class UserSyncStateService {
   async getSyncState(userId: string): Promise<UserSyncState | null> {
     return this.repo.findOne({ where: { userId } });
   }
+
+  /** Called when an admin clears a user's transaction cache — forces a fresh sync on next login. */
+  async markBothEmpty(userId: string): Promise<void> {
+    await this.repo.update({ userId }, {
+      quickProcessStatus: 'empty',
+      quickResultStatus: 'none',
+      quickRowsWritten: 0,
+      quickFinishedAt: null,
+      quickSkipReason: null,
+      quickFailureReason: null,
+      fullProcessStatus: 'empty',
+      fullResultStatus: 'none',
+      fullRowsWritten: 0,
+      fullFinishedAt: null,
+      fullSkipReason: null,
+      fullFailureReason: null,
+    });
+  }
 }

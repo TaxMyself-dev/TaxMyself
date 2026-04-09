@@ -9,6 +9,7 @@ import { FeezbackConsentApiService } from './consent/feezback-consent-api.servic
 import { ConsentSyncService } from './consent/consent-sync.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
+import { UserSyncState } from '../transactions/user-sync-state.entity';
 import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
 import { User } from '../users/user.entity';
 import { ModuleName } from '../enum';
@@ -1217,12 +1218,19 @@ export class FeezbackService {
     // Log #3 — starting
     this.logger.log(`[FullSync] Starting | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
+    // Capture sync state BEFORE markQuickRunning overwrites it so doFullSync can
+    // correctly determine whether the cache was empty at the time sync was triggered.
+    const preSyncState = await this.userSyncStateService.getSyncState(firebaseId).catch(err => {
+      this.logger.error(`[FullSync] Failed to read pre-sync state | firebaseId=${masked} | error=${err?.message}`, err?.stack);
+      return null;
+    });
+
     // Persist quick-sync start so the frontend can begin polling immediately.
     await this.userSyncStateService.markQuickRunning(firebaseId, triggeredBy).catch(err => {
       this.logger.error(`[FullSync] Failed to write running state | firebaseId=${masked} | error=${err?.message}`, err?.stack);
     });
 
-    const promise = this.doFullSync(firebaseId, triggeredBy, masked).finally(() => {
+    const promise = this.doFullSync(firebaseId, triggeredBy, masked, preSyncState).finally(() => {
       this.runningFullSyncByUser.delete(firebaseId);
       this.logger.debug(`[FullSync] In-flight map cleanup done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
     });
@@ -1326,11 +1334,12 @@ export class FeezbackService {
     };
   }
 
-  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual', masked: string): Promise<void> {
+  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual', masked: string, preSyncState?: UserSyncState | null): Promise<void> {
     try {
       // Gate — only proceed for users who have OPEN_BANKING module access.
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
       if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+        console.log(`\n⛔ [FullSync] SKIPPED — reason: OPEN_BANKING module not enabled | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
         this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
@@ -1338,17 +1347,22 @@ export class FeezbackService {
         return;
       }
 
-      // Log #4 gate — check whether cached transactions already exist
-      this.logger.debug(`[FullSync] Checking transaction cache | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      const hasCached = await this.processingService.hasTransactionCache(firebaseId);
-      if (hasCached) {
-        this.logger.log(`[FullSync] Skipped — cached transactions already exist | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      // Log #4 gate — use the pre-markQuickRunning state captured in triggerFullSync so we see
+      // the true state before 'running' was written (avoids false "not empty" reads).
+      const syncState = preSyncState !== undefined ? preSyncState : await this.userSyncStateService.getSyncState(firebaseId);
+      const syncIsEmpty = !syncState ||
+        syncState.quickProcessStatus === 'empty' ||
+        syncState.fullProcessStatus === 'empty';
+      if (!syncIsEmpty) {
+        console.log(`\n⛔ [FullSync] SKIPPED — reason: sync state is not empty (${syncState?.quickProcessStatus}/${syncState?.fullProcessStatus}) | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
+        this.logger.log(`[FullSync] Skipped — sync state is not empty | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'cache_exists').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
         });
         return;
       }
-      this.logger.log(`[FullSync] Cache empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      console.log(`\n🚀 [FullSync] RUNNING — sync state is empty, starting sync | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
+      this.logger.log(`[FullSync] Sync state empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
       const sub = `${firebaseId}_sub`;
       const today = new Date();
@@ -1485,6 +1499,11 @@ export class FeezbackService {
 
       this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | processStatus=${fullProcessStatus} | resultStatus=${fullPhase.resultStatus} | rowsWritten=${fullRowsWritten} | diagnostics=${JSON.stringify(fullPhase.diagnostics)}`);
 
+      const overallSuccess = quickProcessStatus === 'completed' && fullProcessStatus === 'completed';
+      console.log(`\n${overallSuccess ? '✅' : '⚠️'} [FullSync] COMPLETE | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      console.log(`   Quick: ${quickProcessStatus} (${quickRowsWritten} rows saved)`);
+      console.log(`   Full:  ${fullProcessStatus} (${fullRowsWritten} rows saved)\n`);
+
       await this.userSyncStateService.markFullFinished(
         firebaseId,
         fullProcessStatus,
@@ -1496,6 +1515,7 @@ export class FeezbackService {
       });
 
     } catch (err: any) {
+      console.error(`\n❌ [FullSync] FAILED | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}\n`);
       this.logger.error(`[FullSync] Failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}`, err?.stack);
       await this.userSyncStateService.markBothFailed(firebaseId, err?.message ?? 'UNKNOWN_ERROR').catch(writeErr => {
         this.logger.error(`[FullSync] Failed to write failed state | firebaseId=${masked} | error=${writeErr?.message}`);

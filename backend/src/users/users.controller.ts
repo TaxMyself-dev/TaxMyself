@@ -110,9 +110,18 @@ export class UsersController {
      */
     private triggerPostLoginSync(firebaseId: string): void {
         const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
-        this.logger.log(`[PostLoginSync] Fire-and-forget | firebaseId=${masked}`);
+        console.log(`\n🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`🔐 [PostLoginSync] Login detected — firing Feezback sync`);
+        console.log(`🔐 [PostLoginSync] firebaseId=${masked}`);
+        console.log(`🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
         void this.feezbackService.triggerFullSync(firebaseId, 'login')
-            .catch(err => this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err));
+            .then(() => {
+                console.log(`\n✅ [PostLoginSync] triggerFullSync resolved | firebaseId=${masked}\n`);
+            })
+            .catch(err => {
+                console.error(`\n❌ [PostLoginSync] triggerFullSync threw | firebaseId=${masked} | error=${err?.message}`);
+                this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err);
+            });
     }
 }

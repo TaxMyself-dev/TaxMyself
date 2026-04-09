@@ -775,6 +775,16 @@ export class TransactionProcessingService {
     await this.cacheStateRepo.delete({ userId });
   }
 
+  /**
+   * Admin: clears a user's transaction cache and resets sync state to empty.
+   * The next login will trigger a fresh Feezback sync for this user.
+   */
+  async clearUserCache(userId: string): Promise<void> {
+    await this.cacheRepo.delete({ userId });
+    await this.cacheStateRepo.delete({ userId });
+    await this.userSyncStateService.markBothEmpty(userId);
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------

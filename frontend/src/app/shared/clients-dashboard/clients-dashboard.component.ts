@@ -3,6 +3,7 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
+import { ConfirmationService } from 'primeng/api';
 
 @Component({
   selector: 'app-clients-dashboard',
@@ -33,16 +34,28 @@ export class ClientsDashboardComponent implements OnInit {
       name: 'feezback',
       icon: 'pi pi-cloud-download',
       title: 'טען תנועות מ-Feezback',
-      alwaysShow: true, // Show this button even when row has no file
+      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openFeezbackDialog(row);
+      }
+    },
+    {
+      name: 'clearCache',
+      icon: 'pi pi-trash',
+      title: 'מחק מטמון תנועות',
+      alwaysShow: true,
+      action: (event: any, row: IRowDataTable) => {
+        this.confirmClearCache(row);
       }
     }
   ];
 
   searchTerm: string = '';
 
-  constructor(private adminPanelService: AdminPanelService) {}
+  constructor(
+    private adminPanelService: AdminPanelService,
+    private confirmationService: ConfirmationService,
+  ) {}
 
   ngOnInit() {
     this.loadUsers();
@@ -125,6 +138,28 @@ export class ClientsDashboardComponent implements OnInit {
       name: row['fullName'] as string || `${row['fName'] || ''} ${row['lName'] || ''}`.trim()
     });
     this.visibleFeezbackDialog.set(true);
+  }
+
+  confirmClearCache(row: IRowDataTable): void {
+    const firebaseId = row['firebaseId'] as string;
+    const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
+    this.confirmationService.confirm({
+      message: `האם אתה בטוח שברצונך למחוק את מטמון התנועות של ${name}? הסינכרון יתחיל מחדש בכניסה הבאה.`,
+      header: 'מחיקת מטמון תנועות',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'כן, מחק',
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.adminPanelService.clearUserCache(firebaseId)
+          .pipe(catchError(err => {
+            console.error('Error clearing cache:', err);
+            return EMPTY;
+          }))
+          .subscribe(() => {
+            console.log(`Cache cleared for user ${firebaseId}`);
+          });
+      },
+    });
   }
 
   closeFeezbackDialog(event?: { visible: boolean }): void {
