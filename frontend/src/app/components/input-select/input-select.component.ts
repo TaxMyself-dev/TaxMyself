@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, Injector, input, OnInit, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, Injector, input, OnInit, output, signal, untracked } from '@angular/core';
 import { AbstractControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
@@ -61,6 +61,15 @@ export class InputSelectComponent implements OnInit {
 
   ngOnInit() {
     this.getStringMessage();
+
+    // Re-run when items load async (e.g. categories fetched after component init)
+    effect(() => {
+      this.items(); // track signal
+      untracked(() => this.getStringMessage());
+    }, { injector: this.injector });
+
+    // Re-run when value is set programmatically (setValue/patchValue)
+    this.parentForm()?.get(this.controlName())?.valueChanges.subscribe(() => this.getStringMessage());
 
     effect(() => {
       const form = this.parentForm();
