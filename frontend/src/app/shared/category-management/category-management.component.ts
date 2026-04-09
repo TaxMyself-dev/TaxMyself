@@ -171,6 +171,26 @@ export class CategoryManagementComponent implements OnInit {
     this.showAddDialog.set(false);
   }
 
+  confirmDelete(row: any): void {
+    this.confirmationService.confirm({
+      message: `האם אתה בטוח שברצונך למחוק את תת הקטגוריה "${row.subCategoryName}"?`,
+      header: 'אישור מחיקה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'כן, מחק',
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.loading.set(true);
+        this.expenseDataService
+          .deleteDefaultSubCategory(row.id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => this.loadSubCategories(),
+            error: () => this.loading.set(false),
+          });
+      },
+    });
+  }
+
   saveAddSubCategory(): void {
     const categoryName = this.addForm.categoryChoice === this.NEW_CATEGORY_VALUE
       ? (this.addForm.categoryName ?? '').trim()

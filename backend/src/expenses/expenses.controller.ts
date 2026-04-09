@@ -257,6 +257,17 @@ export class ExpensesController {
     return this.expensesService.createDefaultSubCategory(body);
   }
 
+  @Delete('delete-default-sub-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteDefaultSubCategory(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    const firebaseId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    await this.expensesService.deleteDefaultSubCategory(Number(id));
+  }
+
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////               Suppliers             /////////////////////////////

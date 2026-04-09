@@ -148,6 +148,12 @@ export class ExpenseDataService {
     return this.http.post(url, body);
   }
 
+  /** Admin: delete a default sub-category by id. */
+  deleteDefaultSubCategory(id: number): Observable<any> {
+    const url = `${environment.apiUrl}expenses/delete-default-sub-category/${id}`;
+    return this.http.delete(url);
+  }
+
 
   getcategry(isDefault?: boolean, isExpense: boolean = true): Observable<any[]> {
     const url = `${environment.apiUrl}expenses/get-categories`;

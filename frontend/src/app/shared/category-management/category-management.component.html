@@ -61,6 +61,9 @@
                     <app-p-button [icon]="'pi pi-pencil'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
                       [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openUpdateConfirm(row)"
                       [buttonText]="'עדכון'"></app-p-button>
+                    <app-p-button [icon]="'pi pi-trash'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+                      [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="confirmDelete(row)"
+                      [buttonText]="'מחיקה'"></app-p-button>
                   </td>
                 </tr>
               }

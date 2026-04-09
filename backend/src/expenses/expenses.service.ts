@@ -580,8 +580,32 @@ export class ExpensesService {
         return this.defaultSubCategoryRepo.save(existing);
     }
 
+    /** Admin: delete a default sub-category by id. */
+    async deleteDefaultSubCategory(id: number): Promise<void> {
+        const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });
+        if (!existing) {
+            throw new NotFoundException(`Default sub-category with id ${id} not found`);
+        }
+        await this.defaultSubCategoryRepo.delete(id);
+    }
+
     /** Admin: create a new default sub-category. */
     async createDefaultSubCategory(dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
+        // Upsert parent default_category if it doesn't exist yet
+        if (dto.categoryName) {
+            const exists = await this.defaultCategoryRepo.findOne({
+                where: { categoryName: dto.categoryName },
+            });
+            if (!exists) {
+                await this.defaultCategoryRepo.save(
+                    this.defaultCategoryRepo.create({
+                        categoryName: dto.categoryName,
+                        isExpense: dto.isExpense ?? true,
+                    }),
+                );
+            }
+        }
+
         const entity = this.defaultSubCategoryRepo.create(dto);
         return this.defaultSubCategoryRepo.save(entity);
     }
