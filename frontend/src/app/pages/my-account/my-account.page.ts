@@ -335,7 +335,12 @@ export class MyAccountPage implements OnInit {
     }
     this.visibleClassifyTran.set(true);
     this.leftPanelData.set(row);
-    this.incomeMode.set(false);
+    // Positive sum is income; zero/negative is expense.
+    const sumNumeric =
+      typeof row?.['__sumNumeric'] === 'number'
+        ? row['__sumNumeric']
+        : Number(row?.sum ?? 0);
+    this.incomeMode.set(sumNumeric > 0);
   }
 
   onQuickClassify(row: IRowDataTable): void {

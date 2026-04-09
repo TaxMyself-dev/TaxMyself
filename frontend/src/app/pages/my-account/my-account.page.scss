@@ -166,26 +166,6 @@ p.block-title {
   margin: 0;
 }
 
-.banking-banner__blob {
-  position: absolute;
-  pointer-events: none;
-  user-select: none;
-}
-
-.banking-banner__blob--left {
-  left: -151px;
-  top: -40px;
-  width: 336px;
-  height: 294px;
-}
-
-.banking-banner__blob--right {
-  left: 252px;
-  top: -8px;
-  width: 278px;
-  height: 244px;
-}
-
 .banking-banner__text {
   position: relative;
   z-index: 1;
@@ -213,19 +193,6 @@ p.block-title {
     gap: 1px;                    
   }
 
-  .banking-banner__blob--left {
-    left: -611px;
-    top: -105px;
-    width: 1278px;
-    height: 568px;
-  }
-
-  .banking-banner__blob--right {
-    left: 1179px;
-    top: -33px;
-    width: 624px;
-    height: 277px;
-  }
 }
 
 .banking-banner__title {
