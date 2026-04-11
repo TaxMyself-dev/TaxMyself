@@ -11,7 +11,8 @@ import { FeezbackApiService } from '../api/feezback-api.service';
 import { FeezbackService } from '../feezback.service';
 import { User } from '../../users/user.entity';
 import { Source } from '../../transactions/source.entity';
-import { ModuleName, SourceType } from '../../enum';
+import { ModuleName, PayStatus, SourceType } from '../../enum';
+import { UserModuleSubscription } from '../../users/user-module-subscription.entity';
 
 @Injectable()
 export class FeezbackWebhookService {
@@ -24,6 +25,8 @@ export class FeezbackWebhookService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Source)
     private readonly sourceRepository: Repository<Source>,
+    @InjectRepository(UserModuleSubscription)
+    private readonly moduleSubRepo: Repository<UserModuleSubscription>,
     private readonly consentService: FeezbackConsentService,
     private readonly consentSyncService: ConsentSyncService,
     private readonly feezbackApiService: FeezbackApiService,
@@ -344,21 +347,59 @@ export class FeezbackWebhookService {
       this.logger.error(`${prefix}[Card] Sync failed firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
-    // Ensure user.modulesAccess includes OPEN_BANKING.
+    // Ensure user.modulesAccess includes OPEN_BANKING, set hasOpenBanking=true,
+    // and create the OPEN_BANKING module subscription record if not already present.
     try {
       if (user) {
-        if (user.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-          this.logger.debug(`${prefix} OPEN_BANKING already in modulesAccess — no update needed firebaseId=${masked}`);
-        } else {
+        let dirty = false;
+
+        if (!user.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
           user.modulesAccess = [...(user.modulesAccess ?? []), ModuleName.OPEN_BANKING];
+          dirty = true;
+          this.logger.log(`${prefix} Added OPEN_BANKING to modulesAccess firebaseId=${masked}`);
+        } else {
+          this.logger.debug(`${prefix} OPEN_BANKING already in modulesAccess firebaseId=${masked}`);
+        }
+
+        if (!user.hasOpenBanking) {
+          user.hasOpenBanking = true;
+          dirty = true;
+          this.logger.log(`${prefix} Set hasOpenBanking=true firebaseId=${masked}`);
+        }
+
+        if (dirty) {
           await this.userRepository.save(user);
-          this.logger.log(`${prefix} Added OPEN_BANKING to modulesAccess and saved firebaseId=${masked}`);
+          this.logger.log(`${prefix} User saved after modulesAccess/hasOpenBanking update firebaseId=${masked}`);
+        }
+
+        // Create OPEN_BANKING subscription record if not already present
+        const existingOBSub = await this.moduleSubRepo.findOne({
+          where: { firebaseId, moduleName: ModuleName.OPEN_BANKING },
+        });
+        if (!existingOBSub) {
+          const trialStart = new Date();
+          const trialEnd = new Date();
+          trialEnd.setDate(trialEnd.getDate() + 45);
+          await this.moduleSubRepo.save(
+            this.moduleSubRepo.create({
+              firebaseId,
+              moduleName: ModuleName.OPEN_BANKING,
+              trialStartDate: trialStart,
+              trialEndDate: trialEnd,
+              payStatus: PayStatus.TRIAL,
+              monthlyPriceNis: 45,
+              createdAt: new Date(),
+            }),
+          );
+          this.logger.log(`${prefix} Created OPEN_BANKING subscription record firebaseId=${masked}`);
+        } else {
+          this.logger.debug(`${prefix} OPEN_BANKING subscription record already exists firebaseId=${masked}`);
         }
       } else {
-        this.logger.warn(`${prefix} Skipping modulesAccess update — user not found firebaseId=${masked}`);
+        this.logger.warn(`${prefix} Skipping modulesAccess/hasOpenBanking update — user not found firebaseId=${masked}`);
       }
     } catch (error: any) {
-      this.logger.error(`${prefix} Failed to update modulesAccess firebaseId=${masked}: ${error?.message}`, error?.stack);
+      this.logger.error(`${prefix} Failed to update modulesAccess/hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
     // Log #17 — trigger full transaction sync fire-and-forget

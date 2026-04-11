@@ -110,6 +110,8 @@ export class MyAccountPage implements OnInit {
   // ─── User-context signals (set in ngOnInit from userData) ────────────────
   isOnlyEmployer = signal<boolean>(false);
   businessStatus = signal<BusinessStatus>(BusinessStatus.NO_BUSINESS);
+  hasOpenBanking = signal<boolean>(false);
+  readonly BusinessStatus = BusinessStatus;
 
   // ─── Column definitions: derived from shared config ───────────────────────
   fieldsNamesExpenses = computed(() =>
@@ -193,10 +195,14 @@ export class MyAccountPage implements OnInit {
       this.businessStatus.set(BusinessStatus.SINGLE_BUSINESS);
     }
 
+    this.hasOpenBanking.set(!!this.userData?.hasOpenBanking);
+
     this.transactionService.getAllBills();
     this.accountsList = this.transactionService.accountsList;
 
-    this.startSyncStatusPolling();
+    if (this.hasOpenBanking()) {
+      this.startSyncStatusPolling();
+    }
 
     this.initFeezbackDialogFromReturnUrl();
   }
@@ -217,6 +223,15 @@ export class MyAccountPage implements OnInit {
       this.feezbackDialogTitle.set('איזה כיף שהצטרפת לבנקאות הפתוחה!');
       this.feezbackDialogMessage.set('ברגעים אלו אנו מושכים את התנועות שלך...');
       this.feezbackDialogVisible.set(true);
+
+      // Optimistically mark user as connected so the UI updates immediately
+      this.hasOpenBanking.set(true);
+      const stored = this.authService.getUserDataFromLocalStorage();
+      if (stored) {
+        stored.hasOpenBanking = true;
+        localStorage.setItem('userData', JSON.stringify(stored));
+      }
+      this.startSyncStatusPolling();
     } else if (status === 'failure') {
       this.feezbackDialogStatus.set('failure');
       this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');

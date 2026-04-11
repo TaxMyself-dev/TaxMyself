@@ -111,11 +111,14 @@
             [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
         </app-p-button>
+        @if (!hasOpenBanking()) {
         <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
             (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
         </app-p-button>
+        }
     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
+     @if (!hasOpenBanking()) {
      <div class="banking-banner">
 
         <div class="banking-banner__text">
@@ -133,6 +136,8 @@
             [isLoading]="isLoadingFeezback()">
         </app-p-button>
     </div>
+    }
+    @if (businessStatus() !== BusinessStatus.NO_BUSINESS) {
     <div class="nevigation-block">
         <span class="block-title">פעולות מומלצות</span>
         <div class="cards-container">
@@ -142,8 +147,9 @@
             }
         </div>
     </div>
-   
+    }
 
+@if (hasOpenBanking()) {
 <div class="table-block">
     @if (!isMobile()) {
         <p class="block-title">התנועות הלא מסווגות שלי</p>
@@ -164,6 +170,8 @@
         [unassignedBillRed]="true">
     </app-generic-table>
 </div>
+
+}
 
 @if (visibleAccountAssociationDialog()) {
     <app-account-association-dialog

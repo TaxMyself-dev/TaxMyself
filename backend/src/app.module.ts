@@ -48,6 +48,7 @@ import { DocPayments } from './documents/doc-payments.entity';
 import { Business } from './business/business.entity';
 import { FeezbackConsent } from './feezback/consent/entities/feezback-consent.entity';
 import { FeezbackWebhookEvent } from './feezback/webhook/entities/feezback-webhook-event.entity';
+import { UserModuleSubscription } from './users/user-module-subscription.entity';
 
 import 'dotenv/config'
 import * as admin from 'firebase-admin';
@@ -83,7 +84,7 @@ import { BusinessService } from './business/business.service';
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents,
-        FeezbackConsent, FeezbackWebhookEvent],
+        FeezbackConsent, FeezbackWebhookEvent, UserModuleSubscription],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true

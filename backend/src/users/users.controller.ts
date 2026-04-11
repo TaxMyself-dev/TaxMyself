@@ -42,6 +42,15 @@ export class UsersController {
     }
 
 
+    @Get('/billing-status')
+    @UseGuards(FirebaseAuthGuard)
+    async getBillingStatus(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        if (!userId) throw new NotFoundException('user not exist');
+        return this.userService.getBillingStatus(userId);
+    }
+
+
     @Get('/get-user')
     @UseGuards(FirebaseAuthGuard)
     async getUser(@Req() request: AuthenticatedRequest) {

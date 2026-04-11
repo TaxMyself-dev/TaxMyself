@@ -661,31 +661,31 @@ matchRegisterImage = computed(() => {
       confirmPassword: 'Test1234',
     });
 
-    // Spouse (optional)
-    this.spouseForm.patchValue({
-      spouseFName: 'Uriah',
-      spouseLName: 'Harel',
-      spouseId: '987654321',
-      spouseEmail: 'spouse@example.com',
-      spousePhone: '0509876543',
-      spouseGender: 'female',
-    });
+    // // Spouse (optional)
+    // this.spouseForm.patchValue({
+    //   spouseFName: 'Uriah',
+    //   spouseLName: 'Harel',
+    //   spouseId: '987654321',
+    //   spouseEmail: 'spouse@example.com',
+    //   spousePhone: '0509876543',
+    //   spouseGender: 'female',
+    // });
 
-    // Children example
-    this.addChild(); // ensure at least one child form exists
-    this.childrenArray.at(0).patchValue({
-      childFName: 'Noam',
-      childLName: 'Harel',
-      childDate: '2020-01-01',
-    });
+    // // Children example
+    // this.addChild(); // ensure at least one child form exists
+    // this.childrenArray.at(0).patchValue({
+    //   childFName: 'Noam',
+    //   childLName: 'Harel',
+    //   childDate: '2020-01-01',
+    // });
 
-    // Business array example (if you use dynamic businesses)
-    if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
-    this.businessArray.at(0).patchValue({
-      businessName: 'KeepInTax',
-      businessNumber: '555555555',
-      businessType: 'LICENSED',
-    });
+    // // Business array example (if you use dynamic businesses)
+    // if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
+    // this.businessArray.at(0).patchValue({
+    //   businessName: 'KeepInTax',
+    //   businessNumber: '555555555',
+    //   businessType: 'LICENSED',
+    // });
   }
 
 }

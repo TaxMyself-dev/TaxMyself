@@ -16,8 +16,6 @@ export enum ModuleName {
   INVOICES = 'INVOICES',
   OPEN_BANKING = 'OPEN_BANKING',
   ACCOUNTANT = 'ACCOUNTANT',
-  FINANCIAL_ADVISOR = 'FINANCIAL_ADVISOR',
-  UNIFORM_FILE =  'UNIFORM_FILE',
 }
 
 export enum BusinessType {

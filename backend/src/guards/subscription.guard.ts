@@ -37,8 +37,9 @@ export class SubscriptionGuard implements CanActivate {
       throw new ForbiddenException('User not found');
     }
 
+    const sub = await this.usersService.getModuleSubscription(firebaseId, requiredModule);
     const allowedStatuses = [PayStatus.FREE, PayStatus.TRIAL, PayStatus.PAID];
-    const isAllowed = allowedStatuses.includes(user.payStatus);
+    const isAllowed = sub ? allowedStatuses.includes(sub.payStatus) : allowedStatuses.includes(user.payStatus);
 
     const hasAccess = isAllowed && user.modulesAccess.includes(requiredModule);
 

@@ -7,10 +7,11 @@ import { FeezbackPersistenceModule } from '../consent/feezback-persistence.modul
 import { FeezbackModule } from '../feezback.module';
 import { User } from '../../users/user.entity';
 import { Source } from '../../transactions/source.entity';
+import { UserModuleSubscription } from '../../users/user-module-subscription.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([FeezbackWebhookEvent, User, Source]),
+    TypeOrmModule.forFeature([FeezbackWebhookEvent, User, Source, UserModuleSubscription]),
     FeezbackPersistenceModule,
     FeezbackModule,
   ],

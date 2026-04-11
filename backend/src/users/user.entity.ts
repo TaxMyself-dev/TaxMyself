@@ -111,6 +111,15 @@ export class User {
     @Column({ type: 'varchar', nullable: true, default: null })
     finsiteId: string | null;
 
+    @Column({ default: false })
+    hasOpenBanking: boolean;
+
+    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    discountPercent: number;
+
+    @Column({ type: 'varchar', nullable: true, default: null })
+    discountLabel: string | null;
+
     ////////////////////////////////////
     /////////   Spouse details  ////////
     ////////////////////////////////////

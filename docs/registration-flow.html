@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>TaxMyself — תרשים תהליך הרשמה</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;800&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Heebo', Arial, sans-serif;
+      background: #f4f6fb;
+      color: #1a2551;
+      padding: 32px;
+      direction: rtl;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: #1a2551;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #7a8ab0;
+      margin-bottom: 36px;
+    }
+
+    /* ── PHASE CARD ── */
+    .phase {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 12px rgba(26,37,81,0.07);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      font-weight: 700;
+      font-size: 15px;
+      color: #fff;
+    }
+    .phase-header .num {
+      background: rgba(255,255,255,0.25);
+      border-radius: 50%;
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800;
+      flex-shrink: 0;
+    }
+    .phase-body { padding: 18px 20px; }
+
+    /* header colours */
+    .h-blue   { background: #1a2551; }
+    .h-teal   { background: #0d7a6e; }
+    .h-purple { background: #5a3e9c; }
+    .h-green  { background: #1a7a3e; }
+    .h-orange { background: #b85c00; }
+    .h-red    { background: #a01c1c; }
+
+    /* ── TWO-COLUMN SPLIT ── */
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .box {
+      background: #f7f9ff;
+      border: 1.5px solid #dde4f5;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .box h3 {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #dde4f5;
+    }
+
+    /* ── DB FIELDS ── */
+    .fields {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #eef2ff;
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    .field .key { font-weight: 700; color: #3a4fa8; }
+    .field .val { color: #444; }
+    .field.highlight { background: #fff3cd; }
+    .field.highlight .key { color: #7a4a00; }
+
+    /* ── SUBSCRIPTION ROW ── */
+    .sub-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .sub-card {
+      background: #f0faf5;
+      border: 1.5px solid #a8dfc0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      min-width: 160px;
+    }
+    .sub-card .sc-title { font-weight: 700; color: #0d7a3e; margin-bottom: 4px; }
+    .sub-card .sc-row { color: #333; margin-bottom: 2px; }
+    .sub-card.disabled {
+      background: #f5f5f5;
+      border-color: #ccc;
+      opacity: 0.6;
+    }
+    .sub-card.disabled .sc-title { color: #888; }
+
+    /* ── UI BOXES ── */
+    .ui-box {
+      background: #f7f9ff;
+      border: 1.5px solid #dde4f5;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .ui-box h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+    .ui-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .badge {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .badge.ok  { background: #d4f5e2; }
+    .badge.no  { background: #fde8e8; }
+
+    /* ── ARROW ── */
+    .arrow {
+      text-align: center;
+      font-size: 22px;
+      color: #7a8ab0;
+      margin: -8px 0;
+      line-height: 1;
+    }
+
+    /* ── WEBHOOK BLOCK ── */
+    .webhook-block {
+      background: #fff8e6;
+      border: 2px dashed #f0b429;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .webhook-block h3 { font-size: 13px; font-weight: 700; color: #7a4a00; margin-bottom: 8px; }
+
+    /* ── SUMMARY TABLE ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      background: #1a2551;
+      color: #fff;
+      padding: 10px 14px;
+      text-align: right;
+      font-weight: 600;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #e8edf5;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #f7f9ff; }
+    .tag {
+      display: inline-block;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tag.access  { background: #d4f5e2; color: #0d5c2e; }
+    .tag.billing { background: #fff3cd; color: #7a4a00; }
+    .tag.ui      { background: #e8eeff; color: #3a4fa8; }
+
+    /* ── FLOW CONNECTOR ── */
+    .connector {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 4px 0;
+      font-size: 12px;
+      color: #7a8ab0;
+    }
+    .connector hr { flex: 1; border: none; border-top: 1.5px dashed #c0cce0; }
+
+    @media print {
+      body { background: #fff; padding: 16px; }
+      .phase { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>TaxMyself — תרשים תהליך הרשמה</h1>
+<p class="subtitle">הרשאות, תשלום וממשק משתמש — לפי שלבי הרשמה וחיבור בנקאות פתוחה</p>
+
+<!-- ══ PHASE 1 ══ -->
+<div class="phase">
+  <div class="phase-header h-blue">
+    <div class="num">1</div>
+    הרשמה — POST /auth/signup
+  </div>
+  <div class="phase-body">
+    <div class="split">
+
+      <div class="box">
+        <h3>👤 משתמש עם עסק</h3>
+        <div class="fields">
+          <div class="field"><span class="key">businessStatus</span><span class="val">SINGLE_BUSINESS</span></div>
+          <div class="field"><span class="key">payStatus</span><span class="val">TRIAL</span></div>
+          <div class="field"><span class="key">modulesAccess</span><span class="val">[INVOICES, OPEN_BANKING]</span></div>
+          <div class="field"><span class="key">hasOpenBanking</span><span class="val">false</span></div>
+          <div class="field"><span class="key">discountPercent</span><span class="val">0</span></div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; font-weight:700; color:#0d7a3e; margin-bottom:6px;">UserModuleSubscription נוצר:</div>
+        <div class="sub-row">
+          <div class="sub-card">
+            <div class="sc-title">INVOICES</div>
+            <div class="sc-row">payStatus: TRIAL</div>
+            <div class="sc-row">trial: היום + 45 יום</div>
+            <div class="sc-row">מחיר: 15 ₪/חודש</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>👤 משתמש ללא עסק</h3>
+        <div class="fields">
+          <div class="field"><span class="key">businessStatus</span><span class="val">NO_BUSINESS</span></div>
+          <div class="field"><span class="key">payStatus</span><span class="val">TRIAL</span></div>
+          <div class="field"><span class="key">modulesAccess</span><span class="val">[INVOICES, OPEN_BANKING]</span></div>
+          <div class="field"><span class="key">hasOpenBanking</span><span class="val">false</span></div>
+          <div class="field"><span class="key">discountPercent</span><span class="val">0</span></div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; font-weight:700; color:#888; margin-bottom:6px;">UserModuleSubscription:</div>
+        <div class="sub-row">
+          <div class="sub-card disabled">
+            <div class="sc-title">לא נוצר רשומה</div>
+            <div class="sc-row">אין עסק — אין מנוי INVOICES</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<!-- ══ PHASE 2 ══ -->
+<div class="phase">
+  <div class="phase-header h-teal">
+    <div class="num">2</div>
+    מסך הבית — לפני חיבור בנקאות פתוחה
+  </div>
+  <div class="phase-body">
+    <div class="split">
+
+      <div class="ui-box">
+        <h3>עם עסק</h3>
+        <div class="ui-item"><span class="badge ok">✓</span> 4 כרטיסי ניווט (חשבוניות, הנהח"ש, דוחות, תזרים)</div>
+        <div class="ui-item"><span class="badge ok">✓</span> באנר בנקאות פתוחה</div>
+        <div class="ui-item"><span class="badge no">✗</span> טבלת תנועות (מוסתרת)</div>
+      </div>
+
+      <div class="ui-box">
+        <h3>ללא עסק</h3>
+        <div class="ui-item"><span class="badge no">✗</span> כרטיסי ניווט (מוסתרים)</div>
+        <div class="ui-item"><span class="badge ok">✓</span> באנר בנקאות פתוחה</div>
+        <div class="ui-item"><span class="badge no">✗</span> טבלת תנועות (מוסתרת)</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<!-- ══ PHASE 3 ══ -->
+<div class="phase">
+  <div class="phase-header h-purple">
+    <div class="num">3</div>
+    חיבור לבנקאות פתוחה — Feezback
+  </div>
+  <div class="phase-body">
+
+    <div class="webhook-block">
+      <h3>⚡ Webhook מ-Feezback (ConsentStatusChanged / UserDataIsAvailable)</h3>
+      <div class="fields">
+        <div class="field highlight"><span class="key">hasOpenBanking</span><span class="val">true ←</span></div>
+        <div class="field highlight"><span class="key">modulesAccess</span><span class="val">+= OPEN_BANKING</span></div>
+      </div>
+    </div>
+
+    <div class="sub-row" style="margin-bottom:12px;">
+      <div class="sub-card">
+        <div class="sc-title">OPEN_BANKING נוצר</div>
+        <div class="sc-row">payStatus: TRIAL</div>
+        <div class="sc-row">trial: יום החיבור + 45 יום</div>
+        <div class="sc-row">מחיר: 45 ₪/חודש</div>
+      </div>
+    </div>
+
+    <div class="connector">
+      <hr/>
+      <span>אופטימיסטי — ב-frontend לפני ה-webhook</span>
+      <hr/>
+    </div>
+
+    <div class="fields" style="margin-top:8px;">
+      <div class="field"><span class="key">localStorage</span><span class="val">hasOpenBanking = true (מיידי)</span></div>
+      <div class="field"><span class="key">syncPolling</span><span class="val">מתחיל רק עכשיו</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<!-- ══ PHASE 4 ══ -->
+<div class="phase">
+  <div class="phase-header h-green">
+    <div class="num">4</div>
+    מסך הבית — אחרי חיבור בנקאות פתוחה
+  </div>
+  <div class="phase-body">
+    <div class="split">
+
+      <div class="ui-box">
+        <h3>עם עסק + בנקאות פתוחה</h3>
+        <div class="ui-item"><span class="badge ok">✓</span> 4 כרטיסי ניווט</div>
+        <div class="ui-item"><span class="badge no">✗</span> באנר (נעלם)</div>
+        <div class="ui-item"><span class="badge ok">✓</span> טבלת תנועות לא מסווגות</div>
+      </div>
+
+      <div class="ui-box">
+        <h3>ללא עסק + בנקאות פתוחה</h3>
+        <div class="ui-item"><span class="badge no">✗</span> כרטיסי ניווט (עדיין מוסתרים)</div>
+        <div class="ui-item"><span class="badge no">✗</span> באנר (נעלם)</div>
+        <div class="ui-item"><span class="badge ok">✓</span> טבלת תנועות לא מסווגות</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<!-- ══ PHASE 5 ══ -->
+<div class="phase">
+  <div class="phase-header h-orange">
+    <div class="num">5</div>
+    סוף תקופת ניסיון — POST /cron/daily-task (פעם ביום)
+  </div>
+  <div class="phase-body">
+    <div class="fields">
+      <div class="field highlight"><span class="key">UserModuleSubscription.payStatus</span><span class="val">TRIAL → PAYMENT_REQUIRED</span></div>
+      <div class="field highlight"><span class="key">user.modulesAccess</span><span class="val">הסרת המודול שפג</span></div>
+    </div>
+    <div style="margin-top:12px; font-size:13px; background:#fff3cd; border-radius:8px; padding:10px 14px; border:1.5px solid #f0b429;">
+      ⚠️ הבקשה הבאה של המשתמש → <strong>SubscriptionGuard</strong> → בודק <code>sub.payStatus</code> → <strong>403 Forbidden</strong>
+    </div>
+  </div>
+</div>
+
+<div class="arrow">↓</div>
+
+<!-- ══ PHASE 6 ══ -->
+<div class="phase">
+  <div class="phase-header h-red">
+    <div class="num">6</div>
+    תשלום — עתידי (ספק תשלומים)
+  </div>
+  <div class="phase-body">
+    <div class="fields" style="margin-bottom:12px;">
+      <div class="field"><span class="key">GET /auth/billing-status</span><span class="val">מחזיר finalAmountNis לחיוב</span></div>
+    </div>
+    <div class="split">
+      <div class="box" style="font-size:12px;">
+        <h3>חישוב הסכום</h3>
+        <div style="margin-bottom:4px;">INVOICES בלבד → <strong>15 ₪</strong></div>
+        <div style="margin-bottom:4px;">OPEN_BANKING בלבד → <strong>45 ₪</strong></div>
+        <div style="margin-bottom:4px;">שניהם → <strong>54 ₪</strong> (הנחת combo)</div>
+        <div>+ discountPercent אישי → <strong>finalAmountNis</strong></div>
+      </div>
+      <div class="box" style="font-size:12px;">
+        <h3>לאחר תשלום מוצלח</h3>
+        <div style="margin-bottom:4px;">payStatus → <strong>PAID</strong></div>
+        <div style="margin-bottom:4px;">modulesAccess → <strong>+= המודול</strong></div>
+        <div>SubscriptionGuard → <strong>✅ מאשר גישה</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUMMARY TABLE ══ -->
+<div class="phase" style="margin-top:28px;">
+  <div class="phase-header h-blue">
+    <div class="num">★</div>
+    סיכום — אינדיקציות קריטיות
+  </div>
+  <div class="phase-body" style="padding:0;">
+    <table>
+      <thead>
+        <tr>
+          <th>שדה / ישות</th>
+          <th>משמעות</th>
+          <th>סוג</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>businessStatus</strong></td>
+          <td>קובע מה מוצג בממשק (כרטיסי ניווט)</td>
+          <td><span class="tag ui">UI</span></td>
+        </tr>
+        <tr>
+          <td><strong>hasOpenBanking</strong></td>
+          <td>האם המשתמש חיבר בנקאות פתוחה (טבלת תנועות + באנר)</td>
+          <td><span class="tag ui">UI</span></td>
+        </tr>
+        <tr>
+          <td><strong>modulesAccess[]</strong></td>
+          <td>Gate ל-API — מה מותר לגשת, מתעדכן יומית</td>
+          <td><span class="tag access">הרשאות</span></td>
+        </tr>
+        <tr>
+          <td><strong>UserModuleSubscription</strong></td>
+          <td>מתי ה-trial של כל מודול מסתיים</td>
+          <td><span class="tag billing">תשלום</span></td>
+        </tr>
+        <tr>
+          <td><strong>payStatus (per-module)</strong></td>
+          <td>TRIAL / PAYMENT_REQUIRED / PAID</td>
+          <td><span class="tag billing">תשלום</span></td>
+        </tr>
+        <tr>
+          <td><strong>discountPercent + discountLabel</strong></td>
+          <td>הנחה אישית — מוגדר ידנית ב-DB</td>
+          <td><span class="tag billing">תשלום</span></td>
+        </tr>
+        <tr>
+          <td><strong>finalAmountNis</strong></td>
+          <td>הסכום הסופי לחיוב אצל ספק תשלומים</td>
+          <td><span class="tag billing">תשלום</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

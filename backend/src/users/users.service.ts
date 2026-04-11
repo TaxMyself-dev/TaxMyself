@@ -12,6 +12,7 @@ import { CityDto } from '../cities/city.dto';
 import { cities } from '../cities/cities.data';
 import { Business } from 'src/business/business.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
+import { UserModuleSubscription } from './user-module-subscription.entity';
 
 
 @Injectable()
@@ -29,6 +30,8 @@ export class UsersService {
       @InjectRepository(Child) private child_repo: Repository<Child>,
       @InjectRepository(SettingDocuments)
       private readonly settingDocumentsRepo: Repository<SettingDocuments>,
+      @InjectRepository(UserModuleSubscription)
+      private readonly moduleSubRepo: Repository<UserModuleSubscription>,
     ) {
     this.firebaseAuth = admin.auth();
   }
@@ -95,10 +98,30 @@ export class UsersService {
     // 4️⃣ Save user
     // -------------------------------------------------------
     const user = this.user_repo.create(newUser);
-    const savedUser = await this.user_repo.save(user);
+    const savedUser = (await this.user_repo.save(user)) as unknown as User;
 
     // -------------------------------------------------------
-    // 5️⃣ Save children
+    // 5️⃣ Create INVOICES module subscription (for users with a business)
+    // -------------------------------------------------------
+    if (savedUser.businessStatus !== BusinessStatus.NO_BUSINESS) {
+      const trialStart = new Date();
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 45);
+      await this.moduleSubRepo.save(
+        this.moduleSubRepo.create({
+          firebaseId: savedUser.firebaseId,
+          moduleName: ModuleName.INVOICES,
+          trialStartDate: trialStart,
+          trialEndDate: trialEnd,
+          payStatus: PayStatus.TRIAL,
+          monthlyPriceNis: 15,
+          createdAt: new Date(),
+        }),
+      );
+    }
+
+    // -------------------------------------------------------
+    // 7️⃣ Save children
     // -------------------------------------------------------
     for (const child of newChildren) {
       const newChild = this.child_repo.create({
@@ -110,7 +133,7 @@ export class UsersService {
     }
 
     // -------------------------------------------------------
-    // 6️⃣ Save businesses
+    // 8️⃣ Save businesses
     // -------------------------------------------------------
     for (const biz of newBusinesses) {
       if (!biz) continue;
@@ -355,6 +378,7 @@ export class UsersService {
   async updateExpiredTrials(): Promise<void> {
     const today = new Date();
 
+    // Legacy: update users with expired subscriptionEndDate
     const expiredUsers = await this.user_repo.find({
       where: {
         payStatus: PayStatus.TRIAL,
@@ -367,6 +391,85 @@ export class UsersService {
       await this.user_repo.save(user);
       console.log(`Updated user ${user.id} from TRIAL to PAYMENT_REQUIRED`);
     }
+
+    // Per-module: update UserModuleSubscription records with expired trial
+    const expiredSubs = await this.moduleSubRepo.find({
+      where: {
+        payStatus: PayStatus.TRIAL,
+        trialEndDate: LessThan(today),
+      },
+    });
+
+    for (const sub of expiredSubs) {
+      sub.payStatus = PayStatus.PAYMENT_REQUIRED;
+      await this.moduleSubRepo.save(sub);
+      console.log(`Updated module subscription id=${sub.id} (${sub.moduleName}) for firebaseId=${sub.firebaseId} from TRIAL to PAYMENT_REQUIRED`);
+
+      // Remove module from user's modulesAccess so SubscriptionGuard blocks access
+      const user = await this.user_repo.findOne({ where: { firebaseId: sub.firebaseId } });
+      if (user?.modulesAccess?.includes(sub.moduleName)) {
+        user.modulesAccess = user.modulesAccess.filter(m => m !== sub.moduleName);
+        await this.user_repo.save(user);
+        console.log(`Removed ${sub.moduleName} from modulesAccess for firebaseId=${sub.firebaseId}`);
+      }
+    }
+  }
+
+  async getModuleSubscription(firebaseId: string, moduleName: ModuleName): Promise<UserModuleSubscription | null> {
+    return this.moduleSubRepo.findOne({ where: { firebaseId, moduleName } });
+  }
+
+  async getBillingStatus(firebaseId: string): Promise<{
+    modules: { moduleName: ModuleName; payStatus: PayStatus; trialEndDate: Date; monthlyPriceNis: number }[];
+    monthlyTotalNis: number;
+    hasCombinedDiscount: boolean;
+    discountPercent: number;
+    discountLabel: string | null;
+    finalAmountNis: number;
+  }> {
+    const [subs, user] = await Promise.all([
+      this.moduleSubRepo.find({ where: { firebaseId } }),
+      this.user_repo.findOne({ where: { firebaseId }, select: ['discountPercent', 'discountLabel'] }),
+    ]);
+
+    const activeStatuses = [PayStatus.TRIAL, PayStatus.PAID];
+    const activeSubs = subs.filter(s => activeStatuses.includes(s.payStatus));
+
+    const hasInvoices = activeSubs.some(s => s.moduleName === ModuleName.INVOICES);
+    const hasOB = activeSubs.some(s => s.moduleName === ModuleName.OPEN_BANKING);
+
+    let monthlyTotalNis: number;
+    const hasCombinedDiscount = hasInvoices && hasOB;
+
+    if (hasCombinedDiscount) {
+      monthlyTotalNis = 54;
+    } else if (hasInvoices) {
+      monthlyTotalNis = 15;
+    } else if (hasOB) {
+      monthlyTotalNis = 45;
+    } else {
+      monthlyTotalNis = 0;
+    }
+
+    const discountPercent = Number(user?.discountPercent ?? 0);
+    const discountLabel = user?.discountLabel ?? null;
+    const finalAmountNis = monthlyTotalNis > 0
+      ? Math.round(monthlyTotalNis * (1 - discountPercent / 100) * 100) / 100
+      : 0;
+
+    return {
+      modules: subs.map(s => ({
+        moduleName: s.moduleName,
+        payStatus: s.payStatus,
+        trialEndDate: s.trialEndDate,
+        monthlyPriceNis: Number(s.monthlyPriceNis),
+      })),
+      monthlyTotalNis,
+      hasCombinedDiscount,
+      discountPercent,
+      discountLabel,
+      finalAmountNis,
+    };
   }
 
   getCities(): CityDto[] {
