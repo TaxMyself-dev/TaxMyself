@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { environment } from 'src/environments/environment';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -75,7 +76,7 @@ export class MyAccountPage implements OnInit {
   isLoadingUserBankTransactions = signal<boolean>(false);
   isLoadingUserCardTransactions = signal<boolean>(false);
   isLoadingAllTransactions = signal<boolean>(false);
-  isProd = signal<boolean>(process.env.NODE_ENV == 'production');
+  isProd = signal<boolean>(environment.production);
 
   userData: IUserData;
   transToClassify: Observable<ITransactionData[]>;
@@ -279,7 +280,7 @@ export class MyAccountPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          stageState => stageState?.processStatus === 'running',
+          stageState => !stageState || stageState.processStatus === 'running',
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -291,12 +292,12 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(stageState => {
         if (!stageState) {
-          this.syncProcessStatus.set('failed');
-          this.transToClassify = of([]);
+          // null = transient HTTP error during polling — keep current state, don't fail
           return;
         }
 
         const status = stageState.processStatus;
+        console.log(`[MyAccount] poll status=${status} skipReason=${stageState.skipReason} hasFetched=${hasFetched}`);
 
         if (status === 'running') {
           this.syncProcessStatus.set('running');

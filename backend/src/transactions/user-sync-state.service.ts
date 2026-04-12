@@ -122,16 +122,21 @@ export class UserSyncStateService {
   async markBothFailed(userId: string, failureReason: string): Promise<void> {
     const now = new Date();
     const reason = failureReason.slice(0, 255);
-    await this.repo.update({ userId }, {
-      quickProcessStatus: 'failed',
-      quickResultStatus: 'failed',
-      quickFinishedAt: now,
-      quickFailureReason: reason,
-      fullProcessStatus: 'failed',
-      fullResultStatus: 'failed',
-      fullFinishedAt: now,
-      fullFailureReason: reason,
-    });
+    // Use upsert so this always writes, even if markQuickRunning never created the row.
+    await this.repo.upsert(
+      {
+        userId,
+        quickProcessStatus: 'failed',
+        quickResultStatus: 'failed',
+        quickFinishedAt: now,
+        quickFailureReason: reason,
+        fullProcessStatus: 'failed',
+        fullResultStatus: 'failed',
+        fullFinishedAt: now,
+        fullFailureReason: reason,
+      } as UserSyncState,
+      ['userId'],
+    );
   }
 
   async getSyncState(userId: string): Promise<UserSyncState | null> {

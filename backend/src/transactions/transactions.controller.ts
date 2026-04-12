@@ -53,9 +53,11 @@ export class TransactionsController {
       };
     }
 
-    const quickIsEmpty = state.quickProcessStatus === 'empty';
-    const fullIsEmpty  = state.fullProcessStatus === 'empty';
-    if (quickIsEmpty || fullIsEmpty) {
+    const BLOCKING_STATUSES = ['completed', 'running'];
+    const quickIsEmpty = !BLOCKING_STATUSES.includes(state.quickProcessStatus as string);
+    // Only retrigger on quick being empty — full sync failing alone does NOT reset quick,
+    // so the user still has their recent data and shouldn't see a loading spinner.
+    if (quickIsEmpty) {
       void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
         this.logger.error('[SyncStatus] triggerFullSync failed (empty status)', err?.stack ?? err),
       );
@@ -92,7 +94,7 @@ export class TransactionsController {
     const state = await this.userSyncStateService.getSyncState(userId);
     const status = state?.quickProcessStatus ?? null;
 
-    if (!state || status === 'empty') {
+    if (!state || !['completed', 'running'].includes(status as string)) {
       void this.feezbackService.triggerFullSync(userId, 'manual').catch(err =>
         this.logger.error('[SyncGuard] triggerFullSync failed', err?.stack ?? err),
       );

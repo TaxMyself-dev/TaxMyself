@@ -687,7 +687,8 @@ export class FeezbackService {
 
     const accounts = accountsResponse?.accounts || [];
     if (!accounts || accounts.length === 0) {
-      this.logger.log(`[DIAG] BANK_ACCOUNTS_EMPTY — no accounts returned, skipping transaction fetch | firebaseId=${firebaseId?.substring(0, 8)}...`);
+      // No bank accounts linked yet (card-only user or pending consent) — not an error.
+      this.logger.log(`[DIAG] BANK_ACCOUNTS_EMPTY — no accounts returned, skipping bank fetch | firebaseId=${firebaseId?.substring(0, 8)}...`);
       return {
         transactions: [],
         accountsProcessed: 0,
@@ -701,18 +702,10 @@ export class FeezbackService {
     // Step 2: Fetch transactions per account
     const allTransactions: any[] = [];
     const accountTransactionsMap: { [accountName: string]: any[] } = {};
-    const delayBetweenRequests = 5000;
     let accountsFailed = 0;
-
-    // cooldown after GET /accounts before first accountTransactions request
-    // await this.sleep(1500);
 
     for (let i = 0; i < accounts.length; i++) {
       const account = accounts[i];
-
-      if (i > 0) {
-        // await this.sleep(delayBetweenRequests);
-      }
 
       try {
         const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
@@ -1339,7 +1332,6 @@ export class FeezbackService {
       // Gate — only proceed for users who have OPEN_BANKING module access.
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
       if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-        console.log(`\n⛔ [FullSync] SKIPPED — reason: OPEN_BANKING module not enabled | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
         this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
@@ -1350,16 +1342,21 @@ export class FeezbackService {
       // Log #4 gate — use the pre-markQuickRunning state captured in triggerFullSync so we see
       // the true state before 'running' was written (avoids false "not empty" reads).
       const syncState = preSyncState !== undefined ? preSyncState : await this.userSyncStateService.getSyncState(firebaseId);
+      const BLOCKING_STATUSES = ['completed', 'running'];
       const syncIsEmpty = !syncState ||
-        syncState.quickProcessStatus === 'empty' ||
-        syncState.fullProcessStatus === 'empty';
-      if (!syncIsEmpty) {
-        console.log(`\n⛔ [FullSync] SKIPPED — reason: sync state is not empty (${syncState?.quickProcessStatus}/${syncState?.fullProcessStatus}) | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
-        this.logger.log(`[FullSync] Skipped — sync state is not empty | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+        !BLOCKING_STATUSES.includes(syncState.quickProcessStatus as string) ||
+        !BLOCKING_STATUSES.includes(syncState.fullProcessStatus as string);
+      // Webhook always forces a full sync — user connected a new bank or updated permissions
+      if (!syncIsEmpty && triggeredBy !== 'webhook') {
+        this.logger.log(`[FullSync] Skipped — sync state is not empty (${syncState?.quickProcessStatus}/${syncState?.fullProcessStatus}) | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'cache_exists').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
         });
         return;
+      }
+      if (!syncIsEmpty && triggeredBy === 'webhook') {
+        console.log(`\n🔄 [FullSync] FORCING — webhook triggered, overriding non-empty sync state (${syncState?.quickProcessStatus}/${syncState?.fullProcessStatus}) | firebaseId=${masked}\n`);
+        this.logger.log(`[FullSync] Forcing sync — webhook override | firebaseId=${masked}`);
       }
       console.log(`\n🚀 [FullSync] RUNNING — sync state is empty, starting sync | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
       this.logger.log(`[FullSync] Sync state empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);

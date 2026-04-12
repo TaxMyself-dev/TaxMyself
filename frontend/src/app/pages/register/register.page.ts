@@ -451,6 +451,20 @@ matchRegisterImage = computed(() => {
       });
     }
     
+    // Convert dates from DD-MM-YYYY (datepicker display format) to YYYY-MM-DD (MySQL format)
+    if (formData.personal?.dateOfBirth) {
+      formData.personal.dateOfBirth = this.toDbDate(formData.personal.dateOfBirth);
+    }
+    if (formData.spouse?.spouseDateOfBirth) {
+      formData.spouse.spouseDateOfBirth = this.toDbDate(formData.spouse.spouseDateOfBirth);
+    }
+    if (formData.children?.childrenArray) {
+      formData.children.childrenArray = formData.children.childrenArray.map((child: any) => ({
+        ...child,
+        childDate: child.childDate ? this.toDbDate(child.childDate) : child.childDate,
+      }));
+    }
+
     formData.validation = { password: formData?.personal?.password };
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
@@ -638,6 +652,16 @@ matchRegisterImage = computed(() => {
     }
   }
 
+
+  /** Converts DD-MM-YYYY → YYYY-MM-DD for MySQL. Passes through if already in correct format. */
+  private toDbDate(value: string): string {
+    if (!value) return value;
+    const parts = value.split('-');
+    if (parts.length === 3 && parts[0].length === 2) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return value;
+  }
 
   private fillDevDefaults(): void {
 

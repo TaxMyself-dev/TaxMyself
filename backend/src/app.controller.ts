@@ -1,14 +1,13 @@
-import { Controller, Get, Post} from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { AppService } from './app.service';
-import axios from 'axios';
 
-@Controller('cron')
+@Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  /** Root health check — answers Cloud Run liveness probes */
   @Get()
   healthCheck() {
-    console.log('Health check endpoint triggered.');
     return { status: 'ok' };
   }
 
