@@ -1,5 +1,57 @@
+@if (consentDialogVisible()) {
+  <div class="consent-backdrop" (click)="consentDialogVisible.set(false)">
+    <div class="consent-dialog" (click)="$event.stopPropagation()">
+      <button class="consent-dialog__close-top" (click)="consentDialogVisible.set(false)" aria-label="סגור">
+        <i class="pi pi-times"></i>
+      </button>
 
-<div class="finsite-search-bar">  
+      <div class="consent-dialog__body">
+        <div class="consent-dialog__icon">🏦</div>
+        <h2 class="consent-dialog__title">חיבור לבנקאות פתוחה</h2>
+        <p class="consent-dialog__subtitle">רק רגע לפני שממשיכים — הנה מה שהולך לקרות</p>
+
+        <div class="consent-dialog__points">
+          <div class="consent-dialog__point">
+            <span class="consent-dialog__point-icon">⬅️</span>
+            <span>תועבר/י לממשק הבנקאות הפתוחה של <strong>Feezback</strong>, שם תוכל/י לבחור לאילו חשבונות בנק וכרטיסי אשראי הנך מאפשר/ת גישה <strong>לצפייה בלבד</strong> למייצגים מטעם חברת <strong>KeepInTax</strong></span>
+          </div>
+          <div class="consent-dialog__point">
+            <span class="consent-dialog__point-icon">🔄</span>
+            <span>הנתונים הפיננסיים <strong>אינם נשמרים אצלנו</strong> — הם נמשכים מ-Feezback בכל כניסה למערכת</span>
+          </div>
+          <div class="consent-dialog__point">
+            <span class="consent-dialog__point-icon">🔒</span>
+            <span>המידע משמש אך ורק לצורך הצגת התנועות בתוך המערכת לצרכי הנהלת חשבונות וניהול ומעקב אחר התזרים</span>
+          </div>
+        </div>
+
+        <label class="consent-dialog__checkbox-label">
+          <input
+            type="checkbox"
+            class="consent-dialog__checkbox"
+            [checked]="consentChecked()"
+            (change)="consentChecked.set($any($event.target).checked)"
+          />
+          <span>הבנתי ואני מאשר/ת את החיבור לבנקאות הפתוחה</span>
+        </label>
+      </div>
+
+      <div class="consent-dialog__actions">
+        <button class="consent-dialog__btn consent-dialog__btn--primary"
+          [disabled]="!consentChecked()"
+          (click)="confirmConsentAndConnect()">
+          המשך לחיבור
+        </button>
+        <button class="consent-dialog__btn consent-dialog__btn--secondary"
+          (click)="consentDialogVisible.set(false)">
+          ביטול
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="finsite-search-bar">
   <app-search-bar  [customTemplate]="finsiteForm" (onSearchClick)="getTransFromApi()" [isDisabled]="fisiteDataForm.invalid"></app-search-bar>
 </div>
   <ng-template #finsiteForm>
@@ -11,3 +63,12 @@
   <app-button [buttonText]="'משוך נתונים'" (onButtonClicked)="getAllUsersDataFromFinsite()"></app-button>
 
   <app-load-file [relativeUrl]="'load-file'"></app-load-file>
+
+  <div class="feezback-actions">
+    <p class="feezback-actions__title">בנקאות פתוחה</p>
+    <app-button [buttonText]="'התחבר לבנקאות פתוחה'" [isLoading]="isLoadingConsentLink()" (onButtonClicked)="connectToOpenBanking()"></app-button>
+    <app-button [buttonText]="'טען נתוני חשבונות'" [isLoading]="isLoadingUserAccounts()" (onButtonClicked)="fetchUserAccounts()"></app-button>
+    <app-button [buttonText]="'טען תנועות בנק'" [isLoading]="isLoadingBankTransactions()" (onButtonClicked)="fetchUserBankTransactions()"></app-button>
+    <app-button [buttonText]="'טען תנועות אשראי'" [isLoading]="isLoadingCardTransactions()" (onButtonClicked)="fetchUserCardTransactions()"></app-button>
+    <app-button [buttonText]="'טען תנועות בנק ואשראי'" [isLoading]="isLoadingAllTransactions()" (onButtonClicked)="fetchAllUserTransactions()"></app-button>
+  </div>

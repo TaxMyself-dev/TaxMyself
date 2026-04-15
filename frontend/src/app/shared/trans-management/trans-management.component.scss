@@ -1,0 +1,147 @@
+.consent-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.consent-dialog {
+  width: 100%;
+  max-width: 560px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.25);
+  padding: 28px 24px 24px;
+  direction: rtl;
+  position: relative;
+
+  &__close-top {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 4px;
+    color: #6b7280;
+    font-size: 18px;
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: right;
+  }
+
+  &__icon {
+    font-size: 48px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    text-align: center;
+  }
+
+  &__subtitle {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    text-align: center;
+  }
+
+  &__points {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  &__point {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #374151;
+  }
+
+  &__point-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  &__checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #111827;
+    font-weight: 500;
+    width: 100%;
+  }
+
+  &__checkbox {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: #111827;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    justify-content: center;
+    flex-direction: row-reverse;
+  }
+
+  &__btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s;
+
+    &--primary {
+      background: #111827;
+      color: #ffffff;
+
+      &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+    }
+
+    &--secondary {
+      background: #f3f4f6;
+      color: #374151;
+
+      &:hover {
+        background: #e5e7eb;
+      }
+    }
+  }
+}

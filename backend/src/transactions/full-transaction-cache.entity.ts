@@ -50,6 +50,9 @@ export class FullTransactionCache {
   @Column('decimal', { precision: 10, scale: 2 })
   amount: number;
 
+  @Column({ type: 'varchar', length: 3, nullable: true, default: 'ILS' })
+  currency: string | null;
+
   @Column({ type: 'varchar', nullable: true, default: null })
   category: string | null;
 

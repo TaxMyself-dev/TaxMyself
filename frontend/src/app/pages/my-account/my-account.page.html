@@ -30,6 +30,64 @@
       </div>
     }
 
+    <!-- ─── Consent dialog — shown before redirecting to Feezback portal ─── -->
+    @if (consentDialogVisible()) {
+      <div class="feezback-dialog-backdrop" (click)="consentDialogVisible.set(false)">
+        <div class="feezback-dialog consent-dialog" (click)="$event.stopPropagation()">
+          <button class="feezback-dialog-close consent-dialog-close-top" (click)="consentDialogVisible.set(false)" aria-label="סגור">
+            <i class="pi pi-times"></i>
+          </button>
+
+          <div class="consent-dialog-body">
+            <div class="consent-dialog-icon">🏦</div>
+            <h2 class="consent-dialog-title">חיבור לבנקאות פתוחה</h2>
+            <p class="consent-dialog-subtitle">רק רגע לפני שממשיכים — הנה מה שהולך לקרות</p>
+
+            <div class="consent-dialog-points">
+              <div class="consent-point">
+                <span class="consent-point__icon">⬅️</span>
+                <span>תועבר/י לממשק הבנקאות הפתוחה של <strong>Feezback</strong>, שם תוכל/י לבחור לאילו חשבונות בנק וכרטיסי אשראי הנך מאפשר/ת גישה <strong>לצפייה בלבד</strong> למייצגים מטעם חברת <strong>KeepInTax</strong></span>
+              </div>
+              <div class="consent-point">
+                <span class="consent-point__icon">🔄</span>
+                <span>הנתונים הפיננסיים <strong>אינם נשמרים אצלנו</strong> — הם נמשכים מ-Feezback בכל כניסה למערכת</span>
+              </div>
+              <div class="consent-point">
+                <span class="consent-point__icon">🔒</span>
+                <span>המידע משמש אך ורק לצורך הצגת התנועות בתוך המערכת לצרכי הנהלת חשבונות וניהול ומעקב אחר התזרים</span>
+              </div>
+            </div>
+
+            <label class="consent-checkbox-label">
+              <input
+                type="checkbox"
+                class="consent-checkbox"
+                [checked]="consentChecked()"
+                (change)="consentChecked.set($any($event.target).checked)"
+              />
+              <span>הבנתי ואני מאשר/ת את החיבור לבנקאות הפתוחה</span>
+            </label>
+          </div>
+
+          <div class="consent-dialog-actions">
+            <app-p-button
+              [buttonText]="'המשך לחיבור 🚀'"
+              [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.SMALL"
+              [disabled]="!consentChecked()"
+              (onButtonClicked)="confirmConsentAndConnect()">
+            </app-p-button>
+            <app-p-button
+              [buttonText]="'ביטול'"
+              [buttonColor]="buttonColor.WHITE"
+              [buttonSize]="buttonSize.SMALL"
+              (onButtonClicked)="consentDialogVisible.set(false)">
+            </app-p-button>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- ─── MOBILE HEADER (display:none on desktop via CSS) ─── -->
     <!-- ─── MOBILE SIDE MENU OVERLAY (display:none on desktop via CSS) ─── -->
     <!-- <div class="mobile-header">
@@ -80,39 +138,17 @@
             <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="large" shape="circle"></p-avatar>
             <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
         </div>
-        <div class="user-actions" [class.hidden]="isProd()">
-            <app-p-button class="feezback-connect-button" [buttonText]="'התחבר לבנקאות פתוחה'"
-                [buttonColor]="buttonColor.YELLOW" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingFeezback()"
-                (onButtonClicked)="connectToOpenBanking()">
-                <i class="pi pi-link"></i>
-            </app-p-button>
-            <app-p-button class="feezback-fetch-button" [buttonText]="'טען נתוני חשבונות'"
-                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [isLoading]="isLoadingUserAccounts()"
-                (onButtonClicked)="fetchUserAccounts()">
-                <i class="pi pi-download"></i>
-            </app-p-button>
-            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות בנק'"
-                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingUserBankTransactions()" (onButtonClicked)="fetchUserBankTransactions()">
-                <i class="pi pi-list"></i>
-            </app-p-button>
-            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות אשראי'"
-                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingUserCardTransactions()" (onButtonClicked)="fetchUserCardTransactions()">
-                <i class="pi pi-list"></i>
-            </app-p-button>
-            <app-p-button class="feezback-transactions-button" [buttonText]="'טען תנועות בנק ואשראי'"
-                [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
-                [isLoading]="isLoadingAllTransactions()" (onButtonClicked)="fetchAllUserTransactions()">
-                <i class="pi pi-list"></i>
-            </app-p-button>
-        </div>
         <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
             [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
         </app-p-button>
         @if (!hasOpenBanking()) {
         <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
+        </app-p-button>
+        }
+        @if (hasOpenBanking()) {
+        <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
             (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
         </app-p-button>
         }

@@ -91,6 +91,10 @@ export class MyAccountPage implements OnInit {
   feezbackDialogTitle = signal<string>('');
   feezbackDialogMessage = signal<string>('');
 
+  // Consent dialog — shown before redirecting to Feezback portal
+  consentDialogVisible = signal<boolean>(false);
+  consentChecked = signal<boolean>(false);
+
 
 
   private readonly allItemsNavigate: IItemNavigate[] = [
@@ -251,7 +255,7 @@ export class MyAccountPage implements OnInit {
   tryAgainFromDialog(): void {
     // Re-trigger the same open-banking consent creation used in the main screen.
     this.closeFeezbackDialog();
-    this.connectToOpenBanking();
+    this.doConnectToOpenBanking();
   }
 
   /**
@@ -426,11 +430,12 @@ export class MyAccountPage implements OnInit {
             .map(row => {
               const n = Number(row.sum);
               const rawBn = row?.businessNumber;
+              const currencySymbol = this.getCurrencySymbol((row as any).currency);
               return {
                 ...row,
                 __businessNumberRaw:
                   rawBn != null && rawBn !== '' ? String(rawBn) : undefined,
-                sum: this.genericService.addComma(Math.abs(n)),
+                sum: `${currencySymbol}${this.genericService.addComma(Math.abs(n))}`,
                 __sumNumeric: n,
                 businessNumber:
                   rawBn === this.userData?.businessNumber
@@ -442,11 +447,31 @@ export class MyAccountPage implements OnInit {
       );
   }
 
+  private getCurrencySymbol(currency: string | null | undefined): string {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS':
+      default: return '₪';
+    }
+  }
+
   openAddExpensesPage(): void {
 
   }
 
   connectToOpenBanking(): void {
+    this.consentChecked.set(false);
+    this.consentDialogVisible.set(true);
+  }
+
+  confirmConsentAndConnect(): void {
+    this.consentDialogVisible.set(false);
+    this.doConnectToOpenBanking();
+  }
+
+  private doConnectToOpenBanking(): void {
     this.isLoadingFeezback.set(true);
 
     this.feezbackService.createConsentLink()

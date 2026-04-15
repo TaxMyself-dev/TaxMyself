@@ -135,10 +135,6 @@ export class TransactionProcessingService {
       alreadyExistingInCache: 0,
     };
 
-    const inputUniqueIds = new Set(transactions.map(tx => tx.externalTransactionId));
-    this.logger.log(
-      `[DIAG] PROCESS_INPUT | userId=${userId} | totalReceived=${transactions.length} | uniqueExternalIds=${inputUniqueIds.size}`,
-    );
 
     if (transactions.length === 0) {
       return result;
@@ -263,9 +259,6 @@ export class TransactionProcessingService {
       result.alreadyExistingInCache = existingCacheRows;
       result.newlySavedToCache = upsertExternalIds.length - existingCacheRows;
 
-      this.logger.log(
-        `[DIAG] PROCESS_CACHE | userId=${userId} | cacheUpsertsCount=${cacheUpserts.length} | uniqueForCache=${upsertExternalIds.length} | alreadyExisting=${existingCacheRows} | newlySaved=${result.newlySavedToCache}`,
-      );
 
       // UPSERT full_transactions_cache: refresh provider data and overlay on
       // conflict (userId, externalTransactionId).
@@ -1068,6 +1061,7 @@ export class TransactionProcessingService {
       billName: tx.billName,
       merchantName: tx.merchantName,
       amount: tx.amount,
+      currency: tx.currency ?? 'ILS',
       transactionDate: tx.transactionDate,
       paymentDate: tx.paymentDate,
       paymentIdentifier: tx.paymentIdentifier,
@@ -1141,6 +1135,7 @@ export class TransactionProcessingService {
       billDate: row.transactionDate,
       payDate: row.paymentDate,
       sum: row.amount,
+      currency: row.currency ?? 'ILS',
       category: row.category,
       subCategory: row.subCategory,
       isRecognized: row.isRecognized,

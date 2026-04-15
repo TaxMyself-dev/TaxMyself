@@ -618,8 +618,7 @@ export class TransactionsPage implements OnInit {
         data.subCategory ? null : data.subCategory = "טרם סווג";
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
-        data.sum = String(Math.abs(Number(data.sum)));
-        data.sum = this.genericService.addComma(data.sum);
+        data.sum = `${this.getCurrencySymbol((data as any).currency)}${this.genericService.addComma(Math.abs(Number(data.sum)))}`;
         data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
         const rawBusinessNumber = data.businessNumber;
@@ -898,6 +897,14 @@ export class TransactionsPage implements OnInit {
     // return this.expensesData = filteredExpenses;
   }
 
-
+  private getCurrencySymbol(currency: string | null | undefined): string {
+    switch (currency) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS':
+      default: return '₪';
+    }
+  }
 
 }

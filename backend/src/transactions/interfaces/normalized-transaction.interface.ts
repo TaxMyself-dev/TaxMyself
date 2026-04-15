@@ -2,6 +2,7 @@ export interface NormalizedTransaction {
   externalTransactionId: string;
   merchantName: string;
   amount: number;
+  currency: string | null;
   transactionDate: Date;
   paymentDate: Date | null;
   paymentIdentifier: string | null;

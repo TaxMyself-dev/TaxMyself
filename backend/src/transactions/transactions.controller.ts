@@ -43,13 +43,21 @@ export class TransactionsController {
     const toFrontendStatus = (s: string | null | undefined): string =>
       !s || s === 'empty' ? 'running' : s;
 
+    const manualSyncOnly = process.env.NODE_ENV !== 'production' && process.env.FEEZBACK_MANUAL_SYNC_ONLY === 'true';
+
     if (!state) {
-      void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
-        this.logger.error('[SyncStatus] triggerFullSync failed (no row)', err?.stack ?? err),
-      );
+      if (!manualSyncOnly) {
+        void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
+          this.logger.error('[SyncStatus] triggerFullSync failed (no row)', err?.stack ?? err),
+        );
+        return {
+          quickSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+          fullSync:  { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        };
+      }
       return {
-        quickSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
-        fullSync:  { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        quickSync: { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        fullSync:  { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
       };
     }
 
@@ -57,7 +65,7 @@ export class TransactionsController {
     const quickIsEmpty = !BLOCKING_STATUSES.includes(state.quickProcessStatus as string);
     // Only retrigger on quick being empty — full sync failing alone does NOT reset quick,
     // so the user still has their recent data and shouldn't see a loading spinner.
-    if (quickIsEmpty) {
+    if (quickIsEmpty && !manualSyncOnly) {
       void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
         this.logger.error('[SyncStatus] triggerFullSync failed (empty status)', err?.stack ?? err),
       );

@@ -1435,6 +1435,7 @@ export class TransactionsService {
       billDate: r.transactionDate,
       payDate: r.paymentDate,
       sum: r.amount,
+      currency: r.currency ?? 'ILS',
       category: r.category,
       subCategory: r.subCategory,
       isRecognized: r.isRecognized,

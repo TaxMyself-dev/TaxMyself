@@ -3,7 +3,7 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
-import { ConfirmationService } from 'primeng/api';
+import { ConfirmationService, MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-clients-dashboard',
@@ -13,6 +13,7 @@ import { ConfirmationService } from 'primeng/api';
 })
 export class ClientsDashboardComponent implements OnInit {
   isLoading = signal<boolean>(false);
+  isClearingCache = signal<boolean>(false);
   users: any[] = [];
   filteredUsers: any[] = [];
   visibleFeezbackDialog = signal<boolean>(false);
@@ -44,6 +45,7 @@ export class ClientsDashboardComponent implements OnInit {
       icon: 'pi pi-trash',
       title: 'מחק מטמון תנועות',
       alwaysShow: true,
+      isLoading: () => this.isClearingCache(),
       action: (event: any, row: IRowDataTable) => {
         this.confirmClearCache(row);
       }
@@ -55,6 +57,7 @@ export class ClientsDashboardComponent implements OnInit {
   constructor(
     private adminPanelService: AdminPanelService,
     private confirmationService: ConfirmationService,
+    private messageService: MessageService,
   ) {}
 
   ngOnInit() {
@@ -150,13 +153,30 @@ export class ClientsDashboardComponent implements OnInit {
       acceptLabel: 'כן, מחק',
       rejectLabel: 'ביטול',
       accept: () => {
+        this.isClearingCache.set(true);
         this.adminPanelService.clearUserCache(firebaseId)
-          .pipe(catchError(err => {
-            console.error('Error clearing cache:', err);
-            return EMPTY;
-          }))
+          .pipe(
+            finalize(() => this.isClearingCache.set(false)),
+            catchError(err => {
+              console.error('Error clearing cache:', err);
+              this.messageService.add({
+                severity: 'error',
+                summary: 'שגיאה',
+                detail: `לא הצלחנו למחוק את המטמון של ${name}. אנא נסה שוב.`,
+                life: 5000,
+                key: 'br'
+              });
+              return EMPTY;
+            })
+          )
           .subscribe(() => {
-            console.log(`Cache cleared for user ${firebaseId}`);
+            this.messageService.add({
+              severity: 'success',
+              summary: 'הצלחה',
+              detail: `המטמון של ${name} נמחק בהצלחה. הסינכרון יתחיל מחדש בכניסה הבאה.`,
+              life: 5000,
+              key: 'br'
+            });
           });
       },
     });

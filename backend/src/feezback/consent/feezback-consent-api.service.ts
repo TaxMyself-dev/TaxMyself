@@ -215,9 +215,6 @@ export class FeezbackConsentApiService {
     if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
     if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
 
-    this.logger.log(
-      `Getting card transactions for sub: ${sub}, consentId: ${consentId}, cardResourceId: ${cardResourceId}`,
-    );
 
     // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
     try {

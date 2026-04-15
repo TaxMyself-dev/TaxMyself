@@ -226,13 +226,55 @@ export class FeezbackController {
     // this.logger.log(`Admin ${adminFirebaseId} fetching transactions for user ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
-    // Reuse the internal helper method
+    // Fetch bank + card transactions, persist both, update sync state
     try {
-      const result = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
-      // this.logger.log(`✅ Admin transaction fetch completed successfully`);
-      return result;
+      // Bank
+      const bankResult = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+      const bankNormalized = bankResult?.normalizedTransactions ?? [];
+
+      // Card
+      let cardResult: any = null;
+      let cardNormalized: any[] = [];
+      try {
+        cardResult = await this.feezbackService.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus || 'booked', defaultDateFrom, defaultDateTo);
+        cardNormalized = cardResult?.normalizedTransactions ?? [];
+      } catch (err: any) {
+        this.logger.error(`[AdminPull] Card fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
+      }
+
+      // Persist all normalized transactions
+      const allNormalized = [...bankNormalized, ...cardNormalized];
+      let databaseSaveResult: any = null;
+      let databaseSaveError: string | null = null;
+      if (allNormalized.length > 0) {
+        try {
+          databaseSaveResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, allNormalized);
+        } catch (err: any) {
+          databaseSaveError = err?.message ?? 'Unknown error';
+        }
+      }
+
+      // Update sync state so the frontend stops showing the loading message
+      const savedRows = databaseSaveResult?.saved ?? 0;
+      const skippedRows = databaseSaveResult?.skipped ?? 0;
+      const totalRows = savedRows + skippedRows;
+      if (!databaseSaveError) {
+        try {
+          await this.userSyncStateService.markQuickFinished(firebaseId, 'completed', totalRows > 0 ? 'success' : 'none', totalRows);
+          await this.userSyncStateService.markFullFinished(firebaseId, 'completed', totalRows > 0 ? 'success' : 'none', 0);
+        } catch (err: any) {
+          this.logger.error(`[AdminPull] Failed to update sync state | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
+        }
+      }
+
+      return {
+        ...bankResult,
+        cardResult,
+        totalTransactions: (bankResult?.totalTransactions ?? 0) + (cardResult?.totalTransactions ?? 0),
+        databaseSaveResult,
+        databaseSaveError,
+      };
     } catch (error: any) {
-      // this.logger.error(`❌ Error in getAdminUserTransactions: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -290,6 +332,7 @@ export class FeezbackController {
     // this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
+    const tTotal = Date.now();
     const result = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
 
     const normalized = result?.normalizedTransactions ?? [];
@@ -301,6 +344,10 @@ export class FeezbackController {
         this.logger.error(`[PERSIST] bank persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
       }
     }
+
+    console.log(`════════════════════════════════════`);
+    console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
+    console.log(`════════════════════════════════════\n`);
 
     return {
       ...result,
@@ -319,7 +366,6 @@ export class FeezbackController {
     @Query('cardResourceId') cardResourceId?: string,
   ) {
     const firebaseId = req.user?.firebaseId;
-    console.log('in user-card-transactions');
 
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
@@ -344,12 +390,11 @@ export class FeezbackController {
     // this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
 
     // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
+    const tTotal = Date.now();
     const result = await this.feezbackService.getAndSaveUserCardTransactions(
       firebaseId,
       sub,
       bookingStatus ?? 'booked',
-      // resolvedDateFrom,
-      // resolvedDateTo,
       defaultDateFrom,
       defaultDateTo,
       cardResourceId,
@@ -364,6 +409,10 @@ export class FeezbackController {
         this.logger.error(`[PERSIST] card persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
       }
     }
+
+    console.log(`════════════════════════════════════`);
+    console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
+    console.log(`════════════════════════════════════\n`);
 
     return {
       ...result,
@@ -415,6 +464,7 @@ export class FeezbackController {
     // Mark both stages running before any network calls.
     await this.userSyncStateService.markQuickRunning(firebaseId, 'manual');
 
+    const tTotal = Date.now();
     try {
       const bankTransactions = await this.getUserBankTransactionsInternal(
         firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo,
@@ -436,6 +486,9 @@ export class FeezbackController {
       const rowsWritten = processingResult?.newlySavedToCache ?? 0;
       await this.userSyncStateService.markQuickFinished(firebaseId, 'completed', 'success', rowsWritten);
       await this.userSyncStateService.markFullFinished(firebaseId, 'completed', 'success', rowsWritten);
+      console.log(`════════════════════════════════════`);
+      console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
+      console.log(`════════════════════════════════════\n`);
       this.logger.log(`[AllTrans] Completed | firebaseId=${masked} | rowsWritten=${rowsWritten}`);
 
       const bankSync = bankTransactions?.syncSummary;

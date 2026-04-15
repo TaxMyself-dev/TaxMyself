@@ -7,6 +7,7 @@ import { FeezbackAuthService } from './core/feezback-auth.service';
 import { FeezbackApiService } from './api/feezback-api.service';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
 import { ConsentSyncService } from './consent/consent-sync.service';
+import { FeezbackConsentService } from './consent/feezback-consent.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { UserSyncState } from '../transactions/user-sync-state.entity';
@@ -26,6 +27,7 @@ export class FeezbackService {
     private readonly feezbackApiService: FeezbackApiService,
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
     private readonly consentSyncService: ConsentSyncService,
+    private readonly feezbackConsentService: FeezbackConsentService,
     private readonly processingService: TransactionProcessingService,
     private readonly userSyncStateService: UserSyncStateService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
@@ -70,6 +72,7 @@ export class FeezbackService {
       const rawOutput = {
         transactions: transactions,
         transactionsByAccount: transactionsByAccount,
+        accountInfoMap: accountInfoMap,
         metadata: {
           totalTransactions: transactions.length,
           accountsProcessed: Object.keys(transactionsByAccount).length,
@@ -151,6 +154,21 @@ export class FeezbackService {
           sourceAccount: sourceAccount,
           sourceAccountName: accountName || null,
           sourceAccountType: accountInfo?.cashAccountType || null, // CACC for bank, CARD for credit card
+
+          // Raw account objects from Feezback — shows which fields are actually present
+          debtorAccount: tx?.debtorAccount || null,
+          creditorAccount: tx?.creditorAccount || null,
+
+          // Computed paymentIdentifier preview (what would be saved to DB, last 7 chars)
+          paymentIdentifierPreview: (
+            tx?.debtorAccount?.iban      ||
+            tx?.creditorAccount?.iban    ||
+            tx?.debtorAccount?.maskedPan ||
+            tx?.creditorAccount?.maskedPan ||
+            sourceAccount                 ||
+            tx?.entryReference            ||
+            null
+          )?.slice(-7) ?? null,
 
           // Additional info
           additionalInformation: tx.additionalInformation || null,
@@ -361,7 +379,13 @@ export class FeezbackService {
     dateTo?: string,
     cardResourceId?: string,
   ): Promise<any> {
-    this.logger.log(`[DIAG] CARD_START | userId=${userId?.substring(0, 8)}... | dateFrom=${dateFrom} | dateTo=${dateTo}`);
+    const masked = `${userId?.substring(0, 8)}...`;
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  CARD PULL`);
+    console.log(`  User : ${masked}`);
+    console.log(`  Dates: ${dateFrom ?? 'n/a'} → ${dateTo ?? 'n/a'}`);
+    console.log(`════════════════════════════════════`);
+    const tCard = Date.now();
 
     const cardsResponse = await this.feezbackApiService.getUserCards(sub, {
       withBalances: true,
@@ -370,9 +394,6 @@ export class FeezbackService {
     });
     const cards = this.dedupeCardsPreferActive(cardsResponse?.cards);
     // const cards = cardsResponse?.cards || [];
-    const cardCount = cards?.length ?? 0;
-    this.logger.log(`[DIAG] CARD_CARDS_FETCHED | count=${cardCount} | userId=${userId?.substring(0, 8)}...`);
-
     const filteredCards = cardResourceId
       ? cards.filter(card => card?.resourceId === cardResourceId)
       : cards;
@@ -448,9 +469,6 @@ export class FeezbackService {
 
         const transactions = this.extractCardTransactions(transactionsResponse);
 
-        this.logger.log(
-          `[DIAG] CARD_FETCH | card=${cardName} | index=${i + 1}/${filteredCards.length} | extracted=${transactions.length}`,
-        );
 
         // ✅ מטא שנוסיף לכל טרנזקציה (לקובץ בלבד)
         const cardMeta = {
@@ -485,7 +503,7 @@ export class FeezbackService {
         const message = err?.message || 'Unknown error';
 
         this.logger.warn(
-          `[DIAG] CARD_FAILED | card=${cardName} | cardId=${cardId} | index=${i + 1}/${filteredCards.length} | consent=${consentId} | status=${status} | error=${message}`,
+          `[CardFetch] Failed | card=${cardName} | consent=${consentId} | status=${status} | error=${message}`,
         );
 
         cardErrors.push({
@@ -523,9 +541,6 @@ export class FeezbackService {
       }
     }
 
-    this.logger.log(
-      `[DIAG] CARD_EXTRACTION_TOTAL | cards_attempted=${filteredCards.length} | cards_succeeded=${cardsResult.length} | cards_failed=${cardErrors.length} | total_extracted=${allTransactionsForDb.length}`,
-    );
 
     // ✅ שמירה לקובץ פעם אחת בסוף (עם __cardMeta)
     const savedFilePaths = this.saveTransactionsToFile(
@@ -534,18 +549,18 @@ export class FeezbackService {
       transactionsByCard,
       cardInfoMap,
     );
-    this.logger.log(`Saved raw/simplified card transactions files: ${JSON.stringify(savedFilePaths)}`);
+
+    // Load valid consent IDs — only card transactions with a valid consentId will be saved.
+    const validConsentIds = await this.getValidConsentIds(userId);
 
     // Normalize only — DB persistence is handled by the caller (doFullSync).
     let normalizedTransactions: NormalizedTransaction[] = [];
     let processingError: string | null = null;
     const databaseSaveResult: { saved: number; skipped: number; message: string } | null = null;
     try {
-      this.logger.log(`[DIAG] CARD_NORMALIZE_START | input=${allTransactionsForDb.length} | userId=${userId?.substring(0, 8)}...`);
-      normalizedTransactions = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap);
-      this.logger.log(`[DIAG] CARD_NORMALIZE_DONE | normalized=${normalizedTransactions.length} | userId=${userId?.substring(0, 8)}...`);
+      normalizedTransactions = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap, validConsentIds);
     } catch (err: any) {
-      this.logger.error(`[DIAG] CARD_NORMALIZE_FAILED | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
+      this.logger.error(`[CardFetch] Normalize failed | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
       processingError = err.message;
     }
 
@@ -563,7 +578,7 @@ export class FeezbackService {
       },
     };
 
-    return {
+    const result = {
       asOf: new Date().toISOString(),
       bookingStatus,
       dateFrom,
@@ -588,6 +603,9 @@ export class FeezbackService {
 
       syncSummary,
     };
+
+    console.log(`  ✓ Card pull done — ${((Date.now() - tCard) / 1000).toFixed(2)}s | normalized=${normalizedTransactions.length}\n`);
+    return result;
   }
 
   // private sleep(ms: number) {
@@ -606,11 +624,10 @@ export class FeezbackService {
 
     const existing = this.runningCardSyncByUser.get(key);
     if (existing) {
-      this.logger.warn(`[DIAG] CARD_SYNC_REUSED — already running for key=${key}`);
+      this.logger.warn(`[CardFetch] Already running for key=${key}, skipping duplicate`);
       return existing;
     }
 
-    this.logger.log(`[DIAG] CARD_SYNC_STARTING | userId=${userId?.substring(0, 8)}... | dateFrom=${dateFrom} | dateTo=${dateTo}`);
 
     const promise = (async () => {
       try {
@@ -624,7 +641,6 @@ export class FeezbackService {
         );
       } finally {
         this.runningCardSyncByUser.delete(key);
-        this.logger.log(`[DIAG] CARD_SYNC_FINISHED | userId=${userId?.substring(0, 8)}... | key=${key}`);
       }
     })();
 
@@ -646,7 +662,14 @@ export class FeezbackService {
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
       return null;
     }
-    return this.processingService.process(userId, normalizedTransactions);
+    console.log(`════════════════════════════════════`);
+    console.log(`  DB PERSIST`);
+    console.log(`  Count: ${normalizedTransactions.length}`);
+    console.log(`════════════════════════════════════`);
+    const tDb = Date.now();
+    const pr = await this.processingService.process(userId, normalizedTransactions);
+    console.log(`  ✓ Persist done — ${((Date.now() - tDb) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
+    return pr;
   }
 
   /**
@@ -660,16 +683,20 @@ export class FeezbackService {
     dateFrom?: string,
     dateTo?: string,
   ): Promise<any> {
-    this.logger.log(`[DIAG] BANK_START | firebaseId=${firebaseId?.substring(0, 8)}... | dateFrom=${dateFrom} | dateTo=${dateTo}`);
+    const masked = `${firebaseId?.substring(0, 8)}...`;
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  BANK PULL`);
+    console.log(`  User : ${masked}`);
+    console.log(`  Dates: ${dateFrom ?? 'n/a'} → ${dateTo ?? 'n/a'}`);
+    console.log(`════════════════════════════════════`);
+    const tBank = Date.now();
 
     // Step 1: Get all accounts
     let accountsResponse;
     try {
       accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
-      const accountCount = accountsResponse?.accounts?.length ?? 0;
-      this.logger.log(`[DIAG] BANK_ACCOUNTS_FETCHED | count=${accountCount} | firebaseId=${firebaseId?.substring(0, 8)}...`);
     } catch (error: any) {
-      this.logger.error(`[DIAG] BANK_ACCOUNTS_FETCH_FAILED | firebaseId=${firebaseId?.substring(0, 8)}... | status=${error?.status ?? 'unknown'} | error=${error?.message}`, error?.stack);
+      this.logger.error(`[BankFetch] Accounts fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | status=${error?.status ?? 'unknown'} | error=${error?.message}`, error?.stack);
       if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
         return {
           transactions: [],
@@ -688,7 +715,6 @@ export class FeezbackService {
     const accounts = accountsResponse?.accounts || [];
     if (!accounts || accounts.length === 0) {
       // No bank accounts linked yet (card-only user or pending consent) — not an error.
-      this.logger.log(`[DIAG] BANK_ACCOUNTS_EMPTY — no accounts returned, skipping bank fetch | firebaseId=${firebaseId?.substring(0, 8)}...`);
       return {
         transactions: [],
         accountsProcessed: 0,
@@ -716,11 +742,15 @@ export class FeezbackService {
           dateTo,
         );
 
-        const transactions = this.extractBankTransactions(transactionsResponse);
+        const rawTransactions = this.extractBankTransactions(transactionsResponse);
 
-        this.logger.log(
-          `[DIAG] BANK_ACCOUNT_FETCH | account=${account.name} | index=${i + 1}/${accounts.length} | extracted=${transactions.length}`,
-        );
+        // Stamp the account's IBAN directly onto each transaction so normalization
+        // can read it without relying on the transactionToAccountMap lookup.
+        const transactions = rawTransactions.map(tx => ({
+          ...tx,
+          __accountIban: account.iban ?? null,
+        }));
+
 
         if (transactions.length > 0) {
           accountTransactionsMap[account.name] = transactions;
@@ -730,17 +760,12 @@ export class FeezbackService {
         }
       } catch (error: any) {
         this.logger.error(
-          `[DIAG] BANK_ACCOUNT_FAILED | account=${account.name} | index=${i + 1}/${accounts.length} | error=${error.message}`,
+          `[BankFetch] Account failed | account=${account.name} | error=${error.message}`,
           error.stack,
         );
         accountsFailed++;
       }
     }
-
-    const bankAccountsSucceeded = Object.keys(accountTransactionsMap).length;
-    this.logger.log(
-      `[DIAG] BANK_EXTRACTION_TOTAL | accounts_attempted=${accounts.length} | accounts_succeeded=${bankAccountsSucceeded} | accounts_failed=${accounts.length - bankAccountsSucceeded} | total_extracted=${allTransactions.length}`,
-    );
 
     // Build account info/mapping for legacy save + normalization
     const accountInfoMap: { [accountName: string]: any } = {};
@@ -783,18 +808,20 @@ export class FeezbackService {
       return response;
     }
 
+    // Load valid consent IDs from DB — only transactions with a valid consentId will be saved.
+    const validConsentIds = await this.getValidConsentIds(firebaseId);
+
     // Normalize only — DB persistence is handled by the caller (doFullSync).
     try {
-      this.logger.log(`[DIAG] BANK_NORMALIZE_START | input=${allTransactions.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
       const normalized = this.normalizeBankTransactions(
         allTransactions,
         accountInfoMap,
         transactionToAccountMap,
+        validConsentIds,
       );
       response.normalizedTransactions = normalized;
-      this.logger.log(`[DIAG] BANK_NORMALIZE_DONE | normalized=${normalized.length} | firebaseId=${firebaseId?.substring(0, 8)}...`);
     } catch (error: any) {
-      this.logger.error(`[DIAG] BANK_NORMALIZE_FAILED | firebaseId=${firebaseId?.substring(0, 8)}... | error=${error.message}`, error.stack);
+      this.logger.error(`[BankFetch] Normalize failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${error.message}`, error.stack);
       response.processingError = error.message;
       response.normalizedTransactions = [];
     }
@@ -813,10 +840,25 @@ export class FeezbackService {
       },
     };
 
-    // cooldown after BANK flow completes before GET /cards begins
-    // await this.sleep(2000);
+    console.log(`  ✓ Bank pull done — ${((Date.now() - tBank) / 1000).toFixed(2)}s | normalized=${bankNormalizedCount}\n`);
 
     return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  /** Returns the set of valid consentIds for a user from the DB. */
+  private async getValidConsentIds(firebaseId: string): Promise<Set<string>> {
+    const consents = await this.feezbackConsentService.findByFirebaseId(firebaseId);
+    const validSet = new Set<string>();
+    for (const c of consents) {
+      if (c.status === 'valid' && c.consentId) {
+        validSet.add(c.consentId);
+      }
+    }
+    return validSet;
   }
 
   // ---------------------------------------------------------------------------
@@ -827,13 +869,46 @@ export class FeezbackService {
     transactions: any[],
     accountInfoMap: { [accountName: string]: any },
     transactionToAccountMap: { [transactionId: string]: string },
+    validConsentIds: Set<string>,
   ): NormalizedTransaction[] {
+    // Filter to valid consents only — Feezback may return transactions from expired/related consents.
+    let droppedInvalidConsentBank = 0;
+    const validTxs = transactions.filter(tx => {
+      if (!tx?.consentId || !validConsentIds.has(tx.consentId)) {
+        droppedInvalidConsentBank++;
+        return false;
+      }
+      return true;
+    });
+    if (droppedInvalidConsentBank > 0) {
+    }
+
+    // Deduplicate by aspspOriginalId — Feezback may return the same physical transaction
+    // multiple times with different transactionId values.
+    // Keep the entry with the latest referenceTime.
+    const deduped = new Map<string, any>();
+    for (const tx of validTxs) {
+      const key = tx?.aspspOriginalId || tx?.transactionId;
+      if (!key) continue;
+      const existing = deduped.get(key);
+      if (!existing) {
+        deduped.set(key, tx);
+      } else {
+        const existingTime = existing.referenceTime ? new Date(existing.referenceTime).getTime() : 0;
+        const newTime = tx.referenceTime ? new Date(tx.referenceTime).getTime() : 0;
+        if (newTime > existingTime) {
+          deduped.set(key, tx);
+        }
+      }
+    }
+    const dedupedTransactions = Array.from(deduped.values());
+
     const result: NormalizedTransaction[] = [];
     let droppedMissingId = 0;
     let droppedInvalidDate = 0;
     let droppedInvalidAmount = 0;
 
-    for (const tx of transactions) {
+    for (const tx of dedupedTransactions) {
       const externalId = tx?.transactionId;
       if (!externalId || typeof externalId !== 'string' || externalId.trim() === '') {
         droppedMissingId++;
@@ -858,6 +933,7 @@ export class FeezbackService {
         externalTransactionId: externalId,
         merchantName: this.resolveBankMerchantName(tx),
         amount,
+        currency: tx?.transactionAmount?.currency ?? 'ILS',
         transactionDate,
         paymentDate: this.parseDateCandidate(tx?.valueDate),
         paymentIdentifier: fullIdentifier.slice(-7),
@@ -868,32 +944,37 @@ export class FeezbackService {
       });
     }
 
-    const uniqueIds = new Set(result.map(r => r.externalTransactionId));
-    this.logger.log(
-      `[DIAG] BANK_NORMALIZATION | input=${transactions.length} | output=${result.length} | unique_ids=${uniqueIds.size} | dropped_missing_id=${droppedMissingId} | dropped_invalid_date=${droppedInvalidDate} | dropped_invalid_amount=${droppedInvalidAmount}`,
-    );
-
     return result;
   }
 
   private normalizeCardTransactions(
     transactions: any[],
     cardInfoMap: Record<string, any>,
+    validConsentIds: Set<string>,
   ): NormalizedTransaction[] {
     const result: NormalizedTransaction[] = [];
     let droppedMissingId = 0;
     let droppedInvalidDate = 0;
     let droppedInvalidAmount = 0;
+    let droppedInvalidConsent = 0;
 
     for (const tx of transactions) {
+      const consentId = tx?.__cardMeta?.consentId;
+      if (!consentId || !validConsentIds.has(consentId)) {
+        droppedInvalidConsent++;
+        continue;
+      }
+
       const externalId = this.extractCardExternalId(tx);
       if (!externalId) { droppedMissingId++; continue; }
 
       const transactionDate = this.parseTxDate(tx, 'CARD');
       if (!transactionDate) { droppedInvalidDate++; continue; }
 
-      const amount = this.parseTxAmount(tx, 'CARD');
-      if (amount === null) { droppedInvalidAmount++; continue; }
+      const cardAmountInfo = this.resolveCardAmount(tx);
+      if (cardAmountInfo.amount === null) { droppedInvalidAmount++; continue; }
+      const amount = -cardAmountInfo.amount;
+      const currency = cardAmountInfo.currency ?? 'ILS';
 
       const cardMeta = tx?.__cardMeta || null;
       const cardInfo = cardMeta?.cardResourceId ? cardInfoMap[cardMeta.cardResourceId] : null;
@@ -903,6 +984,7 @@ export class FeezbackService {
         externalTransactionId: externalId,
         merchantName: this.resolveCardMerchantName(tx),
         amount,
+        currency,
         transactionDate,
         paymentDate: null,
         paymentIdentifier,
@@ -913,10 +995,9 @@ export class FeezbackService {
       });
     }
 
-    const uniqueIds = new Set(result.map(r => r.externalTransactionId));
-    this.logger.log(
-      `[DIAG] CARD_NORMALIZATION | input=${transactions.length} | output=${result.length} | unique_ids=${uniqueIds.size} | dropped_missing_id=${droppedMissingId} | dropped_invalid_date=${droppedInvalidDate} | dropped_invalid_amount=${droppedInvalidAmount}`,
-    );
+    if (droppedInvalidConsent > 0) {
+      this.logger.warn(`[CardNormalize] Skipped ${droppedInvalidConsent} transactions with invalid/unknown consentId`);
+    }
 
     return result;
   }
@@ -1065,13 +1146,10 @@ export class FeezbackService {
   }
 
   private extractBankAccountReference(tx: any, accountInfo: any): string | null {
+    // Prefer the IBAN stamped directly onto the transaction at fetch time.
+    // Fall back to accountInfo (indirect map lookup) and maskedPan.
     const candidates = [
-      // tx?.accountReference,
-      // tx?.accountId,
-      // tx?.creditorAccount?.iban,
-      // tx?.debtorAccount?.iban,
-      // tx?.creditorAccount?.maskedPan,
-      // tx?.debtorAccount?.maskedPan,
+      tx?.__accountIban,
       accountInfo?.iban,
       accountInfo?.maskedPan,
     ];
@@ -1082,6 +1160,7 @@ export class FeezbackService {
       }
     }
 
+    console.error(`[extractBankAccountReference] ❌ No IBAN found for transaction | transactionId=${tx?.transactionId} | aspspOriginalId=${tx?.aspspOriginalId}`);
     return null;
   }
 
@@ -1129,6 +1208,7 @@ export class FeezbackService {
     }
 
     if (!chosenLast4) {
+      console.error(`[resolveCardPaymentIdentifier] ❌ No maskedPan found | transactionId=${tx?.transactionId ?? tx?.cardTransactionId} | cardMeta=${JSON.stringify(cardMeta)}`);
       return {
         identifier: null,
         warning: 'No masked PAN available to derive card identifier',
@@ -1199,6 +1279,13 @@ export class FeezbackService {
 
     // Log #1 — requested
     this.logger.log(`[FullSync] Requested | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+    // Dev-only gate — FEEZBACK_MANUAL_SYNC_ONLY=true disables automatic syncs (login/webhook) in non-production.
+    // Admin-panel pulls use getAndSaveBankTransactions directly and are not affected.
+    if (process.env.NODE_ENV !== 'production' && process.env.FEEZBACK_MANUAL_SYNC_ONLY === 'true' && triggeredBy !== 'manual') {
+      this.logger.log(`[FullSync] Skipped — FEEZBACK_MANUAL_SYNC_ONLY=true (dev only) | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      return;
+    }
 
     // In-flight guard — reuse existing promise if sync is already running
     const existing = this.runningFullSyncByUser.get(firebaseId);
@@ -1355,46 +1442,41 @@ export class FeezbackService {
         return;
       }
       if (!syncIsEmpty && triggeredBy === 'webhook') {
-        console.log(`\n🔄 [FullSync] FORCING — webhook triggered, overriding non-empty sync state (${syncState?.quickProcessStatus}/${syncState?.fullProcessStatus}) | firebaseId=${masked}\n`);
         this.logger.log(`[FullSync] Forcing sync — webhook override | firebaseId=${masked}`);
       }
-      console.log(`\n🚀 [FullSync] RUNNING — sync state is empty, starting sync | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
-      this.logger.log(`[FullSync] Sync state empty — proceeding with sync | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
       const sub = `${firebaseId}_sub`;
       const today = new Date();
       const fmt = (d: Date): string => d.toISOString().split('T')[0];
 
-      const pull1From = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
+      const pull1FromDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+      const pull1From = fmt(pull1FromDate);
       const pull1To   = fmt(today);
       const pull2From = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+      // One day before pull1From — ensures zero overlap between the two pulls.
+      const pull2To   = fmt(new Date(pull1FromDate.getTime() - 24 * 60 * 60 * 1000));
 
       // ── Quick sync (Pull 1): current month + previous 2 full calendar months ────
-      // Log #5
-      this.logger.log(`[FullSync] QuickSync start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull1From} | dateTo=${pull1To}`);
+      const tTotal = Date.now();
+      console.log(`\n════════════════════════════════════`);
+      console.log(`  QUICK SYNC — Bank pull`);
+      console.log(`  User : ${masked}`);
+      console.log(`  Dates: ${pull1From} → ${pull1To}`);
+      console.log(`════════════════════════════════════`);
+      const tBank1 = Date.now();
+      const bankRes1 = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+        .catch(e => { this.logger.error(`[QuickSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
+      console.log(`  ✓ Bank pull done — ${((Date.now() - tBank1) / 1000).toFixed(2)}s\n`);
 
-      const [bankRes1, cardRes1] = await Promise.all([
-        (async () => {
-          this.logger.log(`[FullSync] QuickSync bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          const r = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
-          this.logger.log(`[FullSync] QuickSync bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          return r;
-        })().catch(e => {
-          // Log #6
-          this.logger.error(`[FullSync] QuickSync bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-          return null;
-        }),
-        (async () => {
-          this.logger.log(`[FullSync] QuickSync card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          const r = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To);
-          this.logger.log(`[FullSync] QuickSync card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          return r;
-        })().catch(e => {
-          // Log #7
-          this.logger.error(`[FullSync] QuickSync card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-          return null;
-        }),
-      ]);
+      console.log(`════════════════════════════════════`);
+      console.log(`  QUICK SYNC — Card pull`);
+      console.log(`  User : ${masked}`);
+      console.log(`  Dates: ${pull1From} → ${pull1To}`);
+      console.log(`════════════════════════════════════`);
+      const tCard1 = Date.now();
+      const cardRes1 = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+        .catch(e => { this.logger.error(`[QuickSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
+      console.log(`  ✓ Card pull done — ${((Date.now() - tCard1) / 1000).toFixed(2)}s\n`);
 
       const quickPhase = this.computePhaseStatus(bankRes1, cardRes1);
       let quickRowsWritten = 0;
@@ -1402,21 +1484,23 @@ export class FeezbackService {
 
       if (!quickPhase.hasErrors) {
         if (quickPhase.normalizedTransactions.length > 0) {
-          this.logger.log(`[FullSync] QuickSync persisting | firebaseId=${masked} | normalized=${quickPhase.normalizedTransactions.length}`);
+          console.log(`════════════════════════════════════`);
+          console.log(`  QUICK SYNC — Process transactions`);
+          console.log(`  Count: ${quickPhase.normalizedTransactions.length}`);
+          console.log(`════════════════════════════════════`);
+          const tDb1 = Date.now();
           const pr = await this.processingService.process(firebaseId, quickPhase.normalizedTransactions);
           quickRowsWritten = pr.newlySavedToCache;
-          this.logger.log(`[FullSync] QuickSync persist done | firebaseId=${masked} | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}`);
+          console.log(`  ✓ Process done — ${((Date.now() - tDb1) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
           quickProcessStatus = 'completed';
         } else {
-          this.logger.log(`[FullSync] QuickSync completed — no transactions in date range | firebaseId=${masked}`);
+          console.log(`  ℹ Quick sync — no transactions in date range\n`);
           quickProcessStatus = 'completed';
         }
       } else {
-        this.logger.warn(`[FullSync] QuickSync NOT persisted | resultStatus=${quickPhase.resultStatus} | firebaseId=${masked} | errors=${JSON.stringify(quickPhase.diagnostics.errors)}`);
+        this.logger.warn(`[QuickSync] Pull had errors — skipping persist | errors=${JSON.stringify(quickPhase.diagnostics.errors)}`);
         quickProcessStatus = 'failed';
       }
-
-      this.logger.log(`[FullSync] QuickSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | processStatus=${quickProcessStatus} | resultStatus=${quickPhase.resultStatus} | rowsWritten=${quickRowsWritten} | diagnostics=${JSON.stringify(quickPhase.diagnostics)}`);
 
       await this.userSyncStateService.markQuickFinished(
         firebaseId,
@@ -1425,54 +1509,41 @@ export class FeezbackService {
         quickRowsWritten,
         quickPhase.hasErrors ? quickPhase.diagnostics.errors.join(', ') : undefined,
       ).catch(err => {
-        this.logger.error(`[FullSync] Failed to write quickFinished state | firebaseId=${masked} | error=${err?.message}`);
+        this.logger.error(`[QuickSync] Failed to write finished state | error=${err?.message}`);
       });
 
       // ── Gate: do not run Pull 2 if quick sync failed ─────────────────────────
       if (quickProcessStatus === 'failed') {
-        this.logger.warn(`[FullSync] Skipping full sync — quick sync failed | firebaseId=${masked}`);
-        await this.userSyncStateService.markFullFinished(
-          firebaseId,
-          'failed',
-          'failed',
-          0,
-          'Not run: quick sync failed',
-        ).catch(err => {
-          this.logger.error(`[FullSync] Failed to write fullFinished(skipped-due-to-quick-fail) state | firebaseId=${masked} | error=${err?.message}`);
-        });
+        this.logger.warn(`[FullSync] Skipping — quick sync failed`);
+        await this.userSyncStateService.markFullFinished(firebaseId, 'failed', 'failed', 0, 'Not run: quick sync failed')
+          .catch(err => { this.logger.error(`[FullSync] Failed to write fullFinished(skipped) state | error=${err?.message}`); });
         return;
       }
 
       // ── Full sync (Pull 2): up to 12-month backfill ──────────────────────────
-      // Log #9
-      this.logger.log(`[FullSync] FullSync start | triggeredBy=${triggeredBy} | firebaseId=${masked} | dateFrom=${pull2From} | dateTo=${pull1To}`);
-
       await this.userSyncStateService.markFullRunning(firebaseId).catch(err => {
-        this.logger.error(`[FullSync] Failed to write fullRunning state | firebaseId=${masked} | error=${err?.message}`);
+        this.logger.error(`[FullSync] Failed to write fullRunning state | error=${err?.message}`);
       });
 
-      const [bankRes2, cardRes2] = await Promise.all([
-        (async () => {
-          this.logger.log(`[FullSync] FullSync bank fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          const r = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
-          this.logger.log(`[FullSync] FullSync bank fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          return r;
-        })().catch(e => {
-          // Log #10
-          this.logger.error(`[FullSync] FullSync bank failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-          return null;
-        }),
-        (async () => {
-          this.logger.log(`[FullSync] FullSync card fetch started | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          const r = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull1To);
-          this.logger.log(`[FullSync] FullSync card fetch completed | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-          return r;
-        })().catch(e => {
-          // Log #11
-          this.logger.error(`[FullSync] FullSync card failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${e?.message ?? e}`, e?.stack);
-          return null;
-        }),
-      ]);
+      console.log(`════════════════════════════════════`);
+      console.log(`  FULL SYNC — Bank pull`);
+      console.log(`  User : ${masked}`);
+      console.log(`  Dates: ${pull2From} → ${pull2To}`);
+      console.log(`════════════════════════════════════`);
+      const tBank2 = Date.now();
+      const bankRes2 = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull2To)
+        .catch(e => { this.logger.error(`[FullSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
+      console.log(`  ✓ Bank pull done — ${((Date.now() - tBank2) / 1000).toFixed(2)}s\n`);
+
+      console.log(`════════════════════════════════════`);
+      console.log(`  FULL SYNC — Card pull`);
+      console.log(`  User : ${masked}`);
+      console.log(`  Dates: ${pull2From} → ${pull2To}`);
+      console.log(`════════════════════════════════════`);
+      const tCard2 = Date.now();
+      const cardRes2 = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull2To)
+        .catch(e => { this.logger.error(`[FullSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
+      console.log(`  ✓ Card pull done — ${((Date.now() - tCard2) / 1000).toFixed(2)}s\n`);
 
       const fullPhase = this.computePhaseStatus(bankRes2, cardRes2);
       let fullRowsWritten = 0;
@@ -1480,26 +1551,31 @@ export class FeezbackService {
 
       if (!fullPhase.hasErrors) {
         if (fullPhase.normalizedTransactions.length > 0) {
-          this.logger.log(`[FullSync] FullSync persisting | firebaseId=${masked} | normalized=${fullPhase.normalizedTransactions.length}`);
+          console.log(`════════════════════════════════════`);
+          console.log(`  FULL SYNC — Process transactions`);
+          console.log(`  Count: ${fullPhase.normalizedTransactions.length}`);
+          console.log(`════════════════════════════════════`);
+          const tDb2 = Date.now();
           const pr = await this.processingService.process(firebaseId, fullPhase.normalizedTransactions);
           fullRowsWritten = pr.newlySavedToCache;
-          this.logger.log(`[FullSync] FullSync persist done | firebaseId=${masked} | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}`);
+          console.log(`  ✓ Process done — ${((Date.now() - tDb2) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
           fullProcessStatus = 'completed';
         } else {
-          this.logger.log(`[FullSync] FullSync completed — no transactions in date range | firebaseId=${masked}`);
+          console.log(`  ℹ Full sync — no transactions in date range\n`);
           fullProcessStatus = 'completed';
         }
       } else {
-        this.logger.warn(`[FullSync] FullSync NOT persisted | resultStatus=${fullPhase.resultStatus} | firebaseId=${masked} | errors=${JSON.stringify(fullPhase.diagnostics.errors)}`);
+        this.logger.warn(`[FullSync] Pull had errors — skipping persist | errors=${JSON.stringify(fullPhase.diagnostics.errors)}`);
         fullProcessStatus = 'failed';
       }
 
-      this.logger.log(`[FullSync] FullSync done | triggeredBy=${triggeredBy} | firebaseId=${masked} | processStatus=${fullProcessStatus} | resultStatus=${fullPhase.resultStatus} | rowsWritten=${fullRowsWritten} | diagnostics=${JSON.stringify(fullPhase.diagnostics)}`);
-
       const overallSuccess = quickProcessStatus === 'completed' && fullProcessStatus === 'completed';
-      console.log(`\n${overallSuccess ? '✅' : '⚠️'} [FullSync] COMPLETE | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      console.log(`   Quick: ${quickProcessStatus} (${quickRowsWritten} rows saved)`);
-      console.log(`   Full:  ${fullProcessStatus} (${fullRowsWritten} rows saved)\n`);
+      console.log(`════════════════════════════════════`);
+      console.log(`  SYNC COMPLETE — ${overallSuccess ? '✅ OK' : '⚠️  ERRORS'}`);
+      console.log(`  Quick: ${quickProcessStatus} (${quickRowsWritten} saved)`);
+      console.log(`  Full : ${fullProcessStatus} (${fullRowsWritten} saved)`);
+      console.log(`  Total: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
+      console.log(`════════════════════════════════════\n`);
 
       await this.userSyncStateService.markFullFinished(
         firebaseId,

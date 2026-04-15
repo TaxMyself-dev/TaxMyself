@@ -94,7 +94,6 @@ export class FeezbackAuthService {
       const expiresAt = Date.now() + expiresInSeconds * 1000;
       this.tokenCache.set(sub, { token: accessToken, expiresAt });
 
-      this.logger.debug(`Fetched new Feezback access token for sub=${sub}`);
       return accessToken;
     } catch (error) {
       this.logger.error(`Failed to fetch Feezback access token for sub=${sub}: ${this.describeError(error)}`);

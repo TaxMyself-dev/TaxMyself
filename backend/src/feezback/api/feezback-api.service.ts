@@ -70,8 +70,6 @@ export class FeezbackApiService {
       queryParams.withBalances = String(withBalances);
     }
 
-    this.logger.log(`[GETUSERCARDS] sub=${sub} PREVENTUPDATE=${queryParams.preventUpdate} withInvalid=${queryParams.withInvalid ?? 'unset'} withBalances=${queryParams.withBalances ?? 'unset'}`);
-
     const data = await this.getFromUserPath(sub, '/cards', queryParams);
 
     const cards = this.normalizeCardsResponse(data);
