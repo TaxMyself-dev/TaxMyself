@@ -402,6 +402,7 @@ export class TransactionsPage implements OnInit {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+    this.transactionService.filterData.set(null);
   }
 
   setFormValidators(event): void {

@@ -13,7 +13,8 @@ import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { UserSyncState } from '../transactions/user-sync-state.entity';
 import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
 import { User } from '../users/user.entity';
-import { ModuleName } from '../enum';
+import { Source } from '../transactions/source.entity';
+import { ModuleName, SourceType } from '../enum';
 import * as fs from 'fs';
 import * as path from 'path';
 @Injectable()
@@ -31,8 +32,73 @@ export class FeezbackService {
     private readonly processingService: TransactionProcessingService,
     private readonly userSyncStateService: UserSyncStateService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @InjectRepository(Source) private readonly sourceRepository: Repository<Source>,
   ) {
     this.tppId = this.authService.getTppId();
+  }
+
+  /**
+   * Ensures all Feezback accounts and cards are saved as Source rows.
+   * Same upsert logic as the webhook — safe to call repeatedly.
+   */
+  async ensureSources(firebaseId: string): Promise<{ created: number; updated: number }> {
+    const sub = `${firebaseId}_sub`;
+    let created = 0;
+    let updated = 0;
+
+    // Bank accounts
+    try {
+      const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
+      for (const account of accountsResponse?.accounts ?? []) {
+        const iban: string | undefined = account?.iban;
+        if (!iban?.trim()) continue;
+        const sourceName = iban.trim().slice(-7);
+        const feezbackResourceId: string | null = account?.resourceId ?? null;
+        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
+        if (existing) {
+          existing.feezbackResourceId = feezbackResourceId;
+          existing.sourceType = SourceType.BANK_ACCOUNT;
+          await this.sourceRepository.save(existing);
+          updated++;
+        } else {
+          await this.sourceRepository.save(
+            this.sourceRepository.create({ userId: firebaseId, sourceName, sourceType: SourceType.BANK_ACCOUNT, feezbackResourceId, bill: null }),
+          );
+          created++;
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`[EnsureSources] Bank accounts fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | ${e?.message}`);
+    }
+
+    // Credit cards
+    try {
+      const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
+      for (const card of cardsResponse?.cards ?? []) {
+        const maskedPan: string | undefined = card?.maskedPan;
+        const last4Match = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/) : null;
+        if (!last4Match) continue;
+        const sourceName = last4Match[1];
+        const feezbackResourceId: string | null = card?.resourceId ?? null;
+        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
+        if (existing) {
+          existing.feezbackResourceId = feezbackResourceId;
+          existing.sourceType = SourceType.CREDIT_CARD;
+          await this.sourceRepository.save(existing);
+          updated++;
+        } else {
+          await this.sourceRepository.save(
+            this.sourceRepository.create({ userId: firebaseId, sourceName, sourceType: SourceType.CREDIT_CARD, feezbackResourceId, bill: null }),
+          );
+          created++;
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(`[EnsureSources] Cards fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | ${e?.message}`);
+    }
+
+    this.logger.log(`[EnsureSources] Done | firebaseId=${firebaseId?.substring(0, 8)}... | created=${created} updated=${updated}`);
+    return { created, updated };
   }
 
 
@@ -379,12 +445,6 @@ export class FeezbackService {
     dateTo?: string,
     cardResourceId?: string,
   ): Promise<any> {
-    const masked = `${userId?.substring(0, 8)}...`;
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  CARD PULL`);
-    console.log(`  User : ${masked}`);
-    console.log(`  Dates: ${dateFrom ?? 'n/a'} → ${dateTo ?? 'n/a'}`);
-    console.log(`════════════════════════════════════`);
     const tCard = Date.now();
 
     const cardsResponse = await this.feezbackApiService.getUserCards(sub, {
@@ -604,8 +664,12 @@ export class FeezbackService {
       syncSummary,
     };
 
-    console.log(`  ✓ Card pull done — ${((Date.now() - tCard) / 1000).toFixed(2)}s | normalized=${normalizedTransactions.length}\n`);
-    return result;
+    // Fire-and-forget: ensure all cards are persisted as Source rows.
+    void this.ensureSources(userId).catch(e =>
+      this.logger.warn(`[CardFetch] ensureSources failed | ${e?.message}`),
+    );
+
+    return { ...result, __durationMs: Date.now() - tCard };
   }
 
   // private sleep(ms: number) {
@@ -683,12 +747,6 @@ export class FeezbackService {
     dateFrom?: string,
     dateTo?: string,
   ): Promise<any> {
-    const masked = `${firebaseId?.substring(0, 8)}...`;
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  BANK PULL`);
-    console.log(`  User : ${masked}`);
-    console.log(`  Dates: ${dateFrom ?? 'n/a'} → ${dateTo ?? 'n/a'}`);
-    console.log(`════════════════════════════════════`);
     const tBank = Date.now();
 
     // Step 1: Get all accounts
@@ -840,9 +898,12 @@ export class FeezbackService {
       },
     };
 
-    console.log(`  ✓ Bank pull done — ${((Date.now() - tBank) / 1000).toFixed(2)}s | normalized=${bankNormalizedCount}\n`);
+    // Fire-and-forget: ensure all bank accounts are persisted as Source rows.
+    void this.ensureSources(firebaseId).catch(e =>
+      this.logger.warn(`[BankFetch] ensureSources failed | ${e?.message}`),
+    );
 
-    return response;
+    return { ...response, __durationMs: Date.now() - tBank };
   }
 
   // ---------------------------------------------------------------------------
@@ -1417,7 +1478,7 @@ export class FeezbackService {
   private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual', masked: string, preSyncState?: UserSyncState | null): Promise<void> {
     try {
       // Gate — only proceed for users who have OPEN_BANKING module access.
-      const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess'] });
+      const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess', 'fName', 'lName'] });
       if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
         this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
@@ -1456,27 +1517,25 @@ export class FeezbackService {
       // One day before pull1From — ensures zero overlap between the two pulls.
       const pull2To   = fmt(new Date(pull1FromDate.getTime() - 24 * 60 * 60 * 1000));
 
+      const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
+
       // ── Quick sync (Pull 1): current month + previous 2 full calendar months ────
       const tTotal = Date.now();
       console.log(`\n════════════════════════════════════`);
-      console.log(`  QUICK SYNC — Bank pull`);
-      console.log(`  User : ${masked}`);
+      console.log(`  QUICK SYNC`);
+      console.log(`  User : ${userName}`);
       console.log(`  Dates: ${pull1From} → ${pull1To}`);
       console.log(`════════════════════════════════════`);
-      const tBank1 = Date.now();
-      const bankRes1 = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
-        .catch(e => { this.logger.error(`[QuickSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
-      console.log(`  ✓ Bank pull done — ${((Date.now() - tBank1) / 1000).toFixed(2)}s\n`);
-
-      console.log(`════════════════════════════════════`);
-      console.log(`  QUICK SYNC — Card pull`);
-      console.log(`  User : ${masked}`);
-      console.log(`  Dates: ${pull1From} → ${pull1To}`);
-      console.log(`════════════════════════════════════`);
-      const tCard1 = Date.now();
-      const cardRes1 = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
-        .catch(e => { this.logger.error(`[QuickSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
-      console.log(`  ✓ Card pull done — ${((Date.now() - tCard1) / 1000).toFixed(2)}s\n`);
+      const tPull1 = Date.now();
+      const [bankRes1, cardRes1] = await Promise.all([
+        this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
+          .catch(e => { this.logger.error(`[QuickSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+        this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To, undefined)
+          .catch(e => { this.logger.error(`[QuickSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+      ]);
+      console.log(`  ✓ Bank — ${((bankRes1?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankRes1?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Card — ${((cardRes1?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardRes1?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Total pull — ${((Date.now() - tPull1) / 1000).toFixed(2)}s\n`);
 
       const quickPhase = this.computePhaseStatus(bankRes1, cardRes1);
       let quickRowsWritten = 0;
@@ -1526,24 +1585,20 @@ export class FeezbackService {
       });
 
       console.log(`════════════════════════════════════`);
-      console.log(`  FULL SYNC — Bank pull`);
-      console.log(`  User : ${masked}`);
+      console.log(`  FULL SYNC`);
+      console.log(`  User : ${userName}`);
       console.log(`  Dates: ${pull2From} → ${pull2To}`);
       console.log(`════════════════════════════════════`);
-      const tBank2 = Date.now();
-      const bankRes2 = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull2To)
-        .catch(e => { this.logger.error(`[FullSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
-      console.log(`  ✓ Bank pull done — ${((Date.now() - tBank2) / 1000).toFixed(2)}s\n`);
-
-      console.log(`════════════════════════════════════`);
-      console.log(`  FULL SYNC — Card pull`);
-      console.log(`  User : ${masked}`);
-      console.log(`  Dates: ${pull2From} → ${pull2To}`);
-      console.log(`════════════════════════════════════`);
-      const tCard2 = Date.now();
-      const cardRes2 = await this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull2To)
-        .catch(e => { this.logger.error(`[FullSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; });
-      console.log(`  ✓ Card pull done — ${((Date.now() - tCard2) / 1000).toFixed(2)}s\n`);
+      const tPull2 = Date.now();
+      const [bankRes2, cardRes2] = await Promise.all([
+        this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull2To)
+          .catch(e => { this.logger.error(`[FullSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+        this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull2To, undefined)
+          .catch(e => { this.logger.error(`[FullSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+      ]);
+      console.log(`  ✓ Bank — ${((bankRes2?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankRes2?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Card — ${((cardRes2?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardRes2?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Total pull — ${((Date.now() - tPull2) / 1000).toFixed(2)}s\n`);
 
       const fullPhase = this.computePhaseStatus(bankRes2, cardRes2);
       let fullRowsWritten = 0;

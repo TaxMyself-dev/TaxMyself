@@ -1,6 +1,4 @@
-import {
-    IsString,
-} from 'class-validator'
+import { IsString } from 'class-validator'
 
 
 export class CreateBillDto {
@@ -9,6 +7,6 @@ export class CreateBillDto {
     billName: string;
 
     @IsString()
-    businessNumber: string | null;
-    
+    businessNumber: string;
+
 }

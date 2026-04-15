@@ -277,7 +277,15 @@ export class UsersService {
         );
       }
 
-      return user;
+      // Enrich with businessNumber(s) from Business table so the frontend
+      // always has the correct value in userData (localStorage).
+      const businesses = await this.business_repo.find({ where: { firebaseId } });
+      const [primary, spouse] = businesses.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+      return {
+        ...user,
+        businessNumber: primary?.businessNumber ?? null,
+        spouseBusinessNumber: spouse?.businessNumber ?? null,
+      };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

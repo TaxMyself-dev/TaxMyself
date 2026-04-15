@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { environment } from 'src/environments/environment';
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
@@ -553,76 +553,57 @@ export class MyAccountPage implements OnInit {
       });
   }
 
-  fetchUserBankTransactions(): void {
-    this.isLoadingUserBankTransactions.set(true);
+  private runSyncWithEnsureSources(syncFn: () => void): void {
+    if (!this.hasOpenBanking()) return;
+    this.feezbackService.ensureSources().pipe(take(1)).subscribe({ next: () => syncFn(), error: () => syncFn() });
+  }
 
-    this.feezbackService.getUserBankTransactions('booked')
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching user transactions:', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: 'שגיאה',
-            detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.',
-            life: 5000,
-            key: 'br'
-          });
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingUserBankTransactions.set(false))
-      )
-      .subscribe(response => {
-        console.log('User transactions data:', response);
-        this.showSyncToast(response?.syncSummary);
-      });
+  fetchUserBankTransactions(): void {
+    this.runSyncWithEnsureSources(() => {
+      this.isLoadingUserBankTransactions.set(true);
+      this.feezbackService.getUserBankTransactions('booked')
+        .pipe(
+          catchError(err => {
+            console.error('Error fetching user transactions:', err);
+            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.', life: 5000, key: 'br' });
+            return EMPTY;
+          }),
+          finalize(() => this.isLoadingUserBankTransactions.set(false))
+        )
+        .subscribe(response => { this.showSyncToast(response?.syncSummary); });
+    });
   }
 
   fetchUserCardTransactions(): void {
-    this.isLoadingUserCardTransactions.set(true);
-
-    this.feezbackService.getUserCardTransactions('booked')
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching user transactions:', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: 'שגיאה',
-            detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.',
-            life: 5000,
-            key: 'br'
-          });
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingUserCardTransactions.set(false))
-      )
-      .subscribe(response => {
-        console.log('User transactions data:', response);
-        this.showSyncToast(response?.syncSummary);
-      });
+    this.runSyncWithEnsureSources(() => {
+      this.isLoadingUserCardTransactions.set(true);
+      this.feezbackService.getUserCardTransactions('booked')
+        .pipe(
+          catchError(err => {
+            console.error('Error fetching user transactions:', err);
+            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.', life: 5000, key: 'br' });
+            return EMPTY;
+          }),
+          finalize(() => this.isLoadingUserCardTransactions.set(false))
+        )
+        .subscribe(response => { this.showSyncToast(response?.syncSummary); });
+    });
   }
 
   fetchAllUserTransactions(): void {
-    this.isLoadingAllTransactions.set(true);
-
-    this.feezbackService.getAllUserTransactions('booked')
-      .pipe(
-        catchError(err => {
-          console.error('Error fetching all user transactions:', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: 'שגיאה',
-            detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.',
-            life: 5000,
-            key: 'br'
-          });
-          return EMPTY;
-        }),
-        finalize(() => this.isLoadingAllTransactions.set(false))
-      )
-      .subscribe(response => {
-        console.log('All user transactions (bank + card):', response);
-        this.showSyncToast(response?.syncSummary);
-      });
+    this.runSyncWithEnsureSources(() => {
+      this.isLoadingAllTransactions.set(true);
+      this.feezbackService.getAllUserTransactions('booked')
+        .pipe(
+          catchError(err => {
+            console.error('Error fetching all user transactions:', err);
+            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.', life: 5000, key: 'br' });
+            return EMPTY;
+          }),
+          finalize(() => this.isLoadingAllTransactions.set(false))
+        )
+        .subscribe(response => { this.showSyncToast(response?.syncSummary); });
+    });
   }
 
   private showSyncToast(syncSummary: any): void {

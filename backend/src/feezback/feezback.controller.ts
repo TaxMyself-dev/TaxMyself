@@ -35,6 +35,14 @@ export class FeezbackController {
     });
   }
 
+  @Post('ensure-sources')
+  @UseGuards(FirebaseAuthGuard)
+  async ensureSources(@Req() req: AuthenticatedRequest) {
+    const firebaseId = req.user?.firebaseId;
+    if (!firebaseId) throw new Error('User ID not found — Firebase authentication required');
+    return this.feezbackService.ensureSources(firebaseId);
+  }
+
   @Post('consent-link')
   @UseGuards(FirebaseAuthGuard)
   async createConsentLink(@Req() req: AuthenticatedRequest) {
@@ -223,24 +231,29 @@ export class FeezbackController {
     const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
     const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
 
-    // this.logger.log(`Admin ${adminFirebaseId} fetching transactions for user ${firebaseId}, sub: ${sub}`);
-    // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
+    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
+    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || `${firebaseId.substring(0, 8)}...`;
 
-    // Fetch bank + card transactions, persist both, update sync state
+    // Fetch bank + card transactions in parallel, persist both, update sync state
     try {
-      // Bank
-      const bankResult = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
-      const bankNormalized = bankResult?.normalizedTransactions ?? [];
+      console.log(`\n════════════════════════════════════`);
+      console.log(`  MANUAL SYNC`);
+      console.log(`  User : ${userName}`);
+      console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
+      console.log(`════════════════════════════════════`);
 
-      // Card
-      let cardResult: any = null;
-      let cardNormalized: any[] = [];
-      try {
-        cardResult = await this.feezbackService.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus || 'booked', defaultDateFrom, defaultDateTo);
-        cardNormalized = cardResult?.normalizedTransactions ?? [];
-      } catch (err: any) {
-        this.logger.error(`[AdminPull] Card fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
-      }
+      const tPull = Date.now();
+      const [bankResult, cardResult] = await Promise.all([
+        this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo),
+        this.feezbackService.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus || 'booked', defaultDateFrom, defaultDateTo)
+          .catch((err: any) => { this.logger.error(`[AdminPull] Card fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`); return null; }),
+      ]);
+      console.log(`  ✓ Bank — ${((bankResult?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankResult?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Card — ${((cardResult?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardResult?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
+
+      const bankNormalized = bankResult?.normalizedTransactions ?? [];
+      const cardNormalized = cardResult?.normalizedTransactions ?? [];
 
       // Persist all normalized transactions
       const allNormalized = [...bankNormalized, ...cardNormalized];
@@ -332,8 +345,19 @@ export class FeezbackController {
     // this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
 
+    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
+    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || `${firebaseId.substring(0, 8)}...`;
+
     const tTotal = Date.now();
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  MANUAL SYNC`);
+    console.log(`  User : ${userName}`);
+    console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
+    console.log(`════════════════════════════════════`);
+    const tPull = Date.now();
     const result = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
+    console.log(`  ✓ Bank — ${((result?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${result?.normalizedTransactions?.length ?? 0}`);
+    console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
 
     const normalized = result?.normalizedTransactions ?? [];
     let processingResult: any = null;
@@ -389,8 +413,17 @@ export class FeezbackController {
     // this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
     // this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
 
+    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
+    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || `${firebaseId.substring(0, 8)}...`;
+
     // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
     const tTotal = Date.now();
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  MANUAL SYNC`);
+    console.log(`  User : ${userName}`);
+    console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
+    console.log(`════════════════════════════════════`);
+    const tPull = Date.now();
     const result = await this.feezbackService.getAndSaveUserCardTransactions(
       firebaseId,
       sub,
@@ -399,6 +432,8 @@ export class FeezbackController {
       defaultDateTo,
       cardResourceId,
     );
+    console.log(`  ✓ Card — ${((result?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${result?.normalizedTransactions?.length ?? 0}`);
+    console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
 
     const normalized = result?.normalizedTransactions ?? [];
     let processingResult: any = null;
@@ -464,14 +499,24 @@ export class FeezbackController {
     // Mark both stages running before any network calls.
     await this.userSyncStateService.markQuickRunning(firebaseId, 'manual');
 
+    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
+    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || masked;
+
     const tTotal = Date.now();
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  MANUAL SYNC`);
+    console.log(`  User : ${userName}`);
+    console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
+    console.log(`════════════════════════════════════`);
     try {
-      const bankTransactions = await this.getUserBankTransactionsInternal(
-        firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo,
-      );
-      const cardTransactions = await this.feezbackService.getAndSaveUserCardTransactions(
-        firebaseId, sub, bookingStatus ?? 'booked', defaultDateFrom, defaultDateTo, cardResourceId,
-      );
+      const tPull = Date.now();
+      const [bankTransactions, cardTransactions] = await Promise.all([
+        this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo),
+        this.feezbackService.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus ?? 'booked', defaultDateFrom, defaultDateTo, cardResourceId),
+      ]);
+      console.log(`  ✓ Bank — ${((bankTransactions?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankTransactions?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Card — ${((cardTransactions?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardTransactions?.normalizedTransactions?.length ?? 0}`);
+      console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
 
       const combinedNormalized = [
         ...(bankTransactions?.normalizedTransactions ?? []),
