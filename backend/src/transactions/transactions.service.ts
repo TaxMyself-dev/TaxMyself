@@ -164,7 +164,9 @@ export class TransactionsService {
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
                 const billId = await this.getBillIdByBillName(firebaseId, billName);
 
-                const classifiedTransaction = billId
+                const txSum = transaction.Debit ? -transaction.Debit : transaction.Credit;
+
+                const classifiedTransactionRaw = billId
                   ? await this.classifiedTransactionsRepo.findOne({
                       where: {
                         userId: firebaseId,
@@ -173,6 +175,11 @@ export class TransactionsService {
                       },
                     })
                   : null;
+
+                const classifiedTransaction =
+                  classifiedTransactionRaw && this.ruleMatchesSum(classifiedTransactionRaw, txSum)
+                    ? classifiedTransactionRaw
+                    : null;
 
                 const newTransaction: Partial<Transactions> = {
                   userId: firebaseId,
@@ -184,7 +191,7 @@ export class TransactionsService {
                   note2: transaction.Notes2,
                   billDate: transaction.Date,
                   payDate: null,
-                  sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
+                  sum: txSum,
                 };
 
                 // Merge fields if classifiedTransaction exists
@@ -348,7 +355,9 @@ export class TransactionsService {
 
       // Check if there's a matching classified transaction
       const billId = paymentIdentifierToBillId?.get(transaction.paymentIdentifier);
-      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billId === billId);
+      const matchingClassifiedTransaction = classifiedTransactions.find(
+        ct => ct.transactionName === transaction.name && ct.billId === billId && this.ruleMatchesSum(ct, transaction.sum),
+      );
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         console.log("matchingClassifiedTransaction is ", matchingClassifiedTransaction);
@@ -853,6 +862,14 @@ export class TransactionsService {
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy quickClassify that operates on the transactions table by numeric id.
   // The new path is TransactionsController → TransactionProcessingService.classifyManually() via finsiteId.
   // This method is no longer called from the controller; remove when legacy table is dropped.
+  /** Returns true when the transaction's absolute sum falls within the rule's defined range (or no range is set). */
+  private ruleMatchesSum(rule: ClassifiedTransactions, sum: number): boolean {
+    const absSum = Math.abs(sum);
+    if (rule.minAbsSum != null && absSum < Number(rule.minAbsSum)) return false;
+    if (rule.maxAbsSum != null && absSum > Number(rule.maxAbsSum)) return false;
+    return true;
+  }
+
   async quickClassify(transactionId: number, userId: string): Promise<void> {
 
     const transaction = await this.transactionsRepo.findOne({

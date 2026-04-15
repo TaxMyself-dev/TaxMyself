@@ -194,102 +194,28 @@ export class FeezbackController {
   }
 
   /**
-   * Get all transactions for a specific user (admin only)
-   * Admin can fetch transactions for any user by providing their firebaseId
+   * Trigger a full sync for a specific user (admin only).
+   * Uses the same Quick+Full flow as login/webhook auto sync — the only
+   * difference is triggeredBy='manual'.
    */
   @Get('admin-user-transactions')
   @UseGuards(FirebaseAuthGuard)
   async getAdminUserTransactions(
     @Req() req: AuthenticatedRequest,
     @Query('firebaseId') targetFirebaseId: string,
-    @Query('bookingStatus') bookingStatus?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
   ) {
     const adminFirebaseId = req.user?.firebaseId;
+    if (!adminFirebaseId) throw new Error('Admin authentication required');
 
-    if (!adminFirebaseId) {
-      throw new Error('Admin authentication required');
-    }
-
-    // Check if user is admin
     const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
-    if (!isAdmin) {
-      throw new Error('Admin access required');
-    }
+    if (!isAdmin) throw new Error('Admin access required');
 
-    if (!targetFirebaseId) {
-      throw new Error('firebaseId parameter is required');
-    }
+    if (!targetFirebaseId) throw new Error('firebaseId parameter is required');
 
-    const firebaseId = targetFirebaseId;
+    // Fire-and-forget — same as login/webhook. The in-flight guard prevents double-runs.
+    void this.feezbackService.triggerFullSync(targetFirebaseId, 'manual');
 
-    // Build sub identifier (same format as in consent JWT and webhook)
-    const sub = `${firebaseId}_sub`;
-
-    // Use provided dates or defaults
-    const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
-    const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
-
-    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
-    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || `${firebaseId.substring(0, 8)}...`;
-
-    // Fetch bank + card transactions in parallel, persist both, update sync state
-    try {
-      console.log(`\n════════════════════════════════════`);
-      console.log(`  MANUAL SYNC`);
-      console.log(`  User : ${userName}`);
-      console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
-      console.log(`════════════════════════════════════`);
-
-      const tPull = Date.now();
-      const [bankResult, cardResult] = await Promise.all([
-        this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo),
-        this.feezbackService.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus || 'booked', defaultDateFrom, defaultDateTo)
-          .catch((err: any) => { this.logger.error(`[AdminPull] Card fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`); return null; }),
-      ]);
-      console.log(`  ✓ Bank — ${((bankResult?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankResult?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Card — ${((cardResult?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardResult?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
-
-      const bankNormalized = bankResult?.normalizedTransactions ?? [];
-      const cardNormalized = cardResult?.normalizedTransactions ?? [];
-
-      // Persist all normalized transactions
-      const allNormalized = [...bankNormalized, ...cardNormalized];
-      let databaseSaveResult: any = null;
-      let databaseSaveError: string | null = null;
-      if (allNormalized.length > 0) {
-        try {
-          databaseSaveResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, allNormalized);
-        } catch (err: any) {
-          databaseSaveError = err?.message ?? 'Unknown error';
-        }
-      }
-
-      // Update sync state so the frontend stops showing the loading message
-      const savedRows = databaseSaveResult?.saved ?? 0;
-      const skippedRows = databaseSaveResult?.skipped ?? 0;
-      const totalRows = savedRows + skippedRows;
-      if (!databaseSaveError) {
-        try {
-          await this.userSyncStateService.markQuickFinished(firebaseId, 'completed', totalRows > 0 ? 'success' : 'none', totalRows);
-          await this.userSyncStateService.markFullFinished(firebaseId, 'completed', totalRows > 0 ? 'success' : 'none', 0);
-        } catch (err: any) {
-          this.logger.error(`[AdminPull] Failed to update sync state | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
-        }
-      }
-
-      return {
-        ...bankResult,
-        cardResult,
-        totalTransactions: (bankResult?.totalTransactions ?? 0) + (cardResult?.totalTransactions ?? 0),
-        databaseSaveResult,
-        databaseSaveError,
-      };
-    } catch (error: any) {
-      throw error;
-    }
+    return { message: 'Sync triggered', firebaseId: targetFirebaseId };
   }
 
   /**

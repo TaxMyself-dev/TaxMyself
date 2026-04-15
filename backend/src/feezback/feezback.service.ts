@@ -970,7 +970,10 @@ export class FeezbackService {
     let droppedInvalidAmount = 0;
 
     for (const tx of dedupedTransactions) {
-      const externalId = tx?.transactionId;
+      // Use aspspOriginalId as the stable key when available — Feezback may return
+      // different transactionId values for the same physical transaction across calls
+      // (e.g. Quick sync vs Full sync). aspspOriginalId is the bank's own stable ID.
+      const externalId = tx?.aspspOriginalId || tx?.transactionId;
       if (!externalId || typeof externalId !== 'string' || externalId.trim() === '') {
         droppedMissingId++;
         continue;
@@ -1120,8 +1123,24 @@ export class FeezbackService {
   }
 
   private extractCardExternalId(tx: any): string | null {
-    const externalId = tx?.cardTransactionId || tx?.transactionId;
-    return typeof externalId === 'string' && externalId.trim() !== '' ? externalId : null;
+    // Prefer aspspOriginalId — the bank's own stable identifier.
+    if (tx?.aspspOriginalId && typeof tx.aspspOriginalId === 'string' && tx.aspspOriginalId.trim() !== '') {
+      return tx.aspspOriginalId;
+    }
+
+    const rawId: string | undefined = tx?.cardTransactionId || tx?.transactionId;
+    if (!rawId || typeof rawId !== 'string' || rawId.trim() === '') return null;
+
+    // Feezback card IDs: feez-{uuid}-{stableNumber}
+    // The UUID changes per API call; only the trailing number is stable.
+    // e.g. feez-ea279d7a-...-358945402  →  feez-card-358945402
+    //      feez-6fd6efba-...-358945402  →  feez-card-358945402  (same tx, different UUID)
+    if (rawId.startsWith('feez-')) {
+      const match = rawId.match(/-(-?\d+)$/);
+      if (match) return `feez-card-${match[1]}`;
+    }
+
+    return rawId;
   }
 
 

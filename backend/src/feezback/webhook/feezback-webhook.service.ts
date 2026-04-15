@@ -231,7 +231,6 @@ export class FeezbackWebhookService {
     // Resolve internal User entity — needed for source persistence and moduleAccess update.
     let user: User | null = null;
     try {
-      this.logger.debug(`${prefix} Looking up internal user firebaseId=${masked}`);
       user = await this.userRepository.findOne({ where: { firebaseId } });
       if (!user) {
         this.logger.warn(`${prefix} Internal user NOT found firebaseId=${masked}`);
@@ -262,7 +261,6 @@ export class FeezbackWebhookService {
         const sourceName = iban.trim().slice(-7);
         const feezbackResourceId: string | null = account?.resourceId ?? null;
 
-        this.logger.debug(`${prefix}[Account] Processing resourceId=${resourceId} iban=***${sourceName} sourceName=${sourceName}`);
 
         const existing = await this.sourceRepository.findOne({
           where: { userId: firebaseId, sourceName },
@@ -315,7 +313,6 @@ export class FeezbackWebhookService {
         const sourceName = last4Match[1];
         const feezbackResourceId: string | null = card?.resourceId ?? null;
 
-        this.logger.debug(`${prefix}[Card] Processing resourceId=${resourceId} maskedPan=***${sourceName} sourceName=${sourceName}`);
 
         const existing = await this.sourceRepository.findOne({
           where: { userId: firebaseId, sourceName },
