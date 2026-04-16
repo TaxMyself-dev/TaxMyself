@@ -37,11 +37,8 @@ export class FeezbackWebhookController {
         );
         return { success: true, ignored: true };
       }
-      this.logger.debug(`[FeezbackWebhook] Secret validated event=${eventType}`);
     } else {
-      this.logger.debug(
-        `[FeezbackWebhook] FEEZBACK_WEBHOOK_SECRET not configured — skipping validation event=${eventType}`,
-      );
+      // No secret configured — validation skipped (dev/staging environment)
     }
 
     // ACK immediately — heavy processing runs asynchronously.

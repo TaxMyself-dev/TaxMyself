@@ -47,35 +47,26 @@ export class FeezbackWebhookService {
       processingError: null,
     });
 
-    this.logger.debug(`[FeezbackWebhook] Inserting webhook event row eventType=${eventType} hash=${payloadHash}`);
-
     try {
       await this.webhookRepository.save(eventEntity);
-      this.logger.log(`[FeezbackWebhook] Webhook event row inserted id=${eventEntity.id} eventType=${eventType}`);
     } catch (error: any) {
       if (error?.code === 'ER_DUP_ENTRY' || error?.code === '23505') {
-        this.logger.log(`[FeezbackWebhook] Duplicate payload detected — skipping processing hash=${payloadHash} eventType=${eventType}`);
+        this.logger.log(`[FeezbackWebhook] Duplicate payload — skipping hash=${payloadHash} eventType=${eventType}`);
         return;
       }
-
       this.logger.error(`[FeezbackWebhook] Failed to persist event=${eventType}: ${error?.message}`, error?.stack);
       throw error;
     }
 
     try {
       await this.processEvent(eventEntity, body);
-      await this.webhookRepository.update(eventEntity.id, {
-        processedAt: new Date(),
-        processingError: null,
-      });
-      this.logger.debug(`[FeezbackWebhook] processedAt updated id=${eventEntity.id} eventType=${eventType}`);
+      await this.webhookRepository.update(eventEntity.id, { processedAt: new Date(), processingError: null });
     } catch (error: any) {
       this.logger.error(`[FeezbackWebhook] Error processing event=${eventType}: ${error?.message}`, error?.stack);
       await this.webhookRepository.update(eventEntity.id, {
         processedAt: new Date(),
         processingError: error?.message ?? 'Unknown error',
       });
-      this.logger.debug(`[FeezbackWebhook] processingError updated id=${eventEntity.id} eventType=${eventType}`);
       // Do not rethrow – webhook should still respond 200
     }
   }
@@ -93,25 +84,16 @@ export class FeezbackWebhookService {
         await this.handleUserDataIsAvailable(body);
         break;
       default:
-        this.logger.debug(`[FeezbackWebhook] Ignoring unsupported event type=${event.eventType}`);
+        this.logger.log(`[FeezbackWebhook] Ignoring unsupported event type=${event.eventType}`);
     }
   }
 
   private async handleConsentStatusChanged(body: FeezbackWebhookEventBody): Promise<void> {
-    console.log("🚀 ~ FeezbackWebhookService ~ handleConsentStatusChanged ~ body:", body);
     const payload = body?.payload as Record<string, any> | undefined;
     if (!payload) {
       this.logger.warn('[FeezbackWebhook][ConsentStatusChanged] Missing payload data');
       return;
     }
-
-    // Log raw identifiers before parsing
-    const rawContext = typeof payload.context === 'string'
-      ? payload.context.substring(0, 40) + (payload.context.length > 40 ? '...' : '')
-      : 'none';
-    this.logger.debug(
-      `[FeezbackWebhook][ConsentStatusChanged] Raw identifiers user=${payload.user ?? 'none'} tpp=${payload.tpp ?? 'none'} context=${rawContext}`,
-    );
 
     const consentId = typeof payload.consent === 'string' ? payload.consent : null;
     if (!consentId) {
@@ -127,18 +109,12 @@ export class FeezbackWebhookService {
     const sub = userIdentifier?.split('@')?.[0] || (parsedUser.firebaseId ? `${parsedUser.firebaseId}_sub` : null);
 
     let firebaseId = parsedUser.firebaseId;
-    let firebaseIdSource = 'payload.user';
     if (!firebaseId && typeof payload.context === 'string') {
       firebaseId = extractFirebaseIdFromContext(payload.context);
-      if (firebaseId) firebaseIdSource = 'payload.context (fallback)';
     }
 
     const tppId = parsedUser.tppId ?? (typeof payload.tpp === 'string' ? payload.tpp : null);
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
-
-    this.logger.log(
-      `[FeezbackWebhook][ConsentStatusChanged][Identifiers] firebaseId=${masked} source=${firebaseIdSource} sub=${sub ?? 'none'} tppId=${tppId ?? 'none'}`,
-    );
 
     if (!firebaseId || !tppId || !sub) {
       this.logger.warn(
@@ -150,10 +126,8 @@ export class FeezbackWebhookService {
     const now = new Date();
 
     try {
-      this.logger.debug(`[FeezbackWebhook][ConsentStatusChanged] Looking up consent row consentId=${consentId} tppId=${tppId}`);
       const consent = await this.consentService.findByConsentId(consentId, tppId);
       if (consent) {
-        this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] Consent found consentId=${consentId} — updating status to ${currentStatus ?? 'unchanged'}`);
         await this.consentService.updateConsent(consent, {
           status: currentStatus ?? consent.status,
           metaJson: payload,
@@ -170,7 +144,6 @@ export class FeezbackWebhookService {
     }
 
     try {
-      this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] Starting consent sync firebaseId=${masked} sub=${sub} tppId=${tppId}`);
       await this.consentSyncService.syncUserConsents(firebaseId, sub, tppId);
       this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] Consent sync completed firebaseId=${masked}`);
     } catch (error: any) {
@@ -188,28 +161,16 @@ export class FeezbackWebhookService {
       return;
     }
 
-    const rawContext = typeof payload.context === 'string'
-      ? payload.context.substring(0, 40) + (payload.context.length > 40 ? '...' : '')
-      : 'none';
-    this.logger.debug(
-      `[FeezbackWebhook][UserDataIsAvailable] Raw identifiers user=${payload.user ?? 'none'} tpp=${payload.tpp ?? 'none'} context=${rawContext}`,
-    );
-
     const userIdentifier = typeof payload.user === 'string' ? payload.user : null;
     const parsedUser = parseFeezbackUserIdentifier(userIdentifier, payload?.tpp || null);
     const sub = userIdentifier?.split('@')?.[0] || (parsedUser.firebaseId ? `${parsedUser.firebaseId}_sub` : null);
 
     let firebaseId = parsedUser.firebaseId;
-    let firebaseIdSource = 'payload.user';
     if (!firebaseId && typeof payload.context === 'string') {
       firebaseId = extractFirebaseIdFromContext(payload.context);
-      if (firebaseId) firebaseIdSource = 'payload.context (fallback)';
     }
 
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
-    this.logger.log(
-      `[FeezbackWebhook][UserDataIsAvailable][Identifiers] firebaseId=${masked} source=${firebaseIdSource} sub=${sub ?? 'none'}`,
-    );
 
     if (!firebaseId || !sub) {
       this.logger.warn(
@@ -228,26 +189,34 @@ export class FeezbackWebhookService {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
     const prefix = `[FeezbackSourceSync][${eventType}]`;
 
+    // Pre-mark sync as running immediately so the frontend polling sees 'running'
+    // even while sources are still being fetched/persisted below.
+    void this.feezbackService.markSyncRunning(firebaseId);
+
     // Resolve internal User entity — needed for source persistence and moduleAccess update.
     let user: User | null = null;
     try {
       user = await this.userRepository.findOne({ where: { firebaseId } });
       if (!user) {
         this.logger.warn(`${prefix} Internal user NOT found firebaseId=${masked}`);
-      } else {
-        this.logger.log(`${prefix} Internal user found firebaseId=${masked}`);
       }
     } catch (error: any) {
       this.logger.error(`${prefix} Failed to resolve user firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
+    const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
+
+    // Accumulators for clean summary print
+    const bankResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
+    const cardResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
+    let bankError: string | null = null;
+    let cardError: string | null = null;
+    let moduleAccessUpdated = false;
+
     // Fetch and persist bank accounts into sources table.
-    // NOTE: payload.fetchedAccounts is intentionally NOT used — always fetches fresh from Feezback API.
     try {
-      this.logger.log(`${prefix}[Account] Fetching accounts from Feezback API sub=${sub} (payload.fetchedAccounts NOT used)`);
       const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
       const accounts: any[] = accountsResponse?.accounts ?? [];
-      this.logger.log(`${prefix}[Account] Fetched ${accounts.length} account(s) firebaseId=${masked}`);
 
       for (const account of accounts) {
         const resourceId: string = account?.resourceId ?? 'unknown';
@@ -261,20 +230,17 @@ export class FeezbackWebhookService {
         const sourceName = iban.trim().slice(-7);
         const feezbackResourceId: string | null = account?.resourceId ?? null;
 
-
         const existing = await this.sourceRepository.findOne({
           where: { userId: firebaseId, sourceName },
         });
 
         if (existing) {
-          const resourceIdChanged = existing.feezbackResourceId !== feezbackResourceId;
-          const typeChanged = existing.sourceType !== SourceType.BANK_ACCOUNT;
           existing.feezbackResourceId = feezbackResourceId;
           existing.sourceType = SourceType.BANK_ACCOUNT;
           await this.sourceRepository.save(existing);
-          this.logger.log(`${prefix}[Account] Updated source id=${existing.id} sourceName=${sourceName} resourceIdChanged=${resourceIdChanged} typeChanged=${typeChanged}`);
+          bankResults.push({ sourceName, action: 'updated' });
         } else {
-          const created = await this.sourceRepository.save(
+          await this.sourceRepository.save(
             this.sourceRepository.create({
               userId: firebaseId,
               sourceName,
@@ -283,22 +249,18 @@ export class FeezbackWebhookService {
               bill: null,
             }),
           );
-          this.logger.log(`${prefix}[Account] Created source id=${created.id} sourceName=${sourceName} resourceId=${feezbackResourceId}`);
+          bankResults.push({ sourceName, action: 'created' });
         }
       }
-
-      this.logger.log(`${prefix}[Account] Sync complete — processed ${accounts.length} account(s) firebaseId=${masked}`);
     } catch (error: any) {
-      this.logger.error(`${prefix}[Account] Sync failed firebaseId=${masked}: ${error?.message}`, error?.stack);
+      bankError = error?.message ?? 'unknown';
+      this.logger.error(`${prefix}[Account] Sync failed firebaseId=${masked}: ${bankError}`, error?.stack);
     }
 
     // Fetch and persist credit cards into sources table.
-    // NOTE: payload.fetchedAccounts is intentionally NOT used — always fetches fresh from Feezback API.
     try {
-      this.logger.log(`${prefix}[Card] Fetching cards from Feezback API sub=${sub} (payload.fetchedAccounts NOT used)`);
       const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
       const cards: any[] = cardsResponse?.cards ?? [];
-      this.logger.log(`${prefix}[Card] Fetched ${cards.length} card(s) firebaseId=${masked}`);
 
       for (const card of cards) {
         const resourceId: string = card?.resourceId ?? 'unknown';
@@ -313,20 +275,17 @@ export class FeezbackWebhookService {
         const sourceName = last4Match[1];
         const feezbackResourceId: string | null = card?.resourceId ?? null;
 
-
         const existing = await this.sourceRepository.findOne({
           where: { userId: firebaseId, sourceName },
         });
 
         if (existing) {
-          const resourceIdChanged = existing.feezbackResourceId !== feezbackResourceId;
-          const typeChanged = existing.sourceType !== SourceType.CREDIT_CARD;
           existing.feezbackResourceId = feezbackResourceId;
           existing.sourceType = SourceType.CREDIT_CARD;
           await this.sourceRepository.save(existing);
-          this.logger.log(`${prefix}[Card] Updated source id=${existing.id} sourceName=${sourceName} resourceIdChanged=${resourceIdChanged} typeChanged=${typeChanged}`);
+          cardResults.push({ sourceName, action: 'updated' });
         } else {
-          const created = await this.sourceRepository.save(
+          await this.sourceRepository.save(
             this.sourceRepository.create({
               userId: firebaseId,
               sourceName,
@@ -335,13 +294,12 @@ export class FeezbackWebhookService {
               bill: null,
             }),
           );
-          this.logger.log(`${prefix}[Card] Created source id=${created.id} sourceName=${sourceName} resourceId=${feezbackResourceId}`);
+          cardResults.push({ sourceName, action: 'created' });
         }
       }
-
-      this.logger.log(`${prefix}[Card] Sync complete — processed ${cards.length} card(s) firebaseId=${masked}`);
     } catch (error: any) {
-      this.logger.error(`${prefix}[Card] Sync failed firebaseId=${masked}: ${error?.message}`, error?.stack);
+      cardError = error?.message ?? 'unknown';
+      this.logger.error(`${prefix}[Card] Sync failed firebaseId=${masked}: ${cardError}`, error?.stack);
     }
 
     // Ensure user.modulesAccess includes OPEN_BANKING, set hasOpenBanking=true,
@@ -353,23 +311,18 @@ export class FeezbackWebhookService {
         if (!user.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
           user.modulesAccess = [...(user.modulesAccess ?? []), ModuleName.OPEN_BANKING];
           dirty = true;
-          this.logger.log(`${prefix} Added OPEN_BANKING to modulesAccess firebaseId=${masked}`);
-        } else {
-          this.logger.debug(`${prefix} OPEN_BANKING already in modulesAccess firebaseId=${masked}`);
         }
 
         if (!user.hasOpenBanking) {
           user.hasOpenBanking = true;
           dirty = true;
-          this.logger.log(`${prefix} Set hasOpenBanking=true firebaseId=${masked}`);
         }
 
         if (dirty) {
           await this.userRepository.save(user);
-          this.logger.log(`${prefix} User saved after modulesAccess/hasOpenBanking update firebaseId=${masked}`);
+          moduleAccessUpdated = true;
         }
 
-        // Create OPEN_BANKING subscription record if not already present
         const existingOBSub = await this.moduleSubRepo.findOne({
           where: { firebaseId, moduleName: ModuleName.OPEN_BANKING },
         });
@@ -388,9 +341,6 @@ export class FeezbackWebhookService {
               createdAt: new Date(),
             }),
           );
-          this.logger.log(`${prefix} Created OPEN_BANKING subscription record firebaseId=${masked}`);
-        } else {
-          this.logger.debug(`${prefix} OPEN_BANKING subscription record already exists firebaseId=${masked}`);
         }
       } else {
         this.logger.warn(`${prefix} Skipping modulesAccess/hasOpenBanking update — user not found firebaseId=${masked}`);
@@ -399,9 +349,26 @@ export class FeezbackWebhookService {
       this.logger.error(`${prefix} Failed to update modulesAccess/hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
-    // Log #17 — trigger full transaction sync fire-and-forget
-    this.logger.log(`${prefix} Triggering fire-and-forget full sync firebaseId=${masked} eventType=${eventType}`);
-    // Log #15 (failure) is in the .catch below
+    // ── Consolidated summary print ────────────────────────────────────────────
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  SOURCE SYNC  (${eventType})`);
+    console.log(`  User : ${userName}`);
+    console.log(`════════════════════════════════════`);
+    if (bankError) {
+      console.log(`  ✗ Bank  — ERROR: ${bankError}`);
+    } else {
+      console.log(`  ✓ Bank  — ${bankResults.length} account(s)`);
+      bankResults.forEach(r => console.log(`      ${r.sourceName}  [${r.action}]`));
+    }
+    if (cardError) {
+      console.log(`  ✗ Cards — ERROR: ${cardError}`);
+    } else {
+      console.log(`  ✓ Cards — ${cardResults.length} card(s)`);
+      cardResults.forEach(r => console.log(`      ${r.sourceName}  [${r.action}]`));
+    }
+    if (moduleAccessUpdated) console.log(`  ✓ Module access updated`);
+    console.log(`════════════════════════════════════\n`);
+
     void this.feezbackService.triggerFullSync(firebaseId, 'webhook')
       .catch(err => this.logger.error(`${prefix} triggerFullSync failed firebaseId=${masked}`, err?.stack ?? err));
   }

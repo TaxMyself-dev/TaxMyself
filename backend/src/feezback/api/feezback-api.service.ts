@@ -147,6 +147,10 @@ export class FeezbackApiService {
       url.searchParams.set('dateTo', dateTo);
     }
 
+    // Always use Feezback's cached data — prevents triggering a redundant ASPSP
+    // refresh that causes 429 "Refresh Account task is already in progress".
+    url.searchParams.set('preventUpdate', 'true');
+
     return url;
   }
 

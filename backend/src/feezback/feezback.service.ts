@@ -1354,6 +1354,18 @@ export class FeezbackService {
    * Safe to call concurrently from login, webhook, and manual triggers: a per-user
    * in-flight guard returns the existing promise if a sync is already running for that user.
    */
+
+  /**
+   * Pre-mark the sync state as 'running' before source processing begins.
+   * Called by the webhook handler immediately upon receiving a UserDataIsAvailable / ConsentStatusChanged
+   * event so the frontend polling sees 'running' even while sources are still being resolved.
+   */
+  async markSyncRunning(firebaseId: string): Promise<void> {
+    await this.userSyncStateService.markQuickRunning(firebaseId, 'webhook').catch(err => {
+      this.logger.error(`[WebhookPreMark] Failed to pre-mark running | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
+    });
+  }
+
   async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
 
@@ -1392,7 +1404,6 @@ export class FeezbackService {
 
     const promise = this.doFullSync(firebaseId, triggeredBy, masked, preSyncState).finally(() => {
       this.runningFullSyncByUser.delete(firebaseId);
-      this.logger.debug(`[FullSync] In-flight map cleanup done | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
     });
 
     this.runningFullSyncByUser.set(firebaseId, promise);
@@ -1529,6 +1540,72 @@ export class FeezbackService {
       const today = new Date();
       const fmt = (d: Date): string => d.toISOString().split('T')[0];
 
+      const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
+      const tTotal = Date.now();
+
+      // ── Webhook sync: single full pass (today → 1 year back) ─────────────────
+      if (triggeredBy === 'webhook') {
+        const webhookFrom = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+        const webhookTo   = fmt(today);
+
+        console.log(`\n════════════════════════════════════`);
+        console.log(`  WEBHOOK SYNC`);
+        console.log(`  User : ${userName}`);
+        console.log(`  Dates: ${webhookFrom} → ${webhookTo}`);
+        console.log(`════════════════════════════════════`);
+        const tPullW = Date.now();
+        const [bankResW, cardResW] = await Promise.all([
+          this.getAndSaveBankTransactions(firebaseId, sub, 'booked', webhookFrom, webhookTo)
+            .catch(e => { this.logger.error(`[WebhookSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+          this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', webhookFrom, webhookTo, undefined)
+            .catch(e => { this.logger.error(`[WebhookSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+        ]);
+        console.log(`  ✓ Bank — ${((bankResW?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankResW?.normalizedTransactions?.length ?? 0}`);
+        console.log(`  ✓ Card — ${((cardResW?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardResW?.normalizedTransactions?.length ?? 0}`);
+        console.log(`  ✓ Total pull — ${((Date.now() - tPullW) / 1000).toFixed(2)}s\n`);
+
+        const webhookPhase = this.computePhaseStatus(bankResW, cardResW);
+        let webhookRowsWritten = 0;
+        let webhookProcessStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
+
+        if (!webhookPhase.hasErrors) {
+          if (webhookPhase.normalizedTransactions.length > 0) {
+            console.log(`════════════════════════════════════`);
+            console.log(`  WEBHOOK SYNC — Process transactions`);
+            console.log(`  Count: ${webhookPhase.normalizedTransactions.length}`);
+            console.log(`════════════════════════════════════`);
+            const tDbW = Date.now();
+            const pr = await this.processingService.process(firebaseId, webhookPhase.normalizedTransactions);
+            webhookRowsWritten = pr.newlySavedToCache;
+            console.log(`  ✓ Process done — ${((Date.now() - tDbW) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
+            webhookProcessStatus = 'completed';
+          } else {
+            console.log(`  ℹ Webhook sync — no transactions in date range\n`);
+            webhookProcessStatus = 'completed';
+          }
+        } else {
+          this.logger.warn(`[WebhookSync] Pull had errors — skipping persist | errors=${JSON.stringify(webhookPhase.diagnostics.errors)}`);
+          webhookProcessStatus = 'failed';
+        }
+
+        console.log(`════════════════════════════════════`);
+        console.log(`  WEBHOOK SYNC COMPLETE — ${webhookProcessStatus === 'completed' ? '✅ OK' : '⚠️  ERRORS'}`);
+        console.log(`  Saved: ${webhookRowsWritten} | Total: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
+        console.log(`════════════════════════════════════\n`);
+
+        // Write both quick and full state so frontend polling resolves correctly
+        await this.userSyncStateService.markQuickFinished(
+          firebaseId, webhookProcessStatus, webhookPhase.resultStatus, webhookRowsWritten,
+          webhookPhase.hasErrors ? webhookPhase.diagnostics.errors.join(', ') : undefined,
+        ).catch(err => this.logger.error(`[WebhookSync] Failed to write quickFinished state | error=${err?.message}`));
+        await this.userSyncStateService.markFullFinished(
+          firebaseId, webhookProcessStatus, webhookPhase.resultStatus, 0,
+          webhookPhase.hasErrors ? webhookPhase.diagnostics.errors.join(', ') : undefined,
+        ).catch(err => this.logger.error(`[WebhookSync] Failed to write fullFinished state | error=${err?.message}`));
+        return;
+      }
+
+      // ── Quick sync (Pull 1): current month + previous 2 full calendar months ──
       const pull1FromDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
       const pull1From = fmt(pull1FromDate);
       const pull1To   = fmt(today);
@@ -1536,10 +1613,6 @@ export class FeezbackService {
       // One day before pull1From — ensures zero overlap between the two pulls.
       const pull2To   = fmt(new Date(pull1FromDate.getTime() - 24 * 60 * 60 * 1000));
 
-      const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
-
-      // ── Quick sync (Pull 1): current month + previous 2 full calendar months ────
-      const tTotal = Date.now();
       console.log(`\n════════════════════════════════════`);
       console.log(`  QUICK SYNC`);
       console.log(`  User : ${userName}`);

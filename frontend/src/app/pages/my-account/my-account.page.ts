@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DialogService } from 'primeng/dynamicdialog';
 import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile } from 'rxjs';
 import { AccountAssociationDialogComponent } from 'src/app/components/account-association-dialog/account-association-dialog.component';
@@ -49,6 +50,7 @@ import { MessageService } from 'primeng/api';
     AddBillComponent,
     ClassifyTranComponent,
     AddCategoryComponent,
+    ProgressSpinnerModule,
   ],
   providers: [DialogService]
 })
@@ -87,7 +89,7 @@ export class MyAccountPage implements OnInit {
 
   // Feezback onboarding dialog (shown only when arriving from Feezback URL)
   feezbackDialogVisible = signal<boolean>(false);
-  feezbackDialogStatus = signal<'success' | 'failure' | null>(null);
+  feezbackDialogStatus = signal<'loading' | 'success' | 'failure' | null>(null);
   feezbackDialogTitle = signal<string>('');
   feezbackDialogMessage = signal<string>('');
 
@@ -224,9 +226,8 @@ export class MyAccountPage implements OnInit {
     });
 
     if (status === 'success') {
-      this.feezbackDialogStatus.set('success');
-      this.feezbackDialogTitle.set('איזה כיף שהצטרפת לבנקאות הפתוחה!');
-      this.feezbackDialogMessage.set('ברגעים אלו אנו מושכים את התנועות שלך...');
+      this.feezbackDialogStatus.set('loading');
+      this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
       this.feezbackDialogVisible.set(true);
 
       // Optimistically mark user as connected so the UI updates immediately
@@ -246,6 +247,7 @@ export class MyAccountPage implements OnInit {
   }
 
   closeFeezbackDialog(): void {
+    if (this.feezbackDialogStatus() === 'loading') return;
     this.feezbackDialogVisible.set(false);
     this.feezbackDialogStatus.set(null);
     this.feezbackDialogTitle.set('');
@@ -278,13 +280,14 @@ export class MyAccountPage implements OnInit {
     this.restartPolling$.next();
 
     let hasFetched = false;
+    let seenRunning = false;
 
     this.syncStatusService.getSyncStageStream()
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          stageState => !stageState || stageState.processStatus === 'running',
+          stageState => !stageState || stageState.processStatus === 'running' || !seenRunning,
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -304,16 +307,27 @@ export class MyAccountPage implements OnInit {
         console.log(`[MyAccount] poll status=${status} skipReason=${stageState.skipReason} hasFetched=${hasFetched}`);
 
         if (status === 'running') {
+          seenRunning = true;
           this.syncProcessStatus.set('running');
         } else if (status === 'completed') {
+          if (!seenRunning) return; // stale state from a previous sync — keep polling
           this.syncProcessStatus.set(null);
+          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
+            this.feezbackDialogStatus.set('success');
+            this.feezbackDialogTitle.set('הפעולה הסתיימה בהצלחה');
+          }
           if (!hasFetched) {
             hasFetched = true;
             this.getTransToClassify();
           }
         } else if (status === 'failed') {
+          if (!seenRunning) return; // stale state from a previous sync — keep polling
           this.syncProcessStatus.set('failed');
           this.transToClassify = of([]);
+          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
+            this.feezbackDialogStatus.set('failure');
+            this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+          }
         }
       });
   }

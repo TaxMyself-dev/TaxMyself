@@ -4,13 +4,30 @@
         <div class="feezback-dialog" (click)="$event.stopPropagation()">
           <div class="feezback-dialog-header">
             <h2 class="feezback-dialog-title">{{ feezbackDialogTitle() }}</h2>
-            <button class="feezback-dialog-close" (click)="closeFeezbackDialog()" aria-label="סגור">
-              <i class="pi pi-times"></i>
-            </button>
+            @if (feezbackDialogStatus() !== 'loading') {
+              <button class="feezback-dialog-close" (click)="closeFeezbackDialog()" aria-label="סגור">
+                <i class="pi pi-times"></i>
+              </button>
+            }
           </div>
 
+          @if (feezbackDialogStatus() === 'loading') {
+            <p class="feezback-dialog-message">
+              אנו מסנכרנים את הנתונים שלך, הפעולה עשויה לקחת עד דקה...
+            </p>
+            <div class="feezback-dialog-spinner">
+              <p-progressSpinner strokeWidth="4" styleClass="feezback-spinner"></p-progressSpinner>
+            </div>
+          }
+
           @if (feezbackDialogStatus() === 'success') {
-            <p class="feezback-dialog-message">{{ feezbackDialogMessage() }}</p>
+            <p class="feezback-dialog-message">הנתונים שלך מוכנים לצפייה</p>
+            <app-p-button
+              [buttonText]="'סגור'"
+              [buttonSize]="buttonSize.BIG"
+              [buttonColor]="buttonColor.BLACK"
+              (onButtonClicked)="closeFeezbackDialog()">
+            </app-p-button>
           }
 
           @if (feezbackDialogStatus() === 'failure') {
