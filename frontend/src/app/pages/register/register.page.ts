@@ -5,9 +5,10 @@ import { IonicModule } from '@ionic/angular';
 import { RegisterService } from './register.service';
 import { IRegisterLoginImage, ISelectItem } from 'src/app/shared/interface';
 import { AuthService } from 'src/app/services/auth.service';
+import { GenericService } from 'src/app/services/generic.service';
 import { Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
-import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
+import { catchError, EMPTY, finalize, from, map, startWith, Subject, switchMap, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
 import { businessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
@@ -112,13 +113,15 @@ export class RegisterPage implements OnInit, OnDestroy {
   registerPictureSubText = signal<string>("כל תיעוד ההכנסות וההוצאות מגובה בענן מוכן לשליחה, הורדה, או סתם לומר שלום")
   requierdField: boolean = process.env.NODE_ENV !== 'production' ? false : true;
   // requierdField: boolean = true;
+  isGoogleUser = false;
+  isGoogleLoading = signal<boolean>(false);
 
 matchRegisterImage = computed(() => {
   const currentModule = this.selectedFormModule();
   return this.registerImages.find(image => image.page === currentModule);
 })
 
-  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService) {
+  constructor(private router: Router, public authService: AuthService, private formBuilder: FormBuilder, private registerService: RegisterService, private messageService: MessageService, private genericService: GenericService) {
     effect(() => {
       const currentModule = this.selectedFormModule();
       switch (currentModule) {
@@ -440,6 +443,37 @@ matchRegisterImage = computed(() => {
     items.removeAt(index);
   }
 
+  async googleSignIn(): Promise<void> {
+    this.isGoogleLoading.set(true);
+    try {
+      const { isNewUser, userData, googleUser } = await this.authService.signInWithGoogle();
+      if (!isNewUser) {
+        sessionStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userData', JSON.stringify(userData));
+        await this.genericService.loadBusinessesFromServer();
+        this.router.navigate(['/my-account']);
+        return;
+      }
+      const nameParts = (googleUser.displayName || '').split(' ');
+      this.personalForm.patchValue({
+        fName: nameParts[0] || '',
+        lName: nameParts.slice(1).join(' ') || '',
+        email: googleUser.email || '',
+      });
+      this.isGoogleUser = true;
+      this.personalForm.get('password').clearValidators();
+      this.personalForm.get('password').updateValueAndValidity();
+      this.personalForm.get('confirmPassword').clearValidators();
+      this.personalForm.get('confirmPassword').updateValueAndValidity();
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'שגיאה בהתחברות עם גוגל, נסה שוב', sticky: true, key: 'br' });
+      }
+    } finally {
+      this.isGoogleLoading.set(false);
+    }
+  }
+
   handleFormRegister() {
     this.authService.error.set(null);
     const formData = cloneDeep(this.myForm.value);
@@ -468,34 +502,43 @@ matchRegisterImage = computed(() => {
     formData.validation = { password: formData?.personal?.password };
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
-    this.authService.SignUp(formData)
-    .pipe(
-      catchError((error) => {
-        console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
-        const errMessage = this.authService.getSignupErrorMessage(error.code);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: errMessage,
-          sticky: true,
-          key: 'br'
-        })
-        return EMPTY;
-      }),
-      finalize(() => {
-        this.isLoading.set(false);
-      })
-    )
-    .subscribe(() => {
-      // this.router.navigate(['login'], { queryParams: { from: 'register', user: formData?.personal?.password } })
-      this.router.navigate(['/login'], {
-        state: {
-          from: 'register',
-          email: formData?.personal?.email,
-          password: formData?.personal?.password
-        }
-      });
-    })
+
+    if (this.isGoogleUser) {
+      this.authService.SignUpWithGoogle(formData)
+        .pipe(
+          catchError((error) => {
+            console.log("🚀 ~ RegisterPage ~ handleFormRegister (Google) ~ error:", error);
+            const errMessage = this.authService.getSignupErrorMessage(error.code);
+            this.messageService.add({ severity: 'error', summary: 'Error', detail: errMessage, sticky: true, key: 'br' });
+            return EMPTY;
+          }),
+          switchMap(() => this.authService.signIn()),
+          tap((res: any) => {
+            sessionStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('userData', JSON.stringify(res));
+          }),
+          switchMap(() => from(this.genericService.loadBusinessesFromServer())),
+          tap(() => this.router.navigate(['/my-account'])),
+          finalize(() => this.isLoading.set(false))
+        )
+        .subscribe();
+    } else {
+      this.authService.SignUp(formData)
+        .pipe(
+          catchError((error) => {
+            console.log("🚀 ~ RegisterPage ~ handleFormRegister ~ error:", error);
+            const errMessage = this.authService.getSignupErrorMessage(error.code);
+            this.messageService.add({ severity: 'error', summary: 'Error', detail: errMessage, sticky: true, key: 'br' });
+            return EMPTY;
+          }),
+          finalize(() => this.isLoading.set(false))
+        )
+        .subscribe(() => {
+          this.router.navigate(['/login'], {
+            state: { from: 'register', email: formData?.personal?.email, password: formData?.personal?.password }
+          });
+        });
+    }
   }
 
   onBackBtnClicked(): void {
