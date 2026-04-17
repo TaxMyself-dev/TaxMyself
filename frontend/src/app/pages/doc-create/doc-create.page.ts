@@ -162,7 +162,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   showInitialIndexDialog = true;
   editingLineIndex = signal<number | null>(null); // Track which line is being edited
 
-  activePaymentMethod: MenuItem = this.paymentMethodOptions.find(m => m.id === 'CREDIT_CARD') ?? this.paymentMethodOptions[0];
+  activePaymentMethod: MenuItem = this.paymentMethodOptions.find(m => m.id === 'BANK_TRANSFER') ?? this.paymentMethodOptions[0];
 
   paymentInputForm: FormGroup;  // Holds the active entry row
   paymentsDraft = signal([]);     // Stores all added payments
@@ -298,6 +298,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
         this.showBusinessSelector = true;
       }
     }
+
+    // Re-create payment form now that docDate is set in generalDetailsForm
+    const initDocDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? new Date();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, initDocDate);
 
     this.generalDetailsForm.statusChanges.subscribe(() => {
       this.generalFormIsValidSignal.set(this.generalDetailsForm.valid);
@@ -723,7 +727,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   private resetDocFormsAndDrafts(): void {
     this.generalDetailsForm.reset({
       [DocCreateFields.DOC_VAT_RATE]: 18,
-      [FieldsCreateDocValue.DOC_DATE]: new Date()
+      [FieldsCreateDocValue.DOC_DATE]: new Date(),
+      businessNumber: this.selectedBusinessNumber ?? null,
     });
 
     this.userDetailsForm.reset();
@@ -735,13 +740,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     this.initialIndexForm.reset();
 
-    // Use the cached date so we don't read from a reset control
-    this.paymentInputForm.reset({
-      [fieldLineDocValue.PAYMENT_DATE]: this.generalDetailsForm?.get('docDate')?.value
-    });
+    // Reset payment method to default and re-create form with today's date
+    this.activePaymentMethod = this.paymentMethodOptions.find(m => m.id === 'BANK_TRANSFER') ?? this.paymentMethodOptions[0];
+    const resetDocDate = this.generalDetailsForm?.get('docDate')?.value ?? new Date();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, resetDocDate);
 
     this.lineItemsDraft.set([]);
     this.paymentsDraft.set([]);
+    this.totalPayments.set(0);
+    this.totalAmount.set(0);
 
     this.isFileSelected.set(false);
     // this.HebrewNameFileSelected = null;
@@ -1225,7 +1232,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     // Apply default values based on current doc context
     if (this.paymentInputForm.get('paymentDate')) {
-      this.paymentInputForm.get('paymentDate')?.setValue(docDate);
+      // Normalize to Date object — dataType="date" requires a Date, not a string
+      const dateValue = docDate instanceof Date ? docDate : (docDate ? new Date(docDate) : new Date());
+      this.paymentInputForm.get('paymentDate')?.setValue(isNaN(dateValue.getTime()) ? new Date() : dateValue);
     }
     if (this.paymentInputForm.get('sum')) {
       this.paymentInputForm.get('sum')?.setValue(sum);
@@ -1383,6 +1392,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   deletePayment(index: number): void {
     this.paymentsDraft.update(items => items.filter((_, i) => i !== index));
     this.totalPayments.set(this.paymentsDraft().reduce((total, payment) => total + Number(payment.paymentSum), 0));
+    const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value ?? new Date();
+    this.createPaymentInputForm(this.activePaymentMethod.id as string, docDate);
     this.setSumInPaymentForm();
   }
 
