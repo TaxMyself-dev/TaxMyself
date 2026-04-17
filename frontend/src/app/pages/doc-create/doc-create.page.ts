@@ -816,6 +816,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
 
+  /** Formats a Date to YYYY-MM-DD using local timezone (avoids UTC-shift bug in prod). */
+  private toLocalDateString(d: Date | string | null | undefined): string | null {
+    if (!d) return null;
+    const date = d instanceof Date ? d : new Date(d);
+    if (isNaN(date.getTime())) return null;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  }
+
   buildDocPayload(): DocPayload {
     if (!this.createDocIsValid()) {
       throw new Error('Cannot collect document data: forms are invalid or incomplete.');
@@ -829,7 +840,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const generalDocIndex = this.docIndexes.generalIndex;
     const issuerBusinessNumber = this.selectedBusinessNumber;
     const docDescription = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DESCRIPTION)?.value;
-    const docDate = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null;
+    const docDate = this.toLocalDateString(this.generalDetailsForm.get(FieldsCreateDocValue.DOC_DATE)?.value ?? null);
     // Use allocationNumber from signal if available, otherwise fall back to allocationNum
     const allocationNum = this.allocationNumber() ?? this.allocationNum ?? null;
     const docSubtitle = this.docSubtitle ?? null;
@@ -874,7 +885,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     docPayload = {
       docData,
       linesData: this.lineItemsDraft(),
-      paymentData: this.paymentsDraft(),
+      paymentData: this.paymentsDraft().map(p => ({ ...p, paymentDate: this.toLocalDateString(p.paymentDate) })),
     };
 
     return docPayload;
@@ -2130,8 +2141,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     const totals = this.documentTotals();
     const docType = this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.value;
 
-    // Format date to YYYY-MM-DD
-    const formattedDate = docDate ? new Date(docDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    // Format date to YYYY-MM-DD using local timezone (avoids UTC-shift in prod)
+    const formattedDate = this.toLocalDateString(docDate) ?? this.toLocalDateString(new Date());
 
     // Map document type to invoice_type (you may need to adjust this mapping)
     const invoiceType = this.mapDocTypeToInvoiceType(docType);

@@ -1372,13 +1372,6 @@ export class FeezbackService {
     // Log #1 — requested
     this.logger.log(`[FullSync] Requested | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
-    // Dev-only gate — FEEZBACK_MANUAL_SYNC_ONLY=true disables automatic syncs (login/webhook) in non-production.
-    // Admin-panel pulls use getAndSaveBankTransactions directly and are not affected.
-    if (process.env.NODE_ENV !== 'production' && process.env.FEEZBACK_MANUAL_SYNC_ONLY === 'true' && triggeredBy !== 'manual') {
-      this.logger.log(`[FullSync] Skipped — FEEZBACK_MANUAL_SYNC_ONLY=true (dev only) | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
-      return;
-    }
-
     // In-flight guard — reuse existing promise if sync is already running
     const existing = this.runningFullSyncByUser.get(firebaseId);
     if (existing) {

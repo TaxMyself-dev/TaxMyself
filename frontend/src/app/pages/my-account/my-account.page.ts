@@ -287,7 +287,13 @@ export class MyAccountPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          stageState => !stageState || stageState.processStatus === 'running' || !seenRunning,
+          stageState => {
+            if (!stageState || stageState.processStatus === 'running') return true;
+            // When the Feezback dialog is waiting for a fresh sync, ignore stale terminal
+            // states until we've seen at least one 'running' poll from the new sync.
+            if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading' && !seenRunning) return true;
+            return false;
+          },
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -310,7 +316,8 @@ export class MyAccountPage implements OnInit {
           seenRunning = true;
           this.syncProcessStatus.set('running');
         } else if (status === 'completed') {
-          if (!seenRunning) return; // stale state from a previous sync — keep polling
+          // If dialog is open and waiting, ignore until we've seen a fresh 'running' first
+          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading' && !seenRunning) return;
           this.syncProcessStatus.set(null);
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
             this.feezbackDialogStatus.set('success');
@@ -321,7 +328,7 @@ export class MyAccountPage implements OnInit {
             this.getTransToClassify();
           }
         } else if (status === 'failed') {
-          if (!seenRunning) return; // stale state from a previous sync — keep polling
+          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading' && !seenRunning) return;
           this.syncProcessStatus.set('failed');
           this.transToClassify = of([]);
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {

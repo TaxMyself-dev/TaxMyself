@@ -34,9 +34,7 @@ export class UsersController {
         const user = await this.userService.signin(userId);
 
         // Fire-and-forget — do not block the login response.
-        // Pull 1 (short window) runs first; Pull 2 (12-month backfill) starts
-        // only after Pull 1 fully resolves.
-        this.triggerPostLoginSync(userId);
+        this.triggerPostLoginSync(userId, user);
 
         return user;
     }
@@ -113,24 +111,21 @@ export class UsersController {
       return this.userService.getAllUsers();
     }
 
-    /**
-     * Delegates to the shared FeezbackService.triggerFullSync orchestration.
-     * All pull logic, date-range computation, logging, and dedup now live there.
-     */
-    private triggerPostLoginSync(firebaseId: string): void {
-        const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
-        console.log(`\n🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        console.log(`🔐 [PostLoginSync] Login detected — firing Feezback sync`);
-        console.log(`🔐 [PostLoginSync] firebaseId=${masked}`);
-        console.log(`🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+    private triggerPostLoginSync(firebaseId: string, user?: any): void {
+        const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
+        const hasOpenBanking = !!user?.hasOpenBanking;
+
+        console.log(`\n════════════════════════════════════`);
+        console.log(`  LOGIN`);
+        console.log(`  User : ${userName}`);
+        console.log(`  Open Banking : ${hasOpenBanking ? '✓ connected — starting sync' : '✗ not connected'}`);
+        console.log(`════════════════════════════════════\n`);
+
+        if (!hasOpenBanking) return;
 
         void this.feezbackService.triggerFullSync(firebaseId, 'login')
-            .then(() => {
-                console.log(`\n✅ [PostLoginSync] triggerFullSync resolved | firebaseId=${masked}\n`);
-            })
             .catch(err => {
-                console.error(`\n❌ [PostLoginSync] triggerFullSync threw | firebaseId=${masked} | error=${err?.message}`);
-                this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err);
+                this.logger.error(`[Login] triggerFullSync failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
             });
     }
 }
