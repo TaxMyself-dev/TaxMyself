@@ -1,4 +1,5 @@
 import { IsNumber, IsString, IsOptional, IsBoolean, ValidateIf, IsDate, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ClassifyTransactionDto {
 
@@ -54,10 +55,12 @@ export class ClassifyTransactionDto {
   endDate?: Date;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   minSum?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   maxSum?: number;
 

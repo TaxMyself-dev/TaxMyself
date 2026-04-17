@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Request } from 'express';
-import axios, { AxiosHeaders } from 'axios';
-
-type WebhookTarget = 'dev' | 'prod';
+import axios from 'axios';
 
 @Injectable()
 export class FeezbackWebhookRouterService {
@@ -18,58 +16,47 @@ export class FeezbackWebhookRouterService {
         // but fallback to parsed body for normal JSON posting.
         const payload = (req as any).rawBody ?? req.body;
 
+        const eventType = (payload as any)?.event ?? 'unknown';
         const startedAt = Date.now();
         this.logger.log(
-            `Webhook router: forwarding -> ${targetUrl} | target=${process.env.FEEZBACK_WEBHOOK_TARGET ?? 'missing'}`,
+            `[WebhookRouter] Forwarding | event=${eventType} | url=${targetUrl}`,
         );
 
         try {
-            // Important: keep timeout sensible so we don't hang on network issues.
-            await axios.post(targetUrl, payload, {
+            const response = await axios.post(targetUrl, payload, {
                 headers,
-                timeout: Number(process.env.FEEZBACK_WEBHOOK_FORWARD_TIMEOUT_MS ?? 10_000),
-                // If payload is raw Buffer, axios will send it as-is.
-                // If payload is object, axios will JSON stringify.
+                timeout: Number(process.env.FEEZBACK_WEBHOOK_FORWARD_TIMEOUT_MS ?? 30_000),
                 validateStatus: () => true, // don't throw on non-2xx; we will log it
             });
 
-            this.logger.log(
-                `Webhook router: forwarded OK (${Date.now() - startedAt}ms) -> ${targetUrl}`,
-            );
+            const elapsed = Date.now() - startedAt;
+            if (response.status >= 400) {
+                this.logger.error(
+                    `[WebhookRouter] Forward failed | status=${response.status} | url=${targetUrl} | event=${eventType} | elapsed=${elapsed}ms`,
+                );
+            } else {
+                this.logger.log(
+                    `[WebhookRouter] Forward success | status=${response.status} | url=${targetUrl} | event=${eventType} | elapsed=${elapsed}ms`,
+                );
+            }
         } catch (err: any) {
             this.logger.error(
-                `Webhook router: forward FAILED (${Date.now() - startedAt}ms) -> ${targetUrl}`,
+                `[WebhookRouter] Forward threw (network error) | url=${targetUrl} | event=${eventType} | elapsed=${Date.now() - startedAt}ms | error=${err?.message}`,
                 err?.stack || String(err),
             );
         }
     }
 
     private resolveTargetUrl(): string | null {
-        const target = (process.env.FEEZBACK_WEBHOOK_TARGET ?? '').trim().toLowerCase() as WebhookTarget;
-
-        const devUrl = process.env.DEV_WEBHOOK_URL?.trim();
         const prodUrl = process.env.PROD_WEBHOOK_URL?.trim();
 
-        if (target !== 'dev' && target !== 'prod') {
+        if (!prodUrl) {
             this.logger.error(
-                `Missing/invalid FEEZBACK_WEBHOOK_TARGET. Expected "dev" or "prod", got "${process.env.FEEZBACK_WEBHOOK_TARGET}".`,
+                '[WebhookRouter] PROD_WEBHOOK_URL is not configured — cannot forward webhook.',
             );
             return null;
         }
 
-        if (target === 'dev') {
-            if (!devUrl) {
-                this.logger.error('FEEZBACK_WEBHOOK_TARGET=dev but DEV_WEBHOOK_URL is missing.');
-                return null;
-            }
-            return devUrl;
-        }
-
-        // target === 'prod'
-        if (!prodUrl) {
-            this.logger.error('FEEZBACK_WEBHOOK_TARGET=prod but PROD_WEBHOOK_URL is missing.');
-            return null;
-        }
         return prodUrl;
     }
 

@@ -107,7 +107,6 @@ export class AppComponent implements OnInit {
       this.showTopNav.set(!(['/login', '/register'].includes(url)));
       // עדכון תפריט (כולל משרד לרואה חשבון) בכל ניווט – כך שהטאב יופיע גם אחרי כניסה מהדף לוגין
       const userFromStorage = this.authService.getUserDataFromLocalStorage();
-      console.log('[משרד] NavigationEnd – userFromStorage:', userFromStorage ? { role: userFromStorage.role, email: userFromStorage.email } : null);
       if (userFromStorage) {
         this.userData = userFromStorage;
         this.updateAdminMenuItems();
@@ -144,22 +143,6 @@ export class AppComponent implements OnInit {
   getRoleUser(): void {
     this.isUserAdmin = this.userData?.role?.includes('ADMIN') || false;
     this.isAccountant = this.userData?.role?.includes('ACCOUNTANT') || false;
-    console.log('[משרד] getRoleUser – isAccountant:', this.isAccountant, 'role:', this.userData?.role);
-
-    // if (this.userData?.role === 'ADMIN') {
-    //   this.isUserAdmin = true;
-    // }
-    // else {
-    //   this.isUserAdmin = false
-    // }
-
-    // if (this.userData?.role === 'ACCOUNTANT') {
-    //   this.isAccountant = true;
-    // }
-    // else {
-    //   this.isAccountant = false
-    // }
-
   }
 
   openCloseLogOutPopup() {
@@ -175,15 +158,7 @@ export class AppComponent implements OnInit {
         takeUntil(this.destroy$)
       )
       .subscribe()
-    // const modal = await this.modalCtrl.create({
-    //   component: ModalExpensesComponent,
-    //   componentProps: {
-    //     columns: this.columns,
-    //     data: {},
-    //   },
-    //   cssClass: 'expense-modal'
-    // })
-    // await modal.present();
+
   }
 
   async signOut() {
@@ -242,7 +217,6 @@ export class AppComponent implements OnInit {
 
   async restoreSessionAfterRefresh() {
     const userData = this.authService.getUserDataFromLocalStorage();
-    console.log('[משרד] restoreSessionAfterRefresh – userData:', userData ? { role: userData.role, email: userData.email } : null);
     if (userData) {
       this.userData = userData;
       // Update admin menu items after userData is set
@@ -253,7 +227,6 @@ export class AppComponent implements OnInit {
 
   updateAdminMenuItems(): void {
     const role = this.userData?.role;
-    console.log('[משרד] updateAdminMenuItems – userData.role:', role, 'type:', typeof role, 'includes ACCOUNTANT:', role != null && (Array.isArray(role) ? role.includes('ACCOUNTANT') : String(role).includes('ACCOUNTANT')));
 
     // Remove role-based items so we can re-add according to current user
     this.menuItems = this.menuItems.filter(
@@ -270,9 +243,6 @@ export class AppComponent implements OnInit {
       if (!this.menuItems.some((item) => item.label === 'משרד')) {
         this.menuItems.push({ label: 'משרד', routerLink: '/client-panel' });
       }
-      console.log('[משרד] הוספת טאב משרד – menuItems אחרי עדכון:', this.menuItems.map((m) => m.label));
-    } else {
-      console.log('[משרד] לא הוספנו משרד – role לא מכיל ACCOUNTANT. תפריט סופי:', this.menuItems.map((m) => m.label));
     }
   }
 

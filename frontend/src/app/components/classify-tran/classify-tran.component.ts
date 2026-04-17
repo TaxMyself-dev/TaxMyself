@@ -7,6 +7,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
 import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
 import { IRowDataTable, ISelectItem, ISubCategory } from 'src/app/shared/interface';
@@ -43,6 +44,7 @@ export class ClassifyTranComponent implements OnInit {
   confirmationService = inject(ConfirmationService);
   transactionService = inject(TransactionsService);
   expenseDataService = inject(ExpenseDataService);
+  authService = inject(AuthService);
   formBuilder = inject(FormBuilder);
 
   // Inputs / Outputs
@@ -53,12 +55,20 @@ export class ClassifyTranComponent implements OnInit {
   openAddSubCategoryClicked = output<{ state: boolean; subCategoryMode: boolean; data: IRowDataTable; category: string }>();
   rowData = input<IRowDataTable>();
 
+  /** Subtitle: business name in quotes when classifying a row, else default description. */
+  classifyPanelSubtitle = computed(() => {
+    const name = this.rowData()?.['name'];
+    return name ? `"${name}"` : 'מיפוי העסקאות שלך מאפשר סדר והפקת דוחות תקינים למע\'\'מ ומס הכנסה';
+  });
+
   // Signals
   isLoading = signal<boolean>(false);
   categoryList = signal<ISelectItem[]>([]);
   groupedSubCategory = signal([{ label: '', items: [] }]);
   originalSubCategoryList = signal<ISubCategory[]>([]);
   selectedSubCategory = signal<ISubCategory | null>(null);
+  /** Toggle to force subcategory select to re-create after list refresh (fixes selection of newly added subcategory). */
+  showSubCategorySelect = signal(true);
   showAdvancedSection = signal(false);
 
   // UI constants
@@ -122,7 +132,7 @@ export class ClassifyTranComponent implements OnInit {
       this.transactionService.categoryListRefreshTrigger();
       const categoryName = this.myForm?.get('categoryName')?.value;
       if (categoryName) {
-        this.getSubCategory(categoryName);
+        this.getSubCategory(categoryName, true); // forceRecreateSelect so newly added subcategory can be selected
       }
     });
   }
@@ -189,9 +199,12 @@ export class ClassifyTranComponent implements OnInit {
         catchError((err) => {
           if (err.status === 409) {
             this.isLoading.set(false);
+            const isRuleOverride = err.error?.type === 'confirm_rule_override';
             this.confirmationService.confirm({
-              message: 'עסקה זו כבר סווגה באופן חד פעמי. האם ברצונך לדרוס את הסיווג הקיים?',
-              header: 'אישור דריסת סיווג',
+              message: isRuleOverride
+                ? (err.error?.message ?? 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?')
+                : 'עסקה זו כבר סווגה באופן חד פעמי. האם ברצונך לדרוס את הסיווג הקיים?',
+              header: isRuleOverride ? 'אישור דריסת כלל סיווג' : 'אישור דריסת סיווג',
               acceptLabel: 'כן, דרוס',
               rejectLabel: 'ביטול',
               accept: () => {
@@ -202,11 +215,12 @@ export class ClassifyTranComponent implements OnInit {
             return EMPTY;
           }
           console.error('Error classify transaction', err);
+          const errorDetail = err.error?.message ?? 'מיפוי התנועה נכשל';
           this.messageService.add({
             severity: 'error',
-            summary: 'Error',
-            detail: 'מיפוי התנועה נכשל',
-            life: 3000,
+            summary: 'שגיאה',
+            detail: errorDetail,
+            life: 5000,
             key: 'br',
           });
           return EMPTY;
@@ -230,11 +244,35 @@ export class ClassifyTranComponent implements OnInit {
     this.transactionService.getCategories(null, !this.incomeMode()).subscribe();
   }
 
-  getSubCategory(event: string | boolean): void {
+  /** Resolves business number for API (header / query); prefers active context then row cache. */
+  private resolveBusinessNumberForSubcategories(): string | null {
+    const fromAuth = this.authService.getActiveBusinessNumber();
+    if (fromAuth && String(fromAuth).trim() !== '') {
+      return fromAuth;
+    }
+    const raw = this.rowData()?.['__businessNumberRaw'];
+    if (raw != null && String(raw).trim() !== '') {
+      return String(raw);
+    }
+    return null;
+  }
+
+  getSubCategory(event: string | boolean, forceRecreateSelect = false): void {
     this.myForm.patchValue({ subCategoryName: '' });
     this.selectedSubCategory.set(null);
-    const isEq = this.expenseDataService.getSubCategory(event as string, true, !this.incomeMode());
-    const notEq = this.expenseDataService.getSubCategory(event as string, false, !this.incomeMode());
+    const bn = this.resolveBusinessNumberForSubcategories();
+    const isEq = this.expenseDataService.getSubCategory(
+      event as string,
+      true,
+      !this.incomeMode(),
+      bn,
+    );
+    const notEq = this.expenseDataService.getSubCategory(
+      event as string,
+      false,
+      !this.incomeMode(),
+      bn,
+    );
 
     zip(isEq, notEq)
       .pipe(
@@ -245,6 +283,11 @@ export class ClassifyTranComponent implements OnInit {
             eq.length ? { label: 'רכוש קבוע', items: eq.map((x: any) => ({ name: x.subCategoryName, value: x.subCategoryName })) } : null,
           ].filter(Boolean);
           this.groupedSubCategory.set(group);
+          // After adding a subcategory, re-create the dropdown so the new option can be selected (PrimeNG group select quirk).
+          if (forceRecreateSelect) {
+            this.showSubCategorySelect.set(false);
+            setTimeout(() => this.showSubCategorySelect.set(true), 0);
+          }
         })
       )
       .subscribe();

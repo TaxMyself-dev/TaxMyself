@@ -187,11 +187,13 @@ export class AddCategoryComponent implements OnInit {
       .pipe(
         catchError((err) => {
           this.isLoading.set(false);
+          const detail =
+            this.extractNestErrorDetail(err) ?? 'הוספת תתי קטגוריה נכשלה';
           this.messageService.add({
             severity: 'error',
-            summary: 'Error',
-            detail: 'הוספת תתי קטגוריה נכשלה',
-            life: 3000,
+            summary: 'שגיאה',
+            detail,
+            life: 5000,
             key: 'br',
           });
           return EMPTY;
@@ -252,6 +254,51 @@ export class AddCategoryComponent implements OnInit {
 
   onBackEnabled(visible: boolean): void {
     this.visibleChange.emit({ visible });
+  }
+
+  /**
+   * מחלץ הודעה מ-Nest (ConflictException עם אובייקט { message, duplicates } וכו').
+   */
+  private extractNestErrorDetail(err: unknown): string | null {
+    const e = err as { error?: unknown };
+    const body = e?.error;
+    if (body == null) return null;
+
+    if (typeof body === 'string') {
+      const t = body.trim();
+      return t || null;
+    }
+
+    if (typeof body !== 'object') return null;
+
+    const o = body as Record<string, unknown>;
+    const msg = o['message'];
+
+    if (typeof msg === 'string') {
+      return msg.trim() || null;
+    }
+
+    if (msg && typeof msg === 'object') {
+      const inner = msg as Record<string, unknown>;
+      let text = '';
+      if (typeof inner['message'] === 'string') {
+        text = inner['message'].trim();
+      }
+      const dups = inner['duplicates'];
+      if (Array.isArray(dups) && dups.length) {
+        const names = dups.filter((x): x is string => typeof x === 'string').join(', ');
+        if (names) {
+          text = text ? `${text} (${names})` : names;
+        }
+      }
+      return text || null;
+    }
+
+    if (Array.isArray(msg)) {
+      return msg.map(String).join(', ');
+    }
+
+    return null;
   }
 }
 

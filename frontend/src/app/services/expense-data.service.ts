@@ -113,13 +113,45 @@ export class ExpenseDataService {
   }
 
   
-  getSubCategory(categoryName: string, isEquipment: boolean, isExpense: boolean): Observable<any> {
+  getSubCategory(
+    categoryName: string,
+    isEquipment: boolean,
+    isExpense: boolean,
+    businessNumber?: string | null,
+  ): Observable<any> {
     const url = `${environment.apiUrl}expenses/get-sub-categories`;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('isEquipment', isEquipment)
       .set('isExpense', isExpense)
       .set('categoryName', categoryName);
+    if (businessNumber != null && String(businessNumber).trim() !== '') {
+      params = params.set('businessNumber', String(businessNumber));
+    }
     return this.http.get<any>(url, { params: params });
+  }
+
+  /** Admin: get all default sub-categories for category management. */
+  getAllDefaultSubCategories(): Observable<any[]> {
+    const url = `${environment.apiUrl}expenses/get-all-default-sub-categories`;
+    return this.http.get<any[]>(url);
+  }
+
+  /** Admin: update a default sub-category. */
+  updateDefaultSubCategory(id: number, body: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/update-default-sub-category/${id}`;
+    return this.http.patch(url, body);
+  }
+
+  /** Admin: add a new default sub-category. */
+  addDefaultSubCategory(body: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/add-default-sub-category`;
+    return this.http.post(url, body);
+  }
+
+  /** Admin: delete a default sub-category by id. */
+  deleteDefaultSubCategory(id: number): Observable<any> {
+    const url = `${environment.apiUrl}expenses/delete-default-sub-category/${id}`;
+    return this.http.delete(url);
   }
 
 

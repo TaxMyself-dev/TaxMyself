@@ -10,16 +10,11 @@ import { User } from '../users/user.entity';
 export class FeezbackJwtService {
   private readonly logger = new Logger(FeezbackJwtService.name);
   private privateKey: string | null = null;
-  private readonly baseRedirectUrl: string;
 
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {
-    // Base URL for redirects - should be your frontend URL
-    this.baseRedirectUrl = process.env.FEEZBACK_REDIRECT_BASE_URL ||
-      process.env.FRONTEND_URL ||
-      'http://localhost:4200';
   }
 
   /**
@@ -39,7 +34,7 @@ export class FeezbackJwtService {
 
     if (privateKeyFromEnv) {
       // Use the key directly from environment variable
-      this.privateKey = privateKeyFromEnv;
+      this.privateKey = privateKeyFromEnv.replace(/\\n/g, '\n').trim();
       // this.logger.log('✅ Feezback private key loaded from FEEZBACK_PRIVATE_KEY environment variable');
     } else if (keyPath) {
       // Read from file
@@ -70,14 +65,20 @@ export class FeezbackJwtService {
     failure: string;
     ttlExpired: string;
   } {
-    const baseUrl = this.baseRedirectUrl.endsWith('/')
-      ? this.baseRedirectUrl.slice(0, -1)
-      : this.baseRedirectUrl;
+
+    const qs = (status: 'success' | 'failure') => {
+      const p = new URLSearchParams({
+        feezbackStatus: status,
+        context,
+        flowId,
+      });
+      return p.toString();
+    };
 
     return {
-      success: `${baseUrl}/feezback/success/${flowId}?context=${context}`,
-      failure: `${baseUrl}/feezback/failure/${flowId}?context=${context}`,
-      ttlExpired: `${baseUrl}/feezback/expired/${flowId}?context=${context}`,
+      success: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('success')}`,
+      failure: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('failure')}`,
+      ttlExpired: `${process.env.FEEZBACK_REDIRECT}/my-account?${qs('failure')}`,
     };
   }
 
@@ -132,11 +133,11 @@ export class FeezbackJwtService {
           "SIX_MONTHS",
           "TWELVE_MONTHS"
         ],
-        "defaultTimePeriod": "ONE_DAY",
+        "defaultTimePeriod": "TWELVE_MONTHS",
         "userIdentifier": {
           "type": "ID",
           "value": userId,
-          "editable": false
+          "editable": true
         },
         "context": firebaseId + "_context",
         "redirects": redirects,

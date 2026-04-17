@@ -25,16 +25,11 @@ export class FeezbackApiService {
     return this.normalizeConsentsResponse(data);
   }
 
-  async getUserAccounts(sub: string): Promise<any> {
-    // this.logger.log(`Fetching user accounts for sub=${sub}`);
-    return this.getFromUserPath(sub, '/accounts');
-  }
-
-  async getUserCards(
+  async getUserAccounts(
     sub: string,
     options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
-  ): Promise<{ cards: any[] }> {
-    // this.logger.log(`Fetching user cards for sub=${sub}`);
+  ): Promise<any> {
+    // this.logger.log(`Fetching user accounts for sub=${sub}`);
 
     const queryParams: Record<string, string> = {};
 
@@ -50,14 +45,34 @@ export class FeezbackApiService {
       queryParams.withBalances = String(options.withBalances);
     }
 
-    const data = await this.getFromUserPath(
+    return this.getFromUserPath(
       sub,
-      '/cards',
+      '/accounts',
       Object.keys(queryParams).length ? queryParams : undefined,
     );
+  }
+
+  async getUserCards(
+    sub: string,
+    options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
+  ): Promise<{ cards: any[] }> {
+    const { preventUpdate = true, withInvalid, withBalances } = options ?? {};
+
+    const queryParams: Record<string, string> = {
+      preventUpdate: String(preventUpdate),
+    };
+
+    if (withInvalid !== undefined) {
+      queryParams.withInvalid = String(withInvalid);
+    }
+
+    if (withBalances !== undefined) {
+      queryParams.withBalances = String(withBalances);
+    }
+
+    const data = await this.getFromUserPath(sub, '/cards', queryParams);
 
     const cards = this.normalizeCardsResponse(data);
-    // console.log("🚀 ~ FeezbackApiService ~ getUserCards ~ cards:", cards)
     return { cards };
   }
 
@@ -131,6 +146,10 @@ export class FeezbackApiService {
     if (dateTo && dateTo.trim() !== '') {
       url.searchParams.set('dateTo', dateTo);
     }
+
+    // Always use Feezback's cached data — prevents triggering a redundant ASPSP
+    // refresh that causes 429 "Refresh Account task is already in progress".
+    url.searchParams.set('preventUpdate', 'true');
 
     return url;
   }

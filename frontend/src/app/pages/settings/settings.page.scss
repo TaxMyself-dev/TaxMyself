@@ -21,6 +21,11 @@
   box-sizing: border-box;
 }
 
+.settings-tabs {
+  width: 100%;
+  margin-bottom: 0;
+}
+
 .section-block {
   display: flex;
   flex-direction: column;
@@ -364,6 +369,21 @@
       border-color: #666;
     }
   }
+
+  .accounts-management,
+  .permissions-inner-frame {
+    background-color: #2a2a2a;
+    color: #eee;
+  }
+
+  .accounts-subtitle,
+  .subsection-title {
+    color: #fff;
+  }
+
+  .accounts-table .accounts-header-row {
+    background: #1f1f1f;
+  }
 }
 
 /* ההרשאות שלי */
@@ -371,10 +391,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: #fff;
-  padding: 24px;
-  border-radius: 15px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   width: 100%;
   box-sizing: border-box;
   position: relative;
@@ -400,11 +416,140 @@
   margin-top: 8px;
 }
 
+/* ניהול חשבונות (כרטיסי אשראי / חשבונות בנק) */
+.accounts-management {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  border-radius: 15px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+}
+
+.accounts-management-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.accounts-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 260px;
+  flex: 1;
+}
+
+.accounts-subtitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #363636;
+}
+
+.accounts-list {
+  margin: 0;
+  padding-right: 1.25rem;
+  list-style: none;
+
+  li {
+    padding: 0.25rem 0;
+  }
+}
+
+.permissions-inner-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 15px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.accounts-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid #EBEBEB;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.accounts-header-row,
+.accounts-row {
+  display: flex;
+  gap: 12px;
+}
+
+.accounts-header-row {
+  background: #fafafa;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-bottom: 1px solid #EBEBEB;
+}
+
+.accounts-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid #EBEBEB;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.accounts-cell {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Wrap for displaying sources using the same style as personal details */
+.accounts-sources-container {
+  padding: 16px 24px;
+}
+
+.accounts-sources-header {
+  margin-bottom: 8px;
+
+  .detail-field {
+    gap: 0;
+    width: 220px; /* match .detail-value-box width so header aligns exactly above columns */
+    min-width: 140px;
+  }
+
+  /* keep header in one row */
+  flex-wrap: nowrap;
+}
+
+.details-container-fixed.accounts-sources-container .detail-row.three-fields {
+  flex-wrap: nowrap; /* keep each source row aligned with the header columns */
+}
+
 .add-permission-form {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   .form-label {
     font-weight: 500;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .accounts-management {
+    border-bottom-color: #444;
+  }
+
+  .accounts-subtitle {
+    color: #fff;
+  }
+
+  .accounts-list {
+    li {
+      color: #eee;
+    }
   }
 }

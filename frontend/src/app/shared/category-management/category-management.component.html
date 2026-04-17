@@ -1,1 +1,179 @@
-<app-load-file [relativeUrl]="'load-default-categories'" class="load-category-file"></app-load-file>
+<div class="category-management">
+  <!-- בחירת והעלאת קובץ – צד ימין -->
+  <div class="upload-section">
+    <app-load-file [relativeUrl]="'load-default-categories'" class="load-category-file"
+      (onSend)="onCategoriesUploaded($event)"></app-load-file>
+  </div>
+
+  <!-- טבלת תתי קטגוריות -->
+  <div class="table-wrap">
+    <div class="table-header-row">
+      <app-p-button [icon]="'pi pi-plus'" [buttonText]="'הוספת תת קטגוריה'" [buttonSize]="buttonSize.SMALL"
+        (onButtonClicked)="openAddSubCategory()"></app-p-button>
+      <p class="table-title">תתי קטגוריות</p>
+    </div>
+    <div class="table-container-inner">
+      @if (loading()) {
+        <div class="table-loading">
+          <i class="pi pi-spin pi-spinner-dotted"></i>
+          <span>טוען...</span>
+        </div>
+      } @else {
+        <table class="categories-table">
+          <thead>
+            <tr>
+              <th class="columns-header">מזהה</th>
+              <th class="columns-header">תת קטגוריה</th>
+              <th class="columns-header">קטגוריה</th>
+              <th class="columns-header">% מס</th>
+              <th class="columns-header">% מע"מ</th>
+              <th class="columns-header">% הנחה</th>
+              <th class="columns-header">ציוד</th>
+              <th class="columns-header">מוכר</th>
+              <th class="columns-header">הוצאה</th>
+              <th class="columns-header">הכרחיות</th>
+              <th class="columns-header actions-col">פעולות</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (subCategories().length === 0) {
+              <tr>
+                <td colspan="11" class="empty-message">
+                  <div class="empty-data-container">
+                    <p class="empty-data-text">אין תתי קטגוריות</p>
+                  </div>
+                </td>
+              </tr>
+            } @else {
+              @for (row of subCategories(); track row.id) {
+                <tr class="table-row">
+                  <td>{{ row.id }}</td>
+                  <td>{{ row.subCategoryName }}</td>
+                  <td>{{ row.categoryName }}</td>
+                  <td>{{ row.taxPercent }}</td>
+                  <td>{{ row.vatPercent }}</td>
+                  <td>{{ row.reductionPercent }}</td>
+                  <td>{{ row.isEquipment ? 'כן' : 'לא' }}</td>
+                  <td>{{ row.isRecognized ? 'כן' : 'לא' }}</td>
+                  <td>{{ row.isExpense ? 'כן' : 'לא' }}</td>
+                  <td>{{ necessityLabel(row.necessity) }}</td>
+                  <td class="actions-cell">
+                    <app-p-button [icon]="'pi pi-pencil'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+                      [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="openUpdateConfirm(row)"
+                      [buttonText]="'עדכון'"></app-p-button>
+                    <app-p-button [icon]="'pi pi-trash'" [iconOnly]="true" [buttonSize]="buttonSize.AUTO"
+                      [buttonColor]="ButtonColor.TRANSPARET" (onButtonClicked)="confirmDelete(row)"
+                      [buttonText]="'מחיקה'"></app-p-button>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- דיאלוג עדכון תת קטגוריה -->
+<p-dialog header="עדכון תת קטגוריה" [visible]="showEditDialog()" [modal]="true" [style]="{ width: '500px' }" [rtl]="true"
+  (onHide)="closeEditDialog()" [draggable]="false" [resizable]="false">
+  <div class="dialog-form">
+    <div class="form-row">
+      <label>תת קטגוריה</label>
+      <input type="text" pInputText [(ngModel)]="editForm.subCategoryName" />
+    </div>
+    <div class="form-row">
+      <label>קטגוריה</label>
+      <input type="text" pInputText [(ngModel)]="editForm.categoryName" />
+    </div>
+    <div class="form-row">
+      <label>% מס</label>
+      <p-inputNumber [(ngModel)]="editForm.taxPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% מע"מ</label>
+      <p-inputNumber [(ngModel)]="editForm.vatPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% הנחה</label>
+      <p-inputNumber [(ngModel)]="editForm.reductionPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="editForm.isEquipment" [binary]="true" inputId="editEquipment"></p-checkbox>
+      <label for="editEquipment">ציוד</label>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="editForm.isRecognized" [binary]="true" inputId="editRecognized"></p-checkbox>
+      <label for="editRecognized">מוכר</label>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="editForm.isExpense" [binary]="true" inputId="editExpense"></p-checkbox>
+      <label for="editExpense">הוצאה</label>
+    </div>
+    <div class="form-row">
+      <label>הכרחיות</label>
+      <p-select [(ngModel)]="editForm.necessity" [options]="necessityOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeEditDialog()"></app-p-button>
+    <app-p-button [buttonText]="'עדכון'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="confirmAndSaveEdit()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
+<!-- דיאלוג הוספת תת קטגוריה -->
+<p-dialog header="הוספת תת קטגוריה" [visible]="showAddDialog()" [modal]="true" [style]="{ width: '500px' }" [rtl]="true"
+  (onHide)="closeAddDialog()" [draggable]="false" [resizable]="false">
+  <div class="dialog-form">
+    <div class="form-row">
+      <label>תת קטגוריה</label>
+      <input type="text" pInputText [(ngModel)]="addForm.subCategoryName" />
+    </div>
+    <div class="form-row">
+      <label>קטגוריה</label>
+      <p-select [(ngModel)]="addForm.categoryChoice" [options]="categoryOptionsForAdd()" optionLabel="label" optionValue="value"
+        placeholder="בחר קטגוריה או הוסף חדשה" (ngModelChange)="onAddCategoryChoiceChange($event)"></p-select>
+    </div>
+    @if (addForm.categoryChoice === NEW_CATEGORY_VALUE) {
+      <div class="form-row">
+        <label>שם קטגוריה חדשה</label>
+        <input type="text" pInputText [(ngModel)]="addForm.categoryName" placeholder="הזן שם קטגוריה" />
+      </div>
+    }
+    <div class="form-row">
+      <label>% מס</label>
+      <p-inputNumber [(ngModel)]="addForm.taxPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% מע"מ</label>
+      <p-inputNumber [(ngModel)]="addForm.vatPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row">
+      <label>% הנחה</label>
+      <p-inputNumber [(ngModel)]="addForm.reductionPercent" [minFractionDigits]="0" [maxFractionDigits]="2"></p-inputNumber>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="addForm.isEquipment" [binary]="true" inputId="addEquipment"></p-checkbox>
+      <label for="addEquipment">ציוד</label>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="addForm.isRecognized" [binary]="true" inputId="addRecognized"></p-checkbox>
+      <label for="addRecognized">מוכר</label>
+    </div>
+    <div class="form-row check-row">
+      <p-checkbox [(ngModel)]="addForm.isExpense" [binary]="true" inputId="addExpense"></p-checkbox>
+      <label for="addExpense">הוצאה</label>
+    </div>
+    <div class="form-row">
+      <label>הכרחיות</label>
+      <p-select [(ngModel)]="addForm.necessity" [options]="necessityOptions" optionLabel="label" optionValue="value" placeholder="בחר"></p-select>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="closeAddDialog()"></app-p-button>
+    <app-p-button [buttonText]="'הוסף'" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="saveAddSubCategory()"></app-p-button>
+  </ng-template>
+</p-dialog>
+
+<p-confirmDialog></p-confirmDialog>

@@ -152,7 +152,7 @@ export class AuthService {
       tap((userData: IUserData) => {
         if (userData) {
           localStorage.setItem('userData', JSON.stringify(userData));
-          console.log('✅ userData restored from backend');
+          // console.log('✅ userData restored from backend');
         }
       }),
       catchError((error) => {

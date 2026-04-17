@@ -2,21 +2,21 @@ import 'dotenv/config'
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-
 import * as bodyParser from 'body-parser';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 
 async function bootstrap() {
   console.log("🔥 NestJS bootstrap started");
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+    logger: ['warn', 'error', 'debug', 'verbose', 'fatal'],
+  });
   app.useGlobalFilters(new HttpExceptionFilter());
   app.use(require('cors')('*'));
 
   // Capture raw body for agent authentication (only for /agent routes)
   // This middleware runs only for agent routes to support HMAC signature verification
-  app.use((req: any, res: any, next: any) => {
+  app.use((req: any, _res: any, next: any) => {
     // Only process agent routes - skip for all other routes
     if (!req.path.startsWith('/agent')) {
       return next(); // Skip raw body capture for non-agent routes

@@ -14,6 +14,7 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { FormTypes } from 'src/app/shared/enums';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -69,6 +70,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   immediateFileOperation = input<boolean>(false);
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
+  useSyncState = input<boolean>(false);
+  processStatus = input<'running' | 'completed' | 'failed' | null>(null);
   incomeMode = input<boolean>(false);
   showCheckbox = input<boolean>(false);
   defaultSelectedValue = input<boolean>(false);
@@ -80,9 +83,19 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   mobileCardConfig = input<IMobileCardConfig>();
   mobileCardActions = input<ITableRowAction[]>();
+  /** When true, negative `sum` (expenses) renders red and positive (income) green; expects `__sumNumeric` on rows. */
+  sumSignColors = input<boolean>(false);
+  /** When true, unlinked account column shows fixed "לא משוייך" in red (My Account unclassified). */
+  unassignedBillRed = input<boolean>(false);
+
+  rowBillUnassigned(row: IRowDataTable): boolean {
+    const b = row?.['billName'];
+    return !b || String(b).trim() === '' || b === 'לא שוייך';
+  }
   isAllChecked = output<boolean>();
   resetFilters = output<string>();
   rowsChecked = output<IRowDataTable[]>();
+  syncTriggered = output<void>();
   visibleFilterPannel = signal(false);
   visibleAccountAssociationDialog = signal(false);
   searchTerm = signal<string>('');
@@ -94,6 +107,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
+  /** Exposed for template: `col.type === FormTypes.DATE` alongside name-based date detection */
+  readonly FormTypes = FormTypes;
 
 
   expandedRows = new Set<number>();
@@ -104,6 +119,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isSlideIn = signal<boolean>(false);
 
   fileChange = output<{ row: IRowDataTable, file?: File }>(); 
+
+  effectiveIsLoading = computed(() =>
+    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')
+  );
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -283,6 +302,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     console.log('redefineFilters', event);
     //this.arrayFilters.set(event);
     this.resetFilters.emit(event);
+  }
+
+  triggerFullSync(): void {
+    // Delegate: emit to parent, who owns the sync trigger and polling lifecycle.
+    this.syncTriggered.emit();
   }
 
   onSelectionChange(event: any) {

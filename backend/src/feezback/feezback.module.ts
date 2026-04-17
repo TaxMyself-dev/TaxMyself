@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FeezbackController } from './feezback.controller';
@@ -12,6 +12,7 @@ import { ConsentSyncService } from './consent/consent-sync.service';
 import { ConsentMapper } from './consent/mapper/consent.mapper';
 import { Delegation } from '../delegation/delegation.entity';
 import { User } from '../users/user.entity';
+import { Source } from '../transactions/source.entity';
 import { UsersModule } from '../users/users.module';
 import { SharedService } from 'src/shared/shared.service';
 import { Business } from 'src/business/business.entity';
@@ -28,11 +29,11 @@ import { TransactionsModule } from '../transactions/transactions.module';
       timeout: 90000, // 90 seconds timeout for all requests
       maxRedirects: 5,
     }),
-    TypeOrmModule.forFeature([Delegation, User, Child, Expense, Business, SettingDocuments]),
-    UsersModule,
+    TypeOrmModule.forFeature([Delegation, User, Child, Expense, Business, SettingDocuments, Source]),
+    forwardRef(() => UsersModule),
     FeezbackPersistenceModule,
     FeezbackWebhookRouterModule,
-    TransactionsModule,
+    forwardRef(() => TransactionsModule),
   ],
   controllers: [FeezbackController],
   providers: [
@@ -46,7 +47,7 @@ import { TransactionsModule } from '../transactions/transactions.module';
     ConsentMapper,
     SharedService,
   ],
-  exports: [FeezbackService, ConsentSyncService],
+  exports: [FeezbackService, ConsentSyncService, FeezbackApiService],
 })
 export class FeezbackModule { }
 

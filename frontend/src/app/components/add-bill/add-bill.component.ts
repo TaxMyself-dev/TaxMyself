@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
+import { Component, inject, input, OnInit, output, signal, WritableSignal } from '@angular/core';
 import { LeftPanelComponent } from "../left-panel/left-panel.component";
 import { InputSelectComponent } from "../input-select/input-select.component";
 import { ButtonComponent } from "../button/button.component";
@@ -62,6 +62,14 @@ export class AddBillComponent implements OnInit {
 
   async ngOnInit() {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    if (this.userData?.businessStatus === BusinessStatus.MULTI_BUSINESS) {
+      this.myForm.get('businessNumber')?.setValidators([Validators.required]);
+      this.myForm.get('businessNumber')?.updateValueAndValidity();
+    } else if (this.userData?.businessStatus === BusinessStatus.NO_BUSINESS) {
+      this.myForm.get('businessNumber')?.setValue(this.userData.id);
+    } else {
+      this.myForm.get('businessNumber')?.setValue(this.userData?.businessNumber ?? '');
+    }
   }
 
   onVisibleChange(visible: boolean) {

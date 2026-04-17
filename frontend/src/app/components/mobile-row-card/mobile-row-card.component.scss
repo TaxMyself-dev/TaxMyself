@@ -98,6 +98,14 @@
   color: #363636;
 }
 
+.mrc__highlighted--expense {
+  color: #c62828;
+}
+
+.mrc__highlighted--income {
+  color: #2e7d32;
+}
+
 // ─── Detail rows (summary + expanded) ────────────────────────────────────────
 
 .mrc__fields {
@@ -119,6 +127,11 @@
   font-weight: 700;
   color: #808080;
   white-space: nowrap;
+}
+
+.mrc__value--bill-unassigned {
+  color: #c62828;
+  font-weight: 600;
 }
 
 .mrc__value {

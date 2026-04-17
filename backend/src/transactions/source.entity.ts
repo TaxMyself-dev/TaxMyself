@@ -1,9 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, Unique } from 'typeorm';
 import { Bill } from './bill.entity';
 import { SourceType } from 'src/enum';
 
 
 @Entity()
+@Unique(['userId', 'sourceName'])
 export class Source {
 
   @PrimaryGeneratedColumn()
@@ -19,11 +20,14 @@ export class Source {
     type: 'enum',
     enum: SourceType,
     enumName: 'SourceType',
-    default: SourceType.CREDIT_CARD
+    nullable: false,
   })
   sourceType: SourceType;
 
-  @ManyToOne(type => Bill, bill => bill.sources)
+  @Column({ name: 'feezback_resource_id', type: 'varchar', length: 256, nullable: true, default: null })
+  feezbackResourceId: string | null;
+
+  @ManyToOne(() => Bill, bill => bill.sources)
   bill: Bill;
 
 }

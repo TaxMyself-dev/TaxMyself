@@ -11,7 +11,7 @@
 
     <p-datepicker [showButtonBar]="true" [showClear]="true" [inputStyleClass]="inputClasses()"
       [formControlName]="controlName()" [placeholder]="placeholder()" [iconDisplay]="'input'" [appendTo]="'body'"
-      [dateFormat]="'dd-mm-yy'" [dataType]="'string'" [showIcon]="showIcon()" [showOnFocus]="false"
+      [dateFormat]="'dd/mm/yy'" [dataType]="'date'" [showIcon]="showIcon()" [showOnFocus]="false"
       (onInput)="onInput($event)" (onSelect)="onInput($event)" (onClear)="onInput($event)" (onClearClick)="onClearClick()">
       <ng-template #inputicon let-clickCallBack="clickCallBack">
         <i [class]="icon()" style="font-size: 0.8rem" (click)="clickCallBack($event)"></i>

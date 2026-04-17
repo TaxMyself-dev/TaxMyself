@@ -1,5 +1,5 @@
 //General
-import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Patch, Get, Delete, Query, Param, Body, Req, Headers, UseGuards, UploadedFile, UseInterceptors, NotFoundException, HttpException, HttpStatus, BadRequestException, ForbiddenException } from '@nestjs/common';
 //Entities
 import { Expense } from './expenses.entity';
 //Services
@@ -199,22 +199,73 @@ export class ExpensesController {
     @Req() request: AuthenticatedRequest,
     @Query('isEquipment') isEquipment: string,
     @Query('isExpense') isExpense: string,
-    @Query('categoryName') categoryName: string
+    @Query('categoryName') categoryName: string,
+    @Query('businessNumber') businessNumberFromQuery?: string,
   ): Promise<any[]> {
 
-    const businessNumber = request.user?.businessNumber;
-    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ businessNumber:", businessNumber)
+    const headerBn = request.user?.businessNumber;
+    const businessNumber =
+      headerBn && String(headerBn).trim() !== ''
+        ? headerBn
+        : businessNumberFromQuery && String(businessNumberFromQuery).trim() !== ''
+          ? businessNumberFromQuery
+          : null;
     const firebaseId = request.user?.firebaseId;
-    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ firebaseId:", firebaseId)
 
     // Convert isEquipment to boolean or null
     const isEquipmentValue = isEquipment === 'true' ? true : isEquipment === 'false' ? false : null;
-    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ isEquipmentValue:", isEquipmentValue)
     const isExpenseValue = isExpense === 'true' ? true : isExpense === 'false' ? false : null;
-    console.log("🚀 ~ ExpensesController ~ getSubCategories ~ isExpenseValue:", isExpenseValue)
 
     // Call the service method to get the sub-categories
     return this.expensesService.getSubCategories(firebaseId, isEquipmentValue, isExpenseValue, categoryName, businessNumber);
+  }
+
+  @Get('get-all-default-sub-categories')
+  @UseGuards(FirebaseAuthGuard)
+  async getAllDefaultSubCategories(@Req() request: AuthenticatedRequest) {
+    const firebaseId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.expensesService.getAllDefaultSubCategories();
+  }
+
+  @Patch('update-default-sub-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async updateDefaultSubCategory(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const firebaseId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.expensesService.updateDefaultSubCategory(Number(id), body);
+  }
+
+  @Post('add-default-sub-category')
+  @UseGuards(FirebaseAuthGuard)
+  async addDefaultSubCategory(@Req() request: AuthenticatedRequest, @Body() body: any) {
+    const firebaseId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.expensesService.createDefaultSubCategory(body);
+  }
+
+  @Delete('delete-default-sub-category/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteDefaultSubCategory(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    const firebaseId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(firebaseId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    await this.expensesService.deleteDefaultSubCategory(Number(id));
   }
 
 

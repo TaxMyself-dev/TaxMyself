@@ -49,7 +49,6 @@ export class FirebaseAuthGuard implements CanActivate {
     request.user = { firebaseId: authenticatedFirebaseId, role: 'user', businessNumber: businessNumberHeader, }; // ✅ Now TypeScript recognizes `request.user`
 
     const maskedId = authenticatedFirebaseId?.length >= 8 ? authenticatedFirebaseId.substring(0, 8) + '...' : '?';
-    this.logger.log(`Auth OK, firebaseId=${maskedId}`);
 
     //TODO: If this agent need to update the business number to client, not of agent.
     // ✅ Extract `x-client-user-id` from headers (if exists)

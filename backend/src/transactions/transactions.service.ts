@@ -164,7 +164,9 @@ export class TransactionsService {
                 const businessNumber = await this.getBusinessNumberByBillName(firebaseId, billName);
                 const billId = await this.getBillIdByBillName(firebaseId, billName);
 
-                const classifiedTransaction = billId
+                const txSum = transaction.Debit ? -transaction.Debit : transaction.Credit;
+
+                const classifiedTransactionRaw = billId
                   ? await this.classifiedTransactionsRepo.findOne({
                       where: {
                         userId: firebaseId,
@@ -173,6 +175,11 @@ export class TransactionsService {
                       },
                     })
                   : null;
+
+                const classifiedTransaction =
+                  classifiedTransactionRaw && this.ruleMatchesSum(classifiedTransactionRaw, txSum)
+                    ? classifiedTransactionRaw
+                    : null;
 
                 const newTransaction: Partial<Transactions> = {
                   userId: firebaseId,
@@ -184,7 +191,7 @@ export class TransactionsService {
                   note2: transaction.Notes2,
                   billDate: transaction.Date,
                   payDate: null,
-                  sum: transaction.Debit ? -transaction.Debit : transaction.Credit,
+                  sum: txSum,
                 };
 
                 // Merge fields if classifiedTransaction exists
@@ -348,7 +355,9 @@ export class TransactionsService {
 
       // Check if there's a matching classified transaction
       const billId = paymentIdentifierToBillId?.get(transaction.paymentIdentifier);
-      const matchingClassifiedTransaction = classifiedTransactions.find(ct => ct.transactionName === transaction.name && ct.billId === billId);
+      const matchingClassifiedTransaction = classifiedTransactions.find(
+        ct => ct.transactionName === transaction.name && ct.billId === billId && this.ruleMatchesSum(ct, transaction.sum),
+      );
       // If a match is found, update the transaction fields with the classified values
       if (matchingClassifiedTransaction) {
         console.log("matchingClassifiedTransaction is ", matchingClassifiedTransaction);
@@ -853,6 +862,14 @@ export class TransactionsService {
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: legacy quickClassify that operates on the transactions table by numeric id.
   // The new path is TransactionsController → TransactionProcessingService.classifyManually() via finsiteId.
   // This method is no longer called from the controller; remove when legacy table is dropped.
+  /** Returns true when the transaction's absolute sum falls within the rule's defined range (or no range is set). */
+  private ruleMatchesSum(rule: ClassifiedTransactions, sum: number): boolean {
+    const absSum = Math.abs(sum);
+    if (rule.minAbsSum != null && absSum < Number(rule.minAbsSum)) return false;
+    if (rule.maxAbsSum != null && absSum > Number(rule.maxAbsSum)) return false;
+    return true;
+  }
+
   async quickClassify(transactionId: number, userId: string): Promise<void> {
 
     const transaction = await this.transactionsRepo.findOne({
@@ -1038,19 +1055,35 @@ export class TransactionsService {
 
   async addSourceToBill(billId: number, sourceName: string, sourceType: SourceType, userId: string): Promise<Source> {
 
-    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
-    if (!bill) {
-      throw new Error('Bill not found');
+    if (!sourceType || !Object.values(SourceType).includes(sourceType)) {
+      throw new BadRequestException(
+        `sourceType is required and must be one of: ${Object.values(SourceType).join(', ')}`,
+      );
     }
 
-    // Create and save the new source
-    const newSource = this.sourceRepo.create({
-      userId,
-      sourceName,
-      sourceType,
-      bill
+    const bill = await this.billRepo.findOne({ where: { id: billId, userId }, relations: ['sources'] });
+    if (!bill) {
+      throw new NotFoundException('Bill not found');
+    }
+
+    const existing = await this.sourceRepo.findOne({
+      where: { userId, sourceName },
     });
-    await this.sourceRepo.save(newSource);
+    if (!existing) {
+      throw new NotFoundException(
+        `אמצעי התשלום "${sourceName}" לא נמצא בטבלת המקורות (source). ` +
+          'רק מקורות שכבר קיימים במערכת (למשל לאחר סנכרון בנקאות פתוחה) ניתן לשייך לחשבון.',
+      );
+    }
+
+    if (existing.sourceType !== sourceType) {
+      throw new BadRequestException(
+        `סוג אמצעי התשלום לא תואם לרשומה השמורה (שמור: ${existing.sourceType}, התקבל: ${sourceType}).`,
+      );
+    }
+
+    existing.bill = bill;
+    await this.sourceRepo.save(existing);
 
     // Backfill: update all full_transactions_cache rows that already carry this
     // paymentIdentifier so they become linked to the bill immediately.
@@ -1064,7 +1097,7 @@ export class TransactionsService {
       },
     );
 
-    return newSource;
+    return existing;
   }
 
 
@@ -1110,6 +1143,24 @@ export class TransactionsService {
     }
 
     return sources;
+  }
+
+  /**
+   * כל אמצעי תשלום של המשתמש מטבלת `source`.
+   * אין FK ל־bill → billName null (בפרונט: «לא משויך»). אחרת → שם החשבון מטבלת החשבונות דרך הקשר `bill`.
+   */
+  async getSourcesWithTypes(
+    userId: string,
+  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null }[]> {
+    const rows = await this.sourceRepo.find({
+      where: { userId },
+      relations: ['bill'],
+    });
+    return rows.map((r) => ({
+      sourceName: r.sourceName,
+      sourceType: r.sourceType,
+      billName: r.bill?.billName ?? null,
+    }));
   }
 
 
@@ -1401,6 +1452,7 @@ export class TransactionsService {
       billDate: r.transactionDate,
       payDate: r.paymentDate,
       sum: r.amount,
+      currency: r.currency ?? 'ILS',
       category: r.category,
       subCategory: r.subCategory,
       isRecognized: r.isRecognized,

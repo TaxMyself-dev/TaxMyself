@@ -42,7 +42,10 @@
           {{ resolveValue(titleColumn()!) }}
         }
       </span>
-      <span class="mrc__highlighted">
+      <span
+        class="mrc__highlighted"
+        [class.mrc__highlighted--expense]="sumExpenseHighlight()"
+        [class.mrc__highlighted--income]="sumIncomeHighlight()">
         @if (highlightedColumn()) {
           {{ resolveValue(highlightedColumn()!) }} ₪
         }
@@ -84,6 +87,8 @@
         {{ resolveListLabel(col) }}
       } @else if (col.cellRenderer === CellRenderer.DATE) {
         {{ resolveValue(col) | dateFormat }}
+      } @else if (col.name === 'billName' && unassignedBillRed() && billUnassigned()) {
+        <span class="mrc__value--bill-unassigned">לא משוייך</span>
       } @else {
         {{ resolveValue(col) }}
       }

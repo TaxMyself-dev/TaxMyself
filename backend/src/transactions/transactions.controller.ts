@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -14,15 +14,157 @@ import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { UserSyncStateService } from './user-sync-state.service';
+import { FeezbackService } from '../feezback/feezback.service';
+import { ModuleName } from '../enum';
 
 
 @Controller('transactions')
 export class TransactionsController {
+  private readonly logger = new Logger(TransactionsController.name);
+
   constructor(
     private readonly transactionsService: TransactionsService,
     private readonly processingService: TransactionProcessingService,
     private readonly sharedService: SharedService,
-    private usersService: UsersService,) {}
+    private readonly userSyncStateService: UserSyncStateService,
+    private readonly usersService: UsersService,
+    private readonly feezbackService: FeezbackService,
+  ) {}
+
+  @Get('sync-status')
+  @UseGuards(FirebaseAuthGuard)
+  async getSyncStatus(@Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    const state = await this.userSyncStateService.getSyncState(userId);
+
+    // 'empty' is a backend-only state — never returned to the frontend.
+    // Translate it to 'running' and trigger a sync so data will be available shortly.
+    const toFrontendStatus = (s: string | null | undefined): string =>
+      !s || s === 'empty' ? 'running' : s;
+
+    const manualSyncOnly = process.env.NODE_ENV !== 'production' && process.env.FEEZBACK_MANUAL_SYNC_ONLY === 'true';
+
+    if (!state) {
+      if (!manualSyncOnly) {
+        void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
+          this.logger.error('[SyncStatus] triggerFullSync failed (no row)', err?.stack ?? err),
+        );
+        return {
+          quickSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+          fullSync:  { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        };
+      }
+      return {
+        quickSync: { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        fullSync:  { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+      };
+    }
+
+    const BLOCKING_STATUSES = ['completed', 'running'];
+    const quickIsEmpty = !BLOCKING_STATUSES.includes(state.quickProcessStatus as string);
+    // Only retrigger on quick being empty — full sync failing alone does NOT reset quick,
+    // so the user still has their recent data and shouldn't see a loading spinner.
+    if (quickIsEmpty && !manualSyncOnly) {
+      void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
+        this.logger.error('[SyncStatus] triggerFullSync failed (empty status)', err?.stack ?? err),
+      );
+    }
+
+    return {
+      quickSync: {
+        processStatus: toFrontendStatus(state.quickProcessStatus),
+        resultStatus:  state.quickResultStatus,
+        rowsWritten:   state.quickRowsWritten,
+        finishedAt:    state.quickFinishedAt ?? null,
+        failureReason: state.quickFailureReason ?? null,
+        skipReason:    state.quickSkipReason ?? null,
+      },
+      fullSync: {
+        processStatus: toFrontendStatus(state.fullProcessStatus),
+        resultStatus:  state.fullResultStatus,
+        rowsWritten:   state.fullRowsWritten,
+        finishedAt:    state.fullFinishedAt ?? null,
+        failureReason: state.fullFailureReason ?? null,
+        skipReason:    state.fullSkipReason ?? null,
+      },
+    };
+  }
+
+  /**
+   * Returns true only when the user's quick sync stage is 'completed'.
+   * Every other status blocks the fetch and returns [].
+   *
+   * When the state is missing or 'empty', a fire-and-forget sync is triggered
+   * so that the next poll will see 'running' → 'completed'.
+   */
+  private async syncStateAllowsFetch(userId: string): Promise<boolean> {
+    const state = await this.userSyncStateService.getSyncState(userId);
+    const status = state?.quickProcessStatus ?? null;
+
+    if (!state || !['completed', 'running'].includes(status as string)) {
+      void this.feezbackService.triggerFullSync(userId, 'manual').catch(err =>
+        this.logger.error('[SyncGuard] triggerFullSync failed', err?.stack ?? err),
+      );
+      return false;
+    }
+
+    return status === 'completed';
+  }
+
+  @Post('trigger-sync')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async triggerSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
+    const userId = request.user?.firebaseId;
+    const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
+
+    this.logger.log(`[TriggerSync] Manual sync requested | firebaseId=${masked}`);
+
+    // Gate 1 — OPEN_BANKING module access
+    const user = await this.usersService.findByFirebaseId(userId);
+    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+      this.logger.log(`[TriggerSync] Rejected — no OPEN_BANKING access | firebaseId=${masked}`);
+      throw new ForbiddenException('User does not have Open Banking access');
+    }
+
+    // Gate 2 — already running (checked via persisted sync state)
+    const state = await this.userSyncStateService.getSyncState(userId);
+    const isRunning =
+      state?.quickProcessStatus === 'running' || state?.fullProcessStatus === 'running';
+    if (isRunning) {
+      this.logger.log(`[TriggerSync] Rejected — sync already running | firebaseId=${masked}`);
+      return { status: 'already_running' };
+    }
+
+    // Fire-and-forget — do not block the response
+    this.logger.log(`[TriggerSync] Accepted — starting sync | firebaseId=${masked}`);
+    void this.feezbackService.triggerFullSync(userId, 'manual').catch(err =>
+      this.logger.error(
+        `[TriggerSync] Async error from triggerFullSync | firebaseId=${masked}`,
+        err?.stack ?? err,
+      ),
+    );
+
+    return { status: 'started' };
+  }
+
+  @Delete('admin/clear-cache/:firebaseId')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async adminClearUserCache(
+    @Req() request: AuthenticatedRequest,
+    @Param('firebaseId') targetFirebaseId: string,
+  ): Promise<{ status: 'cleared' }> {
+    const adminId = request.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(adminId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    await this.processingService.clearUserCache(targetFirebaseId);
+    this.logger.log(`[AdminClearCache] Cache cleared | targetUser=${targetFirebaseId} | by=${adminId}`);
+    return { status: 'cleared' };
+  }
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
   @Get('get-trans')
@@ -80,9 +222,6 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async getBills(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const businessNumber = request.user?.businessNumber;
-    console.log('User Firebase ID:', userId);
-    console.log('User Business Number:', businessNumber);
     return this.transactionsService.getBillsByUserId(userId);
   }
 
@@ -92,6 +231,14 @@ export class TransactionsController {
   async getSources(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     return this.transactionsService.getSources(userId);
+  }
+
+  @Get('get-sources-with-types')
+  @UseGuards(FirebaseAuthGuard)
+  async getSourcesWithTypes(@Req() request: AuthenticatedRequest) {
+    const userId = request.user?.firebaseId;
+    const result = await this.transactionsService.getSourcesWithTypes(userId);
+    return result;
   }
 
 
@@ -121,6 +268,10 @@ export class TransactionsController {
     const categories = parseCsvParam(query.categories);
     const sources = parseCsvParam(query.sources);
 
+    if (!await this.syncStateAllowsFetch(userId)) {
+      return [];
+    }
+
     return this.processingService.getIncomesFromCache(
       userId, startDate, endDate, billIds, categories, sources,
     );
@@ -141,6 +292,10 @@ export class TransactionsController {
     const billIds = parseCsvParam(query.billId);
     const categories = parseCsvParam(query.categories);
     const sources = parseCsvParam(query.sources);
+
+    if (!await this.syncStateAllowsFetch(userId)) {
+      return [];
+    }
 
     return this.processingService.getExpensesFromCache(
       userId, startDate, endDate, billIds, categories, sources,
@@ -232,6 +387,12 @@ export class TransactionsController {
       throw new ConflictException(result.message);
     }
 
+    if (result.status === 'confirm_rule_override') {
+      // 409 with a typed payload so the frontend can distinguish this from
+      // the ONE_TIME confirm_override case and show the correct dialog.
+      throw new ConflictException({ type: 'confirm_rule_override', message: result.message });
+    }
+
     return { ruleId: result.ruleId };
   }
 
@@ -286,6 +447,11 @@ export class TransactionsController {
     const userId = request.user?.firebaseId;
     const startDate = query.startDate ? this.sharedService.convertStringToDateObject(query.startDate) : undefined;
     const endDate = query.endDate ? this.sharedService.convertStringToDateObject(query.endDate) : undefined;
+
+    if (!await this.syncStateAllowsFetch(userId)) {
+      return [];
+    }
+
     return this.processingService.getTransactionsToClassify(userId, startDate, endDate, query.businessNumber);
   }
 

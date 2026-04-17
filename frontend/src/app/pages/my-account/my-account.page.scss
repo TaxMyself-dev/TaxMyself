@@ -7,6 +7,7 @@
   overflow: scroll;
 }
 
+
 p.block-title {
   margin: 0;
 }
@@ -165,26 +166,6 @@ p.block-title {
   margin: 0;
 }
 
-.banking-banner__blob {
-  position: absolute;
-  pointer-events: none;
-  user-select: none;
-}
-
-.banking-banner__blob--left {
-  left: -151px;
-  top: -40px;
-  width: 336px;
-  height: 294px;
-}
-
-.banking-banner__blob--right {
-  left: 252px;
-  top: -8px;
-  width: 278px;
-  height: 244px;
-}
-
 .banking-banner__text {
   position: relative;
   z-index: 1;
@@ -212,19 +193,6 @@ p.block-title {
     gap: 1px;                    
   }
 
-  .banking-banner__blob--left {
-    left: -611px;
-    top: -105px;
-    width: 1278px;
-    height: 568px;
-  }
-
-  .banking-banner__blob--right {
-    left: 1179px;
-    top: -33px;
-    width: 624px;
-    height: 277px;
-  }
 }
 
 .banking-banner__title {
@@ -469,4 +437,154 @@ p.block-title {
   .banking-banner {
     margin: 0 24px;
   }
+}
+
+/* Feezback onboarding dialog shown only after redirect from Feezback success/failure. */
+.feezback-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.feezback-dialog {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.25);
+  padding: 22px 22px 18px 22px;
+}
+
+.feezback-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.feezback-dialog-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #111827;
+}
+
+.feezback-dialog-close {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+  color: #6b7280;
+  font-size: 18px;
+}
+
+.feezback-dialog-message {
+  margin: 12px 0 16px 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #4b5563;
+  white-space: pre-wrap;
+}
+
+.consent-dialog {
+  max-width: 560px;
+  position: relative;
+}
+
+.consent-dialog-close-top {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
+.consent-dialog-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  direction: rtl;
+  text-align: right;
+}
+
+.consent-dialog-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.consent-dialog-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  text-align: center;
+}
+
+.consent-dialog-subtitle {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  text-align: center;
+}
+
+.consent-dialog-points {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.consent-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #374151;
+
+  &__icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
+
+.consent-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #111827;
+  font-weight: 500;
+  width: 100%;
+}
+
+.consent-checkbox {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #111827;
+}
+
+.consent-dialog-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  justify-content: center;
+  flex-direction: row-reverse;
 }

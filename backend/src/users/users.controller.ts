@@ -1,9 +1,11 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger } from '@nestjs/common';
+         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
+         Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { FeezbackService } from '../feezback/feezback.service';
 
 @Controller('auth')
 export class UsersController {
@@ -11,7 +13,8 @@ export class UsersController {
 
     constructor(
         private userService: UsersService,
-        private authService: AuthService
+        private authService: AuthService,
+        @Inject(forwardRef(() => FeezbackService)) private readonly feezbackService: FeezbackService,
     ) {}
 
     
@@ -29,7 +32,22 @@ export class UsersController {
         const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';
         this.logger.log(`signin called, userId=${maskedId}`);
         const user = await this.userService.signin(userId);
+
+        // Fire-and-forget — do not block the login response.
+        // Pull 1 (short window) runs first; Pull 2 (12-month backfill) starts
+        // only after Pull 1 fully resolves.
+        this.triggerPostLoginSync(userId);
+
         return user;
+    }
+
+
+    @Get('/billing-status')
+    @UseGuards(FirebaseAuthGuard)
+    async getBillingStatus(@Req() request: AuthenticatedRequest) {
+        const userId = request.user?.firebaseId;
+        if (!userId) throw new NotFoundException('user not exist');
+        return this.userService.getBillingStatus(userId);
     }
 
 
@@ -95,4 +113,24 @@ export class UsersController {
       return this.userService.getAllUsers();
     }
 
+    /**
+     * Delegates to the shared FeezbackService.triggerFullSync orchestration.
+     * All pull logic, date-range computation, logging, and dedup now live there.
+     */
+    private triggerPostLoginSync(firebaseId: string): void {
+        const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
+        console.log(`\n🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`🔐 [PostLoginSync] Login detected — firing Feezback sync`);
+        console.log(`🔐 [PostLoginSync] firebaseId=${masked}`);
+        console.log(`🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+        void this.feezbackService.triggerFullSync(firebaseId, 'login')
+            .then(() => {
+                console.log(`\n✅ [PostLoginSync] triggerFullSync resolved | firebaseId=${masked}\n`);
+            })
+            .catch(err => {
+                console.error(`\n❌ [PostLoginSync] triggerFullSync threw | firebaseId=${masked} | error=${err?.message}`);
+                this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err);
+            });
+    }
 }

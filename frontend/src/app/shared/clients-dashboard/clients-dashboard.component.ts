@@ -3,6 +3,7 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
+import { ConfirmationService, MessageService } from 'primeng/api';
 
 @Component({
   selector: 'app-clients-dashboard',
@@ -12,6 +13,7 @@ import { FormTypes } from 'src/app/shared/enums';
 })
 export class ClientsDashboardComponent implements OnInit {
   isLoading = signal<boolean>(false);
+  isClearingCache = signal<boolean>(false);
   users: any[] = [];
   filteredUsers: any[] = [];
   visibleFeezbackDialog = signal<boolean>(false);
@@ -23,6 +25,7 @@ export class ClientsDashboardComponent implements OnInit {
     { name: 'phone', value: 'טלפון', type: FormTypes.TEXT },
     { name: 'city', value: 'עיר', type: FormTypes.TEXT },
     { name: 'payStatus', value: 'סטטוס תשלום', type: FormTypes.TEXT },
+    { name: 'generalDocumentsCount', value: 'מסמכים (כללי)', type: FormTypes.NUMBER },
     { name: 'createdAt', value: 'תאריך רישום', type: FormTypes.DATE },
     { name: 'subscriptionEndDate', value: 'תאריך סיום מנוי', type: FormTypes.DATE },
   ];
@@ -32,16 +35,30 @@ export class ClientsDashboardComponent implements OnInit {
       name: 'feezback',
       icon: 'pi pi-cloud-download',
       title: 'טען תנועות מ-Feezback',
-      alwaysShow: true, // Show this button even when row has no file
+      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openFeezbackDialog(row);
+      }
+    },
+    {
+      name: 'clearCache',
+      icon: 'pi pi-trash',
+      title: 'מחק מטמון תנועות',
+      alwaysShow: true,
+      isLoading: () => this.isClearingCache(),
+      action: (event: any, row: IRowDataTable) => {
+        this.confirmClearCache(row);
       }
     }
   ];
 
   searchTerm: string = '';
 
-  constructor(private adminPanelService: AdminPanelService) {}
+  constructor(
+    private adminPanelService: AdminPanelService,
+    private confirmationService: ConfirmationService,
+    private messageService: MessageService,
+  ) {}
 
   ngOnInit() {
     this.loadUsers();
@@ -63,6 +80,8 @@ export class ClientsDashboardComponent implements OnInit {
             ...user,
             fullName: `${user.fName || ''} ${user.lName || ''}`.trim(),
             payStatus: this.getPayStatusLabel(user.payStatus),
+            generalDocumentsCount:
+              user.generalDocumentsCount != null ? Number(user.generalDocumentsCount) : 0,
           };
           
           // Ensure dates are properly formatted
@@ -122,6 +141,45 @@ export class ClientsDashboardComponent implements OnInit {
       name: row['fullName'] as string || `${row['fName'] || ''} ${row['lName'] || ''}`.trim()
     });
     this.visibleFeezbackDialog.set(true);
+  }
+
+  confirmClearCache(row: IRowDataTable): void {
+    const firebaseId = row['firebaseId'] as string;
+    const name = (row['fullName'] as string) || `${row['fName'] || ''} ${row['lName'] || ''}`.trim();
+    this.confirmationService.confirm({
+      message: `האם אתה בטוח שברצונך למחוק את מטמון התנועות של ${name}? הסינכרון יתחיל מחדש בכניסה הבאה.`,
+      header: 'מחיקת מטמון תנועות',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'כן, מחק',
+      rejectLabel: 'ביטול',
+      accept: () => {
+        this.isClearingCache.set(true);
+        this.adminPanelService.clearUserCache(firebaseId)
+          .pipe(
+            finalize(() => this.isClearingCache.set(false)),
+            catchError(err => {
+              console.error('Error clearing cache:', err);
+              this.messageService.add({
+                severity: 'error',
+                summary: 'שגיאה',
+                detail: `לא הצלחנו למחוק את המטמון של ${name}. אנא נסה שוב.`,
+                life: 5000,
+                key: 'br'
+              });
+              return EMPTY;
+            })
+          )
+          .subscribe(() => {
+            this.messageService.add({
+              severity: 'success',
+              summary: 'הצלחה',
+              detail: `המטמון של ${name} נמחק בהצלחה. הסינכרון יתחיל מחדש בכניסה הבאה.`,
+              life: 5000,
+              key: 'br'
+            });
+          });
+      },
+    });
   }
 
   closeFeezbackDialog(event?: { visible: boolean }): void {

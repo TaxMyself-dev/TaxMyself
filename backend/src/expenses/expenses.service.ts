@@ -248,9 +248,13 @@ export class ExpensesService {
         });
 
         if (existingSubs.length) {
+            const dupNames = existingSubs.map((s) => s.subCategoryName);
             throw new ConflictException({
-                message: `Some sub-categories already exist`,
-                duplicates: existingSubs.map(s => s.subCategoryName),
+                message:
+                    dupNames.length === 1
+                        ? 'תת קטגוריה זו כבר קיימת אצלך (באותה קטגוריית אב)'
+                        : 'חלק מתתי הקטגוריות כבר קיימות אצלך (באותה קטגוריית אב)',
+                duplicates: dupNames,
             });
         }
 
@@ -318,10 +322,8 @@ export class ExpensesService {
             throw new NotFoundException(`User with ID ${firebaseId} not found`);
         }
 
-        const category = await this.getUserCategory(firebaseId, businessNumber, categoryName);
-        if (!category) {
-            throw new NotFoundException(`Category with name ${categoryName} not found`);
-        }
+        // אין דרישה שקטגוריית-אב תופיע ב-user_category (יכולה להיות רק ברירת מחדל).
+        // כפילות תת־קטגוריה לאותו משתמש/עסק/קטגוריה נבדקת ב-saveUserSubCategories.
 
         return this.saveUserSubCategories(
             firebaseId,
@@ -561,6 +563,51 @@ export class ExpensesService {
         console.log("🚀 ~ ExpensesService ~ getSubCategoryIsEquipment ~ defaultMatch:", defaultMatch)
 
         return defaultMatch?.isEquipment ?? null;
+    }
+
+    /** Admin: get all default sub-categories (for category management). */
+    async getAllDefaultSubCategories(): Promise<DefaultSubCategory[]> {
+        return this.defaultSubCategoryRepo.find({ order: { categoryName: 'ASC', subCategoryName: 'ASC' } });
+    }
+
+    /** Admin: update a default sub-category by id. */
+    async updateDefaultSubCategory(id: number, dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
+        const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });
+        if (!existing) {
+            throw new NotFoundException(`Default sub-category with id ${id} not found`);
+        }
+        Object.assign(existing, dto);
+        return this.defaultSubCategoryRepo.save(existing);
+    }
+
+    /** Admin: delete a default sub-category by id. */
+    async deleteDefaultSubCategory(id: number): Promise<void> {
+        const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });
+        if (!existing) {
+            throw new NotFoundException(`Default sub-category with id ${id} not found`);
+        }
+        await this.defaultSubCategoryRepo.delete(id);
+    }
+
+    /** Admin: create a new default sub-category. */
+    async createDefaultSubCategory(dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
+        // Upsert parent default_category if it doesn't exist yet
+        if (dto.categoryName) {
+            const exists = await this.defaultCategoryRepo.findOne({
+                where: { categoryName: dto.categoryName },
+            });
+            if (!exists) {
+                await this.defaultCategoryRepo.save(
+                    this.defaultCategoryRepo.create({
+                        categoryName: dto.categoryName,
+                        isExpense: dto.isExpense ?? true,
+                    }),
+                );
+            }
+        }
+
+        const entity = this.defaultSubCategoryRepo.create(dto);
+        return this.defaultSubCategoryRepo.save(entity);
     }
 
 

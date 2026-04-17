@@ -89,9 +89,13 @@
 </p-dialog>
 
 <div class="page-wrapper">
+  <div class="settings-tabs">
+    <app-tab-bar [tabs]="tabs" [selectedTab]="selectedTab" (selectedTabChange)="onTabChange($event)"></app-tab-bar>
+  </div>
+
+  @if (selectedTab === 'personal') {
   <!-- Personal + Spouse + Children – מסגרת אחת כמו עסקים -->
   <div class="section-block section-personal-wrapper">
-    <h2 class="section-title">פרטים אישיים</h2>
     <div class="personal-frame">
       <!-- פרטי היוזר -->
       <div class="personal-subsection">
@@ -226,10 +230,11 @@
       </div>
     </div>
   </div>
+  }
 
+  @if (selectedTab === 'businesses') {
   <!-- Businesses Section -->
   <div class="section-block section-businesses-wrapper">
-    <h2 class="section-title">עסקים</h2>
     <div class="personal-frame">
       <div class="businesses-container">
       @if (businesses().length === 0) {
@@ -310,31 +315,78 @@
       </div>
     </div>
   </div>
+  }
 
+  @if (selectedTab === 'permissions') {
   <!-- ההרשאות שלי -->
   <div class="section-block section-permissions">
-    <h2 class="section-title">ההרשאות שלי</h2>
     <div class="permissions-frame">
-      @if (permissionsLoading()) {
-        <p class="permissions-loading">טוען...</p>
-      } @else if (myPermissions().length === 0) {
-        <p class="permissions-empty">אין הרשאות. הוסף משתמש עם כפתור "הוספת הרשאה".</p>
-      } @else {
-        <ul class="permissions-list">
-          @for (p of myPermissions(); track p.agentId) {
-            <li>{{ p.fullName || p.email || p.agentId }}</li>
-          }
-        </ul>
-      }
-      <div class="section-actions permissions-actions">
-        <app-p-button
-          [buttonText]="'הוספת הרשאה'"
-          [buttonColor]="buttonColor.WHITE_BORDER"
-          [buttonSize]="buttonSize.SMALL"
-          (onButtonClicked)="openAddPermissionDialog()">
-        </app-p-button>
+      <div class="accounts-management">
+        <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
+
+        @if (accountSourcesLoading()) {
+          <p class="permissions-loading">טוען...</p>
+        } @else if (accountSources().length === 0) {
+          <p class="permissions-empty">אין אמצעי תשלום</p>
+        } @else {
+          <div class="details-container details-container-fixed accounts-sources-container">
+            <div class="detail-row three-fields accounts-sources-header">
+              <div class="detail-field">
+                <span class="detail-label">מספר מזהה</span>
+              </div>
+              <div class="detail-field">
+                <span class="detail-label">סוג</span>
+              </div>
+              <div class="detail-field">
+                <span class="detail-label">משויך לחשבון במערכת</span>
+              </div>
+            </div>
+
+            @for (s of accountSources(); track s.sourceName) {
+              <div class="detail-row three-fields">
+                <div class="detail-field">
+                  <span class="detail-value-box">{{ s.sourceName }}</span>
+                </div>
+
+                <div class="detail-field">
+                  <span class="detail-value-box">{{ getSourceTypeLabel(s.sourceType) }}</span>
+                </div>
+
+                <div class="detail-field">
+                  <span class="detail-value-box">{{ s.billName || 'לא משויך' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="permissions-inner-frame">
+        <h3 class="subsection-title">ניהול הרשאות</h3>
+
+        @if (permissionsLoading()) {
+          <p class="permissions-loading">טוען...</p>
+        } @else if (myPermissions().length === 0) {
+          <p class="permissions-empty">אין הרשאות. הוסף משתמש עם כפתור "הוספת הרשאה".</p>
+        } @else {
+          <ul class="permissions-list">
+            @for (p of myPermissions(); track p.agentId) {
+              <li>{{ p.fullName || p.email || p.agentId }}</li>
+            }
+          </ul>
+        }
+
+        <div class="section-actions permissions-actions">
+          <app-p-button
+            [buttonText]="'הוספת הרשאה'"
+            [buttonColor]="buttonColor.WHITE_BORDER"
+            [buttonSize]="buttonSize.SMALL"
+            (onButtonClicked)="openAddPermissionDialog()">
+          </app-p-button>
+        </div>
       </div>
     </div>
   </div>
+  }
 </div>
 

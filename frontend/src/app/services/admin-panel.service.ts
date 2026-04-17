@@ -50,4 +50,9 @@ export class AdminPanelService {
     const url = `${environment.apiUrl}agent/admin/add`;
     return this.http.post<any>(url, { name });
   }
+
+  clearUserCache(firebaseId: string): Observable<any> {
+    const url = `${environment.apiUrl}transactions/admin/clear-cache/${firebaseId}`;
+    return this.http.delete<any>(url);
+  }
 }

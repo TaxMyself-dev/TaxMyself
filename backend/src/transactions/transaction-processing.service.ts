@@ -5,7 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
+import { DataSource, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
+import { subYears } from 'date-fns';
 
 import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
@@ -22,6 +23,8 @@ import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
 import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
 import { ClassifyWithRuleResult } from './interfaces/classify-with-rule-result.interface';
 import { ClassificationType } from './enums/classification-type.enum';
+import { UserSyncStateService } from './user-sync-state.service';
+import { UserSyncState } from './user-sync-state.entity';
 
 /** Hours before a user's full_transactions_cache is considered stale. */
 const CACHE_TTL_HOURS = 24;
@@ -74,7 +77,32 @@ export class TransactionProcessingService {
 
     @InjectRepository(Bill)
     private readonly billRepo: Repository<Bill>,
+
+    private readonly userSyncStateService: UserSyncStateService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * slimRepo.upsert() runs TypeORM's returning-entity updater after INSERT,
+   * which requires PrimaryGeneratedColumn `id` on each row — absent for these payloads.
+   * Same fix as FullTransactionCache batch upserts: query builder + updateEntity(false).
+   */
+  private async upsertSlimTransactions(
+    rows: Partial<SlimTransaction>[],
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const updateColumns = Object.keys(rows[0] as object).filter(
+      (k) => k !== 'userId' && k !== 'externalTransactionId',
+    );
+    await this.slimRepo
+      .createQueryBuilder()
+      .insert()
+      .into(SlimTransaction)
+      .values(rows as SlimTransaction[])
+      .orUpdate(updateColumns, ['userId', 'externalTransactionId'])
+      .updateEntity(false)
+      .execute();
+  }
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -107,10 +135,6 @@ export class TransactionProcessingService {
       alreadyExistingInCache: 0,
     };
 
-    const inputUniqueIds = new Set(transactions.map(tx => tx.externalTransactionId));
-    this.logger.log(
-      `[DIAG] PROCESS_INPUT | userId=${userId} | totalReceived=${transactions.length} | uniqueExternalIds=${inputUniqueIds.size}`,
-    );
 
     if (transactions.length === 0) {
       return result;
@@ -235,9 +259,6 @@ export class TransactionProcessingService {
       result.alreadyExistingInCache = existingCacheRows;
       result.newlySavedToCache = upsertExternalIds.length - existingCacheRows;
 
-      this.logger.log(
-        `[DIAG] PROCESS_CACHE | userId=${userId} | cacheUpsertsCount=${cacheUpserts.length} | uniqueForCache=${upsertExternalIds.length} | alreadyExisting=${existingCacheRows} | newlySaved=${result.newlySavedToCache}`,
-      );
 
       // UPSERT full_transactions_cache: refresh provider data and overlay on
       // conflict (userId, externalTransactionId).
@@ -310,7 +331,7 @@ export class TransactionProcessingService {
     }
 
     // 4. Upsert slim with ONE_TIME.
-    await this.slimRepo.upsert(
+    await this.upsertSlimTransactions([
       {
         userId,
         externalTransactionId: dto.externalTransactionId,
@@ -327,9 +348,8 @@ export class TransactionProcessingService {
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: null,
         businessNumber: slim?.businessNumber ?? null,
-      } as SlimTransaction,
-      ['userId', 'externalTransactionId'],
-    );
+      },
+    ]);
 
     // 5. Update cache overlay.
     await this.cacheRepo.update(
@@ -368,8 +388,9 @@ export class TransactionProcessingService {
    *  - Update cache overlay for the classified transaction.
    *  - Backfill: apply the rule to all existing matching cache rows within
    *    the effective date range, skipping ONE_TIME and VAT-reported rows.
-   *    Effective date range lower bound: dto.startDate ?? cacheRow.transactionDate.
-   *    Effective date range upper bound: dto.endDate (absent = no upper bound).
+   *    Lower bound: dto.startDate if the client sent one; otherwise one calendar year
+   *    before the classified transaction’s date (see getEffectiveBackfillStartDate).
+   *    Upper bound: dto.endDate (absent = no upper bound).
    *  - Returns status = 'applied' with backfillCount.
    */
   async classifyWithRule(
@@ -422,6 +443,9 @@ export class TransactionProcessingService {
 
     // 4. Create or update rule.
     //    Rule identity: full constraint signature (same logic as legacy flow).
+    //    הערה: startDate/endDate נשמרים רק אם המשתמש שלח אותם. ברירת המחדל ל־backfill
+    //    (שנה אחורה מתאריך התנועה) לא נכתבת לכאן — כדי שלא ייווצר חתך תחתון ב־matchRule
+    //    על תנועות שייובאו מאוחר יותר עם תאריך ישן.
     const constraintWhere: Record<string, any> = {
       userId,
       billId: cacheRow.billId,
@@ -435,6 +459,14 @@ export class TransactionProcessingService {
     };
 
     let rule = await this.rulesRepo.findOne({ where: constraintWhere });
+
+    // Guard: existing rule with same signature → require explicit confirmation before override.
+    if (rule && !dto.confirmOverride) {
+      return {
+        status: 'confirm_rule_override' as const,
+        message: 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?',
+      };
+    }
 
     const classificationFields = {
       category: dto.category,
@@ -459,7 +491,7 @@ export class TransactionProcessingService {
     const savedRule = await this.rulesRepo.save(rule);
 
     // 5. Upsert slim row with RULE classification.
-    await this.slimRepo.upsert(
+    await this.upsertSlimTransactions([
       {
         userId,
         externalTransactionId: dto.externalTransactionId,
@@ -476,9 +508,8 @@ export class TransactionProcessingService {
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: null,
         businessNumber: slim?.businessNumber ?? null,
-      } as SlimTransaction,
-      ['userId', 'externalTransactionId'],
-    );
+      },
+    ]);
 
     // 6. Update cache overlay for the classified transaction.
     await this.cacheRepo.update(
@@ -715,6 +746,12 @@ export class TransactionProcessingService {
   // Cache lifecycle
   // ---------------------------------------------------------------------------
 
+  /** Returns true if the user has at least one row in full_transactions_cache. */
+  async hasTransactionCache(userId: string): Promise<boolean> {
+    const row = await this.cacheRepo.findOne({ where: { userId }, select: ['id'] });
+    return row !== null;
+  }
+
   /** Returns true if this user's cache exists and has not expired. */
   async isCacheValid(userId: string): Promise<boolean> {
     const state = await this.cacheStateRepo.findOne({ where: { userId } });
@@ -729,6 +766,16 @@ export class TransactionProcessingService {
   async invalidateCache(userId: string): Promise<void> {
     await this.cacheRepo.delete({ userId });
     await this.cacheStateRepo.delete({ userId });
+  }
+
+  /**
+   * Admin: clears a user's transaction cache and resets sync state to empty.
+   * The next login will trigger a fresh Feezback sync for this user.
+   */
+  async clearUserCache(userId: string): Promise<void> {
+    await this.cacheRepo.delete({ userId });
+    await this.cacheStateRepo.delete({ userId });
+    await this.userSyncStateService.markBothEmpty(userId);
   }
 
   // ---------------------------------------------------------------------------
@@ -775,11 +822,28 @@ export class TransactionProcessingService {
   }
 
   /**
+   * תחתית טווח ה־backfill כשמסווגים בכלל בלי לבחור תאריך התחלה בצד הלקוח.
+   * משתמשים בתאריך התנועה פחות שנה קלנדרית אחת, כדי לכלול תנועות היסטוריות
+   * אחורה בלי לחסום התאמות עתידיות בכלל (שדה startDate ב־DB נשאר null).
+   */
+  private getEffectiveBackfillStartDate(
+    dto: ClassifyWithRuleDto,
+    cacheRow: FullTransactionCache,
+  ): Date {
+    if (dto.startDate) {
+      return new Date(dto.startDate);
+    }
+    return subYears(new Date(cacheRow.transactionDate), 1);
+  }
+
+  /**
    * Backfills a freshly saved RULE classification to all existing matching
    * cache rows for the same user.
    *
    * Effective date range:
-   *   lower bound = dto.startDate ?? cacheRow.transactionDate
+   *   lower bound = dto.startDate if provided; otherwise
+   *                 getEffectiveBackfillStartDate() (one calendar year before
+   *                 the classified transaction’s date).
    *   upper bound = dto.endDate    (no upper bound when absent)
    *
    * Skips rows where the slim row has:
@@ -797,9 +861,8 @@ export class TransactionProcessingService {
     savedRule: ClassifiedTransactions,
     dto: ClassifyWithRuleDto,
   ): Promise<number> {
-    const effectiveStart = dto.startDate
-      ? new Date(dto.startDate)
-      : new Date(cacheRow.transactionDate);
+    // טווח תאריכים ל־SQL: transactionDate >= effectiveStart (וגם <= endDate אם הוגדר).
+    const effectiveStart = this.getEffectiveBackfillStartDate(dto, cacheRow);
 
     // 1. Candidate cache rows: same merchant + bill, within date range,
     //    excluding the transaction that was just classified.
@@ -891,10 +954,7 @@ export class TransactionProcessingService {
       };
     });
 
-    await this.slimRepo.upsert(slimUpserts as SlimTransaction[], [
-      'userId',
-      'externalTransactionId',
-    ]);
+    await this.upsertSlimTransactions(slimUpserts);
 
     // 6. Bulk-update cache overlay.
     const eligibleIds = eligible.map((r) => r.externalTransactionId);
@@ -1001,6 +1061,7 @@ export class TransactionProcessingService {
       billName: tx.billName,
       merchantName: tx.merchantName,
       amount: tx.amount,
+      currency: tx.currency ?? 'ILS',
       transactionDate: tx.transactionDate,
       paymentDate: tx.paymentDate,
       paymentIdentifier: tx.paymentIdentifier,
@@ -1074,6 +1135,7 @@ export class TransactionProcessingService {
       billDate: row.transactionDate,
       payDate: row.paymentDate,
       sum: row.amount,
+      currency: row.currency ?? 'ILS',
       category: row.category,
       subCategory: row.subCategory,
       isRecognized: row.isRecognized,
@@ -1095,5 +1157,85 @@ export class TransactionProcessingService {
       { userId, lastBuiltAt: now, expiresAt } as UserTransactionCacheState,
       ['userId'],
     );
+  }
+
+  /**
+   * Daily cache cleanup entrypoint.
+   * Intended to be called from AppService daily-task flow.
+   */
+  async handleDailyCacheCleanup(): Promise<void> {
+    await this.runDailyCacheCleanup('daily-task');
+  }
+
+  /**
+   * Shared cleanup logic for both daily runs.
+   *
+   * Runs entirely inside a single DB transaction:
+   *   1. SELECT eligible user IDs (WHERE neither stage is 'running') — SQL-filtered, no JS loop.
+   *   2. DELETE their rows from full_transactions_cache.
+   *   3. DELETE their row from user_transaction_cache_state.
+   *   4. UPDATE user_sync_state to empty — with a WHERE NOT running guard for race safety.
+   *
+   * If any step fails the transaction rolls back and no partial state is written.
+   * Users whose sync starts between the SELECT and the UPDATE are protected by the guard
+   * in step 4 — their row simply won't be updated.
+   *
+   * Israel Standard Time = UTC+2 → 03:00 fires at 01:00 UTC in winter.
+   * Israel Daylight Time = UTC+3 → 03:00 fires at 00:00 UTC in summer.
+   */
+  private async runDailyCacheCleanup(label: string): Promise<void> {
+    this.logger.log(`Daily cache cleanup started (${label} Asia/Jerusalem)`);
+    try {
+      let cleanedCount = 0;
+      let cacheDeleted = 0;
+      let stateDeleted = 0;
+
+      await this.dataSource.transaction(async (manager) => {
+        // Step 1 — SQL-efficient: get eligible user IDs directly from DB, no JS filtering.
+        const rows = await manager
+          .createQueryBuilder(UserSyncState, 'uss')
+          .select('uss.userId', 'userId')
+          .where('uss.quickProcessStatus != :r', { r: 'running' })
+          .andWhere('uss.fullProcessStatus != :r', { r: 'running' })
+          .getRawMany<{ userId: string }>();
+
+        const eligibleUserIds = rows.map(r => r.userId);
+        cleanedCount = eligibleUserIds.length;
+
+        if (eligibleUserIds.length === 0) return;
+
+        // Step 2 — delete cache rows for eligible users only.
+        const cacheResult = await manager.delete(FullTransactionCache, { userId: In(eligibleUserIds) });
+        cacheDeleted = cacheResult.affected ?? 0;
+
+        // Step 3 — delete cache-state rows for eligible users only.
+        const stateResult = await manager.delete(UserTransactionCacheState, { userId: In(eligibleUserIds) });
+        stateDeleted = stateResult.affected ?? 0;
+
+        // Step 4 — mark eligible users as empty, guarded against races.
+        await manager
+          .createQueryBuilder()
+          .update(UserSyncState)
+          .set({ quickProcessStatus: 'empty', fullProcessStatus: 'empty' })
+          .where('userId IN (:...userIds)', { userIds: eligibleUserIds })
+          .andWhere('quickProcessStatus != :r', { r: 'running' })
+          .andWhere('fullProcessStatus != :r', { r: 'running' })
+          .execute();
+      });
+
+      if (cleanedCount === 0) {
+        this.logger.log(`Daily cache cleanup (${label}) — no eligible users (all currently running)`);
+        return;
+      }
+
+      this.logger.log(
+        `Daily cache cleanup (${label}) done — ` +
+        `users cleaned: ${cleanedCount}, ` +
+        `cache rows deleted: ${cacheDeleted}, ` +
+        `cache-state rows deleted: ${stateDeleted}`,
+      );
+    } catch (err: any) {
+      this.logger.error(`Daily cache cleanup (${label}) failed`, err?.stack ?? err);
+    }
   }
 }

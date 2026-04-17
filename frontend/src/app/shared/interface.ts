@@ -63,6 +63,7 @@ export interface IUserData {
     spouseVatReportingType: string;
     taxReportingType: string;
     vatReportingType: string;
+    hasOpenBanking: boolean;
 }
 
 export interface IChild {

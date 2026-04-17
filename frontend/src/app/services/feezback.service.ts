@@ -65,5 +65,9 @@ export class FeezbackService {
     }
     return this.http.get<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }>(url);
   }
+
+  ensureSources(): Observable<{ created: number; updated: number }> {
+    return this.http.post<{ created: number; updated: number }>(`${environment.apiUrl}feezback/ensure-sources`, {});
+  }
 }
 

@@ -20,12 +20,15 @@
     <ng-container *ngIf="pnlReport">
       <div class="pnl-report-title">
         <p>
-          דו"ח רווח והפסד לתקופה {{ endDate() }} - {{ startDate() }}
+         {{ businessName() }}
         </p>
         <p>
-          עבור: {{ businessName() }} מ.ע {{ businessNumber() }}
+         מ.ע: {{ businessNumber() }}
         </p>
-    </div>
+        <p>
+          דו"ח רווח והפסד לתקופה: {{ formatReportDate(endDate()) }} - {{ formatReportDate(startDate()) }}
+        </p>
+      </div>
       <div class="wrap-output-report">
         <!-- Display Income -->
         <div class="output-pnl-report">

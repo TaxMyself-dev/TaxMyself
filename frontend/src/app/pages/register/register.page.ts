@@ -451,6 +451,20 @@ matchRegisterImage = computed(() => {
       });
     }
     
+    // Convert dates from DD-MM-YYYY (datepicker display format) to YYYY-MM-DD (MySQL format)
+    if (formData.personal?.dateOfBirth) {
+      formData.personal.dateOfBirth = this.toDbDate(formData.personal.dateOfBirth);
+    }
+    if (formData.spouse?.spouseDateOfBirth) {
+      formData.spouse.spouseDateOfBirth = this.toDbDate(formData.spouse.spouseDateOfBirth);
+    }
+    if (formData.children?.childrenArray) {
+      formData.children.childrenArray = formData.children.childrenArray.map((child: any) => ({
+        ...child,
+        childDate: child.childDate ? this.toDbDate(child.childDate) : child.childDate,
+      }));
+    }
+
     formData.validation = { password: formData?.personal?.password };
     console.log("formData is :::: ", formData);
     this.isLoading.set(true);
@@ -639,6 +653,16 @@ matchRegisterImage = computed(() => {
   }
 
 
+  /** Converts DD-MM-YYYY → YYYY-MM-DD for MySQL. Passes through if already in correct format. */
+  private toDbDate(value: string): string {
+    if (!value) return value;
+    const parts = value.split('-');
+    if (parts.length === 3 && parts[0].length === 2) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return value;
+  }
+
   private fillDevDefaults(): void {
 
     if (process.env.NODE_ENV == 'production') return;
@@ -661,31 +685,31 @@ matchRegisterImage = computed(() => {
       confirmPassword: 'Test1234',
     });
 
-    // Spouse (optional)
-    this.spouseForm.patchValue({
-      spouseFName: 'Uriah',
-      spouseLName: 'Harel',
-      spouseId: '987654321',
-      spouseEmail: 'spouse@example.com',
-      spousePhone: '0509876543',
-      spouseGender: 'female',
-    });
+    // // Spouse (optional)
+    // this.spouseForm.patchValue({
+    //   spouseFName: 'Uriah',
+    //   spouseLName: 'Harel',
+    //   spouseId: '987654321',
+    //   spouseEmail: 'spouse@example.com',
+    //   spousePhone: '0509876543',
+    //   spouseGender: 'female',
+    // });
 
-    // Children example
-    this.addChild(); // ensure at least one child form exists
-    this.childrenArray.at(0).patchValue({
-      childFName: 'Noam',
-      childLName: 'Harel',
-      childDate: '2020-01-01',
-    });
+    // // Children example
+    // this.addChild(); // ensure at least one child form exists
+    // this.childrenArray.at(0).patchValue({
+    //   childFName: 'Noam',
+    //   childLName: 'Harel',
+    //   childDate: '2020-01-01',
+    // });
 
-    // Business array example (if you use dynamic businesses)
-    if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
-    this.businessArray.at(0).patchValue({
-      businessName: 'KeepInTax',
-      businessNumber: '555555555',
-      businessType: 'LICENSED',
-    });
+    // // Business array example (if you use dynamic businesses)
+    // if (this.businessArray && this.businessArray.length === 0) this.addBusiness();
+    // this.businessArray.at(0).patchValue({
+    //   businessName: 'KeepInTax',
+    //   businessNumber: '555555555',
+    //   businessType: 'LICENSED',
+    // });
   }
 
 }

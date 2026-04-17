@@ -118,6 +118,21 @@
     color: red;
 }
 
+.sum-sign--expense {
+    color: #c62828;
+    font-weight: 600;
+}
+
+.sum-sign--income {
+    color: #2e7d32;
+    font-weight: 600;
+}
+
+.bill-unassigned {
+    color: #c62828;
+    font-weight: 600;
+}
+
 .action-cell {
     display: flex;
     height: 76px;
@@ -147,7 +162,7 @@
     height: 76px;
     border-right: 1px solid;
     position: fixed;
-    left: 36px;
+    left: 4%;
     z-index: 1000;
     background: white;
     padding: 6px;
@@ -396,6 +411,20 @@
     gap: 12px;
     padding: 8px 0;
     width: 100%;
+}
+
+.sync-loading-text {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+}
+
+.sync-error-text {
+    margin: 40px auto;
+    font-size: 14px;
+    color: #c0392b;
+    text-align: center;
 }
 
 .mobile-cards__loading {

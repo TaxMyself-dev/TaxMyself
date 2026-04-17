@@ -5,49 +5,6 @@ import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AuthService } from '../services/auth.service';
 import { ClientPanelService } from '../services/clients-panel.service';
 
-// @Injectable()
-// export class AuthInterceptor implements HttpInterceptor {
-
-//   constructor(private afAuth: AngularFireAuth) {}
-
-//   intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    
-//     // 🔹 DEBUG: Print the URL of the outgoing request
-//     // console.log("➡️ Intercepting request:", req.url);
-
-//     return from(this.afAuth.currentUser).pipe(
-//       switchMap(user => {
-        
-//         if (!user) {
-//           // 🔹 DEBUG: No logged-in user
-//           console.log("❌ No Firebase user -> sending request without token");
-//           return next.handle(req);
-//         }
-
-//         // 🔹 DEBUG: Firebase user exists
-//         // console.log("👤 Firebase user detected:", user.uid);
-
-//         return from(user.getIdToken()).pipe(
-//           switchMap(token => {
-//             // 🔹 DEBUG: Print the token here
-//             console.log("🔑 Firebase ID Token:", token);
-
-//             const authReq = req.clone({
-//               setHeaders: {
-//                 Authorization: `Bearer ${token}`
-//               }
-//             });
-
-//             // 🔹 DEBUG: Print final request headers
-//             // console.log("📨 Final headers:", authReq.headers);
-
-//             return next.handle(authReq);
-//           })
-//         );
-//       })
-//     );
-//   }
-// }
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
 
@@ -71,7 +28,6 @@ export class AuthInterceptor implements HttpInterceptor {
         if (token && !req.headers.has('Authorization')) {
           headers['Authorization'] = `Bearer ${token}`;
         }
-        console.log("🚀 ~ AuthInterceptor ~ intercept ~ businessNumber:", businessNumber)
         if (businessNumber) {
           headers['businessnumber'] = businessNumber;
         }

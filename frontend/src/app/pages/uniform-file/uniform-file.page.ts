@@ -9,6 +9,7 @@ import { FormTypes, ReportingPeriodType, UniformFileDocumentSummaryColumns, Unif
 import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus } from 'src/app/shared/enums';
 import { FilterField, FilterFieldType } from 'src/app/components/filter-tab/filter-fields-model.component';
+import { MessageService } from 'primeng/api';
 
 export interface ReportDetails {
   businessNumber: string;
@@ -74,7 +75,14 @@ export class UniformFilePage implements OnInit {
     { name: UniformFileListSummaryColumns.LIST_TOTAL, value: UniformFileListSummaryHebrewColumns.listTotal, type: FormTypes.TEXT },
   ];
 
-  constructor(private formBuilder: FormBuilder, public authService: AuthService, private fileService: FilesService, private genericService: GenericService, private dateService: DateService) {
+  constructor(
+    private formBuilder: FormBuilder,
+    public authService: AuthService,
+    private fileService: FilesService,
+    private genericService: GenericService,
+    private dateService: DateService,
+    private messageService: MessageService
+  ) {
     this.uniformFileForm = this.formBuilder.group({
       startDate: new FormControl(
         Date,
@@ -133,8 +141,18 @@ export class UniformFilePage implements OnInit {
     let endDate: string;
     let businessNumber: string;
 
+    try {
     if (formValues) {
       // Handle period values from filter-tab
+      console.log('[uniform-file] submit with formValues', {
+        periodMode: formValues?.periodMode,
+        year: formValues?.year,
+        month: formValues?.month,
+        startDateRaw: formValues?.startDate,
+        endDateRaw: formValues?.endDate,
+        startDateType: typeof formValues?.startDate,
+        endDateType: typeof formValues?.endDate,
+      });
       const { startDate: periodStartDate, endDate: periodEndDate } = this.dateService.getStartAndEndDates(
         formValues.periodMode,
         formValues.year,
@@ -144,6 +162,7 @@ export class UniformFilePage implements OnInit {
       );
       startDate = periodStartDate;
       endDate = periodEndDate;
+      console.log('[uniform-file] parsed period dates', { startDate, endDate });
       // Get businessNumber from formValues (selected by user) or fallback to signal
       businessNumber = formValues.businessNumber || this.businessNumber();
       // Update the signal with the selected business number
@@ -156,6 +175,13 @@ export class UniformFilePage implements OnInit {
       startDate = formData.startDate;
       endDate = formData.endDate;
       businessNumber = formData.businessNumber || this.businessNumber();
+      console.log('[uniform-file] submit with uniformFileForm', {
+        startDateRaw: formData?.startDate,
+        endDateRaw: formData?.endDate,
+        businessNumber,
+        startDateType: typeof formData?.startDate,
+        endDateType: typeof formData?.endDate,
+      });
       // Update the signal with the selected business number
       if (formData.businessNumber) {
         this.businessNumber.set(formData.businessNumber);
@@ -185,6 +211,16 @@ export class UniformFilePage implements OnInit {
     this.uniformFileListSummary = list_summary;
     this.reportDetails.downloadLink = filePath;
 
+    } catch (err: any) {
+      const message = err?.message ?? 'אירעה שגיאה בהפקת הדוח';
+      this.messageService.add({
+        severity: 'error',
+        summary: 'שגיאה',
+        detail: message,
+        life: 5000,
+        key: 'br'
+      });
+    }
   }
 
 

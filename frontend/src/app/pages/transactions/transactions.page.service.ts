@@ -5,6 +5,7 @@ import { environment } from 'src/environments/environment';
 import { IClassifyTrans, IClassifyTransMinimal, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
+import { paymentIdentifierType } from 'src/app/shared/enums';
 
 
 @Injectable({
@@ -21,11 +22,10 @@ export class TransactionsService implements OnInit {
   categoryListRefreshTrigger = signal(0);
 
   constructor(private http: HttpClient) {
-    console.log("in transaction service");
   };
+  
 
   ngOnInit(): void {
-    console.log("in on init trans service");
   }
 
 
@@ -109,6 +109,21 @@ export class TransactionsService implements OnInit {
   getAllSources(): Observable<string[]> {
     const url = `${environment.apiUrl}transactions/get-sources`;
     return this.http.get<any[]>(url)
+  }
+
+  getSourcesWithTypes(): Observable<{ sourceName: string; sourceType: paymentIdentifierType; billName: string | null }[]> {
+    const url = `${environment.apiUrl}transactions/get-sources-with-types`;
+    console.log('[TransactionsService] get-sources-with-types — בקשה:', { method: 'GET', url });
+    return this.http.get<any[]>(url).pipe(
+      tap((body) => {
+        console.log('[TransactionsService] get-sources-with-types — גוף תגובה גולמי:', body);
+      }),
+      map((rows) => rows ?? []),
+      catchError((err) => {
+        console.error('[TransactionsService] get-sources-with-types — שגיאה:', err);
+        return EMPTY;
+      }),
+    );
   }
 
   getSourcesByBillId(billId: number): Observable<string[]> {
