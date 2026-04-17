@@ -284,6 +284,39 @@ export class LoginPage implements OnInit {
 
 
 
+  async googleSignIn(): Promise<void> {
+    this.isLoading.set(true);
+    this.authService.error.set(null);
+    try {
+      const { isNewUser, userData } = await this.authService.signInWithGoogle();
+      if (isNewUser) {
+        this.router.navigate(['/register']);
+        return;
+      }
+      sessionStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userData', JSON.stringify(userData));
+      await this.genericService.loadBusinessesFromServer();
+      this.router.navigate(['my-account']);
+    } catch (err: any) {
+      console.error('❌ Google sign-in error code:', err?.code, err);
+      switch (err?.code) {
+        case 'auth/popup-closed-by-user':
+        case 'auth/cancelled-popup-request':
+          break;
+        case 'auth/network-request-failed':
+          this.authService.error.set('net');
+          break;
+        case 'auth/popup-blocked':
+          this.messageService.add({ severity: 'warn', summary: 'חסימת חלון', detail: 'הדפדפן חסם את חלון הכניסה. אנא אפשר חלונות קופצים לאתר זה.', sticky: true, key: 'br' });
+          break;
+        default:
+          this.authService.error.set('error');
+      }
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
   navigateToRegister(): void {
     this.router.navigate(['register'])
   }

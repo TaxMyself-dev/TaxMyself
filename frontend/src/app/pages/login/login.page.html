@@ -41,12 +41,9 @@
           </div>
 
           <div class="social-login-buttons">
-            <app-p-button [buttonText]="'התחברו עם פייסבוק'" [buttonSize]="buttonSize.BETWEEN"
-              [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.AUTO" icon="pi pi-facebook"
-              iconPosition="right"></app-p-button>
-            <app-p-button [buttonText]="'התחברו עם גוגל'" [buttonSize]="buttonSize.BETWEEN"
-              [buttonColor]="buttonColor.WHITE_BORDER" [buttonSize]="buttonSize.AUTO" icon="pi pi-google"
-              iconPosition="right"></app-p-button>
+            <app-p-button [buttonText]="'התחברו עם גוגל'" [buttonColor]="buttonColor.WHITE_BORDER"
+              [buttonSize]="buttonSize.AUTO" [customIcon]="true" [class]="'google-btn'"
+              (onButtonClicked)="googleSignIn()" [isLoading]="isLoading()"></app-p-button>
           </div>
         </div>
       </div>

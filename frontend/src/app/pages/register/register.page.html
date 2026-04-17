@@ -16,6 +16,17 @@
         <!-------------- PRESONAL MODULE ------------->
         <div class="module" *ngSwitchCase="registerFormModules.PERSONAL">
 
+          @if(!isGoogleUser) {
+          <div class="google-login-section">
+            <app-p-button [buttonText]="'המשיכו עם גוגל'" [buttonColor]="buttonColor.WHITE_BORDER"
+              [buttonSize]="buttonSize.BETWEEN" icon="pi pi-google" iconPosition="right"
+              (onButtonClicked)="googleSignIn()" [isLoading]="isGoogleLoading()"></app-p-button>
+            <div class="google-divider">
+              <hr class="line" /><span>או</span><hr class="line" />
+            </div>
+          </div>
+          }
+
           <!-- <form *ngIf="personalForm" class="form-register" [formGroup]="personalForm"> -->
           @if(personalForm) {
           <div class="form-register">
@@ -82,6 +93,7 @@
                 [size]="inputsSize.BETWEEN" [customStyle]="'register'"></app-input-select>
             </div>
             <!-- Fifth line -->
+            @if(!isGoogleUser) {
             <div class="section-one">
               <app-input-text [controlName]="registerFormControls.PASSWORD" labelText="סיסמה"
                 [placeholder]="'בחר 8 תווים'" [parentForm]="personalForm" [size]="inputsSize.BETWEEN"
@@ -92,6 +104,7 @@
               <span class="password-instracions">על הסיסמה להכיל שמונה תווים<br>המורכבים מאותיות באנגלית
                 ומספרים</span>
             </div>
+            }
           </div>
           }
           <!-- </form> -->

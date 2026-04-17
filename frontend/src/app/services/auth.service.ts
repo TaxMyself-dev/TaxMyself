@@ -2,10 +2,10 @@ import { Injectable, NgZone, signal } from '@angular/core';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
+import { Observable, catchError, firstValueFrom, from, switchMap, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { UserCredential } from '@firebase/auth-types';
-import { sendEmailVerification } from '@angular/fire/auth';
+import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
@@ -309,6 +309,32 @@ export class AuthService {
     return this.http.delete<void>(url);
   }
 
+
+  async signInWithGoogle(): Promise<{ isNewUser: boolean; userData?: any; googleUser: { email: string; displayName: string } }> {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ hl: 'iw' });
+    const result = await this.afAuth.signInWithPopup(provider);
+    const googleUser = {
+      email: result.user.email,
+      displayName: result.user.displayName,
+    };
+    try {
+      const userData = await firstValueFrom(this.signIn());
+      return { isNewUser: false, userData, googleUser };
+    } catch {
+      return { isNewUser: true, googleUser };
+    }
+  }
+
+  SignUpWithGoogle(formData: any): Observable<any> {
+    return from(this.afAuth.currentUser).pipe(
+      switchMap((user) => {
+        formData.personal.firebaseId = user.uid;
+        const url = `${environment.apiUrl}auth/signup`;
+        return this.http.post(url, formData);
+      })
+    );
+  }
 
   async SignOut() {
     return this.afAuth.signOut().then(() => {
