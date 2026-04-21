@@ -71,31 +71,18 @@ export class FeezbackHttpClient {
       } catch (rawError) {
         const mapped = toFeezbackHttpError(method, url, rawError);
 
-        if (mapped.responseBody !== undefined) {
-          let dataStr: string;
-          try { dataStr = JSON.stringify(mapped.responseBody); } catch { dataStr = String(mapped.responseBody); }
-          this.logger.error(
-            `[Feezback] Error response | endpoint=${endpoint} | status=${mapped.status ?? 'unknown'} | data=${dataStr}`,
-          );
-        }
-
         const rateLimit = isRateLimitError(mapped);
         const shouldRetry = isRetryableFeezbackError(mapped);
 
         if (!shouldRetry || attempt === maxRetries) {
-          this.logger.error(
-            `[Feezback] Failed | endpoint=${endpoint} | attempts=${attempt + 1} | status=${mapped.status ?? 'unknown'} | error=${mapped.message}`,
-          );
+          console.log(`\n❌ [Feezback] ${endpoint} — all ${attempt + 1} attempt(s) failed | status=${mapped.status ?? 'unknown'} | error=${mapped.message}\n`);
           throw mapped;
         }
 
         const retryAfterMs = rateLimit ? parseRetryAfterMs(mapped.headers) : null;
         const waitMs = retryAfterMs ?? calcBackoffMs(attempt);
-        const reason = rateLimit ? 'rate-limit (429)' : 'transient error';
 
-        this.logger.warn(
-          `[Feezback] Retry ${attempt + 1}/${maxRetries} | endpoint=${endpoint} | status=${mapped.status ?? 'unknown'} | reason=${reason} | waitMs=${waitMs}`,
-        );
+        console.log(`⚠️  [Feezback] ${endpoint} — attempt ${attempt + 1}/${maxRetries} got ${mapped.status ?? 'unknown'}, retrying in ${waitMs}ms`);
 
         await sleep(waitMs);
       }

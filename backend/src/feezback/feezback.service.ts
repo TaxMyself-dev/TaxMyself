@@ -478,126 +478,86 @@ export class FeezbackService {
       responseData?: any;
     }> = [];
 
-    // ✅ PACING
-    const pacingMs = 1500;
+    // Fetch all card transactions in parallel
+    const cardFetchResults = await Promise.all(
+      filteredCards.map(async (card: any) => {
+        const cardId = card?.resourceId;
+        if (!cardId) {
+          this.logger.warn('Skipping card without resourceId');
+          return null;
+        }
 
-    // cooldown after GET /cards before first cardTransactions request
-    if (filteredCards.length > 0) {
-      // await this.sleep(1500);
-    }
+        const consentId =
+          card?.consentId ||
+          card?.relatedConsents?.[0]?.resourceId ||
+          null;
 
-    for (let i = 0; i < filteredCards.length; i++) {
-      const card = filteredCards[i];
-      const cardId = card?.resourceId;
+        const cardName =
+          card?.displayName ||
+          card?.name ||
+          card?.maskedPan ||
+          cardId;
 
-      if (!cardId) {
-        this.logger.warn('Skipping card without resourceId');
-        continue;
-      }
+        try {
+          if (!consentId) {
+            throw Object.assign(new Error('Missing consentId for card'), { status: 400 });
+          }
 
-      const consentId =
-        card?.consentId ||
-        card?.relatedConsents?.[0]?.resourceId ||
-        null;
+          const transactionsResponse =
+            await this.feezbackConsentApiService.getCardTransactions(
+              sub,
+              consentId,
+              cardId,
+              bookingStatus,
+              dateFrom,
+              dateTo,
+            );
 
-      const cardName =
-        card?.displayName ||
-        card?.name ||
-        card?.maskedPan ||
-        cardId;
+          const transactions = this.extractCardTransactions(transactionsResponse);
+          const cardMeta = {
+            cardResourceId: cardId,
+            displayName: cardName,
+            maskedPan: card?.maskedPan ?? null,
+            consentId,
+          };
+          const transactionsWithMeta = transactions.map((tx: any) => ({ ...tx, __cardMeta: cardMeta }));
 
+          return { card, cardId, cardName, consentId, transactions, transactionsWithMeta, failed: false };
+        } catch (err: any) {
+          const status = err?.status ?? err?.response?.status;
+          const code = err?.code;
+          const message = err?.message || 'Unknown error';
+          this.logger.warn(
+            `[CardFetch] Failed | card=${cardName} | consent=${consentId} | status=${status} | error=${message}`,
+          );
+          return {
+            card, cardId, cardName, consentId: consentId ?? null,
+            transactions: [] as any[], transactionsWithMeta: [] as any[],
+            failed: true, err: { status, code, message, responseData: err?.response?.data
+              ? (typeof err.response.data === 'string' ? err.response.data.slice(0, 500) : err.response.data)
+              : undefined },
+          };
+        }
+      }),
+    );
+
+    for (const result of cardFetchResults) {
+      if (!result) continue; // skipped (no resourceId)
+
+      const { card, cardId, cardName, consentId, transactions, transactionsWithMeta, failed } = result;
       cardInfoMap[cardId] = card;
 
-      if (i > 0 && pacingMs > 0) {
-        // await this.sleep(pacingMs);
-      }
-
-      try {
-        if (!consentId) {
-          throw Object.assign(new Error('Missing consentId for card'), { status: 400 });
+      if (failed) {
+        const { status, code, message, responseData } = (result as any).err;
+        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, status, code, message, responseData });
+        if (!(cardName in transactionsByCard)) {
+          transactionsByCard[cardName] = [{ __cardMeta: { cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan ?? null, consentId }, __error: { status, code, message } }];
         }
-
-        const transactionsResponse =
-          await this.feezbackConsentApiService.getCardTransactions(
-            sub,
-            consentId,
-            cardId,
-            bookingStatus,
-            dateFrom,
-            dateTo,
-          );
-
-        const transactions = this.extractCardTransactions(transactionsResponse);
-
-
-        // ✅ מטא שנוסיף לכל טרנזקציה (לקובץ בלבד)
-        const cardMeta = {
-          cardResourceId: cardId,
-          displayName: cardName,
-          maskedPan: card?.maskedPan ?? null,
-          consentId,
-        };
-
-        const transactionsWithMeta = transactions.map(tx => ({
-          ...tx,
-          __cardMeta: cardMeta,
-        }));
-
-        // ✅ לקובץ: טרנזקציות עם מטא
+      } else {
         transactionsByCard[cardName] = transactionsWithMeta;
         allTransactionsForFile.push(...transactionsWithMeta);
-
-        // ✅ ל-DB: נשמור טרנזקציות כולל מטא
         allTransactionsForDb.push(...transactionsWithMeta);
-
-        cardsResult.push({
-          cardResourceId: cardId,
-          displayName: cardName,
-          maskedPan: card?.maskedPan,
-          consentId,
-          transactions, // המקוריות (בלי מטא)
-        });
-      } catch (err: any) {
-        const status = err?.status ?? err?.response?.status;
-        const code = err?.code;
-        const message = err?.message || 'Unknown error';
-
-        this.logger.warn(
-          `[CardFetch] Failed | card=${cardName} | consent=${consentId} | status=${status} | error=${message}`,
-        );
-
-        cardErrors.push({
-          cardResourceId: cardId,
-          consentId,
-          displayName: cardName,
-          status,
-          code,
-          message,
-          responseData: err?.response?.data
-            ? (typeof err.response.data === 'string'
-              ? err.response.data.slice(0, 500)
-              : err.response.data)
-            : undefined,
-        });
-
-        // כדי שבקובץ תראה שהכרטיס היה קיים אבל נכשל
-        if (!(cardName in transactionsByCard)) {
-          transactionsByCard[cardName] = [{
-            __cardMeta: {
-              cardResourceId: cardId,
-              displayName: cardName,
-              maskedPan: card?.maskedPan ?? null,
-              consentId,
-            },
-            __error: {
-              status,
-              code,
-              message,
-            },
-          }];
-        }
-
-        continue;
+        cardsResult.push({ cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan, consentId, transactions });
       }
     }
 
@@ -783,45 +743,47 @@ export class FeezbackService {
       };
     }
 
-    // Step 2: Fetch transactions per account
+    // Step 2: Fetch transactions per account — all accounts in parallel
+    const accountFetchResults = await Promise.all(
+      accounts.map(async (account: any) => {
+        try {
+          const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
+            sub,
+            account._links.transactions.href,
+            bookingStatus,
+            dateFrom,
+            dateTo,
+          );
+          const rawTransactions = this.extractBankTransactions(transactionsResponse);
+          // Stamp the account's IBAN directly onto each transaction so normalization
+          // can read it without relying on the transactionToAccountMap lookup.
+          const transactions = rawTransactions.map((tx: any) => ({
+            ...tx,
+            __accountIban: account.iban ?? null,
+          }));
+          return { account, transactions, failed: false };
+        } catch (error: any) {
+          this.logger.error(
+            `[BankFetch] Account failed | account=${account.name} | error=${error.message}`,
+            error.stack,
+          );
+          return { account, transactions: [] as any[], failed: true };
+        }
+      }),
+    );
+
     const allTransactions: any[] = [];
     const accountTransactionsMap: { [accountName: string]: any[] } = {};
     let accountsFailed = 0;
 
-    for (let i = 0; i < accounts.length; i++) {
-      const account = accounts[i];
-
-      try {
-        const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
-          sub,
-          account._links.transactions.href,
-          bookingStatus,
-          dateFrom,
-          dateTo,
-        );
-
-        const rawTransactions = this.extractBankTransactions(transactionsResponse);
-
-        // Stamp the account's IBAN directly onto each transaction so normalization
-        // can read it without relying on the transactionToAccountMap lookup.
-        const transactions = rawTransactions.map(tx => ({
-          ...tx,
-          __accountIban: account.iban ?? null,
-        }));
-
-
-        if (transactions.length > 0) {
-          accountTransactionsMap[account.name] = transactions;
-          allTransactions.push(...transactions);
-        } else {
-          accountTransactionsMap[account.name] = [];
-        }
-      } catch (error: any) {
-        this.logger.error(
-          `[BankFetch] Account failed | account=${account.name} | error=${error.message}`,
-          error.stack,
-        );
+    for (const { account, transactions, failed } of accountFetchResults) {
+      if (failed) {
         accountsFailed++;
+      } else {
+        accountTransactionsMap[account.name] = transactions;
+        if (transactions.length > 0) {
+          allTransactions.push(...transactions);
+        }
       }
     }
 
@@ -1369,19 +1331,23 @@ export class FeezbackService {
   async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
 
-    // Log #1 — requested
-    this.logger.log(`[FullSync] Requested | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+    console.log(`\n🔄 [FullSync] Requested | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+
+    // Dev-only gate — FEEZBACK_MANUAL_SYNC_ONLY=true disables automatic syncs (login/webhook) in non-production.
+    // Admin-panel pulls use getAndSaveBankTransactions directly and are not affected.
+    if (process.env.NODE_ENV !== 'production' && process.env.FEEZBACK_MANUAL_SYNC_ONLY === 'true' && triggeredBy !== 'manual') {
+      console.log(`⏭️  [FullSync] Skipped — FEEZBACK_MANUAL_SYNC_ONLY=true (dev only) | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
+      return;
+    }
 
     // In-flight guard — reuse existing promise if sync is already running
     const existing = this.runningFullSyncByUser.get(firebaseId);
     if (existing) {
-      // Log #2 — reused
-      this.logger.log(`[FullSync] Skipped — already running, reusing in-flight promise | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+      console.log(`⏭️  [FullSync] Skipped — already running, reusing in-flight promise | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
       return existing;
     }
 
-    // Log #3 — starting
-    this.logger.log(`[FullSync] Starting | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+    console.log(`🚀 [FullSync] Starting | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
     // Capture sync state BEFORE markQuickRunning overwrites it so doFullSync can
     // correctly determine whether the cache was empty at the time sync was triggered.
@@ -1503,7 +1469,7 @@ export class FeezbackService {
       // Gate — only proceed for users who have OPEN_BANKING module access.
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess', 'fName', 'lName'] });
       if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-        this.logger.log(`[FullSync] Skipped — OPEN_BANKING not in modulesAccess | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+        console.log(`⏭️  [FullSync] Skipped — OPEN_BANKING not in modulesAccess | modulesAccess=${JSON.stringify(user?.modulesAccess)} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
         });
@@ -1519,14 +1485,14 @@ export class FeezbackService {
         !BLOCKING_STATUSES.includes(syncState.fullProcessStatus as string);
       // Webhook always forces a full sync — user connected a new bank or updated permissions
       if (!syncIsEmpty && triggeredBy !== 'webhook') {
-        this.logger.log(`[FullSync] Skipped — sync state is not empty (${syncState?.quickProcessStatus}/${syncState?.fullProcessStatus}) | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
+        console.log(`⏭️  [FullSync] Skipped — cache_exists | quick=${syncState?.quickProcessStatus} full=${syncState?.fullProcessStatus} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
         await this.userSyncStateService.markBothSkipped(firebaseId, 'cache_exists').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
         });
         return;
       }
       if (!syncIsEmpty && triggeredBy === 'webhook') {
-        this.logger.log(`[FullSync] Forcing sync — webhook override | firebaseId=${masked}`);
+        console.log(`🔁 [FullSync] Forcing sync — webhook override | firebaseId=${masked}`);
       }
 
       const sub = `${firebaseId}_sub`;

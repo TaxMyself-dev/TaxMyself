@@ -31,9 +31,9 @@
 
 export const FEEZBACK_RETRY = {
   maxRetries: 5,
-  baseDelayMs: 500,
-  maxDelayMs: 20_000,
-  jitterMs: 300,
+  baseDelayMs: 10,
+  maxDelayMs: 10,
+  jitterMs: 0,
 } as const;
 
 // ── Internal status-code sets ──────────────────────────────────────────────────

@@ -35,17 +35,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const stack = exception instanceof Error ? exception.stack : undefined;
 
-    const logPayload = {
-      severity: status >= 500 ? 'ERROR' : 'WARNING',
-      message: 'Request failed',
-      error: message,
-      statusCode: status,
-      path: request?.url ?? request?.path,
-      method: request?.method,
-      stack: stack ?? undefined,
-    };
+    const path = request?.url ?? request?.path;
+    const method = request?.method;
 
-    this.logger.error(JSON.stringify(logPayload));
+    if (status >= 500) {
+      this.logger.error(JSON.stringify({
+        severity: 'ERROR',
+        message: 'Request failed',
+        error: message,
+        statusCode: status,
+        path,
+        method,
+        stack,
+      }));
+    } else {
+      this.logger.warn(`${status} ${method} ${path} — ${message}`);
+    }
 
     const body =
       exception instanceof HttpException

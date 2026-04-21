@@ -6,7 +6,7 @@ import { environment } from 'src/environments/environment';
 export type TriggerSyncStatus = 'started' | 'running';
 
 /** Frontend-facing lifecycle status. This is the only field that drives polling and reload decisions. */
-export type ProcessStatus = 'running' | 'completed' | 'failed';
+export type ProcessStatus = 'running' | 'completed' | 'failed' | 'skipped';
 
 /** Backend-facing outcome quality. Passed through for logging/debugging; must not drive polling logic. */
 export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
@@ -25,7 +25,7 @@ export interface SyncResponse {
   fullSync: StageState;
 }
 
-const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed'];
+const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed', 'skipped'];
 
 @Injectable({ providedIn: 'root' })
 export class SyncStatusService {

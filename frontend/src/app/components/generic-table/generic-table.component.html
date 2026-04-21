@@ -138,7 +138,10 @@
             <i class="pi pi-spin pi-spinner"></i>
           </div>
           @if (useSyncState() && processStatus() === 'running') {
-            <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+            <div class="sync-loading-overlay">
+              <i class="pi pi-spin pi-spinner-dotted sync-loading-icon"></i>
+              <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+            </div>
           }
         } @else if (useSyncState() && processStatus() === 'failed') {
           <div class="empty-data-container">
@@ -171,14 +174,21 @@
 
   @if (!isMobile() || !mobileCardConfig()) {
   <div class="table">
-    @if (useSyncState() && processStatus() === 'running') {
-      <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
-    }
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
-      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id" [loading]="effectiveIsLoading()"
+      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
+      [loading]="effectiveIsLoading()"
       loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="columnsTitle()" [value]="filteredDataTable()"
       [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">
+      <ng-template pTemplate="loadingbody">
+        @if (useSyncState() && processStatus() === 'running') {
+          <tr>
+            <td [attr.colspan]="columnsTitle()?.length || 1" style="border: none; padding: 60px 0; text-align: center;">
+              <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
+            </td>
+          </tr>
+        }
+      </ng-template>
       <ng-template pTemplate="header" let-columns>
         <tr>
           @if (showCheckbox()) {

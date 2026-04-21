@@ -696,9 +696,14 @@ matchRegisterImage = computed(() => {
   }
 
 
-  /** Converts DD-MM-YYYY → YYYY-MM-DD for MySQL. Passes through if already in correct format. */
-  private toDbDate(value: string): string {
-    if (!value) return value;
+  /** Converts DD-MM-YYYY or Date object → YYYY-MM-DD for MySQL. */
+  private toDbDate(value: string | Date): string {
+    if (!value) return value as string;
+    if (value instanceof Date) {
+      const day = String(value.getDate()).padStart(2, '0');
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      return `${value.getFullYear()}-${month}-${day}`;
+    }
     const parts = value.split('-');
     if (parts.length === 3 && parts[0].length === 2) {
       return `${parts[2]}-${parts[1]}-${parts[0]}`;

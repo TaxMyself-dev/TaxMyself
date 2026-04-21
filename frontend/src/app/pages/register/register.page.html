@@ -19,7 +19,7 @@
           @if(!isGoogleUser) {
           <div class="google-login-section">
             <app-p-button [buttonText]="'המשיכו עם גוגל'" [buttonColor]="buttonColor.WHITE_BORDER"
-              [buttonSize]="buttonSize.BETWEEN" icon="pi pi-google" iconPosition="right"
+              [buttonSize]="buttonSize.BETWEEN" [customIcon]="true"
               (onButtonClicked)="googleSignIn()" [isLoading]="isGoogleLoading()"></app-p-button>
             <div class="google-divider">
               <hr class="line" /><span>או</span><hr class="line" />

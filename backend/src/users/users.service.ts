@@ -39,13 +39,6 @@ export class UsersService {
 
   async signup({ personal, spouse, children, business }: any) {
 
-    console.log("signup - start");
-
-    console.log("🧍 personal:", personal);
-    console.log("🤝 spouse:", spouse);
-    console.log("👶 children:", children);
-    console.log("🏢 business:", business);
-
     // -------------------------------------------------------
     // 1️⃣ SAFE NORMALIZATION
     // -------------------------------------------------------
@@ -76,7 +69,7 @@ export class UsersService {
       createdAt: new Date(),
       subscriptionEndDate: new Date(),
       payStatus: PayStatus.TRIAL,
-      modulesAccess: [ModuleName.INVOICES, ModuleName.OPEN_BANKING],
+      modulesAccess: [ModuleName.INVOICES],
     };
 
     newUser.subscriptionEndDate.setMonth(
@@ -211,7 +204,6 @@ export class UsersService {
       await this.business_repo.save(newBusiness);
     }
 
-    console.log("signup - end");
     return savedUser;
   }
 

@@ -237,7 +237,7 @@ export class MyAccountPage implements OnInit {
         stored.hasOpenBanking = true;
         localStorage.setItem('userData', JSON.stringify(stored));
       }
-      this.startSyncStatusPolling();
+      this.startSyncStatusPolling(true);
     } else if (status === 'failure') {
       this.feezbackDialogStatus.set('failure');
       this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
@@ -275,7 +275,13 @@ export class MyAccountPage implements OnInit {
    * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
    * the stream completes.
    */
-  private startSyncStatusPolling(): void {
+  /**
+   * @param requireRunningFirst  When true (explicit sync trigger / feezback return),
+   *   ignore 'completed'/'failed' until we have first seen 'running' — avoids acting
+   *   on stale terminal state left over from a previous sync.
+   *   When false (page load / navigation back), act on whatever the current state is.
+   */
+  private startSyncStatusPolling(requireRunningFirst = false): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
@@ -287,13 +293,10 @@ export class MyAccountPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          stageState => {
-            if (!stageState || stageState.processStatus === 'running') return true;
-            // When the Feezback dialog is waiting for a fresh sync, ignore stale terminal
-            // states until we've seen at least one 'running' poll from the new sync.
-            if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading' && !seenRunning) return true;
-            return false;
-          },
+          stageState =>
+            !stageState ||
+            stageState.processStatus === 'running' ||
+            (requireRunningFirst && !seenRunning),
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -314,10 +317,10 @@ export class MyAccountPage implements OnInit {
 
         if (status === 'running') {
           seenRunning = true;
+          hasFetched = false; // reset so refetch happens after sync completes
           this.syncProcessStatus.set('running');
         } else if (status === 'completed') {
-          // If dialog is open and waiting, ignore until we've seen a fresh 'running' first
-          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading' && !seenRunning) return;
+          if (requireRunningFirst && !seenRunning) return; // stale — keep polling
           this.syncProcessStatus.set(null);
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
             this.feezbackDialogStatus.set('success');
@@ -328,12 +331,20 @@ export class MyAccountPage implements OnInit {
             this.getTransToClassify();
           }
         } else if (status === 'failed') {
-          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading' && !seenRunning) return;
+          if (requireRunningFirst && !seenRunning) return; // stale — keep polling
           this.syncProcessStatus.set('failed');
           this.transToClassify = of([]);
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
             this.feezbackDialogStatus.set('failure');
             this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+          }
+        } else if (status === 'skipped') {
+          // 'cache_exists' → data already in DB → fetch it.
+          // 'no_access'    → user has no open banking → show empty state.
+          this.syncProcessStatus.set(null);
+          if (stageState.skipReason === 'cache_exists' && !hasFetched) {
+            hasFetched = true;
+            this.getTransToClassify();
           }
         }
       });
@@ -352,7 +363,7 @@ export class MyAccountPage implements OnInit {
     this.syncStatusService.triggerSync()
       .pipe(take(1))
       .subscribe({
-        next: () => this.startSyncStatusPolling(),
+        next: () => this.startSyncStatusPolling(true),
         error: (err) => {
           console.error('[MyAccount] triggerSync failed during retry:', err);
           this.syncProcessStatus.set('failed');
