@@ -93,7 +93,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   filteredClients = signal<IClient[]>([]);
   selectedClientData: IClient = null; // Store selected client data for expanded fields
   addPDFIsLoading: boolean = false;
-  sendEmailToRecipient = false; // Checkbox state for sending email to recipient
+  sendEmailToRecipient = signal(false); // Checkbox state for sending email to recipient
   userData: IUserData
   amountBeforeVat: number = 0;
   overallTotals: ITotals;
@@ -242,15 +242,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
       this.userFormIsValidSignal() &&
       this.lineItemsDraft().length > 0 &&
       (!this.isDocWithPayments() || this.paymentsDraft().length > 0) &&
-      (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0)
+      (!this.isDocWithPayments() || this.chargesPaymentsDifference() === 0) &&
+      !(this.sendEmailToRecipient() && !this.canSendEmail())
     );
   });
 
-  // Check if recipient email is valid for sending
-  canSendEmail = computed(() => {
-    const recipientEmail = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_EMAIL)?.value;
-    return recipientEmail && recipientEmail.trim() !== '' && this.isValidEmail(recipientEmail);
-  });
+  // Check if recipient email is valid for sending (updated via valueChanges subscription below)
+  canSendEmail = signal(false);
 
   // Simple email validation
   private isValidEmail(email: string): boolean {
@@ -309,6 +307,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     this.userDetailsForm.statusChanges.subscribe(() => {
       this.userFormIsValidSignal.set(this.userDetailsForm.valid);
+    });
+
+    this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_EMAIL)?.valueChanges.subscribe((email: string) => {
+      this.canSendEmail.set(!!email && email.trim() !== '' && this.isValidEmail(email));
     });
     // Load clients for autocomplete
     this.loadClients();
@@ -878,7 +880,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       totalWithoutVat: Number(this.documentSummary().totalWithoutVat.toFixed(2)),
       totalDiscount: Number(this.documentSummary().totalDiscount.toFixed(2)),
       totalVat: Number(this.documentSummary().totalVat.toFixed(2)),
-      sendEmailToRecipient: this.sendEmailToRecipient && this.canSendEmail(),
+      sendEmailToRecipient: this.sendEmailToRecipient() && this.canSendEmail(),
       withholdingTaxAmount: this.withholdingTaxAmount() ?? 0,
     };
 

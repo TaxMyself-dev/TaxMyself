@@ -532,12 +532,12 @@
     }
 
     <div class="email-checkbox-container">
-      <p-checkbox [binary]="true" inputId="sendEmailCheckbox" [(ngModel)]="sendEmailToRecipient">
+      <p-checkbox [binary]="true" inputId="sendEmailCheckbox" [ngModel]="sendEmailToRecipient()" (ngModelChange)="sendEmailToRecipient.set($event)">
       </p-checkbox>
       <label for="sendEmailCheckbox" class="checkbox-label">
         שלח מסמך למייל הלקוח
       </label>
-      @if (sendEmailToRecipient && !canSendEmail()) {
+      @if (sendEmailToRecipient() && !canSendEmail()) {
       <span class="email-warning">נא למלא כתובת מייל תקינה</span>
       }
     </div>

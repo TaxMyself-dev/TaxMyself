@@ -103,7 +103,7 @@ export class MailService {
     `;
 
     const email = {
-      sender: { email: process.env.BREVO_SENDER, name: 'Taxmyself' },
+      sender: { email: process.env.BREVO_SENDER, name: 'KeepInTax' },
       to: [{ email: to }],
       subject: subject,
       textContent: text,

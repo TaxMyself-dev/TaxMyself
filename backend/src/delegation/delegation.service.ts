@@ -202,11 +202,13 @@ export class DelegationService {
     agent: { email: string; fName?: string; lName?: string },
     ownerName: string,
   ): Promise<void> {
+    const appUrl = process.env.FRONTEND_URL ?? 'https://app.keepintax.co.il';
     const subject = 'ניתנה לך הרשאה לצפייה';
     const greeting = agent.fName ? `שלום ${agent.fName},` : 'שלום,';
     const bodyLine = `ניתנה לך הרשאה לצפייה בחשבון Keepintax של ${ownerName}.`;
-    const text = `${greeting}\n\n${bodyLine}\n\nתודה.`;
-    const htmlContent = this.buildRtlEmailHtml([greeting, '', bodyLine, '', 'תודה.']);
+    const linkLine = `לכניסה למערכת לחץ כאן: <a href="${appUrl}">${appUrl}</a>`;
+    const text = `${greeting}\n\n${bodyLine}\n\nלכניסה למערכת: ${appUrl}\n\nתודה.`;
+    const htmlContent = this.buildRtlEmailHtml([greeting, '', bodyLine, '', linkLine, '', 'תודה.']);
     await this.mailService.sendMail(agent.email, subject, text, htmlContent);
   }
 
@@ -255,7 +257,7 @@ export class DelegationService {
     businessName: string | null;
   }[]> {
     const delegations = await this.delegationRepository.find({
-      where: { agentId: agentFirebaseId },
+      where: { agentId: agentFirebaseId, status: DelegationStatus.ACTIVE },
     });
     const userFirebaseIds = delegations.map((d) => d.userId);
     if (userFirebaseIds.length === 0) return [];
