@@ -237,7 +237,7 @@ export class MyAccountPage implements OnInit {
         stored.hasOpenBanking = true;
         localStorage.setItem('userData', JSON.stringify(stored));
       }
-      this.startSyncStatusPolling(true);
+      this.startSyncStatusPolling(true, 'full');
     } else if (status === 'failure') {
       this.feezbackDialogStatus.set('failure');
       this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
@@ -281,14 +281,14 @@ export class MyAccountPage implements OnInit {
    *   on stale terminal state left over from a previous sync.
    *   When false (page load / navigation back), act on whatever the current state is.
    */
-  private startSyncStatusPolling(requireRunningFirst = false): void {
+  private startSyncStatusPolling(requireRunningFirst = false, stage: 'quick' | 'full' = 'quick'): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
     let hasFetched = false;
     let seenRunning = false;
 
-    this.syncStatusService.getSyncStageStream()
+    this.syncStatusService.getSyncStageStream(stage)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
