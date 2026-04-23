@@ -246,10 +246,15 @@
               <h3 class="business-name">{{ business.businessName || 'עסק חדש' }}</h3>
             </div>
             <div class="business-details details-container details-container-fixed">
+              <!-- שורה 1: מספר עסק, אימייל, כתובת, טלפון, סוג עסק -->
               <div class="detail-row three-fields">
                 <div class="detail-field">
                   <span class="detail-label">מספר עסק:</span>
                   <input type="text" class="detail-input" [(ngModel)]="business.businessNumber" placeholder="מספר עסק" />
+                </div>
+                <div class="detail-field">
+                  <span class="detail-label">אימייל:</span>
+                  <input type="email" class="detail-input" [(ngModel)]="business.businessEmail" placeholder="אימייל" />
                 </div>
                 <div class="detail-field">
                   <span class="detail-label">כתובת:</span>
@@ -259,31 +264,43 @@
                   <span class="detail-label">טלפון:</span>
                   <input type="tel" class="detail-input" [(ngModel)]="business.businessPhone" placeholder="טלפון" />
                 </div>
-              </div>
-              <div class="detail-row three-fields">
-                <div class="detail-field">
-                  <span class="detail-label">אימייל:</span>
-                  <input type="email" class="detail-input" [(ngModel)]="business.businessEmail" placeholder="אימייל" />
-                </div>
                 <div class="detail-field">
                   <span class="detail-label">סוג עסק:</span>
                   <p-select [options]="businessTypeOptions" optionLabel="name" optionValue="value"
                     [(ngModel)]="business.businessType" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
                 </div>
+              </div>
+              <!-- שורה 3: שדות חישוב -->
+              <div class="detail-row three-fields">
+                <div class="detail-field">
+                  <span class="detail-label">ביטוח לאומי:</span>
+                  <p-select [options]="nationalInsOptions" optionLabel="name" optionValue="value"
+                    [(ngModel)]="business.nationalInsRequired" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+                </div>
+                @if (business.businessType !== 'EXEMPT') {
+                  <div class="detail-field">
+                    <span class="detail-label">דיווח מע"מ:</span>
+                    <p-select [options]="vatReportingOptions" optionLabel="name" optionValue="value"
+                      [(ngModel)]="business.vatReportingType" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+                  </div>
+                }
+                <div class="detail-field">
+                  <span class="detail-label">מקדמות מס הכנסה:</span>
+                  <p-select [options]="taxReportingOptions" optionLabel="name" optionValue="value"
+                    [(ngModel)]="business.taxReportingType" [placeholder]="'בחר/י'" styleClass="register settings-select-width" />
+                </div>
                 <div class="detail-field">
                   <span class="detail-label">אחוז מקדמות מס:</span>
-                  <span class="detail-value">
-                    <input
-                      type="number"
-                      class="detail-input"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      [value]="getAdvanceTaxDisplay(business)"
-                      (input)="setAdvanceTaxEdit(business, $event)"
-                      placeholder="למשל 30"
-                    />
-                  </span>
+                  <input
+                    type="number"
+                    class="detail-input"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    [value]="getAdvanceTaxDisplay(business)"
+                    (input)="setAdvanceTaxEdit(business, $event)"
+                    placeholder="למשל 30"
+                  />
                 </div>
               </div>
               <div class="section-actions section-actions-multiple">

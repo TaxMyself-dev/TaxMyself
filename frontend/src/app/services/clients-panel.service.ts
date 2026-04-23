@@ -21,6 +21,9 @@ export interface Client {
   businessId: number | null;
   businessNumber: string | null;
   businessName: string | null;
+  vatReportingType: string | null;
+  taxReportingType: string | null;
+  nationalInsRequired: boolean | null;
 }
 
 /** Payload for creating a new client by accountant (הקמת לקוח). */
@@ -113,6 +116,9 @@ export class ClientPanelService {
             businessId: businessId ?? null,
             businessNumber: u?.businessNumber ?? null,
             businessName: u?.businessName ?? null,
+            vatReportingType: u?.vatReportingType ?? null,
+            taxReportingType: u?.taxReportingType ?? null,
+            nationalInsRequired: u?.nationalInsRequired ?? null,
           };
         });
         this.cachedClients = clients;

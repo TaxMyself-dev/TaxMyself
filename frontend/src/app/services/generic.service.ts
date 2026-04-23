@@ -114,6 +114,9 @@ export class GenericService {
     businessPhone?: string;
     businessEmail?: string;
     businessType?: string;
+    vatReportingType?: string;
+    taxReportingType?: string;
+    nationalInsRequired?: boolean;
   }): Promise<Business> {
     const business = await firstValueFrom(
       this.http.patch<Business>(`${environment.apiUrl}business/update`, payload)

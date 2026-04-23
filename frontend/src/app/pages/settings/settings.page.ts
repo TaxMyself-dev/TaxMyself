@@ -13,7 +13,7 @@ import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType, VATReportingType, TaxReportingType } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SharedModule } from 'src/app/shared/shared.module';
 
@@ -81,6 +81,20 @@ export class SettingsPage implements OnInit {
   familyStatusOptions = familyStatusOptionsList;
   employmentTypeOptions = employmentTypeOptionsList;
   businessTypeOptions = businessTypeOptionsList;
+  nationalInsOptions = [
+    { name: 'חייב',    value: true },
+    { name: 'לא חייב', value: false },
+  ];
+  vatReportingOptions = [
+    { name: 'לא רלוונטי', value: VATReportingType.NOT_REQUIRED },
+    { name: 'חד חודשי',   value: VATReportingType.MONTHLY_REPORT },
+    { name: 'דו חודשי',   value: VATReportingType.DUAL_MONTH_REPORT },
+  ];
+  taxReportingOptions = [
+    { name: 'לא חייב',  value: TaxReportingType.NOT_REQUIRED },
+    { name: 'חד חודשי', value: TaxReportingType.MONTHLY_REPORT },
+    { name: 'דו חודשי', value: TaxReportingType.DUAL_MONTH_REPORT },
+  ];
 
   personalForm = {
     fName: '',
@@ -618,6 +632,9 @@ export class SettingsPage implements OnInit {
         businessPhone: business.businessPhone ?? undefined,
         businessEmail: business.businessEmail ?? undefined,
         businessType: business.businessType ?? undefined,
+        vatReportingType: business.vatReportingType ?? undefined,
+        taxReportingType: business.taxReportingType ?? undefined,
+        nationalInsRequired: business.nationalInsRequired ?? undefined,
       });
       delete this.advanceTaxEdit[key as string];
       this.businesses.set(this.genericService.businesses());
