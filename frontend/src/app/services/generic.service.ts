@@ -1,7 +1,7 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { FormGroup } from '@angular/forms';
-import { LoadingController, PopoverController } from '@ionic/angular';
-import { BehaviorSubject, EMPTY, Observable, Subject, catchError, firstValueFrom, from, fromEvent, map, startWith, switchMap, tap } from 'rxjs';
+import { PopoverController } from '@ionic/angular';
+import { EMPTY, Observable, of, Subject, catchError, firstValueFrom, from, fromEvent, map, startWith, switchMap, tap } from 'rxjs';
 import { Business, BusinessInfo, ISelectItem, IToastData, IUserData, User } from '../shared/interface';
 import { PopupMessageComponent } from '../shared/popup-message/popup-message.component';
 import { PopupConfirmComponent } from '../shared/popup-confirm/popup-confirm.component';
@@ -16,14 +16,13 @@ import { PeriodDefaults } from '../components/filter-tab/filter-fields-model.com
 @Injectable({ providedIn: 'root' })
 export class GenericService {
 
-  private loaderMessage$ = new BehaviorSubject<string>("Please wait...");
-  private loaderInstance: HTMLIonLoadingElement | null = null; // Keep a reference to the loader instance
+  readonly isLoading = signal(false);
+  readonly loaderMessage = signal("אנא המתן...");
   private toastSubject = new Subject<IToastData>();
 
   toast$ = this.toastSubject.asObservable();
 
   constructor(
-    private loader: LoadingController,
     private popoverController: PopoverController,
     private http: HttpClient,
     private dateService: DateService,
@@ -213,54 +212,17 @@ export class GenericService {
   }
 
   getLoader(): Observable<any> {
-    return from(this.loader.create({
-      message: this.loaderMessage$.getValue(),
-      spinner: 'crescent'
-    }))
-      .pipe(
-        catchError((err) => {
-          console.log("Error in creating loader", err);
-          return EMPTY;
-        }),
-        switchMap((loader) => {
-          if (loader) {
-            this.loaderInstance = loader;  // Store the loader instance
-            return from(loader.present())
-              .pipe(
-                // Listen to changes in the message and update the loader's message in real time
-                switchMap(() => this.loaderMessage$.asObservable()
-                  .pipe(
-                    tap((message) => {
-                      if (this.loaderInstance) {
-                        this.loaderInstance.message = message;  // Update loader message dynamically
-                      }
-                    })
-                  )
-                )
-              );
-          }
-          return EMPTY;
-        }),
-        catchError((err) => {
-          console.log("Error in presenting loader", err);
-          return EMPTY;
-        })
-      );
+    this.isLoading.set(true);
+    return of(null);
   }
 
-  // Method to update the loader's message dynamically
   updateLoaderMessage(message: string): void {
-    this.loaderMessage$.next(message);  // Trigger message update
+    this.loaderMessage.set(message);
   }
 
   dismissLoader(): void {
-    if (this.loaderInstance) {
-      this.loaderInstance.dismiss();
-      this.loaderInstance = null; // Reset the reference after dismissing
-    }
-    else {
-      console.log("in else dissmis");
-    }
+    this.isLoading.set(false);
+    this.loaderMessage.set("אנא המתן...");
   }
 
   addComma(number: number | string): string {

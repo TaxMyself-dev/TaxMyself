@@ -24,7 +24,7 @@ import { GenericService } from './services/generic.service';
 })
 export class AppComponent implements OnInit {
 
-  private genericService = inject(GenericService);
+  protected genericService = inject(GenericService);
 
   public appPages = [
     //{ title: 'דף-הבית', url: 'home', icon: 'home' },
