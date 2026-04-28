@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserSyncState, SyncSkipReason, ProcessStatus, ResultStatus } from './user-sync-state.entity';
+import { UserSourceSyncState, SourceResult } from './user-source-sync-state.entity';
 
 @Injectable()
 export class UserSyncStateService {
   constructor(
     @InjectRepository(UserSyncState)
     private readonly repo: Repository<UserSyncState>,
+    @InjectRepository(UserSourceSyncState)
+    private readonly sourceRepo: Repository<UserSourceSyncState>,
   ) {}
 
   /**
@@ -19,35 +22,68 @@ export class UserSyncStateService {
    * this, but this is an extra safety net.
    */
   async markQuickRunning(userId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
-    const current = await this.repo.findOne({
-      where: { userId },
-      select: ['quickProcessStatus', 'fullProcessStatus'],
-    });
+    const current = await this.repo.findOne({ where: { userId } });
     if (current?.quickProcessStatus === 'running' || current?.fullProcessStatus === 'running') {
       return;
     }
 
-    await this.repo.upsert(
-      {
-        userId,
-        triggeredBy,
-        quickProcessStatus: 'running',
-        quickResultStatus: 'none',
-        quickRowsWritten: 0,
-        quickStartedAt: new Date(),
-        quickFinishedAt: null,
-        quickFailureReason: null,
-        quickSkipReason: null,
-        fullProcessStatus: 'running',
-        fullResultStatus: 'none',
-        fullRowsWritten: 0,
-        fullStartedAt: null,
-        fullFinishedAt: null,
-        fullFailureReason: null,
-        fullSkipReason: null,
-      } as UserSyncState,
-      ['userId'],
-    );
+    const statusFields = {
+      triggeredBy,
+      quickProcessStatus: 'running' as ProcessStatus,
+      quickResultStatus: 'none' as ResultStatus,
+      quickRowsWritten: 0,
+      quickStartedAt: new Date(),
+      quickFinishedAt: null,
+      quickFailureReason: null,
+      quickSkipReason: null,
+      fullProcessStatus: 'running' as ProcessStatus,
+      fullResultStatus: 'none' as ResultStatus,
+      fullRowsWritten: 0,
+      fullStartedAt: new Date(),
+      fullFinishedAt: null,
+      fullFailureReason: null,
+      fullSkipReason: null,
+    };
+
+    if (current) {
+      // Row exists — update status fields only; preserve sourceResults so pre-populated
+      // not_synced entries survive into the next login check.
+      await this.repo.update({ userId }, statusFields);
+    } else {
+      // First sync ever — create the row.
+      await this.repo.save(this.repo.create({ userId, ...statusFields }));
+    }
+  }
+
+  /**
+   * Registers discovered sources (from a Feezback webhook) into user_source_sync_state.
+   * New entries are written with status='not_synced'; existing entries get their
+   * consentId (and optional identifiers) updated without changing their sync status.
+   */
+  async upsertSourceConsents(
+    userId: string,
+    sources: Array<Pick<SourceResult, 'type' | 'sourceId' | 'resourceId' | 'consentId'>>,
+  ): Promise<void> {
+    for (const src of sources) {
+      const existing = await this.sourceRepo.findOne({ where: { userId, sourceId: src.sourceId } });
+      if (existing) {
+        await this.sourceRepo.update({ userId, sourceId: src.sourceId }, {
+          consentId: src.consentId ?? existing.consentId,
+          resourceId: src.resourceId ?? existing.resourceId,
+        });
+      } else {
+        await this.sourceRepo.save(this.sourceRepo.create({
+          userId,
+          sourceId: src.sourceId,
+          type: src.type,
+          resourceId: src.resourceId ?? null,
+          consentId: src.consentId ?? null,
+          status: 'not_synced',
+          transactionCount: 0,
+          error: null,
+        }));
+      }
+    }
   }
 
   /**
@@ -143,6 +179,36 @@ export class UserSyncStateService {
     return this.repo.findOne({ where: { userId } });
   }
 
+  async getSourceResults(userId: string): Promise<UserSourceSyncState[]> {
+    return this.sourceRepo.find({ where: { userId } });
+  }
+
+  /**
+   * Merges new source results into the user_source_sync_state table.
+   * Sources with the same sourceId are overwritten; new sources are inserted.
+   */
+  async updateSourceResults(userId: string, incoming: SourceResult[]): Promise<void> {
+    for (const src of incoming) {
+      await this.sourceRepo.upsert(
+        {
+          userId,
+          sourceId: src.sourceId,
+          type: src.type,
+          resourceId: src.resourceId ?? null,
+          consentId: src.consentId ?? null,
+          status: src.status,
+          transactionCount: src.transactionCount,
+          error: src.error ?? null,
+        },
+        ['userId', 'sourceId'],
+      );
+    }
+  }
+
+  async clearSourceResults(userId: string): Promise<void> {
+    await this.sourceRepo.delete({ userId });
+  }
+
   /** Called when an admin clears a user's transaction cache — forces a fresh sync on next login. */
   async markBothEmpty(userId: string): Promise<void> {
     await this.repo.update({ userId }, {
@@ -158,6 +224,13 @@ export class UserSyncStateService {
       fullFinishedAt: null,
       fullSkipReason: null,
       fullFailureReason: null,
+    });
+    // Reset per-source status so next sync re-processes all sources.
+    // Keeps consentId and identifiers intact — only clears sync outcome data.
+    await this.sourceRepo.update({ userId }, {
+      status: 'not_synced',
+      transactionCount: 0,
+      error: null,
     });
   }
 }

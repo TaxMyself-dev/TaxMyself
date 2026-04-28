@@ -1,4 +1,5 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+export { SourceResult } from './user-source-sync-state.entity';
 
 /**
  * Lifecycle status for a sync stage.
@@ -28,6 +29,7 @@ export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
  * cache_exists — full_transactions_cache already had rows for this user
  */
 export type SyncSkipReason = 'no_access' | 'cache_exists';
+
 
 @Entity('user_sync_state')
 @Index('UQ_sync_state_user', ['userId'], { unique: true })
@@ -92,4 +94,5 @@ export class UserSyncState {
 
   @Column({ type: 'varchar', nullable: true })
   fullSkipReason: SyncSkipReason | null;
+
 }

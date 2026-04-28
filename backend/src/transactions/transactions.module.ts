@@ -19,6 +19,7 @@ import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { UserTransactionCacheState } from './user-transaction-cache-state.entity';
 import { UserSyncState } from './user-sync-state.entity';
+import { UserSourceSyncState } from './user-source-sync-state.entity';
 import { UserSyncStateService } from './user-sync-state.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { UserSubCategory } from '../expenses/user-sub-categories.entity';
@@ -35,7 +36,7 @@ import { Business } from 'src/business/business.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
-            Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState,
+            Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
             Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
     forwardRef(() => UsersModule),
     forwardRef(() => FeezbackModule),

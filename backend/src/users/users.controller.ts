@@ -27,14 +27,14 @@ export class UsersController {
 
     @Get('/signin')
     @UseGuards(FirebaseAuthGuard)
-    async signin(@Req() request: AuthenticatedRequest) {
+    async signin(@Req() request: AuthenticatedRequest, @Query('skipLoginSync') skipLoginSync?: string) {
         const userId = request.user?.firebaseId;
         const maskedId = userId?.length >= 8 ? userId.substring(0, 8) + '...' : userId ?? '?';
         this.logger.log(`signin called, userId=${maskedId}`);
         const user = await this.userService.signin(userId);
 
         // Fire-and-forget — do not block the login response.
-        this.triggerPostLoginSync(userId, user);
+        this.triggerPostLoginSync(userId, user, skipLoginSync === 'true');
 
         return user;
     }
@@ -111,7 +111,7 @@ export class UsersController {
       return this.userService.getAllUsers();
     }
 
-    private triggerPostLoginSync(firebaseId: string, user?: any): void {
+    private triggerPostLoginSync(firebaseId: string, user?: any, skipLoginSync = false): void {
         const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
         const hasOpenBanking = !!user?.hasOpenBanking;
 
@@ -122,6 +122,11 @@ export class UsersController {
         console.log(`════════════════════════════════════\n`);
 
         if (!hasOpenBanking) return;
+
+        if (skipLoginSync) {
+            console.log(`  ⏭️  Login sync suppressed — Feezback return, webhook will sync\n`);
+            return;
+        }
 
         void this.feezbackService.triggerFullSync(firebaseId, 'login')
             .catch(err => {

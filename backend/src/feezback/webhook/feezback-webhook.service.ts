@@ -151,7 +151,6 @@ export class FeezbackWebhookService {
       throw error;
     }
 
-    await this.syncUserSourcesAndAccess(firebaseId, sub, 'ConsentStatusChanged');
   }
 
   private async handleUserDataIsAvailable(body: FeezbackWebhookEventBody): Promise<void> {
@@ -214,9 +213,10 @@ export class FeezbackWebhookService {
     let moduleAccessUpdated = false;
 
     // Fetch and persist bank accounts into sources table.
+    let accounts: any[] = [];
     try {
       const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
-      const accounts: any[] = accountsResponse?.accounts ?? [];
+      accounts = accountsResponse?.accounts ?? [];
 
       for (const account of accounts) {
         const resourceId: string = account?.resourceId ?? 'unknown';
@@ -258,9 +258,10 @@ export class FeezbackWebhookService {
     }
 
     // Fetch and persist credit cards into sources table.
+    let cards: any[] = [];
     try {
       const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
-      const cards: any[] = cardsResponse?.cards ?? [];
+      cards = cardsResponse?.cards ?? [];
 
       for (const card of cards) {
         const resourceId: string = card?.resourceId ?? 'unknown';
@@ -349,25 +350,44 @@ export class FeezbackWebhookService {
       this.logger.error(`${prefix} Failed to update modulesAccess/hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
 
-    // ── Consolidated summary print ────────────────────────────────────────────
+    // ── SOURCE DISCOVERY ─────────────────────────────────────────────────────
     console.log(`\n════════════════════════════════════`);
-    console.log(`  SOURCE SYNC  (${eventType})`);
-    console.log(`  User : ${userName}`);
+    console.log(`  SOURCE DISCOVERY  (${eventType})`);
+    console.log(`  User: ${userName}`);
     console.log(`════════════════════════════════════`);
     if (bankError) {
-      console.log(`  ✗ Bank  — ERROR: ${bankError}`);
+      console.log(`  ✗ Bank — ERROR: ${bankError}`);
     } else {
-      console.log(`  ✓ Bank  — ${bankResults.length} account(s)`);
-      bankResults.forEach(r => console.log(`      ${r.sourceName}  [${r.action}]`));
+      // Deduplicate by sourceName — same IBAN last-7 can appear more than once when
+      // the bank exposes multiple accounts mapping to the same identifier.
+      const uniqueBankResults = bankResults.reduce<typeof bankResults>((acc, r) => {
+        if (!acc.some(x => x.sourceName === r.sourceName)) acc.push(r);
+        return acc;
+      }, []);
+      console.log(`  Bank (${uniqueBankResults.length}):`);
+      for (const r of uniqueBankResults) {
+        const acc = accounts.find(a => a?.iban?.trim().slice(-7) === r.sourceName);
+        const cid = acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? '—';
+        console.log(`    ${r.action === 'created' ? '+' : '~'}  ${r.sourceName}   consentId=${cid}`);
+      }
     }
     if (cardError) {
       console.log(`  ✗ Cards — ERROR: ${cardError}`);
     } else {
-      console.log(`  ✓ Cards — ${cardResults.length} card(s)`);
-      cardResults.forEach(r => console.log(`      ${r.sourceName}  [${r.action}]`));
+      console.log(`  Cards (${cardResults.length}):`);
+      for (const r of cardResults) {
+        const card = cards.find(c => c?.maskedPan?.slice(-4) === r.sourceName);
+        const cid  = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? '—';
+        console.log(`    ${r.action === 'created' ? '+' : '~'}  ${r.sourceName}   consentId=${cid}`);
+      }
     }
-    if (moduleAccessUpdated) console.log(`  ✓ Module access updated`);
+    if (moduleAccessUpdated) console.log(`  ✓ Module access enabled`);
     console.log(`════════════════════════════════════\n`);
+
+    // Register all discovered sources immediately so user_sync_state.sourceResults
+    // reflects linked accounts even before the sync completes.
+    void this.feezbackService.prePopulateSourceResults(firebaseId, accounts, cards)
+      .catch(err => this.logger.warn(`${prefix} prePopulateSourceResults failed | ${err?.message}`));
 
     void this.feezbackService.triggerFullSync(firebaseId, 'webhook')
       .catch(err => this.logger.error(`${prefix} triggerFullSync failed firebaseId=${masked}`, err?.stack ?? err));

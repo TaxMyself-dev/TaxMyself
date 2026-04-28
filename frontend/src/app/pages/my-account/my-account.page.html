@@ -21,26 +21,99 @@
           }
 
           @if (feezbackDialogStatus() === 'success') {
-            <p class="feezback-dialog-message">הנתונים שלך מוכנים לצפייה</p>
-            <app-p-button
-              [buttonText]="'סגור'"
-              [buttonSize]="buttonSize.BIG"
-              [buttonColor]="buttonColor.BLACK"
-              (onButtonClicked)="closeFeezbackDialog()">
-            </app-p-button>
+            @if (syncSourceResults().length > 0) {
+              <div class="source-results-panel source-results-panel--dialog">
+                <div class="source-results-panel__list">
+                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                    <div class="source-result-item"
+                         [class.source-result-item--success]="source.status === 'success'"
+                         [class.source-result-item--failed]="source.status === 'failed'">
+                      <i class="pi"
+                         [class.pi-check-circle]="source.status === 'success'"
+                         [class.pi-times-circle]="source.status === 'failed'"
+                         [class.pi-clock]="source.status === 'not_synced'">
+                      </i>
+                      <span class="source-result-item__name">
+                        {{ source.sourceId }}
+                      </span>
+                      @if (source.status === 'success') {
+                        <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'failed') {
+                        <app-p-button
+                          [buttonText]="'נסה שוב'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isRetryingSource() === source.sourceId"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                        </app-p-button>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <p class="feezback-dialog-message">הנתונים שלך מוכנים לצפייה</p>
+            }
+            <div class="feezback-dialog-footer">
+              <app-p-button
+                [buttonText]="'סגור'"
+                [buttonSize]="buttonSize.SMALL"
+                [buttonColor]="buttonColor.BLACK"
+                (onButtonClicked)="closeFeezbackDialog()">
+              </app-p-button>
+            </div>
           }
 
           @if (feezbackDialogStatus() === 'failure') {
-            <p class="feezback-dialog-message">
-              לא הצלחנו לחבר את בנקאות פתוחה שלך.<br>
-              אנא נסה שוב.
-            </p>
-
+            @if (syncSourceResults().length > 0) {
+              <div class="source-results-panel source-results-panel--dialog">
+                <div class="source-results-panel__list">
+                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                    <div class="source-result-item"
+                         [class.source-result-item--success]="source.status === 'success'"
+                         [class.source-result-item--failed]="source.status === 'failed'">
+                      <i class="pi"
+                         [class.pi-check-circle]="source.status === 'success'"
+                         [class.pi-times-circle]="source.status === 'failed'"
+                         [class.pi-clock]="source.status === 'not_synced'">
+                      </i>
+                      <span class="source-result-item__name">
+                        {{ source.sourceId }}
+                      </span>
+                      @if (source.status === 'success') {
+                        <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+                      }
+                      @if (source.status === 'failed') {
+                        <app-p-button
+                          [buttonText]="'נסה שוב'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isRetryingSource() === source.sourceId"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                        </app-p-button>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <p class="feezback-dialog-message">
+                החיבור לבנקאות הפתוחה הצליח, אך לא הצלחנו למשוך את הנתונים.<br>
+                אנא נסה שוב.
+              </p>
+              <app-p-button
+                [buttonText]="'נסה שוב'"
+                [buttonSize]="buttonSize.BIG"
+                [buttonColor]="buttonColor.YELLOW"
+                (onButtonClicked)="tryAgainFromDialog()">
+              </app-p-button>
+            }
             <app-p-button
-              [buttonText]="'שננסה שוב?'"
+              [buttonText]="'סגור'"
               [buttonSize]="buttonSize.BIG"
-              [buttonColor]="buttonColor.YELLOW"
-              (onButtonClicked)="tryAgainFromDialog()">
+              [buttonColor]="buttonColor.WHITE"
+              (onButtonClicked)="closeFeezbackDialog()">
             </app-p-button>
           }
         </div>
@@ -203,6 +276,38 @@
     }
 
 @if (hasOpenBanking()) {
+
+@if (syncRanThisSession() && syncSourceResults().length > 0) {
+  <div class="source-results-panel">
+    <h3 class="source-results-panel__title">סטטוס סנכרון לפי מקור</h3>
+    <div class="source-results-panel__list">
+      @for (source of syncSourceResults(); track source.sourceId) {
+        <div class="source-result-item"
+             [class.source-result-item--success]="source.status === 'success'"
+             [class.source-result-item--failed]="source.status === 'failed'">
+          <i class="pi"
+             [class.pi-check-circle]="source.status === 'success'"
+             [class.pi-times-circle]="source.status === 'failed'">
+          </i>
+          <span class="source-result-item__name">{{ source.sourceId }}</span>
+          @if (source.status === 'success') {
+            <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
+          }
+          @if (source.status === 'failed') {
+            <app-p-button
+              [buttonText]="'נסה שוב'"
+              [buttonColor]="buttonColor.YELLOW"
+              [buttonSize]="buttonSize.SMALL"
+              [isLoading]="isRetryingSource() === source.sourceId"
+              (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+            </app-p-button>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}
+
 <div class="table-block">
     @if (!isMobile()) {
         <p class="block-title">התנועות הלא מסווגות שלי</p>

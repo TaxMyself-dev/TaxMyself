@@ -11,6 +11,14 @@ export type ProcessStatus = 'running' | 'completed' | 'failed' | 'skipped';
 /** Backend-facing outcome quality. Passed through for logging/debugging; must not drive polling logic. */
 export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
 
+export interface SourceResult {
+  type: 'bank' | 'card';
+  sourceId: string;
+  status: 'not_synced' | 'success' | 'failed';
+  transactionCount: number;
+  error?: string;
+}
+
 export interface StageState {
   processStatus: ProcessStatus;
   resultStatus:  ResultStatus;
@@ -23,6 +31,7 @@ export interface StageState {
 export interface SyncResponse {
   quickSync: StageState;
   fullSync: StageState;
+  sourceResults: SourceResult[];
 }
 
 const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed', 'skipped'];
@@ -32,6 +41,7 @@ export class SyncStatusService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}transactions/sync-status`;
   private readonly triggerUrl = `${environment.apiUrl}transactions/trigger-sync`;
+  private readonly retryUrl = `${environment.apiUrl}transactions/retry-source`;
 
   /**
    * Calls POST /transactions/trigger-sync.
@@ -51,6 +61,16 @@ export class SyncStatusService {
 
   private isTerminalStatus(status: ProcessStatus): boolean {
     return TERMINAL_STATUSES.includes(status);
+  }
+
+  retrySource(type: 'bank' | 'card', sourceId: string): Observable<SourceResult> {
+    return this.http.post<SourceResult>(this.retryUrl, { type, sourceId }).pipe(
+      tap(res => console.log('[SyncStatus] retrySource response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] retrySource failed:', err?.message ?? err);
+        throw err;
+      }),
+    );
   }
 
   /** Single HTTP poll — returns null on network/HTTP error. */
@@ -112,10 +132,13 @@ export class SyncStatusService {
    * Use this as the single source of truth for both UI state updates and reload decisions.
    * Default stage: 'quick'.
    */
-  getSyncStageStream(stage: 'quick' | 'full' = 'quick'): Observable<StageState | null> {
+  getSyncStageStream(stage: 'quick' | 'full' = 'quick'): Observable<{ stageState: StageState | null; sourceResults: SourceResult[] }> {
     const stageKey = `${stage}Sync` as 'quickSync' | 'fullSync';
     return this.pollUntilDone(stage, 3000).pipe(
-      map(res => res?.[stageKey] ?? null),
+      map(res => ({
+        stageState: res?.[stageKey] ?? null,
+        sourceResults: res?.sourceResults ?? [],
+      })),
     );
   }
 

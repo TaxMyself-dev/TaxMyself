@@ -28,7 +28,7 @@ import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
-import { SyncStatusService } from 'src/app/services/sync-status.service';
+import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
 
 @Component({
@@ -70,6 +70,9 @@ export class MyAccountPage implements OnInit {
   isLoadingDataTable = signal<boolean>(false);
   /** Passed to generic-table via [processStatus]. null = normal rendering. */
   readonly syncProcessStatus = signal<'running' | 'failed' | null>(null);
+  readonly syncSourceResults = signal<SourceResult[]>([]);
+  readonly syncRanThisSession = signal(false);
+  readonly isRetryingSource = signal<string | null>(null);
   /** Emitting on this Subject cancels the current polling session so a new one can start cleanly. */
   private readonly restartPolling$ = new Subject<void>();
   // mobileMenuOpen = signal<boolean>(false);
@@ -255,9 +258,19 @@ export class MyAccountPage implements OnInit {
   }
 
   tryAgainFromDialog(): void {
-    // Re-trigger the same open-banking consent creation used in the main screen.
-    this.closeFeezbackDialog();
-    this.doConnectToOpenBanking();
+    this.feezbackDialogStatus.set('loading');
+    this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
+    this.syncSourceResults.set([]);
+    this.syncStatusService.triggerSync()
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.startSyncStatusPolling(true, 'full'),
+        error: (err) => {
+          console.error('[MyAccount] tryAgainFromDialog triggerSync failed:', err);
+          this.feezbackDialogStatus.set('failure');
+          this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+        },
+      });
   }
 
   /**
@@ -293,7 +306,7 @@ export class MyAccountPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          stageState =>
+          ({ stageState }) =>
             !stageState ||
             stageState.processStatus === 'running' ||
             (requireRunningFirst && !seenRunning),
@@ -306,7 +319,8 @@ export class MyAccountPage implements OnInit {
           return EMPTY;
         }),
       )
-      .subscribe(stageState => {
+      .subscribe(({ stageState, sourceResults }) => {
+        this.syncSourceResults.set(sourceResults);
         if (!stageState) {
           // null = transient HTTP error during polling — keep current state, don't fail
           return;
@@ -319,16 +333,38 @@ export class MyAccountPage implements OnInit {
           seenRunning = true;
           hasFetched = false; // reset so refetch happens after sync completes
           this.syncProcessStatus.set('running');
+          this.syncSourceResults.set([]);
+          this.syncRanThisSession.set(true);
         } else if (status === 'completed') {
           if (requireRunningFirst && !seenRunning) return; // stale — keep polling
           this.syncProcessStatus.set(null);
-          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
-            this.feezbackDialogStatus.set('success');
-            this.feezbackDialogTitle.set('הפעולה הסתיימה בהצלחה');
+          if (this.feezbackDialogVisible() &&
+              (this.feezbackDialogStatus() === 'loading' || this.feezbackDialogStatus() === 'failure')) {
+            const allSuccess = this.syncSourceResults().length > 0 &&
+              this.syncSourceResults().every(r => r.status === 'success');
+            if (allSuccess) {
+              this.feezbackDialogStatus.set('success');
+              this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');
+            } else if (this.syncSourceResults().length > 0) {
+              this.feezbackDialogStatus.set('failure');
+              this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+            } else {
+              this.feezbackDialogStatus.set('success');
+              this.feezbackDialogTitle.set('הפעולה הסתיימה בהצלחה');
+            }
           }
           if (!hasFetched) {
             hasFetched = true;
             this.getTransToClassify();
+          }
+          if (stageState.failureReason) {
+            this.messageService.add({
+              severity: 'warn',
+              summary: 'סנכרון חלקי',
+              detail: this.buildPartialSyncMessage(stageState.failureReason),
+              life: 10_000,
+              key: 'br',
+            });
           }
         } else if (status === 'failed') {
           if (requireRunningFirst && !seenRunning) return; // stale — keep polling
@@ -337,6 +373,10 @@ export class MyAccountPage implements OnInit {
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
             this.feezbackDialogStatus.set('failure');
             this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+            // Restart polling (without requireRunningFirst) to catch the subsequent login sync
+            if (requireRunningFirst) {
+              setTimeout(() => this.startSyncStatusPolling(false, stage), 3000);
+            }
           }
         } else if (status === 'skipped') {
           // 'cache_exists' → data already in DB → fetch it.
@@ -371,6 +411,39 @@ export class MyAccountPage implements OnInit {
         },
       });
   }
+  onRetrySource(type: 'bank' | 'card', sourceId: string): void {
+    this.isRetryingSource.set(sourceId);
+    this.syncStatusService.retrySource(type, sourceId)
+      .pipe(
+        catchError(err => {
+          console.error('[MyAccount] retrySource failed:', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'שגיאה',
+            detail: 'הניסיון לסנכרן מחדש נכשל',
+            life: 5000,
+            key: 'br',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isRetryingSource.set(null)),
+      )
+      .subscribe(result => {
+        this.syncSourceResults.update(results =>
+          results.map(r => r.sourceId === sourceId ? result : r)
+        );
+        const allSuccess = this.syncSourceResults().length > 0 &&
+          this.syncSourceResults().every(r => r.status === 'success');
+        if (allSuccess && this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'failure') {
+          this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');
+          this.feezbackDialogStatus.set('success');
+        }
+        if (result.status === 'success' && !result.error) {
+          this.getTransToClassify();
+        }
+      });
+  }
+
   // ─── Row-action handlers ──────────────────────────────────────────────────
 
   onAssociateAccount(row: IRowDataTable): void {
@@ -526,7 +599,7 @@ export class MyAccountPage implements OnInit {
         const link = response?.link || response?.url || response;
 
         if (link && typeof link === 'string') {
-          // Same tab so Feezback redirect returns here instead of a separate window
+          sessionStorage.setItem('feezbackPendingSync', Date.now().toString());
           window.location.assign(link);
         } else {
           console.error('Unexpected response format:', response);
@@ -620,6 +693,26 @@ export class MyAccountPage implements OnInit {
         )
         .subscribe(response => { this.showSyncToast(response?.syncSummary); });
     });
+  }
+
+  private buildPartialSyncMessage(failureReason: string): string {
+    const parts: string[] = [];
+    if (failureReason.includes('card_errors')) {
+      const match = failureReason.match(/card_errors:(\d+)/);
+      const count = match?.[1] ?? '';
+      parts.push(`${count ? count + ' ' : ''}כרטיסי אשראי לא סונכרנו בהצלחה`);
+    }
+    if (failureReason.includes('bank_accounts_failed')) {
+      const match = failureReason.match(/bank_accounts_failed:(\d+)/);
+      const count = match?.[1] ?? '';
+      parts.push(`${count ? count + ' ' : ''}חשבונות בנק לא סונכרנו בהצלחה`);
+    }
+    if (failureReason.includes('bank_consent_required')) {
+      parts.push('לא נמצאה הרשאה לחשבונות בנק');
+    }
+    return parts.length > 0
+      ? parts.join(', ') + '. שאר הנתונים נטענו בהצלחה.'
+      : 'חלק מהנתונים לא נטענו בהצלחה.';
   }
 
   fetchAllUserTransactions(): void {

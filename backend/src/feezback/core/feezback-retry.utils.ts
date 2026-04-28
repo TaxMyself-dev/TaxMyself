@@ -30,7 +30,7 @@
  */
 
 export const FEEZBACK_RETRY = {
-  maxRetries: 5,
+  maxRetries: 0,
   baseDelayMs: 10,
   maxDelayMs: 10,
   jitterMs: 0,

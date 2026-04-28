@@ -36,7 +36,10 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async getSyncStatus(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
-    const state = await this.userSyncStateService.getSyncState(userId);
+    const [state, sources] = await Promise.all([
+      this.userSyncStateService.getSyncState(userId),
+      this.userSyncStateService.getSourceResults(userId),
+    ]);
 
     // 'empty' is a backend-only state — never returned to the frontend.
     // Translate it to 'running' and trigger a sync so data will be available shortly.
@@ -53,11 +56,13 @@ export class TransactionsController {
         return {
           quickSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
           fullSync:  { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+          sourceResults: [],
         };
       }
       return {
         quickSync: { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
         fullSync:  { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        sourceResults: [],
       };
     }
 
@@ -88,7 +93,22 @@ export class TransactionsController {
         failureReason: state.fullFailureReason ?? null,
         skipReason:    state.fullSkipReason ?? null,
       },
+      sourceResults: sources,
     };
+  }
+
+  @Post('retry-source')
+  @UseGuards(FirebaseAuthGuard)
+  async retrySource(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { type: 'card' | 'bank'; sourceId: string },
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!body?.type || !body?.sourceId) {
+      throw new BadRequestException('type and sourceId are required');
+    }
+    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId);
+    return result;
   }
 
   /**
