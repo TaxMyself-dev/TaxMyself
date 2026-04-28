@@ -1,0 +1,26 @@
+<section class="donut-widget" dir="rtl">
+
+  <div class="chart-wrap">
+    <div echarts [options]="chartOption()" class="donut-chart"></div>
+
+    <div class="center-label">
+      <div class="total" [style.font-size.px]="totalFontSize()">{{ formattedTotal() }} ₪</div>
+      <div class="subtitle">סך ההוצאות</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    @for (item of data(); track item.label) {
+      <div class="legend-item">
+        <span class="legend-value">{{ item.value }}%</span>
+
+        <span
+          class="legend-line"
+          [style.background]="item.color"
+        ></span>
+
+        <span class="legend-label">{{ item.label }}</span>
+      </div>
+    }
+  </div>
+</section>
