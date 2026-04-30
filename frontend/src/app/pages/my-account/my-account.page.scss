@@ -611,6 +611,10 @@ p.block-title {
   border-radius: 12px;
   padding: 18px 22px;
   direction: rtl;
+  max-width: 440px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: 0;
 
   &--dialog {
     background: transparent;
@@ -649,4 +653,6 @@ p.block-title {
   &__name  { font-weight: 600; }
   &__pan   { color: #6b7280; font-size: 13px; }
   &__count { color: #6b7280; font-size: 13px; margin-right: auto; }
+
+  app-p-button { margin-right: auto; }
 }

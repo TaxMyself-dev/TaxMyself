@@ -13,10 +13,11 @@ import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { FeezbackModule } from '../feezback/feezback.module';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { UserModuleSubscription } from './user-module-subscription.entity';
+import { UserSyncState } from '../transactions/user-sync-state.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents, SettingDocuments, UserModuleSubscription]),
+    TypeOrmModule.forFeature([User, Child, Business, Delegation, Agents, SettingDocuments, UserModuleSubscription, UserSyncState]),
     SharedModule,
     forwardRef(() => FeezbackModule),
   ],

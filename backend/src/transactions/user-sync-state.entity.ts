@@ -95,4 +95,8 @@ export class UserSyncState {
   @Column({ type: 'varchar', nullable: true })
   fullSkipReason: SyncSkipReason | null;
 
+  /** Set when the frontend sends skipLoginSync=true (Feezback return). Expires after 10 min. */
+  @Column({ type: 'timestamp', nullable: true })
+  skipLoginSyncUntil: Date | null;
+
 }

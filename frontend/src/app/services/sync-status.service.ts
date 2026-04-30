@@ -16,6 +16,7 @@ export interface SourceResult {
   sourceId: string;
   status: 'not_synced' | 'success' | 'failed';
   transactionCount: number;
+  consentId: string | null;
   error?: string;
 }
 
@@ -94,7 +95,7 @@ export class SyncStatusService {
     maxAttempts = 40,
   ): Observable<SyncResponse | null> {
     let attemptNum = 0;
-  
+
     return timer(0, intervalMs).pipe(
       tap(() =>
         console.log(`[SyncStatus] Poll attempt ${++attemptNum} (watching: ${stage}Sync)`),
@@ -102,25 +103,21 @@ export class SyncStatusService {
       switchMap(() => this.getSyncResponse()),
       tap((res) => console.log('[SyncStatus] Response received:', res)),
       switchMap((res) => {
+        // Only time out when we have NOT yet reached a terminal state.
+        // Callers that need to poll past a stale terminal state (requireRunningFirst)
+        // control stopping via their own takeWhile — if we killed the timer here on
+        // terminal, those callers would be left with a dead source and a stuck UI.
         const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
-        const terminal =
-          stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
-  
-        if (terminal) {
-          return of(res);
-        }
-  
-        if (attemptNum >= maxAttempts) {
+        const terminal = stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
+        if (!terminal && attemptNum >= maxAttempts) {
           console.log(`[SyncStatus] Polling timed out after ${attemptNum} attempts`);
           return throwError(() => new Error(`Polling timed out for ${stage}Sync`));
         }
-  
         return of(res);
       }),
-      takeWhile((res) => {
-        const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
-        return !(stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus));
-      }, true),
+      // No takeWhile here: callers use their own takeWhile to stop the stream.
+      // Removing it keeps the timer alive so callers that skip a stale terminal
+      // state can continue polling until they see the status they expect.
     );
   }
 

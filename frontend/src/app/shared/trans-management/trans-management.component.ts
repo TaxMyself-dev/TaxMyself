@@ -105,6 +105,7 @@ export class TransManagementComponent  implements OnInit {
       .subscribe(response => {
         const link = response?.link || response?.url || response;
         if (link && typeof link === 'string') {
+          localStorage.setItem('feezbackPendingSync', Date.now().toString());
           window.location.assign(link);
         } else {
           this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'תגובה לא צפויה מהשרת.', life: 5000, key: 'br' });

@@ -257,6 +257,11 @@ export class MyAccountPage implements OnInit {
     this.feezbackDialogMessage.set('');
   }
 
+  onRenewConsent(): void {
+    if (this.feezbackDialogVisible()) this.closeFeezbackDialog();
+    this.connectToOpenBanking();
+  }
+
   tryAgainFromDialog(): void {
     this.feezbackDialogStatus.set('loading');
     this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
@@ -301,6 +306,13 @@ export class MyAccountPage implements OnInit {
     let hasFetched = false;
     let seenRunning = false;
 
+    // A terminal state whose finishedAt is within 15 min is considered "this session".
+    // This handles the case where the webhook sync completes before the user returns
+    // from the Feezback portal — we must accept that completed state rather than waiting
+    // for a 'running' signal that will never come.
+    const isRecentFinish = (finishedAt: string | null): boolean =>
+      !!finishedAt && (Date.now() - new Date(finishedAt).getTime()) < 15 * 60_000;
+
     this.syncStatusService.getSyncStageStream(stage)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
@@ -309,13 +321,17 @@ export class MyAccountPage implements OnInit {
           ({ stageState }) =>
             !stageState ||
             stageState.processStatus === 'running' ||
-            (requireRunningFirst && !seenRunning),
+            (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt)),
           /* inclusive */ true,
         ),
         catchError(err => {
           console.warn('[MyAccount] Sync status stream error — treating as failed', err);
           this.syncProcessStatus.set('failed');
           this.transToClassify = of([]);
+          if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
+            this.feezbackDialogStatus.set('failure');
+            this.feezbackDialogTitle.set('משהו בדרך השתבש, אנא נסה שנית');
+          }
           return EMPTY;
         }),
       )
@@ -336,7 +352,7 @@ export class MyAccountPage implements OnInit {
           this.syncSourceResults.set([]);
           this.syncRanThisSession.set(true);
         } else if (status === 'completed') {
-          if (requireRunningFirst && !seenRunning) return; // stale — keep polling
+          if (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt)) return; // stale — keep polling
           this.syncProcessStatus.set(null);
           if (this.feezbackDialogVisible() &&
               (this.feezbackDialogStatus() === 'loading' || this.feezbackDialogStatus() === 'failure')) {
@@ -367,7 +383,7 @@ export class MyAccountPage implements OnInit {
             });
           }
         } else if (status === 'failed') {
-          if (requireRunningFirst && !seenRunning) return; // stale — keep polling
+          if (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt)) return; // stale — keep polling
           this.syncProcessStatus.set('failed');
           this.transToClassify = of([]);
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
@@ -599,7 +615,7 @@ export class MyAccountPage implements OnInit {
         const link = response?.link || response?.url || response;
 
         if (link && typeof link === 'string') {
-          sessionStorage.setItem('feezbackPendingSync', Date.now().toString());
+          localStorage.setItem('feezbackPendingSync', Date.now().toString());
           window.location.assign(link);
         } else {
           console.error('Unexpected response format:', response);

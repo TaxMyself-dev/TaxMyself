@@ -39,13 +39,22 @@
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
                       }
-                      @if (source.status === 'failed') {
+                      @if (source.status === 'failed' && source.consentId) {
                         <app-p-button
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
                           [isLoading]="isRetryingSource() === source.sourceId"
                           (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                        </app-p-button>
+                      }
+                      @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+                        <app-p-button
+                          [buttonText]="'חדש הסכמה'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isLoadingFeezback()"
+                          (onButtonClicked)="onRenewConsent()">
                         </app-p-button>
                       }
                     </div>
@@ -84,13 +93,22 @@
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
                       }
-                      @if (source.status === 'failed') {
+                      @if (source.status === 'failed' && source.consentId) {
                         <app-p-button
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
                           [isLoading]="isRetryingSource() === source.sourceId"
                           (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                        </app-p-button>
+                      }
+                      @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+                        <app-p-button
+                          [buttonText]="'חדש הסכמה'"
+                          [buttonColor]="buttonColor.YELLOW"
+                          [buttonSize]="buttonSize.SMALL"
+                          [isLoading]="isLoadingFeezback()"
+                          (onButtonClicked)="onRenewConsent()">
                         </app-p-button>
                       }
                     </div>
@@ -109,12 +127,14 @@
                 (onButtonClicked)="tryAgainFromDialog()">
               </app-p-button>
             }
-            <app-p-button
-              [buttonText]="'סגור'"
-              [buttonSize]="buttonSize.BIG"
-              [buttonColor]="buttonColor.WHITE"
-              (onButtonClicked)="closeFeezbackDialog()">
-            </app-p-button>
+            <div class="feezback-dialog-footer">
+              <app-p-button
+                [buttonText]="'סגור'"
+                [buttonSize]="buttonSize.SMALL"
+                [buttonColor]="buttonColor.BLACK"
+                (onButtonClicked)="closeFeezbackDialog()">
+              </app-p-button>
+            </div>
           }
         </div>
       </div>
@@ -287,19 +307,29 @@
              [class.source-result-item--failed]="source.status === 'failed'">
           <i class="pi"
              [class.pi-check-circle]="source.status === 'success'"
-             [class.pi-times-circle]="source.status === 'failed'">
+             [class.pi-times-circle]="source.status === 'failed'"
+             [class.pi-clock]="source.status === 'not_synced'">
           </i>
           <span class="source-result-item__name">{{ source.sourceId }}</span>
           @if (source.status === 'success') {
             <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
           }
-          @if (source.status === 'failed') {
+          @if (source.status === 'failed' && source.consentId) {
             <app-p-button
               [buttonText]="'נסה שוב'"
               [buttonColor]="buttonColor.YELLOW"
               [buttonSize]="buttonSize.SMALL"
               [isLoading]="isRetryingSource() === source.sourceId"
               (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+            </app-p-button>
+          }
+          @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
+            <app-p-button
+              [buttonText]="'חדש הסכמה'"
+              [buttonColor]="buttonColor.YELLOW"
+              [buttonSize]="buttonSize.SMALL"
+              [isLoading]="isLoadingFeezback()"
+              (onButtonClicked)="onRenewConsent()">
             </app-p-button>
           }
         </div>

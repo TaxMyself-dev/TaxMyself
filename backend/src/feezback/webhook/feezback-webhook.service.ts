@@ -13,6 +13,7 @@ import { User } from '../../users/user.entity';
 import { Source } from '../../transactions/source.entity';
 import { ModuleName, PayStatus, SourceType } from '../../enum';
 import { UserModuleSubscription } from '../../users/user-module-subscription.entity';
+import { UserSyncState } from '../../transactions/user-sync-state.entity';
 
 @Injectable()
 export class FeezbackWebhookService {
@@ -27,6 +28,8 @@ export class FeezbackWebhookService {
     private readonly sourceRepository: Repository<Source>,
     @InjectRepository(UserModuleSubscription)
     private readonly moduleSubRepo: Repository<UserModuleSubscription>,
+    @InjectRepository(UserSyncState)
+    private readonly syncStateRepo: Repository<UserSyncState>,
     private readonly consentService: FeezbackConsentService,
     private readonly consentSyncService: ConsentSyncService,
     private readonly feezbackApiService: FeezbackApiService,
@@ -187,6 +190,21 @@ export class FeezbackWebhookService {
   private async syncUserSourcesAndAccess(firebaseId: string, sub: string, eventType: string): Promise<void> {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
     const prefix = `[FeezbackSourceSync][${eventType}]`;
+
+    // Suppress any login sync that fires within 10 minutes of this webhook.
+    // This is the authoritative guard — it works regardless of whether the frontend
+    // sent ?skipLoginSync=true (which depends on localStorage surviving the redirect).
+    const until = new Date(Date.now() + 10 * 60_000);
+    void this.syncStateRepo.update({ userId: firebaseId }, { skipLoginSyncUntil: until })
+      .then(result => {
+        if (!result.affected) {
+          return this.syncStateRepo.upsert(
+            { userId: firebaseId, skipLoginSyncUntil: until } as UserSyncState,
+            ['userId'],
+          );
+        }
+      })
+      .catch(err => this.logger.warn(`${prefix} Failed to set skipLoginSyncUntil: ${err?.message}`));
 
     // Pre-mark sync as running immediately so the frontend polling sees 'running'
     // even while sources are still being fetched/persisted below.
