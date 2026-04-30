@@ -1,10 +1,15 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
+import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
+import { environment } from 'src/environments/environment';
+
+type SimScenario = 'success' | 'allFailed' | 'partialSync' | 'partialConsent';
 
 @Component({
     selector: 'app-trans-management',
@@ -25,12 +30,18 @@ export class TransManagementComponent  implements OnInit {
   consentDialogVisible = signal<boolean>(false);
   consentChecked = signal<boolean>(false);
 
+  /** Dev-only sync simulator panel — hidden in production. */
+  readonly showSimPanel = !environment.production;
+  isLoadingSim = signal<SimScenario | 'reset' | null>(null);
+
   constructor(
     private genericService: GenericService,
     private formBuilder: FormBuilder,
     private adminPanelService: AdminPanelService,
     private feezbackService: FeezbackService,
+    private syncStatusService: SyncStatusService,
     private messageService: MessageService,
+    private router: Router,
   ) {
     this.fisiteDataForm = this.formBuilder.group({
       startDate: new FormControl(
@@ -105,7 +116,6 @@ export class TransManagementComponent  implements OnInit {
       .subscribe(response => {
         const link = response?.link || response?.url || response;
         if (link && typeof link === 'string') {
-          localStorage.setItem('feezbackPendingSync', Date.now().toString());
           window.location.assign(link);
         } else {
           this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'תגובה לא צפויה מהשרת.', life: 5000, key: 'br' });
@@ -197,5 +207,54 @@ export class TransManagementComponent  implements OnInit {
     if (hasCard) lines.push(`נטענו ${card.transactionsFetched} תנועות כרטיסי אשראי מ־${card.cardsProcessed} כרטיסים.`);
     lines.push(`בסך הכול עובדו ${system.totalProcessed} תנועות: ${system.savedInCurrentImport} נשמרו, ${system.alreadyExisting} כבר קיימות.`);
     this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: lines.join('\n'), life: 8000, key: 'br' });
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  Dev-only sync scenario simulator
+  // ───────────────────────────────────────────────────────────────────────────
+
+  runSimulation(scenario: SimScenario): void {
+    this.isLoadingSim.set(scenario);
+    this.syncStatusService.simulateScenario(scenario)
+      .pipe(
+        catchError(err => {
+          console.error('[DevSim] simulateScenario failed:', err);
+          this.messageService.add({
+            severity: 'error', summary: 'שגיאה', life: 5000, key: 'br',
+            detail: 'לא הצלחנו להפעיל סימולציה. בדוק שהשרת רץ ב-development.',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingSim.set(null)),
+      )
+      .subscribe(() => {
+        // Open the my-account dialog with simulate=true so initFeezbackDialogFromReturnUrl
+        // bypasses the real triggerPostConsentSync and just polls the seeded state.
+        void this.router.navigate(['/my-account'], {
+          queryParams: { feezbackStatus: 'success', simulate: 'true' },
+        });
+      });
+  }
+
+  resetSimulation(): void {
+    this.isLoadingSim.set('reset');
+    this.syncStatusService.resetSim()
+      .pipe(
+        catchError(err => {
+          console.error('[DevSim] resetSim failed:', err);
+          this.messageService.add({
+            severity: 'error', summary: 'שגיאה', life: 5000, key: 'br',
+            detail: 'לא הצלחנו לאפס את הסימולציה.',
+          });
+          return EMPTY;
+        }),
+        finalize(() => this.isLoadingSim.set(null)),
+      )
+      .subscribe(() => {
+        this.messageService.add({
+          severity: 'success', summary: 'הצלחה', life: 3000, key: 'br',
+          detail: 'מצב הסימולציה אופס.',
+        });
+      });
   }
 }

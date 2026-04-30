@@ -42,6 +42,7 @@ export class SyncStatusService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}transactions/sync-status`;
   private readonly triggerUrl = `${environment.apiUrl}transactions/trigger-sync`;
+  private readonly postConsentSyncUrl = `${environment.apiUrl}transactions/post-consent-sync`;
   private readonly retryUrl = `${environment.apiUrl}transactions/retry-source`;
 
   /**
@@ -60,8 +61,51 @@ export class SyncStatusService {
     );
   }
 
+  /**
+   * Called by the my-account page when the user returns from the Feezback consent portal
+   * (`?feezbackStatus=success`). Backend refreshes Source rows from the Feezback API
+   * (so consentIds are fresh) and then kicks off a transaction sync.
+   */
+  triggerPostConsentSync(): Observable<{ status: TriggerSyncStatus }> {
+    return this.http.post<{ status: TriggerSyncStatus }>(this.postConsentSyncUrl, {}).pipe(
+      tap(res => console.log('[SyncStatus] triggerPostConsentSync response:', res.status)),
+      catchError(err => {
+        console.error('[SyncStatus] triggerPostConsentSync failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
   private isTerminalStatus(status: ProcessStatus): boolean {
     return TERMINAL_STATUSES.includes(status);
+  }
+
+  /**
+   * DEV-ONLY — seeds user_sync_state + user_source_sync_state with the given scenario
+   * for the current user. Backed by `POST /transactions/dev/simulate-sync?scenario=...`,
+   * which 403s in production.
+   */
+  simulateScenario(scenario: 'success' | 'allFailed' | 'partialSync' | 'partialConsent'): Observable<{ status: string; scenario: string }> {
+    const url = `${environment.apiUrl}transactions/dev/simulate-sync?scenario=${scenario}`;
+    return this.http.post<{ status: string; scenario: string }>(url, {}).pipe(
+      tap(res => console.log('[SyncStatus] simulateScenario response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] simulateScenario failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
+  /** DEV-ONLY — clears the simulated sync state for the current user. */
+  resetSim(): Observable<{ status: string }> {
+    const url = `${environment.apiUrl}transactions/dev/reset-sim`;
+    return this.http.post<{ status: string }>(url, {}).pipe(
+      tap(res => console.log('[SyncStatus] resetSim response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] resetSim failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
   }
 
   retrySource(type: 'bank' | 'card', sourceId: string): Observable<SourceResult> {

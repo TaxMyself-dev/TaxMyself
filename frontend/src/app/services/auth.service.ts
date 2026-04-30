@@ -172,10 +172,7 @@ export class AuthService {
 
 
   signIn(): any {
-    const pending = localStorage.getItem('feezbackPendingSync');
-    const skipSync = !!pending && (Date.now() - parseInt(pending, 10)) < 10 * 60_000;
-    const url = `${environment.apiUrl}auth/signin${skipSync ? '?skipLoginSync=true' : ''}`;
-    return this.http.get(url);
+    return this.http.get(`${environment.apiUrl}auth/signin`);
   }
 
   getSignupErrorMessage(err: string): string {

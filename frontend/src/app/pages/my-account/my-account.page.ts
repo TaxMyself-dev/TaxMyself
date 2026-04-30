@@ -94,7 +94,36 @@ export class MyAccountPage implements OnInit {
   feezbackDialogVisible = signal<boolean>(false);
   feezbackDialogStatus = signal<'loading' | 'success' | 'failure' | null>(null);
   feezbackDialogTitle = signal<string>('');
-  feezbackDialogMessage = signal<string>('');
+  /** Decorative status indicator next to the dialog title. null = no icon. */
+  feezbackDialogIcon = signal<'success' | 'warning' | 'error' | null>(null);
+
+  /**
+   * Classifies the failure: 'consent' when ANY source is missing a consent
+   * (drives the "לא התקבל אישור" warning title + "בצע חיבור מחדש" buttons);
+   * 'sync' when every failure has a valid consentId (sync-side error → "נסה שוב");
+   * null when no source is in a failed/not-synced state.
+   */
+  dialogErrorType = computed<'consent' | 'sync' | null>(() => {
+    const rows = this.syncSourceResults();
+    if (rows.length === 0) return null;
+    const hasConsentIssue = rows.some(r =>
+      r.status === 'not_synced' || (r.status === 'failed' && !r.consentId),
+    );
+    if (hasConsentIssue) return 'consent';
+    const hasSyncFail = rows.some(r => r.status === 'failed' && !!r.consentId);
+    return hasSyncFail ? 'sync' : null;
+  });
+
+  /**
+   * True when EVERY source is failed-with-consent (no successes, no consent gaps).
+   * Drives the single big "נסה שוב" button for the all-failed-sync case.
+   * For partial sync failures (some success, some failed), we show per-source retry instead.
+   */
+  dialogAllSyncFailed = computed<boolean>(() => {
+    const rows = this.syncSourceResults();
+    if (rows.length === 0) return false;
+    return rows.every(r => r.status === 'failed' && !!r.consentId);
+  });
 
   // Consent dialog — shown before redirecting to Feezback portal
   consentDialogVisible = signal<boolean>(false);
@@ -220,6 +249,7 @@ export class MyAccountPage implements OnInit {
   /** Feezback consent redirect lands on `/my-account?feezbackStatus=...` (see backend JWT redirects). */
   private initFeezbackDialogFromReturnUrl(): void {
     const status = this.route.snapshot.queryParamMap.get('feezbackStatus');
+    const simulate = this.route.snapshot.queryParamMap.get('simulate') === 'true';
     if (status !== 'success' && status !== 'failure') return;
 
     void this.router.navigate(['/my-account'], {
@@ -231,6 +261,7 @@ export class MyAccountPage implements OnInit {
     if (status === 'success') {
       this.feezbackDialogStatus.set('loading');
       this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
+      this.feezbackDialogIcon.set(null);
       this.feezbackDialogVisible.set(true);
 
       // Optimistically mark user as connected so the UI updates immediately
@@ -240,11 +271,46 @@ export class MyAccountPage implements OnInit {
         stored.hasOpenBanking = true;
         localStorage.setItem('userData', JSON.stringify(stored));
       }
-      this.startSyncStatusPolling(true, 'full');
+
+      if (simulate) {
+        // Dev simulator path — sync state has already been seeded in the DB by the
+        // dev/simulate-sync endpoint. Skip triggerPostConsentSync (which would refresh
+        // Source rows from the real Feezback API and overwrite the seeded data) and
+        // jump straight to polling — the first poll reads the seeded state.
+        console.log('[MyAccount] simulate=true — bypassing triggerPostConsentSync, starting polling against seeded state');
+        this.startSyncStatusPolling(true, 'full');
+        return;
+      }
+
+      // Refresh Source rows from Feezback API on the server, then start polling.
+      // This is the ONLY sync path used after a consent return — the webhook no longer
+      // triggers a transaction sync, so we must initiate it here.
+      this.syncStatusService.triggerPostConsentSync()
+        .pipe(take(1))
+        .subscribe({
+          next: () => this.startSyncStatusPolling(true, 'full'),
+          error: (err) => {
+            console.error('[MyAccount] triggerPostConsentSync failed:', err);
+            // Cancel any background polling started in ngOnInit so it can't
+            // race with this failure handler and override 'failure' with
+            // 'success' based on a different sync's terminal state.
+            this.restartPolling$.next();
+            // Backend returns 502 with body { code: 'feezback_unavailable' } when
+            // both bank and card fetches against the Feezback API failed.
+            const code = err?.error?.code;
+            this.feezbackDialogStatus.set('failure');
+            this.feezbackDialogIcon.set('error');
+            this.feezbackDialogTitle.set(
+              code === 'feezback_unavailable'
+                ? 'שירות הבנקאות הפתוחה אינו זמין כעת. אנא נסה שוב בעוד מספר דקות.'
+                : 'משהו בטעינת הנתונים השתבש בדרך',
+            );
+          },
+        });
     } else if (status === 'failure') {
       this.feezbackDialogStatus.set('failure');
       this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
-      this.feezbackDialogMessage.set('');
+      this.feezbackDialogIcon.set('error');
       this.feezbackDialogVisible.set(true);
     }
   }
@@ -254,7 +320,41 @@ export class MyAccountPage implements OnInit {
     this.feezbackDialogVisible.set(false);
     this.feezbackDialogStatus.set(null);
     this.feezbackDialogTitle.set('');
-    this.feezbackDialogMessage.set('');
+    this.feezbackDialogIcon.set(null);
+  }
+
+  /**
+   * Single source of truth for the terminal dialog title + icon.
+   * Inspects the per-source results and picks one of:
+   *   - all-success      → success title + success icon
+   *   - any consent gap  → "לא התקבל אישור עבור חלק מהחשבונות" + warning icon
+   *   - sync errors only → "משהו בטעינת הנתונים השתבש בדרך" + error icon
+   *   - no sources       → generic success ("הפעולה הסתיימה בהצלחה")
+   */
+  private applyTerminalDialogState(): void {
+    const rows = this.syncSourceResults();
+    if (rows.length === 0) {
+      this.feezbackDialogStatus.set('success');
+      this.feezbackDialogTitle.set('הפעולה הסתיימה בהצלחה');
+      this.feezbackDialogIcon.set('success');
+      return;
+    }
+    const allSuccess = rows.every(r => r.status === 'success');
+    if (allSuccess) {
+      this.feezbackDialogStatus.set('success');
+      this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');
+      this.feezbackDialogIcon.set('success');
+      return;
+    }
+    const errorType = this.dialogErrorType();
+    this.feezbackDialogStatus.set('failure');
+    if (errorType === 'consent') {
+      this.feezbackDialogTitle.set('לא התקבל אישור עבור חלק מהחשבונות');
+      this.feezbackDialogIcon.set('warning');
+    } else {
+      this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+      this.feezbackDialogIcon.set('error');
+    }
   }
 
   onRenewConsent(): void {
@@ -265,6 +365,7 @@ export class MyAccountPage implements OnInit {
   tryAgainFromDialog(): void {
     this.feezbackDialogStatus.set('loading');
     this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
+    this.feezbackDialogIcon.set(null);
     this.syncSourceResults.set([]);
     this.syncStatusService.triggerSync()
       .pipe(take(1))
@@ -274,6 +375,7 @@ export class MyAccountPage implements OnInit {
           console.error('[MyAccount] tryAgainFromDialog triggerSync failed:', err);
           this.feezbackDialogStatus.set('failure');
           this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+          this.feezbackDialogIcon.set('error');
         },
       });
   }
@@ -331,6 +433,7 @@ export class MyAccountPage implements OnInit {
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
             this.feezbackDialogStatus.set('failure');
             this.feezbackDialogTitle.set('משהו בדרך השתבש, אנא נסה שנית');
+            this.feezbackDialogIcon.set('error');
           }
           return EMPTY;
         }),
@@ -356,18 +459,7 @@ export class MyAccountPage implements OnInit {
           this.syncProcessStatus.set(null);
           if (this.feezbackDialogVisible() &&
               (this.feezbackDialogStatus() === 'loading' || this.feezbackDialogStatus() === 'failure')) {
-            const allSuccess = this.syncSourceResults().length > 0 &&
-              this.syncSourceResults().every(r => r.status === 'success');
-            if (allSuccess) {
-              this.feezbackDialogStatus.set('success');
-              this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');
-            } else if (this.syncSourceResults().length > 0) {
-              this.feezbackDialogStatus.set('failure');
-              this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
-            } else {
-              this.feezbackDialogStatus.set('success');
-              this.feezbackDialogTitle.set('הפעולה הסתיימה בהצלחה');
-            }
+            this.applyTerminalDialogState();
           }
           if (!hasFetched) {
             hasFetched = true;
@@ -387,8 +479,7 @@ export class MyAccountPage implements OnInit {
           this.syncProcessStatus.set('failed');
           this.transToClassify = of([]);
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
-            this.feezbackDialogStatus.set('failure');
-            this.feezbackDialogTitle.set('משהו בטעינת הנתונים השתבש בדרך');
+            this.applyTerminalDialogState();
             // Restart polling (without requireRunningFirst) to catch the subsequent login sync
             if (requireRunningFirst) {
               setTimeout(() => this.startSyncStatusPolling(false, stage), 3000);
@@ -433,10 +524,16 @@ export class MyAccountPage implements OnInit {
       .pipe(
         catchError(err => {
           console.error('[MyAccount] retrySource failed:', err);
+          // Backend returns 409 when a full sync is in progress — the retry
+          // wasn't a failure, just deferred. Use a softer 'warn' tone and a
+          // clearer message so the user knows to wait, not panic.
+          const isAlreadyRunning = err?.status === 409;
           this.messageService.add({
-            severity: 'error',
-            summary: 'שגיאה',
-            detail: 'הניסיון לסנכרן מחדש נכשל',
+            severity: isAlreadyRunning ? 'warn' : 'error',
+            summary: isAlreadyRunning ? 'התראה' : 'שגיאה',
+            detail: isAlreadyRunning
+              ? 'סנכרון כבר פועל — המתן לסיומו'
+              : 'הניסיון לסנכרן מחדש נכשל',
             life: 5000,
             key: 'br',
           });
@@ -448,11 +545,10 @@ export class MyAccountPage implements OnInit {
         this.syncSourceResults.update(results =>
           results.map(r => r.sourceId === sourceId ? result : r)
         );
-        const allSuccess = this.syncSourceResults().length > 0 &&
-          this.syncSourceResults().every(r => r.status === 'success');
-        if (allSuccess && this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'failure') {
-          this.feezbackDialogTitle.set('הנתונים שלך נטענו בהצלחה!');
-          this.feezbackDialogStatus.set('success');
+        if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'failure') {
+          // Re-classify after the retry — may flip to success, or stay failure with
+          // a different error type (e.g. consent gap that wasn't addressed).
+          this.applyTerminalDialogState();
         }
         if (result.status === 'success' && !result.error) {
           this.getTransToClassify();
@@ -615,7 +711,6 @@ export class MyAccountPage implements OnInit {
         const link = response?.link || response?.url || response;
 
         if (link && typeof link === 'string') {
-          localStorage.setItem('feezbackPendingSync', Date.now().toString());
           window.location.assign(link);
         } else {
           console.error('Unexpected response format:', response);

@@ -42,7 +42,7 @@ export class UserSyncState {
   userId: string;
 
   @Column({ type: 'varchar', nullable: true })
-  triggeredBy: 'login' | 'webhook' | 'manual' | null;
+  triggeredBy: 'login' | 'webhook' | 'manual' | 'post-consent' | null;
 
   // ---------------------------------------------------------------------------
   // Quick sync stage — Pull 1: current month + previous 2 full calendar months
@@ -95,8 +95,12 @@ export class UserSyncState {
   @Column({ type: 'varchar', nullable: true })
   fullSkipReason: SyncSkipReason | null;
 
-  /** Set when the frontend sends skipLoginSync=true (Feezback return). Expires after 10 min. */
+  /**
+   * Timestamp of the last successful Source-rows refresh from the Feezback API
+   * (`refreshUserSources`). Used by the login path to skip the source-refresh
+   * step when sources are already fresh. NULL = never refreshed.
+   */
   @Column({ type: 'timestamp', nullable: true })
-  skipLoginSyncUntil: Date | null;
+  lastSourcesRefreshAt: Date | null;
 
 }

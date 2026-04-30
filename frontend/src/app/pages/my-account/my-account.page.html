@@ -3,7 +3,15 @@
       <div class="feezback-dialog-backdrop" (click)="closeFeezbackDialog()">
         <div class="feezback-dialog" (click)="$event.stopPropagation()">
           <div class="feezback-dialog-header">
-            <h2 class="feezback-dialog-title">{{ feezbackDialogTitle() }}</h2>
+            <h2 class="feezback-dialog-title"
+                [class.feezback-dialog-title--success]="feezbackDialogIcon() === 'success'"
+                [class.feezback-dialog-title--warning]="feezbackDialogIcon() === 'warning'"
+                [class.feezback-dialog-title--error]="feezbackDialogIcon() === 'error'">
+              @if (feezbackDialogIcon() === 'success') { <i class="pi pi-check-circle feezback-dialog-title__icon"></i> }
+              @else if (feezbackDialogIcon() === 'warning') { <i class="pi pi-exclamation-triangle feezback-dialog-title__icon"></i> }
+              @else if (feezbackDialogIcon() === 'error') { <i class="pi pi-times-circle feezback-dialog-title__icon"></i> }
+              <span>{{ feezbackDialogTitle() }}</span>
+            </h2>
             @if (feezbackDialogStatus() !== 'loading') {
               <button class="feezback-dialog-close" (click)="closeFeezbackDialog()" aria-label="סגור">
                 <i class="pi pi-times"></i>
@@ -50,7 +58,7 @@
                       }
                       @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
                         <app-p-button
-                          [buttonText]="'חדש הסכמה'"
+                          [buttonText]="'בצע חיבור מחדש'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
                           [isLoading]="isLoadingFeezback()"
@@ -93,7 +101,7 @@
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
                       }
-                      @if (source.status === 'failed' && source.consentId) {
+                      @if (source.status === 'failed' && source.consentId && !dialogAllSyncFailed()) {
                         <app-p-button
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
@@ -104,7 +112,7 @@
                       }
                       @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
                         <app-p-button
-                          [buttonText]="'חדש הסכמה'"
+                          [buttonText]="'בצע חיבור מחדש'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
                           [isLoading]="isLoadingFeezback()"
@@ -126,6 +134,16 @@
                 [buttonColor]="buttonColor.YELLOW"
                 (onButtonClicked)="tryAgainFromDialog()">
               </app-p-button>
+            }
+            @if (dialogAllSyncFailed()) {
+              <div class="feezback-dialog-retry-all">
+                <app-p-button
+                  [buttonText]="'נסה שוב'"
+                  [buttonSize]="buttonSize.BIG"
+                  [buttonColor]="buttonColor.YELLOW"
+                  (onButtonClicked)="tryAgainFromDialog()">
+                </app-p-button>
+              </div>
             }
             <div class="feezback-dialog-footer">
               <app-p-button
@@ -325,7 +343,7 @@
           }
           @if ((source.status === 'failed' && !source.consentId) || source.status === 'not_synced') {
             <app-p-button
-              [buttonText]="'חדש הסכמה'"
+              [buttonText]="'בצע חיבור מחדש'"
               [buttonColor]="buttonColor.YELLOW"
               [buttonSize]="buttonSize.SMALL"
               [isLoading]="isLoadingFeezback()"

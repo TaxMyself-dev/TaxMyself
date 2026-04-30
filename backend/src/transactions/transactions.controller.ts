@@ -17,6 +17,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
 import { ModuleName } from '../enum';
+import { SourceResult } from './user-source-sync-state.entity';
 
 
 @Controller('transactions')
@@ -107,6 +108,15 @@ export class TransactionsController {
     if (!body?.type || !body?.sourceId) {
       throw new BadRequestException('type and sourceId are required');
     }
+
+    // Block per-source retry while a full sync is running — both paths write to
+    // user_source_sync_state and call processingService.process(); racing them
+    // can produce duplicate transactions or clobbered source statuses.
+    const state = await this.userSyncStateService.getSyncState(userId);
+    if (state?.quickProcessStatus === 'running' || state?.fullProcessStatus === 'running') {
+      throw new ConflictException('Sync is already running — please wait for it to finish');
+    }
+
     const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId);
     return result;
   }
@@ -162,6 +172,171 @@ export class TransactionsController {
     void this.feezbackService.triggerFullSync(userId, 'manual').catch(err =>
       this.logger.error(
         `[TriggerSync] Async error from triggerFullSync | firebaseId=${masked}`,
+        err?.stack ?? err,
+      ),
+    );
+
+    return { status: 'started' };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  //  DEV-ONLY simulation endpoints — let the admin panel reproduce each
+  //  user-visible sync outcome (success, all-failed, partial-sync, partial-consent)
+  //  without going through Feezback. Both endpoints 403 in production.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  @Post('dev/simulate-sync')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async devSimulateSync(
+    @Req() request: AuthenticatedRequest,
+    @Query('scenario') scenario: string,
+  ): Promise<{ status: 'simulated'; scenario: string }> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Dev simulator is disabled in production');
+    }
+
+    const userId = request.user?.firebaseId;
+    const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
+
+    type SimSpec = {
+      processStatus: 'completed' | 'failed';
+      resultStatus: 'success' | 'failed' | 'partial_success';
+      rowsWritten: number;
+      sources: SourceResult[];
+    };
+
+    const C = 'sim-consent-A';
+    const sims: Record<string, SimSpec> = {
+      success: {
+        processStatus: 'completed', resultStatus: 'success', rowsWritten: 171,
+        sources: [
+          { type: 'bank', sourceId: '1234567', status: 'success', transactionCount: 76, consentId: C },
+          { type: 'bank', sourceId: '7654321', status: 'success', transactionCount: 42, consentId: C },
+          { type: 'card', sourceId: '9999',    status: 'success', transactionCount: 35, consentId: C, resourceId: 'sim-card-9999' },
+          { type: 'card', sourceId: '8888',    status: 'success', transactionCount: 18, consentId: C, resourceId: 'sim-card-8888' },
+        ],
+      },
+      allFailed: {
+        processStatus: 'completed', resultStatus: 'failed', rowsWritten: 0,
+        sources: [
+          { type: 'bank', sourceId: '1234567', status: 'failed', transactionCount: 0, consentId: C, error: '503 Service Unavailable' },
+          { type: 'bank', sourceId: '7654321', status: 'failed', transactionCount: 0, consentId: C, error: '503 Service Unavailable' },
+          { type: 'card', sourceId: '9999',    status: 'failed', transactionCount: 0, consentId: C, resourceId: 'sim-card-9999', error: '403 Forbidden' },
+          { type: 'card', sourceId: '8888',    status: 'failed', transactionCount: 0, consentId: C, resourceId: 'sim-card-8888', error: '500 Internal Server Error' },
+        ],
+      },
+      partialSync: {
+        processStatus: 'completed', resultStatus: 'partial_success', rowsWritten: 111,
+        sources: [
+          { type: 'bank', sourceId: '1234567', status: 'success', transactionCount: 76, consentId: C },
+          { type: 'bank', sourceId: '7654321', status: 'failed',  transactionCount: 0,  consentId: C, error: '503 Service Unavailable' },
+          { type: 'card', sourceId: '9999',    status: 'success', transactionCount: 35, consentId: C, resourceId: 'sim-card-9999' },
+          { type: 'card', sourceId: '8888',    status: 'failed',  transactionCount: 0,  consentId: C, resourceId: 'sim-card-8888', error: '500 Internal Server Error' },
+        ],
+      },
+      partialConsent: {
+        processStatus: 'completed', resultStatus: 'partial_success', rowsWritten: 111,
+        sources: [
+          { type: 'bank', sourceId: '1234567', status: 'success',    transactionCount: 76, consentId: C },
+          { type: 'bank', sourceId: '7654321', status: 'not_synced', transactionCount: 0 },
+          { type: 'card', sourceId: '9999',    status: 'success',    transactionCount: 35, consentId: C, resourceId: 'sim-card-9999' },
+          { type: 'card', sourceId: '8888',    status: 'not_synced', transactionCount: 0,  resourceId: 'sim-card-8888' },
+        ],
+      },
+    };
+
+    const sim = sims[scenario];
+    if (!sim) {
+      throw new BadRequestException(
+        `Unknown scenario "${scenario}". Available: ${Object.keys(sims).join(', ')}`,
+      );
+    }
+
+    // Wipe per-source rows, then seed the new scenario.
+    await this.userSyncStateService.clearSourceResults(userId);
+
+    // Seed user_sync_state via the existing helpers so finishedAt/timestamps are real.
+    // markQuickRunning is no-op if a sync is already running, so coerce out of running first.
+    await this.userSyncStateService.markBothFailed(userId, '__dev_sim_reset__').catch(() => { /* row may not exist */ });
+    await this.userSyncStateService.markQuickRunning(userId, 'manual');
+    await this.userSyncStateService.markQuickFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
+    await this.userSyncStateService.markFullFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
+    await this.userSyncStateService.updateSourceResults(userId, sim.sources);
+
+    // Banner — match the real SOURCE DISCOVERY / SYNC RESULTS look so logs are scannable.
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  DEV SIM — scenario=${scenario}`);
+    console.log(`  User : ${masked}`);
+    console.log(`════════════════════════════════════`);
+    for (const s of sim.sources) {
+      const icon = s.status === 'success' ? '✓' : s.status === 'failed' ? '✗' : '○';
+      const label = s.type === 'bank' ? 'Bank' : 'Card';
+      const id = s.type === 'bank' ? s.sourceId : `*${s.sourceId}`;
+      const detail = s.status === 'success'
+        ? `${s.transactionCount} valid`
+        : s.status === 'failed' ? `ERROR: ${s.error}` : 'no consent';
+      console.log(`  ${icon}  ${label.padEnd(4)} ${id.padEnd(20)} ${detail}`);
+    }
+    console.log(`════════════════════════════════════\n`);
+
+    return { status: 'simulated', scenario };
+  }
+
+  @Post('dev/reset-sim')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async devResetSim(@Req() request: AuthenticatedRequest): Promise<{ status: 'reset' }> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Dev simulator is disabled in production');
+    }
+    const userId = request.user?.firebaseId;
+    const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
+
+    await this.userSyncStateService.clearSourceResults(userId);
+    await this.userSyncStateService.markBothEmpty(userId).catch(() => { /* row may not exist */ });
+
+    console.log(`[DevSim] Reset simulation state | user=${masked}\n`);
+    return { status: 'reset' };
+  }
+
+  /**
+   * Called by the frontend when the user returns from the Feezback consent portal.
+   * Refreshes Source rows from the live Feezback API (so consentIds are fresh) and
+   * THEN triggers a full transaction sync. The refresh is awaited so the response
+   * confirms sources are up-to-date; the transaction sync itself is fire-and-forget
+   * (frontend polls /sync-status).
+   *
+   * This is the only sync entry point that depends on fresh consent data — login
+   * and manual triggers reuse whatever Source rows are currently persisted.
+   */
+  @Post('post-consent-sync')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async postConsentSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
+    const userId = request.user?.firebaseId;
+    const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
+
+    this.logger.log(`[PostConsentSync] Called | firebaseId=${masked}`);
+
+    // Already-running guard (DB-backed)
+    const state = await this.userSyncStateService.getSyncState(userId);
+    const isRunning =
+      state?.quickProcessStatus === 'running' || state?.fullProcessStatus === 'running';
+    if (isRunning) {
+      this.logger.log(`[PostConsentSync] Rejected — sync already running | firebaseId=${masked}`);
+      return { status: 'already_running' };
+    }
+
+    // Refresh Source rows from Feezback API — must finish before sync begins so
+    // pulls run against the fresh consentIds.
+    await this.feezbackService.refreshUserSources(userId, 'post-consent');
+
+    // Fire-and-forget the transaction pull; frontend polls sync-status.
+    this.logger.log(`[PostConsentSync] Sources refreshed — starting sync | firebaseId=${masked}`);
+    void this.feezbackService.triggerFullSync(userId, 'post-consent').catch(err =>
+      this.logger.error(
+        `[PostConsentSync] Async error from triggerFullSync | firebaseId=${masked}`,
         err?.stack ?? err,
       ),
     );
