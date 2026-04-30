@@ -328,16 +328,6 @@ export class AuthService {
     }
   }
 
-  SignUpWithGoogle(formData: any): Observable<any> {
-    return from(this.afAuth.currentUser).pipe(
-      switchMap((user) => {
-        formData.personal.firebaseId = user.uid;
-        const url = `${environment.apiUrl}auth/signup`;
-        return this.http.post(url, formData);
-      })
-    );
-  }
-
   async SignOut() {
     return this.afAuth.signOut().then(() => {
       localStorage.removeItem('userData');

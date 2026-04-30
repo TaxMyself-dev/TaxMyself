@@ -290,7 +290,15 @@ export class LoginPage implements OnInit {
     try {
       const { isNewUser, userData } = await this.authService.signInWithGoogle();
       if (isNewUser) {
-        this.router.navigate(['/register']);
+        const firebaseUser = await this.afAuth.currentUser;
+        try { await firebaseUser?.delete(); } catch { await this.afAuth.signOut(); }
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'משתמש לא רשום',
+          detail: 'אין חשבון רשום עם כתובת האימייל הזו. יש להירשם תחילה.',
+          sticky: true,
+          key: 'br',
+        });
         return;
       }
       sessionStorage.setItem('isLoggedIn', 'true');
