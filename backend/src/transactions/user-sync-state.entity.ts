@@ -1,4 +1,5 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+export { SourceResult } from './user-source-sync-state.entity';
 
 /**
  * Lifecycle status for a sync stage.
@@ -29,6 +30,7 @@ export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
  */
 export type SyncSkipReason = 'no_access' | 'cache_exists';
 
+
 @Entity('user_sync_state')
 @Index('UQ_sync_state_user', ['userId'], { unique: true })
 export class UserSyncState {
@@ -40,7 +42,7 @@ export class UserSyncState {
   userId: string;
 
   @Column({ type: 'varchar', nullable: true })
-  triggeredBy: 'login' | 'webhook' | 'manual' | null;
+  triggeredBy: 'login' | 'webhook' | 'manual' | 'post-consent' | null;
 
   // ---------------------------------------------------------------------------
   // Quick sync stage — Pull 1: current month + previous 2 full calendar months
@@ -92,4 +94,13 @@ export class UserSyncState {
 
   @Column({ type: 'varchar', nullable: true })
   fullSkipReason: SyncSkipReason | null;
+
+  /**
+   * Timestamp of the last successful Source-rows refresh from the Feezback API
+   * (`refreshUserSources`). Used by the login path to skip the source-refresh
+   * step when sources are already fresh. NULL = never refreshed.
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  lastSourcesRefreshAt: Date | null;
+
 }

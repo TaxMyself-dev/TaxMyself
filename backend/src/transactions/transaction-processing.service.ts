@@ -133,6 +133,7 @@ export class TransactionProcessingService {
       skippedNoBillId: 0,
       newlySavedToCache: 0,
       alreadyExistingInCache: 0,
+      deduplicatedCount: 0,
     };
 
 
@@ -225,6 +226,23 @@ export class TransactionProcessingService {
       result.savedToCacheOnly++;
     }
 
+    // Detect and log duplicate externalTransactionIds in this batch.
+    const idCount = new Map<string, number>();
+    for (const tx of enriched) {
+      if (tx.externalTransactionId) {
+        idCount.set(tx.externalTransactionId, (idCount.get(tx.externalTransactionId) ?? 0) + 1);
+      }
+    }
+    const duplicates = enriched.filter(tx => (idCount.get(tx.externalTransactionId) ?? 0) > 1);
+    if (duplicates.length > 0) {
+      console.log(`  ⚠️  Duplicate transactions (${duplicates.length}):`);
+      for (const tx of duplicates) {
+        const date = tx.transactionDate instanceof Date ? tx.transactionDate.toISOString().slice(0, 10) : '—';
+        const rawId = tx.rawTransactionId ?? tx.externalTransactionId;
+        console.log(`    rawId=${rawId}  normalizedId=${tx.externalTransactionId}  date=${date}  amount=${tx.amount}`);
+      }
+    }
+
     // Persist slim rows: INSERT IGNORE (do not overwrite existing ONE_TIME rows
     // in case of a race condition or double-processing).
     if (slimInserts.length > 0) {
@@ -256,6 +274,7 @@ export class TransactionProcessingService {
             .getCount()
         : 0;
 
+      result.deduplicatedCount = cacheUpserts.length - upsertExternalIds.length;
       result.alreadyExistingInCache = existingCacheRows;
       result.newlySavedToCache = upsertExternalIds.length - existingCacheRows;
 

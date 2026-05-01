@@ -72,3 +72,15 @@
     <app-button [buttonText]="'טען תנועות אשראי'" [isLoading]="isLoadingCardTransactions()" (onButtonClicked)="fetchUserCardTransactions()"></app-button>
     <app-button [buttonText]="'טען תנועות בנק ואשראי'" [isLoading]="isLoadingAllTransactions()" (onButtonClicked)="fetchAllUserTransactions()"></app-button>
   </div>
+
+  @if (showSimPanel) {
+    <div class="sync-sim-actions">
+      <p class="sync-sim-actions__title">סימולציית סנכרון (Dev)</p>
+      <p class="sync-sim-actions__hint">בחר תרחיש — המערכת תזרע נתוני בדיקה ותפתח את חלון הסנכרון ב-/my-account.</p>
+      <app-button [buttonText]="'הצלחה: כל החשבונות'"          [isLoading]="isLoadingSim() === 'success'"        (onButtonClicked)="runSimulation('success')"></app-button>
+      <app-button [buttonText]="'כשל סנכרון: כל החשבונות'"      [isLoading]="isLoadingSim() === 'allFailed'"      (onButtonClicked)="runSimulation('allFailed')"></app-button>
+      <app-button [buttonText]="'כשל סנכרון: חלק מהחשבונות'"    [isLoading]="isLoadingSim() === 'partialSync'"    (onButtonClicked)="runSimulation('partialSync')"></app-button>
+      <app-button [buttonText]="'ללא הסכמה: חלק מהחשבונות'"     [isLoading]="isLoadingSim() === 'partialConsent'" (onButtonClicked)="runSimulation('partialConsent')"></app-button>
+      <app-button [buttonText]="'איפוס סימולציה'"               [isLoading]="isLoadingSim() === 'reset'"          (onButtonClicked)="resetSimulation()"></app-button>
+    </div>
+  }

@@ -38,6 +38,7 @@ import { SlimTransaction } from './transactions/slim-transaction.entity';
 import { FullTransactionCache } from './transactions/full-transaction-cache.entity';
 import { UserTransactionCacheState } from './transactions/user-transaction-cache-state.entity';
 import { UserSyncState } from './transactions/user-sync-state.entity';
+import { UserSourceSyncState } from './transactions/user-source-sync-state.entity';
 import { Finsite } from './finsite/finsite.entity';
 import { Delegation } from './delegation/delegation.entity';
 import { Agents } from './delegation/agents.entity';
@@ -80,7 +81,7 @@ import { BusinessService } from './business/business.service';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
       entities: [User, Child, , Business, Expense, Income, Supplier, Transactions, ClassifiedTransactions,
-        SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState,
+        SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount, Agents,

@@ -11,6 +11,15 @@ export type ProcessStatus = 'running' | 'completed' | 'failed' | 'skipped';
 /** Backend-facing outcome quality. Passed through for logging/debugging; must not drive polling logic. */
 export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
 
+export interface SourceResult {
+  type: 'bank' | 'card';
+  sourceId: string;
+  status: 'not_synced' | 'success' | 'failed';
+  transactionCount: number;
+  consentId: string | null;
+  error?: string;
+}
+
 export interface StageState {
   processStatus: ProcessStatus;
   resultStatus:  ResultStatus;
@@ -23,6 +32,7 @@ export interface StageState {
 export interface SyncResponse {
   quickSync: StageState;
   fullSync: StageState;
+  sourceResults: SourceResult[];
 }
 
 const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed', 'skipped'];
@@ -32,6 +42,8 @@ export class SyncStatusService {
   private readonly http = inject(HttpClient);
   private readonly url = `${environment.apiUrl}transactions/sync-status`;
   private readonly triggerUrl = `${environment.apiUrl}transactions/trigger-sync`;
+  private readonly postConsentSyncUrl = `${environment.apiUrl}transactions/post-consent-sync`;
+  private readonly retryUrl = `${environment.apiUrl}transactions/retry-source`;
 
   /**
    * Calls POST /transactions/trigger-sync.
@@ -49,8 +61,61 @@ export class SyncStatusService {
     );
   }
 
+  /**
+   * Called by the my-account page when the user returns from the Feezback consent portal
+   * (`?feezbackStatus=success`). Backend refreshes Source rows from the Feezback API
+   * (so consentIds are fresh) and then kicks off a transaction sync.
+   */
+  triggerPostConsentSync(): Observable<{ status: TriggerSyncStatus }> {
+    return this.http.post<{ status: TriggerSyncStatus }>(this.postConsentSyncUrl, {}).pipe(
+      tap(res => console.log('[SyncStatus] triggerPostConsentSync response:', res.status)),
+      catchError(err => {
+        console.error('[SyncStatus] triggerPostConsentSync failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
   private isTerminalStatus(status: ProcessStatus): boolean {
     return TERMINAL_STATUSES.includes(status);
+  }
+
+  /**
+   * DEV-ONLY — seeds user_sync_state + user_source_sync_state with the given scenario
+   * for the current user. Backed by `POST /transactions/dev/simulate-sync?scenario=...`,
+   * which 403s in production.
+   */
+  simulateScenario(scenario: 'success' | 'allFailed' | 'partialSync' | 'partialConsent'): Observable<{ status: string; scenario: string }> {
+    const url = `${environment.apiUrl}transactions/dev/simulate-sync?scenario=${scenario}`;
+    return this.http.post<{ status: string; scenario: string }>(url, {}).pipe(
+      tap(res => console.log('[SyncStatus] simulateScenario response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] simulateScenario failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
+  /** DEV-ONLY — clears the simulated sync state for the current user. */
+  resetSim(): Observable<{ status: string }> {
+    const url = `${environment.apiUrl}transactions/dev/reset-sim`;
+    return this.http.post<{ status: string }>(url, {}).pipe(
+      tap(res => console.log('[SyncStatus] resetSim response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] resetSim failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
+  retrySource(type: 'bank' | 'card', sourceId: string): Observable<SourceResult> {
+    return this.http.post<SourceResult>(this.retryUrl, { type, sourceId }).pipe(
+      tap(res => console.log('[SyncStatus] retrySource response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] retrySource failed:', err?.message ?? err);
+        throw err;
+      }),
+    );
   }
 
   /** Single HTTP poll — returns null on network/HTTP error. */
@@ -74,7 +139,7 @@ export class SyncStatusService {
     maxAttempts = 40,
   ): Observable<SyncResponse | null> {
     let attemptNum = 0;
-  
+
     return timer(0, intervalMs).pipe(
       tap(() =>
         console.log(`[SyncStatus] Poll attempt ${++attemptNum} (watching: ${stage}Sync)`),
@@ -82,25 +147,21 @@ export class SyncStatusService {
       switchMap(() => this.getSyncResponse()),
       tap((res) => console.log('[SyncStatus] Response received:', res)),
       switchMap((res) => {
+        // Only time out when we have NOT yet reached a terminal state.
+        // Callers that need to poll past a stale terminal state (requireRunningFirst)
+        // control stopping via their own takeWhile — if we killed the timer here on
+        // terminal, those callers would be left with a dead source and a stuck UI.
         const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
-        const terminal =
-          stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
-  
-        if (terminal) {
-          return of(res);
-        }
-  
-        if (attemptNum >= maxAttempts) {
+        const terminal = stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
+        if (!terminal && attemptNum >= maxAttempts) {
           console.log(`[SyncStatus] Polling timed out after ${attemptNum} attempts`);
           return throwError(() => new Error(`Polling timed out for ${stage}Sync`));
         }
-  
         return of(res);
       }),
-      takeWhile((res) => {
-        const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
-        return !(stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus));
-      }, true),
+      // No takeWhile here: callers use their own takeWhile to stop the stream.
+      // Removing it keeps the timer alive so callers that skip a stale terminal
+      // state can continue polling until they see the status they expect.
     );
   }
 
@@ -112,10 +173,13 @@ export class SyncStatusService {
    * Use this as the single source of truth for both UI state updates and reload decisions.
    * Default stage: 'quick'.
    */
-  getSyncStageStream(stage: 'quick' | 'full' = 'quick'): Observable<StageState | null> {
+  getSyncStageStream(stage: 'quick' | 'full' = 'quick'): Observable<{ stageState: StageState | null; sourceResults: SourceResult[] }> {
     const stageKey = `${stage}Sync` as 'quickSync' | 'fullSync';
     return this.pollUntilDone(stage, 3000).pipe(
-      map(res => res?.[stageKey] ?? null),
+      map(res => ({
+        stageState: res?.[stageKey] ?? null,
+        sourceResults: res?.sourceResults ?? [],
+      })),
     );
   }
 

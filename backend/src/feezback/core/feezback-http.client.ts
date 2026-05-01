@@ -75,7 +75,15 @@ export class FeezbackHttpClient {
         const shouldRetry = isRetryableFeezbackError(mapped);
 
         if (!shouldRetry || attempt === maxRetries) {
-          console.log(`\n❌ [Feezback] ${endpoint} — all ${attempt + 1} attempt(s) failed | status=${mapped.status ?? 'unknown'} | error=${mapped.message}\n`);
+          const bodySnippet = (() => {
+            const body = mapped.responseBody;
+            if (body == null) return '(none)';
+            try {
+              const s = typeof body === 'string' ? body : JSON.stringify(body);
+              return s.length > 800 ? s.slice(0, 800) + '…' : s;
+            } catch { return String(body); }
+          })();
+          console.log(`\n❌ [Feezback] ${endpoint} — all ${attempt + 1} attempt(s) failed | status=${mapped.status ?? 'unknown'} | error=${mapped.message}\n   responseBody=${bodySnippet}\n`);
           throw mapped;
         }
 

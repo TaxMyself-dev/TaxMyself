@@ -339,7 +339,7 @@ export class TransactionsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          stageState => stageState?.processStatus === 'running',
+          ({ stageState }) => stageState?.processStatus === 'running',
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -350,7 +350,7 @@ export class TransactionsPage implements OnInit {
           return EMPTY;
         }),
       )
-      .subscribe(stageState => {
+      .subscribe(({ stageState }) => {
         if (!stageState) {
           this.syncProcessStatus.set('failed');
           this.filteredExpensesData.set(null);

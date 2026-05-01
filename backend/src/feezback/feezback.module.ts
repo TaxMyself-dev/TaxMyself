@@ -12,6 +12,7 @@ import { ConsentSyncService } from './consent/consent-sync.service';
 import { ConsentMapper } from './consent/mapper/consent.mapper';
 import { Delegation } from '../delegation/delegation.entity';
 import { User } from '../users/user.entity';
+import { UserModuleSubscription } from '../users/user-module-subscription.entity';
 import { Source } from '../transactions/source.entity';
 import { UsersModule } from '../users/users.module';
 import { SharedService } from 'src/shared/shared.service';
@@ -29,7 +30,7 @@ import { TransactionsModule } from '../transactions/transactions.module';
       timeout: 90000, // 90 seconds timeout for all requests
       maxRedirects: 5,
     }),
-    TypeOrmModule.forFeature([Delegation, User, Child, Expense, Business, SettingDocuments, Source]),
+    TypeOrmModule.forFeature([Delegation, User, UserModuleSubscription, Child, Expense, Business, SettingDocuments, Source]),
     forwardRef(() => UsersModule),
     FeezbackPersistenceModule,
     FeezbackWebhookRouterModule,

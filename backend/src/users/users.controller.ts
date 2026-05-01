@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
+         Param, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
          Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
@@ -17,7 +17,7 @@ export class UsersController {
         @Inject(forwardRef(() => FeezbackService)) private readonly feezbackService: FeezbackService,
     ) {}
 
-    
+
     @Post('/signup')
     async createUser(@Body() body: any) {
         const user = await this.userService.signup(body);
@@ -34,7 +34,9 @@ export class UsersController {
         const user = await this.userService.signin(userId);
 
         // Fire-and-forget — do not block the login response.
-        this.triggerPostLoginSync(userId, user);
+        void this.triggerPostLoginSync(userId, user).catch(err =>
+            this.logger.error(`[Login] post-login sync failed`, err?.stack ?? err),
+        );
 
         return user;
     }
@@ -111,7 +113,7 @@ export class UsersController {
       return this.userService.getAllUsers();
     }
 
-    private triggerPostLoginSync(firebaseId: string, user?: any): void {
+    private async triggerPostLoginSync(firebaseId: string, user?: any): Promise<void> {
         const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
         const hasOpenBanking = !!user?.hasOpenBanking;
 
@@ -122,6 +124,25 @@ export class UsersController {
         console.log(`════════════════════════════════════\n`);
 
         if (!hasOpenBanking) return;
+
+        // If our cached Source rows haven't been refreshed against Feezback in 24h+
+        // (or never), refresh them first — otherwise login sync would pull with
+        // stale consentIds and report a generic "sync failed" with no clue that
+        // the user needs to re-authorize. Cheap when fresh: just one DB read.
+        const STALE_AFTER_MS = 24 * 60 * 60_000;
+        try {
+            const state = await this.feezbackService.getUserSyncState(firebaseId);
+            const lastRefresh = state?.lastSourcesRefreshAt;
+            const isStale = !lastRefresh || (Date.now() - new Date(lastRefresh).getTime()) > STALE_AFTER_MS;
+            if (isStale) {
+                console.log(`  ↻  Sources older than 24h — refreshing before login sync`);
+                await this.feezbackService.refreshUserSources(firebaseId, 'login').catch(err => {
+                    this.logger.error(`[Login] refreshUserSources failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
+                });
+            }
+        } catch (err: any) {
+            this.logger.error(`[Login] freshness check failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
+        }
 
         void this.feezbackService.triggerFullSync(firebaseId, 'login')
             .catch(err => {
