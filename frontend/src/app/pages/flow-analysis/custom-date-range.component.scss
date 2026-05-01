@@ -1,0 +1,109 @@
+// :host {
+//   display: block;
+// }
+
+// .date-range-popover {
+//   width: max-content;
+//   background: #ffffff;
+//   border-radius: 18px;
+//   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16);
+//   padding: 16px;
+// }
+
+// .calendar-labels {
+//   display: grid;
+//   grid-template-columns: 1fr 1fr;
+//   gap: 16px;
+//   margin-bottom: 8px;
+// }
+
+// .calendar-label {
+//   font-size: 12px;
+//   font-weight: 500;
+//   color: #777777;
+// }
+
+// .calendar-label-start {
+//   text-align: right;
+// }
+
+// .calendar-label-end {
+//   text-align: right;
+// }
+
+// .day-cell {
+//   display: inline-flex;
+//   align-items: center;
+//   justify-content: center;
+//   width: 2rem;
+//   height: 2rem;
+//   border-radius: 999px;
+// }
+
+// .day-cell-in-range {
+//   background: #ffe36e;
+// }
+
+.selected-dates {
+  display: flex;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.footer-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+// .dual-calendars {
+//   display: flex;
+//   gap: 16px;
+// }
+
+// .calendar-box {
+//   display: flex;
+//   flex-direction: column;
+//   gap: 6px;
+// }
+
+.dual-calendars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch; // 🔥 קריטי
+}
+
+.calendar-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-box > p-datepicker {
+  flex: 1; // 🔥 גורם לשני הפיקרים להיות באותו גובה
+}
+
+.calendar-label {
+  font-size: 12px;
+  color: #777;
+}
+
+.day-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+}
+
+.day-cell-in-range {
+  background: #ffe36e;
+}

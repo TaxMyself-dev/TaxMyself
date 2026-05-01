@@ -98,6 +98,10 @@ const routes: Routes = [
     path: 'shaam/callback',
     loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
   },
+  {
+    path: 'flow-analysis',
+    loadComponent: () => import('./pages/flow-analysis/flow-analysis.component').then( m => m.FlowAnalysisComponent)
+  },
  
 ];
 
