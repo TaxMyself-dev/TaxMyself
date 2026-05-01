@@ -86,7 +86,7 @@ export class FlowAnalysisComponent {
   readonly showCustomRange = signal(false);
   readonly myForm = new FormGroup(
     {
-      period:   new FormControl<string>('3_MONTHS', { nonNullable: true }),
+      period:   new FormControl<string | null>(null),
       dateFrom: new FormControl<Date | null>(null),
       dateTo:   new FormControl<Date | null>(null),
     },

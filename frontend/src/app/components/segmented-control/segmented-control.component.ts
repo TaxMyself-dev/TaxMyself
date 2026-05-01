@@ -74,12 +74,23 @@ export class SegmentedControlComponent implements ControlValueAccessor {
 
   // ── Event handlers ───────────────────────────────────────────────
 
+  // select(value: any): void {
+  //   if (this.isDisabled()) return;
+  //   this.selectedValue.set(value);
+  //   this.onChange(value);
+  //   this.onTouched();
+  //   this.valueChange.emit(value);
+  // }
+
   select(value: any): void {
     if (this.isDisabled()) return;
-    this.selectedValue.set(value);
-    this.onChange(value);
+  
+    const nextValue = this.selectedValue() === value ? null : value;
+  
+    this.selectedValue.set(nextValue);
+    this.onChange(nextValue);
     this.onTouched();
-    this.valueChange.emit(value);
+    this.valueChange.emit(nextValue);
   }
 
   onKeydown(event: KeyboardEvent, currentIndex: number): void {
