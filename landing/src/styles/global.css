@@ -172,7 +172,7 @@ p:last-child { margin-bottom: 0; }
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
-  background-color: var(--color-accent);
+  background-color: #ffffff;
   color: var(--color-text);
 }
 
@@ -212,12 +212,3 @@ p:last-child { margin-bottom: 0; }
   }
 }
 
-/* ─── Speech bubble float ───────────────────────────────────────────────── */
-@keyframes bubbleFloat {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-8px); }
-}
-.bubble-float          { animation: bubbleFloat 3.5s ease-in-out infinite; }
-.bubble-float.delay-1  { animation-delay: 0.8s; }
-.bubble-float.delay-2  { animation-delay: 1.6s; }
-.bubble-float.delay-3  { animation-delay: 2.4s; }

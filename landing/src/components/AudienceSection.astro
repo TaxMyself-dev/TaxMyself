@@ -9,51 +9,94 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     <div class="audience__text animate-on-scroll">
       <h2>לא בטוחים שזה<br />מתאים לכם?</h2>
       <p>בואו לגלות איך זה יכול לשפר ולייעל את החיים שלכם</p>
-      <a href={registerUrl} class="btn audience__cta">הרשמה בחינם &lt;</a>
+      <a href={registerUrl} class="btn audience__cta">הרשמה ←</a>
     </div>
 
     <!-- Cards column — DOM-second = RTL-end = visually on the left -->
     <div class="audience__cards">
 
-      <div class="audience__card audience__card--business animate-on-scroll delay-1">
-        <div class="audience__card-text">
-          <h3 class="audience__card-title">לעסק</h3>
-          <ul class="audience__features">
-            <li>הפקת חשבוניות וקבלות</li>
-            <li>מעקב אחר הכנסות והוצאות</li>
-            <li>חיבור לבנקאות פתוחה ולאשראי</li>
-            <li>שמירת מסמכים וקבלות בענן</li>
-            <li>הפקת דוחות</li>
-            <li>אפשרות לעבודה עצמאית או עם ייצוג</li>
-          </ul>
+      <div class="audience__card audience__card--home animate-on-scroll delay-1">
+        <div class="audience__card-desktop">
+          <div class="audience__card-text">
+            <h3 class="audience__card-title">לבית</h3>
+            <ul class="audience__features">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הוצאות והכנסות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ניהול תקציב פשוט ונוח</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ריכוז כל המידע הפיננסי במקום אחד</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-home.png"
+            alt="משפחה מנהלת תקציב בית עם KeepInTax"
+            width="300"
+            height="310"
+            loading="lazy"
+            class="audience__photo audience__photo--home"
+          />
         </div>
-        <img
-          src="/images/person-business.png"
-          alt="איש עסקים משתמש ב-KeepInTax"
-          width="280"
-          height="320"
-          loading="lazy"
-          class="audience__photo audience__photo--business"
-        />
+        <div class="audience__card-mobile">
+          <div class="audience__card-mobile-text audience__card-mobile-text--home">
+            <h3 class="audience__card-title">לבית</h3>
+            <ul class="audience__features audience__features--mobile">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הוצאות והכנסות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ניהול תקציב פשוט ונוח</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ריכוז כל המידע הפיננסי במקום אחד</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-home.png"
+            alt="משפחה מנהלת תקציב בית עם KeepInTax"
+            width="300"
+            height="310"
+            loading="lazy"
+            class="audience__photo-mobile audience__photo-mobile--home"
+          />
+        </div>
       </div>
 
-      <div class="audience__card audience__card--home animate-on-scroll delay-2">
-        <div class="audience__card-text">
-          <h3 class="audience__card-title">לבית</h3>
-          <ul class="audience__features">
-            <li>מעקב אחר הוצאות והכנסות</li>
-            <li>ניהול תקציב פשוט ונוח</li>
-            <li>ריכוז כל המידע הפיננסי במקום אחד</li>
-          </ul>
+      <div class="audience__card audience__card--business animate-on-scroll delay-2">
+        <div class="audience__card-desktop">
+          <div class="audience__card-text">
+            <h3 class="audience__card-title">לעסק</h3>
+            <ul class="audience__features">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת חשבוניות וקבלות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הכנסות והוצאות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>חיבור לבנקאות פתוחה ולאשראי</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>שמירת מסמכים וקבלות בענן</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת דוחות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>אפשרות לעבודה עצמאית או עם ייצוג</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-business.png"
+            alt="איש עסקים משתמש ב-KeepInTax"
+            width="280"
+            height="320"
+            loading="lazy"
+            class="audience__photo audience__photo--business"
+          />
         </div>
-        <img
-          src="/images/person-home.png"
-          alt="משפחה מנהלת תקציב בית עם KeepInTax"
-          width="300"
-          height="310"
-          loading="lazy"
-          class="audience__photo audience__photo--home"
-        />
+        <div class="audience__card-mobile">
+          <div class="audience__card-mobile-text audience__card-mobile-text--business">
+            <h3 class="audience__card-title">לעסק</h3>
+            <ul class="audience__features audience__features--mobile">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת חשבוניות וקבלות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הכנסות והוצאות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>חיבור לבנקאות פתוחה ולאשראי</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>שמירת מסמכים וקבלות בענן</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת דוחות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>אפשרות לעבודה עצמאית או עם ייצוג</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-business.png"
+            alt="איש עסקים משתמש ב-KeepInTax"
+            width="280"
+            height="320"
+            loading="lazy"
+            class="audience__photo-mobile audience__photo-mobile--business"
+          />
+        </div>
       </div>
 
     </div>
@@ -62,20 +105,19 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
 
 <style>
   .audience {
-    position: relative;
+position: relative;
+    background-image: url(/images/Vector.svg);
     background-color: var(--color-audience-bg);
-    background-image: url('/images/audience-bg-vector.svg');
     background-repeat: no-repeat;
-    background-position: center bottom;
-    background-size: min(1400px, 180%) auto;
+    background-position: center;
+    background-size: 124%;
   }
 
   .audience__inner {
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 3rem;
+    grid-template-columns: 0.8fr 2fr;
     align-items: center;
   }
 
@@ -112,18 +154,27 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
   }
 
   .audience__card {
-    background: #fff;
+    background: #EBFD71;
     border-radius: var(--radius);
-    padding: 1.5rem 1.25rem 0;
+    padding-top: 1.5rem;
     position: relative;
     overflow: hidden;
     min-height: 340px;
+  }
+
+  .audience__card-desktop {
+    display: block;
+  }
+
+  .audience__card-mobile {
+    display: none;
   }
 
   /* Title + list sit above the photography */
   .audience__card-text {
     position: relative;
     z-index: 2;
+    padding-right: 11.5rem;
     padding-bottom: 0.5rem;
   }
 
@@ -147,20 +198,25 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     font-weight: 500;
     line-height: 1.45;
     padding-block: 0.35rem;
-    padding-inline-start: 1.35rem;
-    position: relative;
+    display: grid;
+    grid-template-columns: 7px 1fr;
+    column-gap: 0.5rem;
+    align-items: start;
   }
 
   .audience__features li::before {
-    content: '';
-    position: absolute;
-    inset-inline-start: 0;
-    top: 50%;
+    content: none !important;
+    display: none !important;
+  }
+
+  .audience__feature-marker {
     width: 7px;
     height: 7px;
+    display: block;
     border-radius: 1px;
     background: var(--color-audience-bg);
-    transform: translateY(-50%) rotate(-14deg);
+    margin-top: calc((1.45em - 7px) / 2);
+    transform: rotate(-45deg);
   }
 
   .audience__photo {
@@ -174,18 +230,18 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
   }
 
   .audience__photo--business {
-    height: 72%;
-    max-height: 300px;
+    height: 117%;
     left: auto;
-    right: -4%;
+    right: -12%;
     transform: none;
+    top: 16%;
   }
 
   .audience__photo--home {
-    height: 68%;
-    max-height: 290px;
+    height: 131%;
     right: auto;
-    left: -2%;
+    left: 5%;
+    top: -2%;
     transform: none;
   }
 
@@ -219,14 +275,66 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     }
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: 900px) {
     .audience__cards {
       grid-template-columns: 1fr;
     }
 
+    .audience__card {
+      min-height: auto;
+      padding-top: 0;
+    }
+
+    .audience__card-desktop {
+      display: none !important;
+    }
+
+    .audience__card-mobile {
+      display: grid !important;
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+      height: 430px;
+      align-items: start;
+    }
+
+    .audience__photo-mobile {
+      position: relative;
+    }
+
+    .audience__photo-mobile--home {
+      width: 187%;
+      max-width: 400%;
+      left: 73%;
+      bottom: 15%;
+    }
+
+    .audience__photo-mobile--business {
+      width: 100%;
+      right: 32%;
+      bottom: 42%;
+
+    }
+
+    .audience__card-mobile-text {
+      padding: 1rem 1.5rem 1rem;
+    }
+
+    .audience__card-mobile-text--home {
+      padding: 1rem 2rem 0.5rem;
+    }
+
+    .audience__card-mobile-text--business {
+      padding: 1rem 2rem 2rem 6rem;
+    }
+
+    .audience__features--mobile li {
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
     .audience {
-      background-size: 220% auto;
-      background-position: 50% 100%;
+      background-size: 216% auto;
+      background-position: 42% 0%;
     }
   }
 </style>

@@ -9,7 +9,7 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? '#';
     </a>
     <nav class="navbar__links" aria-label="ניווט ראשי">
       <a href="#how-it-works">איך זה עובד?</a>
-      <a href="#pricing">מחירים</a>
+      <a href="#pricing">כמה זה עולה?</a>
       <a href="#faq">שאלות נפוצות</a>
     </nav>
     <a href={loginUrl} class="btn btn-primary navbar__cta">כניסה</a>
@@ -70,6 +70,8 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? '#';
   .navbar__cta {
     font-size: 0.9rem;
     padding: 0.5rem 1.25rem;
+    background-color: var(--color-pricing-featured-bg);
+    color: var(--color-primary);
   }
 
   @media (max-width: 768px) {
