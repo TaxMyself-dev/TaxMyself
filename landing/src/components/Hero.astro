@@ -1,115 +1,287 @@
 ---
+const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
+
+const bubbles = [
+  {
+    n: 1,
+    src: '/images/bubble-1.svg',
+    text: 'לא יודעים לאן הכסף הולך כל חודש?',
+    light: true,
+    flip: false,
+  },
+  {
+    n: 2,
+    src: '/images/bubble-2.svg',
+    text: 'שולחים מסמכים לרואה חשבון אבל לא יודעים מה נכנס לדו״ח?',
+    light: true,
+    flip: true,
+  },
+  {
+    n: 3,
+    src: '/images/bubble-3.svg',
+    text: 'נמאס לרדוף אחרי חשבוניות?',
+    light: false,
+    flip: false,
+  },
+  {
+    n: 4,
+    src: '/images/bubble-4.svg',
+    text: 'הוצאות הבית והעסק מתערבבות?',
+    light: false,
+    flip: true,
+  },
+];
 ---
 
-<section class="hero section" aria-labelledby="hero-heading">
-	<div class="container hero-inner">
-		<div class="hero-content">
-			<a href="/" class="hero-logo" aria-label="KeepInTax - דף הבית">
-				<img src="/logo.svg" alt="לוגו KeepInTax" width="48" height="47" />
-			</a>
-			<h1 class="hero-headline" id="hero-heading">פשוט להיות על זה.</h1>
-			<hr class="hero-divider" aria-hidden="true" />
-			<p class="hero-badge">ניהול פיננסי חכם לעסקים ולמשקי בית</p>
-		</div>
-	</div>
+<section class="hero" id="hero" aria-labelledby="hero-headline">
+  <div class="hero__bg" aria-hidden="true">
+    <img src="/images/hero-wave.svg" alt="" class="hero__wave" />
+  </div>
+
+  <div class="container hero__content">
+    <div class="hero__badge">
+      <span class="hero__avatars" aria-hidden="true">
+        <span class="hero__avatar"></span>
+        <span class="hero__avatar"></span>
+        <span class="hero__avatar"></span>
+      </span>
+      <span>מצטרפים חדשים</span>
+    </div>
+
+    <h1 id="hero-headline" class="hero__headline">להרוויח זמן- לחסוך כסף</h1>
+    <p class="hero__sub">ניהול פיננסי חכם לעסק ולבית</p>
+
+    <div class="hero__ctas">
+      <a href={registerUrl} class="btn btn-primary">הרשמה בחינם &lt;</a>
+      <a href="#how-it-works" class="btn btn-secondary">עוד פרטים</a>
+    </div>
+  </div>
+
+  <div class="hero__image-area">
+    <div class="hero__phone-wrap">
+      <img
+        src="/images/hero-phone.png"
+        alt="ממשק האפליקציה של KeepInTax המציג ניהול פיננסי חכם"
+        width="826"
+        height="820"
+        fetchpriority="high"
+        class="hero__phone"
+      />
+
+      {bubbles.map(b => (
+        <div
+          class={`hero__bubble hero__bubble--${b.n} bubble-float${b.n > 1 ? ` delay-${b.n - 1}` : ''}`}
+          aria-hidden="true"
+        >
+          <img
+            src={b.src}
+            alt=""
+            class={`hero__bubble-shape${b.flip ? ' hero__bubble-shape--flip' : ''}`}
+          />
+          <p class={`hero__bubble-text${b.light ? '' : ' hero__bubble-text--dark'}`}>
+            {b.text}
+          </p>
+        </div>
+      ))}
+    </div>
+  </div>
 </section>
 
 <style>
-	.hero {
-		padding-block: 4rem 1.5rem;
-	}
+  .hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 786px;
+    display: flex;
+    flex-direction: column;
+  }
 
-	.hero-inner {
-		display: flex;
-		justify-content: center;
-	}
+  /* Solid lime background confirmed from Figma node 2:2450 */
+  .hero__bg {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-accent);
+    z-index: 0;
+  }
 
-	.hero-content {
-		max-inline-size: 32rem;
-		text-align: center;
-	}
+  .hero__wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
 
-	.hero-logo {
-		display: inline-block;
-		margin: 0 0 1rem;
-		text-decoration: none;
-	}
+  .hero__content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    padding-top: 100px;
+    padding-bottom: 2rem;
+  }
 
-	.hero-logo:hover {
-		text-decoration: none;
-	}
+  .hero__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid #ebebeb;
+    border-radius: 999px;
+    padding: 6px 18px 6px 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #1a2641;
+    margin-bottom: 1.5rem;
+  }
 
-	.hero-logo img {
-		display: block;
-		height: 52px;
-		width: auto;
-	}
+  .hero__avatars {
+    display: flex;
+  }
 
-	.hero-headline {
-		margin: 0;
-		font-size: clamp(1.75rem, 4vw, 2.75rem);
-		font-weight: 700;
-		line-height: 1.2;
-		color: var(--color-text);
-	}
+  .hero__avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    border: 2px solid #fff;
+    display: block;
+  }
 
-	.hero-divider {
-		display: block;
-		width: 100%;
-		height: 4px;
-		margin: 0.75rem 0 0.5rem;
-		padding: 0;
-		border: none;
-		background: var(--color-accent);
-		opacity: 0.9;
-		border-radius: 3px;
-	}
+  .hero__avatar + .hero__avatar {
+    margin-inline-start: -10px;
+  }
 
-	.hero-badge {
-		display: inline-block;
-		margin: 0.5rem 0 0;
-		padding: 0.35rem 0.75rem;
-		font-size: 0.8125rem;
-		font-weight: 500;
-		color: var(--color-primary);
-		background: var(--color-bg-soft);
-		border-radius: 999px;
-	}
+  .hero__headline {
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 0.5rem;
+    line-height: 1.15;
+  }
 
-	@media (max-width: 768px) {
-		.hero {
-			padding-block: 2.5rem 1.25rem;
-		}
+  .hero__sub {
+    font-size: clamp(1.25rem, 2.5vw, 2rem);
+    font-weight: 400;
+    color: var(--color-primary);
+    margin-bottom: 2rem;
+  }
 
-		.hero-logo img {
-			height: 44px;
-		}
+  .hero__ctas {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
 
-		.hero-divider {
-			margin: 0.625rem 0 0.375rem;
-			height: 2px;
-		}
+  /* ── Phone + bubbles ── */
+  .hero__image-area {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    margin-top: auto;
+  }
 
-		.hero-badge {
-			margin: 0.375rem 0 0;
-		}
-	}
+  .hero__phone-wrap {
+    position: relative;
+    width: 413px;
+  }
 
-	@media (max-width: 390px) {
-		.hero {
-			padding-block: 2rem 1rem;
-		}
+  .hero__phone {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
 
-		.hero-logo img {
-			height: 40px;
-		}
+  /* ── Bubble composite ── */
+  .hero__bubble {
+    position: absolute;
+    pointer-events: none;
+  }
 
-		.hero-divider {
-			margin: 0.5rem 0 0.375rem;
-		}
+  .hero__bubble-shape {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
 
-		.hero-badge {
-			margin: 0.375rem 0 0;
-		}
-	}
+  /* Mirror the shape so the tail points left (toward phone from the right side) */
+  .hero__bubble-shape--flip {
+    transform: scaleX(-1);
+  }
+
+  .hero__bubble-text {
+    position: absolute;
+    /* Stay within the rectangular body — bubble tail occupies bottom ~28% */
+    inset: 10% 10% 28% 10%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 0;
+    color: #1a2641;
+  }
+
+  .hero__bubble-text--dark {
+    color: #ebfd71;
+  }
+
+  /* Individual bubble widths and positions — relative to .hero__phone-wrap */
+  .hero__bubble--1 {
+    width: 210px;
+    bottom: 55%;
+    inset-inline-end: 100%;
+  }
+
+  .hero__bubble--2 {
+    width: 260px;
+    top: 30%;
+    inset-inline-start: 100%;
+  }
+
+  /* bubble-2 text inset adjusted for its shallower tail depth (~26% vs 28%) */
+  .hero__bubble--2 .hero__bubble-text {
+    inset-block-end: 26%;
+  }
+
+  .hero__bubble--3 {
+    width: 180px;
+    top: 10%;
+    inset-inline-end: 95%;
+  }
+
+  .hero__bubble--4 {
+    width: 180px;
+    bottom: 40%;
+    inset-inline-start: 98%;
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 768px) {
+    .hero {
+      min-height: unset;
+    }
+
+    .hero__content {
+      padding-top: 80px;
+    }
+
+    .hero__image-area {
+      padding-inline: 1rem;
+      padding-bottom: 0;
+    }
+
+    .hero__phone-wrap {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .hero__bubble {
+      display: none;
+    }
+  }
 </style>

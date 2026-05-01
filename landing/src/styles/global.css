@@ -1,175 +1,223 @@
 /* KeepInTax landing – global styles (Hebrew RTL) */
 
-:root {
-	--color-primary: #1a2551;
-	--color-accent: #ebfd71;
-	--color-bg-soft: #dee9fc;
-	--color-text: #1b1b1b;
-	--color-text-secondary: #363636;
-	--color-accent-secondary: #7c8f2f;
-	--max-width: 1200px;
-	--radius: 20px;
-	--shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.08);
-	--border-subtle: rgba(0, 0, 0, 0.06);
+/* ─── Fonts ─────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Simpler';
+  src: url('/assets/Simpler-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Simpler';
+  src: url('/assets/Simpler-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Simpler';
+  src: url('/assets/Simpler-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Simpler';
+  src: url('/assets/Simpler-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* Base */
+/* ─── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --color-primary:             #1a2551;
+  --color-accent:              #ebfd71;
+  --color-accent-dark:         #7c8f2f;
+  --color-bg-soft:             #dee9fc;
+
+  /* Section-specific – Figma confirmed */
+  --color-audience-bg:         #9eb8f9;  /* audience section bg */
+  --color-card-border:         #204f56;  /* all pricing card borders */
+  --color-pricing-featured-bg: #ebfd72;  /* Basic plan card bg */
+
+  /* Text */
+  --color-text:            #1b1b1b;
+  --color-text-secondary:  #363636;
+  --color-text-white:      #ffffff;
+
+  /* Layout */
+  --max-width:  1210px;
+  --radius:     20px;
+  --radius-sm:  12px;
+
+  /* Elevation */
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.12);
+
+  /* Misc */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Base reset ──────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
-	box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 html {
-	direction: rtl;
-	scroll-behavior: smooth;
+  direction: rtl;
+  scroll-behavior: smooth;
 }
 
 body {
-	margin: 0;
-	font-family: system-ui, -apple-system, sans-serif;
-	color: var(--color-text);
-	line-height: 1.5;
+  margin: 0;
+  font-family: 'Simpler', system-ui, -apple-system, sans-serif;
+  color: var(--color-text);
+  line-height: 1.5;
 }
 
 img {
-	max-width: 100%;
-	height: auto;
-	display: block;
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
 a {
-	color: var(--color-primary);
-	text-decoration: none;
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
 a:hover {
-	text-decoration: underline;
+  text-decoration: underline;
 }
 
-h1,
-h2,
-h3 {
-	margin: 0 0 0.5em;
-	font-weight: 600;
-	color: var(--color-text);
-	line-height: 1.25;
+h1, h2, h3 {
+  margin: 0 0 0.5em;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.25;
 }
 
-h1 {
-	font-size: 2rem;
-}
-
-h2 {
-	font-size: 1.5rem;
-}
-
-h3 {
-	font-size: 1.25rem;
-}
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+h2 { font-size: clamp(1.75rem, 3vw, 2.5rem); }
+h3 { font-size: clamp(1.1rem, 2vw, 1.4rem); }
 
 p {
-	margin: 0 0 1em;
-	color: var(--color-text);
+  margin: 0 0 1em;
+  color: var(--color-text);
 }
+p:last-child { margin-bottom: 0; }
 
-p:last-child {
-	margin-bottom: 0;
-}
-
-/* Utilities */
+/* ─── Layout utilities ───────────────────────────────────────────────────── */
 .container {
-	width: 100%;
-	max-width: var(--max-width);
-	margin-inline: auto;
-	padding-inline: 1.25rem;
+  width: 100%;
+  max-width: var(--max-width);
+  margin-inline: auto;
+  padding-inline: 1.5rem;
 }
 
 .section {
-	padding-block: 3rem;
-}
-
-.section-soft {
-	padding-block: 3rem;
-	background-color: var(--color-bg-soft);
+  padding-block: 4rem;
 }
 
 @media (max-width: 768px) {
-	.section,
-	.section-soft {
-		padding-block: 2.5rem;
-	}
+  .section { padding-block: 3rem; }
+  .container { padding-inline: 1.25rem; }
 }
 
 @media (max-width: 390px) {
-	.container {
-		padding-inline: 1rem;
-	}
-
-	.section,
-	.section-soft {
-		padding-block: 2rem;
-	}
+  .section { padding-block: 2.5rem; }
+  .container { padding-inline: 1rem; }
 }
 
+.section-header {
+  text-align: center;
+  max-width: 540px;
+  margin-inline: auto;
+  margin-bottom: 3rem;
+}
+
+.section-header h2 {
+  margin-bottom: 0.5rem;
+}
+
+.section-header p {
+  color: var(--color-text-secondary);
+  font-size: 1.05rem;
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
 .btn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.5rem;
-	padding: 0.75rem 1.5rem;
-	font-size: 1rem;
-	font-weight: 500;
-	border: none;
-	border-radius: var(--radius);
-	cursor: pointer;
-	transition: opacity 0.2s, transform 0.1s;
-	min-width: 0;
-	white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.5rem;
+  font-family: 'Simpler', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
-@media (max-width: 768px) {
-	.btn {
-		padding: 0.65rem 1.25rem;
-		font-size: 0.9375rem;
-	}
-}
-
-@media (max-width: 390px) {
-	.btn {
-		padding: 0.6rem 1rem;
-		font-size: 0.875rem;
-		white-space: normal;
-		text-align: center;
-	}
-}
-
-.btn:hover {
-	opacity: 0.9;
-}
-
-.btn:active {
-	transform: scale(0.98);
-}
+.btn:hover { opacity: 0.88; text-decoration: none; }
+.btn:active { transform: scale(0.97); }
 
 .btn-primary {
-	background-color: var(--color-accent);
-	color: var(--color-text);
+  background-color: var(--color-accent);
+  color: var(--color-text);
 }
 
 .btn-secondary {
-	background-color: var(--color-primary);
-	color: #fff;
+  background-color: var(--color-primary);
+  color: var(--color-text-white);
 }
 
-.btn-secondary:hover {
-	background-color: var(--color-primary);
-	opacity: 0.95;
+@media (max-width: 768px) {
+  .btn {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9375rem;
+  }
 }
 
-.card {
-	background: #fff;
-	border-radius: var(--radius);
-	box-shadow: var(--shadow-soft);
-	padding: 1.5rem;
+/* ─── Scroll-in animations ──────────────────────────────────────────────── */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
 }
+.animate-on-scroll.delay-1 { transition-delay: 0.10s; }
+.animate-on-scroll.delay-2 { transition-delay: 0.20s; }
+.animate-on-scroll.delay-3 { transition-delay: 0.30s; }
+.animate-on-scroll.delay-4 { transition-delay: 0.40s; }
+
+.animate-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-on-scroll {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ─── Speech bubble float ───────────────────────────────────────────────── */
+@keyframes bubbleFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+.bubble-float          { animation: bubbleFloat 3.5s ease-in-out infinite; }
+.bubble-float.delay-1  { animation-delay: 0.8s; }
+.bubble-float.delay-2  { animation-delay: 1.6s; }
+.bubble-float.delay-3  { animation-delay: 2.4s; }

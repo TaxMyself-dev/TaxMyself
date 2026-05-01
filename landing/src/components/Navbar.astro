@@ -1,117 +1,85 @@
 ---
-const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? 'https://app.keepintax.co.il/login';
+const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? '#';
 ---
 
-<nav class="navbar" aria-label="ניווט ראשי">
-	<div class="navbar-inner">
-		<div class="navbar-brand-and-links">
-			<a href="/" class="navbar-logo" aria-label="KeepInTax - דף הבית">
-				<img src="/logo.svg" alt="לוגו KeepInTax" width="39" height="38" />
-			</a>
-			<div class="navbar-links">
-				<a href="#solution">איך זה עובד</a>
-				<a href="#pricing">מחירון</a>
-				<a href="#faq">שאלות נפוצות</a>
-			</div>
-		</div>
-		<a href={loginUrl} class="btn navbar-login" target="_blank" rel="noopener noreferrer">התחברות</a>
-	</div>
-</nav>
+<header class="navbar" id="navbar">
+  <div class="container navbar__inner">
+    <a href="/" class="navbar__logo" aria-label="KeepInTax - דף הבית">
+      <img src="/logo.svg" alt="KeepInTax" width="136" height="26" />
+    </a>
+    <nav class="navbar__links" aria-label="ניווט ראשי">
+      <a href="#how-it-works">איך זה עובד?</a>
+      <a href="#pricing">מחירים</a>
+      <a href="#faq">שאלות נפוצות</a>
+    </nav>
+    <a href={loginUrl} class="btn btn-primary navbar__cta">כניסה</a>
+  </div>
+</header>
+
+<script>
+  const nav = document.getElementById('navbar');
+  if (nav) {
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('navbar--scrolled', window.scrollY > 20);
+    }, { passive: true });
+  }
+</script>
 
 <style>
-	.navbar {
-		position: sticky;
-		top: 0;
-		z-index: 100;
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
-		border-bottom: 1px solid var(--border-subtle);
-	}
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: transparent;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+  }
 
-	.navbar-inner {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1.5rem;
-		width: 100%;
-		margin-inline: auto;
-		padding-inline-start: 0.75rem;
-		padding-inline-end: 1.25rem;
-		padding-block: 0.875rem;
-		min-width: 0;
-	}
+  .navbar.navbar--scrolled {
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  }
 
-	.navbar-brand-and-links {
-		display: flex;
-		align-items: center;
-		gap: 1.5rem;
-		min-width: 0;
-		flex-shrink: 0;
-	}
+  .navbar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 72px;
+  }
 
-	.navbar-logo {
-		flex-shrink: 0;
-		text-decoration: none;
-	}
+  .navbar__logo img {
+    display: block;
+  }
 
-	.navbar-logo:hover {
-		text-decoration: none;
-	}
+  .navbar__links {
+    display: flex;
+    gap: 2rem;
+  }
 
-	.navbar-logo img {
-		height: 36px;
-		width: auto;
-	}
+  .navbar__links a {
+    font-weight: 500;
+    font-size: 1rem;
+    color: var(--color-text);
+    transition: color 0.15s;
+  }
 
-	.navbar-login {
-		flex-shrink: 0;
-		background-color: var(--color-accent);
-		color: var(--color-primary);
-	}
+  .navbar__links a:hover {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
 
-	.navbar-login:hover {
-		background-color: var(--color-accent);
-		opacity: 0.9;
-	}
+  .navbar__cta {
+    font-size: 0.9rem;
+    padding: 0.5rem 1.25rem;
+  }
 
-	.navbar-links {
-		display: flex;
-		align-items: center;
-		gap: 1.5rem;
-	}
+  @media (max-width: 768px) {
+    .navbar__links,
+    .navbar__cta {
+      display: none;
+    }
 
-	.navbar-links a {
-		font-size: 0.9375rem;
-		font-weight: 500;
-		color: var(--color-text-secondary);
-		text-decoration: none;
-	}
-
-	.navbar-links a:hover {
-		color: var(--color-primary);
-		text-decoration: none;
-	}
-
-	@media (max-width: 768px) {
-		.navbar-links {
-			display: none;
-		}
-
-		.navbar-brand-and-links {
-			gap: 0.75rem;
-		}
-	}
-
-	@media (max-width: 390px) {
-		.navbar-inner {
-			gap: 0.75rem;
-			padding-inline-start: 0.75rem;
-			padding-inline-end: 1rem;
-		}
-
-		.navbar-logo img {
-			height: 32px;
-		}
-	}
+    .navbar__inner {
+      height: 64px;
+    }
+  }
 </style>

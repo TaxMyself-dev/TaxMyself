@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="800" viewBox="0 0 1440 800" fill="none" aria-hidden="true">
+  <!-- Soft decorative blobs — matches light blue audience section (Figma vector layer) -->
+  <path opacity="0.35" d="M-120 420C80 280 320 520 520 380C720 240 920 480 1120 340C1320 200 1520 440 1580 300V820H-120V420Z" fill="white"/>
+  <path opacity="0.22" d="M200 620C400 480 600 720 900 560C1200 400 1400 680 1560 520V820H-40V620H200Z" fill="white"/>
+  <ellipse opacity="0.18" cx="1100" cy="120" rx="280" ry="160" fill="white"/>
+  <ellipse opacity="0.12" cx="200" cy="200" rx="220" ry="140" fill="white"/>
+</svg>

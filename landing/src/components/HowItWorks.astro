@@ -1,0 +1,145 @@
+---
+const steps = [
+  {
+    num: 1,
+    title: 'נרשמים ללא עלות',
+    desc: 'הרשמה פשוטה ומהירה לפלטפורמה',
+  },
+  {
+    num: 2,
+    title: 'מחברים את חשבונות הבנק והאשראי',
+    desc: 'הכל בקליל דרך בנקאות פתוחה',
+  },
+  {
+    num: 3,
+    title: 'מגדירים את החשבון',
+    desc: 'מגדירים את העסק והחשבון הפרטי',
+  },
+  {
+    num: 4,
+    title: 'הכל בקליק',
+    desc: "סיווג תנועות חכם, דוחות בלחיצת כפתור ועוד מלא פיצ'רים שיעשו לכם סדר",
+  },
+];
+---
+
+<section class="how-it-works section" id="how-it-works">
+  <div class="container">
+    <header class="section-header animate-on-scroll">
+      <h2>אז איך זה עובד?</h2>
+      <p>תמיד הרגיש כמו סיוט לנהל גם עסק וגם את הבית? אנחנו עושים סדר הכל במקום אחד.</p>
+    </header>
+
+    <ol class="steps" role="list">
+      {steps.map((step, i) => (
+        <li class={`step animate-on-scroll delay-${i + 1}`}>
+          <div class="step__box">
+            <div class="step__circle" aria-hidden="true">
+              <img
+                src="/images/step-circle.svg"
+                alt=""
+                class="step__circle-bg"
+                width="82"
+                height="82"
+                loading="lazy"
+              />
+              <span class="step__num">{step.num}</span>
+            </div>
+            <h3 class="step__title">{step.title}</h3>
+            <p class="step__desc">{step.desc}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style>
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Bordered card; number sits on the top edge and “breaks” the stroke */
+  .step__box {
+    position: relative;
+    flex: 1;
+    text-align: center;
+    background: #fff;
+    border: 2px solid #57bc97;
+    border-radius: 28px;
+    padding: 3rem 1.15rem 1.35rem;
+    margin-top: 2.75rem;
+  }
+
+  .step__circle {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 82px;
+    height: 82px;
+    transform: translate(-50%, -50%);
+    flex-shrink: 0;
+  }
+
+  .step__circle-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .step__num {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .step__title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--color-text);
+  }
+
+  .step__desc {
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  @media (max-width: 768px) {
+    .steps {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .step__box {
+      border-radius: 16px;
+      padding: 2.65rem 1rem 1.2rem;
+      margin-top: 2.5rem;
+    }
+  }
+
+  @media (max-width: 390px) {
+    .steps {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

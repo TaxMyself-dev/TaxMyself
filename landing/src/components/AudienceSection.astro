@@ -1,0 +1,232 @@
+---
+const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
+---
+
+<section class="audience section" id="audience" aria-label="מי זה בשבילנו?">
+  <div class="container audience__inner">
+
+    <!-- Text column — DOM-first = RTL-start = visually on the right -->
+    <div class="audience__text animate-on-scroll">
+      <h2>לא בטוחים שזה<br />מתאים לכם?</h2>
+      <p>בואו לגלות איך זה יכול לשפר ולייעל את החיים שלכם</p>
+      <a href={registerUrl} class="btn audience__cta">הרשמה בחינם &lt;</a>
+    </div>
+
+    <!-- Cards column — DOM-second = RTL-end = visually on the left -->
+    <div class="audience__cards">
+
+      <div class="audience__card audience__card--business animate-on-scroll delay-1">
+        <div class="audience__card-text">
+          <h3 class="audience__card-title">לעסק</h3>
+          <ul class="audience__features">
+            <li>הפקת חשבוניות וקבלות</li>
+            <li>מעקב אחר הכנסות והוצאות</li>
+            <li>חיבור לבנקאות פתוחה ולאשראי</li>
+            <li>שמירת מסמכים וקבלות בענן</li>
+            <li>הפקת דוחות</li>
+            <li>אפשרות לעבודה עצמאית או עם ייצוג</li>
+          </ul>
+        </div>
+        <img
+          src="/images/person-business.png"
+          alt="איש עסקים משתמש ב-KeepInTax"
+          width="280"
+          height="320"
+          loading="lazy"
+          class="audience__photo audience__photo--business"
+        />
+      </div>
+
+      <div class="audience__card audience__card--home animate-on-scroll delay-2">
+        <div class="audience__card-text">
+          <h3 class="audience__card-title">לבית</h3>
+          <ul class="audience__features">
+            <li>מעקב אחר הוצאות והכנסות</li>
+            <li>ניהול תקציב פשוט ונוח</li>
+            <li>ריכוז כל המידע הפיננסי במקום אחד</li>
+          </ul>
+        </div>
+        <img
+          src="/images/person-home.png"
+          alt="משפחה מנהלת תקציב בית עם KeepInTax"
+          width="300"
+          height="310"
+          loading="lazy"
+          class="audience__photo audience__photo--home"
+        />
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<style>
+  .audience {
+    position: relative;
+    background-color: var(--color-audience-bg);
+    background-image: url('/images/audience-bg-vector.svg');
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    background-size: min(1400px, 180%) auto;
+  }
+
+  .audience__inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 3rem;
+    align-items: center;
+  }
+
+  .audience__text h2 {
+    color: var(--color-text);
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .audience__text p {
+    color: var(--color-text);
+    font-size: clamp(1rem, 2vw, 1.125rem);
+    margin-bottom: 1.5rem;
+    max-width: 28ch;
+  }
+
+  .audience__cta {
+    background-color: #fff;
+    color: var(--color-primary);
+    font-weight: 700;
+    box-shadow: 0 4px 18px rgba(26, 37, 81, 0.12);
+  }
+
+  .audience__cta:hover {
+    opacity: 1;
+    filter: brightness(0.98);
+  }
+
+  .audience__cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .audience__card {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 1.5rem 1.25rem 0;
+    position: relative;
+    overflow: hidden;
+    min-height: 340px;
+  }
+
+  /* Title + list sit above the photography */
+  .audience__card-text {
+    position: relative;
+    z-index: 2;
+    padding-bottom: 0.5rem;
+  }
+
+  .audience__card-title {
+    color: var(--color-text);
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.85rem;
+  }
+
+  .audience__features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Bullet on the visual right (inline-start in RTL) — small tilted squares, fill = section bg */
+  .audience__features li {
+    color: var(--color-text);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.45;
+    padding-block: 0.35rem;
+    padding-inline-start: 1.35rem;
+    position: relative;
+  }
+
+  .audience__features li::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: 0;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
+    background: var(--color-audience-bg);
+    transform: translateY(-50%) rotate(-14deg);
+  }
+
+  .audience__photo {
+    position: absolute;
+    z-index: 1;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  .audience__photo--business {
+    height: 72%;
+    max-height: 300px;
+    left: auto;
+    right: -4%;
+    transform: none;
+  }
+
+  .audience__photo--home {
+    height: 68%;
+    max-height: 290px;
+    right: auto;
+    left: -2%;
+    transform: none;
+  }
+
+  @media (max-width: 1024px) {
+    .audience__inner {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    .audience__text {
+      text-align: center;
+    }
+
+    .audience__text p {
+      max-width: none;
+      margin-inline: auto;
+    }
+
+    .audience__text .btn {
+      margin-inline: auto;
+    }
+
+    .audience__photo--business {
+      right: -8%;
+      height: 65%;
+    }
+
+    .audience__photo--home {
+      left: -6%;
+      height: 62%;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .audience__cards {
+      grid-template-columns: 1fr;
+    }
+
+    .audience {
+      background-size: 220% auto;
+      background-position: 50% 100%;
+    }
+  }
+</style>
