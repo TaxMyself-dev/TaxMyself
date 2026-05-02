@@ -164,12 +164,9 @@
 import {
   Component,
   computed,
-  ElementRef,
-  HostListener,
   input,
   output,
   signal,
-  viewChild,
 } from '@angular/core';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -191,8 +188,6 @@ export class CustomDateRangeComponent {
   readonly endControl = input.required<FormControl<Date | null>>();
 
   readonly closed = output<void>();
-
-  private readonly host = viewChild.required<ElementRef<HTMLElement>>('popoverRoot');
 
   readonly today = this.startOfDay(new Date());
 
@@ -342,13 +337,4 @@ export class CustomDateRangeComponent {
     });
   }
 
-  @HostListener('document:mousedown', ['$event'])
-  onDocumentMouseDown(event: MouseEvent): void {
-    const root = this.host()?.nativeElement;
-    if (!root) return;
-
-    if (!root.contains(event.target as Node)) {
-      this.closed.emit();
-    }
-  }
 }

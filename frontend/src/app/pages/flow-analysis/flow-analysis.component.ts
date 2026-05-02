@@ -1,4 +1,4 @@
-import { Component, effect, signal } from '@angular/core';
+import { Component, effect, inject, Signal, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
@@ -8,9 +8,15 @@ import {
   ValidationErrors,
   ValidatorFn,
 } from '@angular/forms';
+import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angular/cdk/overlay';
 import { SegmentedControlComponent, SegmentedOption } from 'src/app/components/segmented-control/segmented-control.component';
-import { SegmentContentDirective } from 'src/app/components/segmented-control/segment-content.directive';
 import { CustomDateRangeComponent } from './custom-date-range.component';
+import { LineChartComponent } from "src/app/widgets/line-chart/line-chart.component";
+import { DonutChartComponent, DonutChartItem } from "src/app/widgets/donut-chart/donut-chart.component";
+import { InputSelectComponent } from "src/app/components/input-select/input-select.component";
+import { inputsSize } from 'src/app/shared/enums';
+import { ISelectItem } from 'src/app/shared/interface';
+import { TransactionsService } from '../transactions/transactions.page.service';
 
 function calculatePeriodRange(period: string): { dateFrom: Date | null; dateTo: Date | null } {
   const today = new Date();
@@ -79,9 +85,49 @@ function isSameDate(a: Date, b: Date): boolean {
   selector: 'app-flow-analysis',
   templateUrl: './flow-analysis.component.html',
   styleUrls: ['./flow-analysis.component.scss'],
-  imports: [SegmentedControlComponent, SegmentContentDirective, ReactiveFormsModule, CustomDateRangeComponent],
+  imports: [SegmentedControlComponent, ReactiveFormsModule, CustomDateRangeComponent, LineChartComponent, DonutChartComponent, InputSelectComponent, CdkConnectedOverlay, CdkOverlayOrigin],
 })
 export class FlowAnalysisComponent {
+  transactionService = inject(TransactionsService);
+  inputsSize = inputsSize;
+  accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;
+
+  cashflowData = signal([
+    { label: '1 ספט׳', value: 10000 },
+    { label: '2 ספט׳', value: 5000 },
+    { label: '3 ספט׳', value: 10000 },
+    { label: '4 ספט׳', value: 7100 },
+    { label: '5 ספט׳', value: 8800 },
+    { label: '6 ספט׳', value: 6900 },
+    { label: '7 ספט׳', value: 8500 },
+  ]);
+
+  categoryExpensesData = signal<DonutChartItem[]>([
+    { label: 'אוכל ושתיה', value: 47, color: '#8B5CF6' },
+    { label: 'שופינג', value: 21, color: '#45C486' },
+    { label: 'תחבורה', value: 16, color: '#37CBE0' },
+    { label: 'בריאות וביטוחים', value: 8, color: '#FFD233' },
+    { label: 'אטרקציות ופעילויות', value: 6, color: '#FF9F2D' },
+    { label: 'נופש', value: 2, color: '#FF4B6E' },
+  ]);
+
+
+  readonly overlayPositions: ConnectedPosition[] = [
+    {
+      originX: 'end',
+      originY: 'bottom',
+      overlayX: 'end',
+      overlayY: 'top',
+      offsetY: 8,
+    },
+    {
+      originX: 'start',
+      originY: 'bottom',
+      overlayX: 'start',
+      overlayY: 'top',
+      offsetY: 8,
+    },
+  ];
 
   readonly showCustomRange = signal(false);
   readonly myForm = new FormGroup(
@@ -89,6 +135,7 @@ export class FlowAnalysisComponent {
       period:   new FormControl<string | null>(null),
       dateFrom: new FormControl<Date | null>(null),
       dateTo:   new FormControl<Date | null>(null),
+      account:  new FormControl<string | null>(null),
     },
     { validators: customRangeValidator },
   );
@@ -122,4 +169,6 @@ export class FlowAnalysisComponent {
   closeCustomRange(): void {
     this.showCustomRange.set(false);
   }
+
+  onChangeSelection(){}
 }

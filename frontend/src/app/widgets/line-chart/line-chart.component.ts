@@ -25,11 +25,14 @@ export class LineChartComponent {
 
     return {
       grid: {
-        left: 16,
-        right: 45,
-        top: 20,
-        bottom: 25,
+        // containLabel: true shrinks the plot area to fit axis labels inside
+        // the container — prevents X-axis labels from clipping at the edges
+        // and keeps Y-axis labels (right-positioned) from overflowing.
         containLabel: true,
+        left: 8,
+        right: 8,
+        top: 20,
+        bottom: 0,
       },
 
       tooltip: {
@@ -43,7 +46,7 @@ export class LineChartComponent {
         data: d.map(item => item.label),
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { color: '#8F8F8F', fontSize: 11 },
+        axisLabel: { margin: 8, color: '#8F8F8F', fontSize: 11 },
       },
 
       yAxis: {
@@ -57,6 +60,8 @@ export class LineChartComponent {
         axisLabel: {
           color: '#8F8F8F',
           fontSize: 11,
+          // margin: distance between the label text and the plot edge
+          margin: 4,
           formatter: (value: number) => value.toLocaleString('he-IL'),
         },
         splitLine: {
@@ -87,7 +92,7 @@ export class LineChartComponent {
               y2: 1,
               colorStops: [
                 { offset: 0, color: 'rgba(108, 99, 255, 0.1)' },
-                { offset: 1, color: 'rgba(108, 99, 255, 0.1' }
+                { offset: 1, color: 'rgba(108, 99, 255, 0.1)' }
               ]
             }
           }

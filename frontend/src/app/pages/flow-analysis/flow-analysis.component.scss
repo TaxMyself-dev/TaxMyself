@@ -6,11 +6,13 @@
   padding: 24px;
 }
 
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .custom-date-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  inset-inline-start: 0;
-  z-index: 100;
   background: #ffffff;
   border-radius: 14px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.14);

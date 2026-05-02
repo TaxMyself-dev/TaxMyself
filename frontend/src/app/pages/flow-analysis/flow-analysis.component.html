@@ -1,18 +1,37 @@
+<header>
+  <app-input-select [formControlName]="'account'"  [placeholder]="'בחר'" [items]="accountsList()"
+  [parentForm]="myForm" [size]="inputsSize.MOBILE"></app-input-select>
 <form [formGroup]="myForm">
-  <app-segmented-control
-    [options]="periodOptions"
-    formControlName="period">
-
-    <ng-template appSegmentContent forValue="CUSTOM">
-      <!-- @if (showCustomRange()) { -->
-        <div class="custom-date-popover">
-          <app-custom-date-range
-            [startControl]="myForm.controls.dateFrom"
-            [endControl]="myForm.controls.dateTo"
-            (closed)="closeCustomRange()" />
-        </div>
-      <!-- } -->
-    </ng-template>
-
-  </app-segmented-control>
+  <div cdkOverlayOrigin #trigger="cdkOverlayOrigin">
+    <app-segmented-control
+      [options]="periodOptions"
+      formControlName="period">
+    </app-segmented-control>
+  </div>
 </form>
+</header>
+
+<ng-template
+  cdkConnectedOverlay
+  [cdkConnectedOverlayOrigin]="trigger"
+  [cdkConnectedOverlayOpen]="showCustomRange()"
+  [cdkConnectedOverlayPositions]="overlayPositions"
+  (overlayOutsideClick)="closeCustomRange()">
+  <div class="custom-date-popover">
+    <app-custom-date-range
+      [startControl]="myForm.controls.dateFrom"
+      [endControl]="myForm.controls.dateTo"
+      (closed)="closeCustomRange()" />
+  </div>
+</ng-template>
+
+<main>
+  <div>
+    <h3 class="chart-title">גרף ההוצאות שלי</h3>
+    <app-line-chart [data]="cashflowData()"></app-line-chart>
+  </div>
+  <div>
+    <h3 class="chart-title">התפלגות הוצאות לפי קטגוריות</h3>
+    <app-donut-chart [data]="categoryExpensesData()"></app-donut-chart>
+  </div>
+</main>
