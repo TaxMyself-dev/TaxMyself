@@ -1,14 +1,17 @@
 <header>
-  <app-input-select [formControlName]="'account'"  [placeholder]="'בחר'" [items]="accountsList()"
-  [parentForm]="myForm" [size]="inputsSize.MOBILE"></app-input-select>
-<form [formGroup]="myForm">
-  <div cdkOverlayOrigin #trigger="cdkOverlayOrigin">
-    <app-segmented-control
-      [options]="periodOptions"
-      formControlName="period">
-    </app-segmented-control>
-  </div>
-</form>
+  <app-input-select [controlName]="'account'" [placeholder]="'בחר חשבון'" [items]="accountsList()"
+    [parentForm]="myForm" [size]="inputsSize.MOBILE"></app-input-select>
+
+  <form [formGroup]="myForm">
+    <div cdkOverlayOrigin #trigger="cdkOverlayOrigin">
+      <app-segmented-control [options]="periodOptions" formControlName="period">
+      </app-segmented-control>
+    </div>
+  </form>
+
+  <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
+    הצג
+  </button>
 </header>
 
 <ng-template
@@ -26,12 +29,46 @@
 </ng-template>
 
 <main>
-  <div>
-    <h3 class="chart-title">גרף ההוצאות שלי</h3>
-    <app-line-chart [data]="cashflowData()"></app-line-chart>
+  <!-- Line chart -->
+  <div class="chart-card">
+    <div class="chart-card__header">
+      <h3 class="chart-title">תזרים חודשי</h3>
+      <form [formGroup]="lineDisplayForm">
+        <app-segmented-control [options]="lineDisplayOptions" formControlName="mode">
+        </app-segmented-control>
+      </form>
+    </div>
+
+    @if (loading()) {
+      <div class="state-message">טוען נתונים...</div>
+    } @else if (hasError()) {
+      <div class="state-message state-message--error">שגיאה בטעינת הנתונים. אנא נסה שנית.</div>
+    } @else if (apiData() === null) {
+      <div class="state-message">יש לבחור חשבון ותאריכים וללחוץ על "הצג"</div>
+    } @else if (isLineChartEmpty()) {
+      <div class="state-message">אין נתונים לתקופה הנבחרת</div>
+    } @else {
+      <app-line-chart [series]="cashflowSeries()"></app-line-chart>
+    }
   </div>
-  <div>
+
+  <!-- Donut chart -->
+  <div class="chart-card">
     <h3 class="chart-title">התפלגות הוצאות לפי קטגוריות</h3>
-    <app-donut-chart [data]="categoryExpensesData()"></app-donut-chart>
+
+    @if (loading()) {
+      <div class="state-message">טוען נתונים...</div>
+    } @else if (hasError()) {
+      <div class="state-message state-message--error">שגיאה בטעינת הנתונים.</div>
+    } @else if (apiData() === null) {
+      <div class="state-message">יש לבחור חשבון ותאריכים וללחוץ על "הצג"</div>
+    } @else if (isDonutEmpty()) {
+      <div class="state-message">אין הוצאות בתקופה זו</div>
+    } @else {
+      <app-donut-chart [data]="categoryExpensesData()" [total]="totalExpenses()"></app-donut-chart>
+      @if (hasMoreCategories()) {
+        <p class="more-categories-note">יש עוד קטגוריות שלא מוצגות</p>
+      }
+    }
   </div>
 </main>

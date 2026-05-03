@@ -18,6 +18,8 @@ import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
 import { ModuleName } from '../enum';
 import { SourceResult } from './user-source-sync-state.entity';
+import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
+import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 
 
 @Controller('transactions')
@@ -359,6 +361,34 @@ export class TransactionsController {
     await this.processingService.clearUserCache(targetFirebaseId);
     this.logger.log(`[AdminClearCache] Cache cleared | targetUser=${targetFirebaseId} | by=${adminId}`);
     return { status: 'cleared' };
+  }
+
+  @Get('flow-analysis')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getFlowAnalysis(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: FlowAnalysisDto,
+  ): Promise<FlowAnalysisResponse | { totalExpenses: 0; totalIncomes: 0; monthlyFlow: []; expensesByCategory: []; hasMoreCategories: false }> {
+    const userId = request.user?.firebaseId;
+
+    const billId = Number(query.billId);
+    if (!Number.isFinite(billId) || billId <= 0) {
+      throw new BadRequestException('billId must be a valid positive number');
+    }
+
+    if (!await this.syncStateAllowsFetch(userId)) {
+      return { totalExpenses: 0, totalIncomes: 0, monthlyFlow: [], expensesByCategory: [], hasMoreCategories: false };
+    }
+
+    return this.processingService.getFlowAnalysis(
+      userId,
+      query.startDate,
+      query.endDate,
+      billId,
+      query.lineFilterType,
+      query.lineFilterValue,
+    );
   }
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.

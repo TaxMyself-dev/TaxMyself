@@ -22,6 +22,7 @@ import { ProcessingResult } from './interfaces/processing-result.interface';
 import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
 import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
 import { ClassifyWithRuleResult } from './interfaces/classify-with-rule-result.interface';
+import { FlowAnalysisResponse, MonthlyFlowPoint } from './interfaces/flow-analysis-response.interface';
 import { ClassificationType } from './enums/classification-type.enum';
 import { UserSyncStateService } from './user-sync-state.service';
 import { UserSyncState } from './user-sync-state.entity';
@@ -1202,6 +1203,94 @@ export class TransactionProcessingService {
    * Israel Standard Time = UTC+2 → 03:00 fires at 01:00 UTC in winter.
    * Israel Daylight Time = UTC+3 → 03:00 fires at 00:00 UTC in summer.
    */
+  async getFlowAnalysis(
+    userId: string,
+    startDate: string,
+    endDate: string,
+    billId: number,
+    lineFilterType: 'all' | 'category' | 'subCategory' | 'merchant' | 'paymentMethod',
+    lineFilterValue?: string,
+  ): Promise<FlowAnalysisResponse> {
+    // ── Monthly flow query (affected by lineFilter) ──────────────────────────
+    const monthlyQb = this.cacheRepo
+      .createQueryBuilder('c')
+      .select("DATE_FORMAT(c.transactionDate, '%Y-%m')", 'month')
+      .addSelect('SUM(CASE WHEN c.amount > 0 THEN c.amount ELSE 0 END)', 'incomes')
+      .addSelect('SUM(CASE WHEN c.amount < 0 THEN ABS(c.amount) ELSE 0 END)', 'expenses')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.billId = :billId', { billId })
+      .andWhere('c.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .groupBy("DATE_FORMAT(c.transactionDate, '%Y-%m')")
+      .orderBy("DATE_FORMAT(c.transactionDate, '%Y-%m')", 'ASC');
+
+    if (lineFilterType !== 'all' && lineFilterValue) {
+      const columnMap: Record<string, string> = {
+        category:      'c.category',
+        subCategory:   'c.subCategory',
+        merchant:      'c.merchantName',
+        paymentMethod: 'c.paymentIdentifier',
+      };
+      monthlyQb.andWhere(`${columnMap[lineFilterType]} = :lineFilterValue`, { lineFilterValue });
+    }
+
+    const monthlyRaw = await monthlyQb.getRawMany<{ month: string; incomes: string; expenses: string }>();
+
+    // Fill every month in range so there are no gaps in the chart
+    const monthlyMap = new Map(monthlyRaw.map(r => [r.month, r]));
+    const monthlyFlow: MonthlyFlowPoint[] = [];
+    const cursor = new Date(`${startDate}T00:00:00`);
+    const endMonth = endDate.substring(0, 7);
+    cursor.setDate(1);
+    while (true) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+      const raw = monthlyMap.get(key);
+      monthlyFlow.push({
+        month: key,
+        expenses: raw ? Math.round(parseFloat(raw.expenses) * 100) / 100 : 0,
+        incomes:  raw ? Math.round(parseFloat(raw.incomes)  * 100) / 100 : 0,
+      });
+      if (key === endMonth) break;
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    const totalExpenses = monthlyFlow.reduce((s, m) => s + m.expenses, 0);
+    const totalIncomes  = monthlyFlow.reduce((s, m) => s + m.incomes,  0);
+
+    // ── Category breakdown query (NOT affected by lineFilter) ────────────────
+    const categoryRaw = await this.cacheRepo
+      .createQueryBuilder('c')
+      .select('c.category', 'label')
+      .addSelect('SUM(ABS(c.amount))', 'amount')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.billId = :billId', { billId })
+      .andWhere('c.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+      .andWhere('c.amount < 0')
+      .groupBy('c.category')
+      .orderBy('SUM(ABS(c.amount))', 'DESC')
+      .getRawMany<{ label: string | null; amount: string }>();
+
+    const TOP_N = 8;
+    const top    = categoryRaw.slice(0, TOP_N);
+    const rest   = categoryRaw.slice(TOP_N);
+    const hasMoreCategories = rest.length > 0;
+
+    const toPercent = (amount: number) =>
+      totalExpenses > 0 ? Math.round((amount / totalExpenses) * 1000) / 10 : 0;
+
+    const expensesByCategory = top.map(r => {
+      const amount = Math.round(parseFloat(r.amount) * 100) / 100;
+      return { label: r.label ?? null, amount, percentage: toPercent(amount) };
+    });
+
+    if (hasMoreCategories) {
+      const otherAmount = rest.reduce((s, r) => s + parseFloat(r.amount), 0);
+      const rounded = Math.round(otherAmount * 100) / 100;
+      expensesByCategory.push({ label: 'OTHER', amount: rounded, percentage: toPercent(rounded) });
+    }
+
+    return { totalExpenses, totalIncomes, monthlyFlow, expensesByCategory, hasMoreCategories };
+  }
+
   private async runDailyCacheCleanup(label: string): Promise<void> {
     this.logger.log(`Daily cache cleanup started (${label} Asia/Jerusalem)`);
     try {

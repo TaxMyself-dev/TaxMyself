@@ -7,6 +7,12 @@ export interface LineChartPoint {
   value: number;
 }
 
+export interface LineChartSeries {
+  name: string;
+  color: string;
+  data: LineChartPoint[];
+}
+
 @Component({
   selector: 'app-line-chart',
   standalone: true,
@@ -15,19 +21,19 @@ export interface LineChartPoint {
   styleUrls: ['./line-chart.component.scss'],
 })
 export class LineChartComponent {
+  series = input<LineChartSeries[]>([]);
 
-  // ✅ במקום @Input
-  data = input<LineChartPoint[]>([]);
-
-  // ✅ במקום ngOnChanges
   chartOption = computed<EChartsOption>(() => {
-    const d = this.data();
+    const allSeries = this.series();
+    const labels = allSeries[0]?.data.map(p => p.label) ?? [];
+    const isSingle = allSeries.length === 1;
+
+    const allValues = allSeries.flatMap(s => s.data.map(p => p.value));
+    const maxVal = allValues.length > 0 ? Math.max(...allValues) : 0;
+    const yMax = Math.ceil(maxVal * 1.2 / 5000) * 5000 || 10000;
 
     return {
       grid: {
-        // containLabel: true shrinks the plot area to fit axis labels inside
-        // the container — prevents X-axis labels from clipping at the edges
-        // and keeps Y-axis labels (right-positioned) from overflowing.
         containLabel: true,
         left: 8,
         right: 8,
@@ -40,10 +46,14 @@ export class LineChartComponent {
         valueFormatter: (value) => `₪ ${Number(value).toLocaleString('he-IL')}`,
       },
 
+      legend: allSeries.length > 1
+        ? { show: true, bottom: 0, textStyle: { color: '#8F8F8F', fontSize: 11 } }
+        : { show: false },
+
       xAxis: {
         type: 'category',
         boundaryGap: false,
-        data: d.map(item => item.label),
+        data: labels,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { margin: 8, color: '#8F8F8F', fontSize: 11 },
@@ -53,14 +63,12 @@ export class LineChartComponent {
         type: 'value',
         position: 'right',
         min: 0,
-        max: 30000,
-        interval: 5000,
+        max: yMax,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: {
           color: '#8F8F8F',
           fontSize: 11,
-          // margin: distance between the label text and the plot edge
           margin: 4,
           formatter: (value: number) => value.toLocaleString('he-IL'),
         },
@@ -70,34 +78,32 @@ export class LineChartComponent {
         },
       },
 
-      series: [
-        {
-          type: 'line',
-          data: d.map(item => item.value),
-          smooth: false,
-          symbol: 'none',
-          lineStyle: {
-            color: '#6C63FF',
-            width: 2,
-            shadowColor: 'rgba(108, 99, 255, 0.75)',
-            shadowBlur: 8,
-            shadowOffsetY: 6
-          },
+      series: allSeries.map(s => ({
+        name: s.name,
+        type: 'line' as const,
+        data: s.data.map(p => p.value),
+        smooth: false,
+        symbol: 'none',
+        lineStyle: {
+          color: s.color,
+          width: 2,
+          shadowColor: `${s.color}BF`,
+          shadowBlur: 8,
+          shadowOffsetY: 6,
+        },
+        ...(isSingle ? {
           areaStyle: {
             color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
+              type: 'linear' as const,
+              x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(108, 99, 255, 0.1)' },
-                { offset: 1, color: 'rgba(108, 99, 255, 0.1)' }
-              ]
-            }
-          }
-        },
-      ],
+                { offset: 0, color: `${s.color}1A` },
+                { offset: 1, color: `${s.color}1A` },
+              ],
+            },
+          },
+        } : {}),
+      })),
     };
   });
 }
