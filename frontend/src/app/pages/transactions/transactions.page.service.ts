@@ -1,5 +1,5 @@
 import { Injectable, OnInit, signal } from '@angular/core';
-import { BehaviorSubject, EMPTY, Observable, catchError, map, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { IClassifyTrans, IClassifyTransMinimal, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
@@ -15,6 +15,9 @@ export class TransactionsService implements OnInit {
 
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
+  private readonly accountsLoading = signal(false);
+  private readonly accountsLoaded = signal(false);
+  readonly isAccountsLoading = this.accountsLoading.asReadonly();
 
   businessList: [{ businessName: string, businessNumber: string }];
   categories = signal<ISelectItem[]>([]);
@@ -26,8 +29,20 @@ export class TransactionsService implements OnInit {
   
 
   ngOnInit(): void {
+    if (this.accountsList().length === 0) {
+      this.getAllBills();
+    }
   }
 
+  ensureAccountsLoaded(): void {
+    if (this.accountsLoaded() || this.accountsLoading()) {
+      return;
+    }
+  
+    this.accountsLoading.set(true);
+  
+    this.getAllBills();
+  }
 
   getTransToConfirm(startDate: string, endDate: string, businessNumber: string): Observable<IRowDataTable[]> {
     const url = `${environment.apiUrl}transactions/get-transaction-to-confirm-and-add-to-expenses`;
@@ -82,28 +97,62 @@ export class TransactionsService implements OnInit {
     return this.http.get<ITransactionData[]>(url, { params: param })
   }
 
+  // getAllBills(): void {
+  //   const url = `${environment.apiUrl}transactions/get-bills`;
+  //   this.http.get<any[]>(url)
+  //     .pipe(
+  //       catchError((err) => {
+  //         if (err.error.status === 404) {
+  //           this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
+  //         }
+  //         this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
+  //         return EMPTY;
+  //       }),
+  //       map((data) => {
+  //         return data.map((bill) => {
+  //           const { userId, ...bills } = bill;
+  //           const newfields = this.renameFields(bills);
+  //           return newfields;
+  //         })
+  //       }),
+  //     )
+  //     .subscribe((bills) => {
+  //       this.updateAccountList(bills);
+  //     })
+  // }
+
   getAllBills(): void {
     const url = `${environment.apiUrl}transactions/get-bills`;
+  
     this.http.get<any[]>(url)
       .pipe(
         catchError((err) => {
-          if (err.error.status === 404) {
-            this.accountsList.set([{ value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }]);
+          if (err.error?.status === 404) {
+            this.accountsList.set([
+              { value: undefined, name: 'לא קיימים חשבונות עבור משתמש זה' }
+            ]);
+          } else {
+            this.accountsList.set([
+              { value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }
+            ]);
           }
-          this.accountsList.set([{ value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }]);
+  
           return EMPTY;
         }),
         map((data) => {
           return data.map((bill) => {
             const { userId, ...bills } = bill;
-            const newfields = this.renameFields(bills);
-            return newfields;
-          })
+            return this.renameFields(bills);
+          });
         }),
+        finalize(() => {
+          this.accountsLoading.set(false);
+        })
       )
       .subscribe((bills) => {
         this.updateAccountList(bills);
-      })
+        this.accountsLoaded.set(true);
+      });
   }
 
   getAllSources(): Observable<string[]> {

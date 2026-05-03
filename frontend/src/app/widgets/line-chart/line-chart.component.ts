@@ -21,16 +21,18 @@ export interface LineChartSeries {
   styleUrls: ['./line-chart.component.scss'],
 })
 export class LineChartComponent {
-  series = input<LineChartSeries[]>([]);
+  series    = input<LineChartSeries[]>([]);
+  chartType = input<'line' | 'bar'>('line');
 
   chartOption = computed<EChartsOption>(() => {
     const allSeries = this.series();
-    const labels = allSeries[0]?.data.map(p => p.label) ?? [];
-    const isSingle = allSeries.length === 1;
+    const type      = this.chartType();
+    const labels    = allSeries[0]?.data.map(p => p.label) ?? [];
+    const isSingle  = allSeries.length === 1;
 
     const allValues = allSeries.flatMap(s => s.data.map(p => p.value));
-    const maxVal = allValues.length > 0 ? Math.max(...allValues) : 0;
-    const yMax = Math.ceil(maxVal * 1.2 / 5000) * 5000 || 10000;
+    const maxVal    = allValues.length > 0 ? Math.max(...allValues) : 0;
+    const yMax      = Math.ceil(maxVal * 1.2 / 5000) * 5000 || 10000;
 
     return {
       grid: {
@@ -52,7 +54,7 @@ export class LineChartComponent {
 
       xAxis: {
         type: 'category',
-        boundaryGap: false,
+        boundaryGap: type === 'bar',
         data: labels,
         axisLine: { show: false },
         axisTick: { show: false },
@@ -78,32 +80,42 @@ export class LineChartComponent {
         },
       },
 
-      series: allSeries.map(s => ({
-        name: s.name,
-        type: 'line' as const,
-        data: s.data.map(p => p.value),
-        smooth: false,
-        symbol: 'none',
-        lineStyle: {
-          color: s.color,
-          width: 2,
-          shadowColor: `${s.color}BF`,
-          shadowBlur: 8,
-          shadowOffsetY: 6,
-        },
-        ...(isSingle ? {
-          areaStyle: {
-            color: {
-              type: 'linear' as const,
-              x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: `${s.color}1A` },
-                { offset: 1, color: `${s.color}1A` },
-              ],
-            },
+      series: allSeries.map(s => {
+        if (type === 'bar') {
+          return {
+            name: s.name,
+            type: 'bar' as const,
+            data: s.data.map(p => p.value),
+            itemStyle: { color: s.color },
+          };
+        }
+        return {
+          name: s.name,
+          type: 'line' as const,
+          data: s.data.map(p => p.value),
+          smooth: false,
+          symbol: 'none',
+          lineStyle: {
+            color: s.color,
+            width: 2,
+            shadowColor: `${s.color}BF`,
+            shadowBlur: 8,
+            shadowOffsetY: 6,
           },
-        } : {}),
-      })),
+          ...(isSingle ? {
+            areaStyle: {
+              color: {
+                type: 'linear' as const,
+                x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: `${s.color}1A` },
+                  { offset: 1, color: `${s.color}1A` },
+                ],
+              },
+            },
+          } : {}),
+        };
+      }),
     };
   });
 }

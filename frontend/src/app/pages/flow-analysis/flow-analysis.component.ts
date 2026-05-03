@@ -12,7 +12,7 @@ import {
 import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angular/cdk/overlay';
 import { catchError, map, of, Subject, switchMap } from 'rxjs';
 import { SegmentedControlComponent, SegmentedOption } from 'src/app/components/segmented-control/segmented-control.component';
-import { CustomDateRangeComponent } from './custom-date-range.component';
+import { CustomDateRangeComponent } from '../../components/custom-date-range/custom-date-range.component';
 import { LineChartComponent, LineChartSeries } from 'src/app/widgets/line-chart/line-chart.component';
 import { DonutChartComponent, DonutChartItem } from 'src/app/widgets/donut-chart/donut-chart.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
@@ -156,6 +156,20 @@ export class FlowAnalysisComponent {
     { initialValue: 'expenses' as LineDisplayMode },
   );
 
+  readonly chartTypeOptions: SegmentedOption[] = [
+    { value: 'line', label: 'קו' },
+    { value: 'bar',  label: 'עמודות' },
+  ];
+
+  readonly chartTypeForm = new FormGroup({
+    type: new FormControl<'line' | 'bar'>('line'),
+  });
+
+  readonly chartType = toSignal(
+    this.chartTypeForm.controls.type.valueChanges,
+    { initialValue: 'line' as 'line' | 'bar' },
+  );
+
   readonly loading = signal(false);
   readonly hasError = signal(false);
 
@@ -254,6 +268,7 @@ export class FlowAnalysisComponent {
   readonly hasMoreCategories = computed(() => this.apiData()?.hasMoreCategories ?? false);
 
   constructor() {
+    this.transactionService.ensureAccountsLoaded();
     this.myForm.patchValue(calculatePeriodRange('3_MONTHS'));
 
     this.myForm.valueChanges.subscribe(v => {

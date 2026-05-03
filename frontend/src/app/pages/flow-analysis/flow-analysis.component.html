@@ -37,6 +37,10 @@
         <app-segmented-control [options]="lineDisplayOptions" formControlName="mode">
         </app-segmented-control>
       </form>
+      <form [formGroup]="chartTypeForm">
+        <app-segmented-control [options]="chartTypeOptions" formControlName="type">
+        </app-segmented-control>
+      </form>
     </div>
 
     @if (loading()) {
@@ -48,7 +52,7 @@
     } @else if (isLineChartEmpty()) {
       <div class="state-message">אין נתונים לתקופה הנבחרת</div>
     } @else {
-      <app-line-chart [series]="cashflowSeries()"></app-line-chart>
+      <app-line-chart [series]="cashflowSeries()" [chartType]="chartType()"></app-line-chart>
     }
   </div>
 
