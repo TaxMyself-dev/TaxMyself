@@ -42,36 +42,13 @@ export class UserSyncState {
   userId: string;
 
   @Column({ type: 'varchar', nullable: true })
-  triggeredBy: 'login' | 'webhook' | 'manual' | 'post-consent' | null;
+  triggeredBy: 'login' | 'webhook' | 'manual' | null;
 
   // ---------------------------------------------------------------------------
-  // Quick sync stage — Pull 1: current month + previous 2 full calendar months
-  // ---------------------------------------------------------------------------
-
-  @Column({ type: 'varchar', default: 'empty' })
-  quickProcessStatus: ProcessStatus;
-
-  @Column({ type: 'varchar', default: 'none' })
-  quickResultStatus: ResultStatus;
-
-  @Column({ type: 'int', default: 0 })
-  quickRowsWritten: number;
-
-  @Column({ type: 'timestamp', nullable: true })
-  quickStartedAt: Date | null;
-
-  @Column({ type: 'timestamp', nullable: true })
-  quickFinishedAt: Date | null;
-
-  @Column({ type: 'varchar', nullable: true })
-  quickFailureReason: string | null;
-
-  @Column({ type: 'varchar', nullable: true })
-  quickSkipReason: SyncSkipReason | null;
-
-  // ---------------------------------------------------------------------------
-  // Full sync stage — Pull 2: up to 12-month backfill
-  // Starts only after the quick stage completes without errors.
+  // Sync stage — single full pull (12-month backfill).
+  // The legacy two-stage (quick + full) layout was removed; only the full pass
+  // remains. Column names keep the `full` prefix for backwards compatibility
+  // with existing code/migrations.
   // ---------------------------------------------------------------------------
 
   @Column({ type: 'varchar', default: 'empty' })
@@ -102,5 +79,16 @@ export class UserSyncState {
    */
   @Column({ type: 'timestamp', nullable: true })
   lastSourcesRefreshAt: Date | null;
+
+  /**
+   * Timestamp of the user's most recent click on "Connect Open Banking" — set
+   * by the consent-link endpoint right before redirecting to Feezback. Used
+   * by the post-consent endpoint to decide if a webhook-triggered sync has
+   * already covered this consent flow:
+   *   - if `fullFinishedAt > lastConsentInitiatedAt` → sync already ran for this flow
+   *   - else → still waiting for the webhook to fire the sync
+   */
+  @Column({ type: 'timestamp', nullable: true })
+  lastConsentInitiatedAt: Date | null;
 
 }

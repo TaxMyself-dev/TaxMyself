@@ -8,19 +8,15 @@ export interface FeezbackConsentUpsertInput {
   tppId: string;
   userIdentifier: string;
   consentId: string;
-  rootConsentId?: string | null;
-  flowId?: string | null;
   context?: string | null;
   status?: string | null;
   validUntil?: Date | null;
   recurringIndicator?: boolean | null;
   aspspCode?: string | null;
-  accessJson?: any;
   metaJson?: any;
   rawLastWebhookJson?: any;
   needsSync?: boolean;
   lastSyncAt?: Date | null;
-  lastSyncError?: string | null;
 }
 
 @Injectable()
@@ -57,16 +53,8 @@ export class FeezbackConsentService {
       });
     }
 
-    if (data.rootConsentId !== undefined) {
-      consent.rootConsentId = data.rootConsentId;
-    }
-
     if (data.userIdentifier !== undefined) {
       consent.userIdentifier = data.userIdentifier;
-    }
-
-    if (data.flowId !== undefined) {
-      consent.flowId = data.flowId;
     }
 
     if (data.context !== undefined) {
@@ -89,10 +77,6 @@ export class FeezbackConsentService {
       consent.aspspCode = data.aspspCode;
     }
 
-    if (data.accessJson !== undefined) {
-      consent.accessJson = data.accessJson;
-    }
-
     if (data.metaJson !== undefined) {
       consent.metaJson = data.metaJson;
     }
@@ -107,10 +91,6 @@ export class FeezbackConsentService {
 
     if (data.lastSyncAt !== undefined) {
       consent.lastSyncAt = data.lastSyncAt;
-    }
-
-    if (data.lastSyncError !== undefined) {
-      consent.lastSyncError = data.lastSyncError;
     }
 
     return repository.save(consent);

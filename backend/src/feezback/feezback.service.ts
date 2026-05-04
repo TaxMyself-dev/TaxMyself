@@ -19,16 +19,6 @@ import { ModuleName, PayStatus, SourceType } from '../enum';
 import * as fs from 'fs';
 import * as path from 'path';
 
-type SyncMode = 'only_full' | 'full_and_quick' | 'only_quick';
-
-/**
- * Controls which date windows are used for each Feezback sync.
- *   only_full       — single pass, 1 year back → today (current behaviour)
- *   full_and_quick  — quick pass (2 full months back) then full pass (1 year back)
- *   only_quick      — single pass, 2 full months back → today
- */
-const SYNC_MODE: SyncMode = 'only_full';
-
 @Injectable()
 export class FeezbackService {
   private readonly logger = new Logger(FeezbackService.name);
@@ -130,9 +120,8 @@ export class FeezbackService {
 
     // No pre-mark: triggerFullSync (when called by post-consent / login) will
     // atomically acquire the DB lock and set status='running' itself. Calling
-    // markQuickRunning here would acquire that very lock and starve the
-    // subsequent triggerFullSync of it (regression introduced when markQuickRunning
-    // became atomic in audit fix #4). The frontend doesn't poll during this
+    // markSyncRunning here would acquire that very lock and starve the
+    // subsequent triggerFullSync of it. The frontend doesn't poll during this
     // refresh anyway — the post-consent endpoint awaits it before returning 200.
 
     let user: User | null = null;
@@ -164,20 +153,24 @@ export class FeezbackService {
         }
         const sourceName = iban.trim().slice(-7);
         const feezbackResourceId: string | null = account?.resourceId ?? null;
-        // Atomic INSERT … ON CONFLICT DO UPDATE via the (userId, sourceName) unique
-        // index — race-safe under concurrent webhook + post-consent calls. The
-        // `bill` FK is intentionally omitted so an existing bill linkage isn't
-        // clobbered on update. Using the QueryBuilder form rather than
-        // `repository.upsert(...)` because the latter trips on entities that have
-        // both @PrimaryGeneratedColumn and a ManyToOne relation (TypeORM tries to
-        // hydrate the returning row and throws "entity id is not set").
+        // Atomic INSERT … ON DUPLICATE KEY UPDATE via the (userId, sourceName)
+        // unique index. Race-safe under concurrent webhook + post-consent calls.
+        // The `bill` FK column is omitted so an existing linkage isn't clobbered
+        // on update.
+        //
+        // Using raw SQL (not repository.upsert / QueryBuilder.orUpdate) because
+        // both of those run TypeORM's entity-hydration step on the returning
+        // row, which intermittently throws "Cannot update entity because entity
+        // id is not set in the entity" on entities that combine
+        // @PrimaryGeneratedColumn with @ManyToOne (Source has both — `bill`).
         const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
-        await this.sourceRepository
-          .createQueryBuilder()
-          .insert()
-          .values({ userId: firebaseId, sourceName, sourceType: SourceType.BANK_ACCOUNT, feezbackResourceId })
-          .orUpdate(['feezback_resource_id', 'sourceType'], ['userId', 'sourceName'])
-          .execute();
+        await this.sourceRepository.query(
+          `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`feezback_resource_id\`)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE \`feezback_resource_id\` = VALUES(\`feezback_resource_id\`),
+                                   \`sourceType\` = VALUES(\`sourceType\`)`,
+          [firebaseId, sourceName, SourceType.BANK_ACCOUNT, feezbackResourceId],
+        );
         bankResults.push({ sourceName, action: existing ? 'updated' : 'created' });
       }
     } catch (error: any) {
@@ -200,13 +193,15 @@ export class FeezbackService {
         }
         const sourceName = last4Match[1];
         const feezbackResourceId: string | null = card?.resourceId ?? null;
+        // Same raw-SQL upsert pattern as the bank loop — see comment there.
         const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
-        await this.sourceRepository
-          .createQueryBuilder()
-          .insert()
-          .values({ userId: firebaseId, sourceName, sourceType: SourceType.CREDIT_CARD, feezbackResourceId })
-          .orUpdate(['feezback_resource_id', 'sourceType'], ['userId', 'sourceName'])
-          .execute();
+        await this.sourceRepository.query(
+          `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`feezback_resource_id\`)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE \`feezback_resource_id\` = VALUES(\`feezback_resource_id\`),
+                                   \`sourceType\` = VALUES(\`sourceType\`)`,
+          [firebaseId, sourceName, SourceType.CREDIT_CARD, feezbackResourceId],
+        );
         cardResults.push({ sourceName, action: existing ? 'updated' : 'created' });
       }
     } catch (error: any) {
@@ -1591,6 +1586,44 @@ export class FeezbackService {
   }
 
   /**
+   * True iff the user clicked "Connect Open Banking" within the last
+   * MAX_CONSENT_AGE_MS and no sync has finished AFTER that click — meaning
+   * the webhook-driven sync hasn't fired yet and a login sync would race it.
+   *
+   * The max-age guard prevents permanent lockout: if the user abandoned the
+   * Feezback tab or the webhook was lost, lastConsentInitiatedAt would point
+   * at a flow that never completes, and login sync would skip forever.
+   */
+  hasUnprocessedConsentFlow(state: UserSyncState | null): boolean {
+    const MAX_CONSENT_AGE_MS = 30 * 60_000;
+    const consentAt = state?.lastConsentInitiatedAt;
+    if (!consentAt) return false;
+    const consentMs = new Date(consentAt).getTime();
+    if (Date.now() - consentMs >= MAX_CONSENT_AGE_MS) return false;
+    const syncedAt = state?.fullFinishedAt;
+    if (!syncedAt) return true;
+    return consentMs > new Date(syncedAt).getTime();
+  }
+
+  /**
+   * Pass-through to UserSyncStateService.markConsentInitiated. Called by the
+   * consent-link controller to stamp the moment the user kicks off a Feezback
+   * consent flow.
+   */
+  async markConsentInitiated(firebaseId: string): Promise<void> {
+    return this.userSyncStateService.markConsentInitiated(firebaseId);
+  }
+
+  /**
+   * Pass-through to UserSyncStateService.clearConsentInitiated. Called by the
+   * webhook handler when a consent is revoked/expired to release the user
+   * from the "unprocessed consent" login-sync skip.
+   */
+  async clearConsentInitiated(firebaseId: string): Promise<void> {
+    return this.userSyncStateService.clearConsentInitiated(firebaseId);
+  }
+
+  /**
    * Registers all discovered bank accounts and cards into user_sync_state.sourceResults
    * immediately after they are fetched from the Feezback API (before the sync runs).
    * New sources get status='not_synced'; existing sources get their consentId updated.
@@ -1626,25 +1659,15 @@ export class FeezbackService {
     }
   }
 
-  private getSyncWindows(): {
-    quick?: { from: string; to: string };
-    full?: { from: string; to: string };
-  } {
+  private getSyncWindow(): { from: string; to: string } {
     const today = new Date();
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
-    const yearBack  = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-    const quickBack = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
-    const todayStr  = fmt(today);
-    switch (SYNC_MODE) {
-      case 'only_full':  return { full:  { from: yearBack,  to: todayStr } };
-      case 'only_quick': return { quick: { from: quickBack, to: todayStr } };
-      case 'full_and_quick':
-        return { quick: { from: quickBack, to: todayStr },
-                 full:  { from: yearBack,  to: todayStr } };
-    }
+    const yearBack = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+    const todayStr = fmt(today);
+    return { from: yearBack, to: todayStr };
   }
 
-  async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual' | 'post-consent'): Promise<void> {
+  async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
 
 
@@ -1663,19 +1686,31 @@ export class FeezbackService {
     }
 
 
-    // Capture sync state BEFORE markQuickRunning overwrites it so doFullSync can
+    // Capture sync state BEFORE markSyncRunning overwrites it so doFullSync can
     // correctly determine whether the cache was empty at the time sync was triggered.
     const preSyncState = await this.userSyncStateService.getSyncState(firebaseId).catch(err => {
       this.logger.error(`[FullSync] Failed to read pre-sync state | firebaseId=${masked} | error=${err?.message}`, err?.stack);
       return null;
     });
 
+    // Consent-flow gate (login only): if the user clicked "Connect Open Banking"
+    // within the last 30 min and no sync has finished after that click, the
+    // webhook-driven sync hasn't fired yet — skip the login sync to avoid
+    // racing it. Webhook syncs are exempt (the webhook IS the trigger).
+    // Manual syncs are exempt (explicit user intent).
+    // Centralized here so /sync-status auto-trigger and triggerPostLoginSync
+    // both benefit from the same gate.
+    if (triggeredBy === 'login' && this.hasUnprocessedConsentFlow(preSyncState)) {
+      console.log(`⏭️  [FullSync] Skipped — unprocessed consent flow, webhook will sync | firebaseId=${masked}\n`);
+      return;
+    }
+
     // Atomically acquire the DB-level "sync running" lock. This is the
     // multi-replica safety net — the in-memory Map above only dedupes within
     // a single Node process. If another process (or pod) already holds the
     // lock, bail out instead of running a duplicate sync.
     const lockResult = await this.userSyncStateService
-      .markQuickRunning(firebaseId, triggeredBy)
+      .markSyncRunning(firebaseId, triggeredBy)
       .catch(err => {
         this.logger.error(
           `[FullSync] Failed to acquire DB lock | firebaseId=${masked} | error=${err?.message}`,
@@ -1883,29 +1918,28 @@ export class FeezbackService {
     };
   }
 
-  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual' | 'post-consent', masked: string, preSyncState?: UserSyncState | null): Promise<void> {
+  private async doFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual', masked: string, preSyncState?: UserSyncState | null): Promise<void> {
     try {
       // Gate — only proceed for users who have OPEN_BANKING module access.
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess', 'fName', 'lName'] });
       if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
         console.log(`⏭️  [FullSync] Skipped — OPEN_BANKING not in modulesAccess | modulesAccess=${JSON.stringify(user?.modulesAccess)} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
-        await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
+        await this.userSyncStateService.markSyncSkipped(firebaseId, 'no_access').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
         });
         return;
       }
 
-      // Log #4 gate — use the pre-markQuickRunning state captured in triggerFullSync so we see
+      // Log #4 gate — use the pre-markSyncRunning state captured in triggerFullSync so we see
       // the true state before 'running' was written (avoids false "not empty" reads).
       const syncState = preSyncState !== undefined ? preSyncState : await this.userSyncStateService.getSyncState(firebaseId);
-      // A previous sync has run (or is running) when BOTH stages are in a terminal-or-running state.
+      // A previous sync has run (or is running) when status is in a terminal-or-running state.
       // 'failed' is intentionally included so a failed webhook sync doesn't bypass the retry path.
       const NON_FRESH_STATUSES = ['completed', 'running', 'failed'];
       const syncHasRun = !!syncState &&
-        NON_FRESH_STATUSES.includes(syncState.quickProcessStatus as string) &&
         NON_FRESH_STATUSES.includes(syncState.fullProcessStatus as string);
-      // Webhook / post-consent always force a full sync — user connected a new bank or updated permissions
-      if (syncHasRun && triggeredBy !== 'webhook' && triggeredBy !== 'post-consent') {
+      // Webhook always forces a sync — Feezback signaled new data is ready.
+      if (syncHasRun && triggeredBy !== 'webhook') {
         const sourceRows = await this.userSyncStateService.getSourceResults(firebaseId);
         const pendingSources = sourceRows.filter(
           s => s.status === 'failed' || s.status === 'not_synced',
@@ -1915,26 +1949,26 @@ export class FeezbackService {
           await this.retryFailedSources(firebaseId, pendingSources, masked);
           return;
         }
-        // Only truly skip when both stages completed successfully
-        if (syncState.quickProcessStatus === 'completed' && syncState.fullProcessStatus === 'completed') {
-          console.log(`⏭️  [FullSync] Skipped — cache_exists | quick=${syncState.quickProcessStatus} full=${syncState.fullProcessStatus} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
-          await this.userSyncStateService.markBothSkipped(firebaseId, 'cache_exists').catch(err => {
+        // Only truly skip when sync completed successfully
+        if (syncState.fullProcessStatus === 'completed') {
+          console.log(`⏭️  [FullSync] Skipped — cache_exists | status=${syncState.fullProcessStatus} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
+          await this.userSyncStateService.markSyncSkipped(firebaseId, 'cache_exists').catch(err => {
             this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
           });
           return;
         }
-        // Both 'failed' with no failed sourceResults — run a fresh full sync
+        // Failed with no recoverable sourceResults — run a fresh sync
         console.log(`🔁 [FullSync] Previous sync failed with no recoverable sources — running fresh | firebaseId=${masked}`);
       }
-      if (syncHasRun && (triggeredBy === 'webhook' || triggeredBy === 'post-consent')) {
-        console.log(`🔁 [FullSync] Forcing sync — ${triggeredBy} override | firebaseId=${masked}`);
+      if (syncHasRun && triggeredBy === 'webhook') {
+        console.log(`🔁 [FullSync] Forcing sync — webhook override | firebaseId=${masked}`);
       }
 
       const sub = `${firebaseId}_sub`;
       const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
       const tTotal = Date.now();
 
-      const windows = this.getSyncWindows();
+      const window = this.getSyncWindow();
 
       // Inner helper — fetch bank + cards for one date window, process, persist source results.
       const runPass = async (from: string, to: string, label: string) => {
@@ -1998,46 +2032,21 @@ export class FeezbackService {
 
       const syncLabel = triggeredBy === 'webhook'
         ? 'WEBHOOK SYNC'
-        : triggeredBy === 'post-consent'
-          ? 'POST-CONSENT SYNC'
-          : triggeredBy === 'login'
-            ? 'LOGIN SYNC'
-            : SYNC_MODE === 'only_quick' ? 'QUICK SYNC' : 'FULL SYNC';
+        : triggeredBy === 'login'
+          ? 'LOGIN SYNC'
+          : 'FULL SYNC';
 
-      if (SYNC_MODE === 'full_and_quick') {
-        // ── Two-pass: quick first, then full ──────────────────────────────────
-        const quick = await runPass(windows.quick!.from, windows.quick!.to, 'QUICK SYNC');
-        await this.userSyncStateService.markQuickFinished(
-          firebaseId, quick.processStatus, quick.phase.resultStatus, quick.rowsWritten,
-          quick.phase.hasErrors ? quick.phase.diagnostics.errors.join(', ') : undefined,
-        ).catch(err => this.logger.error(`[QuickSync] Failed to write quickFinished state | error=${err?.message}`));
-
-        const full = await runPass(windows.full!.from, windows.full!.to, 'FULL SYNC');
-        console.log(`  DONE | quick=${quick.rowsWritten} saved | full=${full.rowsWritten} saved | total=${((Date.now() - tTotal) / 1000).toFixed(2)}s\n`);
-        await this.userSyncStateService.markFullFinished(
-          firebaseId, full.processStatus, full.phase.resultStatus, full.rowsWritten,
-          full.phase.hasErrors ? full.phase.diagnostics.errors.join(', ') : undefined,
-        ).catch(err => this.logger.error(`[FullSync] Failed to write fullFinished state | error=${err?.message}`));
-      } else {
-        // ── Single pass (only_full, only_quick, or webhook) ───────────────────
-        const window = windows.full ?? windows.quick!;
-        const result = await runPass(window.from, window.to, syncLabel);
-        console.log(`  DONE | ${result.rowsWritten} saved | total=${((Date.now() - tTotal) / 1000).toFixed(2)}s\n`);
-        // Write both stages so the frontend poller resolves on either stage.
-        await this.userSyncStateService.markQuickFinished(
-          firebaseId, result.processStatus, result.phase.resultStatus, result.rowsWritten,
-          result.phase.hasErrors ? result.phase.diagnostics.errors.join(', ') : undefined,
-        ).catch(err => this.logger.error(`[${syncLabel}] Failed to write quickFinished state | error=${err?.message}`));
-        await this.userSyncStateService.markFullFinished(
-          firebaseId, result.processStatus, result.phase.resultStatus, result.rowsWritten,
-          result.phase.hasErrors ? result.phase.diagnostics.errors.join(', ') : undefined,
-        ).catch(err => this.logger.error(`[${syncLabel}] Failed to write fullFinished state | firebaseId=${masked} | error=${err?.message}`));
-      }
+      const result = await runPass(window.from, window.to, syncLabel);
+      console.log(`  DONE | ${result.rowsWritten} saved | total=${((Date.now() - tTotal) / 1000).toFixed(2)}s\n`);
+      await this.userSyncStateService.markSyncFinished(
+        firebaseId, result.processStatus, result.phase.resultStatus, result.rowsWritten,
+        result.phase.hasErrors ? result.phase.diagnostics.errors.join(', ') : undefined,
+      ).catch(err => this.logger.error(`[${syncLabel}] Failed to write finished state | firebaseId=${masked} | error=${err?.message}`));
 
     } catch (err: any) {
       console.error(`\n❌ [FullSync] FAILED | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}\n`);
       this.logger.error(`[FullSync] Failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}`, err?.stack);
-      await this.userSyncStateService.markBothFailed(firebaseId, err?.message ?? 'UNKNOWN_ERROR').catch(writeErr => {
+      await this.userSyncStateService.markSyncFailed(firebaseId, err?.message ?? 'UNKNOWN_ERROR').catch(writeErr => {
         this.logger.error(`[FullSync] Failed to write failed state | firebaseId=${masked} | error=${writeErr?.message}`);
       });
     }
@@ -2045,12 +2054,12 @@ export class FeezbackService {
 
   /**
    * Called on login when cache exists but some sources failed in the previous sync.
-   * Retries all failed sources in parallel, then marks both stages completed.
+   * Retries all failed sources in parallel, then marks the sync completed.
    * The frontend poller sees running → completed with updated sourceResults.
    */
   private async retryFailedSources(firebaseId: string, failedSources: SourceResult[], masked: string): Promise<void> {
     // Mark as running first so frontend polling sees the state transition
-    await this.userSyncStateService.markQuickRunning(firebaseId, 'manual').catch(err =>
+    await this.userSyncStateService.markSyncRunning(firebaseId, 'manual').catch(err =>
       this.logger.error(`[RetryFailedSources] Failed to write running state | firebaseId=${masked} | error=${err?.message}`),
     );
 
@@ -2072,10 +2081,8 @@ export class FeezbackService {
     console.log(`  ✓ All retries done — ${((Date.now() - tStart) / 1000).toFixed(2)}s`);
     console.log(`════════════════════════════════════\n`);
 
-    await this.userSyncStateService.markQuickFinished(firebaseId, 'completed', 'none', 0)
-      .catch(err => this.logger.error(`[RetryFailedSources] Failed to write quickFinished | firebaseId=${masked} | error=${err?.message}`));
-    await this.userSyncStateService.markFullFinished(firebaseId, 'completed', 'none', 0)
-      .catch(err => this.logger.error(`[RetryFailedSources] Failed to write fullFinished | firebaseId=${masked} | error=${err?.message}`));
+    await this.userSyncStateService.markSyncFinished(firebaseId, 'completed', 'none', 0)
+      .catch(err => this.logger.error(`[RetryFailedSources] Failed to write finished state | firebaseId=${masked} | error=${err?.message}`));
   }
 
   /**

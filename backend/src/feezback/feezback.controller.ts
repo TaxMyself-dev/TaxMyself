@@ -23,8 +23,6 @@ export class FeezbackController {
 
   @Post('webhook-router')
   handleWebhookRouter(@Req() req: Request, @Res() res: Response): void {
-    console.log("webhook-routerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr");
-
     // Return 200 immediately (do not block)
     res.status(200).json({ received: true });
 
@@ -50,6 +48,27 @@ export class FeezbackController {
 
     if (!firebaseId) {
       throw new Error('User ID not found — Firebase authentication required');
+    }
+
+    // Stamp the moment the user kicks off the Feezback consent flow. The
+    // post-consent endpoint compares this against `fullFinishedAt` to know
+    // whether the webhook-triggered sync has already covered this flow —
+    // independent of how long the user spends on the Feezback portal.
+    //
+    // Dedup: if the user double-clicked (the previous stamp is < 5 s old),
+    // skip the re-stamp. Without this, the second click would overwrite the
+    // first timestamp; if the first flow's sync completes between the two
+    // stamps, the post-consent endpoint would falsely report 'pending'.
+    const CLICK_DEDUP_MS = 5_000;
+    try {
+      const state = await this.feezbackService.getUserSyncState(firebaseId);
+      const last = state?.lastConsentInitiatedAt;
+      const isFreshClick = !last || Date.now() - new Date(last).getTime() > CLICK_DEDUP_MS;
+      if (isFreshClick) {
+        await this.feezbackService.markConsentInitiated(firebaseId);
+      }
+    } catch (err: any) {
+      console.warn(`[ConsentLink] markConsentInitiated failed | error=${err?.message}`);
     }
 
     return this.feezbackService.createConsentLink(firebaseId);
@@ -417,13 +436,13 @@ export class FeezbackController {
 
     // Guard: refuse to start a new sync if one is already running.
     const currentState = await this.userSyncStateService.getSyncState(firebaseId);
-    if (currentState?.quickProcessStatus === 'running' || currentState?.fullProcessStatus === 'running') {
+    if (currentState?.fullProcessStatus === 'running') {
       this.logger.warn(`[AllTrans] Skipped — sync already running | firebaseId=${masked}`);
       return { status: 'running', persistedToDb: false, syncSummary: null };
     }
 
-    // Mark both stages running before any network calls.
-    await this.userSyncStateService.markQuickRunning(firebaseId, 'manual');
+    // Mark sync running before any network calls.
+    await this.userSyncStateService.markSyncRunning(firebaseId, 'manual');
 
     const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
     const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || masked;
@@ -455,8 +474,7 @@ export class FeezbackController {
       }
 
       const rowsWritten = processingResult?.newlySavedToCache ?? 0;
-      await this.userSyncStateService.markQuickFinished(firebaseId, 'completed', 'success', rowsWritten);
-      await this.userSyncStateService.markFullFinished(firebaseId, 'completed', 'success', rowsWritten);
+      await this.userSyncStateService.markSyncFinished(firebaseId, 'completed', 'success', rowsWritten);
       console.log(`════════════════════════════════════`);
       console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
       console.log(`════════════════════════════════════\n`);
@@ -478,7 +496,7 @@ export class FeezbackController {
       return { bankTransactions, cardTransactions, syncSummary, processingResult, persistedToDb: processingResult !== null };
     } catch (err: any) {
       this.logger.error(`[AllTrans] Failed | firebaseId=${masked} | error=${err?.message}`);
-      await this.userSyncStateService.markBothFailed(firebaseId, err?.message ?? 'Unknown error').catch(() => {});
+      await this.userSyncStateService.markSyncFailed(firebaseId, err?.message ?? 'Unknown error').catch(() => {});
       throw err;
     }
   }

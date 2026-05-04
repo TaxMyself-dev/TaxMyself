@@ -124,7 +124,10 @@ export class FeezbackWebhookService {
         });
         this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] Consent updated consentId=${consentId}`);
       } else {
-        this.logger.warn(`[FeezbackWebhook][ConsentStatusChanged] Consent row NOT found consentId=${consentId} tppId=${tppId}`);
+        // Self-healing: not finding the row is normal on the very first
+        // ConsentStatusChanged for a brand-new consent (the row is created
+        // by syncUserConsents below). Demoted to debug to avoid log noise.
+        this.logger.debug(`[FeezbackWebhook][ConsentStatusChanged] Consent row not yet persisted consentId=${consentId} tppId=${tppId}`);
       }
     } catch (error: any) {
       this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] Failed updating consent consentId=${consentId}: ${error?.message}`, error?.stack);
@@ -155,6 +158,16 @@ export class FeezbackWebhookService {
       } catch (error: any) {
         this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentOnSources failed firebaseId=${masked}: ${error?.message}`, error?.stack);
       }
+
+      // Also clear `lastConsentInitiatedAt` so the "unprocessed consent" guard
+      // in triggerPostLoginSync stops matching. Without this, a user who
+      // revokes all consents stays permanently locked out of login sync —
+      // the timestamp would still be > fullFinishedAt forever.
+      try {
+        await this.feezbackService.clearConsentInitiated(firebaseId);
+      } catch (error: any) {
+        this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentInitiated failed firebaseId=${masked}: ${error?.message}`, error?.stack);
+      }
     }
   }
 
@@ -183,16 +196,16 @@ export class FeezbackWebhookService {
       return;
     }
 
-    // The post-consent endpoint may have run before Feezback finished
-    // provisioning the new consent (bank "no transactions link" warnings),
-    // resulting in partial data. UserDataIsAvailable is Feezback's signal that
-    // data is now ready — refresh sources, then trigger a sync to backfill
-    // anything post-consent missed.
+    // UserDataIsAvailable is Feezback's signal that data is ready. The
+    // post-consent endpoint (POST /transactions/post-consent-sync) does NOT
+    // trigger sync itself — it only refreshes Source rows and reports a
+    // 'pending' / 'completed' status to the frontend. So this webhook is the
+    // SOLE sync trigger after a consent flow.
     //
     // Safety:
-    //   - The atomic DB lock (markQuickRunning) makes triggerFullSync a no-op
-    //     if a post-consent sync is still in flight; otherwise it acquires the
-    //     lock and pulls fresh data, which becomes the "final word".
+    //   - The atomic DB lock (markSyncRunning) prevents racing with a
+    //     concurrent login sync (e.g. on a multi-replica deployment); if the
+    //     lock is held, triggerFullSync skips cleanly.
     //   - Webhook controller ACKs immediately and runs this async — webhook
     //     latency to Feezback isn't affected.
     //   - All errors are swallowed so the controller still responds 200 and

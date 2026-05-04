@@ -794,7 +794,7 @@ export class TransactionProcessingService {
   async clearUserCache(userId: string): Promise<void> {
     await this.cacheRepo.delete({ userId });
     await this.cacheStateRepo.delete({ userId });
-    await this.userSyncStateService.markBothEmpty(userId);
+    await this.userSyncStateService.markSyncEmpty(userId);
   }
 
   // ---------------------------------------------------------------------------
@@ -1214,8 +1214,7 @@ export class TransactionProcessingService {
         const rows = await manager
           .createQueryBuilder(UserSyncState, 'uss')
           .select('uss.userId', 'userId')
-          .where('uss.quickProcessStatus != :r', { r: 'running' })
-          .andWhere('uss.fullProcessStatus != :r', { r: 'running' })
+          .where('uss.fullProcessStatus != :r', { r: 'running' })
           .getRawMany<{ userId: string }>();
 
         const eligibleUserIds = rows.map(r => r.userId);
@@ -1235,9 +1234,8 @@ export class TransactionProcessingService {
         await manager
           .createQueryBuilder()
           .update(UserSyncState)
-          .set({ quickProcessStatus: 'empty', fullProcessStatus: 'empty' })
+          .set({ fullProcessStatus: 'empty' })
           .where('userId IN (:...userIds)', { userIds: eligibleUserIds })
-          .andWhere('quickProcessStatus != :r', { r: 'running' })
           .andWhere('fullProcessStatus != :r', { r: 'running' })
           .execute();
       });

@@ -56,17 +56,14 @@ export class ConsentMapper {
       tppId,
       userIdentifier,
       consentId,
-      flowId: rawConsent?.flowId || rawConsent?.flow || null,
       context: rawConsent?.context || null,
       status: rawConsent?.consentStatus || rawConsent?.status || null,
       validUntil,
       recurringIndicator,
       aspspCode: rawConsent?.aspspCode || rawConsent?.bankId || rawConsent?.institutionId || null,
-      accessJson: rawConsent?.access || rawConsent?.accesses || null,
       metaJson: rawConsent,
       needsSync: false,
       lastSyncAt: syncedAt,
-      lastSyncError: null,
     };
   }
 }

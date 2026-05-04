@@ -5,6 +5,13 @@ import { environment } from 'src/environments/environment';
 
 export type TriggerSyncStatus = 'started' | 'running';
 
+/**
+ * Response shape from POST /transactions/post-consent-sync.
+ *   completed — webhook-triggered sync already covered this consent flow; data is fresh, no polling needed.
+ *   pending   — webhook hasn't fired or isn't done yet; frontend should poll /sync-status until terminal.
+ */
+export type PostConsentStatus = 'completed' | 'pending';
+
 /** Frontend-facing lifecycle status. This is the only field that drives polling and reload decisions. */
 export type ProcessStatus = 'running' | 'completed' | 'failed' | 'skipped';
 
@@ -30,7 +37,6 @@ export interface StageState {
 }
 
 export interface SyncResponse {
-  quickSync: StageState;
   fullSync: StageState;
   sourceResults: SourceResult[];
 }
@@ -63,11 +69,13 @@ export class SyncStatusService {
 
   /**
    * Called by the my-account page when the user returns from the Feezback consent portal
-   * (`?feezbackStatus=success`). Backend refreshes Source rows from the Feezback API
-   * (so consentIds are fresh) and then kicks off a transaction sync.
+   * (`?feezbackStatus=success`). Backend refreshes Source rows and reports whether a
+   * webhook-triggered sync has already covered this consent flow:
+   *   - 'completed' → fresh data already in DB; frontend can skip polling.
+   *   - 'pending'   → webhook hasn't fired yet; frontend polls /sync-status.
    */
-  triggerPostConsentSync(): Observable<{ status: TriggerSyncStatus }> {
-    return this.http.post<{ status: TriggerSyncStatus }>(this.postConsentSyncUrl, {}).pipe(
+  triggerPostConsentSync(): Observable<{ status: PostConsentStatus }> {
+    return this.http.post<{ status: PostConsentStatus }>(this.postConsentSyncUrl, {}).pipe(
       tap(res => console.log('[SyncStatus] triggerPostConsentSync response:', res.status)),
       catchError(err => {
         console.error('[SyncStatus] triggerPostConsentSync failed:', err?.status ?? err?.message ?? err);
@@ -130,11 +138,10 @@ export class SyncStatusService {
 
   /**
    * Raw polling loop: polls every `intervalMs` ms, emits every response (including
-   * nulls on HTTP error), completes when the watched stage is terminal OR after
+   * nulls on HTTP error), completes when the sync is terminal OR after
    * `maxAttempts` polls (2-minute ceiling at 3 s interval).
    */
   private pollUntilDone(
-    stage: 'quick' | 'full',
     intervalMs = 3000,
     maxAttempts = 40,
   ): Observable<SyncResponse | null> {
@@ -142,7 +149,7 @@ export class SyncStatusService {
 
     return timer(0, intervalMs).pipe(
       tap(() =>
-        console.log(`[SyncStatus] Poll attempt ${++attemptNum} (watching: ${stage}Sync)`),
+        console.log(`[SyncStatus] Poll attempt ${++attemptNum}`),
       ),
       switchMap(() => this.getSyncResponse()),
       tap((res) => console.log('[SyncStatus] Response received:', res)),
@@ -151,11 +158,11 @@ export class SyncStatusService {
         // Callers that need to poll past a stale terminal state (requireRunningFirst)
         // control stopping via their own takeWhile — if we killed the timer here on
         // terminal, those callers would be left with a dead source and a stuck UI.
-        const stageProcessStatus = res?.[`${stage}Sync`]?.processStatus;
+        const stageProcessStatus = res?.fullSync?.processStatus;
         const terminal = stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
         if (!terminal && attemptNum >= maxAttempts) {
           console.log(`[SyncStatus] Polling timed out after ${attemptNum} attempts`);
-          return throwError(() => new Error(`Polling timed out for ${stage}Sync`));
+          return throwError(() => new Error(`Polling timed out`));
         }
         return of(res);
       }),
@@ -167,17 +174,15 @@ export class SyncStatusService {
 
   /**
    * Single unified polling stream for a page or component.
-   * Emits the watched stage's StageState on every poll (including null on HTTP error).
-   * Completes automatically when the stage reaches a terminal processStatus.
+   * Emits the StageState on every poll (including null on HTTP error).
+   * Completes automatically when the sync reaches a terminal processStatus.
    *
    * Use this as the single source of truth for both UI state updates and reload decisions.
-   * Default stage: 'quick'.
    */
-  getSyncStageStream(stage: 'quick' | 'full' = 'quick'): Observable<{ stageState: StageState | null; sourceResults: SourceResult[] }> {
-    const stageKey = `${stage}Sync` as 'quickSync' | 'fullSync';
-    return this.pollUntilDone(stage, 3000).pipe(
+  getSyncStageStream(): Observable<{ stageState: StageState | null; sourceResults: SourceResult[] }> {
+    return this.pollUntilDone(3000).pipe(
       map(res => ({
-        stageState: res?.[stageKey] ?? null,
+        stageState: res?.fullSync ?? null,
         sourceResults: res?.sourceResults ?? [],
       })),
     );

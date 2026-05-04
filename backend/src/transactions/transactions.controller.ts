@@ -55,37 +55,25 @@ export class TransactionsController {
           this.logger.error('[SyncStatus] triggerFullSync failed (no row)', err?.stack ?? err),
         );
         return {
-          quickSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
-          fullSync:  { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+          fullSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
           sourceResults: [],
         };
       }
       return {
-        quickSync: { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
-        fullSync:  { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        fullSync: { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
         sourceResults: [],
       };
     }
 
     const BLOCKING_STATUSES = ['completed', 'running'];
-    const quickIsEmpty = !BLOCKING_STATUSES.includes(state.quickProcessStatus as string);
-    // Only retrigger on quick being empty — full sync failing alone does NOT reset quick,
-    // so the user still has their recent data and shouldn't see a loading spinner.
-    if (quickIsEmpty && !manualSyncOnly) {
+    const isEmpty = !BLOCKING_STATUSES.includes(state.fullProcessStatus as string);
+    if (isEmpty && !manualSyncOnly) {
       void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
         this.logger.error('[SyncStatus] triggerFullSync failed (empty status)', err?.stack ?? err),
       );
     }
 
     return {
-      quickSync: {
-        processStatus: toFrontendStatus(state.quickProcessStatus),
-        resultStatus:  state.quickResultStatus,
-        rowsWritten:   state.quickRowsWritten,
-        finishedAt:    state.quickFinishedAt ?? null,
-        failureReason: state.quickFailureReason ?? null,
-        skipReason:    state.quickSkipReason ?? null,
-      },
       fullSync: {
         processStatus: toFrontendStatus(state.fullProcessStatus),
         resultStatus:  state.fullResultStatus,
@@ -113,7 +101,7 @@ export class TransactionsController {
     // user_source_sync_state and call processingService.process(); racing them
     // can produce duplicate transactions or clobbered source statuses.
     const state = await this.userSyncStateService.getSyncState(userId);
-    if (state?.quickProcessStatus === 'running' || state?.fullProcessStatus === 'running') {
+    if (state?.fullProcessStatus === 'running') {
       throw new ConflictException('Sync is already running — please wait for it to finish');
     }
 
@@ -122,7 +110,7 @@ export class TransactionsController {
   }
 
   /**
-   * Returns true only when the user's quick sync stage is 'completed'.
+   * Returns true only when the user's sync is 'completed'.
    * Every other status blocks the fetch and returns [].
    *
    * When the state is missing or 'empty', a fire-and-forget sync is triggered
@@ -130,7 +118,7 @@ export class TransactionsController {
    */
   private async syncStateAllowsFetch(userId: string): Promise<boolean> {
     const state = await this.userSyncStateService.getSyncState(userId);
-    const status = state?.quickProcessStatus ?? null;
+    const status = state?.fullProcessStatus ?? null;
 
     if (!state || !['completed', 'running'].includes(status as string)) {
       void this.feezbackService.triggerFullSync(userId, 'manual').catch(err =>
@@ -160,8 +148,7 @@ export class TransactionsController {
 
     // Gate 2 — already running (checked via persisted sync state)
     const state = await this.userSyncStateService.getSyncState(userId);
-    const isRunning =
-      state?.quickProcessStatus === 'running' || state?.fullProcessStatus === 'running';
+    const isRunning = state?.fullProcessStatus === 'running';
     if (isRunning) {
       this.logger.log(`[TriggerSync] Rejected — sync already running | firebaseId=${masked}`);
       return { status: 'already_running' };
@@ -254,20 +241,84 @@ export class TransactionsController {
     }
 
     // Wipe per-source rows, then seed the new scenario.
+    console.log(`[DEV SIM] Resetting prior sync state for user=${masked}`);
     await this.userSyncStateService.clearSourceResults(userId);
 
+    // ── Stage 1 — user clicks "Connect Open Banking" ───────────────────────
+    // Real flow: consent-link controller stamps `lastConsentInitiatedAt`
+    // before redirecting to Feezback.
+    await this.feezbackService.markConsentInitiated(userId);
+    const consentTs = new Date().toISOString();
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  CONSENT INITIATED (DEV SIM — scenario=${scenario})`);
+    console.log(`  User                   : ${masked}`);
+    console.log(`  lastConsentInitiatedAt : ${consentTs}`);
+    console.log(`════════════════════════════════════\n`);
+
+    // ── Stage 2 — Feezback's ConsentStatusChanged webhook ──────────────────
+    // Real flow: handleConsentStatusChanged updates feezback_consent row.
+    // (We don't insert a real consent row here — the simulator focuses on
+    // the sync-state path; consent-row plumbing is webhook-controller territory.)
+    console.log(
+      `[DEV SIM] WEBHOOK ConsentStatusChanged consentId=${C} status=AUTHORIZED user=${masked}\n`,
+    );
+
     // Seed user_sync_state via the existing helpers so finishedAt/timestamps are real.
-    // markQuickRunning is no-op if a sync is already running, so coerce out of running first.
-    await this.userSyncStateService.markBothFailed(userId, '__dev_sim_reset__').catch(() => { /* row may not exist */ });
-    await this.userSyncStateService.markQuickRunning(userId, 'manual');
-    await this.userSyncStateService.markQuickFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
-    await this.userSyncStateService.markFullFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
+    // markSyncRunning is no-op if a sync is already running, so coerce out of running first.
+    await this.userSyncStateService.markSyncFailed(userId, '__dev_sim_reset__').catch(() => { /* row may not exist */ });
+    await this.userSyncStateService.markSyncRunning(userId, 'manual');
+
+    // ── Stage 3 — UserDataIsAvailable webhook → SOURCE DISCOVERY ───────────
+    // Real flow: refreshUserSources fetches accounts/cards from Feezback API
+    // and upserts Source rows.
+    const banks = sim.sources.filter(s => s.type === 'bank');
+    const cards = sim.sources.filter(s => s.type === 'card');
+    console.log(`════════════════════════════════════`);
+    console.log(`  SOURCE DISCOVERY  (UserDataIsAvailable, DEV SIM)`);
+    console.log(`  User: ${masked}`);
+    console.log(`════════════════════════════════════`);
+    console.log(`  Bank (${banks.length}):`);
+    for (const s of banks) {
+      console.log(`    ~  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
+    }
+    console.log(`  Cards (${cards.length}):`);
+    for (const s of cards) {
+      console.log(`    ~  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
+    }
+    console.log(`════════════════════════════════════\n`);
+
+    // ── Stage 4 — webhook triggers full sync (cache-skip override) ─────────
+    console.log(`🔁 [FullSync] Forcing sync — webhook override (DEV SIM) | firebaseId=${masked}\n`);
+
+    // ── Stage 5 — WEBHOOK SYNC pull + process (mocked) ─────────────────────
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const yearBack = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+    const todayStr = fmt(today);
+    console.log(`════════════════════════════════════`);
+    console.log(`  WEBHOOK SYNC (DEV SIM)`);
+    console.log(`  User : ${masked}`);
+    console.log(`  Dates: ${yearBack} → ${todayStr}`);
+    console.log(`════════════════════════════════════`);
+    console.log(`  Pull — bank=N/A card=N/A total=0s (mocked)\n`);
+    if (sim.rowsWritten > 0) {
+      console.log(`════════════════════════════════════`);
+      console.log(`  WEBHOOK SYNC — Process transactions (DEV SIM)`);
+      console.log(`  Valid (after consent filter): ${sim.rowsWritten}`);
+      console.log(`════════════════════════════════════`);
+      console.log(`  ✓ Process done — 0s | saved=${sim.rowsWritten} | cached=0 (mocked)\n`);
+    }
+
+    // Now seed the terminal sync state, mirroring what a real
+    // markSyncFinished writes.
+    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
     await this.userSyncStateService.updateSourceResults(userId, sim.sources);
 
-    // Banner — match the real SOURCE DISCOVERY / SYNC RESULTS look so logs are scannable.
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  DEV SIM — scenario=${scenario}`);
-    console.log(`  User : ${masked}`);
+    // ── Stage 6 — SYNC RESULTS banner (the existing simulator banner, but
+    // with the result symbol the real flow uses). ─────────────────────────
+    const allOk = sim.sources.every(s => s.status === 'success');
+    console.log(`════════════════════════════════════`);
+    console.log(`  SYNC RESULTS — ${allOk ? '✅ OK' : '⚠️  ERRORS'} (DEV SIM)`);
     console.log(`════════════════════════════════════`);
     for (const s of sim.sources) {
       const icon = s.status === 'success' ? '✓' : s.status === 'failed' ? '✗' : '○';
@@ -279,6 +330,7 @@ export class TransactionsController {
       console.log(`  ${icon}  ${label.padEnd(4)} ${id.padEnd(20)} ${detail}`);
     }
     console.log(`════════════════════════════════════\n`);
+    console.log(`  DONE | ${sim.rowsWritten} saved | total=0s (mocked)\n`);
 
     return { status: 'simulated', scenario };
   }
@@ -294,7 +346,7 @@ export class TransactionsController {
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
     await this.userSyncStateService.clearSourceResults(userId);
-    await this.userSyncStateService.markBothEmpty(userId).catch(() => { /* row may not exist */ });
+    await this.userSyncStateService.markSyncEmpty(userId).catch(() => { /* row may not exist */ });
 
     console.log(`[DevSim] Reset simulation state | user=${masked}\n`);
     return { status: 'reset' };
@@ -302,46 +354,71 @@ export class TransactionsController {
 
   /**
    * Called by the frontend when the user returns from the Feezback consent portal.
-   * Refreshes Source rows from the live Feezback API (so consentIds are fresh) and
-   * THEN triggers a full transaction sync. The refresh is awaited so the response
-   * confirms sources are up-to-date; the transaction sync itself is fire-and-forget
-   * (frontend polls /sync-status).
    *
-   * This is the only sync entry point that depends on fresh consent data — login
-   * and manual triggers reuse whatever Source rows are currently persisted.
+   * Single-pull architecture: this endpoint does NOT trigger a transaction sync.
+   * The `UserDataIsAvailable` webhook is the sole sync trigger. This endpoint:
+   *   1. Refreshes Source rows from the Feezback API (idempotent; safe to repeat).
+   *   2. Compares `fullFinishedAt` against `lastConsentInitiatedAt` (stamped by
+   *      consent-link controller when the user clicked "Connect Open Banking").
+   *      If a webhook-triggered sync has already finished AFTER the consent
+   *      click, returns `'completed'` so the frontend can skip polling.
+   *      Otherwise returns `'pending'` and the frontend polls `/sync-status`
+   *      until the webhook fires the sync.
+   *
+   * This works regardless of how long the user spent on the Feezback portal —
+   * no time windows, no arbitrary thresholds.
    */
   @Post('post-consent-sync')
   @UseGuards(FirebaseAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async postConsentSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
+  async postConsentSync(
+    @Req() request: AuthenticatedRequest,
+  ): Promise<{ status: 'completed' | 'pending' }> {
     const userId = request.user?.firebaseId;
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
     this.logger.log(`[PostConsentSync] Called | firebaseId=${masked}`);
 
-    // Already-running guard (DB-backed)
-    const state = await this.userSyncStateService.getSyncState(userId);
-    const isRunning =
-      state?.quickProcessStatus === 'running' || state?.fullProcessStatus === 'running';
-    if (isRunning) {
-      this.logger.log(`[PostConsentSync] Rejected — sync already running | firebaseId=${masked}`);
-      return { status: 'already_running' };
+    // If a sync is already mid-flight (e.g., webhook just fired and is still
+    // pulling), tell the frontend to poll for it.
+    const beforeState = await this.userSyncStateService.getSyncState(userId);
+    if (beforeState?.fullProcessStatus === 'running') {
+      this.logger.log(`[PostConsentSync] Sync in flight — frontend will poll | firebaseId=${masked}`);
+      return { status: 'pending' };
     }
 
-    // Refresh Source rows from Feezback API — must finish before sync begins so
-    // pulls run against the fresh consentIds.
+    // Refresh Source rows so subsequent webhook sync (or any later sync) sees
+    // fresh consentIds. Idempotent — safe whether the webhook has run or not.
     await this.feezbackService.refreshUserSources(userId, 'post-consent');
 
-    // Fire-and-forget the transaction pull; frontend polls sync-status.
-    this.logger.log(`[PostConsentSync] Sources refreshed — starting sync | firebaseId=${masked}`);
-    void this.feezbackService.triggerFullSync(userId, 'post-consent').catch(err =>
-      this.logger.error(
-        `[PostConsentSync] Async error from triggerFullSync | firebaseId=${masked}`,
-        err?.stack ?? err,
-      ),
-    );
+    // Re-read state — refreshUserSources may have updated lastSourcesRefreshAt.
+    const after = await this.userSyncStateService.getSyncState(userId);
 
-    return { status: 'started' };
+    // Has a webhook-triggered sync already covered this consent flow?
+    // Structural check: did the last sync finish AFTER the user clicked consent?
+    // The 10-second tolerance absorbs minor clock drift between the Node process
+    // (Date.now() for both timestamps) and any future-DB-CURRENT_TIMESTAMP usage,
+    // and any tiny race where both timestamps land in the same millisecond.
+    const TOLERANCE_MS = 10_000;
+    const consentAt = after?.lastConsentInitiatedAt;
+    const syncedAt = after?.fullFinishedAt;
+    const syncIsForCurrentFlow =
+      !!consentAt && !!syncedAt &&
+      new Date(syncedAt).getTime() + TOLERANCE_MS > new Date(consentAt).getTime();
+
+    if (syncIsForCurrentFlow && after?.fullProcessStatus === 'completed') {
+      this.logger.log(
+        `[PostConsentSync] Webhook sync already completed for this flow | firebaseId=${masked}`,
+      );
+      return { status: 'completed' };
+    }
+
+    // Webhook hasn't fired yet (or is delayed). Frontend will poll until the
+    // sync runs.
+    this.logger.log(
+      `[PostConsentSync] Awaiting webhook-triggered sync — frontend will poll | firebaseId=${masked}`,
+    );
+    return { status: 'pending' };
   }
 
   @Delete('admin/clear-cache/:firebaseId')

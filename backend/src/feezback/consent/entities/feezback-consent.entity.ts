@@ -9,7 +9,6 @@ import {
 
 @Entity({ name: 'feezback_consents' })
 @Index(['firebaseId', 'tppId', 'consentId'], { unique: true })
-@Index(['rootConsentId'])
 export class FeezbackConsent {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
@@ -26,12 +25,6 @@ export class FeezbackConsent {
   @Column({ name: 'consent_id', type: 'varchar', length: 128 })
   consentId: string;
 
-  @Column({ name: 'root_consent_id', type: 'varchar', length: 128, nullable: true })
-  rootConsentId: string | null;
-
-  @Column({ name: 'flow_id', type: 'varchar', length: 128, nullable: true })
-  flowId: string | null;
-
   @Column({ type: 'varchar', length: 256, nullable: true })
   context: string | null;
 
@@ -47,9 +40,6 @@ export class FeezbackConsent {
   @Column({ name: 'aspsp_code', type: 'varchar', length: 64, nullable: true })
   aspspCode: string | null;
 
-  @Column({ name: 'access_json', type: 'json', nullable: true })
-  accessJson: any;
-
   @Column({ name: 'meta_json', type: 'json', nullable: true })
   metaJson: any;
 
@@ -61,9 +51,6 @@ export class FeezbackConsent {
 
   @Column({ name: 'last_sync_at', type: 'datetime', nullable: true })
   lastSyncAt: Date | null;
-
-  @Column({ name: 'last_sync_error', type: 'text', nullable: true })
-  lastSyncError: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp', precision: 0, default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
