@@ -126,39 +126,54 @@
               <th>אימייל</th>
               <th>שם העסק</th>
               <th>סוג העסק</th>
+              <th>ביטוח לאומי</th>
+              <th>דיווח מעמ</th>
+              <th>מקדמות מס הכנסה</th>
               <th class="cell-actions"></th>
             </tr>
           </thead>
           <tbody>
-            @for (client of myClients(); track client.rowId) {
-              <tr>
-                <td>{{ client.fName }}</td>
-                <td>{{ client.lName }}</td>
-                <td>{{ client.idNumber }}</td>
-                <td>{{ client.email }}</td>
-                <td>{{ client.businessName || '—' }}</td>
-                <td>{{ businessTypeLabel(client.businessType) }}</td>
-                <td class="cell-actions">
-                  <button
-                    type="button"
-                    class="btn-enter-client"
-                    (click)="enterClient(client)"
-                    [title]="'כניסה לחשבון הלקוח'"
-                    aria-label="כניסה לחשבון הלקוח"
-                  >
-                    <i class="pi pi-arrow-left"></i>
-                  </button>
-                  <button
-                    type="button"
-                    class="btn-delete-client"
-                    (click)="confirmDeleteClient(client)"
-                    [title]="'מחיקת לקוח'"
-                    aria-label="מחיקת לקוח"
-                  >
-                    <i class="pi pi-trash"></i>
-                  </button>
-                </td>
-              </tr>
+            @for (group of groupedClients(); track group.user.id) {
+              <!-- First business row — also carries user info and actions -->
+              @if (group.businesses.length === 0) {
+                <tr class="user-row">
+                  <td>{{ group.user.fName }}</td>
+                  <td>{{ group.user.lName }}</td>
+                  <td>{{ group.user.idNumber }}</td>
+                  <td>{{ group.user.email }}</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td class="cell-actions">
+                    <button type="button" class="btn-enter-client" (click)="enterClient(group.user)" title="כניסה לחשבון הלקוח" aria-label="כניסה לחשבון הלקוח"><i class="pi pi-arrow-left"></i></button>
+                    <button type="button" class="btn-delete-client" (click)="confirmDeleteClient(group.user)" title="מחיקת לקוח" aria-label="מחיקת לקוח"><i class="pi pi-trash"></i></button>
+                  </td>
+                </tr>
+              } @else {
+                @for (biz of group.businesses; track biz.rowId; let first = $first) {
+                  <tr [class.user-row]="first" [class.business-row]="!first">
+                    @if (first) {
+                      <td [attr.rowspan]="group.businesses.length">{{ group.user.fName }}</td>
+                      <td [attr.rowspan]="group.businesses.length">{{ group.user.lName }}</td>
+                      <td [attr.rowspan]="group.businesses.length">{{ group.user.idNumber }}</td>
+                      <td [attr.rowspan]="group.businesses.length">{{ group.user.email }}</td>
+                    }
+                    <td>{{ biz.businessName || '—' }}</td>
+                    <td>{{ businessTypeLabel(biz.businessType) }}</td>
+                    <td>{{ biz.nationalInsRequired ? 'חייב' : 'לא חייב' }}</td>
+                    <td>{{ vatReportingTypeLabel(biz.vatReportingType) }}</td>
+                    <td>{{ taxReportingTypeLabel(biz.taxReportingType) }}</td>
+                    @if (first) {
+                      <td class="cell-actions" [attr.rowspan]="group.businesses.length">
+                        <button type="button" class="btn-enter-client" (click)="enterClient(group.user)" title="כניסה לחשבון הלקוח" aria-label="כניסה לחשבון הלקוח"><i class="pi pi-arrow-left"></i></button>
+                        <button type="button" class="btn-delete-client" (click)="confirmDeleteClient(group.user)" title="מחיקת לקוח" aria-label="מחיקת לקוח"><i class="pi pi-trash"></i></button>
+                      </td>
+                    }
+                  </tr>
+                }
+              }
             }
           </tbody>
         </table>

@@ -22,6 +22,8 @@ import {
   PayStatus,
   BusinessStatus,
   BusinessType,
+  VATReportingType,
+  TaxReportingType,
 } from '../enum';
 
 @Injectable()
@@ -202,11 +204,13 @@ export class DelegationService {
     agent: { email: string; fName?: string; lName?: string },
     ownerName: string,
   ): Promise<void> {
+    const appUrl = process.env.FRONTEND_URL ?? 'https://app.keepintax.co.il';
     const subject = 'ניתנה לך הרשאה לצפייה';
     const greeting = agent.fName ? `שלום ${agent.fName},` : 'שלום,';
     const bodyLine = `ניתנה לך הרשאה לצפייה בחשבון Keepintax של ${ownerName}.`;
-    const text = `${greeting}\n\n${bodyLine}\n\nתודה.`;
-    const htmlContent = this.buildRtlEmailHtml([greeting, '', bodyLine, '', 'תודה.']);
+    const linkLine = `לכניסה למערכת לחץ כאן: <a href="${appUrl}">${appUrl}</a>`;
+    const text = `${greeting}\n\n${bodyLine}\n\nלכניסה למערכת: ${appUrl}\n\nתודה.`;
+    const htmlContent = this.buildRtlEmailHtml([greeting, '', bodyLine, '', linkLine, '', 'תודה.']);
     await this.mailService.sendMail(agent.email, subject, text, htmlContent);
   }
 
@@ -253,9 +257,12 @@ export class DelegationService {
     businessId: number | null;
     businessNumber: string | null;
     businessName: string | null;
+    vatReportingType: VATReportingType | null;
+    taxReportingType: TaxReportingType | null;
+    nationalInsRequired: boolean | null;
   }[]> {
     const delegations = await this.delegationRepository.find({
-      where: { agentId: agentFirebaseId },
+      where: { agentId: agentFirebaseId, status: DelegationStatus.ACTIVE },
     });
     const userFirebaseIds = delegations.map((d) => d.userId);
     if (userFirebaseIds.length === 0) return [];
@@ -267,7 +274,7 @@ export class DelegationService {
 
     const businesses = await this.businessRepository.find({
       where: { firebaseId: In(userFirebaseIds) },
-      select: ['id', 'firebaseId', 'businessType', 'businessNumber', 'businessName'],
+      select: ['id', 'firebaseId', 'businessType', 'businessNumber', 'businessName', 'vatReportingType', 'taxReportingType', 'nationalInsRequired'],
     });
     const businessesByFirebaseId = new Map<string, typeof businesses>();
     for (const b of businesses) {
@@ -287,6 +294,9 @@ export class DelegationService {
       businessId: number | null;
       businessNumber: string | null;
       businessName: string | null;
+      vatReportingType: VATReportingType | null;
+      taxReportingType: TaxReportingType | null;
+      nationalInsRequired: boolean | null;
     }[] = [];
 
     for (const user of users) {
@@ -307,6 +317,9 @@ export class DelegationService {
           businessId: null,
           businessNumber: null,
           businessName: null,
+          vatReportingType: null,
+          taxReportingType: null,
+          nationalInsRequired: null,
         });
       } else {
         for (const b of userBusinesses) {
@@ -316,6 +329,9 @@ export class DelegationService {
             businessId: b.id,
             businessNumber: b.businessNumber ?? null,
             businessName: b.businessName ?? null,
+            vatReportingType: b.vatReportingType ?? null,
+            taxReportingType: b.taxReportingType ?? null,
+            nationalInsRequired: b.nationalInsRequired ?? null,
           });
         }
       }
@@ -417,14 +433,21 @@ export class DelegationService {
     await this.userRepository.save(newUser);
 
     // 3b. יוצרים תמיד עסק בטבלת העסקים לפי השדות הרלוונטיים
+    const resolvedBusinessType = dto.businessType ?? BusinessType.EXEMPT;
+    const vatDefault = resolvedBusinessType === BusinessType.EXEMPT
+      ? VATReportingType.NOT_REQUIRED
+      : VATReportingType.DUAL_MONTH_REPORT;
     const business = this.businessRepository.create({
       firebaseId,
       businessName: dto.businessName?.trim() ?? null,
       businessNumber: dto.businessNumber?.trim() ?? null,
-      businessType: dto.businessType ?? BusinessType.EXEMPT,
+      businessType: resolvedBusinessType,
       businessAddress: addressOrCity || null,
       businessPhone: dto.phone?.trim() ?? null,
       businessEmail: dto.email.trim() || null,
+      vatReportingType: vatDefault,
+      taxReportingType: TaxReportingType.DUAL_MONTH_REPORT,
+      nationalInsRequired: false,
     });
     await this.businessRepository.save(business);
 

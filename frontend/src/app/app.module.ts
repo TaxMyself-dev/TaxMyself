@@ -25,6 +25,7 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialog } from "primeng/confirmdialog";
 import { ConfirmationService } from 'primeng/api';
+import { ProgressSpinner } from 'primeng/progressspinner';
 import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
 
 
@@ -47,7 +48,8 @@ import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
     TopNavComponent,
     ButtonComponent,
     ToastModule,
-    ConfirmDialog
+    ConfirmDialog,
+    ProgressSpinner
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),

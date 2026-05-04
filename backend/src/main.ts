@@ -114,6 +114,7 @@ async function bootstrap() {
     parseInt(process.env.PORT) || 8080,
     '0.0.0.0',
   );
+  console.log(`✅ Server is listening on port ${parseInt(process.env.PORT) || 8080}`);
 
 
 }

@@ -1,10 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ClientPanelService, Client, CreateClientPayload } from 'src/app/services/clients-panel.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { businessTypeOptionsList, BusinessTypeLabels } from 'src/app/shared/enums';
+import { businessTypeOptionsList, BusinessTypeLabels, VATReportingTypeLabels, TaxReportingTypeLabels } from 'src/app/shared/enums';
 
 @Component({
   selector: 'app-clients-panel',
@@ -23,6 +23,20 @@ export class ClientPanelPage implements OnInit {
   readonly ButtonSize = ButtonSize;
 
   readonly myClients = signal<Client[]>([]);
+
+  /** Groups flat client rows by firebaseId — one entry per user, with a list of businesses. */
+  readonly groupedClients = computed(() => {
+    const map = new Map<string, { user: Client; businesses: Client[] }>();
+    for (const c of this.myClients()) {
+      if (!map.has(c.id)) {
+        map.set(c.id, { user: c, businesses: [] });
+      }
+      if (c.businessId != null || c.businessName) {
+        map.get(c.id)!.businesses.push(c);
+      }
+    }
+    return Array.from(map.values());
+  });
   readonly loadingClients = signal(false);
 
   readonly createClientModalVisible = signal(false);
@@ -77,6 +91,14 @@ export class ClientPanelPage implements OnInit {
   /** תרגום סוג העסק: עוסק פטור, עוסק מורשה, חברה בע"מ */
   businessTypeLabel(value: string): string {
     return value ? (BusinessTypeLabels[value as keyof typeof BusinessTypeLabels] ?? value) : '—';
+  }
+
+  vatReportingTypeLabel(value: string | null): string {
+    return value ? (VATReportingTypeLabels[value] ?? value) : '—';
+  }
+
+  taxReportingTypeLabel(value: string | null): string {
+    return value ? (TaxReportingTypeLabels[value] ?? value) : '—';
   }
 
   /** כניסה לחשבון הלקוח בתור הרואה חשבון – מגדיר גם את מספר העסק של הלקוח להקשר הבקשות */

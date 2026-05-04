@@ -112,7 +112,7 @@ export class SharedService {
 
         let result: SingleMonthReport | DualMonthReport | null = null;
 
-        if (vatReportingType === VATReportingType.SINGLE_MONTH_REPORT) {
+        if (vatReportingType === VATReportingType.MONTHLY_REPORT) {
             result = `${month}/${year}` as SingleMonthReport;
             console.log("SingleMonthReport - result is ", result);
 

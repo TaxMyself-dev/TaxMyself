@@ -530,6 +530,18 @@ export enum TaxReportingType {
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
 
+export const VATReportingTypeLabels: Record<string, string> = {
+  [VATReportingType.NOT_REQUIRED]: 'לא רלוונטי',
+  [VATReportingType.MONTHLY_REPORT]: 'חד חודשי',
+  [VATReportingType.DUAL_MONTH_REPORT]: 'דו חודשי',
+};
+
+export const TaxReportingTypeLabels: Record<string, string> = {
+  [TaxReportingType.NOT_REQUIRED]: 'לא חייב',
+  [TaxReportingType.MONTHLY_REPORT]: 'חד חודשי',
+  [TaxReportingType.DUAL_MONTH_REPORT]: 'דו חודשי',
+};
+
 /**
  * Threshold amount (in NIS) above which an allocation number is required for tax invoices
  * When a tax invoice amount exceeds this threshold, the system must request an allocation number from SHAAM

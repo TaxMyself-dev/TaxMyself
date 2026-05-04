@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
 
 export class UpdateBusinessDto {
   @IsOptional()
@@ -34,4 +34,16 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsString()
   businessType?: string;
+
+  @IsOptional()
+  @IsString()
+  vatReportingType?: string;
+
+  @IsOptional()
+  @IsString()
+  taxReportingType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  nationalInsRequired?: boolean;
 }

@@ -1,5 +1,5 @@
 import { Body, Controller, Post, Get, Patch, Delete, Headers,
-         Param, Query, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
+         Param, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
          Inject, forwardRef } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthService } from './auth.service';
@@ -17,7 +17,7 @@ export class UsersController {
         @Inject(forwardRef(() => FeezbackService)) private readonly feezbackService: FeezbackService,
     ) {}
 
-    
+
     @Post('/signup')
     async createUser(@Body() body: any) {
         const user = await this.userService.signup(body);
@@ -34,9 +34,9 @@ export class UsersController {
         const user = await this.userService.signin(userId);
 
         // Fire-and-forget — do not block the login response.
-        // Pull 1 (short window) runs first; Pull 2 (12-month backfill) starts
-        // only after Pull 1 fully resolves.
-        this.triggerPostLoginSync(userId);
+        void this.triggerPostLoginSync(userId, user).catch(err =>
+            this.logger.error(`[Login] post-login sync failed`, err?.stack ?? err),
+        );
 
         return user;
     }
@@ -113,24 +113,51 @@ export class UsersController {
       return this.userService.getAllUsers();
     }
 
-    /**
-     * Delegates to the shared FeezbackService.triggerFullSync orchestration.
-     * All pull logic, date-range computation, logging, and dedup now live there.
-     */
-    private triggerPostLoginSync(firebaseId: string): void {
-        const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
-        console.log(`\n🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        console.log(`🔐 [PostLoginSync] Login detected — firing Feezback sync`);
-        console.log(`🔐 [PostLoginSync] firebaseId=${masked}`);
-        console.log(`🔐 [PostLoginSync] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+    private async triggerPostLoginSync(firebaseId: string, user?: any): Promise<void> {
+        const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || firebaseId?.substring(0, 8) + '...';
+        const hasOpenBanking = !!user?.hasOpenBanking;
+
+        console.log(`\n════════════════════════════════════`);
+        console.log(`  LOGIN`);
+        console.log(`  User         : ${userName}`);
+        console.log(`  Open Banking : ${hasOpenBanking ? '✓ connected' : '✗ not connected'}`);
+        console.log(`════════════════════════════════════\n`);
+
+        if (!hasOpenBanking) return;
+
+        // Structural skip: if the user clicked consent more recently than the
+        // last successful sync, there's an UNPROCESSED consent flow in
+        // progress — the webhook will trigger the sync. Short-circuit here so
+        // we don't waste an API call on refreshUserSources before bailing.
+        // The same gate is applied centrally in feezbackService.triggerFullSync
+        // so other callers (e.g. /sync-status auto-trigger) skip too.
+        const state = await this.feezbackService.getUserSyncState(firebaseId);
+        if (this.feezbackService.hasUnprocessedConsentFlow(state)) {
+            console.log(`  ⏭️  Login sync skipped — unprocessed consent flow, webhook will sync\n`);
+            return;
+        }
+
+        // If our cached Source rows haven't been refreshed against Feezback in 24h+
+        // (or never), refresh them first — otherwise login sync would pull with
+        // stale consentIds and report a generic "sync failed" with no clue that
+        // the user needs to re-authorize. Cheap when fresh: just one DB read.
+        const STALE_AFTER_MS = 24 * 60 * 60_000;
+        try {
+            const lastRefresh = state?.lastSourcesRefreshAt;
+            const isStale = !lastRefresh || (Date.now() - new Date(lastRefresh).getTime()) > STALE_AFTER_MS;
+            if (isStale) {
+                console.log(`  ↻  Sources older than 24h — refreshing before login sync`);
+                await this.feezbackService.refreshUserSources(firebaseId, 'login').catch(err => {
+                    this.logger.error(`[Login] refreshUserSources failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
+                });
+            }
+        } catch (err: any) {
+            this.logger.error(`[Login] freshness check failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
+        }
 
         void this.feezbackService.triggerFullSync(firebaseId, 'login')
-            .then(() => {
-                console.log(`\n✅ [PostLoginSync] triggerFullSync resolved | firebaseId=${masked}\n`);
-            })
             .catch(err => {
-                console.error(`\n❌ [PostLoginSync] triggerFullSync threw | firebaseId=${masked} | error=${err?.message}`);
-                this.logger.error('[PostLoginSync] triggerFullSync failed', err?.stack ?? err);
+                this.logger.error(`[Login] triggerFullSync failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
             });
     }
 }

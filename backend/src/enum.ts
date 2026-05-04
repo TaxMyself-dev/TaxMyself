@@ -49,7 +49,7 @@ export enum EmploymentType {
 
 export enum VATReportingType {
   NOT_REQUIRED = 'NOT_REQUIRED',
-  SINGLE_MONTH_REPORT = 'SINGLE_MONTH_REPORT',
+  MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
 
@@ -63,7 +63,7 @@ export const VAT_RATES: Record<number, number> = {
 
 export enum TaxReportingType {
   NOT_REQUIRED = 'NOT_REQUIRED',
-  SINGLE_MONTH_REPORT = 'SINGLE_MONTH_REPORT',
+  MONTHLY_REPORT = 'MONTHLY_REPORT',
   DUAL_MONTH_REPORT = 'DUAL_MONTH_REPORT'
 }
 

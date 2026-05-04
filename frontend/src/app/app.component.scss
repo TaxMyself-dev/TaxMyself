@@ -148,6 +148,35 @@ ion-item.selected {
   min-height: 0;
 }
 
+/* Global loading overlay */
+.global-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loader-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+.loader-message {
+  margin: 0;
+  font-size: 16px;
+  color: #363636;
+  direction: rtl;
+}
+
 /* פס כשהרואה חשבון נכנס לחשבון לקוח */
 .accountant-context-banner {
   display: flex;

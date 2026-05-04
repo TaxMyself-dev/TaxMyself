@@ -60,6 +60,9 @@ export class BusinessService {
     if (dto.businessPhone !== undefined) business.businessPhone = dto.businessPhone;
     if (dto.businessEmail !== undefined) business.businessEmail = dto.businessEmail;
     if (dto.businessType !== undefined) business.businessType = dto.businessType as any;
+    if ((dto as any).vatReportingType !== undefined) business.vatReportingType = (dto as any).vatReportingType;
+    if ((dto as any).taxReportingType !== undefined) business.taxReportingType = (dto as any).taxReportingType;
+    if ((dto as any).nationalInsRequired !== undefined) business.nationalInsRequired = (dto as any).nationalInsRequired;
     return this.businessRepo.save(business);
   }
 

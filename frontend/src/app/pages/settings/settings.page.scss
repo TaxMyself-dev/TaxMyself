@@ -138,6 +138,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+
 }
 
 .detail-label {
@@ -521,12 +522,49 @@
     min-width: 140px;
   }
 
+  /* Status column has no header label — keep it the same narrow width as the data cell. */
+  .detail-field.consent-status-cell {
+    width: 60px;
+    min-width: 60px;
+  }
+
   /* keep header in one row */
   flex-wrap: nowrap;
 }
 
 .details-container-fixed.accounts-sources-container .detail-row.three-fields {
   flex-wrap: nowrap; /* keep each source row aligned with the header columns */
+}
+
+/* Connection-status column: narrower than the other columns since it just holds an icon.
+   Match the .detail-value-box height (10px+14px+10px ≈ ~44px) so the icon sits
+   centered on the same baseline as the value pills in the same row. */
+.consent-status-cell {
+  width: 60px;
+  min-width: 60px;
+  align-self: stretch;
+  justify-content: center;
+  align-items: center;
+}
+
+.consent-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  line-height: 1;
+
+  i {
+    font-size: 28px;
+  }
+
+  &--ok {
+    color: #2e7d32; /* green */
+  }
+
+  &--missing {
+    color: #c62828; /* red */
+  }
 }
 
 .add-permission-form {

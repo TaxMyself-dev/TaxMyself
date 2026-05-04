@@ -58,9 +58,12 @@ export class Business {
     enum: TaxReportingType,
     enumName: 'TaxReportingType',
     nullable: true,
-    default: TaxReportingType.NOT_REQUIRED
+    default: TaxReportingType.DUAL_MONTH_REPORT
   })
   taxReportingType: TaxReportingType | null;
+
+  @Column({ type: 'boolean', nullable: true, default: false })
+  nationalInsRequired: boolean | null;
 
   /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, default: null })

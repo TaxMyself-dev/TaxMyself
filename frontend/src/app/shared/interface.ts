@@ -496,6 +496,7 @@ export interface Business {
     businessDate: string | null;
     vatReportingType: VATReportingType | null;
     taxReportingType: TaxReportingType | null;
+    nationalInsRequired: boolean | null;
     /** אחוז מקדמות מס הכנסה (משתנה בין עסק לעסק) */
     advanceTaxPercent: number | null;
     //   bankBeneficiary: string | null;

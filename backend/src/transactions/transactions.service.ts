@@ -15,6 +15,7 @@ import { Expense } from '../expenses/expenses.entity';
 import { Finsite } from 'src/finsite/finsite.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { SlimTransaction } from './slim-transaction.entity';
+import { UserSourceSyncState } from './user-source-sync-state.entity';
 
 //Services
 import { SharedService } from '../shared/shared.service';
@@ -68,6 +69,8 @@ export class TransactionsService {
     private cacheRepo: Repository<FullTransactionCache>,
     @InjectRepository(SlimTransaction)
     private slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(UserSourceSyncState)
+    private userSourceSyncStateRepo: Repository<UserSourceSyncState>,
   ) { }
 
 
@@ -1148,18 +1151,24 @@ export class TransactionsService {
   /**
    * כל אמצעי תשלום של המשתמש מטבלת `source`.
    * אין FK ל־bill → billName null (בפרונט: «לא משויך»). אחרת → שם החשבון מטבלת החשבונות דרך הקשר `bill`.
+   * hasConsent מבוסס על user_source_sync_state.consentId — non-null = חיבור פעיל
+   * (revoke/expire מאפס את consentId דרך clearConsentOnSources).
    */
   async getSourcesWithTypes(
     userId: string,
-  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null }[]> {
-    const rows = await this.sourceRepo.find({
-      where: { userId },
-      relations: ['bill'],
-    });
+  ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean }[]> {
+    const [rows, syncStates] = await Promise.all([
+      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
+      this.userSourceSyncStateRepo.find({ where: { userId } }),
+    ]);
+    const consentBySourceId = new Map(
+      syncStates.map((s) => [s.sourceId, !!s.consentId]),
+    );
     return rows.map((r) => ({
       sourceName: r.sourceName,
       sourceType: r.sourceType,
       billName: r.bill?.billName ?? null,
+      hasConsent: consentBySourceId.get(r.sourceName) ?? false,
     }));
   }
 

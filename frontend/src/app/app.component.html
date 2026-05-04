@@ -1,4 +1,12 @@
 <p-toast [position]="'bottom-right'" [key]="'br'" />
+@if (genericService.isLoading()) {
+  <div class="global-loader-overlay">
+    <div class="loader-box">
+      <p-progressSpinner strokeWidth="4" styleClass="loader-spinner" />
+      <p class="loader-message">{{ genericService.loaderMessage() }}</p>
+    </div>
+  </div>
+}
 @if (showTopNav() && selectedClientId) {
   <div class="accountant-context-banner" dir="rtl">
     <span class="banner-text">
