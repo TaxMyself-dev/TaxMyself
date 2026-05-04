@@ -59,16 +59,20 @@ export class FeezbackController {
     // skip the re-stamp. Without this, the second click would overwrite the
     // first timestamp; if the first flow's sync completes between the two
     // stamps, the post-consent endpoint would falsely report 'pending'.
+    //
+    // Errors here are NOT swallowed — if stamping fails, the consent flow
+    // must not proceed (post-consent and login gates rely on the timestamp).
+    // The frontend already shows an error toast on consent-link failure.
+    const masked = firebaseId.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId;
     const CLICK_DEDUP_MS = 5_000;
-    try {
-      const state = await this.feezbackService.getUserSyncState(firebaseId);
-      const last = state?.lastConsentInitiatedAt;
-      const isFreshClick = !last || Date.now() - new Date(last).getTime() > CLICK_DEDUP_MS;
-      if (isFreshClick) {
-        await this.feezbackService.markConsentInitiated(firebaseId);
-      }
-    } catch (err: any) {
-      console.warn(`[ConsentLink] markConsentInitiated failed | error=${err?.message}`);
+    const state = await this.feezbackService.getUserSyncState(firebaseId);
+    const last = state?.lastConsentInitiatedAt;
+    const isFreshClick = !last || Date.now() - new Date(last).getTime() > CLICK_DEDUP_MS;
+    if (isFreshClick) {
+      await this.feezbackService.markConsentInitiated(firebaseId);
+      this.logger.log(`[ConsentLink] markConsentInitiated stamped firebaseId=${masked}`);
+    } else {
+      this.logger.log(`[ConsentLink] markConsentInitiated skipped (dedup ${CLICK_DEDUP_MS}ms) firebaseId=${masked}`);
     }
 
     return this.feezbackService.createConsentLink(firebaseId);

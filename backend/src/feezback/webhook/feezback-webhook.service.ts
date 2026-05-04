@@ -5,8 +5,6 @@ import { FeezbackWebhookEvent } from './entities/feezback-webhook-event.entity';
 import { FeezbackWebhookEventBody } from './dto/feezback-webhook.dto';
 import { computeFeezbackEventHash } from '../utils/feezback-event.utils';
 import { extractFirebaseIdFromContext, parseFeezbackUserIdentifier } from '../utils/feezback-user.utils';
-import { FeezbackConsentService } from '../consent/feezback-consent.service';
-import { ConsentSyncService } from '../consent/consent-sync.service';
 import { FeezbackService } from '../feezback.service';
 
 @Injectable()
@@ -16,8 +14,6 @@ export class FeezbackWebhookService {
   constructor(
     @InjectRepository(FeezbackWebhookEvent)
     private readonly webhookRepository: Repository<FeezbackWebhookEvent>,
-    private readonly consentService: FeezbackConsentService,
-    private readonly consentSyncService: ConsentSyncService,
     private readonly feezbackService: FeezbackService,
   ) {}
 
@@ -76,6 +72,15 @@ export class FeezbackWebhookService {
     }
   }
 
+  /**
+   * Handles `ConsentStatusChanged` webhooks. We don't persist consent metadata
+   * anymore (the `feezback_consents` table is gone), so the only behaviour
+   * that matters is terminal-state cleanup: when a consent transitions to
+   * REVOKED / EXPIRED / REJECTED / TERMINATED / INVALID, null out the
+   * consentId on matching `user_source_sync_state` rows and clear
+   * `lastConsentInitiatedAt` so the user isn't permanently locked out of
+   * login sync.
+   */
   private async handleConsentStatusChanged(body: FeezbackWebhookEventBody): Promise<void> {
     const payload = body?.payload as Record<string, any> | undefined;
     if (!payload) {
@@ -92,82 +97,34 @@ export class FeezbackWebhookService {
     const currentStatus = typeof payload.currentStatus === 'string' ? payload.currentStatus : null;
     this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] consentId=${consentId} currentStatus=${currentStatus ?? 'none'}`);
 
+    const TERMINAL_STATUS_FRAGMENTS = ['REVOK', 'EXPIR', 'REJECT', 'TERMINAT', 'INVALID'];
+    const isTerminal = !!currentStatus &&
+      TERMINAL_STATUS_FRAGMENTS.some(frag => currentStatus.toUpperCase().includes(frag));
+    if (!isTerminal) {
+      console.log(`[FeezbackWebhook][ConsentStatusChanged] consent received — waiting for UserDataIsAvailable webhook to fire the sync | consentId=${consentId} currentStatus=${currentStatus}`);
+      return;
+    }
+
     const userIdentifier = typeof payload.user === 'string' ? payload.user : null;
     const parsedUser = parseFeezbackUserIdentifier(userIdentifier, payload?.tpp || null);
-    const sub = userIdentifier?.split('@')?.[0] || (parsedUser.firebaseId ? `${parsedUser.firebaseId}_sub` : null);
-
     let firebaseId = parsedUser.firebaseId;
     if (!firebaseId && typeof payload.context === 'string') {
       firebaseId = extractFirebaseIdFromContext(payload.context);
     }
-
-    const tppId = parsedUser.tppId ?? (typeof payload.tpp === 'string' ? payload.tpp : null);
-    const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
-
-    if (!firebaseId || !tppId || !sub) {
-      this.logger.warn(
-        `[FeezbackWebhook][ConsentStatusChanged] Missing required identifiers — aborting. firebaseId=${masked} tppId=${tppId ?? 'none'} sub=${sub ?? 'none'}`,
-      );
+    if (!firebaseId) {
+      this.logger.warn('[FeezbackWebhook][ConsentStatusChanged] Missing firebaseId — aborting terminal cleanup.');
       return;
     }
 
-    const now = new Date();
+    const masked = firebaseId.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId;
 
     try {
-      const consent = await this.consentService.findByConsentId(consentId, tppId);
-      if (consent) {
-        await this.consentService.updateConsent(consent, {
-          status: currentStatus ?? consent.status,
-          metaJson: payload,
-          lastSyncAt: now,
-          rawLastWebhookJson: body,
-        });
-        this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] Consent updated consentId=${consentId}`);
-      } else {
-        // Self-healing: not finding the row is normal on the very first
-        // ConsentStatusChanged for a brand-new consent (the row is created
-        // by syncUserConsents below). Demoted to debug to avoid log noise.
-        this.logger.debug(`[FeezbackWebhook][ConsentStatusChanged] Consent row not yet persisted consentId=${consentId} tppId=${tppId}`);
+      const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId);
+      if (cleared > 0) {
+        this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] cleared consentId from ${cleared} source(s) — consentId=${consentId} status=${currentStatus} firebaseId=${masked}`);
       }
     } catch (error: any) {
-      this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] Failed updating consent consentId=${consentId}: ${error?.message}`, error?.stack);
-      throw error;
-    }
-
-    try {
-      await this.consentSyncService.syncUserConsents(firebaseId, sub, tppId);
-      this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] Consent sync completed firebaseId=${masked}`);
-    } catch (error: any) {
-      this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] Consent sync failed firebaseId=${masked}: ${error?.message}`, error?.stack);
-      throw error;
-    }
-
-    // If the consent moved to a terminal state (revoked / expired / rejected),
-    // null out consentId on Source rows that pointed at it. The dialog will then
-    // render "בצע חיבור מחדש" instead of "נסה שוב" — which fails with 403.
-    const TERMINAL_STATUS_FRAGMENTS = ['REVOK', 'EXPIR', 'REJECT', 'TERMINAT', 'INVALID'];
-    const isTerminal = currentStatus
-      ? TERMINAL_STATUS_FRAGMENTS.some(frag => currentStatus.toUpperCase().includes(frag))
-      : false;
-    if (isTerminal) {
-      try {
-        const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId);
-        if (cleared > 0) {
-          this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] cleared consentId from ${cleared} source(s) — consentId=${consentId} status=${currentStatus} firebaseId=${masked}`);
-        }
-      } catch (error: any) {
-        this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentOnSources failed firebaseId=${masked}: ${error?.message}`, error?.stack);
-      }
-
-      // Also clear `lastConsentInitiatedAt` so the "unprocessed consent" guard
-      // in triggerPostLoginSync stops matching. Without this, a user who
-      // revokes all consents stays permanently locked out of login sync —
-      // the timestamp would still be > fullFinishedAt forever.
-      try {
-        await this.feezbackService.clearConsentInitiated(firebaseId);
-      } catch (error: any) {
-        this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentInitiated failed firebaseId=${masked}: ${error?.message}`, error?.stack);
-      }
+      this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentOnSources failed firebaseId=${masked}: ${error?.message}`, error?.stack);
     }
   }
 

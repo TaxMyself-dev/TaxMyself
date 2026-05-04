@@ -242,10 +242,13 @@ export class UserSyncStateService {
    * webhook-triggered sync has already covered this consent flow.
    */
   async markConsentInitiated(userId: string): Promise<void> {
+    const now = new Date();
     await this.repo.upsert(
-      { userId, lastConsentInitiatedAt: new Date() } as UserSyncState,
+      { userId, lastConsentInitiatedAt: now } as UserSyncState,
       ['userId'],
     );
+    const masked = userId.length >= 8 ? userId.substring(0, 8) + '...' : userId;
+    this.logger.log(`[UserSyncState] lastConsentInitiatedAt = ${now.toISOString()} | userId=${masked}`);
   }
 
   /**

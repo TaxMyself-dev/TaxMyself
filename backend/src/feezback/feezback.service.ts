@@ -2,12 +2,9 @@ import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
-import { FeezbackConsent } from './consent/entities/feezback-consent.entity';
 import { FeezbackAuthService } from './core/feezback-auth.service';
 import { FeezbackApiService } from './api/feezback-api.service';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
-import { ConsentSyncService } from './consent/consent-sync.service';
-import { FeezbackConsentService } from './consent/feezback-consent.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { UserSyncState, SourceResult } from '../transactions/user-sync-state.entity';
@@ -29,8 +26,6 @@ export class FeezbackService {
     private readonly authService: FeezbackAuthService,
     private readonly feezbackApiService: FeezbackApiService,
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
-    private readonly consentSyncService: ConsentSyncService,
-    private readonly feezbackConsentService: FeezbackConsentService,
     private readonly processingService: TransactionProcessingService,
     private readonly userSyncStateService: UserSyncStateService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
@@ -491,10 +486,6 @@ export class FeezbackService {
 
   async createConsentLink(firebaseId: string) {
     return this.feezbackApiService.createConsentLink(firebaseId);
-  }
-
-  async syncUserConsents(firebaseId: string, sub: string): Promise<FeezbackConsent[]> {
-    return this.consentSyncService.syncUserConsents(firebaseId, sub, this.tppId);
   }
 
   async getUserConsents(sub: string): Promise<{ consents: any[] }> {
@@ -1107,22 +1098,6 @@ export class FeezbackService {
     );
 
     return { ...response, __durationMs: Date.now() - tBank };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /** Returns the set of valid consentIds for a user from the DB. */
-  private async getValidConsentIds(firebaseId: string): Promise<Set<string>> {
-    const consents = await this.feezbackConsentService.findByFirebaseId(firebaseId);
-    const validSet = new Set<string>();
-    for (const c of consents) {
-      if (c.status === 'valid' && c.consentId) {
-        validSet.add(c.consentId);
-      }
-    }
-    return validSet;
   }
 
   // ---------------------------------------------------------------------------

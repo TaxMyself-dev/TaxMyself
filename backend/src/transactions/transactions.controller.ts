@@ -33,6 +33,21 @@ export class TransactionsController {
     private readonly feezbackService: FeezbackService,
   ) {}
 
+  /**
+   * Pure read: returns the persisted sync state. Does NOT trigger a sync.
+   *
+   * Sync triggers live elsewhere — `/auth/signin` (triggerPostLoginSync),
+   * `POST /transactions/trigger-sync` (manual), and the `UserDataIsAvailable`
+   * webhook (post-consent). This endpoint is polled every 3 s and must not
+   * itself be a trigger, otherwise it races with consent flows.
+   *
+   * Status translation:
+   *   - If a consent flow is in progress (lastConsentInitiatedAt is fresh and
+   *     no sync has finished after it), report 'running'. The webhook will
+   *     fire the sync; the frontend keeps polling and the dialog stays in
+   *     loading until fullFinishedAt > lastConsentInitiatedAt.
+   *   - Otherwise, 'empty'/null translates to 'completed' so the poller stops.
+   */
   @Get('sync-status')
   @UseGuards(FirebaseAuthGuard)
   async getSyncStatus(@Req() request: AuthenticatedRequest) {
@@ -42,35 +57,22 @@ export class TransactionsController {
       this.userSyncStateService.getSourceResults(userId),
     ]);
 
-    // 'empty' is a backend-only state — never returned to the frontend.
-    // Translate it to 'running' and trigger a sync so data will be available shortly.
-    const toFrontendStatus = (s: string | null | undefined): string =>
-      !s || s === 'empty' ? 'running' : s;
+    const inConsentFlow = this.feezbackService.hasUnprocessedConsentFlow(state);
 
-    const manualSyncOnly = process.env.NODE_ENV !== 'production' && process.env.FEEZBACK_MANUAL_SYNC_ONLY === 'true';
+    const toFrontendStatus = (s: string | null | undefined): string => {
+      if (s === 'running') return 'running';
+      if (inConsentFlow) return 'running';
+      return !s || s === 'empty' ? 'completed' : s;
+    };
 
     if (!state) {
-      if (!manualSyncOnly) {
-        void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
-          this.logger.error('[SyncStatus] triggerFullSync failed (no row)', err?.stack ?? err),
-        );
-        return {
-          fullSync: { processStatus: 'running', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
-          sourceResults: [],
-        };
-      }
       return {
-        fullSync: { processStatus: 'completed', resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null },
+        fullSync: {
+          processStatus: inConsentFlow ? 'running' : 'completed',
+          resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null,
+        },
         sourceResults: [],
       };
-    }
-
-    const BLOCKING_STATUSES = ['completed', 'running'];
-    const isEmpty = !BLOCKING_STATUSES.includes(state.fullProcessStatus as string);
-    if (isEmpty && !manualSyncOnly) {
-      void this.feezbackService.triggerFullSync(userId, 'login').catch(err =>
-        this.logger.error('[SyncStatus] triggerFullSync failed (empty status)', err?.stack ?? err),
-      );
     }
 
     return {
@@ -113,21 +115,13 @@ export class TransactionsController {
    * Returns true only when the user's sync is 'completed'.
    * Every other status blocks the fetch and returns [].
    *
-   * When the state is missing or 'empty', a fire-and-forget sync is triggered
-   * so that the next poll will see 'running' → 'completed'.
+   * Does NOT trigger a sync — guards must not be triggers. If state is missing
+   * or 'empty', the user can re-trigger via /trigger-sync (or it'll happen on
+   * next signin / consent flow).
    */
   private async syncStateAllowsFetch(userId: string): Promise<boolean> {
     const state = await this.userSyncStateService.getSyncState(userId);
-    const status = state?.fullProcessStatus ?? null;
-
-    if (!state || !['completed', 'running'].includes(status as string)) {
-      void this.feezbackService.triggerFullSync(userId, 'manual').catch(err =>
-        this.logger.error('[SyncGuard] triggerFullSync failed', err?.stack ?? err),
-      );
-      return false;
-    }
-
-    return status === 'completed';
+    return state?.fullProcessStatus === 'completed';
   }
 
   @Post('trigger-sync')
@@ -379,46 +373,31 @@ export class TransactionsController {
 
     this.logger.log(`[PostConsentSync] Called | firebaseId=${masked}`);
 
-    // If a sync is already mid-flight (e.g., webhook just fired and is still
-    // pulling), tell the frontend to poll for it.
-    const beforeState = await this.userSyncStateService.getSyncState(userId);
-    if (beforeState?.fullProcessStatus === 'running') {
+    // Pure read: do NOT call refreshUserSources here. The UserDataIsAvailable
+    // webhook is the sole source-refresh trigger after a consent flow; calling
+    // it again from here doubled the Feezback API calls for no functional gain
+    // (the decision below uses only timestamps, not source rows).
+    const state = await this.userSyncStateService.getSyncState(userId);
+
+    if (state?.fullProcessStatus === 'running') {
       this.logger.log(`[PostConsentSync] Sync in flight — frontend will poll | firebaseId=${masked}`);
       return { status: 'pending' };
     }
 
-    // Refresh Source rows so subsequent webhook sync (or any later sync) sees
-    // fresh consentIds. Idempotent — safe whether the webhook has run or not.
-    await this.feezbackService.refreshUserSources(userId, 'post-consent');
-
-    // Re-read state — refreshUserSources may have updated lastSourcesRefreshAt.
-    const after = await this.userSyncStateService.getSyncState(userId);
-
-    // Has a webhook-triggered sync already covered this consent flow?
-    // Structural check: did the last sync finish AFTER the user clicked consent?
-    // The 10-second tolerance absorbs minor clock drift between the Node process
-    // (Date.now() for both timestamps) and any future-DB-CURRENT_TIMESTAMP usage,
-    // and any tiny race where both timestamps land in the same millisecond.
-    const TOLERANCE_MS = 10_000;
-    const consentAt = after?.lastConsentInitiatedAt;
-    const syncedAt = after?.fullFinishedAt;
-    const syncIsForCurrentFlow =
-      !!consentAt && !!syncedAt &&
-      new Date(syncedAt).getTime() + TOLERANCE_MS > new Date(consentAt).getTime();
-
-    if (syncIsForCurrentFlow && after?.fullProcessStatus === 'completed') {
+    // Strict structural check: has a sync FINISHED AFTER the consent click?
+    // Same helper used by /sync-status and triggerPostLoginSync — single
+    // source of truth, no timestamp tolerance.
+    if (this.feezbackService.hasUnprocessedConsentFlow(state)) {
       this.logger.log(
-        `[PostConsentSync] Webhook sync already completed for this flow | firebaseId=${masked}`,
+        `[PostConsentSync] Awaiting webhook-triggered sync — frontend will poll | firebaseId=${masked}`,
       );
-      return { status: 'completed' };
+      return { status: 'pending' };
     }
 
-    // Webhook hasn't fired yet (or is delayed). Frontend will poll until the
-    // sync runs.
     this.logger.log(
-      `[PostConsentSync] Awaiting webhook-triggered sync — frontend will poll | firebaseId=${masked}`,
+      `[PostConsentSync] Webhook sync already completed for this flow | firebaseId=${masked}`,
     );
-    return { status: 'pending' };
+    return { status: 'completed' };
   }
 
   @Delete('admin/clear-cache/:firebaseId')
