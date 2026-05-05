@@ -111,7 +111,7 @@ export class TransactionsService implements OnInit {
     return this.http.get<any[]>(url)
   }
 
-  getSourcesWithTypes(): Observable<{ sourceName: string; sourceType: paymentIdentifierType; billName: string | null }[]> {
+  getSourcesWithTypes(): Observable<{ sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean }[]> {
     const url = `${environment.apiUrl}transactions/get-sources-with-types`;
     console.log('[TransactionsService] get-sources-with-types — בקשה:', { method: 'GET', url });
     return this.http.get<any[]>(url).pipe(

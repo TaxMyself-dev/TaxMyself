@@ -1,3 +1,29 @@
+.sync-sim-actions {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px dashed #f59e0b;
+  border-radius: 12px;
+  background: #fffbeb;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  direction: rtl;
+
+  &__title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #92400e;
+  }
+
+  &__hint {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #78350f;
+    line-height: 1.5;
+  }
+}
+
 .consent-backdrop {
   position: fixed;
   inset: 0;

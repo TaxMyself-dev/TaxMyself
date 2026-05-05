@@ -172,8 +172,7 @@ export class AuthService {
 
 
   signIn(): any {
-    const url = `${environment.apiUrl}auth/signin`;
-    return this.http.get(url);
+    return this.http.get(`${environment.apiUrl}auth/signin`);
   }
 
   getSignupErrorMessage(err: string): string {
@@ -321,19 +320,17 @@ export class AuthService {
     try {
       const userData = await firstValueFrom(this.signIn());
       return { isNewUser: false, userData, googleUser };
-    } catch {
-      return { isNewUser: true, googleUser };
+    } catch (err: any) {
+      // ONLY treat an explicit 404 (user not found in our DB) as "new user".
+      // Any other error (network blip, 500, timeout, auth issue) means "we
+      // don't know" — re-throw so the caller surfaces a real error instead of
+      // assuming the user is new and (potentially) deleting their Firebase
+      // account.
+      if (err?.status === 404) {
+        return { isNewUser: true, googleUser };
+      }
+      throw err;
     }
-  }
-
-  SignUpWithGoogle(formData: any): Observable<any> {
-    return from(this.afAuth.currentUser).pipe(
-      switchMap((user) => {
-        formData.personal.firebaseId = user.uid;
-        const url = `${environment.apiUrl}auth/signup`;
-        return this.http.post(url, formData);
-      })
-    );
   }
 
   async SignOut() {

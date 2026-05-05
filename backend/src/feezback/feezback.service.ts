@@ -1,22 +1,21 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FeezbackJwtService } from './feezback-jwt.service';
-import { FeezbackConsent } from './consent/entities/feezback-consent.entity';
 import { FeezbackAuthService } from './core/feezback-auth.service';
 import { FeezbackApiService } from './api/feezback-api.service';
 import { FeezbackConsentApiService } from './consent/feezback-consent-api.service';
-import { ConsentSyncService } from './consent/consent-sync.service';
-import { FeezbackConsentService } from './consent/feezback-consent.service';
 import { TransactionProcessingService } from '../transactions/transaction-processing.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
-import { UserSyncState } from '../transactions/user-sync-state.entity';
+import { UserSyncState, SourceResult } from '../transactions/user-sync-state.entity';
 import { NormalizedTransaction } from '../transactions/interfaces/normalized-transaction.interface';
 import { User } from '../users/user.entity';
+import { UserModuleSubscription } from '../users/user-module-subscription.entity';
 import { Source } from '../transactions/source.entity';
-import { ModuleName, SourceType } from '../enum';
+import { ModuleName, PayStatus, SourceType } from '../enum';
 import * as fs from 'fs';
 import * as path from 'path';
+
 @Injectable()
 export class FeezbackService {
   private readonly logger = new Logger(FeezbackService.name);
@@ -27,11 +26,10 @@ export class FeezbackService {
     private readonly authService: FeezbackAuthService,
     private readonly feezbackApiService: FeezbackApiService,
     private readonly feezbackConsentApiService: FeezbackConsentApiService,
-    private readonly consentSyncService: ConsentSyncService,
-    private readonly feezbackConsentService: FeezbackConsentService,
     private readonly processingService: TransactionProcessingService,
     private readonly userSyncStateService: UserSyncStateService,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @InjectRepository(UserModuleSubscription) private readonly moduleSubRepo: Repository<UserModuleSubscription>,
     @InjectRepository(Source) private readonly sourceRepository: Repository<Source>,
   ) {
     this.tppId = this.authService.getTppId();
@@ -99,6 +97,197 @@ export class FeezbackService {
 
     this.logger.log(`[EnsureSources] Done | firebaseId=${firebaseId?.substring(0, 8)}... | created=${created} updated=${updated}`);
     return { created, updated };
+  }
+
+
+  /**
+   * Refresh `Source` rows from the live Feezback API (accounts + cards),
+   * ensure the user has OPEN_BANKING module access, and pre-populate
+   * `user_source_sync_state` with status='not_synced' for every discovered source.
+   *
+   * Idempotent — safe to call from the webhook handler AND from the
+   * /transactions/post-consent-sync endpoint. Does NOT trigger transaction sync.
+   */
+  async refreshUserSources(firebaseId: string, eventLabel: string): Promise<void> {
+    const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
+    const prefix = `[FeezbackSourceSync][${eventLabel}]`;
+    const sub = `${firebaseId}_sub`;
+
+    // No pre-mark: triggerFullSync (when called by post-consent / login) will
+    // atomically acquire the DB lock and set status='running' itself. Calling
+    // markSyncRunning here would acquire that very lock and starve the
+    // subsequent triggerFullSync of it. The frontend doesn't poll during this
+    // refresh anyway — the post-consent endpoint awaits it before returning 200.
+
+    let user: User | null = null;
+    try {
+      user = await this.userRepository.findOne({ where: { firebaseId } });
+      if (!user) this.logger.warn(`${prefix} Internal user NOT found firebaseId=${masked}`);
+    } catch (error: any) {
+      this.logger.error(`${prefix} Failed to resolve user firebaseId=${masked}: ${error?.message}`, error?.stack);
+    }
+    const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
+
+    const bankResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
+    const cardResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
+    let bankError: string | null = null;
+    let cardError: string | null = null;
+    let moduleAccessUpdated = false;
+
+    let accounts: any[] = [];
+    try {
+      const accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
+      accounts = accountsResponse?.accounts ?? [];
+
+      for (const account of accounts) {
+        const resourceId: string = account?.resourceId ?? 'unknown';
+        const iban: string | undefined = account?.iban;
+        if (!iban || iban.trim() === '') {
+          this.logger.warn(`${prefix}[Account] Skipping account — no IBAN resourceId=${resourceId}`);
+          continue;
+        }
+        const sourceName = iban.trim().slice(-7);
+        const feezbackResourceId: string | null = account?.resourceId ?? null;
+        // Atomic INSERT … ON DUPLICATE KEY UPDATE via the (userId, sourceName)
+        // unique index. Race-safe under concurrent webhook + post-consent calls.
+        // The `bill` FK column is omitted so an existing linkage isn't clobbered
+        // on update.
+        //
+        // Using raw SQL (not repository.upsert / QueryBuilder.orUpdate) because
+        // both of those run TypeORM's entity-hydration step on the returning
+        // row, which intermittently throws "Cannot update entity because entity
+        // id is not set in the entity" on entities that combine
+        // @PrimaryGeneratedColumn with @ManyToOne (Source has both — `bill`).
+        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
+        await this.sourceRepository.query(
+          `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`feezback_resource_id\`)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE \`feezback_resource_id\` = VALUES(\`feezback_resource_id\`),
+                                   \`sourceType\` = VALUES(\`sourceType\`)`,
+          [firebaseId, sourceName, SourceType.BANK_ACCOUNT, feezbackResourceId],
+        );
+        bankResults.push({ sourceName, action: existing ? 'updated' : 'created' });
+      }
+    } catch (error: any) {
+      bankError = error?.message ?? 'unknown';
+      this.logger.error(`${prefix}[Account] Sync failed firebaseId=${masked}: ${bankError}`, error?.stack);
+    }
+
+    let cards: any[] = [];
+    try {
+      const cardsResponse = await this.feezbackApiService.getUserCards(sub, { withBalances: false });
+      cards = cardsResponse?.cards ?? [];
+
+      for (const card of cards) {
+        const resourceId: string = card?.resourceId ?? 'unknown';
+        const maskedPan: string | undefined = card?.maskedPan;
+        const last4Match = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/) : null;
+        if (!last4Match) {
+          this.logger.warn(`${prefix}[Card] Skipping card — cannot extract last-4 resourceId=${resourceId} maskedPan=${maskedPan ?? 'none'}`);
+          continue;
+        }
+        const sourceName = last4Match[1];
+        const feezbackResourceId: string | null = card?.resourceId ?? null;
+        // Same raw-SQL upsert pattern as the bank loop — see comment there.
+        const existing = await this.sourceRepository.findOne({ where: { userId: firebaseId, sourceName } });
+        await this.sourceRepository.query(
+          `INSERT INTO source (\`userId\`, \`sourceName\`, \`sourceType\`, \`feezback_resource_id\`)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE \`feezback_resource_id\` = VALUES(\`feezback_resource_id\`),
+                                   \`sourceType\` = VALUES(\`sourceType\`)`,
+          [firebaseId, sourceName, SourceType.CREDIT_CARD, feezbackResourceId],
+        );
+        cardResults.push({ sourceName, action: existing ? 'updated' : 'created' });
+      }
+    } catch (error: any) {
+      cardError = error?.message ?? 'unknown';
+      this.logger.error(`${prefix}[Card] Sync failed firebaseId=${masked}: ${cardError}`, error?.stack);
+    }
+
+    // If BOTH bank and card fetches failed, Feezback is fully unavailable for
+    // this user — abort early so the post-consent endpoint can return a 502
+    // and the dialog can show a clear "service unavailable" message instead of
+    // running a transaction sync against an empty/stale source list.
+    if (bankError && cardError) {
+      throw new BadGatewayException({
+        code: 'feezback_unavailable',
+        message: 'Feezback API unavailable',
+        bankError,
+        cardError,
+      });
+    }
+
+    try {
+      if (user) {
+        let dirty = false;
+        if (!user.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+          user.modulesAccess = [...(user.modulesAccess ?? []), ModuleName.OPEN_BANKING];
+          dirty = true;
+        }
+        if (!user.hasOpenBanking) {
+          user.hasOpenBanking = true;
+          dirty = true;
+        }
+        if (dirty) {
+          await this.userRepository.save(user);
+          moduleAccessUpdated = true;
+        }
+        const existingOBSub = await this.moduleSubRepo.findOne({ where: { firebaseId, moduleName: ModuleName.OPEN_BANKING } });
+        if (!existingOBSub) {
+          const trialStart = new Date();
+          const trialEnd = new Date();
+          trialEnd.setDate(trialEnd.getDate() + 45);
+          await this.moduleSubRepo.save(this.moduleSubRepo.create({
+            firebaseId, moduleName: ModuleName.OPEN_BANKING,
+            trialStartDate: trialStart, trialEndDate: trialEnd,
+            payStatus: PayStatus.TRIAL, monthlyPriceNis: 45, createdAt: new Date(),
+          }));
+        }
+      }
+    } catch (error: any) {
+      this.logger.error(`${prefix} Failed to update modulesAccess/hasOpenBanking firebaseId=${masked}: ${error?.message}`, error?.stack);
+    }
+
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  SOURCE DISCOVERY  (${eventLabel})`);
+    console.log(`  User: ${userName}`);
+    console.log(`════════════════════════════════════`);
+    if (bankError) {
+      console.log(`  ✗ Bank — ERROR: ${bankError}`);
+    } else {
+      const uniqueBankResults = bankResults.reduce<typeof bankResults>((acc, r) => {
+        if (!acc.some(x => x.sourceName === r.sourceName)) acc.push(r);
+        return acc;
+      }, []);
+      console.log(`  Bank (${uniqueBankResults.length}):`);
+      for (const r of uniqueBankResults) {
+        const acc = accounts.find(a => a?.iban?.trim().slice(-7) === r.sourceName);
+        const cid = acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? '—';
+        console.log(`    ${r.action === 'created' ? '+' : '~'}  ${r.sourceName}   consentId=${cid}`);
+      }
+    }
+    if (cardError) {
+      console.log(`  ✗ Cards — ERROR: ${cardError}`);
+    } else {
+      console.log(`  Cards (${cardResults.length}):`);
+      for (const r of cardResults) {
+        const card = cards.find(c => c?.maskedPan?.slice(-4) === r.sourceName);
+        const cid = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? '—';
+        console.log(`    ${r.action === 'created' ? '+' : '~'}  ${r.sourceName}   consentId=${cid}`);
+      }
+    }
+    if (moduleAccessUpdated) console.log(`  ✓ Module access enabled`);
+    console.log(`════════════════════════════════════\n`);
+
+    void this.prePopulateSourceResults(firebaseId, accounts, cards)
+      .catch(err => this.logger.warn(`${prefix} prePopulateSourceResults failed | ${err?.message}`));
+
+    // Stamp the freshness marker — at least one of bank/card succeeded, so the
+    // login path can trust the Source rows for the next 24h.
+    if (!bankError || !cardError) {
+      void this.userSyncStateService.markSourcesRefreshed(firebaseId)
+        .catch(err => this.logger.warn(`${prefix} markSourcesRefreshed failed | ${err?.message}`));
+    }
   }
 
 
@@ -299,10 +488,6 @@ export class FeezbackService {
     return this.feezbackApiService.createConsentLink(firebaseId);
   }
 
-  async syncUserConsents(firebaseId: string, sub: string): Promise<FeezbackConsent[]> {
-    return this.consentSyncService.syncUserConsents(firebaseId, sub, this.tppId);
-  }
-
   async getUserConsents(sub: string): Promise<{ consents: any[] }> {
     return this.feezbackApiService.getUserConsents(sub);
   }
@@ -472,6 +657,7 @@ export class FeezbackService {
       cardResourceId: string;
       consentId: string | null;
       displayName: string;
+      maskedPan: string | null;
       status?: number;
       code?: string;
       message: string;
@@ -549,7 +735,7 @@ export class FeezbackService {
 
       if (failed) {
         const { status, code, message, responseData } = (result as any).err;
-        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, status, code, message, responseData });
+        cardErrors.push({ cardResourceId: cardId, consentId, displayName: cardName, maskedPan: card?.maskedPan ?? null, status, code, message, responseData });
         if (!(cardName in transactionsByCard)) {
           transactionsByCard[cardName] = [{ __cardMeta: { cardResourceId: cardId, displayName: cardName, maskedPan: card?.maskedPan ?? null, consentId }, __error: { status, code, message } }];
         }
@@ -570,15 +756,21 @@ export class FeezbackService {
       cardInfoMap,
     );
 
-    // Load valid consent IDs — only card transactions with a valid consentId will be saved.
-    const validConsentIds = await this.getValidConsentIds(userId);
+    // Build valid-card set from cards successfully fetched (withInvalid=false already filters at API level).
+    // Filtering by cardResourceId keeps historical transactions after consent renewal, where old
+    // transactions still carry the old consentId even though the card itself has a valid consent.
+    const validCardIds = new Set<string>(
+      cardFetchResults
+        .filter((r): r is NonNullable<typeof r> => !!r && !r.failed)
+        .map(r => r.cardId),
+    );
 
     // Normalize only — DB persistence is handled by the caller (doFullSync).
     let normalizedTransactions: NormalizedTransaction[] = [];
     let processingError: string | null = null;
     const databaseSaveResult: { saved: number; skipped: number; message: string } | null = null;
     try {
-      normalizedTransactions = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap, validConsentIds);
+      normalizedTransactions = this.normalizeCardTransactions(allTransactionsForDb, cardInfoMap, validCardIds);
     } catch (err: any) {
       this.logger.error(`[CardFetch] Normalize failed | userId=${userId?.substring(0, 8)}... | error=${err.message}`, err.stack);
       processingError = err.message;
@@ -712,7 +904,7 @@ export class FeezbackService {
     // Step 1: Get all accounts
     let accountsResponse;
     try {
-      accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true });
+      accountsResponse = await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true, withInvalid: false });
     } catch (error: any) {
       this.logger.error(`[BankFetch] Accounts fetch failed | firebaseId=${firebaseId?.substring(0, 8)}... | status=${error?.status ?? 'unknown'} | error=${error?.message}`, error?.stack);
       if (error?.status === 404 || error?.code === 'ACCOUNTS_NOT_FOUND') {
@@ -720,6 +912,7 @@ export class FeezbackService {
           transactions: [],
           accountsProcessed: 0,
           accountsFailed: 1,
+          bankErrors: [{ sourceId: 'consent', displayName: 'חשבון בנק', message: 'CONSENT_REQUIRED' }],
           totalTransactions: 0,
           transactionsByAccount: {},
           normalizedTransactions: [],
@@ -730,7 +923,23 @@ export class FeezbackService {
       throw error;
     }
 
-    const accounts = accountsResponse?.accounts || [];
+    const rawAccounts = accountsResponse?.accounts || [];
+
+    // Guard: skip accounts whose consent is not valid (expired, revoked, etc.).
+    // withInvalid=false already asks the API to omit them, but we add a defensive
+    // client-side check so we never process stale/invalid data regardless of API behaviour.
+    const accounts = rawAccounts.filter((acc: any) => {
+      if (acc.consentStatus && acc.consentStatus !== 'valid') {
+        this.logger.warn(`[BankFetch] Skipping account "${acc.iban?.slice(-7) ?? acc.name}" — consentStatus=${acc.consentStatus}`);
+        return false;
+      }
+      if (acc._meta?.isExpired === true) {
+        this.logger.warn(`[BankFetch] Skipping account "${acc.iban?.slice(-7) ?? acc.name}" — consent isExpired=true`);
+        return false;
+      }
+      return true;
+    });
+
     if (!accounts || accounts.length === 0) {
       // No bank accounts linked yet (card-only user or pending consent) — not an error.
       return {
@@ -747,6 +956,10 @@ export class FeezbackService {
     const accountFetchResults = await Promise.all(
       accounts.map(async (account: any) => {
         try {
+          if (!account._links?.transactions?.href) {
+            this.logger.warn(`[BankFetch] Account "${account.iban?.slice(-7) ?? account.name}" has no transactions link — skipping (not yet provisioned)`);
+            return { account, transactions: [] as any[], failed: false, error: null };
+          }
           const transactionsResponse = await this.feezbackApiService.getAccountTransactions(
             sub,
             account._links.transactions.href,
@@ -761,13 +974,13 @@ export class FeezbackService {
             ...tx,
             __accountIban: account.iban ?? null,
           }));
-          return { account, transactions, failed: false };
+          return { account, transactions, failed: false, error: null };
         } catch (error: any) {
           this.logger.error(
-            `[BankFetch] Account failed | account=${account.name} | error=${error.message}`,
+            `[BankFetch] Account failed | account=${account.iban?.slice(-7) ?? account.name} | status=${error?.status ?? 'unknown'} | error=${error.message}`,
             error.stack,
           );
-          return { account, transactions: [] as any[], failed: true };
+          return { account, transactions: [] as any[], failed: true, error };
         }
       }),
     );
@@ -775,12 +988,24 @@ export class FeezbackService {
     const allTransactions: any[] = [];
     const accountTransactionsMap: { [accountName: string]: any[] } = {};
     let accountsFailed = 0;
+    const bankErrors: Array<{ sourceId: string; displayName: string; iban?: string; status?: number; message: string }> = [];
 
-    for (const { account, transactions, failed } of accountFetchResults) {
+    for (const { account, transactions, failed, error } of accountFetchResults as any[]) {
       if (failed) {
         accountsFailed++;
+        bankErrors.push({
+          sourceId: account.resourceId ?? account.iban ?? account.name,
+          displayName: account.name,
+          iban: account.iban,
+          status: error?.status,
+          message: error?.message || 'Unknown error',
+        });
       } else {
-        accountTransactionsMap[account.name] = transactions;
+        if (accountTransactionsMap[account.name]) {
+          accountTransactionsMap[account.name].push(...transactions);
+        } else {
+          accountTransactionsMap[account.name] = transactions;
+        }
         if (transactions.length > 0) {
           allTransactions.push(...transactions);
         }
@@ -812,8 +1037,10 @@ export class FeezbackService {
       transactions: allTransactions,
       accountsProcessed: Object.keys(accountTransactionsMap).length,
       accountsFailed,
+      bankErrors,
       totalTransactions: allTransactions.length,
       transactionsByAccount: accountTransactionsMap,
+      accountInfoMap,
       savedFilePaths,
     };
 
@@ -828,8 +1055,13 @@ export class FeezbackService {
       return response;
     }
 
-    // Load valid consent IDs from DB — only transactions with a valid consentId will be saved.
-    const validConsentIds = await this.getValidConsentIds(firebaseId);
+    // Build valid-IBAN set from accounts that already passed the consent filter above.
+    // Filtering by account IBAN (not transaction consentId) ensures historical transactions
+    // fetched under a previous consent are kept after renewal, as long as the account itself
+    // still has a valid consent.
+    const validIbans = new Set<string>(
+      accounts.filter((acc: any) => acc.iban).map((acc: any) => acc.iban as string),
+    );
 
     // Normalize only — DB persistence is handled by the caller (doFullSync).
     try {
@@ -837,7 +1069,7 @@ export class FeezbackService {
         allTransactions,
         accountInfoMap,
         transactionToAccountMap,
-        validConsentIds,
+        validIbans,
       );
       response.normalizedTransactions = normalized;
     } catch (error: any) {
@@ -869,22 +1101,6 @@ export class FeezbackService {
   }
 
   // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
-  /** Returns the set of valid consentIds for a user from the DB. */
-  private async getValidConsentIds(firebaseId: string): Promise<Set<string>> {
-    const consents = await this.feezbackConsentService.findByFirebaseId(firebaseId);
-    const validSet = new Set<string>();
-    for (const c of consents) {
-      if (c.status === 'valid' && c.consentId) {
-        validSet.add(c.consentId);
-      }
-    }
-    return validSet;
-  }
-
-  // ---------------------------------------------------------------------------
   // Normalization: raw Feezback data → NormalizedTransaction[]
   // ---------------------------------------------------------------------------
 
@@ -892,19 +1108,20 @@ export class FeezbackService {
     transactions: any[],
     accountInfoMap: { [accountName: string]: any },
     transactionToAccountMap: { [transactionId: string]: string },
-    validConsentIds: Set<string>,
+    validIbans: Set<string>,
   ): NormalizedTransaction[] {
-    // Filter to valid consents only — Feezback may return transactions from expired/related consents.
+    // Filter by account IBAN — keeps all transactions for accounts with a valid consent,
+    // including historical transactions that carry an older consentId after consent renewal.
+    // Transactions with no IBAN stamp are kept (they came from a valid account that had no IBAN).
     let droppedInvalidConsentBank = 0;
     const validTxs = transactions.filter(tx => {
-      if (!tx?.consentId || !validConsentIds.has(tx.consentId)) {
+      const iban = tx?.__accountIban;
+      if (iban && !validIbans.has(iban)) {
         droppedInvalidConsentBank++;
         return false;
       }
       return true;
     });
-    if (droppedInvalidConsentBank > 0) {
-    }
 
     // Deduplicate by aspspOriginalId — Feezback may return the same physical transaction
     // multiple times with different transactionId values.
@@ -967,6 +1184,7 @@ export class FeezbackService {
         billName: null,
         businessNumber: null,
         note: tx?.remittanceInformationUnstructured || tx?.additionalInformation || null,
+        rawTransactionId: tx?.aspspOriginalId || tx?.transactionId,
       });
     }
 
@@ -976,7 +1194,7 @@ export class FeezbackService {
   private normalizeCardTransactions(
     transactions: any[],
     cardInfoMap: Record<string, any>,
-    validConsentIds: Set<string>,
+    validCardIds: Set<string>,
   ): NormalizedTransaction[] {
     const result: NormalizedTransaction[] = [];
     let droppedMissingId = 0;
@@ -984,15 +1202,20 @@ export class FeezbackService {
     let droppedInvalidAmount = 0;
     let droppedInvalidConsent = 0;
 
+    const seenCardIds = new Set<string>();
+
     for (const tx of transactions) {
-      const consentId = tx?.__cardMeta?.consentId;
-      if (!consentId || !validConsentIds.has(consentId)) {
+      const cardResourceId = tx?.__cardMeta?.cardResourceId;
+      if (!cardResourceId || !validCardIds.has(cardResourceId)) {
         droppedInvalidConsent++;
         continue;
       }
 
       const externalId = this.extractCardExternalId(tx);
       if (!externalId) { droppedMissingId++; continue; }
+      if (seenCardIds.has(externalId)) continue;
+      seenCardIds.add(externalId);
+      const rawCardId: string | undefined = tx?.aspspOriginalId || tx?.cardTransactionId || tx?.transactionId;
 
       const transactionDate = this.parseTxDate(tx, 'CARD');
       if (!transactionDate) { droppedInvalidDate++; continue; }
@@ -1018,11 +1241,12 @@ export class FeezbackService {
         billName: null,
         businessNumber: null,
         note: tx?.transactionDetails || null,
+        rawTransactionId: rawCardId,
       });
     }
 
     if (droppedInvalidConsent > 0) {
-      this.logger.warn(`[CardNormalize] Skipped ${droppedInvalidConsent} transactions with invalid/unknown consentId`);
+      this.logger.warn(`[CardNormalize] Skipped ${droppedInvalidConsent} transactions with unrecognised cardResourceId`);
     }
 
     return result;
@@ -1318,20 +1542,109 @@ export class FeezbackService {
    */
 
   /**
-   * Pre-mark the sync state as 'running' before source processing begins.
-   * Called by the webhook handler immediately upon receiving a UserDataIsAvailable / ConsentStatusChanged
-   * event so the frontend polling sees 'running' even while sources are still being resolved.
+   * Clears the consentId on Source rows belonging to a revoked/expired consent.
+   * Pass-through to UserSyncStateService — exposed here so the webhook handler
+   * (which has FeezbackService injected) can call it without pulling in
+   * UserSyncStateService directly through a different module path.
    */
-  async markSyncRunning(firebaseId: string): Promise<void> {
-    await this.userSyncStateService.markQuickRunning(firebaseId, 'webhook').catch(err => {
-      this.logger.error(`[WebhookPreMark] Failed to pre-mark running | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
-    });
+  async clearConsentOnSources(firebaseId: string, consentId: string): Promise<number> {
+    return this.userSyncStateService.clearConsentOnSources(firebaseId, consentId);
+  }
+
+  /**
+   * Pass-through to UserSyncStateService.getSyncState. Lets callers (e.g. the
+   * users-controller login path) read the persisted sync state without having
+   * to import UserSyncStateService directly through a different module path.
+   */
+  async getUserSyncState(firebaseId: string): Promise<UserSyncState | null> {
+    return this.userSyncStateService.getSyncState(firebaseId);
+  }
+
+  /**
+   * True iff the user clicked "Connect Open Banking" within the last
+   * MAX_CONSENT_AGE_MS and no sync has finished AFTER that click — meaning
+   * the webhook-driven sync hasn't fired yet and a login sync would race it.
+   *
+   * The max-age guard prevents permanent lockout: if the user abandoned the
+   * Feezback tab or the webhook was lost, lastConsentInitiatedAt would point
+   * at a flow that never completes, and login sync would skip forever.
+   */
+  hasUnprocessedConsentFlow(state: UserSyncState | null): boolean {
+    const MAX_CONSENT_AGE_MS = 30 * 60_000;
+    const consentAt = state?.lastConsentInitiatedAt;
+    if (!consentAt) return false;
+    const consentMs = new Date(consentAt).getTime();
+    if (Date.now() - consentMs >= MAX_CONSENT_AGE_MS) return false;
+    const syncedAt = state?.fullFinishedAt;
+    if (!syncedAt) return true;
+    return consentMs > new Date(syncedAt).getTime();
+  }
+
+  /**
+   * Pass-through to UserSyncStateService.markConsentInitiated. Called by the
+   * consent-link controller to stamp the moment the user kicks off a Feezback
+   * consent flow.
+   */
+  async markConsentInitiated(firebaseId: string): Promise<void> {
+    return this.userSyncStateService.markConsentInitiated(firebaseId);
+  }
+
+  /**
+   * Pass-through to UserSyncStateService.clearConsentInitiated. Called by the
+   * webhook handler when a consent is revoked/expired to release the user
+   * from the "unprocessed consent" login-sync skip.
+   */
+  async clearConsentInitiated(firebaseId: string): Promise<void> {
+    return this.userSyncStateService.clearConsentInitiated(firebaseId);
+  }
+
+  /**
+   * Registers all discovered bank accounts and cards into user_sync_state.sourceResults
+   * immediately after they are fetched from the Feezback API (before the sync runs).
+   * New sources get status='not_synced'; existing sources get their consentId updated.
+   */
+  async prePopulateSourceResults(
+    firebaseId: string,
+    accounts: any[],
+    cards: any[],
+  ): Promise<void> {
+    const sources: Parameters<UserSyncStateService['upsertSourceConsents']>[1] = [];
+
+    for (const acc of accounts) {
+      const iban = acc?.iban?.trim();
+      if (!iban) continue;
+      const sourceId  = iban.slice(-7);
+      const consentId = acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? undefined;
+      sources.push({ type: 'bank', sourceId, consentId });
+    }
+
+    for (const card of cards) {
+      const pan  = card?.maskedPan ?? '';
+      const last4 = pan.slice(-4);
+      if (!last4) continue;
+      const consentId = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? undefined;
+      sources.push({ type: 'card', sourceId: last4, resourceId: card?.resourceId, consentId });
+    }
+
+    if (sources.length > 0) {
+      await this.userSyncStateService.upsertSourceConsents(firebaseId, sources).catch(err =>
+        this.logger.warn(`[PrePopulate] upsertSourceConsents failed | firebaseId=${firebaseId?.substring(0, 8)}... | ${err?.message}`),
+      );
+      this.logger.log(`[PrePopulate] Registered ${sources.length} source(s) | firebaseId=${firebaseId?.substring(0, 8)}...`);
+    }
+  }
+
+  private getSyncWindow(): { from: string; to: string } {
+    const today = new Date();
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const yearBack = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+    const todayStr = fmt(today);
+    return { from: yearBack, to: todayStr };
   }
 
   async triggerFullSync(firebaseId: string, triggeredBy: 'login' | 'webhook' | 'manual'): Promise<void> {
     const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
 
-    console.log(`\n🔄 [FullSync] Requested | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
     // Dev-only gate — FEEZBACK_MANUAL_SYNC_ONLY=true disables automatic syncs (login/webhook) in non-production.
     // Admin-panel pulls use getAndSaveBankTransactions directly and are not affected.
@@ -1347,19 +1660,45 @@ export class FeezbackService {
       return existing;
     }
 
-    console.log(`🚀 [FullSync] Starting | triggeredBy=${triggeredBy} | firebaseId=${masked}`);
 
-    // Capture sync state BEFORE markQuickRunning overwrites it so doFullSync can
+    // Capture sync state BEFORE markSyncRunning overwrites it so doFullSync can
     // correctly determine whether the cache was empty at the time sync was triggered.
     const preSyncState = await this.userSyncStateService.getSyncState(firebaseId).catch(err => {
       this.logger.error(`[FullSync] Failed to read pre-sync state | firebaseId=${masked} | error=${err?.message}`, err?.stack);
       return null;
     });
 
-    // Persist quick-sync start so the frontend can begin polling immediately.
-    await this.userSyncStateService.markQuickRunning(firebaseId, triggeredBy).catch(err => {
-      this.logger.error(`[FullSync] Failed to write running state | firebaseId=${masked} | error=${err?.message}`, err?.stack);
-    });
+    // Consent-flow gate (login only): if the user clicked "Connect Open Banking"
+    // within the last 30 min and no sync has finished after that click, the
+    // webhook-driven sync hasn't fired yet — skip the login sync to avoid
+    // racing it. Webhook syncs are exempt (the webhook IS the trigger).
+    // Manual syncs are exempt (explicit user intent).
+    // Centralized here so /sync-status auto-trigger and triggerPostLoginSync
+    // both benefit from the same gate.
+    if (triggeredBy === 'login' && this.hasUnprocessedConsentFlow(preSyncState)) {
+      console.log(`⏭️  [FullSync] Skipped — unprocessed consent flow, webhook will sync | firebaseId=${masked}\n`);
+      return;
+    }
+
+    // Atomically acquire the DB-level "sync running" lock. This is the
+    // multi-replica safety net — the in-memory Map above only dedupes within
+    // a single Node process. If another process (or pod) already holds the
+    // lock, bail out instead of running a duplicate sync.
+    const lockResult = await this.userSyncStateService
+      .markSyncRunning(firebaseId, triggeredBy)
+      .catch(err => {
+        this.logger.error(
+          `[FullSync] Failed to acquire DB lock | firebaseId=${masked} | error=${err?.message}`,
+          err?.stack,
+        );
+        return { acquired: false }; // safer to skip than to dual-run
+      });
+    if (!lockResult.acquired) {
+      console.log(
+        `⏭️  [FullSync] Skipped — another instance already holds the DB lock | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`,
+      );
+      return;
+    }
 
     const promise = this.doFullSync(firebaseId, triggeredBy, masked, preSyncState).finally(() => {
       this.runningFullSyncByUser.delete(firebaseId);
@@ -1367,6 +1706,96 @@ export class FeezbackService {
 
     this.runningFullSyncByUser.set(firebaseId, promise);
     return promise;
+  }
+
+  /** Builds a SourceResult[] from the raw bank + card fetch responses. */
+  private buildSourceResults(bankRes: any, cardRes: any): SourceResult[] {
+    const results: SourceResult[] = [];
+
+    // Bank accounts — success entries (grouped by IBAN to handle duplicate account names)
+    if (bankRes && bankRes !== null) {
+      const byAccount = bankRes.transactionsByAccount ?? {};
+      const accountInfoMap: { [name: string]: any } = bankRes.accountInfoMap ?? {};
+
+      const ibanBuckets = new Map<string, number>();
+      const ibanConsentMap = new Map<string, string | undefined>();
+      for (const [accountName, txs] of Object.entries<any[]>(byAccount)) {
+        const acc = accountInfoMap[accountName];
+        const iban: string | undefined = acc?.iban;
+        const key = iban ? iban.slice(-7) : accountName;
+        ibanBuckets.set(key, (ibanBuckets.get(key) ?? 0) + (Array.isArray(txs) ? txs.length : 0));
+        if (!ibanConsentMap.has(key)) {
+          ibanConsentMap.set(key, acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? undefined);
+        }
+      }
+
+      // Scale raw per-IBAN counts to post-consent-filter total so SYNC RESULTS shows valid counts.
+      const bankRawTotal = Array.from(ibanBuckets.values()).reduce((a, b) => a + b, 0);
+      const bankValidTotal = (bankRes.normalizedTransactions as any[] ?? []).length;
+      const scale = bankRawTotal > 0 ? bankValidTotal / bankRawTotal : 0;
+
+      for (const [ibanKey, rawCount] of ibanBuckets) {
+        results.push({
+          type: 'bank',
+          sourceId: ibanKey,
+          consentId: ibanConsentMap.get(ibanKey),
+          status: 'success',
+          transactionCount: Math.round(rawCount * scale),
+        });
+      }
+
+      // Bank accounts — failed entries (use IBAN last-7 as sourceId for consistency with success)
+      for (const err of bankRes.bankErrors ?? []) {
+        const ibanKey = err.iban ? err.iban.slice(-7) : null;
+        results.push({
+          type: 'bank',
+          sourceId: ibanKey ?? err.sourceId,
+          status: 'failed',
+          transactionCount: 0,
+          error: err.message,
+        });
+      }
+    }
+
+    // Credit cards — success entries
+    if (cardRes && cardRes !== null) {
+      // Scale raw per-card counts to post-dedup normalized total (mirrors bank scaling above).
+      const cardRawTotal = (cardRes.cards ?? []).reduce(
+        (sum: number, c: any) => sum + (Array.isArray(c.transactions) ? c.transactions.length : 0), 0,
+      );
+      const cardValidTotal = (cardRes.normalizedTransactions as any[] ?? []).length;
+      const cardScale = cardRawTotal > 0 ? cardValidTotal / cardRawTotal : 0;
+
+      for (const card of cardRes.cards ?? []) {
+        const pan   = card.maskedPan ?? '';
+        const last4 = pan.slice(-4) || card.cardResourceId;
+        const rawCardCount = Array.isArray(card.transactions) ? card.transactions.length : 0;
+        results.push({
+          type: 'card',
+          sourceId:   last4,
+          resourceId: card.cardResourceId,
+          consentId:  card.consentId ?? undefined,
+          status: 'success',
+          transactionCount: Math.round(rawCardCount * cardScale),
+        });
+      }
+      // Credit cards — failed entries
+      for (const err of cardRes.cardErrors ?? []) {
+        const pan   = err.maskedPan ?? '';
+        const last4 = pan.slice(-4) || err.cardResourceId;
+        results.push({
+          type: 'card',
+          sourceId:   last4,
+          resourceId: err.cardResourceId,
+          consentId:  err.consentId ?? undefined,
+          status: 'failed',
+          transactionCount: 0,
+          error: err.message,
+        });
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -1378,9 +1807,9 @@ export class FeezbackService {
    * that it can account for normalizedTransactions.length cleanly.
    *
    * resultStatus values:
-   *   'success'         — no errors at any level; safe to persist
-   *   'partial_success' — errors occurred but some normalized data exists; do NOT persist
-   *   'failed'          — errors occurred and no normalized data was produced; do NOT persist
+   *   'success'         — no errors; all normalized transactions persisted
+   *   'partial_success' — some accounts/cards failed but normalized transactions still exist and are persisted
+   *   'failed'          — errors occurred and no normalized transactions were produced; nothing persisted
    *
    * CONSENT_REQUIRED is explicitly treated as a bank error (→ failed if no card data).
    * This method has no side effects and does not touch the DB.
@@ -1470,235 +1899,245 @@ export class FeezbackService {
       const user = await this.userRepository.findOne({ where: { firebaseId }, select: ['modulesAccess', 'fName', 'lName'] });
       if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
         console.log(`⏭️  [FullSync] Skipped — OPEN_BANKING not in modulesAccess | modulesAccess=${JSON.stringify(user?.modulesAccess)} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
-        await this.userSyncStateService.markBothSkipped(firebaseId, 'no_access').catch(err => {
+        await this.userSyncStateService.markSyncSkipped(firebaseId, 'no_access').catch(err => {
           this.logger.error(`[FullSync] Failed to write skipped(no_access) state | firebaseId=${masked} | error=${err?.message}`);
         });
         return;
       }
 
-      // Log #4 gate — use the pre-markQuickRunning state captured in triggerFullSync so we see
+      // Log #4 gate — use the pre-markSyncRunning state captured in triggerFullSync so we see
       // the true state before 'running' was written (avoids false "not empty" reads).
       const syncState = preSyncState !== undefined ? preSyncState : await this.userSyncStateService.getSyncState(firebaseId);
-      const BLOCKING_STATUSES = ['completed', 'running'];
-      const syncIsEmpty = !syncState ||
-        !BLOCKING_STATUSES.includes(syncState.quickProcessStatus as string) ||
-        !BLOCKING_STATUSES.includes(syncState.fullProcessStatus as string);
-      // Webhook always forces a full sync — user connected a new bank or updated permissions
-      if (!syncIsEmpty && triggeredBy !== 'webhook') {
-        console.log(`⏭️  [FullSync] Skipped — cache_exists | quick=${syncState?.quickProcessStatus} full=${syncState?.fullProcessStatus} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
-        await this.userSyncStateService.markBothSkipped(firebaseId, 'cache_exists').catch(err => {
-          this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
-        });
-        return;
+      // A previous sync has run (or is running) when status is in a terminal-or-running state.
+      // 'failed' is intentionally included so a failed webhook sync doesn't bypass the retry path.
+      const NON_FRESH_STATUSES = ['completed', 'running', 'failed'];
+      const syncHasRun = !!syncState &&
+        NON_FRESH_STATUSES.includes(syncState.fullProcessStatus as string);
+      // Webhook always forces a sync — Feezback signaled new data is ready.
+      if (syncHasRun && triggeredBy !== 'webhook') {
+        const sourceRows = await this.userSyncStateService.getSourceResults(firebaseId);
+        const pendingSources = sourceRows.filter(
+          s => s.status === 'failed' || s.status === 'not_synced',
+        );
+        if (pendingSources.length > 0) {
+          console.log(`🔁 [FullSync] Cache exists but ${pendingSources.length} source(s) pending (failed/not_synced) — retrying | firebaseId=${masked}`);
+          await this.retryFailedSources(firebaseId, pendingSources, masked);
+          return;
+        }
+        // Only truly skip when sync completed successfully
+        if (syncState.fullProcessStatus === 'completed') {
+          console.log(`⏭️  [FullSync] Skipped — cache_exists | status=${syncState.fullProcessStatus} | triggeredBy=${triggeredBy} | firebaseId=${masked}\n`);
+          await this.userSyncStateService.markSyncSkipped(firebaseId, 'cache_exists').catch(err => {
+            this.logger.error(`[FullSync] Failed to write skipped(cache_exists) state | firebaseId=${masked} | error=${err?.message}`);
+          });
+          return;
+        }
+        // Failed with no recoverable sourceResults — run a fresh sync
+        console.log(`🔁 [FullSync] Previous sync failed with no recoverable sources — running fresh | firebaseId=${masked}`);
       }
-      if (!syncIsEmpty && triggeredBy === 'webhook') {
+      if (syncHasRun && triggeredBy === 'webhook') {
         console.log(`🔁 [FullSync] Forcing sync — webhook override | firebaseId=${masked}`);
       }
 
       const sub = `${firebaseId}_sub`;
-      const today = new Date();
-      const fmt = (d: Date): string => d.toISOString().split('T')[0];
-
       const userName = [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
       const tTotal = Date.now();
 
-      // ── Webhook sync: single full pass (today → 1 year back) ─────────────────
-      if (triggeredBy === 'webhook') {
-        const webhookFrom = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-        const webhookTo   = fmt(today);
+      const window = this.getSyncWindow();
 
+      // Inner helper — fetch bank + cards for one date window, process, persist source results.
+      const runPass = async (from: string, to: string, label: string) => {
         console.log(`\n════════════════════════════════════`);
-        console.log(`  WEBHOOK SYNC`);
+        console.log(`  ${label}`);
         console.log(`  User : ${userName}`);
-        console.log(`  Dates: ${webhookFrom} → ${webhookTo}`);
+        console.log(`  Dates: ${from} → ${to}`);
         console.log(`════════════════════════════════════`);
-        const tPullW = Date.now();
-        const [bankResW, cardResW] = await Promise.all([
-          this.getAndSaveBankTransactions(firebaseId, sub, 'booked', webhookFrom, webhookTo)
-            .catch(e => { this.logger.error(`[WebhookSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
-          this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', webhookFrom, webhookTo, undefined)
-            .catch(e => { this.logger.error(`[WebhookSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+        const tPull = Date.now();
+        const [bankRes, cardRes] = await Promise.all([
+          this.getAndSaveBankTransactions(firebaseId, sub, 'booked', from, to)
+            .catch(e => { this.logger.error(`[${label}] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
+          this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', from, to)
+            .catch(e => { this.logger.error(`[${label}] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
         ]);
-        console.log(`  ✓ Bank — ${((bankResW?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankResW?.normalizedTransactions?.length ?? 0}`);
-        console.log(`  ✓ Card — ${((cardResW?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardResW?.normalizedTransactions?.length ?? 0}`);
-        console.log(`  ✓ Total pull — ${((Date.now() - tPullW) / 1000).toFixed(2)}s\n`);
+        console.log(`  Pull — bank=${((bankRes?.__durationMs ?? 0) / 1000).toFixed(2)}s card=${((cardRes?.__durationMs ?? 0) / 1000).toFixed(2)}s total=${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
 
-        const webhookPhase = this.computePhaseStatus(bankResW, cardResW);
-        let webhookRowsWritten = 0;
-        let webhookProcessStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
+        const phase = this.computePhaseStatus(bankRes, cardRes);
+        let rowsWritten = 0;
+        let processStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
 
-        if (!webhookPhase.hasErrors) {
-          if (webhookPhase.normalizedTransactions.length > 0) {
-            console.log(`════════════════════════════════════`);
-            console.log(`  WEBHOOK SYNC — Process transactions`);
-            console.log(`  Count: ${webhookPhase.normalizedTransactions.length}`);
-            console.log(`════════════════════════════════════`);
-            const tDbW = Date.now();
-            const pr = await this.processingService.process(firebaseId, webhookPhase.normalizedTransactions);
-            webhookRowsWritten = pr.newlySavedToCache;
-            console.log(`  ✓ Process done — ${((Date.now() - tDbW) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
-            webhookProcessStatus = 'completed';
-          } else {
-            console.log(`  ℹ Webhook sync — no transactions in date range\n`);
-            webhookProcessStatus = 'completed';
-          }
+        if (phase.normalizedTransactions.length > 0) {
+          console.log(`════════════════════════════════════`);
+          console.log(`  ${label} — Process transactions`);
+          console.log(`  Valid (after consent filter): ${phase.normalizedTransactions.length}${phase.hasErrors ? ` (partial — errors: ${phase.diagnostics.errors.join(', ')})` : ''}`);
+          console.log(`════════════════════════════════════`);
+          const tDb = Date.now();
+          const pr = await this.processingService.process(firebaseId, phase.normalizedTransactions);
+          rowsWritten = pr.newlySavedToCache;
+          const dedupNote = pr.deduplicatedCount > 0 ? ` | deduped=${pr.deduplicatedCount}` : '';
+          console.log(`  ✓ Process done — ${((Date.now() - tDb) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | cached=${pr.alreadyExistingInCache}${dedupNote}\n`);
+          processStatus = 'completed';
+        } else if (!phase.hasErrors) {
+          console.log(`  ℹ ${label} — no transactions in date range\n`);
+          processStatus = 'completed';
         } else {
-          this.logger.warn(`[WebhookSync] Pull had errors — skipping persist | errors=${JSON.stringify(webhookPhase.diagnostics.errors)}`);
-          webhookProcessStatus = 'failed';
+          this.logger.warn(`[${label}] No transactions and errors — marking failed | errors=${JSON.stringify(phase.diagnostics.errors)}`);
+          processStatus = 'failed';
         }
 
+        const sourceResults = this.buildSourceResults(bankRes, cardRes);
+        await this.userSyncStateService.updateSourceResults(firebaseId, sourceResults).catch(() => {});
+
         console.log(`════════════════════════════════════`);
-        console.log(`  WEBHOOK SYNC COMPLETE — ${webhookProcessStatus === 'completed' ? '✅ OK' : '⚠️  ERRORS'}`);
-        console.log(`  Saved: ${webhookRowsWritten} | Total: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
+        console.log(`  SYNC RESULTS — ${processStatus === 'completed' ? '✅ OK' : '⚠️  ERRORS'}`);
+        console.log(`════════════════════════════════════`);
+        for (const r of sourceResults) {
+          const icon = r.status === 'success' ? '✓' : '✗';
+          const typeLabel = r.type === 'bank' ? 'Bank' : 'Card';
+          const id = r.type === 'bank' ? r.sourceId : `*${r.sourceId}`;
+          const detail = r.status === 'success'
+            ? `${r.transactionCount} valid`
+            : `ERROR: ${r.error ?? 'unknown'}`;
+          console.log(`  ${icon}  ${typeLabel.padEnd(4)} ${id.padEnd(20)} ${detail}`);
+        }
+        if (sourceResults.length === 0) console.log(`  (no sources)`);
         console.log(`════════════════════════════════════\n`);
 
-        // Write both quick and full state so frontend polling resolves correctly
-        await this.userSyncStateService.markQuickFinished(
-          firebaseId, webhookProcessStatus, webhookPhase.resultStatus, webhookRowsWritten,
-          webhookPhase.hasErrors ? webhookPhase.diagnostics.errors.join(', ') : undefined,
-        ).catch(err => this.logger.error(`[WebhookSync] Failed to write quickFinished state | error=${err?.message}`));
-        await this.userSyncStateService.markFullFinished(
-          firebaseId, webhookProcessStatus, webhookPhase.resultStatus, 0,
-          webhookPhase.hasErrors ? webhookPhase.diagnostics.errors.join(', ') : undefined,
-        ).catch(err => this.logger.error(`[WebhookSync] Failed to write fullFinished state | error=${err?.message}`));
-        return;
-      }
+        return { phase, rowsWritten, processStatus };
+      };
 
-      // ── Quick sync (Pull 1): current month + previous 2 full calendar months ──
-      const pull1FromDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-      const pull1From = fmt(pull1FromDate);
-      const pull1To   = fmt(today);
-      const pull2From = fmt(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-      // One day before pull1From — ensures zero overlap between the two pulls.
-      const pull2To   = fmt(new Date(pull1FromDate.getTime() - 24 * 60 * 60 * 1000));
+      const syncLabel = triggeredBy === 'webhook'
+        ? 'WEBHOOK SYNC'
+        : triggeredBy === 'login'
+          ? 'LOGIN SYNC'
+          : 'FULL SYNC';
 
-      console.log(`\n════════════════════════════════════`);
-      console.log(`  QUICK SYNC`);
-      console.log(`  User : ${userName}`);
-      console.log(`  Dates: ${pull1From} → ${pull1To}`);
-      console.log(`════════════════════════════════════`);
-      const tPull1 = Date.now();
-      const [bankRes1, cardRes1] = await Promise.all([
-        this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull1From, pull1To)
-          .catch(e => { this.logger.error(`[QuickSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
-        this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull1From, pull1To, undefined)
-          .catch(e => { this.logger.error(`[QuickSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
-      ]);
-      console.log(`  ✓ Bank — ${((bankRes1?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankRes1?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Card — ${((cardRes1?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardRes1?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Total pull — ${((Date.now() - tPull1) / 1000).toFixed(2)}s\n`);
-
-      const quickPhase = this.computePhaseStatus(bankRes1, cardRes1);
-      let quickRowsWritten = 0;
-      let quickProcessStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
-
-      if (!quickPhase.hasErrors) {
-        if (quickPhase.normalizedTransactions.length > 0) {
-          console.log(`════════════════════════════════════`);
-          console.log(`  QUICK SYNC — Process transactions`);
-          console.log(`  Count: ${quickPhase.normalizedTransactions.length}`);
-          console.log(`════════════════════════════════════`);
-          const tDb1 = Date.now();
-          const pr = await this.processingService.process(firebaseId, quickPhase.normalizedTransactions);
-          quickRowsWritten = pr.newlySavedToCache;
-          console.log(`  ✓ Process done — ${((Date.now() - tDb1) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
-          quickProcessStatus = 'completed';
-        } else {
-          console.log(`  ℹ Quick sync — no transactions in date range\n`);
-          quickProcessStatus = 'completed';
-        }
-      } else {
-        this.logger.warn(`[QuickSync] Pull had errors — skipping persist | errors=${JSON.stringify(quickPhase.diagnostics.errors)}`);
-        quickProcessStatus = 'failed';
-      }
-
-      await this.userSyncStateService.markQuickFinished(
-        firebaseId,
-        quickProcessStatus,
-        quickPhase.resultStatus,
-        quickRowsWritten,
-        quickPhase.hasErrors ? quickPhase.diagnostics.errors.join(', ') : undefined,
-      ).catch(err => {
-        this.logger.error(`[QuickSync] Failed to write finished state | error=${err?.message}`);
-      });
-
-      // ── Gate: do not run Pull 2 if quick sync failed ─────────────────────────
-      if (quickProcessStatus === 'failed') {
-        this.logger.warn(`[FullSync] Skipping — quick sync failed`);
-        await this.userSyncStateService.markFullFinished(firebaseId, 'failed', 'failed', 0, 'Not run: quick sync failed')
-          .catch(err => { this.logger.error(`[FullSync] Failed to write fullFinished(skipped) state | error=${err?.message}`); });
-        return;
-      }
-
-      // ── Full sync (Pull 2): up to 12-month backfill ──────────────────────────
-      await this.userSyncStateService.markFullRunning(firebaseId).catch(err => {
-        this.logger.error(`[FullSync] Failed to write fullRunning state | error=${err?.message}`);
-      });
-
-      console.log(`════════════════════════════════════`);
-      console.log(`  FULL SYNC`);
-      console.log(`  User : ${userName}`);
-      console.log(`  Dates: ${pull2From} → ${pull2To}`);
-      console.log(`════════════════════════════════════`);
-      const tPull2 = Date.now();
-      const [bankRes2, cardRes2] = await Promise.all([
-        this.getAndSaveBankTransactions(firebaseId, sub, 'booked', pull2From, pull2To)
-          .catch(e => { this.logger.error(`[FullSync] Bank pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
-        this.getAndSaveUserCardTransactions(firebaseId, sub, 'booked', pull2From, pull2To, undefined)
-          .catch(e => { this.logger.error(`[FullSync] Card pull failed | error=${e?.message ?? e}`, e?.stack); return null; }),
-      ]);
-      console.log(`  ✓ Bank — ${((bankRes2?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankRes2?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Card — ${((cardRes2?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardRes2?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Total pull — ${((Date.now() - tPull2) / 1000).toFixed(2)}s\n`);
-
-      const fullPhase = this.computePhaseStatus(bankRes2, cardRes2);
-      let fullRowsWritten = 0;
-      let fullProcessStatus: import('../transactions/user-sync-state.entity').ProcessStatus;
-
-      if (!fullPhase.hasErrors) {
-        if (fullPhase.normalizedTransactions.length > 0) {
-          console.log(`════════════════════════════════════`);
-          console.log(`  FULL SYNC — Process transactions`);
-          console.log(`  Count: ${fullPhase.normalizedTransactions.length}`);
-          console.log(`════════════════════════════════════`);
-          const tDb2 = Date.now();
-          const pr = await this.processingService.process(firebaseId, fullPhase.normalizedTransactions);
-          fullRowsWritten = pr.newlySavedToCache;
-          console.log(`  ✓ Process done — ${((Date.now() - tDb2) / 1000).toFixed(2)}s | saved=${pr.newlySavedToCache} | skipped=${pr.alreadyExistingInCache}\n`);
-          fullProcessStatus = 'completed';
-        } else {
-          console.log(`  ℹ Full sync — no transactions in date range\n`);
-          fullProcessStatus = 'completed';
-        }
-      } else {
-        this.logger.warn(`[FullSync] Pull had errors — skipping persist | errors=${JSON.stringify(fullPhase.diagnostics.errors)}`);
-        fullProcessStatus = 'failed';
-      }
-
-      const overallSuccess = quickProcessStatus === 'completed' && fullProcessStatus === 'completed';
-      console.log(`════════════════════════════════════`);
-      console.log(`  SYNC COMPLETE — ${overallSuccess ? '✅ OK' : '⚠️  ERRORS'}`);
-      console.log(`  Quick: ${quickProcessStatus} (${quickRowsWritten} saved)`);
-      console.log(`  Full : ${fullProcessStatus} (${fullRowsWritten} saved)`);
-      console.log(`  Total: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
-      console.log(`════════════════════════════════════\n`);
-
-      await this.userSyncStateService.markFullFinished(
-        firebaseId,
-        fullProcessStatus,
-        fullPhase.resultStatus,
-        fullRowsWritten,
-        fullPhase.hasErrors ? fullPhase.diagnostics.errors.join(', ') : undefined,
-      ).catch(err => {
-        this.logger.error(`[FullSync] Failed to write fullFinished state | firebaseId=${masked} | error=${err?.message}`);
-      });
+      const result = await runPass(window.from, window.to, syncLabel);
+      console.log(`  DONE | ${result.rowsWritten} saved | total=${((Date.now() - tTotal) / 1000).toFixed(2)}s\n`);
+      await this.userSyncStateService.markSyncFinished(
+        firebaseId, result.processStatus, result.phase.resultStatus, result.rowsWritten,
+        result.phase.hasErrors ? result.phase.diagnostics.errors.join(', ') : undefined,
+      ).catch(err => this.logger.error(`[${syncLabel}] Failed to write finished state | firebaseId=${masked} | error=${err?.message}`));
 
     } catch (err: any) {
       console.error(`\n❌ [FullSync] FAILED | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}\n`);
       this.logger.error(`[FullSync] Failed | triggeredBy=${triggeredBy} | firebaseId=${masked} | error=${err?.message ?? err}`, err?.stack);
-      await this.userSyncStateService.markBothFailed(firebaseId, err?.message ?? 'UNKNOWN_ERROR').catch(writeErr => {
+      await this.userSyncStateService.markSyncFailed(firebaseId, err?.message ?? 'UNKNOWN_ERROR').catch(writeErr => {
         this.logger.error(`[FullSync] Failed to write failed state | firebaseId=${masked} | error=${writeErr?.message}`);
       });
+    }
+  }
+
+  /**
+   * Called on login when cache exists but some sources failed in the previous sync.
+   * Retries all failed sources in parallel, then marks the sync completed.
+   * The frontend poller sees running → completed with updated sourceResults.
+   */
+  private async retryFailedSources(firebaseId: string, failedSources: SourceResult[], masked: string): Promise<void> {
+    // Mark as running first so frontend polling sees the state transition
+    await this.userSyncStateService.markSyncRunning(firebaseId, 'manual').catch(err =>
+      this.logger.error(`[RetryFailedSources] Failed to write running state | firebaseId=${masked} | error=${err?.message}`),
+    );
+
+    console.log(`\n════════════════════════════════════`);
+    console.log(`  RETRY FAILED SOURCES`);
+    console.log(`  Count : ${failedSources.length}`);
+    console.log(`  Sources: ${failedSources.map(s => `${s.type}:${s.sourceId}`).join(', ')}`);
+    console.log(`════════════════════════════════════`);
+    const tStart = Date.now();
+
+    await Promise.all(
+      failedSources.map(source =>
+        this.retrySource(firebaseId, source.type, source.sourceId).catch(err => {
+          console.error(`  ✗ ${source.type} "${source.sourceId}" — retry threw: ${err?.message}`);
+        }),
+      ),
+    );
+
+    console.log(`  ✓ All retries done — ${((Date.now() - tStart) / 1000).toFixed(2)}s`);
+    console.log(`════════════════════════════════════\n`);
+
+    await this.userSyncStateService.markSyncFinished(firebaseId, 'completed', 'none', 0)
+      .catch(err => this.logger.error(`[RetryFailedSources] Failed to write finished state | firebaseId=${masked} | error=${err?.message}`));
+  }
+
+  /**
+   * Retries a single bank account or credit card fetch.
+   * Uses the quick-sync date window (current + 3 months back).
+   */
+  async retrySource(
+    firebaseId: string,
+    type: 'bank' | 'card',
+    sourceId: string,
+  ): Promise<SourceResult> {
+    const sub = `${firebaseId}_sub`;
+    const today = new Date();
+    const fmt = (d: Date): string => d.toISOString().split('T')[0];
+    const dateFrom = fmt(new Date(today.getFullYear(), today.getMonth() - 2, 1));
+    const dateTo = fmt(today);
+
+    if (type === 'card') {
+      const dbSources = await this.userSyncStateService.getSourceResults(firebaseId);
+      const dbSource = dbSources.find(s => s.sourceId === sourceId && s.type === 'card');
+      const cardResourceId = dbSource?.resourceId;
+      if (!cardResourceId) {
+        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error: 'resourceId not found in DB' };
+        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        return result;
+      }
+
+      console.log(`\n[RetrySource] Card | sourceId=${sourceId} | resourceId=${cardResourceId} | dates=${dateFrom}→${dateTo}`);
+      try {
+        const cardRes = await this.getAndSaveUserCardTransactionsInternal(
+          firebaseId, sub, 'booked', dateFrom, dateTo, cardResourceId,
+        );
+        const succeeded = cardRes.cards?.find((c: any) => c.cardResourceId === cardResourceId);
+        const failed = cardRes.cardErrors?.find((e: any) => e.cardResourceId === cardResourceId);
+
+        const result: SourceResult = succeeded
+          ? { type: 'card', sourceId, resourceId: cardResourceId, status: 'success', transactionCount: succeeded.transactions?.length ?? 0 }
+          : { type: 'card', sourceId, resourceId: cardResourceId, status: 'failed', transactionCount: 0, error: failed?.message };
+
+        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} — ${result.status} | count=${result.transactionCount}`);
+
+        if (result.status === 'success' && cardRes.normalizedTransactions?.length > 0) {
+          await this.processingService.process(firebaseId, cardRes.normalizedTransactions);
+        }
+        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        return result;
+      } catch (err: any) {
+        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error: err?.message };
+        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        return result;
+      }
+    } else {
+      console.log(`\n[RetrySource] Bank | sourceId=${sourceId} | dates=${dateFrom}→${dateTo}`);
+      try {
+        const bankRes = await this.getAndSaveBankTransactions(firebaseId, sub, 'booked', dateFrom, dateTo);
+        const retryAccountInfoMap: { [name: string]: any } = bankRes.accountInfoMap ?? {};
+        const txCount = Object.entries(bankRes.transactionsByAccount ?? {})
+          .filter(([name]) => (retryAccountInfoMap[name]?.iban ?? '').slice(-7) === sourceId || name === sourceId)
+          .reduce((sum, [, txs]) => sum + (Array.isArray(txs) ? (txs as any[]).length : 0), 0);
+        const failed = (bankRes.bankErrors ?? []).find((e: any) => {
+          const ibanKey = e.iban ? e.iban.slice(-7) : null;
+          return (ibanKey ?? e.sourceId) === sourceId;
+        });
+
+        const result: SourceResult = failed
+          ? { type: 'bank', sourceId, status: 'failed', transactionCount: 0, error: failed.message }
+          : { type: 'bank', sourceId, status: 'success', transactionCount: txCount };
+
+        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Bank ${sourceId} — ${result.status} | count=${result.transactionCount}`);
+
+        if (result.status === 'success' && bankRes.normalizedTransactions?.length > 0) {
+          await this.processingService.process(firebaseId, bankRes.normalizedTransactions);
+        }
+        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        return result;
+      } catch (err: any) {
+        const result: SourceResult = { type: 'bank', sourceId, status: 'failed', transactionCount: 0, error: err?.message };
+        await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
+        return result;
+      }
     }
   }
 

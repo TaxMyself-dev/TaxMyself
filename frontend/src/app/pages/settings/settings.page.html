@@ -348,6 +348,7 @@
         } @else {
           <div class="details-container details-container-fixed accounts-sources-container">
             <div class="detail-row three-fields accounts-sources-header">
+              <div class="detail-field consent-status-cell" aria-hidden="true"></div>
               <div class="detail-field">
                 <span class="detail-label">מספר מזהה</span>
               </div>
@@ -361,6 +362,19 @@
 
             @for (s of accountSources(); track s.sourceName) {
               <div class="detail-row three-fields">
+                <div class="detail-field consent-status-cell">
+                  <span class="consent-status"
+                        [class.consent-status--ok]="s.hasConsent"
+                        [class.consent-status--missing]="!s.hasConsent"
+                        [title]="s.hasConsent ? 'חיבור פעיל' : 'אין הרשאה פעילה'">
+                    @if (s.hasConsent) {
+                      <i class="pi pi-check-circle"></i>
+                    } @else {
+                      <i class="pi pi-times-circle"></i>
+                    }
+                  </span>
+                </div>
+
                 <div class="detail-field">
                   <span class="detail-value-box">{{ s.sourceName }}</span>
                 </div>

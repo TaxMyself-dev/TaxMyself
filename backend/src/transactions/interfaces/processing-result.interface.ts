@@ -6,4 +6,5 @@ export interface ProcessingResult {
   skippedNoBillId: number;
   newlySavedToCache: number;
   alreadyExistingInCache: number;
+  deduplicatedCount: number;
 }
