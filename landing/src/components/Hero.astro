@@ -1,88 +1,71 @@
 ---
 const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
-
-const bubbles = [
-  {
-    n: 1,
-    src: '/images/bubble-1.svg',
-    text: 'לא יודעים לאן הכסף הולך כל חודש?',
-    light: true,
-    flip: false,
-  },
-  {
-    n: 2,
-    src: '/images/bubble-2.svg',
-    text: 'שולחים מסמכים לרואה חשבון אבל לא יודעים מה נכנס לדו״ח?',
-    light: true,
-    flip: true,
-  },
-  {
-    n: 3,
-    src: '/images/bubble-3.svg',
-    text: 'נמאס לרדוף אחרי חשבוניות?',
-    light: false,
-    flip: false,
-  },
-  {
-    n: 4,
-    src: '/images/bubble-4.svg',
-    text: 'הוצאות הבית והעסק מתערבבות?',
-    light: false,
-    flip: true,
-  },
-];
 ---
 
 <section class="hero" id="hero" aria-labelledby="hero-headline">
-  <div class="hero__bg" aria-hidden="true">
-    <img src="/images/hero-wave.svg" alt="" class="hero__wave" />
+  <div class="hero__decoration" aria-hidden="true">
+    <div class="hero__decoration-green"></div>
+    <div class="hero__decoration-white"></div>
   </div>
 
-  <div class="container hero__content">
-    <div class="hero__badge">
-      <span class="hero__avatars" aria-hidden="true">
-        <span class="hero__avatar"></span>
-        <span class="hero__avatar"></span>
-        <span class="hero__avatar"></span>
-      </span>
-      <span>מצטרפים חדשים</span>
-    </div>
+  <div class="hero__split">
+    <div class="hero__color">
+      <div class="container hero__content">
+        <div class="hero__badge">
+          <span>הצטרפו למשתמשים החדשים</span>
+          <span class="hero__avatars" aria-hidden="true">
+            <img
+              src="/images/user-logo-1.svg"
+              alt=""
+              width="28"
+              height="28"
+              loading="lazy"
+              class="hero__avatar"
+            />
+            <img
+              src="/images/user-logo-2.svg"
+              alt=""
+              width="28"
+              height="28"
+              loading="lazy"
+              class="hero__avatar"
+            />
+            <img
+              src="/images/user-logo-3.svg"
+              alt=""
+              width="28"
+              height="28"
+              loading="lazy"
+              class="hero__avatar"
+            />
+          </span>
+        </div>
 
-    <h1 id="hero-headline" class="hero__headline">להרוויח זמן- לחסוך כסף</h1>
-    <p class="hero__sub">ניהול פיננסי חכם לעסק ולבית</p>
+        <h1 id="hero-headline" class="hero__headline">
+          להרוויח זמן-<br class="hero__headline-break" aria-hidden="true" /> לחסוך כסף
+        </h1>
+        <p class="hero__sub">ניהול פיננסי חכם לעסק ולבית</p>
 
-    <div class="hero__ctas">
-      <a href={registerUrl} class="btn btn-primary">הרשמה בחינם &lt;</a>
-      <a href="#how-it-works" class="btn btn-secondary">עוד פרטים</a>
+        <div class="hero__ctas">
+          <a href="#how-it-works" class="btn btn-secondary">עוד פרטים</a>
+          <a href={registerUrl} class="btn btn-primary">הרשמה ←</a>
+        </div>
+      </div>
     </div>
+    <div class="hero__white" aria-hidden="true"></div>
   </div>
 
+  <!-- Bottom-anchored to section; width-sized phone. Space under copy tracks same width clamp (no JS). -->
   <div class="hero__image-area">
     <div class="hero__phone-wrap">
       <img
-        src="/images/hero-phone.png"
+        src="/images/phone-desktop.svg"
         alt="ממשק האפליקציה של KeepInTax המציג ניהול פיננסי חכם"
-        width="826"
-        height="820"
+        width="827"
+        height="743"
         fetchpriority="high"
         class="hero__phone"
       />
-
-      {bubbles.map(b => (
-        <div
-          class={`hero__bubble hero__bubble--${b.n} bubble-float${b.n > 1 ? ` delay-${b.n - 1}` : ''}`}
-          aria-hidden="true"
-        >
-          <img
-            src={b.src}
-            alt=""
-            class={`hero__bubble-shape${b.flip ? ' hero__bubble-shape--flip' : ''}`}
-          />
-          <p class={`hero__bubble-text${b.light ? '' : ' hero__bubble-text--dark'}`}>
-            {b.text}
-          </p>
-        </div>
-      ))}
     </div>
   </div>
 </section>
@@ -91,34 +74,64 @@ const bubbles = [
   .hero {
     position: relative;
     overflow: hidden;
-    min-height: 786px;
-    display: flex;
-    flex-direction: column;
+    background: #fff;
   }
 
-  /* Solid lime background confirmed from Figma node 2:2450 */
-  .hero__bg {
+  /* Background only: sits behind the phone so the split can stack above the image (CTAs stay visible). */
+  .hero__decoration {
     position: absolute;
     inset: 0;
-    background-color: var(--color-accent);
     z-index: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    pointer-events: none;
   }
 
-  .hero__wave {
-    position: absolute;
-    bottom: 0;
-    left: 0;
+  .hero__decoration-green {
+    flex: 88 1 0;
+    min-height: 0;
     width: 100%;
-    height: auto;
-    object-fit: cover;
+    background-color: var(--color-accent);
+    background-image: url(/images/hero-wave.svg);
+    background-repeat: no-repeat;
+    background-size: auto 100%;
+    background-position: center bottom;
+    overflow: hidden;
+  }
+
+  .hero__decoration-white {
+    flex: 12 0 0;
+    width: 100%;
+    background: #fff;
+  }
+
+  /* Full width; 85% height accent + wave, 15% white strip (flex-grow ratio) */
+  .hero__split {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hero__color {
+    flex: 88 1 0;
+    width: 100%;
+    position: relative;
+    z-index: 2;
+    background: transparent;
+  }
+
+  .hero__white {
+    flex: 12 0 0;
+    width: 100%;
+    background: transparent;
   }
 
   .hero__content {
     position: relative;
-    z-index: 2;
+    z-index: 3;
     text-align: center;
-    padding-top: 100px;
-    padding-bottom: 2rem;
+    padding-top: clamp(64px, 10vw, 100px);
   }
 
   .hero__badge {
@@ -132,7 +145,7 @@ const bubbles = [
     font-size: 0.9rem;
     font-weight: 500;
     color: #1a2641;
-    margin-bottom: 1.5rem;
+    margin: 0 0 1.5rem;
   }
 
   .hero__avatars {
@@ -143,9 +156,10 @@ const bubbles = [
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: var(--color-primary);
     border: 2px solid #fff;
     display: block;
+    object-fit: cover;
+    flex-shrink: 0;
   }
 
   .hero__avatar + .hero__avatar {
@@ -156,15 +170,19 @@ const bubbles = [
     font-size: clamp(2.5rem, 5vw, 4rem);
     font-weight: 700;
     color: var(--color-primary);
-    margin-bottom: 0.5rem;
+    margin: 0 0 0.5rem;
     line-height: 1.15;
+  }
+
+  .hero__headline-break {
+    display: none;
   }
 
   .hero__sub {
     font-size: clamp(1.25rem, 2.5vw, 2rem);
     font-weight: 400;
     color: var(--color-primary);
-    margin-bottom: 2rem;
+    margin: 0 0 2rem;
   }
 
   .hero__ctas {
@@ -172,116 +190,40 @@ const bubbles = [
     gap: 1rem;
     justify-content: center;
     flex-wrap: wrap;
+    margin: 0;
   }
 
-  /* ── Phone + bubbles ── */
   .hero__image-area {
     position: relative;
-    z-index: 1;
+    inset-inline: 0;
+    top: 0;
+    bottom: 0;
     display: flex;
     justify-content: center;
-    margin-top: auto;
+    align-items: flex-end;
+    z-index: 1;
+    pointer-events: none;
   }
 
   .hero__phone-wrap {
     position: relative;
-    width: 413px;
+    max-width: min(1360px, 98vw);
+    width: auto;
+    display: flex;
+    justify-content: center;
   }
 
   .hero__phone {
-    width: 100%;
-    height: auto;
     display: block;
-  }
-
-  /* ── Bubble composite ── */
-  .hero__bubble {
-    position: absolute;
-    pointer-events: none;
-  }
-
-  .hero__bubble-shape {
-    display: block;
-    width: 100%;
+    width: clamp(260px, 88vw, 720px);
+    max-width: 100%;
     height: auto;
-  }
-
-  /* Mirror the shape so the tail points left (toward phone from the right side) */
-  .hero__bubble-shape--flip {
-    transform: scaleX(-1);
-  }
-
-  .hero__bubble-text {
-    position: absolute;
-    /* Stay within the rectangular body — bubble tail occupies bottom ~28% */
-    inset: 10% 10% 28% 10%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-    line-height: 1.35;
-    margin: 0;
-    color: #1a2641;
-  }
-
-  .hero__bubble-text--dark {
-    color: #ebfd71;
-  }
-
-  /* Individual bubble widths and positions — relative to .hero__phone-wrap */
-  .hero__bubble--1 {
-    width: 210px;
-    bottom: 55%;
-    inset-inline-end: 100%;
-  }
-
-  .hero__bubble--2 {
-    width: 260px;
-    top: 30%;
-    inset-inline-start: 100%;
-  }
-
-  /* bubble-2 text inset adjusted for its shallower tail depth (~26% vs 28%) */
-  .hero__bubble--2 .hero__bubble-text {
-    inset-block-end: 26%;
-  }
-
-  .hero__bubble--3 {
-    width: 180px;
-    top: 10%;
-    inset-inline-end: 95%;
-  }
-
-  .hero__bubble--4 {
-    width: 180px;
-    bottom: 40%;
-    inset-inline-start: 98%;
   }
 
   /* ── Mobile ── */
   @media (max-width: 768px) {
-    .hero {
-      min-height: unset;
-    }
-
-    .hero__content {
-      padding-top: 80px;
-    }
-
-    .hero__image-area {
-      padding-inline: 1rem;
-      padding-bottom: 0;
-    }
-
-    .hero__phone-wrap {
-      width: 100%;
-      max-width: 360px;
-    }
-
-    .hero__bubble {
-      display: none;
+    .hero__headline-break {
+      display: block;
     }
   }
 </style>

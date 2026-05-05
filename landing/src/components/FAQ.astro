@@ -10,8 +10,8 @@ import { faqItems } from '../data/faq';
       {faqItems.map((item, i) => (
         <details class={`faq__item animate-on-scroll delay-${i + 1}`}>
           <summary class="faq__question">
-            {item.question}
             <span class="faq__icon" aria-hidden="true"></span>
+            <span class="faq__question-text">{item.question}</span>
           </summary>
           <div class="faq__panel">
             <div class="faq__panel-inner">
@@ -49,13 +49,19 @@ import { faqItems } from '../data/faq';
     cursor: pointer;
     list-style: none;
     display: flex;
-    justify-content: space-between;
     align-items: center;
     padding: 1.25rem 1.5rem;
     font-weight: 600;
     font-size: 1rem;
     color: var(--color-text);
     gap: 1rem;
+    /* RTL: first flex item (+) is at inline-start = visually on the right */
+  }
+
+  .faq__question-text {
+    flex: 1;
+    min-width: 0;
+    text-align: start;
   }
 
   .faq__question::-webkit-details-marker {
@@ -85,7 +91,7 @@ import { faqItems } from '../data/faq';
   }
 
   details[open]:not(.is-closing) .faq__icon {
-    background: var(--color-accent-dark);
+    background: var(--color-pricing-featured-bg);
   }
 
   details[open]:not(.is-closing) .faq__icon::before {
