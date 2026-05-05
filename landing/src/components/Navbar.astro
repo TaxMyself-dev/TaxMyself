@@ -1,5 +1,5 @@
 ---
-const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? '#';
+const loginUrl = 'https://app.keepintax.co.il/login';
 ---
 
 <header class="navbar" id="navbar">
@@ -75,8 +75,7 @@ const loginUrl = import.meta.env.PUBLIC_APP_LOGIN_URL ?? '#';
   }
 
   @media (max-width: 768px) {
-    .navbar__links,
-    .navbar__cta {
+    .navbar__links {
       display: none;
     }
 

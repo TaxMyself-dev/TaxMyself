@@ -3,55 +3,66 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
 ---
 
 <section class="hero" id="hero" aria-labelledby="hero-headline">
-  <div class="container hero__content">
-    <div class="hero__badge">
-      <span>הצטרפו למשתמשים החדשים</span>
-      <span class="hero__avatars" aria-hidden="true">
-        <img
-          src="/images/user-logo-1.svg"
-          alt=""
-          width="28"
-          height="28"
-          loading="lazy"
-          class="hero__avatar"
-        />
-        <img
-          src="/images/user-logo-2.svg"
-          alt=""
-          width="28"
-          height="28"
-          loading="lazy"
-          class="hero__avatar"
-        />
-        <img
-          src="/images/user-logo-3.svg"
-          alt=""
-          width="28"
-          height="28"
-          loading="lazy"
-          class="hero__avatar"
-        />
-      </span>
-    </div>
-
-    <h1 id="hero-headline" class="hero__headline">
-      להרוויח זמן-<br class="hero__headline-break" aria-hidden="true" /> לחסוך כסף
-    </h1>
-    <p class="hero__sub">ניהול פיננסי חכם לעסק ולבית</p>
-
-    <div class="hero__ctas">
-      <a href="#how-it-works" class="btn btn-secondary">עוד פרטים</a>
-      <a href={registerUrl} class="btn btn-primary">הרשמה ←</a>
-    </div>
+  <div class="hero__decoration" aria-hidden="true">
+    <div class="hero__decoration-green"></div>
+    <div class="hero__decoration-white"></div>
   </div>
 
+  <div class="hero__split">
+    <div class="hero__color">
+      <div class="container hero__content">
+        <div class="hero__badge">
+          <span>הצטרפו למשתמשים החדשים</span>
+          <span class="hero__avatars" aria-hidden="true">
+            <img
+              src="/images/user-logo-1.svg"
+              alt=""
+              width="28"
+              height="28"
+              loading="lazy"
+              class="hero__avatar"
+            />
+            <img
+              src="/images/user-logo-2.svg"
+              alt=""
+              width="28"
+              height="28"
+              loading="lazy"
+              class="hero__avatar"
+            />
+            <img
+              src="/images/user-logo-3.svg"
+              alt=""
+              width="28"
+              height="28"
+              loading="lazy"
+              class="hero__avatar"
+            />
+          </span>
+        </div>
+
+        <h1 id="hero-headline" class="hero__headline">
+          להרוויח זמן-<br class="hero__headline-break" aria-hidden="true" /> לחסוך כסף
+        </h1>
+        <p class="hero__sub">ניהול פיננסי חכם לעסק ולבית</p>
+
+        <div class="hero__ctas">
+          <a href="#how-it-works" class="btn btn-secondary">עוד פרטים</a>
+          <a href={registerUrl} class="btn btn-primary">הרשמה ←</a>
+        </div>
+      </div>
+    </div>
+    <div class="hero__white" aria-hidden="true"></div>
+  </div>
+
+  <!-- Bottom-anchored to section; width-sized phone. Space under copy tracks same width clamp (no JS). -->
   <div class="hero__image-area">
     <div class="hero__phone-wrap">
       <img
-        src="/images/hero-phone.png"
+        src="/images/phone-desktop.svg"
         alt="ממשק האפליקציה של KeepInTax המציג ניהול פיננסי חכם"
-        width="826"
-        height="820"
+        width="827"
+        height="743"
         fetchpriority="high"
         class="hero__phone"
       />
@@ -63,23 +74,64 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
   .hero {
     position: relative;
     overflow: hidden;
-    min-height: 786px;
+    background: #fff;
+  }
+
+  /* Background only: sits behind the phone so the split can stack above the image (CTAs stay visible). */
+  .hero__decoration {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
     display: flex;
     flex-direction: column;
-    background-image: url(/images/hero-wave.svg);
+    width: 100%;
+    pointer-events: none;
+  }
+
+  .hero__decoration-green {
+    flex: 88 1 0;
+    min-height: 0;
+    width: 100%;
     background-color: var(--color-accent);
+    background-image: url(/images/hero-wave.svg);
     background-repeat: no-repeat;
-    /* Height = section height, width follows aspect ratio — sides clip (overflow: hidden) */
     background-size: auto 100%;
     background-position: center bottom;
+    overflow: hidden;
+  }
+
+  .hero__decoration-white {
+    flex: 12 0 0;
+    width: 100%;
+    background: #fff;
+  }
+
+  /* Full width; 85% height accent + wave, 15% white strip (flex-grow ratio) */
+  .hero__split {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hero__color {
+    flex: 88 1 0;
+    width: 100%;
+    position: relative;
+    z-index: 2;
+    background: transparent;
+  }
+
+  .hero__white {
+    flex: 12 0 0;
+    width: 100%;
+    background: transparent;
   }
 
   .hero__content {
     position: relative;
-    z-index: 2;
+    z-index: 3;
     text-align: center;
-    padding-top: 100px;
-    padding-bottom: 2rem;
+    padding-top: clamp(64px, 10vw, 100px);
   }
 
   .hero__badge {
@@ -93,7 +145,7 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     font-size: 0.9rem;
     font-weight: 500;
     color: #1a2641;
-    margin-bottom: 1.5rem;
+    margin: 0 0 1.5rem;
   }
 
   .hero__avatars {
@@ -118,7 +170,7 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     font-size: clamp(2.5rem, 5vw, 4rem);
     font-weight: 700;
     color: var(--color-primary);
-    margin-bottom: 0.5rem;
+    margin: 0 0 0.5rem;
     line-height: 1.15;
   }
 
@@ -130,7 +182,7 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     font-size: clamp(1.25rem, 2.5vw, 2rem);
     font-weight: 400;
     color: var(--color-primary);
-    margin-bottom: 2rem;
+    margin: 0 0 2rem;
   }
 
   .hero__ctas {
@@ -138,50 +190,40 @@ const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
     gap: 1rem;
     justify-content: center;
     flex-wrap: wrap;
+    margin: 0;
   }
 
-  /* ── Phone + bubbles ── */
   .hero__image-area {
     position: relative;
-    z-index: 1;
+    inset-inline: 0;
+    top: 0;
+    bottom: 0;
     display: flex;
     justify-content: center;
-    margin-top: auto;
+    align-items: flex-end;
+    z-index: 1;
+    pointer-events: none;
   }
 
   .hero__phone-wrap {
     position: relative;
-    width: 413px;
+    max-width: min(1360px, 98vw);
+    width: auto;
+    display: flex;
+    justify-content: center;
   }
 
   .hero__phone {
-    width: 100%;
-    height: auto;
     display: block;
+    width: clamp(260px, 88vw, 720px);
+    max-width: 100%;
+    height: auto;
   }
 
   /* ── Mobile ── */
   @media (max-width: 768px) {
-    .hero {
-      min-height: unset;
-    }
-
     .hero__headline-break {
       display: block;
-    }
-
-    .hero__content {
-      padding-top: 80px;
-    }
-
-    .hero__image-area {
-      padding-inline: 1rem;
-      padding-bottom: 0;
-    }
-
-    .hero__phone-wrap {
-      width: 100%;
-      max-width: 360px;
     }
   }
 </style>
