@@ -1,5 +1,6 @@
 ---
 import { pricingPlans } from '../data/pricing';
+const registerUrl = 'https://app.keepintax.co.il/register';
 ---
 
 <section class="pricing section" id="pricing">
@@ -11,14 +12,15 @@ import { pricingPlans } from '../data/pricing';
 
     <div class="pricing__grid">
       {pricingPlans.map((plan, i) => (
-        <article
+        <a
+          href={registerUrl}
           class:list={[
             'pricing-card',
             `animate-on-scroll delay-${i + 1}`,
             plan.featured && 'pricing-card--featured',
             plan.id === 'pro' && 'pricing-card--pro',
           ]}
-          aria-label={`תוכנית ${plan.name}`}
+          aria-label={`תוכנית ${plan.name} — הרשמה`}
         >
           {plan.featured && (
             <div class="pricing-card__badge-row">
@@ -77,7 +79,7 @@ import { pricingPlans } from '../data/pricing';
               ))
             )}
           </div>
-        </article>
+        </a>
       ))}
     </div>
   </div>
@@ -101,13 +103,23 @@ import { pricingPlans } from '../data/pricing';
     height: 100%;
     display: flex;
     flex-direction: column;
+    cursor: pointer;
+    text-decoration: none;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .pricing-card:hover {
+    box-shadow: var(--shadow-card);
+    text-decoration: none;
   }
 
   .pricing-card--featured {
     background: var(--color-pricing-featured-bg);
     border-width: 2px;
-    transform: scale(1.03);
-    box-shadow: var(--shadow-card);
+  }
+
+  .pricing-card--featured:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
   }
 
   /* Corner sticker (Figma): top-left, ~10–15° counter-clockwise */
@@ -302,8 +314,5 @@ import { pricingPlans } from '../data/pricing';
       margin-inline: auto;
     }
 
-    .pricing-card--featured {
-      transform: none;
-    }
   }
 </style>
