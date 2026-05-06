@@ -140,7 +140,7 @@ export class FlowAnalysisComponent {
 
   readonly myForm = new FormGroup(
     {
-      period:   new FormControl<string | null>(null, Validators.required),
+      period:   new FormControl<string | null>('3_MONTHS', Validators.required),
       dateFrom: new FormControl<Date | null>(null),
       dateTo:   new FormControl<Date | null>(null),
       account:  new FormControl<string | null>(null, Validators.required),
@@ -325,13 +325,12 @@ export class FlowAnalysisComponent {
 
   constructor() {
     this.transactionService.ensureAccountsLoaded();
-    this.myForm.patchValue(calculatePeriodRange('3_MONTHS'));
 
     effect(() => {
       const period = this.period();
       if (period === 'CUSTOM') { this.showCustomRange.set(true); return; }
       this.showCustomRange.set(false);
-      this.myForm.patchValue(calculatePeriodRange(period));
+      this.myForm.patchValue(calculatePeriodRange(period), { emitEvent: false });
     });
 
     effect(() => {

@@ -7,7 +7,7 @@
 
   <form [formGroup]="myForm">
     <div cdkOverlayOrigin #trigger="cdkOverlayOrigin">
-      <app-segmented-control [options]="periodOptions" formControlName="period">
+      <app-segmented-control [options]="periodOptions" [formControlName]="'period'">
       </app-segmented-control>
     </div>
   </form>
