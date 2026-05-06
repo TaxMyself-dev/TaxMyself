@@ -5,6 +5,7 @@ import { EChartsOption } from 'echarts';
 export interface DonutChartItem {
   label: string;
   value: number;
+  amount: number;
   color: string;
 }
 
@@ -48,6 +49,22 @@ export class DonutChartComponent {
     };
   });
 
+  legendColumns = computed<DonutChartItem[][]>(() => {
+    const items = this.data();
+    const columns: DonutChartItem[][] = [];
+    for (let i = 0; i < items.length; i += 5) {
+      columns.push(items.slice(i, i + 5));
+    }
+    return columns;
+  });
+
+  formatAmount(amount: number): string {
+    return amount.toLocaleString('he-IL', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   formattedTotal = computed(() =>
     this.total().toLocaleString('he-IL', {
       minimumFractionDigits: 2,
@@ -57,7 +74,7 @@ export class DonutChartComponent {
 
   totalFontSize = computed(() => {
     const length = this.formattedTotal().length;
-  
+
     if (length <= 9) return 30;
     if (length <= 11) return 26;
     if (length <= 13) return 22;

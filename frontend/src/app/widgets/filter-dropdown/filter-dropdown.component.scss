@@ -1,0 +1,201 @@
+:host {
+  display: inline-block;
+}
+
+// ── Trigger button ─────────────────────────────────────────────────────────
+.filter-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1.5px solid #E0E0E0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s;
+
+  &:hover:not(.disabled) {
+    border-color: #6C63FF;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #6C63FF;
+    outline-offset: 2px;
+  }
+
+  &.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.filter-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #6C63FF;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+// ── Dropdown panel ─────────────────────────────────────────────────────────
+.dropdown-panel {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+  min-width: 220px;
+  max-width: 280px;
+  max-height: 400px;
+  overflow: hidden;
+  direction: rtl;
+}
+
+// ── Sticky section (header + search on inner, "הכל" on main) ──────────────
+.panel-sticky {
+  flex-shrink: 0;
+  background: #ffffff;
+}
+
+// ── Inner screen header ────────────────────────────────────────────────────
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #555;
+  padding: 0;
+  flex-shrink: 0;
+
+  &:hover {
+    background: #F5F5F5;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+  flex: 1;
+}
+
+// ── Search ─────────────────────────────────────────────────────────────────
+.search-wrap {
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1.5px solid #E0E0E0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  direction: rtl;
+
+  &:focus {
+    border-color: #6C63FF;
+  }
+}
+
+// ── Scrollable list area ───────────────────────────────────────────────────
+.panel-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+// ── Group header ───────────────────────────────────────────────────────────
+.group-header {
+  padding: 6px 14px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9E9E9E;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+// ── List items ─────────────────────────────────────────────────────────────
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #222;
+  transition: background 0.1s;
+
+  &:hover {
+    background: #F8F8FF;
+  }
+
+  &.selected {
+    color: #6C63FF;
+    font-weight: 600;
+  }
+
+  &--indented {
+    padding-right: 26px;
+  }
+
+  &.all-item {
+    font-weight: 600;
+    color: #6C63FF;
+    border-bottom: 1px solid #F0F0F0;
+  }
+}
+
+.item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #6C63FF;
+}

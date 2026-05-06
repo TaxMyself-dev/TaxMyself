@@ -1,6 +1,9 @@
 <header>
-  <app-input-select [controlName]="'account'" [placeholder]="'בחר חשבון'" [items]="accountsList()"
+  <div class="select">
+    <span class="title">בחר חשבון</span>
+    <app-input-select [controlName]="'account'" [placeholder]="'בחר חשבון'" [items]="accountsList()"
     [parentForm]="myForm" [size]="inputsSize.MOBILE"></app-input-select>
+  </div>
 
   <form [formGroup]="myForm">
     <div cdkOverlayOrigin #trigger="cdkOverlayOrigin">
@@ -8,6 +11,20 @@
       </app-segmented-control>
     </div>
   </form>
+
+  <app-filter-dropdown
+    [items]="dropdownItems()"
+    [groupedItems]="dropdownGrouped()"
+    [isGrouped]="isDropdownGrouped()"
+    [title]="filterScreenTitle()"
+    [showBack]="showDropdownBack()"
+    [selectedIds]="selectedIds()"
+    [activeCount]="activeFilterCount()"
+    [isDisabled]="isFilterDisabled()"
+    (itemClicked)="onFilterItemClicked($event)"
+    (backClicked)="onFilterBack()"
+    (clearAll)="onFilterClearAll()">
+  </app-filter-dropdown>
 
   <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
     הצג
@@ -32,7 +49,7 @@
   <!-- Line chart -->
   <div class="chart-card">
     <div class="chart-card__header">
-      <h3 class="chart-title">תזרים חודשי</h3>
+      <h3 class="chart-title">גרף ההוצאות שלי</h3>
       <form [formGroup]="lineDisplayForm">
         <app-segmented-control [options]="lineDisplayOptions" formControlName="mode">
         </app-segmented-control>
@@ -70,9 +87,6 @@
       <div class="state-message">אין הוצאות בתקופה זו</div>
     } @else {
       <app-donut-chart [data]="categoryExpensesData()" [total]="totalExpenses()"></app-donut-chart>
-      @if (hasMoreCategories()) {
-        <p class="more-categories-note">יש עוד קטגוריות שלא מוצגות</p>
-      }
     }
   </div>
 </main>

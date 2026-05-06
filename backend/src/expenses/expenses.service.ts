@@ -570,6 +570,16 @@ export class ExpensesService {
         return this.defaultSubCategoryRepo.find({ order: { categoryName: 'ASC', subCategoryName: 'ASC' } });
     }
 
+    /** Get all user-specific sub-categories for a given user, optionally scoped to a business. */
+    async getAllUserSubCategories(firebaseId: string, businessNumber?: string): Promise<UserSubCategory[]> {
+        const where: any = { firebaseId };
+        if (businessNumber) where.businessNumber = businessNumber;
+        return this.userSubCategoryRepo.find({
+            where,
+            order: { categoryName: 'ASC', subCategoryName: 'ASC' },
+        });
+    }
+
     /** Admin: update a default sub-category by id. */
     async updateDefaultSubCategory(id: number, dto: Partial<DefaultSubCategory>): Promise<DefaultSubCategory> {
         const existing = await this.defaultSubCategoryRepo.findOne({ where: { id } });

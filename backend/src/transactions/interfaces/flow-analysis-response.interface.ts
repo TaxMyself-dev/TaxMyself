@@ -14,6 +14,5 @@ export interface FlowAnalysisResponse {
   totalExpenses: number;
   totalIncomes: number;
   monthlyFlow: MonthlyFlowPoint[];
-  expensesByCategory: CategoryExpense[]; // max 9 items (top 8 + optional grouped remainder)
-  hasMoreCategories: boolean;
+  expensesByCategory: CategoryExpense[]; // all categories, ordered by amount desc
 }

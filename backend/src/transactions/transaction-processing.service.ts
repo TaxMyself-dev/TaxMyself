@@ -1269,26 +1269,15 @@ export class TransactionProcessingService {
       .orderBy('SUM(ABS(c.amount))', 'DESC')
       .getRawMany<{ label: string | null; amount: string }>();
 
-    const TOP_N = 8;
-    const top    = categoryRaw.slice(0, TOP_N);
-    const rest   = categoryRaw.slice(TOP_N);
-    const hasMoreCategories = rest.length > 0;
-
     const toPercent = (amount: number) =>
       totalExpenses > 0 ? Math.round((amount / totalExpenses) * 1000) / 10 : 0;
 
-    const expensesByCategory = top.map(r => {
+    const expensesByCategory = categoryRaw.map(r => {
       const amount = Math.round(parseFloat(r.amount) * 100) / 100;
       return { label: r.label ?? null, amount, percentage: toPercent(amount) };
     });
 
-    if (hasMoreCategories) {
-      const otherAmount = rest.reduce((s, r) => s + parseFloat(r.amount), 0);
-      const rounded = Math.round(otherAmount * 100) / 100;
-      expensesByCategory.push({ label: 'OTHER', amount: rounded, percentage: toPercent(rounded) });
-    }
-
-    return { totalExpenses, totalIncomes, monthlyFlow, expensesByCategory, hasMoreCategories };
+    return { totalExpenses, totalIncomes, monthlyFlow, expensesByCategory };
   }
 
   private async runDailyCacheCleanup(label: string): Promise<void> {

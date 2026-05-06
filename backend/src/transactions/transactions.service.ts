@@ -389,6 +389,14 @@ export class TransactionsService {
   }
 
 
+  async getBusinessNumberByBillId(billId: number, userId: string): Promise<string | null> {
+    const bill = await this.billRepo.findOne({
+      where: { id: billId, userId },
+      select: ['businessNumber'],
+    });
+    return bill?.businessNumber ?? null;
+  }
+
   async getBusinessNumberByBillName(userId: string, billName: string): Promise<string | null> {
     const bill = await this.billRepo.findOne({
       where: {
@@ -1634,5 +1642,21 @@ export class TransactionsService {
     return { message };
   }
 
+  async getDistinctMerchants(userId: string, billId?: number): Promise<string[]> {
+    const qb = this.cacheRepo
+      .createQueryBuilder('c')
+      .select('DISTINCT TRIM(c.merchantName)', 'merchantName')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.merchantName IS NOT NULL')
+      .andWhere("TRIM(c.merchantName) != ''");
+
+    if (billId) {
+      qb.andWhere('c.billId = :billId', { billId });
+    }
+
+    qb.orderBy('merchantName', 'ASC');
+    const rows = await qb.getRawMany<{ merchantName: string }>();
+    return rows.map(r => r.merchantName);
+  }
 
 }

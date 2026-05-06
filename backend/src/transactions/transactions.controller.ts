@@ -20,6 +20,8 @@ import { ModuleName } from '../enum';
 import { SourceResult } from './user-source-sync-state.entity';
 import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
+import { ExpensesService } from '../expenses/expenses.service';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 
 
 @Controller('transactions')
@@ -33,6 +35,7 @@ export class TransactionsController {
     private readonly userSyncStateService: UserSyncStateService,
     private readonly usersService: UsersService,
     private readonly feezbackService: FeezbackService,
+    private readonly expensesService: ExpensesService,
   ) {}
 
   @Get('sync-status')
@@ -389,6 +392,37 @@ export class TransactionsController {
       query.lineFilterType,
       query.lineFilterValue,
     );
+  }
+
+  @Get('flow-analysis-merchants')
+  @UseGuards(FirebaseAuthGuard)
+  async getFlowAnalysisMerchants(
+    @Req() request: AuthenticatedRequest,
+    @Query('billId') billId?: string,
+  ): Promise<string[]> {
+    const userId = request.user?.firebaseId;
+    const numericBillId = billId ? Number(billId) : undefined;
+    return this.transactionsService.getDistinctMerchants(
+      userId,
+      numericBillId && Number.isFinite(numericBillId) ? numericBillId : undefined,
+    );
+  }
+
+  @Get('get-all-user-sub-categories')
+  @UseGuards(FirebaseAuthGuard)
+  async getAllUserSubCategories(
+    @Req() request: AuthenticatedRequest,
+    @Query('billId') billId?: string,
+  ): Promise<UserSubCategory[]> {
+    const userId = request.user?.firebaseId;
+    let businessNumber: string | undefined;
+    if (billId) {
+      const numericBillId = Number(billId);
+      if (Number.isFinite(numericBillId) && numericBillId > 0) {
+        businessNumber = await this.transactionsService.getBusinessNumberByBillId(numericBillId, userId) ?? undefined;
+      }
+    }
+    return this.expensesService.getAllUserSubCategories(userId, businessNumber);
   }
 
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.

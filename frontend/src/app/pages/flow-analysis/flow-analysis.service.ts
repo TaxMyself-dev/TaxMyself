@@ -20,7 +20,6 @@ export interface FlowAnalysisResponse {
   totalIncomes: number;
   monthlyFlow: MonthlyFlowPoint[];
   expensesByCategory: CategoryExpense[];
-  hasMoreCategories: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -47,5 +46,10 @@ export class FlowAnalysisService {
     }
 
     return this.http.get<FlowAnalysisResponse>(this.url, { params });
+  }
+
+  getMerchants(billId: string): Observable<string[]> {
+    const params = new HttpParams().set('billId', billId);
+    return this.http.get<string[]>(`${environment.apiUrl}transactions/flow-analysis-merchants`, { params });
   }
 }

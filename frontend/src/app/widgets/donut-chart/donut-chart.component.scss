@@ -6,9 +6,16 @@
   }
   
   .legend {
-    display: grid;
-    grid-template-columns: repeat(2, 170px);
-    gap: 22px 34px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 34px;
+  }
+
+  .legend-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
   }
   
 //   .legend-item {
@@ -26,19 +33,23 @@
 
 .legend-item {
     display: grid;
-    grid-template-columns: 44px 2px 1fr;
+    grid-template-columns: 120px 2px 1fr;
     align-items: center;
     column-gap: 10px;
+    height: 54px;
   }
-  
+
   .legend-value {
-    width: 44px;
+    width: 120px;
     text-align: left;
-    font-size: 20px;
+    font-size: 16px;
     color: #8b8b8b;
     direction: ltr;
     unicode-bidi: isolate;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .legend-line {
@@ -48,9 +59,10 @@
   }
   
   .legend-label {
-    font-size: 13px;
+    font-size: 16px;
     color: #8b8b8b;
     white-space: nowrap;
+    font-weight: 600;
   }
   
   .chart-wrap {

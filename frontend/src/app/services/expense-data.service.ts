@@ -136,6 +136,12 @@ export class ExpenseDataService {
     return this.http.get<any[]>(url);
   }
 
+  /** Get all user-specific sub-categories for the authenticated user, scoped to the given bill. */
+  getAllUserSubCategories(billId: string): Observable<any[]> {
+    const params = new HttpParams().set('billId', billId);
+    return this.http.get<any[]>(`${environment.apiUrl}transactions/get-all-user-sub-categories`, { params });
+  }
+
   /** Admin: update a default sub-category. */
   updateDefaultSubCategory(id: number, body: any): Observable<any> {
     const url = `${environment.apiUrl}expenses/update-default-sub-category/${id}`;

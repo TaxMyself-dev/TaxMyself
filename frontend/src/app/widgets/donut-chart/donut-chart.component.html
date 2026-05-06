@@ -10,16 +10,20 @@
   </div>
 
   <div class="legend">
-    @for (item of data(); track item.label) {
-      <div class="legend-item">
-        <span class="legend-value">{{ item.value }}%</span>
+    @for (column of legendColumns(); track $index) {
+      <div class="legend-column">
+        @for (item of column; track item.label) {
+          <div class="legend-item">
+            <span class="legend-value">₪ {{ formatAmount(item.amount) }}</span>
 
-        <span
-          class="legend-line"
-          [style.background]="item.color"
-        ></span>
+            <span
+              class="legend-line"
+              [style.background]="item.color"
+            ></span>
 
-        <span class="legend-label">{{ item.label }}</span>
+            <span class="legend-label">{{ item.label }}</span>
+          </div>
+        }
       </div>
     }
   </div>
