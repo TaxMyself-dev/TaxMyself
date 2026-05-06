@@ -187,6 +187,8 @@ export class FlowAnalysisComponent {
   readonly loading  = signal(false);
   readonly hasError = signal(false);
 
+  private readonly initialRequestSent = signal(false);
+
   private readonly formStatus = toSignal(this.myForm.statusChanges, { initialValue: this.myForm.status });
   private readonly formValue  = toSignal(this.myForm.valueChanges,  { initialValue: this.myForm.value  });
 
@@ -335,8 +337,8 @@ export class FlowAnalysisComponent {
 
     effect(() => {
       const account = this.accountsList()[0]?.value as string;
-      if (account) {
-        this.myForm.get('account')?.setValue(account);
+      if (account && !this.myForm.controls.account.value) {
+        this.myForm.controls.account.setValue(account);
       }
     });
 
@@ -344,6 +346,13 @@ export class FlowAnalysisComponent {
     effect(() => {
       this.accountValue(); // read to subscribe
       this.resetFilterState();
+    });
+
+    effect(() => {
+      if (this.initialRequestSent()) return;
+      if (!this.canSubmit()) return;
+      this.initialRequestSent.set(true);
+      this.submit$.next();
     });
   }
 

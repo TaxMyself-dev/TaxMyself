@@ -40,7 +40,7 @@ export class LineChartComponent {
         left: 8,
         right: 8,
         top: 20,
-        bottom: 0,
+        bottom: 25,
       },
 
       tooltip: {
@@ -49,7 +49,8 @@ export class LineChartComponent {
       },
 
       legend: allSeries.length > 1
-        ? { show: true, bottom: 0, textStyle: { color: '#8F8F8F', fontSize: 11 } }
+        ? { show: true, bottom: 0, right: 0, orient: 'horizontal', icon: 'circle',
+           textStyle: { color: '#8F8F8F', fontSize: 11 } }
         : { show: false },
 
       xAxis: {

@@ -29,7 +29,7 @@ export class DonutChartComponent {
       tooltip: {
         trigger: 'item',
         formatter: (params: any) =>
-          `${params.name}: ${params.value}%`,
+          `${params.name}: ${params.percent}%`,
       },
 
       series: [
@@ -42,7 +42,7 @@ export class DonutChartComponent {
           labelLine: { show: false },
           data: items.map(item => ({
             name: item.label,
-            value: item.value,
+            value: item.amount,
           })),
         },
       ],
