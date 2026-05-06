@@ -125,7 +125,7 @@ export class SettingsPage implements OnInit {
   /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
   accountSourcesLoading = signal(false);
   accountSources = signal<
-    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null }[]
+    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean }[]
   >([]);
   addPermissionDialogVisible = false;
   addPermissionEmail = '';

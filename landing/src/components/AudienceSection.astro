@@ -1,0 +1,335 @@
+---
+const registerUrl = import.meta.env.PUBLIC_APP_REGISTER_URL ?? '#';
+---
+
+<section class="audience section" id="audience" aria-label="מי זה בשבילנו?">
+  <div class="container audience__inner">
+
+    <!-- Text column — DOM-first = RTL-start = visually on the right -->
+    <div class="audience__text animate-on-scroll">
+      <h2>לא בטוחים שזה<br />מתאים לכם?</h2>
+      <p>בואו לגלות איך זה יכול לשפר ולייעל את החיים שלכם</p>
+      <a href={registerUrl} class="btn audience__cta">הרשמה ←</a>
+    </div>
+
+    <!-- Cards column — DOM-second = RTL-end = visually on the left -->
+    <div class="audience__cards">
+
+      <div class="audience__card audience__card--home animate-on-scroll delay-1">
+        <div class="audience__card-desktop">
+          <div class="audience__card-text">
+            <h3 class="audience__card-title">לבית</h3>
+            <ul class="audience__features">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הוצאות והכנסות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ניהול תקציב פשוט ונוח</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ריכוז כל המידע הפיננסי במקום אחד</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-home.png"
+            alt="משפחה מנהלת תקציב בית עם KeepInTax"
+            width="300"
+            height="310"
+            loading="lazy"
+            class="audience__photo audience__photo--home"
+          />
+        </div>
+        <div class="audience__card-mobile">
+          <div class="audience__card-mobile-text audience__card-mobile-text--mobile-home">
+            <h3 class="audience__card-title">לבית</h3>
+            <ul class="audience__features audience__features--mobile">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הוצאות והכנסות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ניהול תקציב פשוט ונוח</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>ריכוז כל המידע הפיננסי במקום אחד</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-home.png"
+            alt="משפחה מנהלת תקציב בית עם KeepInTax"
+            width="300"
+            height="310"
+            loading="lazy"
+            class="audience__photo-mobile audience__photo-mobile--home"
+          />
+        </div>
+      </div>
+
+      <div class="audience__card audience__card--business animate-on-scroll delay-2">
+        <div class="audience__card-desktop">
+          <div class="audience__card-text">
+            <h3 class="audience__card-title">לעסק</h3>
+            <ul class="audience__features">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת חשבוניות וקבלות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הכנסות והוצאות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>חיבור לבנקאות פתוחה ולאשראי</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>שמירת מסמכים וקבלות בענן</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת דוחות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>אפשרות לעבודה עצמאית או עם ייצוג</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-business.png"
+            alt="איש עסקים משתמש ב-KeepInTax"
+            width="280"
+            height="320"
+            loading="lazy"
+            class="audience__photo audience__photo--business"
+          />
+        </div>
+        <div class="audience__card-mobile">
+          <div class="audience__card-mobile-text audience__card-mobile-text--business">
+            <h3 class="audience__card-title">לעסק</h3>
+            <ul class="audience__features audience__features--mobile">
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת חשבוניות וקבלות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>מעקב אחר הכנסות והוצאות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>חיבור לבנקאות פתוחה ולאשראי</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>שמירת מסמכים וקבלות בענן</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>הפקת דוחות</li>
+              <li><span class="audience__feature-marker" aria-hidden="true"></span>אפשרות לעבודה עצמאית או עם ייצוג</li>
+            </ul>
+          </div>
+          <img
+            src="/images/person-business.png"
+            alt="איש עסקים משתמש ב-KeepInTax"
+            width="280"
+            height="320"
+            loading="lazy"
+            class="audience__photo-mobile audience__photo-mobile--business"
+          />
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<style>
+  .audience {
+    position: relative;
+    background-image: url(/images/Vector.svg);
+    background-color: var(--color-audience-bg);
+    background-repeat: no-repeat;
+    background-position: bottom center;
+    background-size: auto 100%;
+  }
+
+  .audience__inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 0.8fr 2fr;
+    align-items: center;
+  }
+
+  .audience__text h2 {
+    color: var(--color-text);
+    font-size: clamp(1.75rem, 3vw, 2.5rem);
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .audience__text p {
+    color: var(--color-text);
+    font-size: clamp(1rem, 2vw, 1.125rem);
+    margin-bottom: 1.5rem;
+    max-width: 28ch;
+  }
+
+  .audience__cta {
+    background-color: #fff;
+    color: var(--color-primary);
+    font-weight: 700;
+    box-shadow: 0 4px 18px rgba(26, 37, 81, 0.12);
+  }
+
+  .audience__cta:hover {
+    opacity: 1;
+    filter: brightness(0.98);
+  }
+
+  .audience__cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .audience__card {
+    background: #EBFD71;
+    border-radius: var(--radius);
+    padding-top: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+  }
+
+  .audience__card-desktop {
+    display: block;
+  }
+
+  .audience__card-mobile {
+    display: none;
+  }
+
+  /* Title + list sit above the photography */
+  .audience__card-text {
+    position: relative;
+    z-index: 2;
+    padding-right: 11.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .audience__card-title {
+    color: var(--color-text);
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.85rem;
+  }
+
+  .audience__features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Bullet on the visual right (inline-start in RTL) — small tilted squares, fill = section bg */
+  .audience__features li {
+    color: var(--color-text);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.45;
+    padding-block: 0.35rem;
+    display: grid;
+    grid-template-columns: 7px 1fr;
+    column-gap: 0.5rem;
+    align-items: start;
+  }
+
+  .audience__features li::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  .audience__feature-marker {
+    width: 7px;
+    height: 7px;
+    display: block;
+    border-radius: 1px;
+    background: var(--color-audience-bg);
+    margin-top: calc((1.45em - 7px) / 2);
+    transform: rotate(-45deg);
+  }
+
+  .audience__photo {
+    position: absolute;
+    z-index: 1;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  .audience__photo--business {
+    height: 117%;
+    left: auto;
+    right: -9%;
+    transform: none;
+    top: 16%;
+  }
+
+  .audience__photo--home {
+    height: 131%;
+    right: auto;
+    left: 12%;
+    top: -2%;
+    transform: none;
+  }
+
+  @media (max-width: 1024px) {
+    .audience__inner {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+
+    .audience__text {
+      text-align: center;
+    }
+
+    .audience__text p {
+      max-width: none;
+      margin-inline: auto;
+    }
+
+    .audience__text .btn {
+      margin-inline: auto;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .audience__cards {
+      grid-template-columns: 1fr;
+    }
+
+    .audience__card {
+      aspect-ratio: unset;
+      padding-top: 0;
+      height: 360px;
+    }
+
+    .audience__card-desktop {
+      display: none !important;
+    }
+
+    .audience__card-mobile {
+      display: block !important;
+      position: relative;
+      height: 100%;
+    }
+
+    .audience__photo-mobile {
+      position: absolute;
+      bottom: 0;
+      width: auto;
+      max-width: none;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .audience__photo-mobile--home {
+      height: 90%;
+      top: 25%;
+      left: 8vh;
+    }
+
+    .audience__photo-mobile--business {
+      height: 90%;
+      height: 136%;
+      right: 30vw;
+      top: 10vh;
+    }
+
+    .audience__card-mobile-text {
+      position: relative;
+      z-index: 2;
+      padding: 1rem 1.5rem;
+    }
+
+    .audience__card-mobile-text--mobile-home {
+      padding: 1rem 2rem 0.5rem;
+    }
+
+    .audience__card-mobile-text--business {
+      padding: 1rem 2rem 0.5rem 30%;
+    }
+
+    .audience__features--mobile li {
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
+    .audience {
+      background-size: 216% auto;
+      background-position: 42% 0%;
+    }
+  }
+</style>

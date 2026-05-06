@@ -1,26 +1,113 @@
 ---
+import '../styles/global.css';
+
 interface Props {
-	title?: string;
-	description?: string;
+  title?: string;
+  description?: string;
 }
 
-const { title = 'KeepInTax', description = 'KeepInTax - פשוט להיות על זה.' } = Astro.props;
+const {
+  title = 'KeepInTax | ניהול פיננסי חכם לעסק ולבית',
+  description = 'ניהול פיננסי חכם לעסק ולבית. חיבור לבנקאות פתוחה, הפקת חשבוניות ודוחות – הכל במקום אחד.',
+} = Astro.props;
+
+const siteUrl = 'https://keepintax.co.il'; // update when domain confirmed
+const canonical = new URL(Astro.url.pathname, siteUrl).href;
+const ogImage = `${siteUrl}/images/og-image.png`;
+
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: [
+    {
+      '@type': 'Question',
+      name: 'האם אפשר להשתמש במערכת בלי רואה חשבון?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'כן. KeepInTax מאפשר לך לנהל מסמכים, הוצאות ודוחות בעצמך. אם תצטרך רואה חשבון — תוכל להעביר אליו בקלות את הנתונים והדוחות מהמערכת.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'האם המערכת מתאימה גם למשק בית?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'בהחלט. אפשר להשתמש ב-KeepInTax רק למעקב אחרי הוצאות הבית ולתקציב המשפחתי, בלי קשר לעסק. מתאים למי שרוצה סדר ובהירות בכספים.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'מה היתרון של החיבור לבנק?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'החיבור לבנקאות הפתוחה ולכרטיסי האשראי מאפשר למשוך תנועות אוטומטית. כך לא מפספסים הוצאות, והדוחות מבוססים על נתונים אמיתיים — בלי להזין ידנית כל רישום.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'איך מתחילים?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'נרשמים בחינם, מתחברים לחשבון הבנק ו/או לכרטיסי האשראי, ומשם אפשר להתחיל לעקוב אחרי תנועות, להעלות מסמכים ולהפיק דוחות.',
+      },
+    },
+  ],
+};
 ---
 
 <!doctype html>
 <html lang="he" dir="rtl">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>{title}</title>
-		<meta name="description" content={description} />
-		<link rel="icon" type="image/svg+xml" href="/icon.svg" />
-	</head>
-	<body>
-		<slot />
-	</body>
-</html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
 
-<style is:global>
-	@import '../styles/global.css';
-</style>
+    <!-- Open Graph -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:url"         content={canonical} />
+    <meta property="og:title"       content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image"       content={ogImage} />
+    <meta property="og:locale"      content="he_IL" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image"       content={ogImage} />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- Font preload (above-fold weights only) -->
+    <link rel="preload" href="/assets/Simpler-Regular.otf" as="font" type="font/otf" crossorigin />
+    <link rel="preload" href="/assets/Simpler-Bold.otf"    as="font" type="font/otf" crossorigin />
+
+    <!-- LCP image preload -->
+    <link rel="preload" href="/images/phone-desktop.svg" as="image" />
+
+    <!-- FAQ structured data -->
+    <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  </head>
+  <body>
+    <slot />
+
+    <!-- Scroll-in animation observer -->
+    <script>
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              observer.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+      );
+      document.querySelectorAll('.animate-on-scroll').forEach((el) => observer.observe(el));
+    </script>
+  </body>
+</html>

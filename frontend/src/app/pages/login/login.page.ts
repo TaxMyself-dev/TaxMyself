@@ -290,8 +290,13 @@ export class LoginPage implements OnInit {
     try {
       const { isNewUser, userData } = await this.authService.signInWithGoogle();
       if (isNewUser) {
-        const firebaseUser = await this.afAuth.currentUser;
-        try { await firebaseUser?.delete(); } catch { await this.afAuth.signOut(); }
+        // Sign out only — DO NOT call firebaseUser.delete() here. Even though
+        // signInWithGoogle() now returns isNewUser=true only on a real 404
+        // from /auth/signin, hard-deleting the Firebase account on any
+        // transient race is unrecoverable. Worst case after this change is an
+        // orphan Firebase auth record for a never-registered user — harmless,
+        // and they can recover via password-reset if they later register.
+        await this.afAuth.signOut();
         this.messageService.add({
           severity: 'warn',
           summary: 'משתמש לא רשום',

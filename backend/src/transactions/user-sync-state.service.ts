@@ -30,27 +30,21 @@ export class UserSyncStateService {
    *   1. Conditional UPDATE: flip an existing row to 'running', but only if it
    *      isn't already. The WHERE clause and SET happen in one statement, so
    *      two concurrent updaters can't both pass the check.
-   *   2. Fallback INSERT: if no row was updated, either no row exists yet OR
-   *      the row exists and is already running. Try to insert a fresh row;
-   *      the unique index on userId distinguishes the two cases — a duplicate
-   *      key error means someone else already holds the lock.
+   *   2. Stale-lock takeover: if the previous holder crashed before clearing
+   *      'running' (older than STALE_LOCK_AFTER_MS), steal it.
+   *   3. Fallback INSERT: if no row was updated, either no row exists yet OR
+   *      the row exists and is freshly running. Insert; the unique index on
+   *      userId tells us which case we're in.
    *
    * Callers MUST honor `acquired === false` and skip running the sync; otherwise
    * the multi-replica race re-opens.
    */
-  async markQuickRunning(
+  async markSyncRunning(
     userId: string,
-    triggeredBy: 'login' | 'webhook' | 'manual' | 'post-consent',
+    triggeredBy: 'login' | 'webhook' | 'manual',
   ): Promise<{ acquired: boolean }> {
     const statusFields = {
       triggeredBy,
-      quickProcessStatus: 'running' as ProcessStatus,
-      quickResultStatus: 'none' as ResultStatus,
-      quickRowsWritten: 0,
-      quickStartedAt: new Date(),
-      quickFinishedAt: null,
-      quickFailureReason: null,
-      quickSkipReason: null,
       fullProcessStatus: 'running' as ProcessStatus,
       fullResultStatus: 'none' as ResultStatus,
       fullRowsWritten: 0,
@@ -60,15 +54,13 @@ export class UserSyncStateService {
       fullSkipReason: null,
     };
 
-    // Step 1 — clean acquire: flip an existing row to 'running', but only if
-    // neither stage is currently 'running'. Atomic: WHERE + SET in one SQL.
-    // Object-form criteria so TypeORM does dialect-correct identifier escaping
-    // (project runs on MySQL — raw double-quoted identifiers would be parsed
-    // as string literals).
+    // Step 1 — clean acquire: flip an existing row to 'running' only if it
+    // isn't already. Object-form criteria so TypeORM does dialect-correct
+    // identifier escaping (project runs on MySQL — raw double-quoted
+    // identifiers would be parsed as string literals).
     const updated = await this.repo.update(
       {
         userId,
-        quickProcessStatus: Not('running' as ProcessStatus),
         fullProcessStatus: Not('running' as ProcessStatus),
       },
       statusFields,
@@ -78,29 +70,25 @@ export class UserSyncStateService {
     }
 
     // Step 2 — stale-lock takeover. If a previous sync crashed mid-run, its row
-    // stays 'running' forever and step 1 would never match. Detect that by
-    // looking at quickStartedAt: anything older than STALE_LOCK_AFTER_MS is
-    // assumed abandoned, so we can take the lock anyway. Atomic too — the
-    // condition is part of the WHERE clause.
+    // stays 'running' forever. Detect via fullStartedAt: anything older than
+    // STALE_LOCK_AFTER_MS is assumed abandoned.
     const staleThreshold = new Date(Date.now() - STALE_LOCK_AFTER_MS);
     const stolen = await this.repo.update(
-      { userId, quickStartedAt: LessThan(staleThreshold) },
+      { userId, fullStartedAt: LessThan(staleThreshold) },
       statusFields,
     );
     if (stolen.affected && stolen.affected > 0) {
       this.logger.warn(
-        `[markQuickRunning] Took over a stale lock (>${Math.round(STALE_LOCK_AFTER_MS / 60_000)} min old) for userId=${userId?.substring(0, 8)}...`,
+        `[markSyncRunning] Took over a stale lock (>${Math.round(STALE_LOCK_AFTER_MS / 60_000)} min old) for userId=${userId?.substring(0, 8)}...`,
       );
       return { acquired: true };
     }
 
     // Step 3 — no row exists yet, OR the row exists and is freshly running.
-    // Insert; the unique index on userId tells us which case we're in.
     try {
       await this.repo.insert({ userId, ...statusFields });
       return { acquired: true };
     } catch (err: any) {
-      // Postgres '23505' / MySQL 'ER_DUP_ENTRY' / generic unique-constraint
       const isDuplicate =
         err?.code === '23505' ||
         err?.code === 'ER_DUP_ENTRY' ||
@@ -146,17 +134,13 @@ export class UserSyncStateService {
   /**
    * Called when a gate blocks the sync before any data is fetched.
    *
-   * no_access   → both stages set to 'failed'  (user cannot sync; retry button shown)
-   * cache_exists → both stages set to 'completed' (cache is already built; data is ready)
+   * no_access    → status set to 'failed'    (user cannot sync; retry button shown)
+   * cache_exists → status set to 'completed' (cache is already built; data is ready)
    */
-  async markBothSkipped(userId: string, skipReason: SyncSkipReason): Promise<void> {
+  async markSyncSkipped(userId: string, skipReason: SyncSkipReason): Promise<void> {
     const processStatus: ProcessStatus = skipReason === 'no_access' ? 'failed' : 'completed';
     const now = new Date();
     await this.repo.update({ userId }, {
-      quickProcessStatus: processStatus,
-      quickResultStatus: 'none',
-      quickFinishedAt: now,
-      quickSkipReason: skipReason,
       fullProcessStatus: processStatus,
       fullResultStatus: 'none',
       fullFinishedAt: now,
@@ -164,34 +148,8 @@ export class UserSyncStateService {
     });
   }
 
-  /** Called after Pull 1 (quick sync) completes. Only updates quick-stage columns. */
-  async markQuickFinished(
-    userId: string,
-    processStatus: ProcessStatus,
-    resultStatus: ResultStatus,
-    rowsWritten: number,
-    failureReason?: string,
-  ): Promise<void> {
-    await this.repo.update({ userId }, {
-      quickProcessStatus: processStatus,
-      quickResultStatus: resultStatus,
-      quickRowsWritten: rowsWritten,
-      quickFinishedAt: new Date(),
-      ...(failureReason ? { quickFailureReason: failureReason.slice(0, 255) } : {}),
-    });
-  }
-
-  /** Called just before Pull 2 (full sync) begins. Only updates full-stage columns. */
-  async markFullRunning(userId: string): Promise<void> {
-    await this.repo.update({ userId }, {
-      fullProcessStatus: 'running',
-      fullResultStatus: 'none',
-      fullStartedAt: new Date(),
-    });
-  }
-
-  /** Called after Pull 2 (full sync) completes. Only updates full-stage columns. */
-  async markFullFinished(
+  /** Called after the sync pull completes. */
+  async markSyncFinished(
     userId: string,
     processStatus: ProcessStatus,
     resultStatus: ResultStatus,
@@ -209,20 +167,16 @@ export class UserSyncStateService {
 
   /**
    * Called from the outer catch in doFullSync.
-   * Marks both stages failed — used for unrecoverable errors that occur
+   * Marks the sync failed — used for unrecoverable errors that occur
    * before or during the pull sequence (e.g. gate-query DB errors).
    */
-  async markBothFailed(userId: string, failureReason: string): Promise<void> {
+  async markSyncFailed(userId: string, failureReason: string): Promise<void> {
     const now = new Date();
     const reason = failureReason.slice(0, 255);
-    // Use upsert so this always writes, even if markQuickRunning never created the row.
+    // Use upsert so this always writes, even if markSyncRunning never created the row.
     await this.repo.upsert(
       {
         userId,
-        quickProcessStatus: 'failed',
-        quickResultStatus: 'failed',
-        quickFinishedAt: now,
-        quickFailureReason: reason,
         fullProcessStatus: 'failed',
         fullResultStatus: 'failed',
         fullFinishedAt: now,
@@ -281,6 +235,33 @@ export class UserSyncStateService {
   }
 
   /**
+   * Stamps `lastConsentInitiatedAt = now` on the user's sync-state row. Called
+   * by the consent-link endpoint at the moment the user clicks "Connect Open
+   * Banking" and we hand them off to the Feezback portal. The post-consent
+   * endpoint compares this against `fullFinishedAt` to know whether a
+   * webhook-triggered sync has already covered this consent flow.
+   */
+  async markConsentInitiated(userId: string): Promise<void> {
+    const now = new Date();
+    await this.repo.upsert(
+      { userId, lastConsentInitiatedAt: now } as UserSyncState,
+      ['userId'],
+    );
+    const masked = userId.length >= 8 ? userId.substring(0, 8) + '...' : userId;
+    this.logger.log(`[UserSyncState] lastConsentInitiatedAt = ${now.toISOString()} | userId=${masked}`);
+  }
+
+  /**
+   * Clears `lastConsentInitiatedAt`. Called when a consent is revoked / expired
+   * via the ConsentStatusChanged webhook so the "unprocessed consent" guard in
+   * triggerPostLoginSync can no longer match — otherwise revoked users would be
+   * permanently locked out of login sync.
+   */
+  async clearConsentInitiated(userId: string): Promise<void> {
+    await this.repo.update({ userId }, { lastConsentInitiatedAt: null });
+  }
+
+  /**
    * Clears the consentId on every user_source_sync_state row that points at a
    * specific consent (called when that consent has been revoked or expired by
    * the bank/Feezback). Affected rows flip back to status='not_synced' so the
@@ -295,14 +276,8 @@ export class UserSyncStateService {
   }
 
   /** Called when an admin clears a user's transaction cache — forces a fresh sync on next login. */
-  async markBothEmpty(userId: string): Promise<void> {
+  async markSyncEmpty(userId: string): Promise<void> {
     await this.repo.update({ userId }, {
-      quickProcessStatus: 'empty',
-      quickResultStatus: 'none',
-      quickRowsWritten: 0,
-      quickFinishedAt: null,
-      quickSkipReason: null,
-      quickFailureReason: null,
       fullProcessStatus: 'empty',
       fullResultStatus: 'none',
       fullRowsWritten: 0,

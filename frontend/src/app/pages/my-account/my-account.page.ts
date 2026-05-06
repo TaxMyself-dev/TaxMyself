@@ -278,7 +278,7 @@ export class MyAccountPage implements OnInit {
         // Source rows from the real Feezback API and overwrite the seeded data) and
         // jump straight to polling — the first poll reads the seeded state.
         console.log('[MyAccount] simulate=true — bypassing triggerPostConsentSync, starting polling against seeded state');
-        this.startSyncStatusPolling(true, 'full');
+        this.startSyncStatusPolling(true);
         return;
       }
 
@@ -288,7 +288,27 @@ export class MyAccountPage implements OnInit {
       this.syncStatusService.triggerPostConsentSync()
         .pipe(take(1))
         .subscribe({
-          next: () => this.startSyncStatusPolling(true, 'full'),
+          next: (res) => {
+            if (res.status === 'completed') {
+              // Webhook-triggered sync already ran for this consent flow.
+              // Skip polling; just read the existing sync state once and
+              // flip the dialog into its terminal display.
+              console.log('[MyAccount] post-consent: completed — skipping polling');
+              this.syncStatusService.getSyncStageStream()
+                .pipe(take(1))
+                .subscribe(({ stageState, sourceResults }) => {
+                  this.syncSourceResults.set(sourceResults);
+                  if (stageState && this.feezbackDialogVisible()) {
+                    this.applyTerminalDialogState();
+                  }
+                  this.getTransToClassify();
+                });
+              return;
+            }
+            // 'pending' — webhook hasn't run yet (or is mid-flight).
+            // Poll /sync-status until it does.
+            this.startSyncStatusPolling(true);
+          },
           error: (err) => {
             console.error('[MyAccount] triggerPostConsentSync failed:', err);
             // Cancel any background polling started in ngOnInit so it can't
@@ -370,7 +390,7 @@ export class MyAccountPage implements OnInit {
     this.syncStatusService.triggerSync()
       .pipe(take(1))
       .subscribe({
-        next: () => this.startSyncStatusPolling(true, 'full'),
+        next: () => this.startSyncStatusPolling(true),
         error: (err) => {
           console.error('[MyAccount] tryAgainFromDialog triggerSync failed:', err);
           this.feezbackDialogStatus.set('failure');
@@ -401,7 +421,7 @@ export class MyAccountPage implements OnInit {
    *   on stale terminal state left over from a previous sync.
    *   When false (page load / navigation back), act on whatever the current state is.
    */
-  private startSyncStatusPolling(requireRunningFirst = false, stage: 'quick' | 'full' = 'quick'): void {
+  private startSyncStatusPolling(requireRunningFirst = false): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
@@ -415,7 +435,7 @@ export class MyAccountPage implements OnInit {
     const isRecentFinish = (finishedAt: string | null): boolean =>
       !!finishedAt && (Date.now() - new Date(finishedAt).getTime()) < 15 * 60_000;
 
-    this.syncStatusService.getSyncStageStream(stage)
+    this.syncStatusService.getSyncStageStream()
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
@@ -482,7 +502,7 @@ export class MyAccountPage implements OnInit {
             this.applyTerminalDialogState();
             // Restart polling (without requireRunningFirst) to catch the subsequent login sync
             if (requireRunningFirst) {
-              setTimeout(() => this.startSyncStatusPolling(false, stage), 3000);
+              setTimeout(() => this.startSyncStatusPolling(false), 3000);
             }
           }
         } else if (status === 'skipped') {

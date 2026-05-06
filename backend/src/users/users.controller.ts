@@ -119,11 +119,23 @@ export class UsersController {
 
         console.log(`\n════════════════════════════════════`);
         console.log(`  LOGIN`);
-        console.log(`  User : ${userName}`);
-        console.log(`  Open Banking : ${hasOpenBanking ? '✓ connected — starting sync' : '✗ not connected'}`);
+        console.log(`  User         : ${userName}`);
+        console.log(`  Open Banking : ${hasOpenBanking ? '✓ connected' : '✗ not connected'}`);
         console.log(`════════════════════════════════════\n`);
 
         if (!hasOpenBanking) return;
+
+        // Structural skip: if the user clicked consent more recently than the
+        // last successful sync, there's an UNPROCESSED consent flow in
+        // progress — the webhook will trigger the sync. Short-circuit here so
+        // we don't waste an API call on refreshUserSources before bailing.
+        // The same gate is applied centrally in feezbackService.triggerFullSync
+        // so other callers (e.g. /sync-status auto-trigger) skip too.
+        const state = await this.feezbackService.getUserSyncState(firebaseId);
+        if (this.feezbackService.hasUnprocessedConsentFlow(state)) {
+            console.log(`  ⏭️  Login sync skipped — unprocessed consent flow, webhook will sync\n`);
+            return;
+        }
 
         // If our cached Source rows haven't been refreshed against Feezback in 24h+
         // (or never), refresh them first — otherwise login sync would pull with
@@ -131,7 +143,6 @@ export class UsersController {
         // the user needs to re-authorize. Cheap when fresh: just one DB read.
         const STALE_AFTER_MS = 24 * 60 * 60_000;
         try {
-            const state = await this.feezbackService.getUserSyncState(firebaseId);
             const lastRefresh = state?.lastSourcesRefreshAt;
             const isStale = !lastRefresh || (Date.now() - new Date(lastRefresh).getTime()) > STALE_AFTER_MS;
             if (isStale) {
