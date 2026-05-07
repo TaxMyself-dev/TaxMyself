@@ -550,3 +550,132 @@ export const TaxReportingTypeLabels: Record<string, string> = {
  * When a tax invoice amount exceeds this threshold, the system must request an allocation number from SHAAM
  */
 export const ALLOCATION_NUMBER_THRESHOLD = 10000;
+
+/** סוג משימה ברשימת המשימות של רואה החשבון */
+export enum AccountantTaskType {
+  VAT_REPORT = 'VAT_REPORT',
+  ADVANCE_TAX = 'ADVANCE_TAX',
+  ANNUAL_REPORT = 'ANNUAL_REPORT',
+  CUSTOM = 'CUSTOM',
+}
+
+export enum AccountantTaskSource {
+  AUTO = 'AUTO',
+  MANUAL = 'MANUAL',
+}
+
+export const AccountantTaskTypeLabels: Record<string, string> = {
+  [AccountantTaskType.VAT_REPORT]: 'דוח מע"מ',
+  [AccountantTaskType.ADVANCE_TAX]: 'מקדמת מס',
+  [AccountantTaskType.ANNUAL_REPORT]: 'דוח שנתי',
+  [AccountantTaskType.CUSTOM]: 'משימה מותאמת אישית',
+};
+
+/** סטטוס דוח שנתי */
+export enum AnnualReportStatus {
+  WAITING_FOR_DOCS = 'WAITING_FOR_DOCS',
+  READY_TO_PREPARE = 'READY_TO_PREPARE',
+  REPORTED = 'REPORTED',
+}
+
+/** סטטוס תהליך דיווח (מע"מ / מקדמת מס) */
+export enum ReportWorkflowStatus {
+  WAITING_FOR_CLIENT = 'WAITING_FOR_CLIENT',
+  READY_TO_PREPARE = 'READY_TO_PREPARE',
+  REPORTED = 'REPORTED',
+}
+
+export const ReportWorkflowStatusLabels: Record<string, string> = {
+  [ReportWorkflowStatus.WAITING_FOR_CLIENT]: 'ממתין לאישור לקוח',
+  [ReportWorkflowStatus.READY_TO_PREPARE]: 'מוכן להכנה',
+  [ReportWorkflowStatus.REPORTED]: 'דווח',
+};
+
+/** סוג תהליך דיווח */
+export enum ReportWorkflowType {
+  VAT_REPORT = 'VAT_REPORT',
+  ADVANCE_TAX = 'ADVANCE_TAX',
+}
+
+export const ReportWorkflowTypeLabels: Record<string, string> = {
+  [ReportWorkflowType.VAT_REPORT]: 'דוח מע"מ',
+  [ReportWorkflowType.ADVANCE_TAX]: 'מקדמת מס',
+};
+
+export const AnnualReportStatusLabels: Record<string, string> = {
+  [AnnualReportStatus.WAITING_FOR_DOCS]: 'ממתין למסמכים',
+  [AnnualReportStatus.READY_TO_PREPARE]: 'מוכן להכנה',
+  [AnnualReportStatus.REPORTED]: 'דווח',
+};
+
+/** קטגוריות מסמכים בדוח השנתי */
+export enum AnnualReportDocCategory {
+  FORM_106 = 'FORM_106',
+  SPOUSE_FORM_106 = 'SPOUSE_FORM_106',
+  DONATION_RECEIPT = 'DONATION_RECEIPT',
+  PENSION_867 = 'PENSION_867',
+  LIFE_INSURANCE = 'LIFE_INSURANCE',
+  RENTAL_INCOME = 'RENTAL_INCOME',
+  INVESTMENT_867 = 'INVESTMENT_867',
+  OTHER = 'OTHER',
+}
+
+export const AnnualReportDocCategoryLabels: Record<string, string> = {
+  [AnnualReportDocCategory.FORM_106]: 'טופס 106',
+  [AnnualReportDocCategory.SPOUSE_FORM_106]: 'טופס 106 של בן/בת הזוג',
+  [AnnualReportDocCategory.DONATION_RECEIPT]: 'קבלות תרומה',
+  [AnnualReportDocCategory.PENSION_867]: 'אישור הפרשות פנסיה / קרן השתלמות (867)',
+  [AnnualReportDocCategory.LIFE_INSURANCE]: 'אישור הפקדה לביטוח חיים / אובדן כושר עבודה',
+  [AnnualReportDocCategory.RENTAL_INCOME]: 'אישור הכנסות מדמי שכירות',
+  [AnnualReportDocCategory.INVESTMENT_867]: 'טופס 867 השקעות',
+  [AnnualReportDocCategory.OTHER]: 'אחר',
+};
+
+/** רשומה ב-requiredCategories – קטגוריה ומינימום קבצים נדרש */
+export interface RequiredCategoryEntry {
+  category: string;
+  minCount: number;
+}
+
+/** שאלות לטופס השאלון של הדוח השנתי – הסדר משפיע על תצוגת ה-UI */
+export type AnnualReportQuestionType = 'boolean' | 'number';
+
+export interface AnnualReportQuestionDef {
+  id: string;
+  label: string;
+  type: AnnualReportQuestionType;
+  /** הצג את השאלה רק כאשר תשובת השאלה התלויה זהה לערך הצפוי */
+  dependsOn?: { questionId: string; equals: boolean };
+}
+
+export const ANNUAL_REPORT_QUESTIONS: AnnualReportQuestionDef[] = [
+  { id: 'employed', label: 'האם אתה שכיר?', type: 'boolean' },
+  {
+    id: 'employerCount',
+    label: 'בכמה מקומות עבודה עבדת השנה?',
+    type: 'number',
+    dependsOn: { questionId: 'employed', equals: true },
+  },
+  { id: 'married', label: 'נשוי/אה?', type: 'boolean' },
+  {
+    id: 'spouseEmployed',
+    label: 'בן/בת זוג עובד/ת?',
+    type: 'boolean',
+    dependsOn: { questionId: 'married', equals: true },
+  },
+  {
+    id: 'spouseEmployerCount',
+    label: 'בכמה מקומות עבודה עבד/ה בן/בת הזוג השנה?',
+    type: 'number',
+    dependsOn: { questionId: 'spouseEmployed', equals: true },
+  },
+  { id: 'donations', label: 'תרמת השנה למוסד מוכר?', type: 'boolean' },
+  { id: 'pension', label: 'הפרשת לקרן השתלמות / פנסיה השנה?', type: 'boolean' },
+  {
+    id: 'lifeInsurance',
+    label: 'האם הפקדתם לביטוח חיים או אובדן כושר עבודה באופן עצמאי?',
+    type: 'boolean',
+  },
+  { id: 'rentalIncome', label: 'יש לך הכנסה מהשכרת נכס?', type: 'boolean' },
+  { id: 'investments', label: 'יש לך חשבון השקעות / ני"ע?', type: 'boolean' },
+];

@@ -1,0 +1,94 @@
+<p-toast key="br"></p-toast>
+<p-confirmDialog></p-confirmDialog>
+
+<div class="client-tasks-page">
+  <header class="page-header">
+    <h2 class="page-title">המשימות שלי</h2>
+    <p class="page-subtitle">משימות שמחכות לאישור שלך לפני שרואה החשבון יכול להגיש את הדוח.</p>
+  </header>
+
+  @if (loading()) {
+    <p class="loading-text">טוען...</p>
+  } @else {
+    <section class="task-section">
+      <h3 class="section-title">
+        ממתין לאישור שלך
+        @if (pending().length > 0) {
+          <span class="section-count">({{ pending().length }})</span>
+        }
+      </h3>
+
+      @if (pending().length === 0) {
+        <p class="empty-text">אין משימות שמחכות לאישור.</p>
+      } @else {
+        <ul class="task-list">
+          @for (w of pending(); track w.id) {
+            <li class="task-card">
+              <div class="task-card-info">
+                <div class="task-card-title">
+                  {{ typeLabel(w.type) }} – {{ formatPeriod(w) }}
+                </div>
+                <div class="task-card-meta">
+                  עסק: {{ w.businessNumber }} ·
+                  תקופה: {{ w.periodStart | date:'dd/MM/yyyy' }} – {{ w.periodEnd | date:'dd/MM/yyyy' }}
+                </div>
+                <div class="task-card-hint">
+                  אנא ודא/י שהעלית את כל ההכנסות וההוצאות לתקופה הזו לפני שתאשר/י.
+                </div>
+              </div>
+              <div class="task-card-actions">
+                <app-p-button
+                  [buttonText]="'אישרתי – העלאתי את הכל'"
+                  [buttonColor]="ButtonColor.BLACK"
+                  [buttonSize]="ButtonSize.SMALL"
+                  [disabled]="busyId() === w.id"
+                  [isLoading]="busyId() === w.id"
+                  (onButtonClicked)="confirmTask(w)"
+                />
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (recent().length > 0) {
+      <section class="task-section">
+        <h3 class="section-title">היסטוריה</h3>
+        <ul class="task-list">
+          @for (w of recent(); track w.id) {
+            <li class="task-card task-card-recent">
+              <div class="task-card-info">
+                <div class="task-card-title">
+                  {{ typeLabel(w.type) }} – {{ formatPeriod(w) }}
+                </div>
+                <div class="task-card-meta">
+                  עסק: {{ w.businessNumber }} ·
+                  תקופה: {{ w.periodStart | date:'dd/MM/yyyy' }} – {{ w.periodEnd | date:'dd/MM/yyyy' }}
+                </div>
+              </div>
+              <div class="task-card-actions">
+                <span
+                  class="task-status"
+                  [class]="'task-status-' + w.status"
+                >
+                  {{ statusLabel(w.status) }}
+                </span>
+                @if (w.canSelfMark && w.status === ReportWorkflowStatus.READY_TO_PREPARE) {
+                  <app-p-button
+                    [buttonText]="'סמן כדווח'"
+                    [buttonColor]="ButtonColor.BLACK"
+                    [buttonSize]="ButtonSize.SMALL"
+                    [disabled]="busyId() === w.id"
+                    [isLoading]="busyId() === w.id"
+                    (onButtonClicked)="markReported(w)"
+                  />
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</div>

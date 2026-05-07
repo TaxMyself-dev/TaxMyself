@@ -27,6 +27,11 @@ const routes: Routes = [
         loadChildren: () =>
           import('./suppliers/suppliers.module').then(m => m.SuppliersPageModule)
       },
+      {
+        path: 'tasks',
+        loadChildren: () =>
+          import('./client-tasks/client-tasks.module').then(m => m.ClientTasksPageModule)
+      },
       { path: '', redirectTo: 'incomes', pathMatch: 'full' }
     ]
   }

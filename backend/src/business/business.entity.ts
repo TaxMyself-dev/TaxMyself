@@ -1,5 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert } from 'typeorm';
-import { BusinessType, Currency, DocumentType, TaxReportingType, VATReportingType } from 'src/enum';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { BusinessType, TaxReportingType, VATReportingType } from 'src/enum';
 
 
 @Entity('business')
@@ -78,6 +78,17 @@ export class Business {
 
   @Column({ type: 'varchar', nullable: true, default: null })
   shaamRefreshToken: string | null;
+
+  /**
+   * When this business was added to the app. Used as the lower bound for
+   * auto-generating recurring tasks/workflows so historical periods don't
+   * appear before the business existed in the system.
+   * Existing rows get NOW() at schema-apply time (TypeORM default for
+   * @CreateDateColumn) — they won't auto-backfill historical periods. To
+   * backfill an existing business, set this column to a past date.
+   */
+  @CreateDateColumn()
+  createdAt: Date;
 
   // @Column({ type: 'varchar', nullable: true, default: null })
   // bankBeneficiary: string | null;
