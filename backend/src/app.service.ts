@@ -4,6 +4,7 @@ import { TransactionProcessingService } from './transactions/transaction-process
 import { FinsiteService } from './finsite/finsite.service';
 import { MailService } from './mail/mail.service';
 import { UsersService } from './users/users.service';
+import { TasksGeneratorService } from './accountant-tasks/tasks-generator.service';
 
 @Injectable()
 export class AppService {
@@ -13,6 +14,7 @@ export class AppService {
     private readonly finsiteService: FinsiteService,
     private readonly mailService: MailService,
     private readonly usersService: UsersService,
+    private readonly tasksGeneratorService: TasksGeneratorService,
   ) {}
 
 
@@ -51,6 +53,11 @@ export class AppService {
       console.error('❌ handleDailyCacheCleanup failed:', err.message);
       statusMessages.push(`❌ handleDailyCacheCleanup: ${err.message}`);
     }
+
+    // 4. Recurring task generation runs lazily on tab entry now
+    // (see ReportWorkflowService.listForClient + AccountantTasksService.list).
+    // The manual "רענן משימות אוטומטיות" button still calls
+    // POST /accountant-tasks/generate, which runs `generateForToday` directly.
 
     // 4. Send final email
     // const subject = statusMessages.some(m => m.startsWith('❌'))

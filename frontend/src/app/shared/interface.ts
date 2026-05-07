@@ -1,6 +1,103 @@
 import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
-import { BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
+import { AccountantTaskSource, AccountantTaskType, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
+
+/** רשומת משימה של רואה חשבון – החזרה מה-API (כולל שמות לקוח/עסק לתצוגה) */
+export interface IAccountantTask {
+    id: number;
+    accountantFirebaseId: string;
+    clientFirebaseId: string;
+    businessNumber: string;
+    type: AccountantTaskType;
+    source: AccountantTaskSource;
+    periodStart: string | null;
+    periodEnd: string | null;
+    title: string;
+    description: string | null;
+    dueDate: string;
+    visibleFrom: string;
+    isComplete: boolean;
+    completedAt: string | null;
+    dismissedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    clientName: string;
+    businessName: string;
+    /** קיים רק כש-type = ANNUAL_REPORT וקיימת רשומת AnnualReport תואמת */
+    annualReportId?: number;
+    /** סטטוס הדוח השנתי המקושר (אם קיים) */
+    annualReportStatus?: string;
+    /** קיים רק כש-type ∈ {VAT_REPORT, ADVANCE_TAX} ויש ReportWorkflow תואם */
+    workflowId?: number;
+    /** סטטוס תהליך הדיווח (ממתין לאישור לקוח / מוכן להכנה / דווח) */
+    workflowStatus?: string;
+}
+
+/** תהליך דיווח (מע"מ / מקדמת מס) – הסטטוס המשותף בין הלקוח והרואה חשבון */
+export interface IReportWorkflow {
+    id: number;
+    clientFirebaseId: string;
+    businessNumber: string;
+    type: string;
+    periodStart: string;
+    periodEnd: string;
+    status: string;
+    clientConfirmedAt: string | null;
+    clientConfirmedBy: string | null;
+    reportedAt: string | null;
+    reportedByAccountantFirebaseId: string | null;
+    reportedSource: string | null;
+    notes: string | null;
+    createdAt: string;
+    updatedAt: string;
+    /** האם המשתמש הנוכחי (לקוח) רשאי לסמן בעצמו את הדוח כדווח – true כאשר אין לו רואה חשבון פעיל */
+    canSelfMark?: boolean;
+}
+
+/** Payload להוספת משימה ידנית */
+export interface ICreateAccountantTask {
+    clientFirebaseId: string;
+    businessNumber: string;
+    title: string;
+    description?: string;
+    dueDate?: string;
+}
+
+/** Payload לעדכון משימה */
+export interface IUpdateAccountantTask {
+    title?: string;
+    description?: string;
+    dueDate?: string;
+    isComplete?: boolean;
+}
+
+/** קובץ שצורף לדוח שנתי */
+export interface IAnnualReportFile {
+    id: number;
+    annualReportId: number;
+    category: string;
+    filePath: string;
+    fileName: string;
+    uploadedByFirebaseId: string;
+    uploadedAt: string;
+}
+
+/** דוח שנתי – שאלון + מסמכים + סטטוס */
+export interface IAnnualReport {
+    id: number;
+    clientFirebaseId: string;
+    businessNumber: string;
+    taxYear: number;
+    status: string;
+    answers: Record<string, unknown> | null;
+    requiredCategories: { category: string; minCount: number }[] | null;
+    finishedAt: string | null;
+    reportedAt: string | null;
+    reportedByAccountantFirebaseId: string | null;
+    createdAt: string;
+    updatedAt: string;
+    files: IAnnualReportFile[];
+}
 
 export interface ICategory {
     id: number;

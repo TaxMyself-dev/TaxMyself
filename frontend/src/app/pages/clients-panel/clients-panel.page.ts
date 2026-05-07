@@ -4,7 +4,37 @@ import { ClientPanelService, Client, CreateClientPayload } from 'src/app/service
 import { AuthService } from 'src/app/services/auth.service';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { businessTypeOptionsList, BusinessTypeLabels, VATReportingTypeLabels, TaxReportingTypeLabels } from 'src/app/shared/enums';
+import {
+  AccountantTaskSource,
+  AccountantTaskType,
+  AccountantTaskTypeLabels,
+  AnnualReportStatus,
+  AnnualReportStatusLabels,
+  ReportWorkflowStatus,
+  ReportWorkflowStatusLabels,
+  businessTypeOptionsList,
+  BusinessTypeLabels,
+  VATReportingTypeLabels,
+  TaxReportingTypeLabels,
+} from 'src/app/shared/enums';
+import {
+  TaskDataService,
+  TaskListQuery,
+  TaskStatusFilter,
+} from 'src/app/services/task-data.service';
+import { ReportWorkflowService } from 'src/app/services/report-workflow.service';
+import {
+  IAccountantTask,
+  ICreateAccountantTask,
+} from 'src/app/shared/interface';
+
+interface AddTaskFormData {
+  clientFirebaseId: string;
+  businessNumber: string;
+  title: string;
+  description: string;
+  dueDate: string;
+}
 
 @Component({
   selector: 'app-clients-panel',
@@ -18,9 +48,18 @@ export class ClientPanelPage implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly router = inject(Router);
+  private readonly taskDataService = inject(TaskDataService);
+  private readonly workflowService = inject(ReportWorkflowService);
 
   readonly ButtonColor = ButtonColor;
   readonly ButtonSize = ButtonSize;
+  readonly AccountantTaskSource = AccountantTaskSource;
+  readonly AccountantTaskType = AccountantTaskType;
+  readonly AccountantTaskTypeLabels = AccountantTaskTypeLabels;
+  readonly AnnualReportStatus = AnnualReportStatus;
+  readonly AnnualReportStatusLabels = AnnualReportStatusLabels;
+  readonly ReportWorkflowStatus = ReportWorkflowStatus;
+  readonly ReportWorkflowStatusLabels = ReportWorkflowStatusLabels;
 
   readonly myClients = signal<Client[]>([]);
 
@@ -41,13 +80,42 @@ export class ClientPanelPage implements OnInit {
 
   readonly createClientModalVisible = signal(false);
   readonly creatingClient = signal(false);
-  createClientFormData: CreateClientPayload = this.getEmptyFormData();
+  createClientFormData: CreateClientPayload = this.getEmptyClientFormData();
   readonly createClientErrors = signal<Record<string, string>>({});
 
   /** עוסק פטור, עוסק מורשה, חברה בע"מ – כמו בעמוד ההרשמה */
   readonly businessTypeOptions = businessTypeOptionsList;
 
-  private getEmptyFormData(): CreateClientPayload {
+  // ---------- Tasks tab state ----------
+  /** 0 = הלקוחות שלי, 1 = משימות */
+  readonly activeTabIndex = signal<number>(0);
+
+  readonly tasks = signal<IAccountantTask[]>([]);
+  readonly tasksLoading = signal(false);
+  readonly statusFilter = signal<TaskStatusFilter>('open');
+  readonly clientFilter = signal<string>('');
+
+  readonly addTaskModalVisible = signal(false);
+  readonly addingTask = signal(false);
+  addTaskFormData: AddTaskFormData = this.getEmptyTaskFormData();
+  readonly addTaskErrors = signal<Record<string, string>>({});
+
+  /** כל הלקוחות שיש להם לפחות עסק אחד עם businessNumber – לבחירה במשימה ידנית */
+  readonly clientsForTaskAssignment = computed(() => {
+    return this.groupedClients().filter((g) =>
+      g.businesses.some((b) => !!b.businessNumber),
+    );
+  });
+
+  /** העסקים של הלקוח שנבחר בטופס המשימה הידנית */
+  readonly addTaskBusinesses = computed(() => {
+    const clientId = this.addTaskFormData.clientFirebaseId;
+    if (!clientId) return [];
+    const group = this.groupedClients().find((g) => g.user.id === clientId);
+    return (group?.businesses ?? []).filter((b) => !!b.businessNumber);
+  });
+
+  private getEmptyClientFormData(): CreateClientPayload {
     return {
       email: '',
       phone: '',
@@ -59,6 +127,16 @@ export class ClientPanelPage implements OnInit {
       businessName: '',
       businessNumber: '',
       address: '',
+    };
+  }
+
+  private getEmptyTaskFormData(): AddTaskFormData {
+    return {
+      clientFirebaseId: '',
+      businessNumber: '',
+      title: '',
+      description: '',
+      dueDate: '',
     };
   }
 
@@ -147,7 +225,7 @@ export class ClientPanelPage implements OnInit {
   }
 
   openCreateClientModal(): void {
-    this.createClientFormData = this.getEmptyFormData();
+    this.createClientFormData = this.getEmptyClientFormData();
     this.createClientErrors.set({});
     this.createClientModalVisible.set(true);
   }
@@ -201,6 +279,325 @@ export class ClientPanelPage implements OnInit {
       error: (err) => {
         this.creatingClient.set(false);
         const detail = err?.error?.message ?? err?.message ?? 'לא ניתן להוסיף לקוח. נסה שוב.';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  // ===================== Tasks tab =====================
+
+  onTabChange(index: number): void {
+    this.activeTabIndex.set(index);
+    if (index === 1 && this.tasks().length === 0 && !this.tasksLoading()) {
+      this.fetchTasks();
+    }
+  }
+
+  fetchTasks(): void {
+    this.tasksLoading.set(true);
+    const query: TaskListQuery = {
+      status: this.statusFilter(),
+      clientId: this.clientFilter() || undefined,
+    };
+    this.taskDataService.getTasks(query).subscribe({
+      next: (tasks) => {
+        this.tasks.set(tasks);
+        this.tasksLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to fetch tasks:', err);
+        this.tasksLoading.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'טעינת המשימות נכשלה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  /** הרצה ידנית של מחולל המשימות התקופתיות (אותה לוגיקה שהקרון מריץ יומית) */
+  readonly runningGeneration = signal<boolean>(false);
+
+  runGeneration(): void {
+    if (this.runningGeneration()) return;
+    this.runningGeneration.set(true);
+    this.taskDataService.runGeneration().subscribe({
+      next: (result) => {
+        this.runningGeneration.set(false);
+        this.fetchTasks();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: `נוצרו ${result.created} משימות חדשות${result.skipped > 0 ? `, ${result.skipped} כבר קיימות` : ''}`,
+          life: 3500,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        this.runningGeneration.set(false);
+        const detail = err?.error?.message ?? err?.message ?? 'הרצת מחולל המשימות נכשלה';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  onStatusFilterChange(value: TaskStatusFilter): void {
+    this.statusFilter.set(value);
+    this.fetchTasks();
+  }
+
+  onClientFilterChange(value: string): void {
+    this.clientFilter.set(value);
+    this.fetchTasks();
+  }
+
+  openAddTaskModal(): void {
+    this.addTaskFormData = this.getEmptyTaskFormData();
+    this.addTaskErrors.set({});
+    this.addTaskModalVisible.set(true);
+  }
+
+  closeAddTaskModal(): void {
+    this.addTaskModalVisible.set(false);
+  }
+
+  /** Reset business selection when the client changes — businesses depend on the chosen client */
+  onAddTaskClientChange(): void {
+    this.addTaskFormData.businessNumber = '';
+  }
+
+  private validateAddTaskForm(): boolean {
+    const form = this.addTaskFormData;
+    const err: Record<string, string> = {};
+    if (!form.clientFirebaseId) err['clientFirebaseId'] = 'נא לבחור לקוח';
+    if (!form.businessNumber) err['businessNumber'] = 'נא לבחור עסק';
+    if (!form.title?.trim()) err['title'] = 'כותרת חובה';
+    this.addTaskErrors.set(err);
+    return Object.keys(err).length === 0;
+  }
+
+  submitAddTask(): void {
+    if (!this.validateAddTaskForm()) return;
+    this.addingTask.set(true);
+    const form = this.addTaskFormData;
+    const payload: ICreateAccountantTask = {
+      clientFirebaseId: form.clientFirebaseId,
+      businessNumber: form.businessNumber,
+      title: form.title.trim(),
+      description: form.description?.trim() || undefined,
+      dueDate: form.dueDate?.trim() || undefined,
+    };
+    this.taskDataService.addTask(payload).subscribe({
+      next: () => {
+        this.addingTask.set(false);
+        this.closeAddTaskModal();
+        this.fetchTasks();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: 'המשימה נוספה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        this.addingTask.set(false);
+        const detail = err?.error?.message ?? err?.message ?? 'הוספת המשימה נכשלה';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  toggleTaskComplete(task: IAccountantTask): void {
+    const next = !task.isComplete;
+    this.taskDataService.updateTask(task.id, { isComplete: next }).subscribe({
+      next: () => {
+        this.fetchTasks();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: next ? 'המשימה סומנה כהושלמה' : 'המשימה הוחזרה לפתוחה',
+          life: 2000,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        const detail = err?.error?.message ?? err?.message ?? 'עדכון המשימה נכשל';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  confirmDeleteTask(task: IAccountantTask): void {
+    const isAuto = task.source === AccountantTaskSource.AUTO;
+    const message = isAuto
+      ? `המשימה "${task.title}" נוצרה אוטומטית. האם להסתיר אותה מהרשימה?`
+      : `האם למחוק את המשימה "${task.title}"?`;
+    this.confirmationService.confirm({
+      message,
+      header: 'אישור מחיקה',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: isAuto ? 'הסתר' : 'מחק',
+      rejectLabel: 'ביטול',
+      accept: () => this.deleteTask(task),
+    });
+  }
+
+  private deleteTask(task: IAccountantTask): void {
+    this.taskDataService.deleteTask(task.id).subscribe({
+      next: () => {
+        this.fetchTasks();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: task.source === AccountantTaskSource.AUTO ? 'המשימה הוסתרה' : 'המשימה נמחקה',
+          life: 3000,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        const detail = err?.error?.message ?? err?.message ?? 'מחיקת המשימה נכשלה';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  taskTypeLabel(type: string): string {
+    return AccountantTaskTypeLabels[type] ?? type;
+  }
+
+  /** ת.יעד שעבר ולא הושלם */
+  isTaskOverdue(task: IAccountantTask): boolean {
+    if (task.isComplete || !task.dueDate) return false;
+    const due = new Date(task.dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return due.getTime() < today.getTime();
+  }
+
+  /** ת.יעד תוך 7 ימים */
+  isTaskDueSoon(task: IAccountantTask): boolean {
+    if (task.isComplete || !task.dueDate || this.isTaskOverdue(task)) return false;
+    const due = new Date(task.dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    return due.getTime() - today.getTime() <= sevenDays;
+  }
+
+  /** סטטוס דוח שנתי (תוויות עבריות) */
+  annualReportStatusLabel(status: string | undefined): string {
+    return status ? AnnualReportStatusLabels[status] ?? status : '';
+  }
+
+  /** מעבר לדף הדוח השנתי בהקשר של הלקוח (view-as) */
+  openAnnualReport(task: IAccountantTask): void {
+    if (task.type !== AccountantTaskType.ANNUAL_REPORT) return;
+    const taxYear = task.periodStart ? new Date(task.periodStart).getUTCFullYear() : null;
+    // שמירת הקשר הלקוח לסרגל הצד / כותרת
+    this.clientService.setSelectedClient(task.clientFirebaseId, task.clientName ?? '');
+    this.authService.setActiveBusinessNumber(task.businessNumber);
+    this.router.navigate(['/annual-report'], {
+      queryParams: taxYear ? { taxYear } : {},
+    });
+  }
+
+  /** סטטוס תהליך דיווח (תוויות עבריות) – משמש לתאי הסטטוס של VAT/ADVANCE_TAX */
+  workflowStatusLabel(status: string | undefined): string {
+    return status ? ReportWorkflowStatusLabels[status] ?? status : '';
+  }
+
+  /** האם להציג כפתור "סמן כדווח" עבור משימה זו */
+  canMarkReported(task: IAccountantTask): boolean {
+    return (
+      !!task.workflowId &&
+      (task.workflowStatus === ReportWorkflowStatus.READY_TO_PREPARE ||
+        task.workflowStatus === ReportWorkflowStatus.WAITING_FOR_CLIENT)
+    );
+  }
+
+  /** האם להציג כפתור "בטל סימון" (כאשר כבר דווח) */
+  canRevertReported(task: IAccountantTask): boolean {
+    return !!task.workflowId && task.workflowStatus === ReportWorkflowStatus.REPORTED;
+  }
+
+  /** רואה החשבון מסמן את הדוח כדווח. אם הלקוח עדיין לא אישר – מאמת לפני העדכון. */
+  markWorkflowReported(task: IAccountantTask): void {
+    if (!task.workflowId) return;
+    const isBypass = task.workflowStatus === ReportWorkflowStatus.WAITING_FOR_CLIENT;
+    this.confirmationService.confirm({
+      message: isBypass
+        ? 'הלקוח עוד לא אישר. לסמן בכל זאת כדווח?'
+        : 'לסמן את הדוח כדווח?',
+      header: 'סימון כדווח',
+      icon: 'pi pi-check-circle',
+      acceptLabel: 'סמן כדווח',
+      rejectLabel: 'ביטול',
+      accept: () => this.runSetReported(task, true),
+    });
+  }
+
+  /** ביטול סימון "דווח" – חוזר לסטטוס "מוכן להכנה". */
+  unmarkWorkflowReported(task: IAccountantTask): void {
+    if (!task.workflowId) return;
+    this.confirmationService.confirm({
+      message: 'לבטל את סימון הדיווח? הסטטוס יחזור ל"מוכן להכנה".',
+      header: 'ביטול סימון',
+      icon: 'pi pi-undo',
+      acceptLabel: 'בטל סימון',
+      rejectLabel: 'השאר',
+      accept: () => this.runSetReported(task, false),
+    });
+  }
+
+  private runSetReported(task: IAccountantTask, reported: boolean): void {
+    if (!task.workflowId) return;
+    this.workflowService.setReported(task.workflowId, reported).subscribe({
+      next: () => {
+        this.fetchTasks();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'הצלחה',
+          detail: reported ? 'הדוח סומן כדווח' : 'הסימון בוטל',
+          life: 2500,
+          key: 'br',
+        });
+      },
+      error: (err) => {
+        const detail = err?.error?.message ?? err?.message ?? 'עדכון הסטטוס נכשל';
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',

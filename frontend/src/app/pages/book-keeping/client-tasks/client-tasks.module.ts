@@ -1,28 +1,25 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IonicModule } from '@ionic/angular';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService, MessageService } from 'primeng/api';
-
-import { AnnualReportPageRoutingModule } from './annual-report-routing.module';
-import { AnnualReportPage } from './annual-report.page';
-import { SharedModule } from '../../shared/shared.module';
-import { ButtonComponent } from '../../components/button/button.component';
+import { ClientTasksPage } from './client-tasks.page';
+import { ClientTasksPageRoutingModule } from './client-tasks-routing.module';
+import { SharedModule } from '../../../shared/shared.module';
+import { ButtonComponent } from '../../../components/button/button.component';
 
 @NgModule({
   imports: [
     CommonModule,
     FormsModule,
-    IonicModule,
-    AnnualReportPageRoutingModule,
+    ClientTasksPageRoutingModule,
     SharedModule,
     ToastModule,
     ConfirmDialogModule,
     ButtonComponent,
   ],
-  declarations: [AnnualReportPage],
+  declarations: [ClientTasksPage],
   providers: [MessageService, ConfirmationService],
 })
-export class AnnualReportPageModule {}
+export class ClientTasksPageModule {}

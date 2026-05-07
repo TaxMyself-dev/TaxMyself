@@ -1,0 +1,389 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  overflow: auto;
+}
+
+.annual-report-page {
+  direction: rtl;
+  width: 100%;
+  padding: 24px 32px;
+  min-height: 100%;
+  box-sizing: border-box;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.year-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .filter-label {
+    font-weight: 500;
+    color: #363636;
+    font-size: 0.95rem;
+  }
+
+  .form-input {
+    padding: 8px 12px;
+    border: 1px solid #ebe8e8;
+    border-radius: 8px;
+    font-size: 14px;
+    direction: rtl;
+    background: #fff;
+    cursor: pointer;
+  }
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+
+  &.status-WAITING_FOR_DOCS {
+    background: #fff4e0;
+    color: #b07a00;
+  }
+  &.status-READY_TO_PREPARE {
+    background: #e8f4ff;
+    color: #1565c0;
+  }
+  &.status-REPORTED {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+}
+
+.loading-text,
+.empty-text {
+  margin: 0;
+  color: #666;
+  font-size: 1rem;
+  padding: 12px 0;
+}
+
+.wizard-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.wizard-tab {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: #666;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: color 0.2s, border-color 0.2s;
+
+  &:hover:not(:disabled) {
+    color: #1a1a1a;
+  }
+  &.active {
+    color: #1a1a1a;
+    border-bottom-color: #1a1a1a;
+  }
+  &:disabled {
+    color: #bbb;
+    cursor: not-allowed;
+  }
+}
+
+.wizard-section {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.section-intro {
+  margin: 0 0 20px;
+  color: #444;
+  font-size: 0.95rem;
+  line-height: 1.6;
+
+  &.success-intro {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #2e7d32;
+    font-weight: 500;
+
+    .pi {
+      font-size: 1.3rem;
+    }
+  }
+}
+
+.question-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+
+.question-label {
+  margin: 0;
+  flex: 1;
+  font-size: 1rem;
+  color: #1a1a1a;
+}
+
+.answer-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.answer-btn {
+  min-width: 60px;
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+
+  &:hover {
+    border-color: #1a1a1a;
+  }
+  &.selected {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+}
+
+.numeric-answer {
+  width: 110px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  text-align: center;
+  background: #fff;
+
+  &:focus {
+    outline: none;
+    border-color: #1a1a1a;
+  }
+}
+
+.doc-required-count {
+  margin-inline-start: 6px;
+  color: #888;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.step-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.step-actions-row {
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.doc-row {
+  padding: 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+
+.doc-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.doc-category {
+  font-weight: 500;
+  color: #1a1a1a;
+  font-size: 1rem;
+}
+
+.doc-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+
+  &.doc-status-uploaded {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  &.doc-status-missing {
+    background: #fdecea;
+    color: #c62828;
+  }
+}
+
+.doc-files {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.doc-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.doc-file-cat {
+  color: #666;
+  font-size: 0.9rem;
+  min-width: 200px;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #1565c0;
+  cursor: pointer;
+  padding: 4px 0;
+  font-size: 0.95rem;
+  text-align: right;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.btn-delete-file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #c62828;
+  cursor: pointer;
+
+  &:hover {
+    background: #c62828;
+    color: #fff;
+    border-color: #c62828;
+  }
+}
+
+.file-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-file-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #1565c0;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+
+  &:hover {
+    background: #1565c0;
+    color: #fff;
+    border-color: #1565c0;
+  }
+}
+
+.upload-label {
+  display: inline-block;
+  cursor: pointer;
+
+  input[type='file'] {
+    display: none;
+  }
+}
+
+.upload-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px dashed #999;
+  border-radius: 8px;
+  color: #444;
+  font-size: 0.9rem;
+  transition: background 0.2s, border-color 0.2s;
+
+  &:hover {
+    background: #f7f7f7;
+    border-color: #1a1a1a;
+  }
+}
+
+.missing-hint {
+  margin: 16px 0 0;
+  color: #c62828;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.files-section-title {
+  margin: 16px 0 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
