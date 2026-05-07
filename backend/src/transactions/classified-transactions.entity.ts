@@ -87,6 +87,14 @@ export class ClassifiedTransactions {
   })
   commentMatchType: 'equals' | 'contains';
 
+  /**
+   * Optional override of the bill's default business attribution. When set,
+   * matching transactions are attributed to this business instead of the one
+   * derived from the bill's source. Null = no override (use bill default).
+   */
+  @Column({ type: 'varchar', nullable: true, default: null })
+  businessNumber: string | null;
+
   /** Used as tie-breaker in rule selection: newest updatedAt wins. */
   @CreateDateColumn()
   createdAt: Date;

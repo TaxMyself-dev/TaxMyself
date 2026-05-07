@@ -213,7 +213,7 @@ export class TransactionProcessingService {
           isRecognized: matchedRule.isRecognized,
           confirmed: false,
           vatReportingDate: null,
-          businessNumber: null,
+          businessNumber: matchedRule.businessNumber ?? null,
         });
         result.savedToSlim++;
         result.ruleMatched++;
@@ -366,7 +366,7 @@ export class TransactionProcessingService {
         isRecognized: dto.isRecognized,
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: null,
-        businessNumber: slim?.businessNumber ?? null,
+        businessNumber: dto.businessNumber ?? slim?.businessNumber ?? null,
       },
     ]);
 
@@ -382,6 +382,9 @@ export class TransactionProcessingService {
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
         classificationType: ClassificationType.ONE_TIME,
+        // Only override the bill's default attribution when the caller
+        // explicitly sent a businessNumber. Undefined leaves the column alone.
+        ...(dto.businessNumber !== undefined && { businessNumber: dto.businessNumber }),
       },
     );
   }
@@ -496,6 +499,7 @@ export class TransactionProcessingService {
       isEquipment: dto.isEquipment,
       isRecognized: dto.isRecognized,
       isExpense: dto.isExpense ?? false,
+      businessNumber: dto.businessNumber ?? null,
     };
 
     if (rule) {
@@ -526,7 +530,7 @@ export class TransactionProcessingService {
         isRecognized: dto.isRecognized,
         confirmed: slim?.confirmed ?? false,
         vatReportingDate: null,
-        businessNumber: slim?.businessNumber ?? null,
+        businessNumber: dto.businessNumber ?? slim?.businessNumber ?? null,
       },
     ]);
 
@@ -542,6 +546,9 @@ export class TransactionProcessingService {
         isEquipment: dto.isEquipment,
         isRecognized: dto.isRecognized,
         classificationType: ClassificationType.RULE,
+        // Only override the bill's default attribution when the caller
+        // explicitly sent a businessNumber. Undefined leaves the column alone.
+        ...(dto.businessNumber !== undefined && { businessNumber: dto.businessNumber }),
       },
     );
 
@@ -969,7 +976,9 @@ export class TransactionProcessingService {
         ...classificationPayload,
         confirmed: existingSlim?.confirmed ?? false,
         vatReportingDate: null,
-        businessNumber: existingSlim?.businessNumber ?? null,
+        // Rule-level businessNumber wins; otherwise preserve whatever the slim
+        // row already had (which itself may be the bill default or a prior override).
+        businessNumber: savedRule.businessNumber ?? existingSlim?.businessNumber ?? null,
       };
     });
 
@@ -983,6 +992,9 @@ export class TransactionProcessingService {
       .set({
         ...classificationPayload,
         classificationType: ClassificationType.RULE,
+        // Only override the bill's default attribution when the rule carries
+        // an explicit businessNumber. When null, leave each row's column alone.
+        ...(savedRule.businessNumber !== null && { businessNumber: savedRule.businessNumber }),
       })
       .where('userId = :userId', { userId })
       .andWhere('externalTransactionId IN (:...ids)', { ids: eligibleIds })
@@ -1116,6 +1128,9 @@ export class TransactionProcessingService {
       confirmed: slim.confirmed,
       vatReportingDate: slim.vatReportingDate,
       classificationType: slim.classificationType,
+      // Preserve the user's per-row override if one is set; otherwise fall
+      // back to the bill default already present on the base cache row.
+      ...(slim.businessNumber != null && { businessNumber: slim.businessNumber }),
     };
   }
 
@@ -1134,6 +1149,8 @@ export class TransactionProcessingService {
       isEquipment: rule.isEquipment,
       isRecognized: rule.isRecognized,
       classificationType: ClassificationType.RULE,
+      // Rule-level override wins over the bill default on the base cache row.
+      ...(rule.businessNumber != null && { businessNumber: rule.businessNumber }),
     };
   }
 

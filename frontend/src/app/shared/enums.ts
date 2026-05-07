@@ -58,6 +58,8 @@ export enum ExpenseFormHebrewColumns {
   supplierID = 'ח.פ. ספק',
   file = 'קובץ',
   note = 'הערה / פירוט',
+  totalVat = 'מוכר למע"מ',
+  totalTax = 'מוכר למס',
   totalVatPayable = 'מוכר למעמ(₪)',
   totalTaxPayable = 'מוכר למס(₪)',
   isEquipment = 'האם ההוצאה הינה עבור רכוש קבוע?',
@@ -381,7 +383,8 @@ export enum ICellRenderer {
   SUBCATEGORY = 'subCategory',
   BILL = 'billName',
   CHECKBOX = 'checkbox',
-  DATE = 'date'
+  DATE = 'date',
+  AMOUNT_WITH_PERCENT = 'amountWithPercent'
 }
 
 export enum NavigationItemClass {

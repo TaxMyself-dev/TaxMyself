@@ -1449,29 +1449,43 @@ export class TransactionsService {
 
     const rows = await qb.getMany();
 
-    return rows.map((r) => ({
-      id: r.id,
-      finsiteId: r.externalTransactionId,
-      userId: r.userId,
-      paymentIdentifier: r.paymentIdentifier,
-      billName: r.billName,
-      businessNumber: r.businessNumber,
-      name: r.merchantName,
-      note2: r.note,
-      billDate: r.transactionDate,
-      payDate: r.paymentDate,
-      sum: r.amount,
-      currency: r.currency ?? 'ILS',
-      category: r.category,
-      subCategory: r.subCategory,
-      isRecognized: r.isRecognized,
-      vatPercent: r.vatPercent,
-      taxPercent: r.taxPercent,
-      isEquipment: r.isEquipment,
-      reductionPercent: r.reductionPercent,
-      vatReportingDate: r.vatReportingDate,
-      confirmed: false, // only unconfirmed rows reach here
-    }));
+    return rows.map((r) => {
+      // Same canonical formula used by expenses.service.ts:59,65 when an
+      // expense is saved. Cache amounts are negative for expenses; the
+      // expense formula expects a positive base, so use Math.abs.
+      const absSum = Math.abs(Number(r.amount));
+      const vatRate = this.sharedService.getVatRateByYear(new Date(r.transactionDate));
+      const totalVatPayable =
+        (absSum / (1 + vatRate)) * vatRate * (Number(r.vatPercent) / 100);
+      const totalTaxPayable =
+        (absSum - totalVatPayable) * (Number(r.taxPercent) / 100);
+
+      return {
+        id: r.id,
+        finsiteId: r.externalTransactionId,
+        userId: r.userId,
+        paymentIdentifier: r.paymentIdentifier,
+        billName: r.billName,
+        businessNumber: r.businessNumber,
+        name: r.merchantName,
+        note2: r.note,
+        billDate: r.transactionDate,
+        payDate: r.paymentDate,
+        sum: r.amount,
+        currency: r.currency ?? 'ILS',
+        category: r.category,
+        subCategory: r.subCategory,
+        isRecognized: r.isRecognized,
+        vatPercent: r.vatPercent,
+        taxPercent: r.taxPercent,
+        totalVatPayable,
+        totalTaxPayable,
+        isEquipment: r.isEquipment,
+        reductionPercent: r.reductionPercent,
+        vatReportingDate: r.vatReportingDate,
+        confirmed: false, // only unconfirmed rows reach here
+      };
+    });
   }
 
 

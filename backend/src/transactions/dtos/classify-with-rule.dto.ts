@@ -95,4 +95,13 @@ export class ClassifyWithRuleDto {
   @IsOptional()
   @IsBoolean()
   confirmOverride?: boolean;
+
+  /**
+   * Optional business attribution override. When provided, both the rule
+   * and matching slim/cache rows are written with this businessNumber
+   * instead of the bill's default.
+   */
+  @IsOptional()
+  @IsString()
+  businessNumber?: string | null;
 }

@@ -1,3 +1,30 @@
+<p-dialog
+  [(visible)]="redirectPromptVisibleModel"
+  header="הוצאות לא מאושרות"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [style]="{ width: '440px' }">
+  <div class="redirect-prompt-body">
+    <i class="pi pi-exclamation-triangle redirect-prompt-icon"></i>
+    <span>יש לך {{ arrayLength() }} הוצאות שעוד לא אושרו. עליך לאשרן לפני הפקת דוח המע"מ.</span>
+  </div>
+  <ng-template pTemplate="footer">
+    <app-p-button
+      buttonText="ביטול"
+      [buttonColor]="buttonColor.WHITE_BORDER"
+      [buttonSize]="ButtonSize.BETWEEN"
+      (onButtonClicked)="onRedirectPromptCancel()">
+    </app-p-button>
+    <app-p-button
+      buttonText="מעבר לאישור הוצאות"
+      [buttonColor]="buttonColor.BLACK"
+      [buttonSize]="ButtonSize.BETWEEN"
+      (onButtonClicked)="onRedirectPromptAccept()">
+    </app-p-button>
+  </ng-template>
+</p-dialog>
+
 <div class="vat-report-wrap-screen">
   <div class="vat-report-header">
     <div class="icon-title">
@@ -62,7 +89,7 @@
   <app-confirm-trans-dialog  (confirmArraySelected)="confirmTrans($event)" (isVisibleChange)="closeDialogWithoutConfirm($event)" [isLoadingButton]="isLoadingButtonConfirmDialog()"
   [isVisible]="visibleConfirmTransDialog()" [data]="transToConfirmData" [businessNumber]="businessNumber()" [startDate]="startDate()" [endDate]="endDate()" [arrayLength]="arrayLength()"></app-confirm-trans-dialog>
 }
-@if (isRequestSent() && this.rows.length === 0) {
+@if (isRequestSent() && this.rows.length === 0 && arrayLength() === 0) {
   <div>
     <p>לא קיימות הוצאות מוכרות עבור עסק זה בתאריכים אלו</p>
   </div>

@@ -341,6 +341,7 @@ export interface IClassifyTrans {
     reductionPercent: number;
     isExpense: boolean;
     confirmOverride?: boolean;
+    businessNumber?: string | null;
 }
 
 export interface IClassifyTransMinimal {
@@ -351,6 +352,7 @@ export interface IClassifyTransMinimal {
     category: string;
     subCategory: string;
     confirmOverride?: boolean;
+    businessNumber?: string | null;
 }
 
 export interface ISelectItem {

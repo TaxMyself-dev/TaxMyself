@@ -8,6 +8,15 @@ import { ca } from 'date-fns/locale';
 import { paymentIdentifierType } from 'src/app/shared/enums';
 
 
+// Appends each value as a repeated query param so values containing ',' survive
+// transit. The literal 'null' is sent when the list is empty so the backend's
+// parseListParam treats it as "no filter".
+function appendList(params: HttpParams, key: string, values: string[] | null | undefined): HttpParams {
+  if (!values?.length) return params.set(key, 'null');
+  return values.reduce((acc, v) => acc.append(key, v), params);
+}
+
+
 @Injectable({
   providedIn: 'root'
 })
@@ -59,12 +68,12 @@ export class TransactionsService implements OnInit {
 
   getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
-    const param = new HttpParams()
-      .set('billId', billId?.length ? billId.join(',') : 'null')
-      .set('categories', categories?.length ? categories.join(',') : 'null')
-      .set('sources', sources?.length ? sources.join(',') : 'null')
+    let param = new HttpParams()
       .set('startDate', startDate)
-      .set('endDate', endDate)
+      .set('endDate', endDate);
+    param = appendList(param, 'billId', billId);
+    param = appendList(param, 'categories', categories);
+    param = appendList(param, 'sources', sources);
     return this.http.get<ITransactionData[]>(url, { params: param })
   }
 
@@ -73,12 +82,12 @@ export class TransactionsService implements OnInit {
     console.log("billId: ", billId);
 
     const url = `${environment.apiUrl}transactions/get-expenses`;
-    const param = new HttpParams()
-      .set('billId', billId?.length ? billId.join(',') : 'null')
-      .set('categories', categories?.length ? categories.join(',') : 'null')
-      .set('sources', sources?.length ? sources.join(',') : 'null')
+    let param = new HttpParams()
       .set('startDate', startDate)
-      .set('endDate', endDate)
+      .set('endDate', endDate);
+    param = appendList(param, 'billId', billId);
+    param = appendList(param, 'categories', categories);
+    param = appendList(param, 'sources', sources);
     return this.http.get<ITransactionData[]>(url, { params: param })
   }
 

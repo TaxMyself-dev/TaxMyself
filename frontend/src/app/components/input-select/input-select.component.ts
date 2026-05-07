@@ -38,6 +38,7 @@ export class InputSelectComponent implements OnInit {
   group = input<boolean>(false);
   virtualScroll = input<boolean>(false);
   ariaLabel = input<string>("");
+  showClear = input<boolean>(true);
 
   onChangeInputSelect = output<string | boolean>();
   onClickInputSelect = output<string>();
