@@ -31,43 +31,21 @@ export class FeezbackService {
   }
 
   /**
-   * Gets all transactions for all user accounts from Feezback
-   * @param bookingStatus - Optional booking status filter (default: "booked")
-   * @returns Observable with all user transactions data
+   * Admin: fetch live accounts + cards JSON for a specific client (no DB writes).
    */
-  getUserBankTransactions(bookingStatus?: string): Observable<any> {
-    let url = `${environment.apiUrl}feezback/user-bank-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    // The Authorization header is automatically added by AuthInterceptor
-    return this.http.get<any>(url);
-  }
-
-  getUserCardTransactions(bookingStatus?: string): Observable<any> {
-    let url = `${environment.apiUrl}feezback/user-card-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    // The Authorization header is automatically added by AuthInterceptor
-    return this.http.get<any>(url);
+  adminGetAccountsAndCards(firebaseId: string): Observable<{ accounts: any; cards: any }> {
+    return this.http.get<{ accounts: any; cards: any }>(
+      `${environment.apiUrl}feezback/admin/accounts/${firebaseId}`,
+    );
   }
 
   /**
-   * Gets both bank and card transactions in one call (dev use).
-   * @param bookingStatus - Optional booking status filter (default: "booked")
-   * @returns Observable with { bankTransactions, cardTransactions }
+   * Admin: trigger refreshUserSources for a specific client.
    */
-  getAllUserTransactions(bookingStatus?: string): Observable<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }> {
-    let url = `${environment.apiUrl}feezback/user-all-transactions`;
-    if (bookingStatus) {
-      url += `?bookingStatus=${bookingStatus}`;
-    }
-    return this.http.get<{ bankTransactions: any; cardTransactions: any; syncSummary?: any }>(url);
-  }
-
-  ensureSources(): Observable<{ created: number; updated: number }> {
-    return this.http.post<{ created: number; updated: number }>(`${environment.apiUrl}feezback/ensure-sources`, {});
+  adminRefreshUserSources(firebaseId: string): Observable<{ status: string }> {
+    return this.http.post<{ status: string }>(
+      `${environment.apiUrl}feezback/admin/refresh-sources/${firebaseId}`,
+      {},
+    );
   }
 }
-

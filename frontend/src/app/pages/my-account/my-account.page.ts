@@ -78,9 +78,6 @@ export class MyAccountPage implements OnInit {
   // mobileMenuOpen = signal<boolean>(false);
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
-  isLoadingUserBankTransactions = signal<boolean>(false);
-  isLoadingUserCardTransactions = signal<boolean>(false);
-  isLoadingAllTransactions = signal<boolean>(false);
   isProd = signal<boolean>(environment.production);
 
   userData: IUserData;
@@ -789,43 +786,6 @@ export class MyAccountPage implements OnInit {
       });
   }
 
-  private runSyncWithEnsureSources(syncFn: () => void): void {
-    if (!this.hasOpenBanking()) return;
-    this.feezbackService.ensureSources().pipe(take(1)).subscribe({ next: () => syncFn(), error: () => syncFn() });
-  }
-
-  fetchUserBankTransactions(): void {
-    this.runSyncWithEnsureSources(() => {
-      this.isLoadingUserBankTransactions.set(true);
-      this.feezbackService.getUserBankTransactions('booked')
-        .pipe(
-          catchError(err => {
-            console.error('Error fetching user transactions:', err);
-            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.', life: 5000, key: 'br' });
-            return EMPTY;
-          }),
-          finalize(() => this.isLoadingUserBankTransactions.set(false))
-        )
-        .subscribe(response => { this.showSyncToast(response?.syncSummary); });
-    });
-  }
-
-  fetchUserCardTransactions(): void {
-    this.runSyncWithEnsureSources(() => {
-      this.isLoadingUserCardTransactions.set(true);
-      this.feezbackService.getUserCardTransactions('booked')
-        .pipe(
-          catchError(err => {
-            console.error('Error fetching user transactions:', err);
-            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.', life: 5000, key: 'br' });
-            return EMPTY;
-          }),
-          finalize(() => this.isLoadingUserCardTransactions.set(false))
-        )
-        .subscribe(response => { this.showSyncToast(response?.syncSummary); });
-    });
-  }
-
   private buildPartialSyncMessage(failureReason: string): string {
     const parts: string[] = [];
     if (failureReason.includes('card_errors')) {
@@ -844,72 +804,6 @@ export class MyAccountPage implements OnInit {
     return parts.length > 0
       ? parts.join(', ') + '. שאר הנתונים נטענו בהצלחה.'
       : 'חלק מהנתונים לא נטענו בהצלחה.';
-  }
-
-  fetchAllUserTransactions(): void {
-    this.runSyncWithEnsureSources(() => {
-      this.isLoadingAllTransactions.set(true);
-      this.feezbackService.getAllUserTransactions('booked')
-        .pipe(
-          catchError(err => {
-            console.error('Error fetching all user transactions:', err);
-            this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא הצלחנו לטעון את התנועות. אנא נסה שוב מאוחר יותר.', life: 5000, key: 'br' });
-            return EMPTY;
-          }),
-          finalize(() => this.isLoadingAllTransactions.set(false))
-        )
-        .subscribe(response => { this.showSyncToast(response?.syncSummary); });
-    });
-  }
-
-  private showSyncToast(syncSummary: any): void {
-    if (!syncSummary) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'התראה',
-        detail: 'לא נמצאו תנועות או שהפורמט לא צפוי',
-        life: 5000,
-        key: 'br'
-      });
-      return;
-    }
-
-    const bank = syncSummary.bank;
-    const card = syncSummary.card;
-    const system = syncSummary.system;
-
-    const hasBank = bank?.transactionsFetched > 0;
-    const hasCard = card?.transactionsFetched > 0;
-
-    if (!hasBank && !hasCard) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'התראה',
-        detail: 'לא נמצאו תנועות בנק או אשראי.',
-        life: 5000,
-        key: 'br'
-      });
-      return;
-    }
-
-    const lines: string[] = ['הייבוא הושלם בהצלחה.'];
-
-    if (hasBank) {
-      lines.push(`נטענו ${bank.transactionsFetched} תנועות בנק מ־${bank.banksProcessed} חשבונות.`);
-    }
-    if (hasCard) {
-      lines.push(`נטענו ${card.transactionsFetched} תנועות כרטיסי אשראי מ־${card.cardsProcessed} כרטיסים.`);
-    }
-
-    lines.push(`בסך הכול עובדו ${system.totalProcessed} תנועות: ${system.savedInCurrentImport} נשמרו בייבוא הנוכחי, ו־${system.alreadyExisting} כבר היו קיימות במערכת.`);
-
-    this.messageService.add({
-      severity: 'success',
-      summary: 'הצלחה',
-      detail: lines.join('\n'),
-      life: 8000,
-      key: 'br'
-    });
   }
 
   // openModalAddExpenses(): void {
