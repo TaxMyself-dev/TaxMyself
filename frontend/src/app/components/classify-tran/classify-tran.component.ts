@@ -9,6 +9,7 @@ import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { GenericService } from 'src/app/services/generic.service';
 import { displayColumnsExpense, inputsSize } from 'src/app/shared/enums';
 import { IRowDataTable, ISelectItem, ISubCategory } from 'src/app/shared/interface';
 import { ButtonComponent } from "../button/button.component";
@@ -45,6 +46,7 @@ export class ClassifyTranComponent implements OnInit {
   transactionService = inject(TransactionsService);
   expenseDataService = inject(ExpenseDataService);
   authService = inject(AuthService);
+  genericService = inject(GenericService);
   formBuilder = inject(FormBuilder);
 
   // Inputs / Outputs
@@ -70,6 +72,11 @@ export class ClassifyTranComponent implements OnInit {
   /** Toggle to force subcategory select to re-create after list refresh (fixes selection of newly added subcategory). */
   showSubCategorySelect = signal(true);
   showAdvancedSection = signal(false);
+
+  /** Dropdown options for the businessNumber override. Reuses the canonical
+   *  businesses list from GenericService, which carries the human-readable
+   *  businessName (display) paired with the businessNumber (form value). */
+  businessOptions = this.genericService.businessSelectItems;
 
   // UI constants
   buttonSize = ButtonSize;
@@ -125,6 +132,12 @@ export class ClassifyTranComponent implements OnInit {
       maxSum: [null],
       comment: [null],
       commentMatchType: ['equals'],
+      // Business attribution override. Defaults to the row's current value
+      // (synced from the bill); user may switch to another of their businesses.
+      businessNumber: [null],
+      // UX shortcut: marks the transaction as VAT-exempt by forcing vatPercent
+      // to 0 on submit. Not sent to the backend — the resulting vatPercent is.
+      noVat: [false],
     });
     this.toggleDetailControls(false);
     // When categories/subcategories were added (e.g. after closing add-category), refresh subcategory list for current category.
@@ -134,6 +147,15 @@ export class ClassifyTranComponent implements OnInit {
       if (categoryName) {
         this.getSubCategory(categoryName, true); // forceRecreateSelect so newly added subcategory can be selected
       }
+    });
+    // Pre-fill the businessNumber dropdown whenever a new row is loaded into
+    // the dialog. Uses the raw value the parent stashes before the display-name
+    // lookup overwrites it (transactions.page.ts:620-626).
+    effect(() => {
+      const row = this.rowData();
+      const raw = row?.['__businessNumberRaw'];
+      const value = raw != null && String(raw).trim() !== '' ? String(raw) : null;
+      this.myForm?.patchValue({ businessNumber: value }, { emitEvent: false });
     });
   }
 
@@ -159,6 +181,7 @@ export class ClassifyTranComponent implements OnInit {
       category: raw.categoryName,
       subCategory: raw.subCategoryName,
       isSingleUpdate: isSingle,
+      businessNumber: raw.businessNumber ?? null,
     };
 
     if (isSingle) {
@@ -321,8 +344,24 @@ export class ClassifyTranComponent implements OnInit {
         taxPercent: sub.taxPercent ?? null,
         vatPercent: sub.vatPercent ?? null,
         reductionPercent: sub.reductionPercent ?? null,
+        // Picking a new subcategory loads its defaults — clear any prior no-VAT toggle.
+        noVat: false,
       });
       this.toggleDetailControls(!!this.myForm.get('isSingleUpdate')?.value);
+    }
+  }
+
+  /**
+   * Toggling "ללא מע״מ" forces vatPercent to 0; unchecking restores the
+   * subcategory's default VAT. The submitted DTO reads vatPercent directly,
+   * so no backend change is needed beyond what already happens on classify.
+   */
+  onNoVatToggle(event: { checked?: boolean }): void {
+    if (event?.checked) {
+      this.myForm.patchValue({ vatPercent: 0 });
+    } else {
+      const sub = this.selectedSubCategory();
+      this.myForm.patchValue({ vatPercent: sub?.vatPercent ?? null });
     }
   }
 

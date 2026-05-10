@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 
 /**
  * DTO for the classifyManually() operation.
@@ -40,4 +40,8 @@ export class ClassifyManuallyDto {
 
   @IsBoolean()
   isRecognized: boolean;
+
+  @IsOptional()
+  @IsString()
+  businessNumber?: string | null;
 }

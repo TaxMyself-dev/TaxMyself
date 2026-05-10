@@ -240,6 +240,14 @@
                 {{ row[col.name] }}
               </span>
               }
+              <!-- Amount + recognition % stacked on two lines (used by the
+                   confirm-expense dialog for "מוכר למע״מ" / "מוכר למס"). -->
+              @else if (col.cellRenderer === ICellRenderer.AMOUNT_WITH_PERCENT) {
+                <span class="amount-with-percent">
+                  <span class="amount">{{ (row[col.name] | number:'1.0-2') ?? 0 }} ש״ח</span>
+                  <span class="percent">({{ row[amountPercentField(col.name)] ?? 0 }}%)</span>
+                </span>
+              }
               @else {
               {{ row[col.name] }}
               }
@@ -287,7 +295,8 @@
       @if (shouldShowAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
         (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }
       }
@@ -298,7 +307,8 @@
       @if (shouldShowFileAction(action)) {
       <app-p-button [icon]="action.icon" [iconOnly]="true"
         (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
-        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO">
+        [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }
       }
@@ -317,7 +327,8 @@
         (onButtonClicked)="action.action(null, getCurrentRow())"
         [buttonText]="action.title || action.name"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
-        [isLoading]="action.isLoading ? action.isLoading() : false">
+        [isLoading]="action.isLoading ? action.isLoading() : false"
+        [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }
     </div>

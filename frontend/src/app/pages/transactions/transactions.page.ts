@@ -2,7 +2,7 @@ import { Component, DestroyRef, ElementRef, HostListener, OnInit, Signal, ViewCh
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MessageService } from 'primeng/api';
 import { TransactionsService } from './transactions.page.service';
-import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, take, takeUntil, takeWhile, finalize } from 'rxjs';
+import { BehaviorSubject, EMPTY, catchError, from, map, switchMap, tap, zip, Subject, take, takeUntil, takeWhile, finalize, forkJoin } from 'rxjs';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ISubCategory, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { bunnerImagePosition, BusinessStatus, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
@@ -546,12 +546,7 @@ export class TransactionsPage implements OnInit {
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
         this.incomesData = data.incomes;
         this.expensesData = data.expenses;
-        // this.classifyDataFilter();
-        // this.filteredExpensesData.set(this.expensesData);
-        // this.filteredIncomesData.set(this.incomesData);
         this.classifyDataFilter();
-        console.log("income: ", this.incomesData);
-        console.log("expense: ", this.expensesData);
       });
   }
 
@@ -637,24 +632,23 @@ export class TransactionsPage implements OnInit {
   }
 
   getCategory(): void {
-    this.expenseDataService.getcategry(null)
+    // The transactions page hosts both income and expense tables and sends the
+    // same `categories` filter to both endpoints. Load income + expense
+    // categories so the user can filter rows on either side.
+    forkJoin([
+      this.expenseDataService.getcategry(null, true),
+      this.expenseDataService.getcategry(null, false),
+    ])
       .pipe(
         takeUntil(this.destroy$),
-        map((res) => {
-          return res.map((item: any) => ({
-            name: item.categoryName,
-            value: item.categoryName
-          })
-          )
-        }))
+        map(([expenses, incomes]) => [...expenses, ...incomes].map((item: any) => ({
+          name: item.categoryName,
+          value: item.categoryName,
+        })))
+      )
       .subscribe((res) => {
         this.listCategory = res;
         this.listFilterCategory.push(...res);
-        // this.editFieldsNamesExpenses.map((field: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>) => {
-        //   if (field.name === TransactionsOutcomesColumns.CATEGORY) {
-        //     field.listItems = res;
-        //   }
-        // });
       })
   }
 
@@ -849,26 +843,14 @@ export class TransactionsPage implements OnInit {
   }
 
   selectOption(value: string) {
-    console.log("🚀 ~ selectOption ~ value:", value)
     const valueExist = this.selectedValue.some(v => v === value);
 
-    console.log("🚀 ~ selectOption ~ valueExist:", valueExist);
     if (valueExist) {
       this.selectedValue = this.selectedValue.filter(item => item !== value);
     } else {
       this.selectedValue.push(value);
     }
-    console.log("🚀 ~ selectOption ~ this.selectedValue:", this.selectedValue);
 
-    // const filteredExpenses = this.expensesData.filter(row => {
-    //   const hasClassification = this.selectedValue.includes('classification');
-    //   const hasNotClassification = this.selectedValue.includes('notClassification');
-
-    //   if (hasClassification && hasNotClassification) return true; // show all
-    //   if (hasClassification) return row.category !== 'לא שוייך';
-    //   if (hasNotClassification) return row.category === 'לא שוייך';
-    //   return true; // default is display all
-    // });
     this.classifyDataFilter();
   }
 
@@ -893,9 +875,7 @@ export class TransactionsPage implements OnInit {
       if (hasNotClassification) return row.category === 'טרם סווג';
       return true; // default is display all
     }));
-    console.log("🚀 ~ selectOption ~ filteredExpenses:", this.filteredIncomesData())
 
-    // return this.expensesData = filteredExpenses;
   }
 
   private getCurrencySymbol(currency: string | null | undefined): string {

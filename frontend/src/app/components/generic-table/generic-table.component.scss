@@ -1,4 +1,19 @@
 
+.amount-with-percent {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.15;
+
+    .amount {
+        font-weight: 500;
+    }
+
+    .percent {
+        color: #6b7280;
+        font-size: 0.85em;
+    }
+}
+
 .table-container {
     width: 100%;
     display: flex;

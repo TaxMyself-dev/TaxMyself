@@ -1,4 +1,5 @@
-import { Component, computed, inject, Input, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, Input, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VatReportService } from './vat-report.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
@@ -31,6 +32,7 @@ export class VatReportPage implements OnInit {
 
   private gs = inject(GenericService);
   private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
 
   confirmationService = inject(ConfirmationService);
 
@@ -86,8 +88,9 @@ export class VatReportPage implements OnInit {
     { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER },
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.DDL },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.DDL },
-    { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
+    // Combined amount + recognition % (same renderer the confirm-expense dialog uses).
+    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVat, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
+    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTax, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
   ];
 
   reportOrder: string[] = [
@@ -149,6 +152,19 @@ export class VatReportPage implements OnInit {
       },
     ];
 
+    // Clear any previously-rendered report when the user changes the business
+    // or period. Prevents confusing a stale report with the new selection
+    // before the user clicks "הצג". Also resets arrayLength so the empty-state
+    // message is gated on a fresh count, not a stale one from a previous run.
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.vatReportData.set(null);
+        this.dataTable = of([]);
+        this.rows = [];
+        this.isRequestSent.set(false);
+        this.arrayLength.set(0);
+      });
   }
 
   beforeSelectFile(event): void {
@@ -262,11 +278,13 @@ export class VatReportPage implements OnInit {
         return EMPTY;
       }),
       tap((data: IRowDataTable[]) => {
+        // Set arrayLength FIRST so closeDialogWithoutConfirm sees the correct
+        // value (used to decide whether to prompt for pending expenses).
+        this.arrayLength.set(data?.length ?? 0);
         if (!data?.length) {
           this.closeDialogWithoutConfirm(false);
         }
         console.log("🚀 ~ tap ~ data:", data)
-        this.arrayLength.set(data?.length);
       }),
       map(data => {
         return data?.map(row => ({
@@ -380,11 +398,62 @@ export class VatReportPage implements OnInit {
     // }
   }
 
+  /** Visibility for the redirect-expenses prompt (`<p-dialog>` in the template). */
+  redirectPromptVisible = signal<boolean>(false);
+
+  /** Re-entry guard — confirm-trans-dialog can fire its close event twice
+   *  (button click + inner p-dialog onHide); without this we'd schedule the
+   *  prompt twice and could end up with stacked dialogs. */
+  private redirectPromptOpen = false;
+
+  /** Two-way model used by `[(visible)]` on the inline p-dialog so the X
+   *  close button keeps state in sync. */
+  get redirectPromptVisibleModel(): boolean {
+    return this.redirectPromptVisible();
+  }
+  set redirectPromptVisibleModel(value: boolean) {
+    this.redirectPromptVisible.set(value);
+    if (!value) this.redirectPromptOpen = false;
+  }
+
   closeDialogWithoutConfirm(event: boolean): void {
     console.log("🚀 ~ VatReportPage ~ closeDialogWithoutConfirm ~ event:", event)
     this.visibleConfirmTransDialog.set(event);
+
+    // User cancelled the confirm dialog while expenses are still pending.
+    // Block the empty report and prompt them to re-open the confirm flow.
+    // 250ms gives the confirm-trans dialog and its overlay portal time to
+    // fully unmount before the new dialog opens — keeps overlays from stacking.
+    if (!event && this.arrayLength() > 0 && !this.redirectPromptOpen) {
+      this.redirectPromptOpen = true;
+      setTimeout(() => this.openPendingExpensesPrompt(), 250);
+      return;
+    }
+
     this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
     this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+  }
+
+  /** Show the redirect prompt (driven by an inline <p-dialog>, not
+   *  ConfirmationService — direct click handlers, no first-click-no-op). */
+  private openPendingExpensesPrompt(): void {
+    this.redirectPromptVisible.set(true);
+  }
+
+  /** "ביטול" inside the redirect prompt — close it and stay on this page. */
+  onRedirectPromptCancel(): void {
+    this.redirectPromptVisible.set(false);
+    this.redirectPromptOpen = false;
+  }
+
+  /** "מעבר לאישור הוצאות" inside the redirect prompt — close it and re-open
+   *  the confirm-trans dialog so the user can confirm the pending expenses. */
+  onRedirectPromptAccept(): void {
+    this.redirectPromptVisible.set(false);
+    this.redirectPromptOpen = false;
+    // Defer one tick so p-dialog's hide animation finishes before the
+    // confirm-trans dialog opens — prevents brief overlay stacking.
+    setTimeout(() => this.getTransToConfirm(), 0);
   }
 
   confirmTrans(event: { transactions: IRowDataTable[], files: { id: number, file: File }[] }): void {
@@ -511,10 +580,10 @@ export class VatReportPage implements OnInit {
           data.forEach(row => {
             const { reductionDone, reductionPercent, expenseNumber, isEquipment, loadingDate, note, supplierID, userId, isReported, monthReport, ...tableData } = row;
             if (row.file != undefined && row.file != null && row.file != "") {
-              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file 
+              tableData[this.UPLOAD_FILE_FIELD_NAME] = row.file; // to show that this expense already has a file
             }
-            tableData.totalTaxPayable = this.genericService.addComma(tableData.totalTaxPayable as string);
-            tableData.totalVatPayable = this.genericService.addComma(tableData.totalVatPayable as string);
+            // totalVatPayable / totalTaxPayable stay as raw numbers — the
+            // AMOUNT_WITH_PERCENT cell renderer formats them via the number pipe.
             tableData.sum = this.genericService.addComma(tableData.sum as string);
             rows.push(tableData);
           })

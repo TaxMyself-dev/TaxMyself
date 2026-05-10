@@ -77,4 +77,8 @@ export class ClassifyTransactionDto {
   @IsBoolean()
   confirmOverride?: boolean;
 
+  @IsOptional()
+  @IsString()
+  businessNumber?: string | null;
+
 }

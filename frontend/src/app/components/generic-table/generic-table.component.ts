@@ -14,7 +14,7 @@ import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
-import { FormTypes } from 'src/app/shared/enums';
+import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
 import { HighlightPipe } from "../../pipes/high-light.pipe";
@@ -109,6 +109,19 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   readonly ButtonColor = ButtonColor;
   /** Exposed for template: `col.type === FormTypes.DATE` alongside name-based date detection */
   readonly FormTypes = FormTypes;
+  /** Exposed for template: enables `col.cellRenderer === ICellRenderer.X` checks. */
+  readonly ICellRenderer = ICellRenderer;
+
+  /**
+   * Picks the matching percent-field name for an AMOUNT_WITH_PERCENT cell.
+   * Convention: `totalVatPayable` → `vatPercent`, `totalTaxPayable` → `taxPercent`.
+   * Returns null when the column isn't one of those — caller falls back to plain text.
+   */
+  amountPercentField(colName: unknown): 'vatPercent' | 'taxPercent' | null {
+    if (colName === 'totalVatPayable') return 'vatPercent';
+    if (colName === 'totalTaxPayable') return 'taxPercent';
+    return null;
+  }
 
 
   expandedRows = new Set<number>();

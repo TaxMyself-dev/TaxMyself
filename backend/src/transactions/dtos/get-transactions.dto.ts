@@ -1,5 +1,4 @@
 import {
-    IsBooleanString,
     IsNotEmpty,
     IsOptional,
     IsString,
@@ -16,19 +15,18 @@ export class GetTransactionsDto {
     @IsNotEmpty()
     endDate: string;
 
-    @IsString()
-    @IsNotEmpty()
-    billId: string;
+    // Repeated query params arrive as string[]; a single param arrives as string.
+    // The literal 'null' (string) means "no filter" — see parseListParam.
+    @IsOptional()
+    billId: string | string[];
 
-    @IsString()
-    @IsNotEmpty()
-    categories: string;
-    
+    @IsOptional()
+    categories: string | string[];
+
     @IsString()
     @IsOptional()
     businessNumber: string;
 
-    @IsString()
     @IsOptional()
-    sources: string;
+    sources: string | string[];
 }

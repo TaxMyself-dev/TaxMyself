@@ -446,6 +446,25 @@ app-root {
   overflow: visible !important;
 }
 
+// In .filter-tab toolbars, long values (e.g. business names like
+// "משה ברנשטיין - חשמלאי מוסמך") overflow the fixed 215px `.normal` chip.
+// Let the chip grow to fit, capped at 360px, and truncate with an ellipsis past that.
+.filter-tab {
+  .p-select.normal,
+  .p-multiselect.normal {
+    width: auto !important;
+    min-width: 215px;
+    max-width: 360px;
+  }
+
+  .p-select-label,
+  .p-multiselect-label {
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .p-multiselect-option,
 .p-select-option {
   font-size: large;

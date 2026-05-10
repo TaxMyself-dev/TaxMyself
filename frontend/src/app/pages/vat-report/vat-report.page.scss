@@ -7,6 +7,18 @@
   align-items: center;
 }
 
+.redirect-prompt-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+.redirect-prompt-icon {
+  font-size: 1.6rem;
+  color: #f59e0b;
+}
+
 .vat-report-wrap-screen {
   width: 100%;
   height: 95%;

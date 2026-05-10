@@ -579,9 +579,9 @@ export class TransactionsController {
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-    const billIds = parseCsvParam(query.billId);
-    const categories = parseCsvParam(query.categories);
-    const sources = parseCsvParam(query.sources);
+    const billIds = parseListParam(query.billId);
+    const categories = parseListParam(query.categories);
+    const sources = parseListParam(query.sources);
 
     if (!await this.syncStateAllowsFetch(userId)) {
       return [];
@@ -604,9 +604,9 @@ export class TransactionsController {
     const endDate = this.sharedService.convertStringToDateObject(query.endDate);
     const userId = request.user?.firebaseId;
 
-    const billIds = parseCsvParam(query.billId);
-    const categories = parseCsvParam(query.categories);
-    const sources = parseCsvParam(query.sources);
+    const billIds = parseListParam(query.billId);
+    const categories = parseListParam(query.categories);
+    const sources = parseListParam(query.sources);
 
     if (!await this.syncStateAllowsFetch(userId)) {
       return [];
@@ -642,7 +642,6 @@ export class TransactionsController {
     @Req() request: AuthenticatedRequest,
     @Body() dto: ClassifyTransactionDto,
   ): Promise<any> {
-    console.log("🚀 ~ TransactionsController ~ classifyTransaction ~ dto:", dto)
     const userId = request.user?.firebaseId;
 
     // Resolve cache row using the stable externalTransactionId (= finsiteId).
@@ -668,6 +667,7 @@ export class TransactionsController {
         reductionPercent: dto.reductionPercent ?? 0,
         isEquipment: dto.isEquipment ?? false,
         isRecognized: dto.isRecognized ?? false,
+        businessNumber: dto.businessNumber ?? null,
       });
       return;
     }
@@ -690,6 +690,7 @@ export class TransactionsController {
       commentPattern: dto.comment ?? null,
       commentMatchType: dto.matchType ?? 'equals',
       confirmOverride: dto.confirmOverride,
+      businessNumber: dto.businessNumber ?? null,
     });
 
     if (result.status === 'blocked_vat_reported') {
@@ -834,10 +835,21 @@ export class TransactionsController {
 }
 
 /**
- * Parses a comma-separated query-param string into a string array.
- * Returns null when the param is absent, empty, or the literal "null".
+ * Parses a list query-param into a string array.
+ *
+ * Accepts:
+ *   - string[]  → repeated query params (?categories=A&categories=B). Preferred.
+ *   - string    → single value, or legacy comma-joined CSV. The CSV branch is
+ *                 a fallback for old callers; it cannot represent values that
+ *                 themselves contain a comma (e.g. "בנק, אשראי ותנועות").
+ *
+ * Returns null when absent/empty or the literal "null" sentinel.
  */
-function parseCsvParam(value: string | undefined | null): string[] | null {
+function parseListParam(value: string | string[] | undefined | null): string[] | null {
+  if (Array.isArray(value)) {
+    const cleaned = value.filter(v => v && v !== 'null' && v.trim() !== '');
+    return cleaned.length ? cleaned : null;
+  }
   if (!value || value === 'null' || value.trim() === '') return null;
   return value.split(',');
 }
