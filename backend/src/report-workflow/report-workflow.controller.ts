@@ -1,8 +1,11 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -50,6 +53,20 @@ export class ReportWorkflowController {
   ) {
     const firebaseId = this.getFirebaseId(request);
     return this.service.confirm(firebaseId, this.parseId(id));
+  }
+
+  /**
+   * Self-served client dismisses (soft-deletes) one of their workflows.
+   * Service rejects the call when the client has an active delegation.
+   */
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async dismiss(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const firebaseId = this.getFirebaseId(request);
+    await this.service.dismiss(firebaseId, this.parseId(id));
   }
 
   /** Accountant marks the workflow as reported (or unmarks it). */

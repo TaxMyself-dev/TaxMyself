@@ -8,6 +8,7 @@ import { ClientTasksPage } from './client-tasks.page';
 import { ClientTasksPageRoutingModule } from './client-tasks-routing.module';
 import { SharedModule } from '../../../shared/shared.module';
 import { ButtonComponent } from '../../../components/button/button.component';
+import { FilterTabComponent } from '../../../components/filter-tab/filter-tab.component';
 
 @NgModule({
   imports: [
@@ -18,6 +19,7 @@ import { ButtonComponent } from '../../../components/button/button.component';
     ToastModule,
     ConfirmDialogModule,
     ButtonComponent,
+    FilterTabComponent,
   ],
   declarations: [ClientTasksPage],
   providers: [MessageService, ConfirmationService],

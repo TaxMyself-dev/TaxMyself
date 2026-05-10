@@ -75,10 +75,11 @@ export class TasksGeneratorService {
   async generateForUser(firebaseId: string, today: Date = new Date()): Promise<GenerationResult> {
     const todayUtc = this.toUtcDate(today);
     const result: GenerationResult = { created: 0, skipped: 0 };
+    const accountantCache = new Map<string, boolean>();
 
     const businesses = await this.businessRepo.find({ where: { firebaseId } });
     for (const b of businesses) {
-      await this.processBusinessWorkflows(b, todayUtc, result);
+      await this.processBusinessWorkflows(b, todayUtc, result, accountantCache);
     }
 
     this.logger.log(
@@ -129,11 +130,12 @@ export class TasksGeneratorService {
   async generateForToday(today: Date = new Date()): Promise<GenerationResult> {
     const todayUtc = this.toUtcDate(today);
     const result: GenerationResult = { created: 0, skipped: 0 };
+    const accountantCache = new Map<string, boolean>();
 
     // Phase 1: every business with a reporting requirement → workflow.
     const allBusinesses = await this.businessRepo.find();
     for (const b of allBusinesses) {
-      await this.processBusinessWorkflows(b, todayUtc, result);
+      await this.processBusinessWorkflows(b, todayUtc, result, accountantCache);
     }
 
     // Phase 2: every active delegation → AccountantTask + annual.
@@ -165,6 +167,7 @@ export class TasksGeneratorService {
    */
   async backfillWorkflows(): Promise<GenerationResult> {
     const result: GenerationResult = { created: 0, skipped: 0 };
+    const accountantCache = new Map<string, boolean>();
     const tasks = await this.tasksRepo.find({
       where: [{ type: TaskType.VAT_REPORT }, { type: TaskType.ADVANCE_TAX }],
     });
@@ -174,13 +177,20 @@ export class TasksGeneratorService {
         t.type === TaskType.VAT_REPORT
           ? ReportWorkflowType.VAT_REPORT
           : ReportWorkflowType.ADVANCE_TAX;
-      const out = await this.upsertWorkflow({
-        clientFirebaseId: t.clientFirebaseId,
-        businessNumber: t.businessNumber,
-        type: workflowType,
-        periodStart: t.periodStart,
-        periodEnd: t.periodEnd,
-      });
+      const initialStatus = await this.resolveInitialStatus(
+        t.clientFirebaseId,
+        accountantCache,
+      );
+      const out = await this.upsertWorkflow(
+        {
+          clientFirebaseId: t.clientFirebaseId,
+          businessNumber: t.businessNumber,
+          type: workflowType,
+          periodStart: t.periodStart,
+          periodEnd: t.periodEnd,
+        },
+        initialStatus,
+      );
       this.tally(out.outcome, result);
     }
     this.logger.log(
@@ -205,9 +215,14 @@ export class TasksGeneratorService {
     business: Business,
     today: Date,
     result: GenerationResult,
+    accountantCache: Map<string, boolean>,
   ): Promise<void> {
     if (!business.businessNumber) return;
     const lowerBound = this.computeLowerBound(business, today);
+    const initialStatus = await this.resolveInitialStatus(
+      business.firebaseId,
+      accountantCache,
+    );
 
     if (
       business.vatReportingType &&
@@ -219,13 +234,16 @@ export class TasksGeneratorService {
         today,
       );
       for (const period of periods) {
-        const out = await this.upsertWorkflow({
-          clientFirebaseId: business.firebaseId,
-          businessNumber: business.businessNumber,
-          type: ReportWorkflowType.VAT_REPORT,
-          periodStart: period.periodStart,
-          periodEnd: period.periodEnd,
-        });
+        const out = await this.upsertWorkflow(
+          {
+            clientFirebaseId: business.firebaseId,
+            businessNumber: business.businessNumber,
+            type: ReportWorkflowType.VAT_REPORT,
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
+          },
+          initialStatus,
+        );
         if (out.outcome === 'created' && out.workflow) {
           this.notifications
             .notifyClientWorkflowCreated({ workflow: out.workflow })
@@ -245,13 +263,16 @@ export class TasksGeneratorService {
         today,
       );
       for (const period of periods) {
-        const out = await this.upsertWorkflow({
-          clientFirebaseId: business.firebaseId,
-          businessNumber: business.businessNumber,
-          type: ReportWorkflowType.ADVANCE_TAX,
-          periodStart: period.periodStart,
-          periodEnd: period.periodEnd,
-        });
+        const out = await this.upsertWorkflow(
+          {
+            clientFirebaseId: business.firebaseId,
+            businessNumber: business.businessNumber,
+            type: ReportWorkflowType.ADVANCE_TAX,
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
+          },
+          initialStatus,
+        );
         if (out.outcome === 'created' && out.workflow) {
           this.notifications
             .notifyClientWorkflowCreated({ workflow: out.workflow })
@@ -391,13 +412,18 @@ export class TasksGeneratorService {
       type === TaskType.VAT_REPORT
         ? ReportWorkflowType.VAT_REPORT
         : ReportWorkflowType.ADVANCE_TAX;
-    const workflowResult = await this.upsertWorkflow({
-      clientFirebaseId: delegation.userId,
-      businessNumber: business.businessNumber!,
-      type: workflowType,
-      periodStart: period.periodStart,
-      periodEnd: period.periodEnd,
-    });
+    const workflowResult = await this.upsertWorkflow(
+      {
+        clientFirebaseId: delegation.userId,
+        businessNumber: business.businessNumber!,
+        type: workflowType,
+        periodStart: period.periodStart,
+        periodEnd: period.periodEnd,
+      },
+      // Active delegation in scope → client has an accountant, so the workflow
+      // starts at WAITING_FOR_CLIENT (the client must confirm before handoff).
+      ReportWorkflowStatus.WAITING_FOR_CLIENT,
+    );
 
     if (workflowResult.outcome === 'created' && workflowResult.workflow) {
       this.notifications
@@ -624,17 +650,20 @@ export class TasksGeneratorService {
     }
   }
 
-  private async upsertWorkflow(values: {
-    clientFirebaseId: string;
-    businessNumber: string;
-    type: ReportWorkflowType;
-    periodStart: Date;
-    periodEnd: Date;
-  }): Promise<{ outcome: 'created' | 'skipped'; workflow: ReportWorkflow | null }> {
+  private async upsertWorkflow(
+    values: {
+      clientFirebaseId: string;
+      businessNumber: string;
+      type: ReportWorkflowType;
+      periodStart: Date;
+      periodEnd: Date;
+    },
+    initialStatus: ReportWorkflowStatus,
+  ): Promise<{ outcome: 'created' | 'skipped'; workflow: ReportWorkflow | null }> {
     try {
       const result = await this.workflowRepo.insert({
         ...values,
-        status: ReportWorkflowStatus.WAITING_FOR_CLIENT,
+        status: initialStatus,
       });
       const id = result.identifiers?.[0]?.id as number | undefined;
       const workflow = id ? await this.workflowRepo.findOne({ where: { id } }) : null;
@@ -645,5 +674,29 @@ export class TasksGeneratorService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Look up whether the client currently has an active delegation, with
+   * memoization so each generator run hits the DB at most once per client.
+   * Returns the appropriate workflow start state — WAITING_FOR_CLIENT if the
+   * client has an accountant (they must confirm before handoff), READY_TO_PREPARE
+   * if they're self-served (no recipient for confirmation; just file the report).
+   */
+  private async resolveInitialStatus(
+    clientFirebaseId: string,
+    cache: Map<string, boolean>,
+  ): Promise<ReportWorkflowStatus> {
+    let hasAccountant = cache.get(clientFirebaseId);
+    if (hasAccountant === undefined) {
+      const found = await this.delegationRepo.findOne({
+        where: { userId: clientFirebaseId, status: DelegationStatus.ACTIVE },
+      });
+      hasAccountant = !!found;
+      cache.set(clientFirebaseId, hasAccountant);
+    }
+    return hasAccountant
+      ? ReportWorkflowStatus.WAITING_FOR_CLIENT
+      : ReportWorkflowStatus.READY_TO_PREPARE;
   }
 }

@@ -4,12 +4,105 @@
 <div class="client-tasks-page">
   <header class="page-header">
     <h2 class="page-title">המשימות שלי</h2>
-    <p class="page-subtitle">משימות שמחכות לאישור שלך לפני שרואה החשבון יכול להגיש את הדוח.</p>
+    @if (isSelfServed()) {
+      <p class="page-subtitle">דוחות שעליך להגיש לרשויות המס.</p>
+    } @else {
+      <p class="page-subtitle">משימות שמחכות לאישור שלך לפני שרואה החשבון יכול להגיש את הדוח.</p>
+    }
   </header>
+
+  @if (!loading() && workflows().length > 0) {
+    <app-filter-tab
+      [config]="filterConfig"
+      [parentForm]="form"
+      (apply)="onApplyFilters($event)">
+    </app-filter-tab>
+  }
 
   @if (loading()) {
     <p class="loading-text">טוען...</p>
+  } @else if (isSelfServed()) {
+    <!-- ===== Self-served: no accountant, two-state flow (לדיווח / דווחו) ===== -->
+    <section class="task-section">
+      <h3 class="section-title">
+        דוחות לדיווח
+        @if (toFile().length > 0) {
+          <span class="section-count">({{ toFile().length }})</span>
+        }
+      </h3>
+
+      @if (toFile().length === 0) {
+        <p class="empty-text">אין דוחות שעדיין לא דווחו.</p>
+      } @else {
+        <ul class="task-list">
+          @for (w of toFile(); track w.id) {
+            <li class="task-card">
+              <div class="task-card-info">
+                <div class="task-card-title">
+                  {{ typeLabel(w.type) }} – {{ formatPeriod(w) }}
+                </div>
+                <div class="task-card-meta">
+                  עסק: {{ w.businessNumber }} ·
+                  תקופה: {{ w.periodStart | date:'dd/MM/yyyy' }} – {{ w.periodEnd | date:'dd/MM/yyyy' }}
+                </div>
+              </div>
+              <div class="task-card-actions">
+                <app-p-button
+                  [buttonText]="'סמן כדווח'"
+                  [buttonColor]="ButtonColor.BLACK"
+                  [buttonSize]="ButtonSize.SMALL"
+                  [disabled]="busyId() === w.id"
+                  [isLoading]="busyId() === w.id"
+                  (onButtonClicked)="markReported(w)"
+                />
+                <app-p-button
+                  [buttonText]="'מחק'"
+                  [buttonColor]="ButtonColor.WHITE_BORDER"
+                  [buttonSize]="ButtonSize.SMALL"
+                  [disabled]="busyId() === w.id"
+                  (onButtonClicked)="dismissTask(w)"
+                />
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (filed().length > 0) {
+      <section class="task-section">
+        <h3 class="section-title">דוחות שדווחו</h3>
+        <ul class="task-list">
+          @for (w of filed(); track w.id) {
+            <li class="task-card task-card-recent">
+              <div class="task-card-info">
+                <div class="task-card-title">
+                  {{ typeLabel(w.type) }} – {{ formatPeriod(w) }}
+                </div>
+                <div class="task-card-meta">
+                  עסק: {{ w.businessNumber }} ·
+                  תקופה: {{ w.periodStart | date:'dd/MM/yyyy' }} – {{ w.periodEnd | date:'dd/MM/yyyy' }}
+                </div>
+              </div>
+              <div class="task-card-actions">
+                <span class="task-status task-status-REPORTED">
+                  {{ statusLabel(w.status) }}
+                </span>
+                <app-p-button
+                  [buttonText]="'מחק'"
+                  [buttonColor]="ButtonColor.WHITE_BORDER"
+                  [buttonSize]="ButtonSize.SMALL"
+                  [disabled]="busyId() === w.id"
+                  (onButtonClicked)="dismissTask(w)"
+                />
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
   } @else {
+    <!-- ===== Delegated: 3-state flow (ממתין → היסטוריה) ===== -->
     <section class="task-section">
       <h3 class="section-title">
         ממתין לאישור שלך
@@ -74,16 +167,6 @@
                 >
                   {{ statusLabel(w.status) }}
                 </span>
-                @if (w.canSelfMark && w.status === ReportWorkflowStatus.READY_TO_PREPARE) {
-                  <app-p-button
-                    [buttonText]="'סמן כדווח'"
-                    [buttonColor]="ButtonColor.BLACK"
-                    [buttonSize]="ButtonSize.SMALL"
-                    [disabled]="busyId() === w.id"
-                    [isLoading]="busyId() === w.id"
-                    (onButtonClicked)="markReported(w)"
-                  />
-                }
               </div>
             </li>
           }

@@ -1,0 +1,87 @@
+<div class="demo-data-container">
+  <header class="demo-data-header">
+    <h2 class="demo-data-title">נתוני דמו</h2>
+    <p class="demo-data-subtitle">
+      צור משתמשי דמו עם תנועות מוקאפ כדי לשחק עם סיווג ופיצ'רים נוספים בלי להתחבר ל-Open Banking.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="demo-data-loading">טוען פרופילים...</p>
+  } @else if (profiles().length === 0) {
+    <p class="demo-data-loading">אין פרופילים מוגדרים</p>
+  } @else {
+    <ul class="profile-list">
+      @for (profile of profiles(); track profile.id) {
+        <li class="profile-card">
+          <div class="profile-info">
+            <h3 class="profile-label">{{ profile.label }}</h3>
+            <p class="profile-description">{{ profile.description }}</p>
+            <dl class="profile-creds">
+              <dt>אימייל</dt>
+              <dd><code>{{ profile.email }}</code></dd>
+              <dt>סיסמה</dt>
+              <dd><code>{{ profile.password }}</code></dd>
+            </dl>
+            <div class="profile-status">
+              @if (profile.exists) {
+                <span class="profile-pill profile-pill-exists">קיים במערכת</span>
+              } @else {
+                <span class="profile-pill profile-pill-missing">לא קיים</span>
+              }
+            </div>
+
+            @if (profile.clients && profile.clients.length > 0) {
+              <div class="profile-clients">
+                <h4 class="profile-clients-title">לקוחות מקושרים</h4>
+                <ul class="profile-clients-list">
+                  @for (client of profile.clients; track client.email) {
+                    <li class="profile-client">
+                      <div class="profile-client-info">
+                        <span class="profile-client-name">{{ client.label }}</span>
+                        <code class="profile-client-email">{{ client.email }}</code>
+                      </div>
+                      <app-p-button
+                        [buttonText]="'כניסה'"
+                        [buttonColor]="buttonColor.WHITE_BORDER"
+                        [buttonSize]="buttonSize.SMALL"
+                        [disabled]="!profile.exists || isBusy(profile.id)"
+                        (onButtonClicked)="onEnterAsClient(profile, client)"
+                      />
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+          <div class="profile-actions">
+            <app-p-button
+              [buttonText]="'צור משתמש'"
+              [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.SMALL"
+              [disabled]="profile.exists || isBusy(profile.id)"
+              [isLoading]="isBusy(profile.id) && !profile.exists"
+              (onButtonClicked)="onSeed(profile)"
+            />
+            <app-p-button
+              [buttonText]="profile.clients?.length ? 'כניסה כראשי' : 'כניסה כמשתמש'"
+              [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.SMALL"
+              [disabled]="!profile.exists || isBusy(profile.id)"
+              [isLoading]="isBusy(profile.id) && profile.exists"
+              (onButtonClicked)="onEnterAsPrimary(profile)"
+            />
+            <app-p-button
+              [buttonText]="'אפס משתמש'"
+              [buttonColor]="buttonColor.WHITE_BORDER"
+              [buttonSize]="buttonSize.SMALL"
+              [disabled]="!profile.exists || isBusy(profile.id)"
+              [isLoading]="isBusy(profile.id) && profile.exists"
+              (onButtonClicked)="onReset(profile)"
+            />
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

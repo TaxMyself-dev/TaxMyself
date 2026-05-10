@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import {
   ReportedSource,
   ReportWorkflow,
@@ -64,7 +64,10 @@ export class ReportWorkflowService {
       console.warn('generateForUser failed:', err?.message ?? err);
     }
 
-    const where: Record<string, unknown> = { clientFirebaseId };
+    const where: Record<string, unknown> = {
+      clientFirebaseId,
+      dismissedAt: IsNull(),
+    };
     if (query.status) where.status = query.status;
     if (query.businessNumber) where.businessNumber = query.businessNumber;
     const rows = await this.workflowRepo.find({
@@ -108,6 +111,29 @@ export class ReportWorkflowService {
     return { ...saved, canSelfMark };
   }
 
+  /**
+   * Self-served client dismisses (soft-deletes) one of their workflows.
+   * Allowed only when the actor *is* the workflow's client AND the client has
+   * no active delegation — accountant-managed clients can't hide reporting
+   * obligations from their accountant.
+   *
+   * The row stays in the DB so the unique index on (businessNumber, type,
+   * periodStart, periodEnd) keeps the generator from recreating the same period.
+   */
+  async dismiss(clientFirebaseId: string, id: number): Promise<void> {
+    const workflow = await this.workflowRepo.findOne({ where: { id } });
+    if (!workflow) throw new NotFoundException('המשימה לא נמצאה');
+    if (workflow.clientFirebaseId !== clientFirebaseId) {
+      throw new ForbiddenException('אין לך הרשאה למשימה זו');
+    }
+    if (await this.hasAccountant(clientFirebaseId)) {
+      throw new ForbiddenException('לא ניתן למחוק משימה כשיש רואה חשבון פעיל');
+    }
+    if (workflow.dismissedAt) return; // idempotent — already dismissed.
+    workflow.dismissedAt = new Date();
+    await this.workflowRepo.save(workflow);
+  }
+
   // ----- Accountant-side / programmatic / self-served -----
 
   /**
@@ -140,8 +166,14 @@ export class ReportWorkflowService {
       }
       if (workflow.status === ReportWorkflowStatus.WAITING_FOR_CLIENT) {
         // Bypass: record that the actor confirmed for the client out-of-band.
+        // Self-served clients marking their own row aren't really "bypassed by
+        // the accountant" — label accordingly so audit logs read true.
         workflow.clientConfirmedAt = new Date();
-        workflow.clientConfirmedBy = `accountant-bypass:${actorFirebaseId ?? 'system'}`;
+        const isSelfServed =
+          actorFirebaseId !== null && actorFirebaseId === workflow.clientFirebaseId;
+        workflow.clientConfirmedBy = isSelfServed
+          ? `self-served:${actorFirebaseId}`
+          : `accountant-bypass:${actorFirebaseId ?? 'system'}`;
       }
       workflow.status = ReportWorkflowStatus.REPORTED;
       workflow.reportedAt = new Date();

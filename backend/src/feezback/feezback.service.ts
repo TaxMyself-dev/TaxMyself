@@ -128,6 +128,17 @@ export class FeezbackService {
     }
     const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
 
+    // Gate — only proceed for users who have OPEN_BANKING module access.
+    // Mirrors the same check inside doFullSync. Without this, users who don't
+    // subscribe to OB (e.g. demo users with hasOpenBanking=true but only the
+    // INVOICES module) fire 404s against Feezback on every login.
+    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
+      this.logger.log(
+        `${prefix} ⏭️  Skipped — OPEN_BANKING not in modulesAccess | user=${userName} | firebaseId=${masked}`,
+      );
+      return;
+    }
+
     const bankResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
     const cardResults: { sourceName: string; action: 'created' | 'updated' }[] = [];
     let bankError: string | null = null;
