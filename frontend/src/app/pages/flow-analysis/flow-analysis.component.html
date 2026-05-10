@@ -104,6 +104,16 @@
       </form>
     </div>
 
+    @if (submittedFilterChips().length > 0) {
+      <div class="show-filters-container" dir="rtl">
+        @for (chip of submittedFilterChips(); track $index) {
+          <div class="filter-header">
+            <p class="filter-header-text">{{ chip.label }}: {{ chip.value }}</p>
+          </div>
+        }
+      </div>
+    }
+
     @if (loading()) {
       <div class="state-message">טוען נתונים...</div>
     } @else if (hasError()) {

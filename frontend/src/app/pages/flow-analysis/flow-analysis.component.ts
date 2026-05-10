@@ -28,6 +28,20 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 type ApiFilterType = 'all' | 'category' | 'subCategory' | 'merchant' | 'paymentMethod';
 type LineDisplayMode = 'expenses' | 'incomes' | 'incomes-vs-expenses';
 
+interface FilterChip { label: string; value: string; }
+
+type FormSnapshot = {
+  period: string | null;
+  dateFrom: Date | null;
+  dateTo: Date | null;
+  account: string | null;
+  filterType: ApiFilterType;
+  category: string | null;
+  subCategory: string | null;
+  merchant: string | null;
+  paymentMethod: string | null;
+};
+
 const DONUT_COLORS = [
   '#8B5CF6', '#45C486', '#37CBE0', '#FFD233',
   '#FF9F2D', '#FF4B6E', '#6C63FF', '#F87171', '#A3E635',
@@ -35,6 +49,14 @@ const DONUT_COLORS = [
 
 function toDateString(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDateHebrew(d: Date): string {
+  const dt = new Date(d);
+  const day   = String(dt.getDate()).padStart(2, '0');
+  const month = String(dt.getMonth() + 1).padStart(2, '0');
+  const year  = dt.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function monthLabel(month: string): string {
@@ -178,6 +200,47 @@ export class FlowAnalysisComponent {
   readonly loading  = signal(false);
   readonly hasError = signal(false);
 
+  readonly lastSubmittedFormValue = signal<FormSnapshot | null>(null);
+
+  readonly submittedFilterChips = computed<FilterChip[]>(() => {
+    const v = this.lastSubmittedFormValue();
+    if (!v) return [];
+
+    const chips: FilterChip[] = [];
+
+    // Account
+    const accountItem = this.accountsList().find(a => String(a.value) === String(v.account));
+    const accountLabel = String(accountItem?.name ?? v.account ?? '');
+    if (accountLabel) chips.push({ label: 'חשבון', value: accountLabel });
+
+    // Date — always show actual date range
+    if (v.dateFrom && v.dateTo) {
+      chips.push({ label: 'זמן', value: `${formatDateHebrew(v.dateFrom)} - ${formatDateHebrew(v.dateTo)}` });
+    }
+
+    // Filter type + value
+    switch (v.filterType) {
+      case 'all':
+        chips.push({ label: 'פילטר', value: 'הכל' });
+        break;
+      case 'category':
+        if (v.category) chips.push({ label: 'קטגוריה', value: v.category });
+        break;
+      case 'subCategory':
+        if (v.category)    chips.push({ label: 'קטגוריה',    value: v.category });
+        if (v.subCategory) chips.push({ label: 'תת קטגוריה', value: v.subCategory });
+        break;
+      case 'merchant':
+        if (v.merchant) chips.push({ label: 'בית עסק', value: v.merchant });
+        break;
+      case 'paymentMethod':
+        if (v.paymentMethod) chips.push({ label: 'אמצעי תשלום', value: v.paymentMethod });
+        break;
+    }
+
+    return chips;
+  });
+
   private previousAccount: string | null = null;
 
   private readonly initialRequestSent = signal(false);
@@ -256,6 +319,17 @@ export class FlowAnalysisComponent {
     this.submit$.pipe(
       switchMap(() => {
         const v = this.myForm.value;
+        this.lastSubmittedFormValue.set({
+          period:        v.period        ?? null,
+          dateFrom:      v.dateFrom      ?? null,
+          dateTo:        v.dateTo        ?? null,
+          account:       v.account       ?? null,
+          filterType:    (v.filterType   ?? 'all') as ApiFilterType,
+          category:      v.category      ?? null,
+          subCategory:   v.subCategory   ?? null,
+          merchant:      v.merchant      ?? null,
+          paymentMethod: v.paymentMethod ?? null,
+        });
         this.loading.set(true);
         this.hasError.set(false);
         const { lineFilterType, lineFilterValue } = this.resolveApiFilter();
