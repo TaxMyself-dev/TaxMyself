@@ -21,6 +21,7 @@ import { ISelectItem } from 'src/app/shared/interface';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FlowAnalysisService, FlowAnalysisResponse } from './flow-analysis.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { ButtonComponent } from "src/app/components/button/button.component";
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
@@ -108,6 +109,7 @@ export class FlowAnalysisComponent {
   private transactionService  = inject(TransactionsService);
   private flowAnalysisService = inject(FlowAnalysisService);
   private expenseDataService  = inject(ExpenseDataService);
+  private authService         = inject(AuthService);
 
   inputsSize = inputsSize;
   buttonSize = ButtonSize;
@@ -333,11 +335,19 @@ export class FlowAnalysisComponent {
       }
     });
 
-    // account changes → reset filter state (guard against spurious re-runs)
+    // account changes → update interceptor context, then reset filter state (guard against spurious re-runs)
     effect(() => {
       const account = this.accountValue();
       if (account === this.previousAccount) return;
       this.previousAccount = account;
+
+      if (account) {
+        const bn = this.transactionService.billBusinessNumberMap().get(String(account));
+        if (bn) {
+          this.authService.setActiveBusinessNumber(bn);
+        }
+      }
+
       this.resetFilterState();
     });
 

@@ -15,6 +15,7 @@ export class TransactionsService implements OnInit {
 
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
+  readonly billBusinessNumberMap = signal<Map<string, string>>(new Map());
   private readonly accountsLoading = signal(false);
   private readonly accountsLoaded = signal(false);
   readonly isAccountsLoading = this.accountsLoading.asReadonly();
@@ -123,7 +124,7 @@ export class TransactionsService implements OnInit {
 
   getAllBills(): void {
     const url = `${environment.apiUrl}transactions/get-bills`;
-  
+
     this.http.get<any[]>(url)
       .pipe(
         catchError((err) => {
@@ -136,8 +137,17 @@ export class TransactionsService implements OnInit {
               { value: undefined, name: 'אירעה שגיאה לא ניתן להציג חשבונות קיימים' }
             ]);
           }
-  
+
           return EMPTY;
+        }),
+        tap((data: any[]) => {
+          const map = new Map<string, string>();
+          data.forEach(bill => {
+            if (bill.id != null && bill.businessNumber != null) {
+              map.set(String(bill.id), String(bill.businessNumber));
+            }
+          });
+          this.billBusinessNumberMap.set(map);
         }),
         map((data) => {
           return data.map((bill) => {
