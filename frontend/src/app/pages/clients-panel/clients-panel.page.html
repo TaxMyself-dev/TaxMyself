@@ -110,36 +110,33 @@
 >
   <div class="create-client-form">
     <div class="form-field">
-      <label class="form-label">לקוח <span class="required">*</span></label>
-      <select
-        class="form-input form-select"
-        [(ngModel)]="addTaskFormData.clientFirebaseId"
-        (ngModelChange)="onAddTaskClientChange()"
-      >
-        <option value="">בחר/י לקוח</option>
-        @for (group of clientsForTaskAssignment(); track group.user.id) {
-          <option [value]="group.user.id">{{ group.user.fullName || group.user.email }}</option>
-        }
-      </select>
-      @if (addTaskErrors()['clientFirebaseId']) {
-        <span class="form-error">{{ addTaskErrors()['clientFirebaseId'] }}</span>
-      }
-    </div>
-    <div class="form-field">
       <label class="form-label">עסק <span class="required">*</span></label>
       <select
         class="form-input form-select"
         [(ngModel)]="addTaskFormData.businessNumber"
-        [disabled]="!addTaskFormData.clientFirebaseId"
       >
         <option value="">בחר/י עסק</option>
-        @for (biz of addTaskBusinesses(); track biz.rowId) {
-          <option [value]="biz.businessNumber">{{ biz.businessName || biz.businessNumber }}</option>
+        @for (biz of businessOptions(); track biz.businessNumber) {
+          <option [value]="biz.businessNumber">
+            {{ biz.businessName }} — {{ biz.clientName }}
+          </option>
         }
       </select>
       @if (addTaskErrors()['businessNumber']) {
         <span class="form-error">{{ addTaskErrors()['businessNumber'] }}</span>
       }
+    </div>
+    <div class="form-field">
+      <label class="form-label">סוג משימה</label>
+      <select
+        class="form-input form-select"
+        [(ngModel)]="addTaskFormData.taskTypePreset"
+        (ngModelChange)="onAddTaskTypePresetChange()"
+      >
+        @for (preset of taskTypePresets; track preset.value) {
+          <option [value]="preset.value">{{ preset.label }}</option>
+        }
+      </select>
     </div>
     <div class="form-field">
       <label class="form-label">כותרת <span class="required">*</span></label>
@@ -291,19 +288,51 @@
               <option value="all">הכל</option>
             </select>
           </div>
+          @if (businessOptions().length > 1) {
+            <div class="filter-group">
+              <label class="filter-label">עסק</label>
+              <select
+                class="form-input form-select"
+                [ngModel]="businessFilter()"
+                (ngModelChange)="onBusinessFilterChange($event)"
+              >
+                <option value="">כל העסקים</option>
+                @for (biz of businessOptions(); track biz.businessNumber) {
+                  <option [value]="biz.businessNumber">
+                    {{ biz.businessName }} — {{ biz.clientName }}
+                  </option>
+                }
+              </select>
+            </div>
+          }
           <div class="filter-group">
-            <label class="filter-label">לקוח</label>
+            <label class="filter-label">סוג משימה</label>
             <select
               class="form-input form-select"
-              [ngModel]="clientFilter()"
-              (ngModelChange)="onClientFilterChange($event)"
+              [ngModel]="taskTypeFilter()"
+              (ngModelChange)="onTaskTypeFilterChange($event)"
             >
-              <option value="">כל הלקוחות</option>
-              @for (group of groupedClients(); track group.user.id) {
-                <option [value]="group.user.id">{{ group.user.fullName || group.user.email }}</option>
+              <option value="">כל הסוגים</option>
+              @for (opt of taskTypeFilterOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
               }
             </select>
           </div>
+          @if (taskYearOptions().length > 1) {
+            <div class="filter-group">
+              <label class="filter-label">שנה</label>
+              <select
+                class="form-input form-select"
+                [ngModel]="yearFilter()"
+                (ngModelChange)="onYearFilterChange($event)"
+              >
+                <option value="">כל השנים</option>
+                @for (year of taskYearOptions(); track year) {
+                  <option [value]="year">{{ year }}</option>
+                }
+              </select>
+            </div>
+          }
         </div>
         <div class="panel-actions">
           <app-p-button
@@ -328,6 +357,8 @@
           <p class="loading-text">טוען משימות...</p>
         } @else if (tasks().length === 0) {
           <p class="empty-text">אין משימות להצגה</p>
+        } @else if (filteredTasks().length === 0) {
+          <p class="empty-text">אין משימות תואמות לסינון הנוכחי</p>
         } @else {
           <div class="clients-table-wrap">
             <table class="clients-table tasks-table">
@@ -343,7 +374,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (task of tasks(); track task.id) {
+                @for (task of filteredTasks(); track task.id) {
                   <tr
                     [class.task-overdue]="isTaskOverdue(task)"
                     [class.task-due-soon]="isTaskDueSoon(task)"

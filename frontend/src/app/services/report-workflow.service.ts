@@ -53,4 +53,12 @@ export class ReportWorkflowService {
   setReported(id: number, reported: boolean): Observable<IReportWorkflow> {
     return this.http.patch<IReportWorkflow>(`${this.baseUrl}/${id}/reported`, { reported });
   }
+
+  /**
+   * Self-served client dismisses one of their workflows. Backend rejects the
+   * call (403) if the user has an active delegation.
+   */
+  dismiss(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
 }

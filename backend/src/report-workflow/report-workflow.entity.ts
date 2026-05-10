@@ -71,6 +71,15 @@ export class ReportWorkflow {
   @Column({ type: 'text', nullable: true, default: null })
   notes: string | null;
 
+  /**
+   * Soft-delete marker. Set when a self-served client dismisses a workflow
+   * from "המשימות שלי". Dismissed rows are excluded from list responses but
+   * stay in the DB so the unique index on (businessNumber, type, periodStart,
+   * periodEnd) prevents the generator from recreating the same period.
+   */
+  @Column({ type: 'datetime', nullable: true, default: null })
+  dismissedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
