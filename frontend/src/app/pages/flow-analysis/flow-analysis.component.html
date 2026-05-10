@@ -17,56 +17,7 @@
     </div>
   </form>
 
-  <div class="filter-row">
-    <app-input-select
-      [controlName]="'filterType'"
-      [parentForm]="myForm"
-      [items]="filterTypeItems"
-      [placeholder]="'סוג סינון'"
-      [disabled]="isFilterDisabled()">
-    </app-input-select>
-
-    @if (showCategorySelect()) {
-      <app-input-select
-        [controlName]="'category'"
-        [parentForm]="myForm"
-        [items]="categoryItems()"
-        [placeholder]="'קטגוריה'">
-      </app-input-select>
-    }
-
-    @if (showSubCategorySelect()) {
-      <app-input-select
-        [controlName]="'subCategory'"
-        [parentForm]="myForm"
-        [items]="subCategoryItems()"
-        [placeholder]="'תת קטגוריה'"
-        [disabled]="isSubCategoryDisabled()">
-      </app-input-select>
-    }
-
-    @if (showMerchantSelect()) {
-      <app-input-select
-        [controlName]="'merchant'"
-        [parentForm]="myForm"
-        [items]="merchantItems()"
-        [placeholder]="'בית עסק'">
-      </app-input-select>
-    }
-
-    @if (showPaymentMethodSelect()) {
-      <app-input-select
-        [controlName]="'paymentMethod'"
-        [parentForm]="myForm"
-        [items]="paymentMethodItems()"
-        [placeholder]="'אמצעי תשלום'">
-      </app-input-select>
-    }
-
-    <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
-      הצג
-    </button>
-  </div>
+  
 </header>
 
 <ng-template
@@ -88,6 +39,61 @@
   <div class="chart-card">
     <div class="chart-card__header">
       <h3 class="chart-title">גרף ההוצאות שלי</h3>
+      <div class="filter-row">
+        <app-input-select
+          [controlName]="'filterType'"
+          [parentForm]="myForm"
+          [items]="filterTypeItems"
+          [placeholder]="'סוג סינון'"
+          [disabled]="isFilterDisabled()"
+          >
+        </app-input-select>
+    
+        @if (showCategorySelect()) {
+          <app-input-select
+            [controlName]="'category'"
+            [parentForm]="myForm"
+            [items]="categoryItems()"
+            [placeholder]="'קטגוריה'">
+          </app-input-select>
+        }
+    
+        @if (showSubCategorySelect()) {
+          <app-input-select
+            [controlName]="'subCategory'"
+            [parentForm]="myForm"
+            [items]="subCategoryItems()"
+            [placeholder]="'תת קטגוריה'"
+            [disabled]="isSubCategoryDisabled()">
+          </app-input-select>
+        }
+    
+        @if (showMerchantSelect()) {
+          <app-input-select
+            [controlName]="'merchant'"
+            [parentForm]="myForm"
+            [items]="merchantItems()"
+            [placeholder]="'בית עסק'">
+          </app-input-select>
+        }
+    
+        @if (showPaymentMethodSelect()) {
+          <app-input-select
+            [controlName]="'paymentMethod'"
+            [parentForm]="myForm"
+            [items]="paymentMethodItems()"
+            [placeholder]="'אמצעי תשלום'">
+          </app-input-select>
+        }
+    
+        <!-- <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
+          הצג
+        </button> -->
+        <app-p-button [disabled]="!canSubmit() || loading()" (onButtonClicked)="submit()" [buttonText]="'הצג'" [buttonSize]="buttonSize.SMALL" [buttonColor]="buttonColor.BLACK"></app-p-button>
+      </div>
+      <!-- <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
+            [iconOnly]="true" [icon]="'pi pi-filter-fill'" variant="outlined" [buttonText]="'תצוגת טבלה'"
+            [buttonColor]="buttonColor.WHITE" [buttonSize]="buttonSize.ICON"></app-p-button> -->
       <form [formGroup]="lineDisplayForm">
         <app-segmented-control [options]="lineDisplayOptions" formControlName="mode">
         </app-segmented-control>

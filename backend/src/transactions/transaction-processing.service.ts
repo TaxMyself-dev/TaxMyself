@@ -1269,8 +1269,9 @@ export class TransactionProcessingService {
       .orderBy('SUM(ABS(c.amount))', 'DESC')
       .getRawMany<{ label: string | null; amount: string }>();
 
+    const categoryTotal = categoryRaw.reduce((s, r) => s + parseFloat(r.amount), 0);
     const toPercent = (amount: number) =>
-      totalExpenses > 0 ? Math.round((amount / totalExpenses) * 1000) / 10 : 0;
+      categoryTotal > 0 ? Math.round((amount / categoryTotal) * 1000) / 10 : 0;
 
     const expensesByCategory = categoryRaw.map(r => {
       const amount = Math.round(parseFloat(r.amount) * 100) / 100;

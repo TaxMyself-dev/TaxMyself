@@ -21,6 +21,8 @@ import { ISelectItem } from 'src/app/shared/interface';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FlowAnalysisService, FlowAnalysisResponse } from './flow-analysis.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { ButtonComponent } from "src/app/components/button/button.component";
+import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 type ApiFilterType = 'all' | 'category' | 'subCategory' | 'merchant' | 'paymentMethod';
 type LineDisplayMode = 'expenses' | 'incomes' | 'incomes-vs-expenses';
@@ -99,7 +101,8 @@ function isSameDate(a: Date, b: Date): boolean {
     InputSelectComponent,
     CdkConnectedOverlay,
     CdkOverlayOrigin,
-  ],
+    ButtonComponent
+],
 })
 export class FlowAnalysisComponent {
   private transactionService  = inject(TransactionsService);
@@ -107,6 +110,8 @@ export class FlowAnalysisComponent {
   private expenseDataService  = inject(ExpenseDataService);
 
   inputsSize = inputsSize;
+  buttonSize = ButtonSize;
+  buttonColor = ButtonColor;
   accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;
 
   readonly overlayPositions: ConnectedPosition[] = [
@@ -171,6 +176,8 @@ export class FlowAnalysisComponent {
   readonly loading  = signal(false);
   readonly hasError = signal(false);
 
+  private previousAccount: string | null = null;
+
   private readonly initialRequestSent = signal(false);
 
   private readonly formStatus = toSignal(this.myForm.statusChanges, { initialValue: this.myForm.status });
@@ -185,9 +192,10 @@ export class FlowAnalysisComponent {
     { value: 'paymentMethod', name: 'אמצעי תשלום' },
   ];
 
-  // ── Explicit signal for current filter type (updated from subscription) ────
-  // Keeps UI visibility in sync even when form is patched with emitEvent: false
-  readonly selectedFilterType = signal<ApiFilterType>('all');
+  // ── Derived from formValue so the reactive graph updates automatically ───────
+  readonly selectedFilterType = computed<ApiFilterType>(
+    () => (this.formValue()?.filterType ?? 'all') as ApiFilterType,
+  );
 
   // ── Option lists ───────────────────────────────────────────────────────────
   readonly categoryItems      = signal<ISelectItem[]>([]);
@@ -325,9 +333,11 @@ export class FlowAnalysisComponent {
       }
     });
 
-    // account changes → reset filter state
+    // account changes → reset filter state (guard against spurious re-runs)
     effect(() => {
-      this.accountValue();
+      const account = this.accountValue();
+      if (account === this.previousAccount) return;
+      this.previousAccount = account;
       this.resetFilterState();
     });
 
@@ -339,12 +349,11 @@ export class FlowAnalysisComponent {
       this.submit$.next();
     });
 
-    // filterType changes → update visibility signal, clear dependents, lazy-load options
+    // filterType changes → clear dependents, lazy-load options
     this.myForm.controls.filterType.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe(type => {
         const t = (type ?? 'all') as ApiFilterType;
-        this.selectedFilterType.set(t);
         // Clear dependent fields without triggering their own subscriptions
         this.myForm.patchValue(
           { category: null, subCategory: null, merchant: null, paymentMethod: null },
@@ -398,9 +407,10 @@ export class FlowAnalysisComponent {
   // ── Private helpers ────────────────────────────────────────────────────────
 
   private resetFilterState(): void {
-    this.selectedFilterType.set('all');
+    // setValue emits so formValue signal (and the computed selectedFilterType) sees 'all'
+    this.myForm.controls.filterType.setValue('all');
     this.myForm.patchValue(
-      { filterType: 'all', category: null, subCategory: null, merchant: null, paymentMethod: null },
+      { category: null, subCategory: null, merchant: null, paymentMethod: null },
       { emitEvent: false },
     );
     this.categoryItems.set([]);
