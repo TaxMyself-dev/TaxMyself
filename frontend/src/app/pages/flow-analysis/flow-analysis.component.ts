@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, Signal, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormControl,
@@ -10,40 +10,19 @@ import {
   Validators,
 } from '@angular/forms';
 import { CdkConnectedOverlay, CdkOverlayOrigin, ConnectedPosition } from '@angular/cdk/overlay';
-import { catchError, forkJoin, map, of, Subject, switchMap, take } from 'rxjs';
+import { catchError, EMPTY, filter, forkJoin, map, of, Subject, switchMap, take, tap } from 'rxjs';
 import { SegmentedControlComponent, SegmentedOption } from 'src/app/components/segmented-control/segmented-control.component';
 import { CustomDateRangeComponent } from '../../components/custom-date-range/custom-date-range.component';
 import { LineChartComponent, LineChartSeries } from 'src/app/widgets/line-chart/line-chart.component';
 import { DonutChartComponent, DonutChartItem } from 'src/app/widgets/donut-chart/donut-chart.component';
-import { FilterDropdownComponent } from 'src/app/widgets/filter-dropdown/filter-dropdown.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { inputsSize } from 'src/app/shared/enums';
 import { ISelectItem } from 'src/app/shared/interface';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { FlowAnalysisService, FlowAnalysisResponse } from './flow-analysis.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import {
-  FilterGroup,
-  FilterOption,
-  FlowFilterScreen,
-} from './flow-analysis-filter.interfaces';
 
 type ApiFilterType = 'all' | 'category' | 'subCategory' | 'merchant' | 'paymentMethod';
-
-const SCREEN_TO_API: Record<Exclude<FlowFilterScreen, 'main'>, ApiFilterType> = {
-  categories:     'category',
-  subCategories:  'subCategory',
-  businesses:     'merchant',
-  paymentMethods: 'paymentMethod',
-};
-
-const MAIN_MENU: FilterOption[] = [
-  { id: 'categories',     label: 'קטגוריות' },
-  { id: 'subCategories',  label: 'תת-קטגוריות' },
-  { id: 'businesses',     label: 'בית עסק' },
-  { id: 'paymentMethods', label: 'אמצעי תשלום' },
-];
-
 type LineDisplayMode = 'expenses' | 'incomes' | 'incomes-vs-expenses';
 
 const DONUT_COLORS = [
@@ -117,7 +96,6 @@ function isSameDate(a: Date, b: Date): boolean {
     CustomDateRangeComponent,
     LineChartComponent,
     DonutChartComponent,
-    FilterDropdownComponent,
     InputSelectComponent,
     CdkConnectedOverlay,
     CdkOverlayOrigin,
@@ -130,7 +108,7 @@ export class FlowAnalysisComponent {
 
   inputsSize = inputsSize;
   accountsList: Signal<ISelectItem[]> = this.transactionService.accountsList;
-  // defaultAccount = computed(() => this.accountsList()[0]?.value as string);
+
   readonly overlayPositions: ConnectedPosition[] = [
     { originX: 'end',   originY: 'bottom', overlayX: 'end',   overlayY: 'top', offsetY: 8 },
     { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 8 },
@@ -138,12 +116,18 @@ export class FlowAnalysisComponent {
 
   readonly showCustomRange = signal(false);
 
+  // ── Single form: all request + filter state ────────────────────────────────
   readonly myForm = new FormGroup(
     {
-      period:   new FormControl<string | null>('3_MONTHS', Validators.required),
-      dateFrom: new FormControl<Date | null>(null),
-      dateTo:   new FormControl<Date | null>(null),
-      account:  new FormControl<string | null>(null, Validators.required),
+      period:        new FormControl<string | null>('3_MONTHS', Validators.required),
+      dateFrom:      new FormControl<Date | null>(null),
+      dateTo:        new FormControl<Date | null>(null),
+      account:       new FormControl<string | null>(null, Validators.required),
+      filterType:    new FormControl<ApiFilterType>('all'),
+      category:      new FormControl<string | null>(null),
+      subCategory:   new FormControl<string | null>(null),
+      merchant:      new FormControl<string | null>(null),
+      paymentMethod: new FormControl<string | null>(null),
     },
     { validators: customRangeValidator },
   );
@@ -190,11 +174,59 @@ export class FlowAnalysisComponent {
   private readonly initialRequestSent = signal(false);
 
   private readonly formStatus = toSignal(this.myForm.statusChanges, { initialValue: this.myForm.status });
-  private readonly formValue  = toSignal(this.myForm.valueChanges,  { initialValue: this.myForm.value  });
+  private readonly formValue  = toSignal(this.myForm.valueChanges,  { initialValue: this.myForm.value });
 
+  // ── Filter type options ────────────────────────────────────────────────────
+  readonly filterTypeItems: ISelectItem[] = [
+    { value: 'all',           name: 'הכל' },
+    { value: 'category',      name: 'קטגוריה' },
+    { value: 'subCategory',   name: 'תת קטגוריה' },
+    { value: 'merchant',      name: 'בית עסק' },
+    { value: 'paymentMethod', name: 'אמצעי תשלום' },
+  ];
+
+  // ── Explicit signal for current filter type (updated from subscription) ────
+  // Keeps UI visibility in sync even when form is patched with emitEvent: false
+  readonly selectedFilterType = signal<ApiFilterType>('all');
+
+  // ── Option lists ───────────────────────────────────────────────────────────
+  readonly categoryItems      = signal<ISelectItem[]>([]);
+  readonly subCategoryItems   = signal<ISelectItem[]>([]);
+  readonly merchantItems      = signal<ISelectItem[]>([]);
+  readonly paymentMethodItems = signal<ISelectItem[]>([]);
+
+  readonly subCategoriesLoading = signal(false);
+
+  private readonly categoriesLoaded     = signal(false);
+  private readonly merchantsLoaded      = signal(false);
+  private readonly paymentMethodsLoaded = signal(false);
+
+  // ── Visibility computeds ───────────────────────────────────────────────────
+  readonly showCategorySelect = computed(() => {
+    const t = this.selectedFilterType();
+    return t === 'category' || t === 'subCategory';
+  });
+  readonly showSubCategorySelect   = computed(() => this.selectedFilterType() === 'subCategory');
+  readonly showMerchantSelect      = computed(() => this.selectedFilterType() === 'merchant');
+  readonly showPaymentMethodSelect = computed(() => this.selectedFilterType() === 'paymentMethod');
+
+  readonly isFilterDisabled     = computed(() => !this.formValue()?.account);
+  readonly isSubCategoryDisabled = computed(() =>
+    !this.formValue()?.category || this.subCategoriesLoading()
+  );
+
+  // ── canSubmit: base validity + dynamic filter requirements ─────────────────
   readonly canSubmit = computed(() => {
     const v = this.formValue();
-    return !!v.account && !!v.dateFrom && !!v.dateTo && this.formStatus() === 'VALID';
+    const baseOk = !!v.account && !!v.dateFrom && !!v.dateTo && this.formStatus() === 'VALID';
+    if (!baseOk) return false;
+    switch (v.filterType) {
+      case 'category':      return !!v.category;
+      case 'subCategory':   return !!v.category && !!v.subCategory;
+      case 'merchant':      return !!v.merchant;
+      case 'paymentMethod': return !!v.paymentMethod;
+      default:              return true;
+    }
   });
 
   private readonly period = toSignal(
@@ -202,63 +234,12 @@ export class FlowAnalysisComponent {
     { initialValue: '3_MONTHS' },
   );
 
-  // Track account value reactively so effects can react to changes
   private readonly accountValue = toSignal(
     this.myForm.controls.account.valueChanges,
     { initialValue: this.myForm.controls.account.value },
   );
 
-  // ── Filter state ─────────────────────────────────────────────────────────
-  readonly filterScreen      = signal<FlowFilterScreen>('main');
-  readonly selectedIds       = signal<ReadonlySet<string>>(new Set());
-  readonly selectedFilterType = signal<ApiFilterType>('all');
-
-  readonly allCategories     = signal<FilterOption[]>([]);
-  readonly allSubCategories  = signal<FilterGroup[]>([]);
-  readonly allBusinesses     = signal<FilterOption[]>([]);
-  readonly allPaymentMethods = signal<FilterOption[]>([]);
-
-  private readonly categoriesLoaded     = signal(false);
-  private readonly subCategoriesLoaded  = signal(false);
-  private readonly merchantsLoaded      = signal(false);
-  private readonly paymentMethodsLoaded = signal(false);
-
-  // ── Filter computed ───────────────────────────────────────────────────────
-
-  /** Whole filter is disabled until an account is selected */
-  readonly isFilterDisabled = computed(() => !this.accountValue());
-
-  readonly filterScreenTitle = computed<string | null>(() => {
-    switch (this.filterScreen()) {
-      case 'categories':     return 'קטגוריות';
-      case 'subCategories':  return 'תת-קטגוריות';
-      case 'businesses':     return 'בית עסק';
-      case 'paymentMethods': return 'אמצעי תשלום';
-      default:               return null;
-    }
-  });
-
-  readonly dropdownItems = computed<FilterOption[]>(() => {
-    switch (this.filterScreen()) {
-      case 'main':           return MAIN_MENU;
-      case 'categories':     return this.allCategories();
-      case 'businesses':     return this.allBusinesses();
-      case 'paymentMethods': return this.allPaymentMethods();
-      default:               return [];
-    }
-  });
-
-  readonly dropdownGrouped = computed<FilterGroup[]>(() =>
-    this.filterScreen() === 'subCategories' ? this.allSubCategories() : []
-  );
-
-  readonly isDropdownGrouped = computed(() => this.filterScreen() === 'subCategories');
-  readonly showDropdownBack  = computed(() => this.filterScreen() !== 'main');
-
-  /** Badge: always reflect the active selection, independent of current screen */
-  readonly activeFilterCount = computed(() => this.selectedIds().size);
-
-  // ── Submit pipeline ───────────────────────────────────────────────────────
+  // ── Submit pipeline ────────────────────────────────────────────────────────
   private readonly submit$ = new Subject<void>();
 
   readonly apiData = toSignal(
@@ -328,6 +309,7 @@ export class FlowAnalysisComponent {
   constructor() {
     this.transactionService.ensureAccountsLoaded();
 
+    // period → date range
     effect(() => {
       const period = this.period();
       if (period === 'CUSTOM') { this.showCustomRange.set(true); return; }
@@ -335,6 +317,7 @@ export class FlowAnalysisComponent {
       this.myForm.patchValue(calculatePeriodRange(period), { emitEvent: false });
     });
 
+    // auto-select first account
     effect(() => {
       const account = this.accountsList()[0]?.value as string;
       if (account && !this.myForm.controls.account.value) {
@@ -342,17 +325,69 @@ export class FlowAnalysisComponent {
       }
     });
 
-    // When account changes: reset all filter state and mark lists as stale
+    // account changes → reset filter state
     effect(() => {
-      this.accountValue(); // read to subscribe
+      this.accountValue();
       this.resetFilterState();
     });
 
+    // fire initial request once form becomes submittable
     effect(() => {
       if (this.initialRequestSent()) return;
       if (!this.canSubmit()) return;
       this.initialRequestSent.set(true);
       this.submit$.next();
+    });
+
+    // filterType changes → update visibility signal, clear dependents, lazy-load options
+    this.myForm.controls.filterType.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe(type => {
+        const t = (type ?? 'all') as ApiFilterType;
+        this.selectedFilterType.set(t);
+        // Clear dependent fields without triggering their own subscriptions
+        this.myForm.patchValue(
+          { category: null, subCategory: null, merchant: null, paymentMethod: null },
+          { emitEvent: false },
+        );
+        this.subCategoryItems.set([]);
+        this.subCategoriesLoading.set(false);
+        this.loadDataForFilterType(t);
+      });
+
+    // category changes → fetch subcategories for that category (switchMap prevents races)
+    this.myForm.controls.category.valueChanges.pipe(
+      filter(() => this.myForm.controls.filterType.value === 'subCategory'),
+      tap(() => {
+        this.myForm.controls.subCategory.setValue(null, { emitEvent: false });
+        this.subCategoryItems.set([]);
+      }),
+      switchMap(categoryName => {
+        if (!categoryName) return EMPTY;
+        this.subCategoriesLoading.set(true);
+        return forkJoin({
+          eq:    this.expenseDataService.getSubCategory(categoryName, true,  true),
+          notEq: this.expenseDataService.getSubCategory(categoryName, false, true),
+        }).pipe(
+          map(({ eq, notEq }: { eq: any[]; notEq: any[] }) => {
+            const seen = new Set<string>();
+            const items: ISelectItem[] = [];
+            [...eq, ...notEq].forEach((item: any) => {
+              const name: string = item.subCategoryName;
+              if (name && !seen.has(name)) {
+                seen.add(name);
+                items.push({ value: name, name });
+              }
+            });
+            return items;
+          }),
+          catchError(() => of([] as ISelectItem[])),
+        );
+      }),
+      takeUntilDestroyed(),
+    ).subscribe(items => {
+      this.subCategoriesLoading.set(false);
+      this.subCategoryItems.set(items);
     });
   }
 
@@ -360,57 +395,36 @@ export class FlowAnalysisComponent {
 
   closeCustomRange(): void { this.showCustomRange.set(false); }
 
-  // ── Filter handlers ───────────────────────────────────────────────────────
-
-  onFilterItemClicked(id: string): void {
-    const screen = this.filterScreen();
-
-    if (screen === 'main') {
-      // Navigate to the selected inner screen
-      this.filterScreen.set(id as FlowFilterScreen);
-      this.lazyLoadScreen(id as FlowFilterScreen);
-      return;
-    }
-
-    // Inner screen: record the selection (component closes itself)
-    this.selectedIds.set(new Set([id]));
-    this.selectedFilterType.set(SCREEN_TO_API[screen as Exclude<FlowFilterScreen, 'main'>]);
-    this.filterScreen.set('main');
-  }
-
-  onFilterBack(): void {
-    this.filterScreen.set('main');
-  }
-
-  onFilterClearAll(): void {
-    // "הכל" — clear selection and close (component closes itself)
-    this.selectedIds.set(new Set());
-    this.selectedFilterType.set('all');
-    this.filterScreen.set('main');
-  }
-
-  // ── Private helpers ───────────────────────────────────────────────────────
+  // ── Private helpers ────────────────────────────────────────────────────────
 
   private resetFilterState(): void {
-    this.selectedIds.set(new Set());
     this.selectedFilterType.set('all');
-    this.filterScreen.set('main');
+    this.myForm.patchValue(
+      { filterType: 'all', category: null, subCategory: null, merchant: null, paymentMethod: null },
+      { emitEvent: false },
+    );
+    this.categoryItems.set([]);
+    this.subCategoryItems.set([]);
+    this.merchantItems.set([]);
+    this.paymentMethodItems.set([]);
+    this.subCategoriesLoading.set(false);
     this.categoriesLoaded.set(false);
-    this.subCategoriesLoaded.set(false);
     this.merchantsLoaded.set(false);
     this.paymentMethodsLoaded.set(false);
-    this.allCategories.set([]);
-    this.allSubCategories.set([]);
-    this.allBusinesses.set([]);
-    this.allPaymentMethods.set([]);
   }
 
-  private lazyLoadScreen(screen: FlowFilterScreen): void {
-    switch (screen) {
-      case 'categories':     if (!this.categoriesLoaded())     this.loadCategories();     break;
-      case 'subCategories':  if (!this.subCategoriesLoaded())  this.loadSubCategories();  break;
-      case 'businesses':     if (!this.merchantsLoaded())      this.loadMerchants();      break;
-      case 'paymentMethods': if (!this.paymentMethodsLoaded()) this.loadPaymentMethods(); break;
+  private loadDataForFilterType(type: ApiFilterType): void {
+    switch (type) {
+      case 'category':
+      case 'subCategory':
+        if (!this.categoriesLoaded()) this.loadCategories();
+        break;
+      case 'merchant':
+        if (!this.merchantsLoaded()) this.loadMerchants();
+        break;
+      case 'paymentMethod':
+        if (!this.paymentMethodsLoaded()) this.loadPaymentMethods();
+        break;
     }
   }
 
@@ -418,44 +432,9 @@ export class FlowAnalysisComponent {
     this.transactionService.getCategories(null, true)
       .pipe(take(1))
       .subscribe(items => {
-        this.allCategories.set(items.map(i => ({ id: i.value as string, label: i.name as string })));
+        this.categoryItems.set(items.map(i => ({ value: i.value as string, name: i.name as string })));
         this.categoriesLoaded.set(true);
       });
-  }
-
-  private loadSubCategories(): void {
-    const billId = this.myForm.controls.account.value;
-    if (!billId) return;
-
-    forkJoin({
-      defaults: this.expenseDataService.getAllDefaultSubCategories().pipe(take(1)),
-      user:     this.expenseDataService.getAllUserSubCategories(billId).pipe(take(1)),
-    }).subscribe(({ defaults, user }) => {
-      // Merge: user subcategory takes precedence over default with same (categoryName, subCategoryName)
-      const seen = new Map<string, FilterOption>();
-      const grouped = new Map<string, FilterOption[]>();
-
-      const addRow = (r: any) => {
-        const cat = typeof r.categoryName === 'object' && r.categoryName !== null
-          ? ((r.categoryName as any).categoryName ?? 'ללא קטגוריה')
-          : (r.categoryName ?? 'ללא קטגוריה');
-        const sub = r.subCategoryName as string;
-        const key = `${cat}||${sub}`;
-        if (seen.has(key)) return; // already added (user rows added first, so defaults skip dupes)
-        seen.set(key, { id: sub, label: sub });
-        if (!grouped.has(cat)) grouped.set(cat, []);
-        grouped.get(cat)!.push({ id: sub, label: sub });
-      };
-
-      // User rows first so they win the dedup check
-      user.forEach(addRow);
-      defaults.forEach(addRow);
-
-      const groups: FilterGroup[] = [];
-      grouped.forEach((items, groupLabel) => groups.push({ groupId: groupLabel, groupLabel, items }));
-      this.allSubCategories.set(groups);
-      this.subCategoriesLoaded.set(true);
-    });
   }
 
   private loadMerchants(): void {
@@ -464,7 +443,7 @@ export class FlowAnalysisComponent {
     this.flowAnalysisService.getMerchants(billId)
       .pipe(take(1))
       .subscribe(names => {
-        this.allBusinesses.set(names.map(n => ({ id: n, label: n })));
+        this.merchantItems.set(names.map(n => ({ value: n, name: n })));
         this.merchantsLoaded.set(true);
       });
   }
@@ -475,19 +454,32 @@ export class FlowAnalysisComponent {
     this.transactionService.getSourcesByBillId(Number(billId))
       .pipe(take(1))
       .subscribe((sources: string[]) => {
-        this.allPaymentMethods.set(sources.map(s => ({ id: s, label: s })));
+        this.paymentMethodItems.set(sources.map(s => ({ value: s, name: s })));
         this.paymentMethodsLoaded.set(true);
       });
   }
 
   private resolveApiFilter(): { lineFilterType: ApiFilterType; lineFilterValue?: string } {
-    const type = this.selectedFilterType();
-    const ids  = this.selectedIds();
-
-    if (type === 'all' || ids.size === 0) {
-      return { lineFilterType: 'all' };
+    const v = this.myForm.value;
+    switch (v.filterType) {
+      case 'category':
+        return v.category
+          ? { lineFilterType: 'category', lineFilterValue: v.category }
+          : { lineFilterType: 'all' };
+      case 'subCategory':
+        return v.subCategory
+          ? { lineFilterType: 'subCategory', lineFilterValue: v.subCategory }
+          : { lineFilterType: 'all' };
+      case 'merchant':
+        return v.merchant
+          ? { lineFilterType: 'merchant', lineFilterValue: v.merchant }
+          : { lineFilterType: 'all' };
+      case 'paymentMethod':
+        return v.paymentMethod
+          ? { lineFilterType: 'paymentMethod', lineFilterValue: v.paymentMethod }
+          : { lineFilterType: 'all' };
+      default:
+        return { lineFilterType: 'all' };
     }
-
-    return { lineFilterType: type, lineFilterValue: [...ids][0] };
   }
 }

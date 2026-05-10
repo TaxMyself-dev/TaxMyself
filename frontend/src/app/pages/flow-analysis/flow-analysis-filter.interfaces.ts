@@ -8,10 +8,3 @@ export interface FilterGroup {
   groupLabel: string;
   items: FilterOption[];
 }
-
-export type FlowFilterScreen =
-  | 'main'
-  | 'categories'
-  | 'subCategories'
-  | 'businesses'
-  | 'paymentMethods';

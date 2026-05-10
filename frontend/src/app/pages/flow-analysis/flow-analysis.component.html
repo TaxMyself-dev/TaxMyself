@@ -1,8 +1,13 @@
 <header>
   <div class="select">
     <span class="title">בחר חשבון</span>
-    <app-input-select [controlName]="'account'" [placeholder]="'בחר חשבון'" [items]="accountsList()"
-    [parentForm]="myForm" [size]="inputsSize.MOBILE"></app-input-select>
+    <app-input-select
+      [controlName]="'account'"
+      [placeholder]="'בחר חשבון'"
+      [items]="accountsList()"
+      [parentForm]="myForm"
+      [size]="inputsSize.MOBILE">
+    </app-input-select>
   </div>
 
   <form [formGroup]="myForm">
@@ -12,23 +17,56 @@
     </div>
   </form>
 
-  <app-filter-dropdown
-    [items]="dropdownItems()"
-    [groupedItems]="dropdownGrouped()"
-    [isGrouped]="isDropdownGrouped()"
-    [title]="filterScreenTitle()"
-    [showBack]="showDropdownBack()"
-    [selectedIds]="selectedIds()"
-    [activeCount]="activeFilterCount()"
-    [isDisabled]="isFilterDisabled()"
-    (itemClicked)="onFilterItemClicked($event)"
-    (backClicked)="onFilterBack()"
-    (clearAll)="onFilterClearAll()">
-  </app-filter-dropdown>
+  <div class="filter-row">
+    <app-input-select
+      [controlName]="'filterType'"
+      [parentForm]="myForm"
+      [items]="filterTypeItems"
+      [placeholder]="'סוג סינון'"
+      [disabled]="isFilterDisabled()">
+    </app-input-select>
 
-  <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
-    הצג
-  </button>
+    @if (showCategorySelect()) {
+      <app-input-select
+        [controlName]="'category'"
+        [parentForm]="myForm"
+        [items]="categoryItems()"
+        [placeholder]="'קטגוריה'">
+      </app-input-select>
+    }
+
+    @if (showSubCategorySelect()) {
+      <app-input-select
+        [controlName]="'subCategory'"
+        [parentForm]="myForm"
+        [items]="subCategoryItems()"
+        [placeholder]="'תת קטגוריה'"
+        [disabled]="isSubCategoryDisabled()">
+      </app-input-select>
+    }
+
+    @if (showMerchantSelect()) {
+      <app-input-select
+        [controlName]="'merchant'"
+        [parentForm]="myForm"
+        [items]="merchantItems()"
+        [placeholder]="'בית עסק'">
+      </app-input-select>
+    }
+
+    @if (showPaymentMethodSelect()) {
+      <app-input-select
+        [controlName]="'paymentMethod'"
+        [parentForm]="myForm"
+        [items]="paymentMethodItems()"
+        [placeholder]="'אמצעי תשלום'">
+      </app-input-select>
+    }
+
+    <button class="submit-btn" [disabled]="!canSubmit() || loading()" (click)="submit()">
+      הצג
+    </button>
+  </div>
 </header>
 
 <ng-template
@@ -64,10 +102,6 @@
       <div class="state-message">טוען נתונים...</div>
     } @else if (hasError()) {
       <div class="state-message state-message--error">שגיאה בטעינת הנתונים. אנא נסה שנית.</div>
-    } @else if (apiData() === null) {
-      <div class="state-message">יש לבחור חשבון ותאריכים וללחוץ על "הצג"</div>
-    } @else if (isLineChartEmpty()) {
-      <div class="state-message">אין נתונים לתקופה הנבחרת</div>
     } @else {
       <app-line-chart [series]="cashflowSeries()" [chartType]="chartType()"></app-line-chart>
     }

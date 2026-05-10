@@ -30,6 +30,9 @@ export class LineChartComponent {
     const labels    = allSeries[0]?.data.map(p => p.label) ?? [];
     const isSingle  = allSeries.length === 1;
 
+    const isEmpty = allSeries.length === 0 ||
+      allSeries.every(s => s.data.length === 0 || s.data.every(p => p.value === 0));
+
     const allValues = allSeries.flatMap(s => s.data.map(p => p.value));
     const maxVal    = allValues.length > 0 ? Math.max(...allValues) : 0;
     const yMax      = Math.ceil(maxVal * 1.2 / 5000) * 5000 || 10000;
@@ -49,7 +52,7 @@ export class LineChartComponent {
       },
 
       legend: allSeries.length > 1
-        ? { show: true, bottom: 0, right: 0, orient: 'horizontal', icon: 'circle',
+        ? { show: true, bottom: 0, right: 0, orient: 'horizontal', icon: 'circle', align: 'right',
            textStyle: { color: '#8F8F8F', fontSize: 11 } }
         : { show: false },
 
@@ -81,7 +84,19 @@ export class LineChartComponent {
         },
       },
 
-      series: allSeries.map(s => {
+      graphic: isEmpty ? ({
+        type: 'text',
+        left: 'center',
+        top: 'middle',
+        style: {
+          text: 'אין נתונים עבור נתונים אלו',
+          fontSize: 16,
+          fontWeight: 500,
+          fill: '#666',
+        },
+      } as any) : undefined,
+
+      series: isEmpty ? [] : allSeries.map(s => {
         if (type === 'bar') {
           return {
             name: s.name,
