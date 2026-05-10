@@ -316,6 +316,10 @@ export class FlowAnalysisComponent {
 
   readonly isDonutEmpty = computed(() => this.categoryExpensesData().length === 0);
 
+  readonly donutTotalExpenses = computed(() =>
+    this.categoryExpensesData().reduce((sum, item) => sum + (item.amount ?? 0), 0)
+  );
+
   constructor() {
     this.transactionService.ensureAccountsLoaded();
 
@@ -408,6 +412,7 @@ export class FlowAnalysisComponent {
       this.subCategoriesLoading.set(false);
       this.subCategoryItems.set(items);
     });
+
   }
 
   submit(): void { this.submit$.next(); }

@@ -45,6 +45,21 @@ main {
   }
 }
 
+.donut-chart-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 60px;
+}
+
+.donut-chart-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  width: 100%;
+}
+
 .chart-title {
   margin: 0;
   font-size: 16px;

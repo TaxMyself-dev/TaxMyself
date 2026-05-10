@@ -114,8 +114,8 @@
   </div>
 
   <!-- Donut chart -->
-  <div class="chart-card">
-    <h3 class="chart-title">התפלגות הוצאות לפי קטגוריות</h3>
+  <div class="donut-chart-card">
+    <h3 class="donut-chart-title">התפלגות הוצאות לפי קטגוריות</h3>
 
     @if (loading()) {
       <div class="state-message">טוען נתונים...</div>
@@ -126,7 +126,7 @@
     } @else if (isDonutEmpty()) {
       <div class="state-message">אין הוצאות בתקופה זו</div>
     } @else {
-      <app-donut-chart [data]="categoryExpensesData()" [total]="totalExpenses()"></app-donut-chart>
+      <app-donut-chart [data]="categoryExpensesData()" [total]="donutTotalExpenses()"></app-donut-chart>
     }
   </div>
 </main>
