@@ -11,6 +11,8 @@ import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
 import { SharedService } from '../shared/shared.service';
+import { Business } from 'src/business/business.entity';
+import { BusinessType, VATReportingType } from 'src/enum';
 //DTOs
 import { UpdateExpenseDto } from './dtos/update-expense.dto';
 import { UpdateSupplierDto } from './dtos/update-supplier.dto';
@@ -32,7 +34,8 @@ export class ExpensesService {
             @InjectRepository(DefaultSubCategory) private defaultSubCategoryRepo: Repository<DefaultSubCategory>,
             @InjectRepository(UserCategory) private userCategoryRepo: Repository<UserCategory>,
             @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
-            @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>
+            @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
+            @InjectRepository(Business) private businessRepo: Repository<Business>,
         ) { }
 
 
@@ -762,14 +765,45 @@ export class ExpensesService {
     }
 
 
+    /**
+     * Returns expenses that belong to the report period defined by
+     * [startDate, endDate] for `businessNumber`. With the new period-stamp
+     * model, an expense is "in the period" if its `vatReportingDate` matches
+     * one of the labels that span the range — this catches late stragglers
+     * whose `date` falls outside the range but were reassigned to a label
+     * inside it. Legacy expenses without a `vatReportingDate` fall back to
+     * the original date filter so historical data still appears.
+     */
     async getExpensesByDates(userId: string, businessNumber: string, startDate: Date, endDate: Date): Promise<Expense[]> {
-        return this.expense_repo.find({
-            where: {
-                userId: userId,
-                businessNumber: businessNumber,
-                date: Between(startDate, endDate)
-            }
+        const business = await this.businessRepo.findOne({
+            where: { firebaseId: userId, businessNumber },
         });
+        const businessType = business?.businessType ?? BusinessType.EXEMPT;
+        const vatReportingType = business?.vatReportingType ?? VATReportingType.NOT_REQUIRED;
+        const periodLabels = this.sharedService.expandPeriodLabelsInRange(
+            businessType,
+            vatReportingType,
+            startDate,
+            endDate,
+        );
+
+        const qb = this.expense_repo
+            .createQueryBuilder('expense')
+            .where('expense.userId = :userId', { userId })
+            .andWhere('expense.businessNumber = :businessNumber', { businessNumber });
+
+        if (periodLabels.length > 0) {
+            // Period-stamped expenses → match by label. Legacy (no stamp) →
+            // fall back to the original date filter.
+            qb.andWhere(
+                '(expense.vatReportingDate IN (:...labels) OR (expense.vatReportingDate IS NULL AND expense.date BETWEEN :startDate AND :endDate))',
+                { labels: periodLabels, startDate, endDate },
+            );
+        } else {
+            qb.andWhere('expense.date BETWEEN :startDate AND :endDate', { startDate, endDate });
+        }
+
+        return qb.getMany();
     }
 
 

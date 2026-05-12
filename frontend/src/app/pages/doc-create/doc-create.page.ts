@@ -437,11 +437,41 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.selectedBusinessType.set(business.businessType);
     this.selectedBusinessPhone = business.businessPhone;
     this.selectedBusinessEmail = business.businessEmail;
+    this.applyDocTypeFilterForBusiness();
     // this.selectedBankBeneficiary = business.bankBeneficiary;
     // this.selectedBankName = business.bankName;
     // this.selectedBankBranch = business.bankBranch;
     // this.selectedBankAccount = business.bankAccount;
     // this.selectedBankIban = business.bankIban;
+  }
+
+  /**
+   * Restrict the DOC_TYPE dropdown options based on the selected business type:
+   * EXEMPT businesses (עוסק פטור) may only issue RECEIPT (קבלה) or
+   * TRANSACTION_INVOICE (חשבון עסקה). All other business types see the full list.
+   * If the currently-selected doc type is no longer allowed, the form value is cleared.
+   */
+  private applyDocTypeFilterForBusiness(): void {
+    if (!this.generalArray?.length) return;
+
+    const docTypeField = this.generalArray.find(
+      (f) => f.value === FieldsCreateDocValue.DOC_TYPE,
+    );
+    if (!docTypeField) return;
+
+    const allowedTypes: DocumentType[] =
+      this.selectedBusinessType() === BusinessType.EXEMPT
+        ? [DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE]
+        : (Object.values(DocumentType) as DocumentType[]);
+
+    docTypeField.enumValues = Object.entries(DocTypeDisplayName)
+      .filter(([value]) => allowedTypes.includes(value as DocumentType))
+      .map(([value, name]) => ({ value, name }));
+
+    const currentDocType = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_TYPE)?.value;
+    if (currentDocType && !allowedTypes.includes(currentDocType as DocumentType)) {
+      this.generalDetailsForm.get(FieldsCreateDocValue.DOC_TYPE)?.setValue('');
+    }
   }
 
 

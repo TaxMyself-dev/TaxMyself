@@ -2,10 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AnnualReport, AnnualReportStatus } from './annual-report.entity';
 import { AnnualReportFile } from './annual-report-file.entity';
 import { Delegation, DelegationStatus } from 'src/delegation/delegation.entity';
@@ -19,6 +20,9 @@ import {
   computeRequiredCategories,
 } from './annual-report.questions';
 import { UploadFileDto } from './dtos/upload-file.dto';
+import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { BusinessType, ReportPeriodLabel } from 'src/enum';
 
 /** API response shape: report + its files (files are loaded separately, no ORM relation). */
 export interface AnnualReportWithFiles extends AnnualReport {
@@ -27,6 +31,8 @@ export interface AnnualReportWithFiles extends AnnualReport {
 
 @Injectable()
 export class AnnualReportService {
+  private readonly logger = new Logger(AnnualReportService.name);
+
   constructor(
     @InjectRepository(AnnualReport)
     private readonly reportRepo: Repository<AnnualReport>,
@@ -38,6 +44,10 @@ export class AnnualReportService {
     private readonly businessRepo: Repository<Business>,
     @InjectRepository(AccountantTask)
     private readonly taskRepo: Repository<AccountantTask>,
+    @InjectRepository(SlimTransaction)
+    private readonly slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(FullTransactionCache)
+    private readonly cacheRepo: Repository<FullTransactionCache>,
   ) {}
 
   /** Returns the question schema (no labels — frontend owns Hebrew labels). */
@@ -191,6 +201,13 @@ export class AnnualReportService {
 
     // Sync the matching ANNUAL_REPORT AccountantTask(s) for this business/year.
     await this.syncAccountantTasks(report.businessNumber, report.taxYear, reported);
+
+    if (reported) {
+      await this.lockAnnualTransactions(saved);
+    } else {
+      await this.unlockAnnualTransactions(saved);
+    }
+
     return this.attachFiles(saved);
   }
 
@@ -249,5 +266,101 @@ export class AnnualReportService {
       t.completedAt = next ? new Date() : null;
       await this.taskRepo.save(t);
     }
+  }
+
+  /**
+   * On annual report approval, stamp slim_transactions.vatReportingDate with
+   * the tax year (e.g. "2024") for every income-tax-only transaction in this
+   * business and tax year — i.e. anything that was NOT already locked by a
+   * VAT report. The same field doubles as the classification lock.
+   *
+   * Eligibility per row:
+   *   business is EXEMPT  → all transactions get locked here.
+   *   business is LICENSED/COMPANY → only rows with vatPercent = 0 get locked
+   *     here (rows with vatPercent > 0 should have been locked by the VAT
+   *     report already; if a VAT report was never approved, those rows stay
+   *     editable until that happens).
+   */
+  private async lockAnnualTransactions(report: AnnualReport): Promise<void> {
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber: report.businessNumber },
+    });
+    if (!business) return;
+
+    const periodLabel: ReportPeriodLabel = String(report.taxYear);
+    const yearStart = new Date(Date.UTC(report.taxYear, 0, 1));
+    const yearEnd = new Date(Date.UTC(report.taxYear, 11, 31, 23, 59, 59));
+
+    const ids = await this.findLockableExternalIds(
+      report,
+      business.businessType ?? BusinessType.EXEMPT,
+      yearStart,
+      yearEnd,
+    );
+    if (ids.length === 0) {
+      this.logger.log(
+        `lockAnnualTransactions: no eligible transactions for report ${report.id} (year ${periodLabel}).`,
+      );
+      return;
+    }
+    const filter = {
+      userId: report.clientFirebaseId,
+      externalTransactionId: In(ids),
+      isLocked: false,
+    } as const;
+    const patch = { vatReportingDate: periodLabel, isLocked: true } as const;
+    await this.slimRepo.update(filter, patch);
+    await this.cacheRepo.update(filter, patch);
+    this.logger.log(
+      `lockAnnualTransactions: locked ${ids.length} transactions to year ${periodLabel} (report ${report.id}).`,
+    );
+  }
+
+  private async unlockAnnualTransactions(report: AnnualReport): Promise<void> {
+    const periodLabel: ReportPeriodLabel = String(report.taxYear);
+    const filter = {
+      userId: report.clientFirebaseId,
+      businessNumber: report.businessNumber,
+      vatReportingDate: periodLabel,
+    } as const;
+    await this.slimRepo.update(filter, { isLocked: false });
+    await this.cacheRepo.update(filter, { isLocked: false });
+    this.logger.log(
+      `unlockAnnualTransactions: cleared lock for year ${periodLabel} (report ${report.id}).`,
+    );
+  }
+
+  private async findLockableExternalIds(
+    report: AnnualReport,
+    businessType: BusinessType,
+    yearStart: Date,
+    yearEnd: Date,
+  ): Promise<string[]> {
+    const qb = this.slimRepo
+      .createQueryBuilder('slim')
+      .innerJoin(
+        FullTransactionCache,
+        'cache',
+        'cache.userId = slim.userId AND cache.externalTransactionId = slim.externalTransactionId',
+      )
+      .select('slim.externalTransactionId', 'externalTransactionId')
+      .where('slim.userId = :userId', { userId: report.clientFirebaseId })
+      .andWhere('slim.businessNumber = :businessNumber', {
+        businessNumber: report.businessNumber,
+      })
+      .andWhere('slim.isLocked = FALSE')
+      .andWhere('cache.transactionDate BETWEEN :start AND :end', {
+        start: yearStart,
+        end: yearEnd,
+      });
+
+    // For VAT-filing businesses, the annual report only locks the income-tax-only
+    // rows; VAT-eligible rows are locked by the VAT report instead.
+    if (businessType !== BusinessType.EXEMPT) {
+      qb.andWhere('slim.vatPercent = 0');
+    }
+
+    const rows = await qb.getRawMany<{ externalTransactionId: string }>();
+    return rows.map((r) => r.externalTransactionId);
   }
 }

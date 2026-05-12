@@ -384,7 +384,9 @@ export enum ICellRenderer {
   BILL = 'billName',
   CHECKBOX = 'checkbox',
   DATE = 'date',
-  AMOUNT_WITH_PERCENT = 'amountWithPercent'
+  AMOUNT_WITH_PERCENT = 'amountWithPercent',
+  /** Report-period stamp ("M/YYYY", "M1-M2/YYYY", or "YYYY") with optional lock icon. */
+  MONTH_REPORT = 'monthReport',
 }
 
 export enum NavigationItemClass {

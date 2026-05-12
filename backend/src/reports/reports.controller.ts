@@ -110,6 +110,46 @@ export class ReportsController {
     }
 
 
+    /**
+     * Self-employed user clicks "סמן כדווח" on the VAT/PnL report page after
+     * submitting at the tax authority. Locks every transaction stamped with
+     * the matching period label. Idempotent — already-locked rows stay locked.
+     */
+    @Post('mark-submitted')
+    @UseGuards(FirebaseAuthGuard)
+    async markSubmitted(
+        @Req() request: AuthenticatedRequest,
+        @Body() body: { businessNumber: string; startDate: string },
+    ): Promise<{ count: number; periodLabel: string }> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) throw new BadRequestException('Firebase ID is missing');
+        if (!body?.businessNumber) throw new BadRequestException('businessNumber is required');
+        if (!body?.startDate) throw new BadRequestException('startDate is required');
+        const startDate = this.sharedService.convertStringToDateObject(body.startDate);
+        return this.reportsService.markReportAsSubmitted(firebaseId, body.businessNumber, startDate);
+    }
+
+
+    /**
+     * Was the report for `(businessNumber, startDate)` already marked as
+     * submitted? Frontend swaps the "סמן כדווח" button for a "הדוח הוגש"
+     * success indicator when true.
+     */
+    @Get('submission-status')
+    @UseGuards(FirebaseAuthGuard)
+    async submissionStatus(
+        @Req() request: AuthenticatedRequest,
+        @Query() query: { businessNumber: string; startDate: string },
+    ): Promise<{ isSubmitted: boolean; periodLabel: string }> {
+        const firebaseId = request.user?.firebaseId;
+        if (!firebaseId) throw new BadRequestException('Firebase ID is missing');
+        if (!query?.businessNumber) throw new BadRequestException('businessNumber is required');
+        if (!query?.startDate) throw new BadRequestException('startDate is required');
+        const startDate = this.sharedService.convertStringToDateObject(query.startDate);
+        return this.reportsService.getReportSubmissionStatus(firebaseId, query.businessNumber, startDate);
+    }
+
+
     // @SetMetadata('requiredModule', ModuleName.UNIFORM_FILE)
     // @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
     @UseGuards(FirebaseAuthGuard)

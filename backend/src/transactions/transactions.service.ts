@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
-import { SourceType, VATReportingType } from 'src/enum';
+import { SourceType, VATReportingType, BusinessType } from 'src/enum';
 
 //Entities
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
@@ -33,6 +33,7 @@ import { UserCategory } from 'src/expenses/user-categories.entity';
 import { CreateBillDto } from './dtos/create-bill.dto';
 import * as fs from 'fs';
 import { UserSubCategory } from 'src/expenses/user-sub-categories.entity';
+import { Business } from 'src/business/business.entity';
 import { log } from 'console';
 
 
@@ -71,6 +72,8 @@ export class TransactionsService {
     private slimRepo: Repository<SlimTransaction>,
     @InjectRepository(UserSourceSyncState)
     private userSourceSyncStateRepo: Repository<UserSourceSyncState>,
+    @InjectRepository(Business)
+    private businessRepo: Repository<Business>,
   ) { }
 
 
@@ -1424,6 +1427,25 @@ export class TransactionsService {
     endDate: Date,
   ): Promise<Record<string, any>[]> {
 
+    // Translate the report's date range into the period labels that span it.
+    // Late stragglers whose `transactionDate` is outside the range but whose
+    // `vatReportingDate` falls inside it (because the user reassigned them
+    // from a locked period) should still surface in the confirm-trans dialog.
+    let periodLabels: string[] = [];
+    if (businessNumber && businessNumber !== 'ALL_BILLS') {
+      const business = await this.businessRepo.findOne({
+        where: { firebaseId: userId, businessNumber },
+      });
+      if (business) {
+        periodLabels = this.sharedService.expandPeriodLabelsInRange(
+          business.businessType ?? BusinessType.EXEMPT,
+          business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+          startDate,
+          endDate,
+        );
+      }
+    }
+
     // Join slim_transactions only for its confirmed state.
     // Rows with no slim row are treated as confirmed = false (LEFT JOIN IS NULL).
     const qb = this.cacheRepo
@@ -1434,12 +1456,23 @@ export class TransactionsService {
         's.userId = c.userId AND s.externalTransactionId = c.externalTransactionId',
       )
       .where('c.userId = :userId', { userId })
-      .andWhere('DATE(c.transactionDate) BETWEEN :startDate AND :endDate', { startDate, endDate })
       .andWhere('c.isRecognized = true')
       .andWhere('c.amount < 0')
       // slim.confirmed IS NULL  → no slim row yet → treat as unconfirmed
       // slim.confirmed = false  → explicitly not yet confirmed
       .andWhere('(s.confirmed IS NULL OR s.confirmed = false)');
+
+    if (periodLabels.length > 0) {
+      // Period-stamped (classified) rows → match by label. Unclassified rows
+      // (no slim row → vatReportingDate IS NULL on cache too) → match by
+      // transactionDate so the user can still classify+confirm them.
+      qb.andWhere(
+        '(c.vatReportingDate IN (:...labels) OR (c.vatReportingDate IS NULL AND DATE(c.transactionDate) BETWEEN :startDate AND :endDate))',
+        { labels: periodLabels, startDate, endDate },
+      );
+    } else {
+      qb.andWhere('DATE(c.transactionDate) BETWEEN :startDate AND :endDate', { startDate, endDate });
+    }
 
     if (businessNumber && businessNumber !== 'ALL_BILLS') {
       qb.andWhere('c.businessNumber = :businessNumber', { businessNumber });
@@ -1558,6 +1591,15 @@ export class TransactionsService {
       throw new Error('No transactions found with the provided IDs.');
     }
 
+    // Load existing slim rows so we can use the period label already stamped
+    // at classification time. Confirm-trans no longer (re)computes the period;
+    // it only flips `confirmed = true`.
+    const externalIds = cacheRows.map((r) => r.externalTransactionId);
+    const slimRows = externalIds.length > 0
+      ? await this.slimRepo.find({ where: { userId, externalTransactionId: In(externalIds) } })
+      : [];
+    const slimByExternalId = new Map(slimRows.map((s) => [s.externalTransactionId, s]));
+
     // ── Build and save Expense entities ───────────────────────────────────────
     const expenses: Expense[] = [];
     let skippedTransactions = 0;
@@ -1566,19 +1608,30 @@ export class TransactionsService {
       const transactionFile = transactionData.find(td => td.id === row.id)?.file || '';
 
       const existingExpense = await this.expenseRepo.findOne({
-        where: {
-          userId: row.userId,
-          date: row.transactionDate,
-          supplier: row.merchantName,
-          sum: Math.abs(Number(row.amount)),
-        },
+        where: [
+          { userId: row.userId, externalTransactionId: row.externalTransactionId },
+          // Fallback for legacy Expenses created before externalTransactionId was linked.
+          {
+            userId: row.userId,
+            date: row.transactionDate,
+            supplier: row.merchantName,
+            sum: Math.abs(Number(row.amount)),
+          },
+        ],
       });
 
       if (existingExpense) {
+        // Backfill the link on legacy rows so future re-classifications can
+        // sync this Expense via the externalTransactionId path.
+        if (!existingExpense.externalTransactionId) {
+          existingExpense.externalTransactionId = row.externalTransactionId;
+          await this.expenseRepo.save(existingExpense);
+        }
         skippedTransactions++;
         continue;
       }
 
+      const slim = slimByExternalId.get(row.externalTransactionId);
       const expense = new Expense();
       expense.supplier = row.merchantName;
       expense.supplierID = '';
@@ -1595,8 +1648,10 @@ export class TransactionsService {
       expense.loadingDate = new Date();
       expense.expenseNumber = '';
       expense.transId = null;
+      expense.externalTransactionId = row.externalTransactionId;
       expense.reductionPercent = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
+      expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
 
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
       expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
@@ -1619,28 +1674,34 @@ export class TransactionsService {
       await this.expenseRepo.save(expenses);
     }
 
-    // ── Mark confirmed in slim_transactions (source of truth) ─────────────────
-    // Operates on externalTransactionId — the stable identity derived from cache rows.
-    // ON CONFLICT (userId, externalTransactionId): update confirmed = true only.
-    // ON INSERT (no slim row exists yet): create a full slim row with confirmed = true.
-    // Rows without billId are skipped — a valid slim row requires it.
+    // ── Mark confirmed in slim_transactions ───────────────────────────────────
+    // Period is already on the slim row (stamped at classification). Confirm
+    // only flips `confirmed = true`. Rows without billId are skipped — a
+    // valid slim row requires it.
     const slimUpserts = cacheRows
       .filter(r => r.billId != null && r.classificationType != null && r.category != null && r.subCategory != null)
-      .map(r => ({
-        userId: r.userId,
-        externalTransactionId: r.externalTransactionId,
-        billId: r.billId,
-        classificationType: r.classificationType,
-        category: r.category,
-        subCategory: r.subCategory,
-        vatPercent: r.vatPercent,
-        taxPercent: r.taxPercent,
-        reductionPercent: r.reductionPercent,
-        isEquipment: r.isEquipment,
-        isRecognized: r.isRecognized,
-        businessNumber: r.businessNumber,
-        confirmed: true,
-      }));
+      .map((r) => {
+        const slim = slimByExternalId.get(r.externalTransactionId);
+        return {
+          userId: r.userId,
+          externalTransactionId: r.externalTransactionId,
+          billId: r.billId,
+          classificationType: r.classificationType,
+          category: r.category,
+          subCategory: r.subCategory,
+          vatPercent: r.vatPercent,
+          taxPercent: r.taxPercent,
+          reductionPercent: r.reductionPercent,
+          isEquipment: r.isEquipment,
+          isRecognized: r.isRecognized,
+          businessNumber: r.businessNumber,
+          confirmed: true,
+          // Prefer the period label already on the slim row (set at classify).
+          // Fall back to the cache row's stamp for any path that bypassed
+          // classify (legacy / manual ingest).
+          vatReportingDate: slim?.vatReportingDate ?? r.vatReportingDate ?? null,
+        };
+      });
 
     if (slimUpserts.length > 0) {
       await this.slimRepo
@@ -1652,6 +1713,13 @@ export class TransactionsService {
         .updateEntity(false)
         .execute();
     }
+
+    // Mirror `confirmed = true` onto the cache so the תזרים column renderer
+    // can show the green V immediately.
+    await this.cacheRepo.update(
+      { id: In(cacheRows.map((r) => r.id)), userId },
+      { confirmed: true },
+    );
 
     const message = `Successfully converted ${expenses.length} transactions to expenses. ${skippedTransactions} transactions were skipped because they already exist as expenses.`;
     return { message };

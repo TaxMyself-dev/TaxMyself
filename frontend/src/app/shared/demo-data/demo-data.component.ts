@@ -1,13 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { MessageService } from 'primeng/api';
-import { catchError, EMPTY, finalize, firstValueFrom, from, of, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, finalize } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
-import { GenericService } from 'src/app/services/generic.service';
+import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import {
   AdminPanelService,
   DemoProfileListItem,
@@ -26,9 +25,8 @@ import {
 export class DemoDataComponent implements OnInit {
   private readonly adminPanelService = inject(AdminPanelService);
   private readonly messageService = inject(MessageService);
-  private readonly afAuth = inject(AngularFireAuth);
+  private readonly clientPanelService = inject(ClientPanelService);
   private readonly authService = inject(AuthService);
-  private readonly genericService = inject(GenericService);
   private readonly router = inject(Router);
 
   readonly buttonSize = ButtonSize;
@@ -103,43 +101,39 @@ export class DemoDataComponent implements OnInit {
   }
 
   // ---------- Enter as demo user (primary or any delegated client) ----------
+  //
+  // Admin stays signed-in to Firebase. We use clientPanelService.setSelectedClient
+  // so the auth interceptor adds `x-client-user-id` to every backend call —
+  // backend returns the demo user's data. Same mechanism accountants use to
+  // act on behalf of their clients. The banner in app.component.html shows the
+  // "exit" button to return to the admin view.
 
   onEnterAsPrimary(profile: DemoProfileListItem): void {
     if (!profile.exists) return;
-    this.runImpersonation(profile.id, profile.email, profile.password);
+    if (!profile.firebaseId) {
+      this.toastError(new Error('No firebaseId on profile'), 'משתמש דמו ללא firebaseId — נסה ליצור מחדש');
+      return;
+    }
+    this.enterAsUser(profile.firebaseId, profile.label);
   }
 
   onEnterAsClient(profile: DemoProfileListItem, client: DemoSubUser): void {
     if (!profile.exists) return;
-    this.runImpersonation(profile.id, client.email, client.password);
+    if (!client.firebaseId) {
+      this.toastError(new Error('No firebaseId on client'), 'לקוח דמו ללא firebaseId — נסה ליצור מחדש');
+      return;
+    }
+    this.enterAsUser(client.firebaseId, client.label);
   }
 
-  private runImpersonation(profileId: string, email: string, password: string): void {
-    if (this.busyProfileId()) return;
-    this.busyProfileId.set(profileId);
-
-    // Mirror the login.page.ts flow: sign out current session, sign in with the
-    // target creds, fetch userData from backend, save to localStorage, load
-    // businesses, then navigate to /my-account.
-    from(this.afAuth.signOut())
-      .pipe(
-        switchMap(() =>
-          from(this.afAuth.signInWithEmailAndPassword(email, password)),
-        ),
-        switchMap(() => this.authService.signIn()),
-        tap((res: any) => {
-          sessionStorage.setItem('isLoggedIn', 'true');
-          localStorage.setItem('userData', JSON.stringify(res));
-        }),
-        switchMap(() => from(this.genericService.loadBusinessesFromServer())),
-        tap(() => this.router.navigate(['my-account'])),
-        catchError((err) => {
-          this.toastError(err, 'כניסה כמשתמש דמו נכשלה');
-          return EMPTY;
-        }),
-        finalize(() => this.busyProfileId.set(null)),
-      )
-      .subscribe();
+  private enterAsUser(firebaseId: string, label: string): void {
+    this.clientPanelService.setSelectedClient(firebaseId, label);
+    // Await the view-as user data fetch BEFORE navigating, otherwise pages like
+    // /my-account read userData in their ngOnInit before AuthService's
+    // viewAsUserData is populated — and they'd render with the admin's name.
+    this.authService.loadViewAsUserData().subscribe(() => {
+      this.router.navigate(['/my-account']);
+    });
   }
 
   // ---------- Result handlers ----------

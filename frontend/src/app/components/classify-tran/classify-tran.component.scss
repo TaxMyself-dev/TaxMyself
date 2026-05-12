@@ -7,6 +7,34 @@
     // justify-content: space-between;
 }
 
+// Locked-natural-period dialog (when a late-arrival transaction's report
+// period was already submitted).
+.locked-period-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 6px 4px;
+
+    p {
+        margin: 0 0 8px;
+    }
+}
+
+.locked-period-icon {
+    font-size: 1.6rem;
+    color: #f59e0b;
+    margin-top: 4px;
+}
+
+.locked-period-select {
+    width: 200px;
+    padding: 6px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    margin-top: 6px;
+}
+
 .inputs {
     display: flex;
     width: 100%;

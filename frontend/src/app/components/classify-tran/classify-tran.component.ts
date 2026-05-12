@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, OnInit, output, signal } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
 import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
 import { catchError, EMPTY, finalize, map, tap, zip } from 'rxjs';
@@ -33,8 +34,10 @@ import { LeftPanelComponent } from "../left-panel/left-panel.component";
     ToastModule,
     CheckboxModule,
     CommonModule,
+    FormsModule,
     ReactiveFormsModule,
     ConfirmDialogModule,
+    DialogModule,
   ],
   standalone: true,
   providers: [ConfirmationService],
@@ -72,6 +75,15 @@ export class ClassifyTranComponent implements OnInit {
   /** Toggle to force subcategory select to re-create after list refresh (fixes selection of newly added subcategory). */
   showSubCategorySelect = signal(true);
   showAdvancedSection = signal(false);
+
+  // ── Late-arrival period dialog (natural period locked) ─────────────────
+  lockedPeriodDialogVisible = signal<boolean>(false);
+  lockedPeriodNatural = signal<string>('');
+  lockedPeriodOptions = signal<string[]>([]);
+  lockedPeriodPicked = signal<string>('');
+  /** Form payload we paused mid-flight when the 423 came back — re-sent
+   *  with `targetPeriodLabel` once the user picks an alternative. */
+  private pendingClassifyFormData: any = null;
 
   /** Dropdown options for the businessNumber override. Reuses the canonical
    *  businesses list from GenericService, which carries the human-readable
@@ -220,6 +232,36 @@ export class ClassifyTranComponent implements OnInit {
       .addClassifiction(formData)
       .pipe(
         catchError((err) => {
+          // 423 Locked — backend distinguishes two locked-report cases via
+          // the `type` field on the error body:
+          //   blocked_report_submitted → existing classified transaction whose
+          //       report has already been submitted (immutable). Single info
+          //       dialog, no accept action.
+          //   natural_period_locked    → a NEW classification attempt whose
+          //       natural period is already submitted. We offer the next few
+          //       open periods so the user can reassign.
+          if (err.status === 423 && err.error?.type === 'natural_period_locked') {
+            this.isLoading.set(false);
+            this.lockedPeriodNatural.set(err.error?.naturalPeriod ?? '');
+            this.lockedPeriodOptions.set(Array.isArray(err.error?.availablePeriods) ? err.error.availablePeriods : []);
+            this.lockedPeriodPicked.set(this.lockedPeriodOptions()[0] ?? '');
+            this.pendingClassifyFormData = formData;
+            this.lockedPeriodDialogVisible.set(true);
+            return EMPTY;
+          }
+          if (err.status === 423 || err.error?.type === 'blocked_report_submitted') {
+            this.isLoading.set(false);
+            this.confirmationService.confirm({
+              key: 'classifyTranLocked',
+              message: err.error?.message ?? 'התנועה שייכת לדוח שכבר דווח לרשויות המס ולא ניתן לשנות את הסיווג שלה.',
+              header: 'התנועה נעולה',
+              icon: 'pi pi-lock',
+              rejectVisible: false,
+              acceptButtonProps: { severity: 'contrast', label: 'הבנתי' },
+              accept: () => {},
+            });
+            return EMPTY;
+          }
           if (err.status === 409) {
             this.isLoading.set(false);
             const isRuleOverride = err.error?.type === 'confirm_rule_override';
@@ -261,6 +303,30 @@ export class ClassifyTranComponent implements OnInit {
         });
       });
   }
+
+
+  /** "אישור" inside the locked-period dialog — resend the paused
+   *  classification with the chosen period as `targetPeriodLabel`. */
+  onLockedPeriodConfirm(): void {
+    const picked = this.lockedPeriodPicked();
+    if (!picked || !this.pendingClassifyFormData) {
+      this.lockedPeriodDialogVisible.set(false);
+      return;
+    }
+    const retryPayload = { ...this.pendingClassifyFormData, targetPeriodLabel: picked };
+    this.lockedPeriodDialogVisible.set(false);
+    this.pendingClassifyFormData = null;
+    this.isLoading.set(true);
+    this.sendClassification(retryPayload);
+  }
+
+
+  /** "ביטול" — drop the paused payload, close the dialog, return to form. */
+  onLockedPeriodCancel(): void {
+    this.lockedPeriodDialogVisible.set(false);
+    this.pendingClassifyFormData = null;
+  }
+
 
   // =========================== CATEGORY LOGIC ===========================
   getCategories(): void {

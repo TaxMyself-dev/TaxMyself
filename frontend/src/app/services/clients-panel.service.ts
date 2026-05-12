@@ -50,8 +50,18 @@ export class ClientPanelService {
 
   private cachedClients: Client[] = [];
   private clientsLoaded = false;
-  private readonly selectedClientIdSubject = new BehaviorSubject<string | null>(null);
-  private readonly selectedClientNameSubject = new BehaviorSubject<string | null>(null);
+  // Persist selected client across page reloads so refreshing while viewing
+  // a delegated client / demo user doesn't silently boot you back to the
+  // accountant's own data (and break role-gated endpoints like
+  // /accountant-tasks which would then run with the admin's UID).
+  private static readonly ID_KEY = 'tm.selectedClientId';
+  private static readonly NAME_KEY = 'tm.selectedClientName';
+  private readonly selectedClientIdSubject = new BehaviorSubject<string | null>(
+    typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(ClientPanelService.ID_KEY) : null,
+  );
+  private readonly selectedClientNameSubject = new BehaviorSubject<string | null>(
+    typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(ClientPanelService.NAME_KEY) : null,
+  );
   readonly selectedClientId$ = this.selectedClientIdSubject.asObservable();
   readonly selectedClientName$ = this.selectedClientNameSubject.asObservable();
 
@@ -59,17 +69,22 @@ export class ClientPanelService {
 
   setSelectedClientId(clientUserId: string): void {
     this.selectedClientIdSubject.next(clientUserId);
+    sessionStorage.setItem(ClientPanelService.ID_KEY, clientUserId);
   }
 
   /** כשנכנסים לחשבון לקוח – שומרים גם את השם לתצוגה בראש המסך */
   setSelectedClient(clientUserId: string, clientName: string): void {
     this.selectedClientIdSubject.next(clientUserId);
     this.selectedClientNameSubject.next(clientName);
+    sessionStorage.setItem(ClientPanelService.ID_KEY, clientUserId);
+    sessionStorage.setItem(ClientPanelService.NAME_KEY, clientName);
   }
 
   clearSelectedClient(): void {
     this.selectedClientIdSubject.next(null);
     this.selectedClientNameSubject.next(null);
+    sessionStorage.removeItem(ClientPanelService.ID_KEY);
+    sessionStorage.removeItem(ClientPanelService.NAME_KEY);
   }
 
   getSelectedClientId(): string | null {

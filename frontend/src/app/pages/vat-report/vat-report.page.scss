@@ -65,6 +65,30 @@ vat-report-search-bar-input {
   margin-top: 15px;
 }
 
+// Flex row holding the action buttons under the VAT report. In RTL the first
+// DOM child renders on the right (inline-start) and subsequent children flow
+// to the left — so "לתשלום באתר מעמ" sits on the right and the
+// "סמן כדווח" / "הדוח הוגש" indicator sits to its left, matching the spec.
+.report-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.report-submitted-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2e7d32;
+  font-weight: 600;
+
+  .pi-check-circle {
+    font-size: 1.4rem;
+  }
+}
+
 .expenses-table {
   width: 98%;
   margin-top: 15px;

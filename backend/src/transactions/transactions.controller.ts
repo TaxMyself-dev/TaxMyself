@@ -604,6 +604,9 @@ export class TransactionsController {
         isEquipment: dto.isEquipment ?? false,
         isRecognized: dto.isRecognized ?? false,
         businessNumber: dto.businessNumber ?? null,
+        // Late-arrival reassignment — set by the frontend after the user
+        // picks an alternative from the "natural period locked" dialog.
+        targetPeriodLabel: dto.targetPeriodLabel,
       });
       return;
     }
@@ -627,10 +630,20 @@ export class TransactionsController {
       commentMatchType: dto.matchType ?? 'equals',
       confirmOverride: dto.confirmOverride,
       businessNumber: dto.businessNumber ?? null,
+      targetPeriodLabel: dto.targetPeriodLabel,
     });
 
     if (result.status === 'blocked_vat_reported') {
-      throw new BadRequestException(result.message);
+      // 423 Locked + typed payload — keeps parity with the classifyManually
+      // guard so the frontend can show the dedicated "report submitted" dialog
+      // regardless of which classification path the user took.
+      throw new HttpException(
+        {
+          type: 'blocked_report_submitted',
+          message: 'התנועה שייכת לדוח שכבר דווח לרשויות המס ולא ניתן לשנות את הסיווג שלה.',
+        },
+        423,
+      );
     }
 
     if (result.status === 'confirm_override') {

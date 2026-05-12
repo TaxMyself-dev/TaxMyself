@@ -118,6 +118,15 @@ export class AuthService {
     if (this.viewAsUserData != null) {
       return this.viewAsUserData;
     }
+    return this.getRealUserDataFromLocalStorage();
+  }
+
+  /**
+   * Returns the *real* logged-in user from localStorage, bypassing any view-as
+   * overlay. Use this when you need to know who actually holds the session —
+   * e.g., to decide where the "exit client view" button should navigate.
+   */
+  getRealUserDataFromLocalStorage(): IUserData | null {
     const tempA = localStorage.getItem('userData');
     if (!tempA) {
       return null;

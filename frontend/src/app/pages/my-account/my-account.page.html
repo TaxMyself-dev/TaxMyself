@@ -261,25 +261,29 @@
     </div> -->
 
     <div class="user-info-block">
-        <div class="avatar-with-name">
-            <!-- <p-avatar icon="pi pi-user" [style]="{ backgroundColor: '#dee9fc', color: '#1a2551' }" shape="circle"></p-avatar> -->
-            <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="large" shape="circle"></p-avatar>
-            <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
+        <div class="user-info-row">
+            <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
+            <div class="user-info-text">
+                <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
+                @if (userData?.previousLoginAt) {
+                <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
+                }
+                @if (!hasOpenBanking()) {
+                <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.BETWEEN"
+                    (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
+                </app-p-button>
+                }
+                @if (hasOpenBanking()) {
+                <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
+                    (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
+                </app-p-button>
+                }
+            </div>
         </div>
         <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
             [buttonSize]="buttonSize.AUTO" (onButtonClicked)="openMannualExpenses()">
             <i class="pi pi-plus"></i>
         </app-p-button>
-        @if (!hasOpenBanking()) {
-        <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
-            (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
-        </app-p-button>
-        }
-        @if (hasOpenBanking()) {
-        <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
-            (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
-        </app-p-button>
-        }
     </div>
      <!-- ─── Open Banking CTA Banner (Figma nodes 2520:53911 → 2520:53930) ─── -->
      @if (!hasOpenBanking()) {

@@ -1,3 +1,6 @@
+<p-confirmDialog></p-confirmDialog>
+<p-confirmDialog key="markSubmitted"></p-confirmDialog>
+
 <p-dialog
   [(visible)]="redirectPromptVisibleModel"
   header="הוצאות לא מאושרות"
@@ -56,13 +59,29 @@
       </div>
     </div>
 
-    <app-p-button class="vat-report-payment-button" 
-      [buttonText]="'לתשלום באתר מעמ'" 
-      [buttonColor]="buttonColor.BLACK"
-      [buttonSize]="buttonSize.AUTO"
-      [href]="'https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true'">
-    </app-p-button>
-    
+    <div class="report-action-row">
+      <app-p-button
+        [buttonText]="'לתשלום באתר מעמ'"
+        [buttonColor]="buttonColor.BLACK"
+        [buttonSize]="buttonSize.AUTO"
+        [href]="'https://secapp.taxes.gov.il/EMHANDOCH/LogonMaam.aspx?back=true'">
+      </app-p-button>
+
+      @if (reportSubmitted()) {
+        <div class="report-submitted-badge" aria-live="polite">
+          <i class="pi pi-check-circle"></i>
+          <span>הדוח הוגש</span>
+        </div>
+      } @else {
+        <app-p-button
+          [buttonText]="'סמן כדווח'"
+          [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.AUTO"
+          (onButtonClicked)="onMarkAsSubmitted()">
+        </app-p-button>
+      }
+    </div>
+
   }
 
   @let vatReportDataTable = dataTable | async;

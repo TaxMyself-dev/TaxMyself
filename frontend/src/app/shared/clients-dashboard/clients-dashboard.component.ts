@@ -1,10 +1,18 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
-import { FeezbackService } from 'src/app/services/feezback.service';
+import { FeezbackService, AdminAccountsAndCardsResponse } from 'src/app/services/feezback.service';
 import { catchError, EMPTY, finalize } from 'rxjs';
 import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
 import { ConfirmationService, MessageService } from 'primeng/api';
+
+interface AdminSourceRow {
+  type: 'bank' | 'card';
+  paymentIdentifier: string;
+  consentStatus: string;
+  ownerName: string | null;
+  product: string | null;
+}
 
 @Component({
   selector: 'app-clients-dashboard',
@@ -24,8 +32,64 @@ export class ClientsDashboardComponent implements OnInit {
   accountsDialogVisible = signal<boolean>(false);
   accountsDialogLoading = signal<boolean>(false);
   accountsDialogClientName = signal<string>('');
-  accountsDialogData = signal<{ accounts: any; cards: any } | null>(null);
+  accountsDialogData = signal<AdminAccountsAndCardsResponse | null>(null);
   refreshingSourcesFor = signal<string | null>(null);
+  refreshingSourcesName = signal<string>('');
+
+  /**
+   * Mirror of the backend's deriveSourceName: ILS → no suffix; non-ILS gets a
+   * symbol ($, €, £, ¥) or `-CODE` fallback. Keeps the displayed paymentIdentifier
+   * identical to what the backend writes to source.sourceName.
+   */
+  private static readonly CURRENCY_SYMBOLS: Record<string, string> = {
+    USD: '$', EUR: '€', GBP: '£', JPY: '¥',
+  };
+
+  private deriveSourceName(rawId: string, currency: string | null | undefined): string {
+    if (!rawId) return rawId;
+    const c = (currency ?? 'ILS').toUpperCase();
+    if (c === 'ILS') return rawId;
+    const symbol = ClientsDashboardComponent.CURRENCY_SYMBOLS[c];
+    return symbol ? `${rawId}${symbol}` : `${rawId}-${c}`;
+  }
+
+  /** Compact per-source rows derived from the live Feezback response. */
+  accountsDialogSources = computed<AdminSourceRow[]>(() => {
+    const data = this.accountsDialogData();
+    if (!data) return [];
+    const rows: AdminSourceRow[] = [];
+    const banks = data.accounts?.accounts ?? [];
+    for (const acc of banks) {
+      const iban: string | undefined = acc?.iban;
+      const rawId = iban?.trim().slice(-7);
+      if (!rawId) continue;
+      rows.push({
+        type: 'bank',
+        paymentIdentifier: this.deriveSourceName(rawId, acc?.currency),
+        consentStatus: acc?.consentStatus ?? '—',
+        ownerName: acc?.ownerName ?? acc?.name ?? null,
+        product: acc?.product ?? null,
+      });
+    }
+    const cards = data.cards?.cards ?? [];
+    for (const card of cards) {
+      const maskedPan: string | undefined = card?.maskedPan;
+      const rawId = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/)?.[1] : undefined;
+      if (!rawId) continue;
+      rows.push({
+        type: 'card',
+        paymentIdentifier: this.deriveSourceName(rawId, card?.currency),
+        consentStatus: card?.consentStatus ?? '—',
+        ownerName: card?.ownerName ?? card?.name ?? null,
+        product: card?.product ?? null,
+      });
+    }
+    return rows;
+  });
+
+  consentStatusColor(status: string): string {
+    return status === 'valid' ? '#16a34a' : '#dc2626';
+  }
 
   columnsTitle: IColumnDataTable<any, any>[] = [
     { name: 'fullName', value: 'שם מלא', type: FormTypes.TEXT },
@@ -62,7 +126,9 @@ export class ClientsDashboardComponent implements OnInit {
       icon: 'pi pi-refresh',
       title: 'רענון מקורות',
       alwaysShow: true,
-      isLoading: () => this.refreshingSourcesFor() !== null,
+      // No isLoading getter — feedback is shown in a modal dialog (driven by
+      // refreshingSourcesFor) instead of a button spinner. The dialog's mask
+      // also blocks duplicate clicks.
       action: (event: any, row: IRowDataTable) => {
         this.confirmRefreshSources(row);
       }
@@ -258,6 +324,14 @@ export class ClientsDashboardComponent implements OnInit {
     });
   }
 
+  /**
+   * Honors p-dialog's two-way visibility — fires when the user clicks X, presses
+   * Esc, or clicks the modal mask. We treat any visible=false as a close request.
+   */
+  onAccountsDialogVisibleChange(visible: boolean): void {
+    if (!visible) this.closeClientAccountsDialog();
+  }
+
   closeClientAccountsDialog(): void {
     this.accountsDialogVisible.set(false);
     this.accountsDialogData.set(null);
@@ -279,9 +353,13 @@ export class ClientsDashboardComponent implements OnInit {
   private runRefreshSources(firebaseId: string, name: string): void {
     if (this.refreshingSourcesFor() === firebaseId) return;
     this.refreshingSourcesFor.set(firebaseId);
+    this.refreshingSourcesName.set(name);
     this.feezbackService.adminRefreshUserSources(firebaseId)
       .pipe(
-        finalize(() => this.refreshingSourcesFor.set(null)),
+        finalize(() => {
+          this.refreshingSourcesFor.set(null);
+          this.refreshingSourcesName.set('');
+        }),
         catchError(err => {
           const detail = err?.error?.message ?? err?.message ?? `רענון המקורות של ${name} נכשל`;
           this.messageService.add({

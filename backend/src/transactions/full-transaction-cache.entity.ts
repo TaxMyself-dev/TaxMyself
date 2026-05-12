@@ -4,7 +4,7 @@ import {
   PrimaryGeneratedColumn,
   Index,
 } from 'typeorm';
-import { DualMonthReport, SingleMonthReport } from 'src/enum';
+import { ReportPeriodLabel } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('full_transactions_cache')
@@ -79,7 +79,11 @@ export class FullTransactionCache {
     nullable: true,
     default: null,
   })
-  vatReportingDate: SingleMonthReport | DualMonthReport | null;
+  vatReportingDate: ReportPeriodLabel | null;
+
+  /** Mirror of SlimTransaction.isLocked — surfaced here for the read path. */
+  @Column({ type: 'boolean', default: false })
+  isLocked: boolean;
 
   @Column({ type: 'boolean', default: false })
   confirmed: boolean;

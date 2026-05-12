@@ -226,6 +226,25 @@
               @else if (col.name === 'parentDoc' && row[col.name]) {
               <span [innerHTML]="row[col.name]"></span>
               }
+              <!-- Report-period stamp (must come BEFORE the date-name catch-all
+                   since the column name is 'vatReportingDate' but its value is
+                   a label like "01/2024", not a real date).
+                   Three states layered on the same period text:
+                     classified, not confirmed → period only
+                     confirmed, not locked     → green ✓ + period
+                     locked (report submitted) → lock + period -->
+              @else if (col.cellRenderer === ICellRenderer.MONTH_REPORT) {
+                @if (row[col.name]) {
+                  @if (row.isLocked) {
+                    <i class="pi pi-lock month-report-lock" title="הדוח הוגש – התנועה נעולה"></i>
+                  } @else if (row.confirmed) {
+                    <i class="pi pi-check-circle month-report-confirmed" title="ההוצאה אושרה"></i>
+                  }
+                  {{ row[col.name] }}
+                } @else {
+                  <span class="month-report-pending">טרם דווח</span>
+                }
+              }
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
               @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}
@@ -296,6 +315,7 @@
       <app-p-button [icon]="action.icon" [iconOnly]="true"
         (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false"
         [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }
@@ -308,6 +328,7 @@
       <app-p-button [icon]="action.icon" [iconOnly]="true"
         (onButtonClicked)="executeAction(action, getCurrentRow())" [buttonText]="action.title || action.name"
         [severity]="'info'" [variant]="'text'" [buttonSize]="buttonSize.AUTO"
+        [isLoading]="action.isLoading ? action.isLoading() : false"
         [pTooltip]="action.title || action.name" tooltipPosition="top">
       </app-p-button>
       }

@@ -161,6 +161,10 @@ export interface IUserData {
     taxReportingType: string;
     vatReportingType: string;
     hasOpenBanking: boolean;
+    /** Timestamp of the sign-in BEFORE the current session. Null for first-ever login. */
+    previousLoginAt: string | null;
+    /** Timestamp of the current session's sign-in. */
+    lastLoginAt: string | null;
 }
 
 export interface IChild {
@@ -439,6 +443,9 @@ export interface IClassifyTrans {
     isExpense: boolean;
     confirmOverride?: boolean;
     businessNumber?: string | null;
+    /** Late-arrival reassignment — set when the user picks an alternative
+     *  period from the "natural period locked" dialog. */
+    targetPeriodLabel?: string;
 }
 
 export interface IClassifyTransMinimal {
@@ -450,6 +457,7 @@ export interface IClassifyTransMinimal {
     subCategory: string;
     confirmOverride?: boolean;
     businessNumber?: string | null;
+    targetPeriodLabel?: string;
 }
 
 export interface ISelectItem {

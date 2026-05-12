@@ -59,6 +59,13 @@ export class AppComponent implements OnInit {
   showMenu: boolean = false;
   columns: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[]; // Titles of expense // TODO: remove?
   userData: IUserData;
+  /**
+   * The *real* logged-in user (admin or accountant), independent of any view-as
+   * overlay. `userData` above may temporarily reflect the demo user / client
+   * being viewed; `realUserData` always reflects who actually holds the session.
+   * Used by the top banner so it labels things from the real user's perspective.
+   */
+  realUserData: IUserData | null = null;
   isUserAdmin: boolean = false;
   isAccountant: boolean = false;
   destroy$ = new Subject<void>();
@@ -94,8 +101,14 @@ export class AppComponent implements OnInit {
 
   restartData(): void {
     this.userData = this.authService.getUserDataFromLocalStorage();
+    this.realUserData = this.authService.getRealUserDataFromLocalStorage();
     this.updateAdminMenuItems();
     this.getRoleUser();
+  }
+
+  /** True when the *real* logged-in user is an admin (regardless of view-as state). */
+  realUserIsAdmin(): boolean {
+    return !!this.realUserData?.role?.includes('ADMIN');
   }
 
   hideTopNav(): void {
@@ -109,6 +122,7 @@ export class AppComponent implements OnInit {
       const userFromStorage = this.authService.getUserDataFromLocalStorage();
       if (userFromStorage) {
         this.userData = userFromStorage;
+        this.realUserData = this.authService.getRealUserDataFromLocalStorage();
         this.updateAdminMenuItems();
         this.getRoleUser();
       }
@@ -169,10 +183,15 @@ export class AppComponent implements OnInit {
     this.router.navigate(["/login"]);
   }
 
-  /** יציאה מחשבון הלקוח – חזרה למשרד */
+  /**
+   * Exit the "acting as another user" view. Admins go back to /admin-panel,
+   * accountants go back to /client-panel.
+   */
   exitClientView(): void {
     this.clientPanelService.clearSelectedClient();
-    this.router.navigate(['/client-panel']);
+    const realUser = this.authService.getRealUserDataFromLocalStorage();
+    const destination = realUser?.role?.includes('ADMIN') ? '/admin-panel' : '/client-panel';
+    this.router.navigate([destination]);
   }
 
   private subscribeToSelectedClient(): void {
@@ -219,6 +238,7 @@ export class AppComponent implements OnInit {
     const userData = this.authService.getUserDataFromLocalStorage();
     if (userData) {
       this.userData = userData;
+      this.realUserData = this.authService.getRealUserDataFromLocalStorage();
       // Update admin menu items after userData is set
       this.updateAdminMenuItems();
       // await this.genericService.loadBusinesses();

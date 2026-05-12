@@ -248,7 +248,17 @@ export class FeezbackController {
     if (!isAdmin) throw new ForbiddenException('Admin access required');
     if (!targetFirebaseId) throw new ForbiddenException('firebaseId path parameter is required');
 
-    return this.feezbackService.adminGetAccountsAndCards(targetFirebaseId);
+    const targetUser = await this.usersService.findByFirebaseId(targetFirebaseId).catch(() => null);
+    const targetName = [targetUser?.fName, targetUser?.lName].filter(Boolean).join(' ') || `${targetFirebaseId.substring(0, 8)}...`;
+    const adminMask = adminFirebaseId ? `${adminFirebaseId.substring(0, 8)}...` : '?';
+    this.logger.log(`[Admin][GetAccounts] Request sent | target="${targetName}" (${targetFirebaseId.substring(0, 8)}...) | admin=${adminMask}`);
+
+    const result = await this.feezbackService.adminGetAccountsAndCards(targetFirebaseId);
+    const accountsCount = result?.accounts?.accounts?.length ?? 0;
+    const cardsCount = result?.cards?.cards?.length ?? 0;
+    this.logger.log(`[Admin][GetAccounts] Done       | target="${targetName}" | accounts=${accountsCount} | cards=${cardsCount}`);
+
+    return result;
   }
 
   /**

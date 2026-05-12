@@ -3,6 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
+export interface AdminAccountsAndCardsResponse {
+  accounts: any;
+  cards: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -31,10 +36,11 @@ export class FeezbackService {
   }
 
   /**
-   * Admin: fetch live accounts + cards JSON for a specific client (no DB writes).
+   * Admin: fetch live accounts + cards JSON for a specific client (no DB writes),
+   * along with the user's per-source sync state (status / transactionCount per source).
    */
-  adminGetAccountsAndCards(firebaseId: string): Observable<{ accounts: any; cards: any }> {
-    return this.http.get<{ accounts: any; cards: any }>(
+  adminGetAccountsAndCards(firebaseId: string): Observable<AdminAccountsAndCardsResponse> {
+    return this.http.get<AdminAccountsAndCardsResponse>(
       `${environment.apiUrl}feezback/admin/accounts/${firebaseId}`,
     );
   }

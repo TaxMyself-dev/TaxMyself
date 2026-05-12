@@ -7,6 +7,18 @@
   align-items: center;
 }
 
+.redirect-prompt-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+.redirect-prompt-icon {
+  font-size: 1.6rem;
+  color: #f59e0b;
+}
+
 .pnl-report-wrap-screen {
   width: 100%;
   height: 95%;
@@ -152,4 +164,26 @@
 
 .pnl-pdf-button {
   margin-top: 15px;
+}
+
+// Mirrors the VAT report's action row — see vat-report.page.scss for why
+// RTL flex puts "סמן כדווח" / "הדוח הוגש" to the visual left of "ייצא כ-PDF".
+.report-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.report-submitted-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2e7d32;
+  font-weight: 600;
+
+  .pi-check-circle {
+    font-size: 1.4rem;
+  }
 }

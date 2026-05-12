@@ -42,3 +42,8 @@ lerna-debug.log*
 .tmp
 
 results_*.txt
+
+bank-full-*.json
+bank-simple-*.json
+card-full-*.json
+card-simple-*.json

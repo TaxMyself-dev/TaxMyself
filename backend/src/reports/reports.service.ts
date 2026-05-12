@@ -25,6 +25,9 @@ import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
+import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { VATReportingType } from 'src/enum';
 
 
 @Injectable()
@@ -57,12 +60,87 @@ export class ReportsService {
     private JournalEntryRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine) 
     private JournalLineRepo: Repository<JournalLine>,
-    @InjectRepository(DefaultBookingAccount) 
+    @InjectRepository(DefaultBookingAccount)
     private defaultBookingAccountRepo: Repository<DefaultBookingAccount>,
+    @InjectRepository(SlimTransaction)
+    private slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(FullTransactionCache)
+    private cacheRepo: Repository<FullTransactionCache>,
   ) {
     if (!fs.existsSync(this.debugFolder)) {
       fs.mkdirSync(this.debugFolder, { recursive: true });
     }
+  }
+
+
+  /**
+   * Returns whether the report covering `(businessNumber, startDate)` has been
+   * marked as submitted yet. Drives the VAT/PnL page UI — when true, the
+   * "סמן כדווח" button is replaced with a "הדוח הוגש" success indicator.
+   *
+   * A period is considered submitted if at least one transaction in the slim
+   * table is stamped with the period label AND has `isLocked = true`.
+   */
+  async getReportSubmissionStatus(
+    userId: string,
+    businessNumber: string,
+    startDate: Date,
+  ): Promise<{ isSubmitted: boolean; periodLabel: string }> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found`);
+    }
+    const periodLabel = this.sharedService.buildReportPeriodLabel(
+      business.businessType ?? BusinessType.EXEMPT,
+      business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+    );
+    const lockedCount = await this.slimRepo.count({
+      where: { userId, businessNumber, vatReportingDate: periodLabel, isLocked: true },
+    });
+    return { isSubmitted: lockedCount > 0, periodLabel };
+  }
+
+
+  /**
+   * Marks every transaction in the given report period as `isLocked = true`
+   * — i.e. the user clicked "סמן כדווח" after submitting the report at the
+   * tax authority. Matches by the period label that confirm-trans already
+   * stamped on `vatReportingDate`. Self-employed equivalent of the
+   * accountant-workflow lock at ReportWorkflowService.setReported.
+   */
+  async markReportAsSubmitted(
+    userId: string,
+    businessNumber: string,
+    startDate: Date,
+  ): Promise<{ count: number; periodLabel: string }> {
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId: userId, businessNumber },
+    });
+    if (!business) {
+      throw new NotFoundException(`Business ${businessNumber} not found`);
+    }
+    const periodLabel = this.sharedService.buildReportPeriodLabel(
+      business.businessType ?? BusinessType.EXEMPT,
+      business.vatReportingType ?? VATReportingType.NOT_REQUIRED,
+      startDate,
+    );
+
+    const slimResult = await this.slimRepo.update(
+      { userId, businessNumber, vatReportingDate: periodLabel, isLocked: false },
+      { isLocked: true },
+    );
+    await this.cacheRepo.update(
+      { userId, businessNumber, vatReportingDate: periodLabel, isLocked: false },
+      { isLocked: true },
+    );
+
+    this.logger.log(
+      `markReportAsSubmitted: locked ${slimResult.affected ?? 0} transactions for ${businessNumber} / ${periodLabel}`,
+    );
+    return { count: slimResult.affected ?? 0, periodLabel };
   }
 
 

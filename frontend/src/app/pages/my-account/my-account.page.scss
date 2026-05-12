@@ -27,8 +27,37 @@ p.block-title {
 .user-info-block {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   // border: solid 1px green;
+}
+
+// Horizontal row: avatar on the right (RTL first child), text column on its left.
+// align-items: center keeps the avatar vertically centered against the column.
+.user-info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-info-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+
+  // Buttons inside the user-info column must keep their text in one line,
+  // even when the column is narrower than the label's natural width.
+  app-p-button {
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: max-content;
+  }
+}
+
+.last-login {
+  font-size: 14px;
+  color: #808080;
+  white-space: nowrap;
 }
 
 .user-actions {

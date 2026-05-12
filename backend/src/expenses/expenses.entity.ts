@@ -75,6 +75,20 @@ export class Expense {
   })
   transId: number;
 
+  /**
+   * Stable identity of the source cache/slim transaction this Expense row
+   * was created from. Used to keep the Expense in sync when the user
+   * re-classifies a confirmed-but-not-yet-locked transaction.
+   * Null for legacy Expenses created before this link existed, or for rows
+   * added manually (not from a bank/card transaction).
+   */
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    default: null,
+  })
+  externalTransactionId: string | null;
+
   @Column({
     type: 'varchar',
     nullable: true,
