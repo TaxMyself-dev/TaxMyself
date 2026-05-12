@@ -51,6 +51,7 @@ export class AppComponent implements OnInit {
     // { label: 'פרופיל אישי' },
     { label: 'תזרים', routerLink: '/transactions' },
     { label: 'דוחות', routerLink: '/reports' },
+    { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
     // { label: 'צור קשר' },
   ]
 

@@ -51,7 +51,7 @@ import { MessageService } from 'primeng/api';
     ClassifyTranComponent,
     AddCategoryComponent,
     ProgressSpinnerModule,
-  ],
+],
   providers: [DialogService]
 })
 export class MyAccountPage implements OnInit {

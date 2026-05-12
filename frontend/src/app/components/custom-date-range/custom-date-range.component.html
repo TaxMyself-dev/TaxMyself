@@ -1,0 +1,136 @@
+<!-- 
+
+<div class="dual-calendars" dir="rtl">
+  <div class="calendar-box">
+    <span class="calendar-label">תאריך התחלה</span>
+
+    <p-datepicker
+      [ngModel]="startDate()"
+      (ngModelChange)="onStartDateChange($event)"
+      [ngModelOptions]="{ standalone: true }"
+      [inline]="true"
+      [minDate]="minStartDate"
+      [maxDate]="today">
+
+      <ng-template #date let-date>
+        <span
+          class="day-cell"
+          [class.day-cell-in-range]="isInSelectedRange(date)">
+          {{ date.day }}
+        </span>
+      </ng-template>
+
+    </p-datepicker>
+  </div>
+
+  <div class="calendar-box">
+    <span class="calendar-label">תאריך סוף</span>
+
+    <p-datepicker
+      [ngModel]="endDate()"
+      (ngModelChange)="onEndDateChange($event)"
+      [ngModelOptions]="{ standalone: true }"
+      [inline]="true"
+      [minDate]="minEndDate()"
+      [maxDate]="today">
+
+      <ng-template #date let-date>
+        <span
+          class="day-cell"
+          [class.day-cell-in-range]="isInSelectedRange(date)">
+          {{ date.day }}
+        </span>
+      </ng-template>
+
+    </p-datepicker>
+  </div>
+</div> -->
+
+<div class="date-range-popover" dir="rtl">
+  <div class="dual-calendars">
+
+    <div class="calendar-box">
+      <span class="calendar-label">תאריך התחלה</span>
+
+      <p-datepicker
+        [ngModel]="startDate()"
+        (ngModelChange)="onStartDateChange($event)"
+        [ngModelOptions]="{ standalone: true }"
+        [inline]="true"
+        [minDate]="minStartDate"
+        [maxDate]="today">
+
+        <ng-template #date let-date>
+          <span
+            class="day-cell"
+            [class.day-cell-in-range]="isInSelectedRange(date)"
+            [class.day-cell-edge]="isStartDate(date) || isEndDate(date)">
+            {{ date.day }}
+          </span>
+        </ng-template>
+
+      </p-datepicker>
+    </div>
+
+    <div class="calendar-box">
+      <span class="calendar-label">תאריך סוף</span>
+
+      <p-datepicker
+        [ngModel]="endDate()"
+        (ngModelChange)="onEndDateChange($event)"
+        [ngModelOptions]="{ standalone: true }"
+        [inline]="true"
+        [minDate]="minStartDate"
+        [maxDate]="today">
+
+        <ng-template #date let-date>
+          <span
+            class="day-cell"
+            [class.day-cell-in-range]="isInSelectedRange(date)"
+            [class.day-cell-edge]="isStartDate(date) || isEndDate(date)">
+            {{ date.day }}
+          </span>
+        </ng-template>
+
+      </p-datepicker>
+    </div>
+
+  </div>
+<div class="footer-container">
+  <div class="wrapper-dates">
+  <div class="selected-dates">
+    <div>
+      <span>{{ formattedEnd() }}</span>
+    </div>
+    <span>&nbsp;-&nbsp; </span>
+    
+    <div>
+      <span>{{ formattedStart() }}</span>
+    </div>
+  </div>
+
+  @if (validationMessage()) {
+    <div class="range-error">
+      {{ validationMessage() }}
+    </div>
+  }
+</div>
+
+  <div class="footer-actions">
+    <app-p-button
+      [buttonText]="' נקה בחירה'"
+      [buttonColor]="buttonColor.WHITE_BORDER"
+      [buttonSize]="buttonSize.AUTO"
+      (onButtonClicked)="clear()">
+    </app-p-button>
+
+    <app-p-button
+    [buttonText]="'בחר'"
+    [buttonColor]="buttonColor.BLACK"
+    [buttonSize]="buttonSize.SMALL"
+    [disabled]="!canChoose()"
+    (onButtonClicked)="choose()">
+  </app-p-button>
+  </div>
+</div>
+</div>

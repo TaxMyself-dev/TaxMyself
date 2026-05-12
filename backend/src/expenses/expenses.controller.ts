@@ -225,9 +225,9 @@ export class ExpensesController {
   async getAllDefaultSubCategories(@Req() request: AuthenticatedRequest) {
     const firebaseId = request.user?.firebaseId;
     const isAdmin = await this.usersService.isAdmin(firebaseId);
-    if (!isAdmin) {
-      throw new ForbiddenException('Admin access required');
-    }
+    // if (!isAdmin) {
+    //   throw new ForbiddenException('Admin access required');
+    // }
     return this.expensesService.getAllDefaultSubCategories();
   }
 

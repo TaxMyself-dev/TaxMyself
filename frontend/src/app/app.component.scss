@@ -148,6 +148,12 @@ ion-item.selected {
   min-height: 0;
 }
 
+/* p-confirmdialog is always in the DOM but should never take flex space */
+.app-content > p-confirmdialog {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 /* Global loading overlay */
 .global-loader-overlay {
   position: fixed;
