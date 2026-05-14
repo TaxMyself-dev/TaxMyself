@@ -2,6 +2,13 @@ a {
     text-decoration: none;
 }
 
+:host {
+    @media (max-width: 768px) {
+        display: block;
+        width: min(100%, 340px);
+    }
+}
+
 .main-container {
     border: 1px solid;
     border-color: #f8e7e7;
@@ -14,6 +21,12 @@ a {
     justify-content: flex-start;
     :hover {
         cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+        width: 100%;
+        height: auto;
+        min-height: 160px;
     }
 }
 
@@ -38,6 +51,10 @@ a {
     font-size: x-large;
     color: #524e4e;
     margin-bottom: 0;
+
+    @media (max-width: 768px) {
+        font-size: large;
+    }
 }
 
 .footer-card {
