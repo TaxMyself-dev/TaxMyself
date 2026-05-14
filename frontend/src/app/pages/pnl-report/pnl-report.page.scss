@@ -32,7 +32,8 @@
   display: flex;
   flex-direction: column;
   text-align: right;
-  margin-top: 100px
+  margin-top: 100px;
+  display: flex;
 }
 
 .icon-title {
@@ -55,6 +56,7 @@
   font-size: 1.2rem;
   color: #666;
   margin-top: 0.5rem;
+  display: flex;
 }
 
 // vat-report-search-bar-input {
@@ -185,5 +187,41 @@
 
   .pi-check-circle {
     font-size: 1.4rem;
+  }
+}
+
+@media only screen and (max-width: 768px) {
+
+  .pnl-report-wrap-screen {
+    padding-right: 0;
+    align-items: center;
+  }
+  .pnl-report-header {
+    justify-content: center;
+  }
+
+  .text-header {
+    justify-content: center;
+  }
+
+  .icon-title {
+    justify-content: center;
+  }
+
+  .pnl-report-title {
+    justify-content: center;
+  }
+
+  .pnl-report-title > p {
+    width: 218px;
+  }
+
+  .wrap-output-report {
+    width: 95%;
+    justify-content: center;
+  }
+  
+  .report-action-row {
+    justify-content: center;
   }
 }
