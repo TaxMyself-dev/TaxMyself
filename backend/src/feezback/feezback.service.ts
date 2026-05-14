@@ -122,16 +122,16 @@ export class FeezbackService {
     }
     const userName = user ? [user.fName, user.lName].filter(Boolean).join(' ') : masked;
 
-    // Gate — only proceed for users who have OPEN_BANKING module access.
-    // Mirrors the same check inside doFullSync. Without this, users who don't
-    // subscribe to OB (e.g. demo users with hasOpenBanking=true but only the
-    // INVOICES module) fire 404s against Feezback on every login.
-    if (!user?.modulesAccess?.includes(ModuleName.OPEN_BANKING)) {
-      this.logger.log(
-        `${prefix} ⏭️  Skipped — OPEN_BANKING not in modulesAccess | user=${userName} | firebaseId=${masked}`,
-      );
-      return;
-    }
+    // NOTE: this method is only called from the consent-completion webhook
+    // (UserDataIsAvailable) and the admin-trigger endpoint — both intentional
+    // "grant OB access" contexts. We previously gated on modulesAccess here to
+    // prevent demo users from hitting Feezback on every login, but the login
+    // path goes through doFullSync (which has its own gate) and never reaches
+    // refreshUserSources. The gate here created a chicken-and-egg for first-
+    // time consenters: they don't yet have OPEN_BANKING in modulesAccess, so
+    // the gate blocked the very block (below) that grants it. If a caller
+    // does reach here without a real Feezback consent, the API calls below
+    // 404 and the BadGatewayException prevents the user from being updated.
 
     let bankError: string | null = null;
     let cardError: string | null = null;
