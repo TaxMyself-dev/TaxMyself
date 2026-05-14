@@ -200,8 +200,9 @@
             </app-input-select>
           }
 
-          <!-- Row 4: businessNumber (always visible — applies to both ONE_TIME and RULE) -->
-          @if (businessOptions().length > 0) {
+          <!-- Row 4: businessNumber (applies to both ONE_TIME and RULE).
+               Hidden when the user has only one business — no meaningful choice. -->
+          @if (businessOptions().length > 1) {
             <app-input-select
               [ariaLabel]="'בחר עסק'"
               [placeholder]="'בחר עסק'"

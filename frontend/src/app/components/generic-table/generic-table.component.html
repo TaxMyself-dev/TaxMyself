@@ -245,6 +245,24 @@
                   <span class="month-report-pending">טרם דווח</span>
                 }
               }
+              <!-- Sum + FX: non-ILS rows show the original amount with the
+                   BOI-converted ILS underneath in parentheses. The page
+                   preprocessor (`transactions.page.ts`) already prefixes the
+                   currency symbol onto `row.sum`, so we DON'T add it again
+                   here. ILS rows fall through to the existing sum rendering
+                   (sign colors etc.). -->
+              @else if (col.cellRenderer === ICellRenderer.SUM_WITH_FX && row.currency && row.currency !== 'ILS') {
+                <span class="sum-with-fx">
+                  <span class="sum-original"
+                    [class.sum-sign--expense]="sumSignColors() && (row['__sumNumeric'] ?? 0) < 0"
+                    [class.sum-sign--income]="sumSignColors() && (row['__sumNumeric'] ?? 0) > 0">
+                    {{ row[col.name] }}
+                  </span>
+                  @if (row.ilsAmount != null) {
+                    <span class="sum-ils">({{ absIls(row.ilsAmount) | number:'1.0-2' }} ₪)</span>
+                  }
+                </span>
+              }
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
               @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}

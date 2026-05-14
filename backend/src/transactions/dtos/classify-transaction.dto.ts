@@ -47,10 +47,12 @@ export class ClassifyTransactionDto {
   isExpense?: boolean;
 
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   startDate?: Date;
 
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   endDate?: Date;
 

@@ -1,7 +1,7 @@
 //General
 import { HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { Between, DataSource, In, LessThanOrEqual, MoreThan, MoreThanOrEqual, Repository } from 'typeorm';
 //Entities
 import { Expense } from './expenses.entity';
 import { Supplier } from './suppliers.entity';
@@ -10,7 +10,9 @@ import { DefaultCategory } from './default-categories.entity';
 import { DefaultSubCategory } from './default-sub-categories.entity';
 import { UserCategory } from './user-categories.entity';
 import { UserSubCategory } from './user-sub-categories.entity';
+import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { SharedService } from '../shared/shared.service';
+import { FxRateService } from '../shared/fx-rate.service';
 import { Business } from 'src/business/business.entity';
 import { BusinessType, VATReportingType } from 'src/enum';
 //DTOs
@@ -20,6 +22,8 @@ import { SupplierResponseDto } from './dtos/response-supplier.dto';
 import { CreateExpenseDto } from './dtos/create-expense.dto';
 import { CreateUserCategoryDto } from './dtos/create-user-category.dto';
 import { CreateUserSubCategoryDto } from './dtos/create-user-sub-category.dto';
+import { UpdateUserCategoryDto } from './dtos/update-user-category.dto';
+import { UpdateUserSubCategoryDto } from './dtos/update-user-sub-category.dto';
 
 
 @Injectable()
@@ -36,12 +40,38 @@ export class ExpensesService {
             @InjectRepository(UserSubCategory) private userSubCategoryRepo: Repository<UserSubCategory>,
             @InjectRepository(Supplier) private supplier_repo: Repository<Supplier>,
             @InjectRepository(Business) private businessRepo: Repository<Business>,
+            @InjectRepository(ClassifiedTransactions) private rulesRepo: Repository<ClassifiedTransactions>,
+            private readonly fxRateService: FxRateService,
+            private readonly dataSource: DataSource,
         ) { }
 
 
     async addExpense(expense: CreateExpenseDto, userId: string, businessNumber: string): Promise<Expense> {
         console.log("addExpense - start");
         const newExpense = this.expense_repo.create(expense);
+
+        // Foreign-currency manual entry: when the form sends originalCurrency
+        // + originalSum, ignore any client-supplied `sum` and let the BOI rate
+        // (on `expense.date`) be the source of truth for the stored ILS value.
+        // Also persist `originalCurrency` + `originalSum` so the expenses
+        // table can render "$X (₪Y)" without losing the original amount.
+        // FxRateService throws ServiceUnavailable on persistent failure — the
+        // exception propagates to the controller as 503 with a Hebrew message.
+        const oc = expense.originalCurrency?.toUpperCase();
+        if (oc && oc !== 'ILS' && expense.originalSum != null) {
+            const rate = await this.fxRateService.getRate(new Date(expense.date), oc);
+            if (rate == null) {
+                throw new Error(`Unsupported currency for FX conversion: ${oc}`);
+            }
+            newExpense.sum = Number((Math.abs(Number(expense.originalSum)) * rate).toFixed(2));
+            newExpense.originalCurrency = oc;
+            newExpense.originalSum = Math.abs(Number(expense.originalSum));
+        } else {
+            // Plain ILS entry — clear in case the form spread leaked stale values.
+            newExpense.originalCurrency = null;
+            newExpense.originalSum = null;
+        }
+
         // isEquipment should be true only if category is "רכוש קבוע", otherwise always false
         if (expense.category === 'רכוש קבוע') {
             const isEquipment = await this.getSubCategoryIsEquipment(expense.category, expense.subCategory, userId, businessNumber);
@@ -871,5 +901,156 @@ export class ExpensesService {
     }
 
 
+    /**
+     * Update a custom category. Only the simple flag is editable here —
+     * renaming is intentionally not supported via PATCH.
+     */
+    async updateUserCategory(
+        firebaseId: string,
+        businessNumber: string,
+        id: number,
+        dto: UpdateUserCategoryDto,
+    ): Promise<UserCategory> {
+        const cat = await this.userCategoryRepo.findOne({
+            where: { id, firebaseId, businessNumber },
+        });
+        if (!cat) {
+            throw new NotFoundException(`User category ${id} not found`);
+        }
+        Object.assign(cat, dto);
+        return this.userCategoryRepo.save(cat);
+    }
+
+    /**
+     * Update a custom sub-category's parameters (percentages, flags, necessity).
+     * Renaming is not supported via PATCH — use delete + add.
+     */
+    async updateUserSubCategory(
+        firebaseId: string,
+        businessNumber: string,
+        id: number,
+        dto: UpdateUserSubCategoryDto,
+    ): Promise<UserSubCategory> {
+        const sub = await this.userSubCategoryRepo.findOne({
+            where: { id, firebaseId, businessNumber },
+        });
+        if (!sub) {
+            throw new NotFoundException(`User sub-category ${id} not found`);
+        }
+        Object.assign(sub, dto);
+        return this.userSubCategoryRepo.save(sub);
+    }
+
+    /**
+     * Delete a custom category (and cascade-delete its sub-categories) when
+     * no classification rules reference it. Throws ConflictException with the
+     * affected rule ids when rules block the delete.
+     */
+    async deleteUserCategoryCascade(
+        firebaseId: string,
+        businessNumber: string,
+        categoryId: number,
+    ): Promise<{ deleted: true }> {
+        const category = await this.userCategoryRepo.findOne({
+            where: { id: categoryId, firebaseId, businessNumber },
+        });
+        if (!category) {
+            throw new NotFoundException(`User category ${categoryId} not found`);
+        }
+
+        const affectedRules = await this.rulesRepo.find({
+            where: { userId: firebaseId, category: category.categoryName },
+            select: { id: true, transactionName: true, subCategory: true } as any,
+        });
+        if (affectedRules.length > 0) {
+            throw new ConflictException({
+                message: 'Category has classification rules referencing it. Delete those rules first.',
+                affectedRuleIds: affectedRules.map(r => r.id),
+                affectedRules,
+            });
+        }
+
+        await this.dataSource.transaction(async (manager) => {
+            await manager.delete(UserSubCategory, {
+                firebaseId,
+                businessNumber,
+                categoryName: category.categoryName,
+            });
+            await manager.delete(UserCategory, { id: categoryId });
+        });
+
+        return { deleted: true as const };
+    }
+
+    /**
+     * Delete a custom sub-category when no classification rules reference it.
+     * Throws ConflictException with the affected rule ids otherwise.
+     */
+    async deleteUserSubCategory(
+        firebaseId: string,
+        businessNumber: string,
+        subCategoryId: number,
+    ): Promise<{ deleted: true }> {
+        const sub = await this.userSubCategoryRepo.findOne({
+            where: { id: subCategoryId, firebaseId, businessNumber },
+        });
+        if (!sub) {
+            throw new NotFoundException(`User sub-category ${subCategoryId} not found`);
+        }
+
+        const affectedRules = await this.rulesRepo.find({
+            where: {
+                userId: firebaseId,
+                category: sub.categoryName,
+                subCategory: sub.subCategoryName,
+            },
+            select: { id: true, transactionName: true } as any,
+        });
+        if (affectedRules.length > 0) {
+            throw new ConflictException({
+                message: 'Sub-category has classification rules referencing it. Delete those rules first.',
+                affectedRuleIds: affectedRules.map(r => r.id),
+                affectedRules,
+            });
+        }
+
+        await this.userSubCategoryRepo.delete({ id: subCategoryId });
+        return { deleted: true as const };
+    }
+
+    /**
+     * List the user's custom categories and sub-categories for a single business,
+     * grouped by category name. Includes "orphan" sub-categories — sub-categories
+     * the user added under a default category (where no UserCategory row exists).
+     */
+    async getUserCategoriesGrouped(
+        firebaseId: string,
+        businessNumber: string,
+    ): Promise<{
+        categoryName: string;
+        userCategory: UserCategory | null;
+        subCategories: UserSubCategory[];
+    }[]> {
+        const [categories, subCategories] = await Promise.all([
+            this.userCategoryRepo.find({
+                where: { firebaseId, businessNumber },
+                order: { categoryName: 'ASC' },
+            }),
+            this.userSubCategoryRepo.find({
+                where: { firebaseId, businessNumber },
+                order: { categoryName: 'ASC', subCategoryName: 'ASC' },
+            }),
+        ]);
+
+        const names = new Set<string>();
+        categories.forEach(c => names.add(c.categoryName));
+        subCategories.forEach(sc => names.add(sc.categoryName));
+
+        return [...names].sort().map(name => ({
+            categoryName: name,
+            userCategory: categories.find(c => c.categoryName === name) ?? null,
+            subCategories: subCategories.filter(sc => sc.categoryName === name),
+        }));
+    }
 
 }

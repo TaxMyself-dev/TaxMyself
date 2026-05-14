@@ -296,6 +296,22 @@ export class TransactionsService implements OnInit {
     return this.http.post<string>(url, IDs)
   }
 
+  getUserRules(businessNumber: string): Observable<any[]> {
+    const url = `${environment.apiUrl}transactions/rules`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<any[]>(url, { params });
+  }
+
+  deleteUserRule(id: number): Observable<{ deleted: true; unclassifiedCount: number }> {
+    const url = `${environment.apiUrl}transactions/rules/${id}`;
+    return this.http.delete<{ deleted: true; unclassifiedCount: number }>(url);
+  }
+
+  updateUserRule(id: number, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}transactions/rules/${id}`;
+    return this.http.patch<any>(url, dto);
+  }
+
   quickClassify(finsiteId: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/quick-classify`;
     return this.http.post<any>(url, { finsiteId });

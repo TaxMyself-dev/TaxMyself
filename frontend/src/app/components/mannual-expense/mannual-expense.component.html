@@ -15,6 +15,13 @@
   [parentForm]="mannualExpenseForm" [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN" [type]="'number'">
 </app-input-text>
 
+<!-- Currency picker — when non-ILS, the backend converts via the BOI rate
+     on `date` and stores ILS in `Expense.sum`. -->
+<app-input-select [customStyle]="'register'" [controlName]="'currency'" [labelText]="'מטבע'"
+  [placeholder]="'בחר מטבע'" [items]="currencyOptions" [parentForm]="mannualExpenseForm"
+  [size]="isMobile() ? inputSize.MOBILE : inputSize.BETWEEN">
+</app-input-select>
+
 <app-input-autocomplete 
   [customStyle]="'rounded-border'" 
   [controlName]="'supplier'" 

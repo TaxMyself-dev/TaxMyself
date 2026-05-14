@@ -13,7 +13,7 @@ import { UsersModule } from '../users/users.module';
 import { Child } from '../users/child.entity';
 import { Bill } from './bill.entity';
 import { Source } from './source.entity';
-import { SharedService } from '../shared/shared.service';
+import { SharedModule } from '../shared/shared.module';
 import { ClassifiedTransactions } from './classified-transactions.entity';
 import { SlimTransaction } from './slim-transaction.entity';
 import { FullTransactionCache } from './full-transaction-cache.entity';
@@ -38,6 +38,11 @@ import { Business } from 'src/business/business.entity';
     TypeOrmModule.forFeature([Expense, User, Business, Transactions, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
             Supplier, ClassifiedTransactions, SlimTransaction, FullTransactionCache, UserTransactionCacheState, UserSyncState, UserSourceSyncState,
             Bill, Source, Child, Finsite, Delegation, SettingDocuments]),
+    // SharedModule provides SharedService AND FxRateService. Importing it (and
+    // removing the local `SharedService` provider below) means both services
+    // resolve through the same SharedModule instance — which is what the
+    // FxRate DB-cache singleton actually needs.
+    SharedModule,
     forwardRef(() => UsersModule),
     forwardRef(() => FeezbackModule),
   ],
@@ -46,7 +51,6 @@ import { Business } from 'src/business/business.entity';
     TransactionsService,
     TransactionProcessingService,
     UserSyncStateService,
-    SharedService,
     ExpensesService,
     AuthService,
     FinsiteService

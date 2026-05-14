@@ -56,6 +56,7 @@ import { AccountantTask } from './accountant-tasks/accountant-task.entity';
 import { AnnualReport } from './annual-report/annual-report.entity';
 import { AnnualReportFile } from './annual-report/annual-report-file.entity';
 import { ReportWorkflow } from './report-workflow/report-workflow.entity';
+import { FxRate } from './shared/fx-rate.entity';
 
 import 'dotenv/config'
 import * as admin from 'firebase-admin';
@@ -91,7 +92,8 @@ import { BusinessService } from './business/business.service';
         Bill, Source,
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Finsite, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, JournalEntry, JournalLine, DefaultBookingAccount,
-        FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow],
+        FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
+        FxRate],
       synchronize: process.env.NODE_ENV !== 'production',
       timezone: 'Z',
       //logging: true

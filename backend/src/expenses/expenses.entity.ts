@@ -89,6 +89,20 @@ export class Expense {
   })
   externalTransactionId: string | null;
 
+  /**
+   * Original currency code if the underlying transaction wasn't in ILS.
+   * `sum` is always ILS (already converted via BOI rate), but the תזרים /
+   * expenses tables show "$X (₪Y)" for foreign-currency rows — so we need
+   * to remember the original currency + sum at confirm/manual-entry time.
+   * Null for plain ILS rows.
+   */
+  @Column({ type: 'varchar', length: 3, nullable: true, default: null })
+  originalCurrency: string | null;
+
+  /** Original (non-ILS) amount, paired with `originalCurrency`. Null for ILS rows. */
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: null })
+  originalSum: number | null;
+
   @Column({
     type: 'varchar',
     nullable: true,

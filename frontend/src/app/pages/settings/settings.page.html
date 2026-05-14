@@ -334,6 +334,12 @@
   </div>
   }
 
+  @if (selectedTab === 'categories') {
+    <div class="section-block">
+      <app-my-categories-tab [businesses]="businesses()"></app-my-categories-tab>
+    </div>
+  }
+
   @if (selectedTab === 'permissions') {
   <!-- ההרשאות שלי -->
   <div class="section-block section-permissions">

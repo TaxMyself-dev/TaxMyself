@@ -206,6 +206,14 @@ export const ACCOUNTANT_WITH_CLIENTS_PROFILE: DemoProfile = {
         { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'בזק', amount: -210, daysAgo: 88 },
         { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'בזק', amount: -210, daysAgo: 148 },
         { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'Office Depot', amount: -512, daysAgo: 47 },
+        // Foreign-currency expenses — exercise the FX layer. תזרים column
+        // shows the original amount on top and the BOI/demo-rate ILS value
+        // in parentheses; Expense.sum at confirm-time gets the ILS value.
+        { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'Anthropic',  amount: -20,  daysAgo: 14, currency: 'USD' },
+        { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'GitHub Pro', amount: -10,  daysAgo: 41, currency: 'USD' },
+        { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'AWS',        amount: -85,  daysAgo: 22, currency: 'USD' },
+        { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'Booking.com Berlin', amount: -260, daysAgo: 60, currency: 'EUR' },
+        { billKey: 'moshe-private', businessNumberRef: MOSHE_ID, merchantName: 'Lufthansa',          amount: -480, daysAgo: 75, currency: 'EUR' },
         // מירב's business stays seeded as a Business row for tax-reporting visibility,
         // but she has no dedicated bill or source — so no transactions feed into the
         // cache for her. Per-card transactions can be re-added later if needed.

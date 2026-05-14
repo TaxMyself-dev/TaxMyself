@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   Injectable,
   Logger,
@@ -20,12 +21,14 @@ import { Source } from './source.entity';
 import { Business } from 'src/business/business.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { SharedService } from 'src/shared/shared.service';
+import { FxRateService } from 'src/shared/fx-rate.service';
 import { BusinessType, VATReportingType } from 'src/enum';
 
 import { NormalizedTransaction } from './interfaces/normalized-transaction.interface';
 import { ProcessingResult } from './interfaces/processing-result.interface';
 import { ClassifyManuallyDto } from './dtos/classify-manually.dto';
 import { ClassifyWithRuleDto } from './dtos/classify-with-rule.dto';
+import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import { ClassifyWithRuleResult } from './interfaces/classify-with-rule-result.interface';
 import { FlowAnalysisResponse, MonthlyFlowPoint } from './interfaces/flow-analysis-response.interface';
 import { ClassificationType } from './enums/classification-type.enum';
@@ -92,6 +95,7 @@ export class TransactionProcessingService {
 
     private readonly userSyncStateService: UserSyncStateService,
     private readonly sharedService: SharedService,
+    private readonly fxRateService: FxRateService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -309,14 +313,44 @@ export class TransactionProcessingService {
         ? await this.rulesRepo.find({ where: { userId, billId: In(billIds) } })
         : [];
 
+    // Prefetch FX stamps for every non-ILS transaction in the batch.
+    // Resolved sequentially so the FxRateService's in-memory cache + DB cache
+    // handle repeat (date, currency) pairs in O(1) after the first hit, and
+    // we don't hammer BOI in parallel. Failures degrade gracefully — the row
+    // gets a null stamp and the column renderer falls back to the raw amount.
+    const fxStampByExternalId = new Map<string, { ilsAmount: number; fxRateToIls: number } | null>();
+    for (const tx of enriched) {
+      const currency = (tx.currency ?? 'ILS').toUpperCase();
+      if (currency === 'ILS') {
+        fxStampByExternalId.set(tx.externalTransactionId, null);
+        continue;
+      }
+      try {
+        const rate = await this.fxRateService.getRate(tx.transactionDate, currency);
+        if (rate == null) {
+          fxStampByExternalId.set(tx.externalTransactionId, null);
+          continue;
+        }
+        const ilsAmount = Number((tx.amount * rate).toFixed(2));
+        fxStampByExternalId.set(tx.externalTransactionId, { ilsAmount, fxRateToIls: rate });
+      } catch (err) {
+        this.logger.warn(
+          `FX resolution failed for ${tx.externalTransactionId} (${currency} on ${tx.transactionDate}): ${(err as Error)?.message ?? err}`,
+        );
+        fxStampByExternalId.set(tx.externalTransactionId, null);
+      }
+    }
+
     const cacheUpserts: Partial<FullTransactionCache>[] = [];
     const slimInserts: Partial<SlimTransaction>[] = [];
 
     for (const tx of enriched) {
+      const fxStamp = fxStampByExternalId.get(tx.externalTransactionId) ?? null;
+
       // STEP 0 – no billId → cache only, classification blocked.
       if (tx.billId === null) {
         result.skippedNoBillId++;
-        cacheUpserts.push(this.buildCacheRow(userId, tx));
+        cacheUpserts.push(this.buildCacheRow(userId, tx, fxStamp));
         result.savedToCacheOnly++;
         continue;
       }
@@ -325,7 +359,7 @@ export class TransactionProcessingService {
 
       // STEP 1 – slim exists → overlay and skip rule matching.
       if (slim) {
-        cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim));
+        cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim, fxStamp));
         continue;
       }
 
@@ -351,12 +385,12 @@ export class TransactionProcessingService {
         });
         result.savedToSlim++;
         result.ruleMatched++;
-        cacheUpserts.push(this.buildCacheRowWithRule(userId, tx, matchedRule));
+        cacheUpserts.push(this.buildCacheRowWithRule(userId, tx, matchedRule, fxStamp));
         continue;
       }
 
       // STEP 3 – no rule match → cache only.
-      cacheUpserts.push(this.buildCacheRow(userId, tx));
+      cacheUpserts.push(this.buildCacheRow(userId, tx, fxStamp));
       result.savedToCacheOnly++;
     }
 
@@ -1001,6 +1035,52 @@ export class TransactionProcessingService {
     await this.userSyncStateService.markSyncEmpty(userId);
   }
 
+
+  /**
+   * One-shot backfill of `ilsAmount` + `fxRateToIls` for the user's existing
+   * non-ILS cache rows whose FX columns are null (e.g. rows synced before
+   * the FX layer existed). For each unique (date, currency) we hit
+   * FxRateService once — its in-memory + DB caches make N rows touching K
+   * distinct (date, currency) pairs cost K BOI fetches max.
+   *
+   * Returns counts so the caller can surface useful feedback. Rows that
+   * can't be resolved (unsupported currency, persistent BOI failure) stay
+   * null and are counted in `skipped`.
+   */
+  async backfillFxForUser(userId: string): Promise<{ updated: number; skipped: number; total: number }> {
+    const rows = await this.cacheRepo
+      .createQueryBuilder('c')
+      .where('c.userId = :userId', { userId })
+      .andWhere('c.currency IS NOT NULL')
+      .andWhere('c.currency <> :ils', { ils: 'ILS' })
+      .andWhere('c.ilsAmount IS NULL')
+      .getMany();
+
+    let updated = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      try {
+        const rate = await this.fxRateService.getRate(row.transactionDate, row.currency);
+        if (rate == null) {
+          skipped++;
+          continue;
+        }
+        const ils = Number((Math.abs(Number(row.amount)) * rate).toFixed(2));
+        await this.cacheRepo.update(
+          { id: row.id },
+          { ilsAmount: ils, fxRateToIls: rate },
+        );
+        updated++;
+      } catch (err) {
+        this.logger.warn(
+          `backfillFxForUser: failed for cache id ${row.id} (${row.currency} on ${row.transactionDate}): ${(err as Error)?.message ?? err}`,
+        );
+        skipped++;
+      }
+    }
+    return { updated, skipped, total: rows.length };
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
@@ -1406,6 +1486,8 @@ export class TransactionProcessingService {
   private buildCacheRow(
     userId: string,
     tx: NormalizedTransaction,
+    /** Per-batch resolved FX stamp. Caller pre-fetches and passes in. */
+    fxStamp?: { ilsAmount: number; fxRateToIls: number } | null,
   ): Partial<FullTransactionCache> {
     return {
       userId,
@@ -1415,6 +1497,8 @@ export class TransactionProcessingService {
       merchantName: tx.merchantName,
       amount: tx.amount,
       currency: tx.currency ?? 'ILS',
+      ilsAmount: fxStamp?.ilsAmount ?? null,
+      fxRateToIls: fxStamp?.fxRateToIls ?? null,
       transactionDate: tx.transactionDate,
       paymentDate: tx.paymentDate,
       paymentIdentifier: tx.paymentIdentifier,
@@ -1437,9 +1521,10 @@ export class TransactionProcessingService {
     userId: string,
     tx: NormalizedTransaction,
     slim: SlimTransaction,
+    fxStamp?: { ilsAmount: number; fxRateToIls: number } | null,
   ): Partial<FullTransactionCache> {
     return {
-      ...this.buildCacheRow(userId, tx),
+      ...this.buildCacheRow(userId, tx, fxStamp),
       category: slim.category,
       subCategory: slim.subCategory,
       vatPercent: slim.vatPercent,
@@ -1460,9 +1545,10 @@ export class TransactionProcessingService {
     userId: string,
     tx: NormalizedTransaction,
     rule: ClassifiedTransactions,
+    fxStamp?: { ilsAmount: number; fxRateToIls: number } | null,
   ): Partial<FullTransactionCache> {
     return {
-      ...this.buildCacheRow(userId, tx),
+      ...this.buildCacheRow(userId, tx, fxStamp),
       category: rule.category,
       subCategory: rule.subCategory,
       vatPercent: rule.vatPercent,
@@ -1504,6 +1590,10 @@ export class TransactionProcessingService {
       vatReportingDate: row.vatReportingDate,
       isLocked: row.isLocked,
       confirmed: row.confirmed,
+      // FX: original currency + ILS-converted amount. The תזרים column
+      // renderer shows `$X` on top and `(₪Y)` underneath when non-ILS.
+      ilsAmount: row.ilsAmount,
+      fxRateToIls: row.fxRateToIls,
     };
   }
 
@@ -1672,5 +1762,173 @@ export class TransactionProcessingService {
     } catch (err: any) {
       this.logger.error(`Daily cache cleanup (${label}) failed`, err?.stack ?? err);
     }
+  }
+
+  /**
+   * List classification rules for a user, scoped to a single business.
+   *
+   * A rule's effective business is its own `businessNumber` override when
+   * set, otherwise the bill's `businessNumber`. Each returned row is
+   * augmented with `billName` so the UI can render the bill column without
+   * a second round-trip.
+   */
+  async listRulesForUser(
+    userId: string,
+    businessNumber: string,
+  ): Promise<(ClassifiedTransactions & { billName: string | null })[]> {
+    const result = await this.rulesRepo
+      .createQueryBuilder('r')
+      .leftJoin(Bill, 'b', 'b.id = r.billId')
+      .addSelect('b.billName', 'r_billName')
+      .where('r.userId = :userId', { userId })
+      .andWhere(
+        new Brackets(qb => {
+          qb.where('r.businessNumber = :bn', { bn: businessNumber })
+            .orWhere('r.businessNumber IS NULL AND b.businessNumber = :bn', { bn: businessNumber });
+        }),
+      )
+      .orderBy('r.updatedAt', 'DESC')
+      .getRawAndEntities();
+
+    return result.entities.map((rule, i) => ({
+      ...rule,
+      billName: (result.raw[i]?.r_billName as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * Delete a classification rule for the user. Slim rows that reference the
+   * rule are deleted (so the transactions reappear in the "to classify"
+   * list) and their cache rows are reverted to "unclassified". Locked slim
+   * rows belong to a submitted report and block the delete with a 409.
+   */
+  async deleteRuleForUser(
+    userId: string,
+    ruleId: number,
+  ): Promise<{ deleted: true; unclassifiedCount: number }> {
+    const rule = await this.rulesRepo.findOne({ where: { id: ruleId, userId } });
+    if (!rule) {
+      throw new NotFoundException(`Rule ${ruleId} not found.`);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const slimRows = await manager.find(SlimTransaction, {
+        where: { userId, classificationRuleId: ruleId },
+      });
+
+      const lockedCount = slimRows.filter(s => s.isLocked).length;
+      if (lockedCount > 0) {
+        throw new ConflictException(
+          `Cannot delete rule: ${lockedCount} classified transaction(s) belong to a submitted report.`,
+        );
+      }
+
+      const externalIds = slimRows.map(s => s.externalTransactionId);
+      if (externalIds.length > 0) {
+        await manager.update(
+          FullTransactionCache,
+          { userId, externalTransactionId: In(externalIds) },
+          {
+            category: null,
+            subCategory: null,
+            classificationType: null,
+            isRecognized: false,
+            vatPercent: 0,
+            taxPercent: 0,
+            isEquipment: false,
+            reductionPercent: 0,
+            vatReportingDate: null,
+          },
+        );
+
+        await manager.delete(SlimTransaction, {
+          userId,
+          classificationRuleId: ruleId,
+        });
+      }
+
+      await manager.delete(ClassifiedTransactions, { id: ruleId, userId });
+
+      return { deleted: true as const, unclassifiedCount: slimRows.length };
+    });
+  }
+
+  /**
+   * Update a classification rule. When classification fields change
+   * (category/subCategory/percents/flags), the new values are propagated to
+   * slim_transactions and full_transactions_cache rows that reference this
+   * rule (locked rows are skipped). Constraint changes (min/max/dates/comment)
+   * affect future matches only — existing classifications are not
+   * re-evaluated.
+   */
+  async updateRuleForUser(
+    userId: string,
+    ruleId: number,
+    dto: UpdateClassificationRuleDto,
+  ): Promise<ClassifiedTransactions> {
+    const rule = await this.rulesRepo.findOne({ where: { id: ruleId, userId } });
+    if (!rule) {
+      throw new NotFoundException(`Rule ${ruleId} not found.`);
+    }
+
+    const classificationChanged =
+      (dto.category !== undefined && dto.category !== rule.category) ||
+      (dto.subCategory !== undefined && dto.subCategory !== rule.subCategory) ||
+      (dto.vatPercent !== undefined && dto.vatPercent !== rule.vatPercent) ||
+      (dto.taxPercent !== undefined && dto.taxPercent !== rule.taxPercent) ||
+      (dto.reductionPercent !== undefined && dto.reductionPercent !== rule.reductionPercent) ||
+      (dto.isEquipment !== undefined && dto.isEquipment !== rule.isEquipment) ||
+      (dto.isRecognized !== undefined && dto.isRecognized !== rule.isRecognized);
+
+    Object.assign(rule, dto);
+    const saved = await this.rulesRepo.save(rule);
+
+    if (classificationChanged) {
+      await this.propagateRuleUpdate(userId, ruleId, {
+        category: saved.category,
+        subCategory: saved.subCategory,
+        vatPercent: saved.vatPercent,
+        taxPercent: saved.taxPercent,
+        reductionPercent: saved.reductionPercent,
+        isEquipment: saved.isEquipment,
+        isRecognized: saved.isRecognized,
+      });
+    }
+
+    return saved;
+  }
+
+  private async propagateRuleUpdate(
+    userId: string,
+    ruleId: number,
+    fields: {
+      category: string;
+      subCategory: string;
+      vatPercent: number;
+      taxPercent: number;
+      reductionPercent: number;
+      isEquipment: boolean;
+      isRecognized: boolean;
+    },
+  ): Promise<void> {
+    const slimRows = await this.slimRepo.find({
+      where: { userId, classificationRuleId: ruleId, isLocked: false },
+    });
+    if (slimRows.length === 0) return;
+
+    const externalIds = slimRows.map(s => s.externalTransactionId);
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        SlimTransaction,
+        { userId, classificationRuleId: ruleId, isLocked: false },
+        fields,
+      );
+      await manager.update(
+        FullTransactionCache,
+        { userId, externalTransactionId: In(externalIds) },
+        fields,
+      );
+    });
   }
 }

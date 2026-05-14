@@ -16,6 +16,7 @@ import { SelectModule } from 'primeng/select';
 import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, paymentIdentifierType, VATReportingType, TaxReportingType } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SharedModule } from 'src/app/shared/shared.module';
+import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
 
 @Component({
   selector: 'app-settings',
@@ -31,7 +32,8 @@ import { SharedModule } from 'src/app/shared/shared.module';
     DialogModule,
     ConfirmDialogModule,
     SelectModule,
-    SharedModule
+    SharedModule,
+    MyCategoriesTabComponent
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -74,6 +76,7 @@ export class SettingsPage implements OnInit {
   tabs = [
     { label: 'פרטים אישיים', value: 'personal' },
     { label: 'העסקים שלי', value: 'businesses' },
+    { label: 'הקטגוריות שלי', value: 'categories' },
     { label: 'ניהול הרשאות וחשבונות', value: 'permissions' },
   ];
   selectedTab: string = 'personal';

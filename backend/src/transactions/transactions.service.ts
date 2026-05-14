@@ -1640,12 +1640,22 @@ export class TransactionsService {
       }
 
       const slim = slimByExternalId.get(row.externalTransactionId);
+      // Expense.sum is always in ILS. For non-ILS transactions the cache row
+      // carries `ilsAmount` (stamped at sync via FxRateService). Fall back to
+      // `amount` for ILS rows and for rows where FX resolution failed at
+      // sync time — `currency` stays on the source for audit.
+      const sumIls = row.ilsAmount != null
+        ? Math.abs(Number(row.ilsAmount))
+        : Math.abs(Number(row.amount));
+
+      const isForeignCurrency = row.currency != null && row.currency.toUpperCase() !== 'ILS';
+
       const expense = new Expense();
       expense.supplier = row.merchantName;
       expense.supplierID = '';
       expense.category = row.category;
       expense.subCategory = row.subCategory;
-      expense.sum = Math.abs(Number(row.amount));
+      expense.sum = sumIls;
       expense.taxPercent = row.taxPercent;
       expense.vatPercent = row.vatPercent;
       expense.date = row.transactionDate;
@@ -1657,6 +1667,10 @@ export class TransactionsService {
       expense.expenseNumber = '';
       expense.transId = null;
       expense.externalTransactionId = row.externalTransactionId;
+      // For non-ILS source rows, mirror the original currency + amount onto
+      // the Expense so the expenses table can render "$X (₪Y)".
+      expense.originalCurrency = isForeignCurrency ? row.currency!.toUpperCase() : null;
+      expense.originalSum = isForeignCurrency ? Math.abs(Number(row.amount)) : null;
       expense.reductionPercent = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
       expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;

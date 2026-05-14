@@ -11,6 +11,7 @@ import { Source } from './source.entity';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
+import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -127,6 +128,21 @@ export class TransactionsController {
   private async syncStateAllowsFetch(userId: string): Promise<boolean> {
     const state = await this.userSyncStateService.getSyncState(userId);
     return state?.fullProcessStatus === 'completed';
+  }
+
+  /**
+   * Backfill `ilsAmount` + `fxRateToIls` on non-ILS cache rows whose FX columns
+   * are null. Use case: rows synced before the FX layer existed (or before BOI
+   * was reachable) won't render the "(₪Y)" parenthesis in תזרים. Hit this
+   * endpoint once to stamp them all. Idempotent — already-stamped rows are
+   * skipped by the WHERE clause.
+   */
+  @Post('backfill-fx')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async backfillFx(@Req() request: AuthenticatedRequest): Promise<{ updated: number; skipped: number; total: number }> {
+    const userId = request.user?.firebaseId;
+    return this.processingService.backfillFxForUser(userId);
   }
 
   @Post('trigger-sync')
@@ -843,6 +859,45 @@ export class TransactionsController {
   ): Promise<{ message: string }> {
     const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
+  }
+
+  /**
+   * List the user's classification rules for a single business. The result
+   * powers the "הקטגוריות שלי" tab in the Settings page.
+   */
+  @Get('rules')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserRules(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.processingService.listRulesForUser(userId, businessNumber);
+  }
+
+  @Delete('rules/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteUserRule(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const userId = request.user?.firebaseId;
+    return this.processingService.deleteRuleForUser(userId, Number(id));
+  }
+
+  @Patch('rules/:id')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async updateUserRule(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateClassificationRuleDto,
+  ) {
+    const userId = request.user?.firebaseId;
+    return this.processingService.updateRuleForUser(userId, Number(id), dto);
   }
 
 }

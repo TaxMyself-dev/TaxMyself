@@ -580,6 +580,10 @@ export class MannualExpenseComponent implements OnDestroy {
         businessNumber: [this.mannualExpenseService.showBusinessSelector() ? null : null, Validators.required],
         date: ["", Validators.required],
         sum: ["", [Validators.required, Validators.min(0)]],
+        // Currency of the entered sum. Default ILS — the existing flow. When
+        // non-ILS, the payload maps `sum` → `originalSum` and lets the backend
+        // convert via the BOI rate on `date`. `Expense.sum` is always stored ILS.
+        currency: ["ILS"],
         supplier: ["", Validators.required],
         supplierId: ["", Validators.pattern("^[0-9]*$")],
         expenseNumber: ["", Validators.pattern("^[0-9]*$")],
@@ -592,6 +596,14 @@ export class MannualExpenseComponent implements OnDestroy {
         note: ["",],
         file: [null],
     })
+
+    /** Dropdown options for the currency picker next to the sum field. */
+    currencyOptions: { value: string; name: string }[] = [
+        { value: 'ILS', name: 'שקל ₪' },
+        { value: 'USD', name: 'דולר $' },
+        { value: 'EUR', name: 'יורו €' },
+        { value: 'GBP', name: 'פאונד £' },
+    ];
 
     constructor() {
         // Initialize selectedBusinessType from active business (if available)
@@ -921,10 +933,37 @@ export class MannualExpenseComponent implements OnDestroy {
         );
     }
 
-    /** Convert display date (dd-mm-yy) to API format (yyyy-mm-dd). */
-    private toApiDateString(displayDate: string | null | undefined): string | undefined {
+    /**
+     * Normalize whatever the date control hands us to MySQL's DATE format
+     * (`yyyy-mm-dd`). Three shapes the picker can emit:
+     *   1. Date object — extract LOCAL components (user-picked-date semantics:
+     *      picking May 1 in Israel must not become April 30 after UTC shift).
+     *   2. ISO string `yyyy-mm-ddTHH:MM:SS.sssZ` — parse to Date, then same.
+     *   3. Display string `dd-mm-yy(yy)` or `dd/mm/yy(yy)` — split + reorder.
+     *
+     * Returns undefined for anything we can't parse; callers can decide to
+     * surface a validation error rather than send garbage to MySQL.
+     */
+    private toApiDateString(displayDate: string | Date | null | undefined): string | undefined {
         if (displayDate == null || displayDate === '') return undefined;
+
+        // 1+2: Date instance OR ISO datetime string → parse + extract local components.
+        const isIsoString = typeof displayDate === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(displayDate);
+        if (displayDate instanceof Date || isIsoString) {
+            const d = displayDate instanceof Date ? displayDate : new Date(displayDate);
+            if (isNaN(d.getTime())) return undefined;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
         const s = String(displayDate).trim();
+
+        // Plain yyyy-mm-dd (already API format) — pass through.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+        // 3: dd-mm-yy(yy) or dd/mm/yy(yy)
         const parts = s.split(/[-/]/);
         if (parts.length !== 3) return undefined;
         const [d, m, y] = parts;
@@ -935,17 +974,35 @@ export class MannualExpenseComponent implements OnDestroy {
     private buildExpensePayload(filePath: string | null): any {
         const raw = this.mannualExpenseForm.value;
         const dateForApi = this.toApiDateString(raw.date) ?? raw.date;
+        const enteredSum = this.toNumberOrNull(raw.sum);
+        const currency = (raw.currency ?? 'ILS').toUpperCase();
+        const isForeign = currency !== 'ILS' && enteredSum != null;
 
-        return {
+        // Foreign-currency mode: backend converts via BOI rate. Send the value
+        // as `originalSum` + `originalCurrency`; omit `sum` so the server is
+        // the single source of truth for the stored ILS amount.
+        const payload: any = {
             ...raw,
             date: dateForApi,
             file: filePath,
-            sum: this.toNumberOrNull(raw.sum),
             taxPercent: this.toNumberOrNull(raw.taxPercent),
             vatPercent: this.toNumberOrNull(raw.vatPercent),
             reductionPercent: this.toNumberOrNull(raw.reductionPercent),
             isEquipment: raw.isEquipment || false,
         };
+        if (isForeign) {
+            payload.originalSum = enteredSum;
+            payload.originalCurrency = currency;
+            // Send a placeholder sum so the DTO's @IsNumber doesn't reject —
+            // the backend overwrites it with the converted value.
+            payload.sum = enteredSum;
+        } else {
+            payload.sum = enteredSum;
+        }
+        // Form-only field — don't leak to the backend (no column for it on
+        // the Expense entity, and the backend only reads originalCurrency).
+        delete payload.currency;
+        return payload;
     }
 
     private handleAddExpenseError(error: any, uploadedPath: string | null): Observable<never> {

@@ -127,6 +127,17 @@ export class AppComponent implements OnInit {
         this.updateAdminMenuItems();
         this.getRoleUser();
       }
+      // Re-sync banner state with sessionStorage (source of truth). Defensive
+      // against missed BehaviorSubject emissions / race conditions when entering
+      // a view-as user (e.g. demo-data flow).
+      const persistedClientId = this.clientPanelService.getSelectedClientId();
+      if (persistedClientId !== this.selectedClientId) {
+        console.log('[AppComponent] re-syncing selectedClientId from sessionStorage:', { previous: this.selectedClientId, next: persistedClientId, url });
+        this.selectedClientId = persistedClientId;
+        this.selectedClientName = persistedClientId
+          ? this.clientPanelService.getSelectedClientName()
+          : null;
+      }
     });
   }
 
@@ -197,6 +208,7 @@ export class AppComponent implements OnInit {
 
   private subscribeToSelectedClient(): void {
     this.clientPanelService.selectedClientId$.pipe(takeUntil(this.destroy$)).subscribe((id) => {
+      console.log('[AppComponent] selectedClientId$ emission:', { id, persisted: this.clientPanelService.getSelectedClientId() });
       this.selectedClientId = id;
       this.selectedClientName = id ? this.clientPanelService.getSelectedClientName() : null;
       if (id) {

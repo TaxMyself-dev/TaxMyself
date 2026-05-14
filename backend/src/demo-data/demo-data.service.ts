@@ -470,6 +470,13 @@ export class DemoDataService {
           `Transaction at index ${i} (user ${data.email}) references unknown billKey "${t.billKey}"`,
         );
       }
+      const currency = t.currency ?? 'ILS';
+      // Hardcoded demo FX rates so seeding has zero external dependency.
+      // Real syncs go through FxRateService → BOI; the demo just needs
+      // believable values for the תזרים "₪Y" parenthesis to render.
+      const DEMO_FX_RATES: Record<string, number> = { USD: 3.7, EUR: 4.0, GBP: 4.7 };
+      const fxRate = currency === 'ILS' ? null : (DEMO_FX_RATES[currency] ?? null);
+      const ilsAmount = fxRate != null ? Number((t.amount * fxRate).toFixed(2)) : null;
       return {
         externalTransactionId: `${externalIdPrefix}-${i}`,
         userId: firebaseId,
@@ -480,7 +487,9 @@ export class DemoDataService {
         paymentIdentifier: paymentIdentifierByBillKey[t.billKey] ?? null,
         transactionDate: txDate,
         amount: t.amount,
-        currency: 'ILS',
+        currency,
+        ilsAmount,
+        fxRateToIls: fxRate,
         confirmed: false,
         isRecognized: false,
         vatPercent: 0,

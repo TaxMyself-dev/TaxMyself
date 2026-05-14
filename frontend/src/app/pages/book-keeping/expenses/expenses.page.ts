@@ -64,16 +64,19 @@ export class ExpensesPage implements OnInit {
   // ===========================
   // Table config
   // ===========================
+  // VAT/Tax: ONE column each, rendered via AMOUNT_WITH_PERCENT — the amount
+  // (₪) sits on top and the % shows in parens underneath (same pattern as
+  // the VAT-report expenses table). The renderer reads the matching
+  // percent field automatically (`totalVatPayable` → `vatPercent`,
+  // `totalTaxPayable` → `taxPercent`); no separate column needed.
   expensesTableFields: IColumnDataTable<ExpenseFormColumns, ExpenseFormHebrewColumns>[] = [
     { name: ExpenseFormColumns.SUPPLIER, value: ExpenseFormHebrewColumns.supplier, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.CATEGORY, value: ExpenseFormHebrewColumns.category, type: FormTypes.TEXT },
     { name: ExpenseFormColumns.SUB_CATEGORY, value: ExpenseFormHebrewColumns.subCategory, type: FormTypes.TEXT },
-    { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER },
+    { name: ExpenseFormColumns.SUM, value: ExpenseFormHebrewColumns.sum, type: FormTypes.NUMBER, cellRenderer: ICellRenderer.SUM_WITH_FX },
     { name: ExpenseFormColumns.DATE, value: ExpenseFormHebrewColumns.date, type: FormTypes.DATE, cellRenderer: ICellRenderer.DATE },
-    { name: ExpenseFormColumns.TAX_PERCENT, value: ExpenseFormHebrewColumns.taxPercent, type: FormTypes.NUMBER },
-    { name: ExpenseFormColumns.VAT_PERCENT, value: ExpenseFormHebrewColumns.vatPercent, type: FormTypes.NUMBER },
-    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTaxPayable, type: FormTypes.NUMBER },
-    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVatPayable, type: FormTypes.NUMBER },
+    { name: ExpenseFormColumns.TOTAL_VAT, value: ExpenseFormHebrewColumns.totalVat, type: FormTypes.NUMBER, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
+    { name: ExpenseFormColumns.TOTAL_TAX, value: ExpenseFormHebrewColumns.totalTax, type: FormTypes.NUMBER, cellRenderer: ICellRenderer.AMOUNT_WITH_PERCENT },
   ];
 
   mobileCardConfig: IMobileCardConfig = {
@@ -202,32 +205,36 @@ export class ExpensesPage implements OnInit {
         map((rows: any[]) => {
           console.log('[הוצאות] תשובה מהבקאנד: מספר הוצאות=', rows?.length ?? 0, 'פרטים:', rows?.map((r) => ({ id: r.id, date: r.date, businessNumber: r.businessNumber, sum: r.sum })) ?? []);
           return rows.map(row => {
-            // Format sum with currency
-            const sumValue = row.sum as number;
-            const formattedSum = this.gs.addComma(Math.abs(sumValue));
-            const sumWithCurrency = `${formattedSum} ש"ח`;
-
-            // Format totalTaxPayable with currency
-            const taxPayableValue = row.totalTaxPayable as number;
-            const formattedTaxPayable = taxPayableValue ? this.gs.addComma(Math.abs(taxPayableValue)) : '0';
-            const taxPayableWithCurrency = `${formattedTaxPayable} ש"ח`;
-
-            // Format totalVatPayable with currency
-            const vatPayableValue = row.totalVatPayable as number;
-            const formattedVatPayable = vatPayableValue ? this.gs.addComma(Math.abs(vatPayableValue)) : '0';
-            const vatPayableWithCurrency = `${formattedVatPayable} ש"ח`;
-
-            // Format percentages
-            const taxPercent = row.taxPercent ? `${row.taxPercent}%` : '0%';
-            const vatPercent = row.vatPercent ? `${row.vatPercent}%` : '0%';
+            // Sum column:
+            //   ILS row → display "X ש"ח" as before.
+            //   Non-ILS row → set `sum` to the formatted ORIGINAL amount with
+            //     the currency symbol (e.g. "$20"), set `currency` and
+            //     `ilsAmount` so the SUM_WITH_FX renderer can put the ILS
+            //     value in parens underneath. The renderer's branch
+            //     `row.currency && row.currency !== 'ILS'` decides which
+            //     layout to draw.
+            const ilsSum = row.sum as number;
+            const oc = (row.originalCurrency ?? '').toUpperCase();
+            const isForeign = oc && oc !== 'ILS' && row.originalSum != null;
+            const sumDisplay = isForeign
+              ? `${this.currencySymbol(oc)}${this.gs.addComma(Math.abs(Number(row.originalSum)))}`
+              : `${this.gs.addComma(Math.abs(ilsSum))} ש"ח`;
 
             return {
               ...row,
-              sum: sumWithCurrency,
-              totalTaxPayable: taxPayableWithCurrency,
-              totalVatPayable: vatPayableWithCurrency,
-              taxPercent: taxPercent,
-              vatPercent: vatPercent,
+              sum: sumDisplay,
+              // Surfacing these makes the SUM_WITH_FX renderer fire its
+              // foreign-currency branch and read the converted ILS value.
+              currency: isForeign ? oc : 'ILS',
+              ilsAmount: isForeign ? ilsSum : null,
+              // AMOUNT_WITH_PERCENT renderer expects NUMBERS so it can run
+              // the `number` pipe and append "ש״ח" / "%" itself. Leave
+              // totalTaxPayable / totalVatPayable / taxPercent / vatPercent
+              // as numbers (default to 0 for null).
+              totalTaxPayable: row.totalTaxPayable ?? 0,
+              totalVatPayable: row.totalVatPayable ?? 0,
+              taxPercent: row.taxPercent ?? 0,
+              vatPercent: row.vatPercent ?? 0,
             };
           });
         }),
@@ -344,6 +351,20 @@ export class ExpensesPage implements OnInit {
         }
       }
     });
+  }
+
+  /**
+   * Currency code → display glyph. Same mapping the תזרים column uses; kept
+   * local to avoid pulling in the generic-table helper from a page.
+   */
+  private currencySymbol(code: string | null | undefined): string {
+    switch ((code ?? '').toUpperCase()) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS': return '₪';
+      default:    return code ?? '';
+    }
   }
 
   /** תצוגה מקדימה של קובץ – כמו בטבלת הכנסות */

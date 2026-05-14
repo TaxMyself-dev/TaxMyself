@@ -237,4 +237,38 @@ export class ExpenseDataService {
   }
 
 
+  getUserCategoriesGrouped(businessNumber: string): Observable<{
+    categoryName: string;
+    userCategory: any | null;
+    subCategories: any[];
+  }[]> {
+    const url = `${environment.apiUrl}expenses/user-categories`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<any[]>(url, { params });
+  }
+
+  deleteUserCategory(id: number, businessNumber: string): Observable<{ deleted: true }> {
+    const url = `${environment.apiUrl}expenses/user-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.delete<{ deleted: true }>(url, { params });
+  }
+
+  deleteUserSubCategory(id: number, businessNumber: string): Observable<{ deleted: true }> {
+    const url = `${environment.apiUrl}expenses/user-sub-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.delete<{ deleted: true }>(url, { params });
+  }
+
+  updateUserCategory(id: number, businessNumber: string, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/user-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.patch<any>(url, dto, { params });
+  }
+
+  updateUserSubCategory(id: number, businessNumber: string, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/user-sub-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.patch<any>(url, dto, { params });
+  }
+
 }

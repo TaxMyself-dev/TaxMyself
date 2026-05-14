@@ -166,6 +166,23 @@
     font-size: 0.95em;
 }
 
+// Sum + FX: original currency on top, ILS conversion in parentheses below.
+// Only rendered for non-ILS rows (the renderer guards on row.currency).
+.sum-with-fx {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.sum-with-fx .sum-original {
+    font-weight: 500;
+}
+
+.sum-with-fx .sum-ils {
+    color: #6b7280;
+    font-size: 0.85em;
+}
+
 .action-cell {
     display: flex;
     height: 76px;
