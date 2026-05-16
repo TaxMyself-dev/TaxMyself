@@ -11,6 +11,7 @@ import { Source } from './source.entity';
 import { GetTransactionsDto } from './dtos/get-transactions.dto';
 import { UpdateTransactionsDto } from './dtos/update-transactions.dto';
 import { ClassifyTransactionDto } from './dtos/classify-transaction.dto';
+import { UpdateClassificationRuleDto } from './dtos/update-classification-rule.dto';
 import multer from 'multer';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
@@ -18,6 +19,10 @@ import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
 import { ModuleName } from '../enum';
 import { SourceResult } from './user-source-sync-state.entity';
+import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
+import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
+import { ExpensesService } from '../expenses/expenses.service';
+import { UserSubCategory } from '../expenses/user-sub-categories.entity';
 
 
 @Controller('transactions')
@@ -31,6 +36,7 @@ export class TransactionsController {
     private readonly userSyncStateService: UserSyncStateService,
     private readonly usersService: UsersService,
     private readonly feezbackService: FeezbackService,
+    private readonly expensesService: ExpensesService,
   ) {}
 
   /**
@@ -122,6 +128,21 @@ export class TransactionsController {
   private async syncStateAllowsFetch(userId: string): Promise<boolean> {
     const state = await this.userSyncStateService.getSyncState(userId);
     return state?.fullProcessStatus === 'completed';
+  }
+
+  /**
+   * Backfill `ilsAmount` + `fxRateToIls` on non-ILS cache rows whose FX columns
+   * are null. Use case: rows synced before the FX layer existed (or before BOI
+   * was reachable) won't render the "(₪Y)" parenthesis in תזרים. Hit this
+   * endpoint once to stamp them all. Idempotent — already-stamped rows are
+   * skipped by the WHERE clause.
+   */
+  @Post('backfill-fx')
+  @UseGuards(FirebaseAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async backfillFx(@Req() request: AuthenticatedRequest): Promise<{ updated: number; skipped: number; total: number }> {
+    const userId = request.user?.firebaseId;
+    return this.processingService.backfillFxForUser(userId);
   }
 
   @Post('trigger-sync')
@@ -417,6 +438,65 @@ export class TransactionsController {
     return { status: 'cleared' };
   }
 
+  @Get('flow-analysis')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async getFlowAnalysis(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: FlowAnalysisDto,
+  ): Promise<FlowAnalysisResponse | { totalExpenses: 0; totalIncomes: 0; monthlyFlow: []; expensesByCategory: []; hasMoreCategories: false }> {
+    const userId = request.user?.firebaseId;
+
+    const billId = Number(query.billId);
+    if (!Number.isFinite(billId) || billId <= 0) {
+      throw new BadRequestException('billId must be a valid positive number');
+    }
+
+    if (!await this.syncStateAllowsFetch(userId)) {
+      return { totalExpenses: 0, totalIncomes: 0, monthlyFlow: [], expensesByCategory: [], hasMoreCategories: false };
+    }
+
+    return this.processingService.getFlowAnalysis(
+      userId,
+      query.startDate,
+      query.endDate,
+      billId,
+      query.lineFilterType,
+      query.lineFilterValue,
+    );
+  }
+
+  @Get('flow-analysis-merchants')
+  @UseGuards(FirebaseAuthGuard)
+  async getFlowAnalysisMerchants(
+    @Req() request: AuthenticatedRequest,
+    @Query('billId') billId?: string,
+  ): Promise<string[]> {
+    const userId = request.user?.firebaseId;
+    const numericBillId = billId ? Number(billId) : undefined;
+    return this.transactionsService.getDistinctMerchants(
+      userId,
+      numericBillId && Number.isFinite(numericBillId) ? numericBillId : undefined,
+    );
+  }
+
+  @Get('get-all-user-sub-categories')
+  @UseGuards(FirebaseAuthGuard)
+  async getAllUserSubCategories(
+    @Req() request: AuthenticatedRequest,
+    @Query('billId') billId?: string,
+  ): Promise<UserSubCategory[]> {
+    const userId = request.user?.firebaseId;
+    let businessNumber: string | undefined;
+    if (billId) {
+      const numericBillId = Number(billId);
+      if (Number.isFinite(numericBillId) && numericBillId > 0) {
+        businessNumber = await this.transactionsService.getBusinessNumberByBillId(numericBillId, userId) ?? undefined;
+      }
+    }
+    return this.expensesService.getAllUserSubCategories(userId, businessNumber);
+  }
+
   // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: endpoint that triggers the legacy Finsite ingest flow writing to the transactions table. Remove when Feezback pipeline fully replaces it.
   @Get('get-trans')
   //TODO: Add Admin guard
@@ -604,6 +684,9 @@ export class TransactionsController {
         isEquipment: dto.isEquipment ?? false,
         isRecognized: dto.isRecognized ?? false,
         businessNumber: dto.businessNumber ?? null,
+        // Late-arrival reassignment — set by the frontend after the user
+        // picks an alternative from the "natural period locked" dialog.
+        targetPeriodLabel: dto.targetPeriodLabel,
       });
       return;
     }
@@ -627,10 +710,20 @@ export class TransactionsController {
       commentMatchType: dto.matchType ?? 'equals',
       confirmOverride: dto.confirmOverride,
       businessNumber: dto.businessNumber ?? null,
+      targetPeriodLabel: dto.targetPeriodLabel,
     });
 
     if (result.status === 'blocked_vat_reported') {
-      throw new BadRequestException(result.message);
+      // 423 Locked + typed payload — keeps parity with the classifyManually
+      // guard so the frontend can show the dedicated "report submitted" dialog
+      // regardless of which classification path the user took.
+      throw new HttpException(
+        {
+          type: 'blocked_report_submitted',
+          message: 'התנועה שייכת לדוח שכבר דווח לרשויות המס ולא ניתן לשנות את הסיווג שלה.',
+        },
+        423,
+      );
     }
 
     if (result.status === 'confirm_override') {
@@ -766,6 +859,45 @@ export class TransactionsController {
   ): Promise<{ message: string }> {
     const userId = request.user?.firebaseId;
     return this.transactionsService.saveTransactionsToExpenses(transactionData, userId);
+  }
+
+  /**
+   * List the user's classification rules for a single business. The result
+   * powers the "הקטגוריות שלי" tab in the Settings page.
+   */
+  @Get('rules')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserRules(
+    @Req() request: AuthenticatedRequest,
+    @Query('businessNumber') businessNumber: string,
+  ) {
+    const userId = request.user?.firebaseId;
+    if (!businessNumber) {
+      throw new BadRequestException('businessNumber query param is required');
+    }
+    return this.processingService.listRulesForUser(userId, businessNumber);
+  }
+
+  @Delete('rules/:id')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteUserRule(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    const userId = request.user?.firebaseId;
+    return this.processingService.deleteRuleForUser(userId, Number(id));
+  }
+
+  @Patch('rules/:id')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async updateUserRule(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateClassificationRuleDto,
+  ) {
+    const userId = request.user?.firebaseId;
+    return this.processingService.updateRuleForUser(userId, Number(id), dto);
   }
 
 }

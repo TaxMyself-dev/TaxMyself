@@ -150,7 +150,7 @@ export enum TransactionsOutcomesHebrewColumns {
   sum = 'סכום',
   category = 'קטגוריה',
   subCategory = 'תת-קטגוריה',
-  monthReport = 'דווח לחודש',
+  monthReport = 'תקופת דיווח',
   billName = 'חשבון',
   isRecognized = 'הוצאה מוכרת',
   isEquipment = 'מוכר כציוד',
@@ -384,7 +384,11 @@ export enum ICellRenderer {
   BILL = 'billName',
   CHECKBOX = 'checkbox',
   DATE = 'date',
-  AMOUNT_WITH_PERCENT = 'amountWithPercent'
+  AMOUNT_WITH_PERCENT = 'amountWithPercent',
+  /** Report-period stamp ("M/YYYY", "M1-M2/YYYY", or "YYYY") with optional lock icon. */
+  MONTH_REPORT = 'monthReport',
+  /** Sum cell: shows the original currency amount, with an ILS conversion in parentheses below for non-ILS rows. */
+  SUM_WITH_FX = 'sumWithFx',
 }
 
 export enum NavigationItemClass {

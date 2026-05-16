@@ -44,4 +44,9 @@ export class ClassifyManuallyDto {
   @IsOptional()
   @IsString()
   businessNumber?: string | null;
+
+  /** Explicit period (e.g. "3-4/2026") for late-arrival reassignment. */
+  @IsOptional()
+  @IsString()
+  targetPeriodLabel?: string;
 }

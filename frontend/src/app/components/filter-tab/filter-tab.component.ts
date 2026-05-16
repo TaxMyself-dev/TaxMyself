@@ -1,4 +1,4 @@
-import { Component, input, output, inject, Signal } from '@angular/core';
+import { Component, computed, input, output, inject, Signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { FilterField } from './filter-fields-model.component';
@@ -8,6 +8,7 @@ import { ButtonComponent } from '../button/button.component';
 import { ISelectItem } from 'src/app/shared/interface';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { inputsSize } from 'src/app/shared/enums';
+import { GenericService } from 'src/app/services/generic.service';
 
 @Component({
   selector: 'app-filter-tab',
@@ -25,10 +26,13 @@ import { inputsSize } from 'src/app/shared/enums';
 export class FilterTabComponent {
 
   private fb = inject(FormBuilder);
+  private genericService = inject(GenericService);
 
   buttonSize = ButtonSize;
-  inputSize = inputsSize
+  inputSize = inputsSize;
   buttonColor = ButtonColor;
+
+  isMobile = computed(() => this.genericService.isMobile());
   
   // The filter field configuration
   config = input<FilterField[]>([]);

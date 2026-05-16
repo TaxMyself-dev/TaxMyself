@@ -123,6 +123,33 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     return null;
   }
 
+  /**
+   * Display symbol for a currency code. Used by the SUM_WITH_FX renderer to
+   * suffix the original amount (e.g. "100 $"). Falls back to the raw code
+   * for currencies outside the supported set so the user still sees what
+   * was synced even if we don't have a glyph for it.
+   */
+  currencySymbol(code: string | null | undefined): string {
+    switch ((code ?? '').toUpperCase()) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'ILS': return '₪';
+      default:    return code ?? '';
+    }
+  }
+
+  /**
+   * Absolute value of `ilsAmount` for the SUM_WITH_FX renderer. The original
+   * amount (`row.sum`) is already displayed via `Math.abs` upstream and the
+   * sign is conveyed via row color, so the ILS parenthesis should match —
+   * showing the minus would be redundant.
+   */
+  absIls(value: number | string | null | undefined): number {
+    const n = value == null ? 0 : Number(value);
+    return isFinite(n) ? Math.abs(n) : 0;
+  }
+
 
   expandedRows = new Set<number>();
   hoverTimeout: any;

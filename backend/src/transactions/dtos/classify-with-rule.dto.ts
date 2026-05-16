@@ -104,4 +104,14 @@ export class ClassifyWithRuleDto {
   @IsOptional()
   @IsString()
   businessNumber?: string | null;
+
+  /**
+   * Explicit period label for the FOCUS transaction when its natural period
+   * is locked. Frontend supplies this after the user picks from the locked-
+   * period dialog. Backfilled rows always use their own natural period (or
+   * are skipped if locked).
+   */
+  @IsOptional()
+  @IsString()
+  targetPeriodLabel?: string;
 }

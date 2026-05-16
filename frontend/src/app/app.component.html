@@ -10,10 +10,10 @@
 @if (showTopNav() && selectedClientId) {
   <div class="accountant-context-banner" dir="rtl">
     <span class="banner-text">
-      רואה החשבון: {{ userData?.fName }} {{ userData?.lName }} | בחשבון של: {{ selectedClientName }}
+      {{ realUserIsAdmin() ? 'מנהל מערכת' : 'רואה החשבון' }}: {{ realUserData?.fName }} {{ realUserData?.lName }} | בחשבון של: {{ selectedClientName }}
     </span>
     <button type="button" class="banner-exit-btn" (click)="exitClientView()">
-      יציאה מחשבון הלקוח
+      {{ realUserIsAdmin() ? 'חזרה לפאנל ניהול' : 'יציאה מחשבון הלקוח' }}
     </button>
   </div>
 }

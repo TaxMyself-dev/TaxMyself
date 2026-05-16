@@ -148,6 +148,41 @@
     font-weight: 600;
 }
 
+// Report-period column ("דווח לחודש")
+.month-report-pending {
+    color: #888;
+    font-style: italic;
+}
+
+.month-report-lock {
+    color: #FFC107;
+    margin-inline-end: 6px;
+    font-size: 0.95em;
+}
+
+.month-report-confirmed {
+    color: #2e7d32;
+    margin-inline-end: 6px;
+    font-size: 0.95em;
+}
+
+// Sum + FX: original currency on top, ILS conversion in parentheses below.
+// Only rendered for non-ILS rows (the renderer guards on row.currency).
+.sum-with-fx {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.sum-with-fx .sum-original {
+    font-weight: 500;
+}
+
+.sum-with-fx .sum-ils {
+    color: #6b7280;
+    font-size: 0.85em;
+}
+
 .action-cell {
     display: flex;
     height: 76px;

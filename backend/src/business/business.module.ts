@@ -9,9 +9,10 @@ import { Expense } from 'src/expenses/expenses.entity';
 import { Transactions } from 'src/transactions/transactions.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { Delegation } from 'src/delegation/delegation.entity';
+import { User } from 'src/users/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Delegation])],
+  imports: [TypeOrmModule.forFeature([Business, Transactions, Expense, SettingDocuments, Delegation, User])],
   controllers: [BusinessController],
   providers: [
     BusinessService,

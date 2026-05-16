@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Logger, Param, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
 import { FeezbackService } from './feezback.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
@@ -31,14 +31,6 @@ export class FeezbackController {
       // Should never throw, but just in case
       // this.logger.error('Unexpected error in forward()', err?.stack || String(err));
     });
-  }
-
-  @Post('ensure-sources')
-  @UseGuards(FirebaseAuthGuard)
-  async ensureSources(@Req() req: AuthenticatedRequest) {
-    const firebaseId = req.user?.firebaseId;
-    if (!firebaseId) throw new Error('User ID not found — Firebase authentication required');
-    return this.feezbackService.ensureSources(firebaseId);
   }
 
   @Post('consent-link')
@@ -242,267 +234,49 @@ export class FeezbackController {
   }
 
   /**
-   * Delegates to FeezbackService.getAndSaveBankTransactions().
-   * Kept as a thin helper so controller endpoints remain concise.
+   * Admin: live read of a client's accounts + cards from Feezback.
+   * Diagnostic only — does NOT touch the DB.
    */
-  private async getUserBankTransactionsInternal(
-    firebaseId: string,
-    sub: string,
-    bookingStatus?: string,
-    dateFrom?: string,
-    dateTo?: string,
-  ) {
-    const defaultDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : '2026-01-01';
-    const defaultDateTo = dateTo && dateTo.trim() !== '' ? dateTo : new Date().toISOString().split('T')[0];
+  @Get('admin/accounts/:firebaseId')
+  @UseGuards(FirebaseAuthGuard)
+  async adminGetAccountsAndCards(
+    @Req() req: AuthenticatedRequest,
+    @Param('firebaseId') targetFirebaseId: string,
+  ): Promise<{ accounts: any; cards: any }> {
+    const adminFirebaseId = req.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
+    if (!isAdmin) throw new ForbiddenException('Admin access required');
+    if (!targetFirebaseId) throw new ForbiddenException('firebaseId path parameter is required');
 
-    return this.feezbackService.getAndSaveBankTransactions(
-      firebaseId,
-      sub,
-      bookingStatus || 'booked',
-      defaultDateFrom,
-      defaultDateTo,
-    );
+    const targetUser = await this.usersService.findByFirebaseId(targetFirebaseId).catch(() => null);
+    const targetName = [targetUser?.fName, targetUser?.lName].filter(Boolean).join(' ') || `${targetFirebaseId.substring(0, 8)}...`;
+    const adminMask = adminFirebaseId ? `${adminFirebaseId.substring(0, 8)}...` : '?';
+    this.logger.log(`[Admin][GetAccounts] Request sent | target="${targetName}" (${targetFirebaseId.substring(0, 8)}...) | admin=${adminMask}`);
+
+    const result = await this.feezbackService.adminGetAccountsAndCards(targetFirebaseId);
+    const accountsCount = result?.accounts?.accounts?.length ?? 0;
+    const cardsCount = result?.cards?.cards?.length ?? 0;
+    this.logger.log(`[Admin][GetAccounts] Done       | target="${targetName}" | accounts=${accountsCount} | cards=${cardsCount}`);
+
+    return result;
   }
 
   /**
-   * Get all transactions for all user accounts
-   * Fetches all accounts first, then gets transactions for each account
-   * Requires authentication
+   * Admin: trigger refreshUserSources for a specific client.
    */
-  @Get('user-bank-transactions')
+  @Post('admin/refresh-sources/:firebaseId')
   @UseGuards(FirebaseAuthGuard)
-  async getAllUserTransactions(
+  async adminRefreshUserSources(
     @Req() req: AuthenticatedRequest,
-    @Query('bookingStatus') bookingStatus?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    const firebaseId = req.user?.firebaseId;
+    @Param('firebaseId') targetFirebaseId: string,
+  ): Promise<{ status: string }> {
+    const adminFirebaseId = req.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
+    if (!isAdmin) throw new ForbiddenException('Admin access required');
+    if (!targetFirebaseId) throw new ForbiddenException('firebaseId path parameter is required');
 
-    if (!firebaseId) {
-      throw new Error('User ID not found — Firebase authentication required');
-    }
-
-    // Build sub identifier (same format as in consent JWT and webhook)
-    const sub = `${firebaseId}_sub`;
-
-    // Set default dates: from 1/1/2026 to today if not provided
-    const today = new Date();
-    const defaultDateFrom = dateFrom || '2026-01-01';
-    const defaultDateTo = dateTo || today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-
-    // this.logger.log(`Fetching all transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    // this.logger.log(`Date range: ${defaultDateFrom} to ${defaultDateTo}`);
-
-    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
-    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || `${firebaseId.substring(0, 8)}...`;
-
-    const tTotal = Date.now();
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  MANUAL SYNC`);
-    console.log(`  User : ${userName}`);
-    console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
-    console.log(`════════════════════════════════════`);
-    const tPull = Date.now();
-    const result = await this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo);
-    console.log(`  ✓ Bank — ${((result?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${result?.normalizedTransactions?.length ?? 0}`);
-    console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
-
-    const normalized = result?.normalizedTransactions ?? [];
-    let processingResult: any = null;
-    if (normalized.length > 0) {
-      try {
-        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, normalized);
-      } catch (err: any) {
-        this.logger.error(`[PERSIST] bank persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
-      }
-    }
-
-    console.log(`════════════════════════════════════`);
-    console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
-    console.log(`════════════════════════════════════\n`);
-
-    return {
-      ...result,
-      processingResult,
-      persistedToDb: processingResult !== null,
-    };
-  }
-
-  @Get('user-card-transactions')
-  @UseGuards(FirebaseAuthGuard)
-  async getUserCardTransactions(
-    @Req() req: AuthenticatedRequest,
-    @Query('bookingStatus') bookingStatus?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-    @Query('cardResourceId') cardResourceId?: string,
-  ) {
-    const firebaseId = req.user?.firebaseId;
-
-    if (!firebaseId) {
-      throw new Error('User ID not found — Firebase authentication required');
-    }
-
-    const sub = `${firebaseId}_sub`;
-
-    // const today = new Date();
-    // const sixtyDaysAgo = new Date(today);
-    // sixtyDaysAgo.setDate(today.getDate() - 60);
-
-      // Set default dates: from 1/1/2026 to today if not provided
-      const today = new Date();
-      const defaultDateFrom = dateFrom || '2026-01-01';
-      const defaultDateTo = dateTo || today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
-    // const resolvedDateTo = dateTo && dateTo.trim() !== '' ? dateTo : formatDate(today);
-    // const resolvedDateFrom = dateFrom && dateFrom.trim() !== '' ? dateFrom : formatDate(sixtyDaysAgo);
-
-    // this.logger.log(`Fetching card transactions for firebaseId: ${firebaseId}, sub: ${sub}`);
-    // this.logger.log(`Date range: ${resolvedDateFrom} to ${resolvedDateTo}`);
-
-    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
-    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || `${firebaseId.substring(0, 8)}...`;
-
-    // Client does not pass consentId; backend resolves consentId via /users/{userId}/cards.
-    const tTotal = Date.now();
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  MANUAL SYNC`);
-    console.log(`  User : ${userName}`);
-    console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
-    console.log(`════════════════════════════════════`);
-    const tPull = Date.now();
-    const result = await this.feezbackService.getAndSaveUserCardTransactions(
-      firebaseId,
-      sub,
-      bookingStatus ?? 'booked',
-      defaultDateFrom,
-      defaultDateTo,
-      cardResourceId,
-    );
-    console.log(`  ✓ Card — ${((result?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${result?.normalizedTransactions?.length ?? 0}`);
-    console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
-
-    const normalized = result?.normalizedTransactions ?? [];
-    let processingResult: any = null;
-    if (normalized.length > 0) {
-      try {
-        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, normalized);
-      } catch (err: any) {
-        this.logger.error(`[PERSIST] card persist failed | firebaseId=${firebaseId?.substring(0, 8)}... | error=${err?.message}`);
-      }
-    }
-
-    console.log(`════════════════════════════════════`);
-    console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
-    console.log(`════════════════════════════════════\n`);
-
-    return {
-      ...result,
-      processingResult,
-      persistedToDb: processingResult !== null,
-    };
-  }
-
-  /**
-   * Get both bank and card transactions in one call and persist them.
-   *
-   * This endpoint participates in the USER_SYNC_STATE lifecycle:
-   *   - Guards against starting while another sync is running.
-   *   - Sets both stages to 'running' before any fetch.
-   *   - Sets both stages to 'completed' after successful persist.
-   *   - Sets both stages to 'failed' on any error.
-   *
-   * NOTE: user-bank-transactions and user-card-transactions are debug/auxiliary
-   * endpoints and intentionally do NOT update USER_SYNC_STATE.
-   */
-  @Get('user-all-transactions')
-  @UseGuards(FirebaseAuthGuard)
-  async getBankAndCardTransactions(
-    @Req() req: AuthenticatedRequest,
-    @Query('bookingStatus') bookingStatus?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-    @Query('cardResourceId') cardResourceId?: string,
-  ) {
-    const firebaseId = req.user?.firebaseId;
-
-    if (!firebaseId) {
-      throw new Error('User ID not found — Firebase authentication required');
-    }
-
-    const masked = firebaseId.length >= 8 ? `${firebaseId.substring(0, 8)}...` : firebaseId;
-    const sub = `${firebaseId}_sub`;
-    const today = new Date();
-    const defaultDateFrom = dateFrom || '2026-01-01';
-    const defaultDateTo = dateTo || today.toISOString().split('T')[0];
-
-    // Guard: refuse to start a new sync if one is already running.
-    const currentState = await this.userSyncStateService.getSyncState(firebaseId);
-    if (currentState?.fullProcessStatus === 'running') {
-      this.logger.warn(`[AllTrans] Skipped — sync already running | firebaseId=${masked}`);
-      return { status: 'running', persistedToDb: false, syncSummary: null };
-    }
-
-    // Mark sync running before any network calls.
-    await this.userSyncStateService.markSyncRunning(firebaseId, 'manual');
-
-    const userRecord = await this.usersService.findByFirebaseId(firebaseId).catch(() => null);
-    const userName = [userRecord?.fName, userRecord?.lName].filter(Boolean).join(' ') || masked;
-
-    const tTotal = Date.now();
-    console.log(`\n════════════════════════════════════`);
-    console.log(`  MANUAL SYNC`);
-    console.log(`  User : ${userName}`);
-    console.log(`  Dates: ${defaultDateFrom} → ${defaultDateTo}`);
-    console.log(`════════════════════════════════════`);
-    try {
-      const tPull = Date.now();
-      const [bankTransactions, cardTransactions] = await Promise.all([
-        this.getUserBankTransactionsInternal(firebaseId, sub, bookingStatus, defaultDateFrom, defaultDateTo),
-        this.feezbackService.getAndSaveUserCardTransactions(firebaseId, sub, bookingStatus ?? 'booked', defaultDateFrom, defaultDateTo, cardResourceId),
-      ]);
-      console.log(`  ✓ Bank — ${((bankTransactions?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${bankTransactions?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Card — ${((cardTransactions?.__durationMs ?? 0) / 1000).toFixed(2)}s | normalized=${cardTransactions?.normalizedTransactions?.length ?? 0}`);
-      console.log(`  ✓ Total pull — ${((Date.now() - tPull) / 1000).toFixed(2)}s\n`);
-
-      const combinedNormalized = [
-        ...(bankTransactions?.normalizedTransactions ?? []),
-        ...(cardTransactions?.normalizedTransactions ?? []),
-      ];
-
-      let processingResult: any = null;
-      if (combinedNormalized.length > 0) {
-        processingResult = await this.feezbackService.persistNormalizedTransactions(firebaseId, combinedNormalized);
-      }
-
-      const rowsWritten = processingResult?.newlySavedToCache ?? 0;
-      await this.userSyncStateService.markSyncFinished(firebaseId, 'completed', 'success', rowsWritten);
-      console.log(`════════════════════════════════════`);
-      console.log(`  TOTAL: ${((Date.now() - tTotal) / 1000).toFixed(2)}s`);
-      console.log(`════════════════════════════════════\n`);
-      this.logger.log(`[AllTrans] Completed | firebaseId=${masked} | rowsWritten=${rowsWritten}`);
-
-      const bankSync = bankTransactions?.syncSummary;
-      const cardSync = cardTransactions?.syncSummary;
-      const syncSummary = {
-        bank: bankSync?.bank ?? { banksProcessed: 0, transactionsFetched: 0 },
-        card: cardSync?.card ?? { cardsProcessed: 0, transactionsFetched: 0 },
-        system: {
-          totalProcessed:
-            (bankSync?.system?.totalProcessed ?? 0) + (cardSync?.system?.totalProcessed ?? 0),
-          savedInCurrentImport: processingResult?.newlySavedToCache ?? 0,
-          alreadyExisting: processingResult?.alreadyExistingInCache ?? 0,
-        },
-      };
-
-      return { bankTransactions, cardTransactions, syncSummary, processingResult, persistedToDb: processingResult !== null };
-    } catch (err: any) {
-      this.logger.error(`[AllTrans] Failed | firebaseId=${masked} | error=${err?.message}`);
-      await this.userSyncStateService.markSyncFailed(firebaseId, err?.message ?? 'Unknown error').catch(() => {});
-      throw err;
-    }
+    await this.feezbackService.refreshUserSources(targetFirebaseId, 'admin');
+    return { status: 'ok' };
   }
 
   /**

@@ -4,7 +4,7 @@ import {
   PrimaryGeneratedColumn,
   Index,
 } from 'typeorm';
-import { DualMonthReport, SingleMonthReport } from 'src/enum';
+import { ReportPeriodLabel } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('full_transactions_cache')
@@ -53,6 +53,20 @@ export class FullTransactionCache {
   @Column({ type: 'varchar', length: 3, nullable: true, default: 'ILS' })
   currency: string | null;
 
+  /**
+   * `|amount| * fxRateToIls`, stamped at sync time for non-ILS rows. Used by
+   * the תזרים column renderer (shown in parentheses below the original) and
+   * by the confirm-to-expense path (`Expense.sum = ilsAmount`). Null for
+   * ILS rows (callers fall back to `amount`) and for non-ILS rows whose
+   * BOI rate couldn't be fetched at sync time.
+   */
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: null })
+  ilsAmount: number | null;
+
+  /** The FX rate used to compute `ilsAmount`. Null for ILS rows. */
+  @Column({ type: 'decimal', precision: 12, scale: 6, nullable: true, default: null })
+  fxRateToIls: number | null;
+
   @Column({ type: 'varchar', nullable: true, default: null })
   category: string | null;
 
@@ -79,7 +93,11 @@ export class FullTransactionCache {
     nullable: true,
     default: null,
   })
-  vatReportingDate: SingleMonthReport | DualMonthReport | null;
+  vatReportingDate: ReportPeriodLabel | null;
+
+  /** Mirror of SlimTransaction.isLocked — surfaced here for the read path. */
+  @Column({ type: 'boolean', default: false })
+  isLocked: boolean;
 
   @Column({ type: 'boolean', default: false })
   confirmed: boolean;

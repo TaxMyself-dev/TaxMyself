@@ -224,7 +224,17 @@ export class ClientPanelPage implements OnInit {
   }
 
   ngOnInit(): void {
-    this.clientService.clearSelectedClient();
+    // Only clear "selected client" when the SIGNED-IN user owns this page —
+    // i.e., an accountant returning from drilling into one of their clients.
+    // When an admin is impersonating an accountant, `selectedClientId` IS the
+    // impersonation marker; clearing it here would silently drop the admin
+    // back to their own session and 403 any subsequent role-gated request
+    // (e.g. /accountant-tasks expects ACCOUNTANT, gets the admin's row).
+    const realUser = this.authService.getRealUserDataFromLocalStorage();
+    const realUserIsAdmin = !!realUser?.role?.includes('ADMIN');
+    if (!realUserIsAdmin) {
+      this.clientService.clearSelectedClient();
+    }
     this.fetchClients();
   }
 

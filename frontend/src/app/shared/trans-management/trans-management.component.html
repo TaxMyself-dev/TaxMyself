@@ -68,9 +68,6 @@
     <p class="feezback-actions__title">בנקאות פתוחה</p>
     <app-button [buttonText]="'התחבר לבנקאות פתוחה'" [isLoading]="isLoadingConsentLink()" (onButtonClicked)="connectToOpenBanking()"></app-button>
     <app-button [buttonText]="'טען נתוני חשבונות'" [isLoading]="isLoadingUserAccounts()" (onButtonClicked)="fetchUserAccounts()"></app-button>
-    <app-button [buttonText]="'טען תנועות בנק'" [isLoading]="isLoadingBankTransactions()" (onButtonClicked)="fetchUserBankTransactions()"></app-button>
-    <app-button [buttonText]="'טען תנועות אשראי'" [isLoading]="isLoadingCardTransactions()" (onButtonClicked)="fetchUserCardTransactions()"></app-button>
-    <app-button [buttonText]="'טען תנועות בנק ואשראי'" [isLoading]="isLoadingAllTransactions()" (onButtonClicked)="fetchAllUserTransactions()"></app-button>
   </div>
 
   @if (showSimPanel) {

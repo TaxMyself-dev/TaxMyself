@@ -50,6 +50,11 @@ export class VatReportPage implements OnInit {
 
   visibleConfirmTransDialog = signal<boolean>(false);
 
+  /** True when the report for the currently-selected period has already been
+   *  marked as submitted (any transaction in the period has `isLocked = true`).
+   *  Drives the swap between the "סמן כדווח" button and the "הדוח הוגש" badge. */
+  reportSubmitted = signal<boolean>(false);
+
   readonly ButtonSize = ButtonSize;
   readonly reportingPeriodType = ReportingPeriodType;
   readonly UPLOAD_FILE_FIELD_NAME = 'fileName';
@@ -164,6 +169,9 @@ export class VatReportPage implements OnInit {
         this.rows = [];
         this.isRequestSent.set(false);
         this.arrayLength.set(0);
+        // New period selected — submission state is unknown until the next
+        // report fetch resolves it.
+        this.reportSubmitted.set(false);
       });
   }
 
@@ -334,6 +342,11 @@ export class VatReportPage implements OnInit {
         console.log("🚀 ~ VatReportPage ~ .subscribe ~ this.vatReportData in subscribe:", this.vatReportData())
       });
 
+    // Fire alongside the report fetch — drives the "סמן כדווח" vs
+    // "הדוח הוגש" button swap once the response lands.
+    this.vatReportService.getReportSubmissionStatus(businessNumber, startDate)
+      .pipe(catchError(() => EMPTY))
+      .subscribe((status) => this.reportSubmitted.set(status.isSubmitted));
   }
 
   updateIncome(event: any) {
@@ -676,6 +689,61 @@ export class VatReportPage implements OnInit {
     console.log("in show");
 
     this.visibleConfirmTransDialog.set(true);
+  }
+
+
+  /**
+   * "סמן כדווח" — user confirms they've submitted the report at the tax
+   * authority. Locks all transactions stamped with this period so they
+   * become read-only (lock icon shows in the תזרים table). Two-step
+   * confirm via ConfirmationService to avoid accidental locks.
+   */
+  onMarkAsSubmitted(): void {
+    if (!this.startDate() || !this.businessNumber()) return;
+    this.confirmationService.confirm({
+      // Scoped key — other ConfirmDialog consumers on this page (file delete /
+      // replace) caused the first accept click to be swallowed because the
+      // unkeyed dialog instance was receiving the request twice.
+      key: 'markSubmitted',
+      message: 'פעולה זו תנעל את כל ההוצאות בתקופה ולא ניתן יהיה לשנותן. להמשיך?',
+      header: 'סימון דוח כדווח',
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonProps: { severity: 'contrast', label: 'סמן כדווח' },
+      rejectButtonProps: { severity: 'secondary', outlined: true, label: 'ביטול' },
+      accept: () => {
+        this.vatReportService.markReportAsSubmitted(this.businessNumber(), this.startDate())
+          .pipe(
+            catchError((err) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'סימון הדוח כדווח נכשל',
+                life: 5000,
+                key: 'br',
+              });
+              console.error('markReportAsSubmitted failed:', err);
+              return EMPTY;
+            }),
+          )
+          .subscribe((res) => {
+            this.messageService.add({
+              severity: 'success',
+              summary: 'הדוח סומן כדווח',
+              detail: `${res.count} תנועות ננעלו לתקופה ${res.periodLabel}`,
+              life: 4000,
+              key: 'br',
+            });
+            // Flip the local flag so the button swaps to the success indicator
+            // without waiting for the round-trip on the next getVatReportData.
+            this.reportSubmitted.set(true);
+            // Re-fetch the report so dataTable rows reflect the new lock state
+            // when the user navigates to the תזרים page.
+            this.getVatReportData(this.startDate(), this.endDate(), this.businessNumber());
+            this.getDataTable(this.startDate(), this.endDate(), this.businessNumber());
+          });
+      },
+      reject: () => {},
+    });
   }
 
   onDeleteFile(row: IRowDataTable): void {

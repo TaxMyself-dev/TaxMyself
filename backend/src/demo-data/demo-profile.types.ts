@@ -138,6 +138,12 @@ export interface DemoTransactionTemplate {
   amount: number;
   /** Subtracted from `today` at seed time to get transactionDate. */
   daysAgo: number;
+  /**
+   * ISO-4217 currency code. Defaults to 'ILS'. For non-ILS values the seed
+   * also stamps `ilsAmount` + `fxRateToIls` using hardcoded demo rates so the
+   * תזרים column renderer can show "$X (₪Y)" without needing a BOI fetch.
+   */
+  currency?: 'ILS' | 'USD' | 'EUR' | 'GBP';
 }
 
 /** Subset of fields shared by DemoProfile and DemoClient — used by the seed helper. */

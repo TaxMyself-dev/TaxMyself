@@ -42,15 +42,27 @@ export class PnLReportService {
     });
   }
 
-  addFileToExpenses(formData: { id: number, file: string | File }[]): Observable<any> {
-    // const token = localStorage.getItem('token');
+  addFileToExpenses(formData: { id: number, file: string | File }[], fromTransactions: boolean = false): Observable<any> {
     const url = `${environment.apiUrl}expenses/add-file-to-expense`;
-    // const headers = {
-    //   'token': token
-    // }
-    return this.http.patch<any>(url, formData)
-
+    return this.http.patch<any>(url, { formData, fromTransactions });
   }
 
-         
+
+  /** Marks the PnL/annual report as submitted — locks every transaction in the period. */
+  markReportAsSubmitted(businessNumber: string, startDate: string): Observable<{ count: number; periodLabel: string }> {
+    const url = `${environment.apiUrl}reports/mark-submitted`;
+    return this.http.post<{ count: number; periodLabel: string }>(url, { businessNumber, startDate });
+  }
+
+
+  /** Returns whether the report for this period has already been marked as submitted. */
+  getReportSubmissionStatus(businessNumber: string, startDate: string): Observable<{ isSubmitted: boolean; periodLabel: string }> {
+    const url = `${environment.apiUrl}reports/submission-status`;
+    const params = new HttpParams()
+      .set('businessNumber', businessNumber)
+      .set('startDate', startDate);
+    return this.http.get<{ isSubmitted: boolean; periodLabel: string }>(url, { params });
+  }
+
+
 }

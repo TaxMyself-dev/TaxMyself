@@ -93,6 +93,16 @@ export enum DualMonthReport {
   NOV_DEC = "11-12/2024"
 }
 
+/**
+ * Period label written into slim_transactions.vatReportingDate when a report
+ * is approved. Three formats:
+ *   - Single-month VAT report:  "M/YYYY"   e.g. "3/2024"
+ *   - Dual-month VAT report:    "M1-M2/YYYY"  e.g. "3-4/2024"
+ *   - Annual report (non-VAT):  "YYYY"     e.g. "2024"
+ * A non-null value also acts as the lock flag for the transaction's classification.
+ */
+export type ReportPeriodLabel = string;
+
 // Enum for dual month report
 export enum SourceType {
   CREDIT_CARD = 'CREDIT_CARD',

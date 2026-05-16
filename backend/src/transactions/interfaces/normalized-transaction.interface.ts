@@ -10,5 +10,4 @@ export interface NormalizedTransaction {
   billName: string | null;
   businessNumber: string | null;
   note: string | null;
-  rawTransactionId?: string;
 }

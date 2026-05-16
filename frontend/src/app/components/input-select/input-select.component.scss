@@ -20,3 +20,22 @@
     display: flex;
     justify-content: end;
 }
+
+// Long selected values (e.g., business names like "משה ברנשטיין - חשמלאי מוסמך")
+// were rendering UNDER the dropdown arrow / clear icons. Reserve inline-end
+// space for those icons and apply ellipsis truncation when the text still overflows.
+//
+// PrimeNG places the dropdown arrow + clear icon AFTER the label in markup, so
+// they sit at the inline-end side: visual right in LTR, visual left in RTL.
+// `padding-inline-end` reserves space on the correct side automatically.
+//
+// `::ng-deep` is required because we're styling PrimeNG's internal classes.
+:host ::ng-deep {
+    .p-select .p-select-label,
+    .p-multiselect .p-multiselect-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding-inline-end: 2.5rem;
+    }
+}

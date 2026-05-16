@@ -15,6 +15,7 @@ import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@a
 import { NgArrayPipesModule } from 'ngx-pipes';
 import { SharedModule } from './shared/shared.module';
 import { AuthInterceptor } from './interceptors/auth.interceptor';
+import { NgxEchartsModule } from 'ngx-echarts';
 // PrimeNG
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { providePrimeNG } from 'primeng/config';
@@ -33,6 +34,9 @@ import { AuthErrorInterceptor } from './interceptors/authError.interceptor';
   declarations: [AppComponent],
   bootstrap: [AppComponent],
   imports: [
+    NgxEchartsModule.forRoot({
+      echarts: () => import('echarts')
+    }),
     BrowserModule,
     BrowserAnimationsModule,
     IonicModule.forRoot(), // Ensure IonicModule is initialized

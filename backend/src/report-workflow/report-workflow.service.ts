@@ -2,10 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import {
   ReportedSource,
   ReportWorkflow,
@@ -22,8 +23,11 @@ import { ListWorkflowsDto } from './dtos/list-workflows.dto';
 import { NotificationService } from 'src/notifications/notification.service';
 import { TasksGeneratorService } from 'src/accountant-tasks/tasks-generator.service';
 import { ReportsService } from 'src/reports/reports.service';
-import { Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
+import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { SharedService } from 'src/shared/shared.service';
+import { BusinessType, ReportPeriodLabel, VATReportingType } from 'src/enum';
 
 /**
  * Workflow as exposed to the API: the entity plus a derived flag telling the
@@ -47,9 +51,14 @@ export class ReportWorkflowService {
     private readonly businessRepo: Repository<Business>,
     @InjectRepository(AccountantTask)
     private readonly taskRepo: Repository<AccountantTask>,
+    @InjectRepository(SlimTransaction)
+    private readonly slimRepo: Repository<SlimTransaction>,
+    @InjectRepository(FullTransactionCache)
+    private readonly cacheRepo: Repository<FullTransactionCache>,
     private readonly notifications: NotificationService,
     private readonly tasksGenerator: TasksGeneratorService,
     private readonly reportsService: ReportsService,
+    private readonly sharedService: SharedService,
   ) {}
 
   // ----- Client-side -----
@@ -167,6 +176,9 @@ export class ReportWorkflowService {
 
     if (reported) {
       if (workflow.status === ReportWorkflowStatus.REPORTED) {
+        // Re-run the lock so a previous partial-failure can self-heal on retry.
+        // The lock is idempotent — it only writes rows whose vatReportingDate IS NULL.
+        await this.lockTransactionsIfApplicable(workflow);
         const canSelfMark = !(await this.hasAccountant(workflow.clientFirebaseId));
         return { ...workflow, canSelfMark };
       }
@@ -197,6 +209,12 @@ export class ReportWorkflowService {
     const saved = await this.workflowRepo.save(workflow);
 
     await this.syncAccountantTasks(saved, reported);
+
+    if (reported) {
+      await this.lockTransactionsIfApplicable(saved);
+    } else {
+      await this.unlockTransactionsIfApplicable(saved);
+    }
 
     if (reported) {
       this.notifications.notifyClientWorkflowReported({ workflow: saved }).catch(() => {});
@@ -366,5 +384,135 @@ export class ReportWorkflowService {
       t.completedAt = reported ? new Date() : null;
       await this.taskRepo.save(t);
     }
+  }
+
+  /**
+   * On VAT report approval (accountant marks the workflow as reported):
+   *   - For every VAT-eligible transaction in this business + period that
+   *     is not already locked, ensure `vatReportingDate` is the period label
+   *     (the user may have already confirmed → field already set; or not →
+   *     stamp it now) and flip `isLocked = true` so the classification guard
+   *     in TransactionProcessingService blocks further edits.
+   *   - Mirror both fields onto full_transactions_cache for the read path.
+   *
+   * No-op for non-VAT workflows (e.g. ADVANCE_TAX), for businesses that don't
+   * file VAT (EXEMPT or NOT_REQUIRED), and for transactions already locked.
+   */
+  private async lockTransactionsIfApplicable(
+    workflow: ReportWorkflow,
+  ): Promise<void> {
+    const ctx = await this.resolveLockContext(workflow);
+    if (!ctx) return;
+
+    const ids = await this.findLockableExternalIds(workflow, ctx.includeNonVat);
+    if (ids.length === 0) {
+      this.logger.log(
+        `lockTransactions: no eligible transactions for workflow ${workflow.id} (period ${ctx.periodLabel}).`,
+      );
+      return;
+    }
+    const filter = {
+      userId: workflow.clientFirebaseId,
+      externalTransactionId: In(ids),
+      isLocked: false,
+    } as const;
+    const patch = { vatReportingDate: ctx.periodLabel, isLocked: true } as const;
+    await this.slimRepo.update(filter, patch);
+    await this.cacheRepo.update(filter, patch);
+    this.logger.log(
+      `lockTransactions: locked ${ids.length} transactions to period ${ctx.periodLabel} (workflow ${workflow.id}).`,
+    );
+  }
+
+  /**
+   * Reverse of lockTransactionsIfApplicable: clears the `isLocked` flag for
+   * transactions locked by *this* workflow's period (matched by label).
+   * Leaves `vatReportingDate` untouched so the period stamp still shows in
+   * the תזרים table — only the lock icon disappears, and edits unblock.
+   */
+  private async unlockTransactionsIfApplicable(
+    workflow: ReportWorkflow,
+  ): Promise<void> {
+    const ctx = await this.resolveLockContext(workflow);
+    if (!ctx) return;
+
+    const filter = {
+      userId: workflow.clientFirebaseId,
+      businessNumber: workflow.businessNumber,
+      vatReportingDate: ctx.periodLabel,
+    } as const;
+    await this.slimRepo.update(filter, { isLocked: false });
+    await this.cacheRepo.update(filter, { isLocked: false });
+    this.logger.log(
+      `unlockTransactions: cleared lock for period ${ctx.periodLabel} (workflow ${workflow.id}).`,
+    );
+  }
+
+  /**
+   * Returns the period label and per-row eligibility rule, or null when the
+   * workflow doesn't lock anything (wrong type, business not filing VAT, etc.).
+   */
+  private async resolveLockContext(
+    workflow: ReportWorkflow,
+  ): Promise<{ periodLabel: ReportPeriodLabel; includeNonVat: false } | null> {
+    if (workflow.type !== ReportWorkflowType.VAT_REPORT) return null;
+
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber: workflow.businessNumber },
+    });
+    if (!business) return null;
+
+    if (
+      business.businessType !== BusinessType.LICENSED &&
+      business.businessType !== BusinessType.COMPANY
+    ) {
+      return null;
+    }
+    if (
+      business.vatReportingType !== VATReportingType.MONTHLY_REPORT &&
+      business.vatReportingType !== VATReportingType.DUAL_MONTH_REPORT
+    ) {
+      return null;
+    }
+
+    const periodLabel = this.sharedService.getVATReportingDate(
+      new Date(workflow.periodStart),
+      business.vatReportingType,
+    );
+    if (!periodLabel) return null;
+
+    return { periodLabel, includeNonVat: false };
+  }
+
+  /**
+   * Finds externalTransactionIds for slim rows that are candidates for the VAT
+   * lock: same business, transaction date in period, vatPercent > 0, and not
+   * already locked. Joins through full_transactions_cache because slim itself
+   * has no transactionDate column.
+   */
+  private async findLockableExternalIds(
+    workflow: ReportWorkflow,
+    _includeNonVat: false,
+  ): Promise<string[]> {
+    const rows = await this.slimRepo
+      .createQueryBuilder('slim')
+      .innerJoin(
+        FullTransactionCache,
+        'cache',
+        'cache.userId = slim.userId AND cache.externalTransactionId = slim.externalTransactionId',
+      )
+      .select('slim.externalTransactionId', 'externalTransactionId')
+      .where('slim.userId = :userId', { userId: workflow.clientFirebaseId })
+      .andWhere('slim.businessNumber = :businessNumber', {
+        businessNumber: workflow.businessNumber,
+      })
+      .andWhere('slim.vatPercent > 0')
+      .andWhere('slim.isLocked = FALSE')
+      .andWhere('cache.transactionDate BETWEEN :start AND :end', {
+        start: workflow.periodStart,
+        end: workflow.periodEnd,
+      })
+      .getRawMany<{ externalTransactionId: string }>();
+    return rows.map((r) => r.externalTransactionId);
   }
 }

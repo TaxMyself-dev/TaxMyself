@@ -30,12 +30,15 @@ import { JournalLine } from 'src/bookkeeping/jouranl-line.entity';
 import { DefaultBookingAccount } from 'src/bookkeeping/account.entity';
 import { DocPayments } from 'src/documents/doc-payments.entity';
 import { Business } from 'src/business/business.entity';
+import { SlimTransaction } from 'src/transactions/slim-transaction.entity';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Business, Expense, DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory,
                                       ClassifiedTransactions, Bill, Source, Supplier, User, Child, Finsite, Documents, DocLines, DocPayments,
-                                      Delegation, JournalEntry, JournalLine, DefaultBookingAccount]),
+                                      Delegation, JournalEntry, JournalLine, DefaultBookingAccount,
+                                      SlimTransaction, FullTransactionCache]),
     SharedModule,
     UsersModule,
   ],

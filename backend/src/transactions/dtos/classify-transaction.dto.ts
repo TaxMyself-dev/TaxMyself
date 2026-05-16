@@ -47,10 +47,12 @@ export class ClassifyTransactionDto {
   isExpense?: boolean;
 
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   startDate?: Date;
 
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   endDate?: Date;
 
@@ -80,5 +82,14 @@ export class ClassifyTransactionDto {
   @IsOptional()
   @IsString()
   businessNumber?: string | null;
+
+  /**
+   * Optional explicit period label (e.g. "3-4/2026") to stamp on the slim row.
+   * Sent by the frontend after the user picks an alternative period from the
+   * "natural period locked" dialog. Skips the natural-period lock check.
+   */
+  @IsOptional()
+  @IsString()
+  targetPeriodLabel?: string;
 
 }

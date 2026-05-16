@@ -136,6 +136,12 @@ export class ExpenseDataService {
     return this.http.get<any[]>(url);
   }
 
+  /** Get all user-specific sub-categories for the authenticated user, scoped to the given bill. */
+  getAllUserSubCategories(billId: string): Observable<any[]> {
+    const params = new HttpParams().set('billId', billId);
+    return this.http.get<any[]>(`${environment.apiUrl}transactions/get-all-user-sub-categories`, { params });
+  }
+
   /** Admin: update a default sub-category. */
   updateDefaultSubCategory(id: number, body: any): Observable<any> {
     const url = `${environment.apiUrl}expenses/update-default-sub-category/${id}`;
@@ -230,5 +236,39 @@ export class ExpenseDataService {
       //.subscribe();
   }
 
+
+  getUserCategoriesGrouped(businessNumber: string): Observable<{
+    categoryName: string;
+    userCategory: any | null;
+    subCategories: any[];
+  }[]> {
+    const url = `${environment.apiUrl}expenses/user-categories`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.get<any[]>(url, { params });
+  }
+
+  deleteUserCategory(id: number, businessNumber: string): Observable<{ deleted: true }> {
+    const url = `${environment.apiUrl}expenses/user-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.delete<{ deleted: true }>(url, { params });
+  }
+
+  deleteUserSubCategory(id: number, businessNumber: string): Observable<{ deleted: true }> {
+    const url = `${environment.apiUrl}expenses/user-sub-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.delete<{ deleted: true }>(url, { params });
+  }
+
+  updateUserCategory(id: number, businessNumber: string, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/user-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.patch<any>(url, dto, { params });
+  }
+
+  updateUserSubCategory(id: number, businessNumber: string, dto: any): Observable<any> {
+    const url = `${environment.apiUrl}expenses/user-sub-category/${id}`;
+    const params = new HttpParams().set('businessNumber', businessNumber);
+    return this.http.patch<any>(url, dto, { params });
+  }
 
 }

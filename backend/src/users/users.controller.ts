@@ -126,33 +126,14 @@ export class UsersController {
         if (!hasOpenBanking) return;
 
         // Structural skip: if the user clicked consent more recently than the
-        // last successful sync, there's an UNPROCESSED consent flow in
-        // progress — the webhook will trigger the sync. Short-circuit here so
-        // we don't waste an API call on refreshUserSources before bailing.
-        // The same gate is applied centrally in feezbackService.triggerFullSync
-        // so other callers (e.g. /sync-status auto-trigger) skip too.
+        // last successful sync, the webhook will drive the sync — bail so we
+        // don't race it. The same gate is applied centrally in
+        // feezbackService.triggerFullSync so other callers (e.g. /sync-status
+        // auto-trigger) skip too.
         const state = await this.feezbackService.getUserSyncState(firebaseId);
         if (this.feezbackService.hasUnprocessedConsentFlow(state)) {
             console.log(`  ⏭️  Login sync skipped — unprocessed consent flow, webhook will sync\n`);
             return;
-        }
-
-        // If our cached Source rows haven't been refreshed against Feezback in 24h+
-        // (or never), refresh them first — otherwise login sync would pull with
-        // stale consentIds and report a generic "sync failed" with no clue that
-        // the user needs to re-authorize. Cheap when fresh: just one DB read.
-        const STALE_AFTER_MS = 24 * 60 * 60_000;
-        try {
-            const lastRefresh = state?.lastSourcesRefreshAt;
-            const isStale = !lastRefresh || (Date.now() - new Date(lastRefresh).getTime()) > STALE_AFTER_MS;
-            if (isStale) {
-                console.log(`  ↻  Sources older than 24h — refreshing before login sync`);
-                await this.feezbackService.refreshUserSources(firebaseId, 'login').catch(err => {
-                    this.logger.error(`[Login] refreshUserSources failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
-                });
-            }
-        } catch (err: any) {
-            this.logger.error(`[Login] freshness check failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
         }
 
         void this.feezbackService.triggerFullSync(firebaseId, 'login')

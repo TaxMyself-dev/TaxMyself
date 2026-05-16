@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  contentChildren,
   forwardRef,
   input,
   output,
@@ -9,6 +10,8 @@ import {
   viewChildren,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
+import { SegmentContentDirective } from './segment-content.directive';
 
 export interface SegmentedOption {
   label: string;
@@ -19,7 +22,7 @@ export interface SegmentedOption {
   selector: 'app-segmented-control',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [],
+  imports: [NgTemplateOutlet],
   templateUrl: './segmented-control.component.html',
   styleUrl: './segmented-control.component.scss',
   providers: [
@@ -33,18 +36,19 @@ export interface SegmentedOption {
 export class SegmentedControlComponent implements ControlValueAccessor {
 
   // ── Inputs ──────────────────────────────────────────────────────
-  options  = input<SegmentedOption[]>([]);
+  options   = input<SegmentedOption[]>([]);
   ariaLabel = input<string | undefined>(undefined);
 
   // ── Outputs ─────────────────────────────────────────────────────
-  /** Emits the selected value — use for non-form (event-driven) usage. */
   valueChange = output<any>();
 
   // ── Internal state ───────────────────────────────────────────────
   readonly selectedValue = signal<any>(null);
   readonly isDisabled    = signal<boolean>(false);
 
-  // Used for programmatic focus after keyboard navigation
+  // Content projected via <ng-template appSegmentContent forValue="...">
+  readonly contentSlots = contentChildren(SegmentContentDirective);
+
   private readonly optionButtons =
     viewChildren<ElementRef<HTMLButtonElement>>('optionBtn');
 
@@ -70,21 +74,25 @@ export class SegmentedControlComponent implements ControlValueAccessor {
 
   // ── Event handlers ───────────────────────────────────────────────
 
+  // select(value: any): void {
+  //   if (this.isDisabled()) return;
+  //   this.selectedValue.set(value);
+  //   this.onChange(value);
+  //   this.onTouched();
+  //   this.valueChange.emit(value);
+  // }
+
   select(value: any): void {
     if (this.isDisabled()) return;
-    this.selectedValue.set(value);
-    this.onChange(value);
+  
+    const nextValue = this.selectedValue() === value ? null : value;
+  
+    this.selectedValue.set(nextValue);
+    this.onChange(nextValue);
     this.onTouched();
-    this.valueChange.emit(value);
+    this.valueChange.emit(nextValue);
   }
 
-  /**
-   * Roving-tabindex keyboard handler (WAI-ARIA radiogroup pattern).
-   *
-   * RTL note: Arrow navigation follows DOM/logical order, not visual order.
-   * ArrowRight/Down = next option; ArrowLeft/Up = previous option.
-   * Screen readers handle the RTL visual mapping automatically.
-   */
   onKeydown(event: KeyboardEvent, currentIndex: number): void {
     const opts = this.options();
     if (!opts.length) return;
@@ -111,20 +119,18 @@ export class SegmentedControlComponent implements ControlValueAccessor {
 
     event.preventDefault();
     this.select(opts[nextIndex].value);
-
-    // Shift DOM focus to the newly active button immediately
     this.optionButtons()[nextIndex]?.nativeElement.focus();
   }
 
-  /**
-   * Roving tabindex: only the selected option (or the first if none is
-   * selected) is reachable via Tab; the rest use tabindex="-1".
-   */
   tabIndex(index: number): number {
     const selected = this.selectedValue();
     const opts     = this.options();
     if (selected !== null && opts[index]?.value === selected) return 0;
     if (selected === null && index === 0) return 0;
     return -1;
+  }
+
+  slotForOption(value: any): SegmentContentDirective | undefined {
+    return this.contentSlots().find(s => s.forValue() === value);
   }
 }

@@ -75,6 +75,34 @@ export class Expense {
   })
   transId: number;
 
+  /**
+   * Stable identity of the source cache/slim transaction this Expense row
+   * was created from. Used to keep the Expense in sync when the user
+   * re-classifies a confirmed-but-not-yet-locked transaction.
+   * Null for legacy Expenses created before this link existed, or for rows
+   * added manually (not from a bank/card transaction).
+   */
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    default: null,
+  })
+  externalTransactionId: string | null;
+
+  /**
+   * Original currency code if the underlying transaction wasn't in ILS.
+   * `sum` is always ILS (already converted via BOI rate), but the תזרים /
+   * expenses tables show "$X (₪Y)" for foreign-currency rows — so we need
+   * to remember the original currency + sum at confirm/manual-entry time.
+   * Null for plain ILS rows.
+   */
+  @Column({ type: 'varchar', length: 3, nullable: true, default: null })
+  originalCurrency: string | null;
+
+  /** Original (non-ILS) amount, paired with `originalCurrency`. Null for ILS rows. */
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: null })
+  originalSum: number | null;
+
   @Column({
     type: 'varchar',
     nullable: true,

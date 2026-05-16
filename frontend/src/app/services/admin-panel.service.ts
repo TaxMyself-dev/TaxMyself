@@ -46,11 +46,6 @@ export class AdminPanelService {
     return this.http.get<any>(url, { params });
   }
 
-  addAgent(name: string): Observable<any> {
-    const url = `${environment.apiUrl}agent/admin/add`;
-    return this.http.post<any>(url, { name });
-  }
-
   clearUserCache(firebaseId: string): Observable<any> {
     const url = `${environment.apiUrl}transactions/admin/clear-cache/${firebaseId}`;
     return this.http.delete<any>(url);
@@ -91,6 +86,8 @@ export interface DemoProfileListItem {
   email: string;
   password: string;
   exists: boolean;
+  /** firebaseId of the primary demo user (when `exists === true`). */
+  firebaseId?: string;
   /** Delegated clients (for accountant profiles). Empty/undefined for solo profiles. */
   clients?: DemoSubUser[];
 }

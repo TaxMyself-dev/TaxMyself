@@ -1,17 +1,11 @@
-// ════════════════════════════════════════════════════════════
-// segmented-control — pill-style radio group
-//
-// Token sources (global.scss + Figma node 2463:53034):
-//   border-radius : 40px         ← Figma pill shape
-//   padding       : 6px 16px     ← Figma
-//   #363636       : --main-text  ← selected bg, text color system token
-//   #ebebeb       : --stroke     ← unselected border, selected text token
-//   #0075ff       : --link       ← system focus-ring color
-//   font-family   : inherit      ← picks up Simpler from :root
-// ════════════════════════════════════════════════════════════
 
 :host {
   display: block;
+}
+
+// ── Option wrapper (enables per-option absolute content) ───────
+.segmented-option-wrapper {
+  position: relative;
 }
 
 // ── Container ─────────────────────────────────────────────────

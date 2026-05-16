@@ -62,6 +62,8 @@ export interface DemoProfileListItem {
   email: string;
   password: string;
   exists: boolean;
+  /** firebaseId of the primary demo user (when `exists === true`). */
+  firebaseId?: string;
   /** Delegated clients (email + label) when this profile has them. */
   clients?: DemoSubUser[];
 }
@@ -92,6 +94,25 @@ export class DemoDataService {
     const out: DemoProfileListItem[] = [];
     for (const p of DEMO_PROFILES) {
       const existing = await userRepo.findOne({ where: { email: p.email } });
+
+      // Look up firebaseId for each delegated client so the frontend can use
+      // view-as (clientPanelService.setSelectedClient) without re-signing-in.
+      let clients: DemoSubUser[] | undefined;
+      if (p.delegatedClients?.length) {
+        const clientEmails = p.delegatedClients.map((c) => c.email);
+        const clientUsers = await userRepo
+          .createQueryBuilder('u')
+          .where('u.email IN (:...emails)', { emails: clientEmails })
+          .getMany();
+        const emailToFirebaseId = new Map(clientUsers.map((u) => [u.email, u.firebaseId]));
+        clients = p.delegatedClients.map((c) => ({
+          email: c.email,
+          password: c.password,
+          label: `${c.user.fName} ${c.user.lName}`,
+          firebaseId: emailToFirebaseId.get(c.email),
+        }));
+      }
+
       out.push({
         id: p.id,
         label: p.label,
@@ -99,11 +120,8 @@ export class DemoDataService {
         email: p.email,
         password: p.password,
         exists: !!existing,
-        clients: p.delegatedClients?.map((c) => ({
-          email: c.email,
-          password: c.password,
-          label: `${c.user.fName} ${c.user.lName}`,
-        })),
+        firebaseId: existing?.firebaseId,
+        clients,
       });
     }
     return out;
@@ -351,7 +369,12 @@ export class DemoDataService {
         familyStatus: data.user.familyStatus,
         role: data.role ?? [UserRole.REGULAR],
         payStatus: PayStatus.TRIAL,
-        modulesAccess: [ModuleName.INVOICES],
+        // Keep modulesAccess consistent with hasOpenBanking — otherwise the
+        // frontend sees hasOpenBanking=true and tries to poll OB-gated
+        // endpoints that fail because modulesAccess lacks OPEN_BANKING.
+        modulesAccess: (data.hasOpenBanking ?? true)
+          ? [ModuleName.INVOICES, ModuleName.OPEN_BANKING]
+          : [ModuleName.INVOICES],
         businessStatus:
           data.businesses.length >= 2
             ? BusinessStatus.MULTI_BUSINESS
@@ -405,6 +428,7 @@ export class DemoDataService {
 
     // 3. Bills + Sources — build maps for transaction enrichment.
     const billIdByKey: Record<string, number> = {};
+    const billNameByKey: Record<string, string> = {};
     const paymentIdentifierByBillKey: Record<string, string> = {};
     for (const bill of data.bills) {
       const saved = await m.save(
@@ -415,6 +439,7 @@ export class DemoDataService {
         }),
       );
       billIdByKey[bill.key] = saved.id;
+      billNameByKey[bill.key] = bill.billName;
       const firstSource = bill.sources[0];
       if (firstSource) {
         paymentIdentifierByBillKey[bill.key] = firstSource.sourceName;
@@ -445,16 +470,26 @@ export class DemoDataService {
           `Transaction at index ${i} (user ${data.email}) references unknown billKey "${t.billKey}"`,
         );
       }
+      const currency = t.currency ?? 'ILS';
+      // Hardcoded demo FX rates so seeding has zero external dependency.
+      // Real syncs go through FxRateService → BOI; the demo just needs
+      // believable values for the תזרים "₪Y" parenthesis to render.
+      const DEMO_FX_RATES: Record<string, number> = { USD: 3.7, EUR: 4.0, GBP: 4.7 };
+      const fxRate = currency === 'ILS' ? null : (DEMO_FX_RATES[currency] ?? null);
+      const ilsAmount = fxRate != null ? Number((t.amount * fxRate).toFixed(2)) : null;
       return {
         externalTransactionId: `${externalIdPrefix}-${i}`,
         userId: firebaseId,
         billId,
+        billName: billNameByKey[t.billKey] ?? null,
         businessNumber: t.businessNumberRef,
         merchantName: t.merchantName,
         paymentIdentifier: paymentIdentifierByBillKey[t.billKey] ?? null,
         transactionDate: txDate,
         amount: t.amount,
-        currency: 'ILS',
+        currency,
+        ilsAmount,
+        fxRateToIls: fxRate,
         confirmed: false,
         isRecognized: false,
         vatPercent: 0,

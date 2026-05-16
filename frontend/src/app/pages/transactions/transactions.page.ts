@@ -612,10 +612,16 @@ export class TransactionsPage implements OnInit {
         data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";
+        // Resolve "תקופת דיווח" display BEFORE transforming isRecognized to a Hebrew string,
+        // so we can still read the underlying boolean.
+        if (!data.isRecognized) {
+          data.vatReportingDate = "לא מוכר";
+        } else if (!data.vatReportingDate) {
+          data.vatReportingDate = "טרם דווח";
+        }
         data.isRecognized ? data.isRecognized = "כן" : data.isRecognized = "לא"
         data.isEquipment ? data.isEquipment = "כן" : data.isEquipment = "לא"
         data.sum = `${this.getCurrencySymbol((data as any).currency)}${this.genericService.addComma(Math.abs(Number(data.sum)))}`;
-        data.vatReportingDate ? null : data.vatReportingDate = "טרם דווח";
         data.note2 ? null : data.note2 = "--";
         const rawBusinessNumber = data.businessNumber;
         (data as IRowDataTable & { __businessNumberRaw?: string }).__businessNumberRaw =
