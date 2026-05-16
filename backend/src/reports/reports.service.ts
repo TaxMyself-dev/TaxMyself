@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Not, Repository } from 'typeorm';
 import { Expense } from '../expenses/expenses.entity';
 import { VatReportDto } from './dtos/vat-report.dto';
+import { buildVatReportPdf } from './vat-report-pdf';
 import { AdvanceIncomeTaxReportDto } from './dtos/advance-income-tax-report.dto';
 import { ExpensePnlDto, PnLReportDto } from './dtos/pnl-report.dto';
 import { DepreciationReportDto } from './dtos/reduction-report.dto';
@@ -153,6 +154,36 @@ export class ReportsService {
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Compute the VAT report for a business+period and render it as a PDF buffer.
+   * Used when a VAT report workflow is marked submitted, to snapshot the
+   * as-filed figures. Returns the PDF bytes; storage is the caller's concern.
+   */
+  async generateVatReportPdfBuffer(
+    firebaseId: string,
+    businessNumber: string,
+    startDate: Date,
+    endDate: Date,
+    submittedAt: Date = new Date(),
+  ): Promise<Buffer> {
+    const data = await this.createVatReport(
+      firebaseId,
+      businessNumber,
+      startDate,
+      endDate,
+    );
+    const business = await this.businessRepo.findOne({
+      where: { businessNumber, firebaseId },
+    });
+    return buildVatReportPdf(data, {
+      businessName: business?.businessName ?? businessNumber,
+      businessNumber,
+      periodStart: startDate,
+      periodEnd: endDate,
+      submittedAt,
+    });
   }
 
   async getAdvanceIncomeTaxReportData(

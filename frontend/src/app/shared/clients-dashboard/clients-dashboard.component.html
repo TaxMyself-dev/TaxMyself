@@ -18,6 +18,10 @@
         <div class="stat-value">{{ getUsersByStatus('נדרש תשלום') }}</div>
         <div class="stat-label">נדרש תשלום</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ getOpenBankingUsersCount() }}</div>
+        <div class="stat-label">מחוברים לבנקאות פתוחה</div>
+      </div>
     </div>
   </div>
 
@@ -25,7 +29,7 @@
     <input 
       type="text" 
       class="search-input" 
-      placeholder="חפש לפי שם, אימייל, טלפון או עיר..."
+      placeholder="חפש לפי שם, אימייל או טלפון..."
       (input)="onSearch($event)"
     />
   </div>

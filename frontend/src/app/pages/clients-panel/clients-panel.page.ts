@@ -656,6 +656,33 @@ export class ClientPanelPage implements OnInit {
     return !!task.workflowId && task.workflowStatus === ReportWorkflowStatus.REPORTED;
   }
 
+  /** האם להציג כפתור "צפה בדוח" – קיים קובץ דוח שמור */
+  canViewReportFile(task: IAccountantTask): boolean {
+    return !!task.workflowId && task.hasReportFile === true;
+  }
+
+  /** פתיחת קובץ הדוח השמור (PDF) בלשונית חדשה. */
+  openReportFile(task: IAccountantTask): void {
+    if (!task.workflowId) return;
+    this.workflowService.getReportFile(task.workflowId).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      },
+      error: (err) => {
+        const detail = err?.error?.message ?? err?.message ?? 'פתיחת הדוח נכשלה';
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail,
+          life: 4000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
   /** רואה החשבון מסמן את הדוח כדווח. אם הלקוח עדיין לא אישר – מאמת לפני העדכון. */
   markWorkflowReported(task: IAccountantTask): void {
     if (!task.workflowId) return;

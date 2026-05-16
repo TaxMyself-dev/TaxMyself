@@ -158,11 +158,13 @@ export class IncomesPage implements OnInit {
         type: 'select',
         controlName: 'docType',
         label: 'סוג מסמך',
-        options: [
-          { name: 'חשבונית מס', value: DocumentType.TAX_INVOICE },
-          { name: 'קבלה', value: DocumentType.RECEIPT },
-          { name: 'חשבונית זיכוי', value: DocumentType.CREDIT_INVOICE }
-        ]
+        // Derived from the enum so every issued document type is filterable —
+        // the hardcoded subset omitted חשבונית מס קבלה / חשבון עסקה, which made
+        // the filter return nothing for documents of those (very common) types.
+        options: Object.values(DocumentType).map((t) => ({
+          name: DocTypeDisplayName[t] ?? t,
+          value: t,
+        }))
       }
     ];
 

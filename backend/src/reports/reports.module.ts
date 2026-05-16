@@ -40,6 +40,7 @@ import { Business } from 'src/business/business.entity';
     UsersModule,
   ],
   controllers: [ReportsController],
-  providers: [ReportsService, ExpensesService, FinsiteService]
+  providers: [ReportsService, ExpensesService, FinsiteService],
+  exports: [ReportsService],
 })
 export class ReportsModule {}

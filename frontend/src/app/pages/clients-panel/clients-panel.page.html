@@ -427,6 +427,17 @@
                           <i class="pi pi-send"></i>
                         </button>
                       }
+                      @if (canViewReportFile(task)) {
+                        <button
+                          type="button"
+                          class="btn-enter-client"
+                          (click)="openReportFile(task)"
+                          title="צפה בדוח"
+                          aria-label="צפה בדוח"
+                        >
+                          <i class="pi pi-file-pdf"></i>
+                        </button>
+                      }
                       @if (canRevertReported(task)) {
                         <button
                           type="button"

@@ -8,6 +8,7 @@ import { ReportWorkflowController } from './report-workflow.controller';
 import { ReportWorkflowService } from './report-workflow.service';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AccountantTasksModule } from 'src/accountant-tasks/accountant-tasks.module';
+import { ReportsModule } from 'src/reports/reports.module';
 
 @Module({
   imports: [
@@ -15,6 +16,8 @@ import { AccountantTasksModule } from 'src/accountant-tasks/accountant-tasks.mod
     NotificationsModule,
     // For TasksGeneratorService injected into ReportWorkflowService.listForClient.
     AccountantTasksModule,
+    // For ReportsService.generateVatReportPdfBuffer used on submit.
+    ReportsModule,
   ],
   controllers: [ReportWorkflowController],
   providers: [ReportWorkflowService],

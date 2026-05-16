@@ -23,7 +23,7 @@ export class ClientsDashboardComponent implements OnInit {
     { name: 'fullName', value: 'שם מלא', type: FormTypes.TEXT },
     { name: 'email', value: 'אימייל', type: FormTypes.TEXT },
     { name: 'phone', value: 'טלפון', type: FormTypes.TEXT },
-    { name: 'city', value: 'עיר', type: FormTypes.TEXT },
+    { name: 'openBankingStatus', value: 'בנקאות פתוחה', type: FormTypes.TEXT },
     { name: 'payStatus', value: 'סטטוס תשלום', type: FormTypes.TEXT },
     { name: 'generalDocumentsCount', value: 'מסמכים (כללי)', type: FormTypes.NUMBER },
     { name: 'createdAt', value: 'תאריך רישום', type: FormTypes.DATE },
@@ -80,6 +80,7 @@ export class ClientsDashboardComponent implements OnInit {
             ...user,
             fullName: `${user.fName || ''} ${user.lName || ''}`.trim(),
             payStatus: this.getPayStatusLabel(user.payStatus),
+            openBankingStatus: user.hasOpenBanking ? 'מחובר' : 'לא מחובר',
             generalDocumentsCount:
               user.generalDocumentsCount != null ? Number(user.generalDocumentsCount) : 0,
           };
@@ -119,8 +120,7 @@ export class ClientsDashboardComponent implements OnInit {
     this.filteredUsers = this.users.filter(user =>
       user.fullName?.toLowerCase().includes(term) ||
       user.email?.toLowerCase().includes(term) ||
-      user.phone?.includes(term) ||
-      user.city?.toLowerCase().includes(term)
+      user.phone?.includes(term)
     );
   }
 
@@ -133,6 +133,13 @@ export class ClientsDashboardComponent implements OnInit {
       return 0;
     }
     return this.users.filter(u => u.payStatus === status).length;
+  }
+
+  getOpenBankingUsersCount(): number {
+    if (!this.users || this.users.length === 0) {
+      return 0;
+    }
+    return this.users.filter(u => u.hasOpenBanking).length;
   }
 
   openFeezbackDialog(row: IRowDataTable): void {

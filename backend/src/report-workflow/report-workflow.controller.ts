@@ -12,8 +12,10 @@ import {
   Body,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { ReportWorkflowService } from './report-workflow.service';
@@ -53,6 +55,26 @@ export class ReportWorkflowController {
   ) {
     const firebaseId = this.getFirebaseId(request);
     return this.service.confirm(firebaseId, this.parseId(id));
+  }
+
+  /** Stream the stored as-filed report PDF for a workflow. */
+  @Get(':id/report-file')
+  async getReportFile(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const firebaseId = this.getFirebaseId(request);
+    const { buffer, filename } = await this.service.getReportFile(
+      firebaseId,
+      this.parseId(id),
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${filename}"`,
+    );
+    res.send(buffer);
   }
 
   /**

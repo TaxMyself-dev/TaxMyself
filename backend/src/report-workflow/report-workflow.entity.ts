@@ -80,6 +80,13 @@ export class ReportWorkflow {
   @Column({ type: 'datetime', nullable: true, default: null })
   dismissedAt: Date | null;
 
+  /**
+   * Firebase Storage path of the as-filed report PDF, snapshotted when the
+   * workflow is marked submitted. Currently populated for VAT_REPORT only.
+   */
+  @Column({ type: 'varchar', length: 1024, nullable: true, default: null })
+  reportFilePath: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

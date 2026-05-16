@@ -23,6 +23,8 @@ export interface AccountantTaskRow extends AccountantTask {
   annualReportStatus?: AnnualReportStatus;
   workflowId?: number;
   workflowStatus?: ReportWorkflowStatus;
+  /** True when an as-filed report PDF was snapshotted for this workflow. */
+  hasReportFile?: boolean;
 }
 
 @Injectable()
@@ -209,7 +211,7 @@ export class AccountantTasksService {
       periodicBusinessNumbers.length > 0
         ? this.workflowRepo.find({
             where: { businessNumber: In(periodicBusinessNumbers) },
-            select: ['id', 'businessNumber', 'type', 'periodStart', 'periodEnd', 'status'],
+            select: ['id', 'businessNumber', 'type', 'periodStart', 'periodEnd', 'status', 'reportFilePath'],
           })
         : Promise.resolve([]),
     ]);
@@ -258,6 +260,7 @@ export class AccountantTasksService {
         if (workflow) {
           row.workflowId = workflow.id;
           row.workflowStatus = workflow.status;
+          row.hasReportFile = !!workflow.reportFilePath;
         }
       }
       return row;

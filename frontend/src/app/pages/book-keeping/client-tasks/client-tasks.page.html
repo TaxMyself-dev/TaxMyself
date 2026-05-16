@@ -88,6 +88,16 @@
                 <span class="task-status task-status-REPORTED">
                   {{ statusLabel(w.status) }}
                 </span>
+                @if (w.reportFilePath) {
+                  <app-p-button
+                    [buttonText]="'צפה בדוח'"
+                    [buttonColor]="ButtonColor.BLACK"
+                    [buttonSize]="ButtonSize.SMALL"
+                    [disabled]="busyId() === w.id"
+                    [isLoading]="busyId() === w.id"
+                    (onButtonClicked)="openReportFile(w)"
+                  />
+                }
                 <app-p-button
                   [buttonText]="'מחק'"
                   [buttonColor]="ButtonColor.WHITE_BORDER"
@@ -167,6 +177,16 @@
                 >
                   {{ statusLabel(w.status) }}
                 </span>
+                @if (w.reportFilePath) {
+                  <app-p-button
+                    [buttonText]="'צפה בדוח'"
+                    [buttonColor]="ButtonColor.BLACK"
+                    [buttonSize]="ButtonSize.SMALL"
+                    [disabled]="busyId() === w.id"
+                    [isLoading]="busyId() === w.id"
+                    (onButtonClicked)="openReportFile(w)"
+                  />
+                }
               </div>
             </li>
           }
