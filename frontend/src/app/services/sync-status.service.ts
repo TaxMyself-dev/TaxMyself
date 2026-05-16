@@ -145,7 +145,7 @@ export class SyncStatusService {
    */
   private pollUntilDone(
     intervalMs = 3000,
-    maxAttempts = 60,
+    maxAttempts = 40,
   ): Observable<SyncResponse | null> {
     let attemptNum = 0;
 

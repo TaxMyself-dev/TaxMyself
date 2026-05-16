@@ -46,7 +46,6 @@ export class PnLReportPage implements OnInit {
   pnlReport: IPnlReportData;
   userData: IUserData;
   displayExpenses: boolean = false;
-  isLoading: boolean = false;
   totalExpense: number = 0;
   reportingPeriodType = ReportingPeriodType;
 
@@ -67,6 +66,8 @@ export class PnLReportPage implements OnInit {
   redirectPromptVisible = signal<boolean>(false);
   /** Re-entry guard so the prompt isn't scheduled twice when close events fire. */
   private redirectPromptOpen = false;
+
+  isLoadingPDF = signal<boolean>(false);
 
   constructor(
     public pnlReportService: PnLReportService,
@@ -422,7 +423,7 @@ export class PnLReportPage implements OnInit {
 
   createPnlReportPDFfile(): void {
 
-    this.isLoading = true;
+    this.isLoadingPDF.set(true);
     let dataTable: (string | number)[][] = [];
     this.pnlReport.expenses.forEach((expense) => {
       // טבלת הוצאות לפילפאסטר: אותו פורמט כמו הכותרות (ש"ח + 2 ספרות אחרי נקודה)
@@ -451,11 +452,11 @@ export class PnLReportPage implements OnInit {
       .pipe(
         catchError((err) => {
           console.log("error in create pdf: ", err);
-          this.isLoading = false;
+          this.isLoadingPDF.set(false);
           return EMPTY;
         }),
         finalize(() =>{
-          this.isLoading = false;
+          this.isLoadingPDF.set(false);
         })
       )
       .subscribe((res) => {

@@ -85,6 +85,7 @@
           [buttonText]="'ייצא כ-PDF'"
           [buttonColor]="buttonColor.BLACK"
           [buttonSize]="buttonSize.SMALL"
+          [isLoading]="isLoadingPDF()"
           (onButtonClicked)="createPnlReportPDFfile()">
         </app-p-button>
 
