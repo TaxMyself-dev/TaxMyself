@@ -237,4 +237,52 @@ export class FeezbackConsentApiService {
       throw error;
     }
   }
+
+  /**
+   * Single bank account's transactions, reconstructed from sub + consentId +
+   * accountResourceId (same URL shape Feezback returns in
+   * `_links.transactions.href`). Mirrors getCardTransactions — lets a
+   * single-account pull skip getUserAccounts without persisting the href.
+   */
+  async getAccountTransactionsByConsent(
+    sub: string,
+    consentId: string,
+    accountResourceId: string,
+    bookingStatus: string = 'booked',
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<any> {
+    const userIdentifier = this.buildUserIdentifier(sub);
+
+    const transactionsBaseUrl =
+      `${this.getTppApiUrl()}/tpp/v1/users/${userIdentifier}` +
+      `/consents/${consentId}/accounts/${accountResourceId}/transactions`;
+
+    const url = new URL(transactionsBaseUrl);
+    url.searchParams.set('bookingStatus', bookingStatus || 'booked');
+    if (dateFrom?.trim()) url.searchParams.set('dateFrom', dateFrom);
+    if (dateTo?.trim()) url.searchParams.set('dateTo', dateTo);
+    // Always use cached data — prevents 429 "Refresh Account task is already in progress"
+    url.searchParams.set('preventUpdate', 'true');
+
+    // 429 / transient-error retry is handled centrally by FeezbackHttpClient.
+    try {
+      return await this.httpClient.get(url.toString(), { sub, timeout: 60_000 });
+    } catch (error: any) {
+      const status = error?.status ?? error?.response?.status;
+
+      if (status === 404) {
+        this.logger.warn(
+          `Bank account transactions not found (404) for sub: ${sub}, consentId: ${consentId}, accountResourceId: ${accountResourceId}.`,
+        );
+        const friendlyError = new Error('Bank account transactions not found.');
+        (friendlyError as any).status = 404;
+        throw friendlyError;
+      }
+
+      this.logger.error(`Error getting bank account transactions: ${error?.message}`, error?.stack);
+      if (error?.response?.status) (error as any).status = error.response.status;
+      throw error;
+    }
+  }
 }

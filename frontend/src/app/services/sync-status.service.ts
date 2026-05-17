@@ -104,6 +104,30 @@ export class SyncStatusService {
     );
   }
 
+  /** DEV-ONLY — Stage B: simulate the UserDataIsAvailable webhook arriving. */
+  simulateWebhook(scenario: string): Observable<{ status: string; scenario: string }> {
+    const url = `${environment.apiUrl}transactions/dev/simulate-webhook?scenario=${scenario}`;
+    return this.http.post<{ status: string; scenario: string }>(url, {}).pipe(
+      tap(res => console.log('[SyncStatus] simulateWebhook response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] simulateWebhook failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
+  /** DEV-ONLY — Stage C: simulate the manual transaction pull. */
+  simulatePull(scenario: string): Observable<{ status: string; scenario: string }> {
+    const url = `${environment.apiUrl}transactions/dev/simulate-pull?scenario=${scenario}`;
+    return this.http.post<{ status: string; scenario: string }>(url, {}).pipe(
+      tap(res => console.log('[SyncStatus] simulatePull response:', res)),
+      catchError(err => {
+        console.error('[SyncStatus] simulatePull failed:', err?.status ?? err?.message ?? err);
+        throw err;
+      }),
+    );
+  }
+
   /** DEV-ONLY — clears the simulated sync state for the current user. */
   resetSim(): Observable<{ status: string }> {
     const url = `${environment.apiUrl}transactions/dev/reset-sim`;

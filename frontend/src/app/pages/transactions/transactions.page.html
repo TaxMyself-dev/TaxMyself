@@ -44,7 +44,7 @@
       <app-generic-table [incomeMode]="true"
         [isLoadingState]="isLoadingStateTable()"
         [rowActions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
-        [columnsTitle]="fieldsNamesExpenses()" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
+        [columnsTitle]="fieldsNamesIncome()" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
         [useSyncState]="true" [processStatus]="syncProcessStatus()"
         (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig"></app-generic-table>

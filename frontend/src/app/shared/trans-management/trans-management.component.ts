@@ -156,10 +156,11 @@ export class TransManagementComponent  implements OnInit {
         finalize(() => this.isLoadingSim.set(null)),
       )
       .subscribe(() => {
-        // Open the my-account dialog with simulate=true so initFeezbackDialogFromReturnUrl
-        // bypasses the real triggerPostConsentSync and just polls the seeded state.
+        // Open my-account as if the user just returned from Feezback ("סיום").
+        // simulate=true + scenario drives the staged sim: awaiting-webhook →
+        // (15s → simulate-webhook) → prompt → (pull → simulate-pull).
         void this.router.navigate(['/my-account'], {
-          queryParams: { feezbackStatus: 'success', simulate: 'true' },
+          queryParams: { feezbackStatus: 'success', simulate: 'true', scenario },
         });
       });
   }

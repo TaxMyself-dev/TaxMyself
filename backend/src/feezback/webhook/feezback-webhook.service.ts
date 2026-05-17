@@ -153,23 +153,21 @@ export class FeezbackWebhookService {
       return;
     }
 
-    // UserDataIsAvailable is Feezback's signal that data is ready. The
-    // post-consent endpoint (POST /transactions/post-consent-sync) does NOT
-    // trigger sync itself — it only refreshes Source rows and reports a
-    // 'pending' / 'completed' status to the frontend. So this webhook is the
-    // SOLE sync trigger after a consent flow.
+    // UserDataIsAvailable is Feezback's signal that data is ready. We only
+    // refresh Source rows here (discover accounts/cards + grant OPEN_BANKING /
+    // hasOpenBanking) so the UI shows the user as connected. We deliberately do
+    // NOT trigger a transaction sync from the webhook: the post-consent dialog
+    // shows the user a "למשיכת התנועות לחץ כאן" button, and the actual pull is
+    // user-initiated via POST /transactions/trigger-sync. This avoids pulling a
+    // year of transactions before the user has asked for them.
     //
     // Safety:
-    //   - The atomic DB lock (markSyncRunning) prevents racing with a
-    //     concurrent login sync (e.g. on a multi-replica deployment); if the
-    //     lock is held, triggerFullSync skips cleanly.
     //   - Webhook controller ACKs immediately and runs this async — webhook
     //     latency to Feezback isn't affected.
     //   - All errors are swallowed so the controller still responds 200 and
     //     Feezback doesn't retry (we already persisted the event for audit).
     try {
       await this.feezbackService.refreshUserSources(firebaseId, 'UserDataIsAvailable');
-      await this.feezbackService.triggerFullSync(firebaseId, 'webhook');
     } catch (error: any) {
       this.logger.error(
         `[FeezbackWebhook][UserDataIsAvailable] handler failed firebaseId=${masked}: ${error?.message}`,

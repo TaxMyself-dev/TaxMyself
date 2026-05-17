@@ -12,6 +12,12 @@ export interface TransactionColumnOptions {
   isOnlyEmployer: boolean;
   /** My Account — unclassified table: slimmer columns (no category, business, month report, etc.). */
   myAccountUnclassified?: boolean;
+  /**
+   * Income table: hide the "תקופת דיווח" (MONTH_REPORT) column. The
+   * report-period stamp is an expense concept (VAT/PnL filing of expenses);
+   * income rows don't carry it, so the column would always be empty there.
+   */
+  incomeTable?: boolean;
 }
 
 /**
@@ -65,6 +71,10 @@ export function buildTransactionColumns(
       TransactionsOutcomesColumns.BUSINESS_NUMBER,
     ]);
     cols = cols.filter(c => !omit.has(c.name));
+  }
+
+  if (options.incomeTable) {
+    cols = cols.filter(c => c.name !== TransactionsOutcomesColumns.MONTH_REPORT);
   }
 
   return cols;
