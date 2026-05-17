@@ -1160,26 +1160,31 @@ export class TransactionsService {
   }
 
   /**
-   * כל אמצעי תשלום של המשתמש מטבלת `source`.
-   * אין FK ל־bill → billName null (בפרונט: «לא משויך»). אחרת → שם החשבון מטבלת החשבונות דרך הקשר `bill`.
-   * hasConsent מבוסס על user_source_sync_state.consentId — non-null = חיבור פעיל
-   * (revoke/expire מאפס את consentId דרך clearConsentOnSources).
+   * Sources list for the settings page. Driven by user_source_sync_state
+   * (refreshed on every discovery → reflects currently-connected accounts).
+   * billName is joined from `source` (sourceName == sourceId); no Bill link →
+   * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
+   * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
    */
   async getSourcesWithTypes(
     userId: string,
   ): Promise<{ sourceName: string; sourceType: SourceType; billName: string | null; hasConsent: boolean }[]> {
-    const [rows, syncStates] = await Promise.all([
-      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
+    // The list is driven by user_source_sync_state — it's refreshed on every
+    // discovery (getUserAccounts) so it reflects the currently-connected
+    // accounts + their consent validity. `source` is consulted only for the
+    // Bill mapping (billName), joined by sourceName == sourceId.
+    const [syncStates, sourceRows] = await Promise.all([
       this.userSourceSyncStateRepo.find({ where: { userId } }),
+      this.sourceRepo.find({ where: { userId }, relations: ['bill'] }),
     ]);
-    const consentBySourceId = new Map(
-      syncStates.map((s) => [s.sourceId, !!s.consentId]),
+    const billBySourceName = new Map(
+      sourceRows.map((r) => [r.sourceName, r.bill?.billName ?? null]),
     );
-    return rows.map((r) => ({
-      sourceName: r.sourceName,
-      sourceType: r.sourceType,
-      billName: r.bill?.billName ?? null,
-      hasConsent: consentBySourceId.get(r.sourceName) ?? false,
+    return syncStates.map((s) => ({
+      sourceName: s.sourceId,
+      sourceType: s.type === 'card' ? SourceType.CREDIT_CARD : SourceType.BANK_ACCOUNT,
+      billName: billBySourceName.get(s.sourceId) ?? null,
+      hasConsent: !!s.consentId,
     }));
   }
 

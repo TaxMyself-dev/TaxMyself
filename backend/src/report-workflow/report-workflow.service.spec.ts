@@ -148,14 +148,15 @@ describe('ReportWorkflowService – transaction lock trigger', () => {
       );
       // Ensures we filter to VAT-eligible rows only.
       expect(slimRepo.qb.andWhere).toHaveBeenCalledWith('slim.vatPercent > 0');
-      // Ensures we never re-lock rows that already carry a label.
-      expect(slimRepo.qb.andWhere).toHaveBeenCalledWith('slim.vatReportingDate IS NULL');
+      // Ensures we never re-lock rows that are already locked.
+      expect(slimRepo.qb.andWhere).toHaveBeenCalledWith('slim.isLocked = FALSE');
       expect(slimRepo.update).toHaveBeenCalledTimes(1);
       const [filter, patch] = slimRepo.update.mock.calls[0];
       expect(filter.userId).toBe('client-uid');
       // Repository.In() builds a FindOperator — verify the embedded value.
       expect(filter.externalTransactionId._value).toEqual(['ext-1', 'ext-2']);
-      expect(patch).toEqual({ vatReportingDate: '3/2024' });
+      // Lock stamps the period label AND flips the dedicated isLocked flag.
+      expect(patch).toEqual({ vatReportingDate: '3/2024', isLocked: true });
     });
 
     it('is a no-op for ADVANCE_TAX workflows', async () => {
@@ -198,7 +199,7 @@ describe('ReportWorkflowService – transaction lock trigger', () => {
   });
 
   describe('unlockTransactionsIfApplicable', () => {
-    it('clears vatReportingDate scoped to the workflow period label', async () => {
+    it('clears the isLocked flag scoped to the workflow period label', async () => {
       const { service, slimRepo } = buildService({ periodLabel: '3/2024' });
 
       await (service as any).unlockTransactionsIfApplicable(makeWorkflow());
@@ -210,7 +211,9 @@ describe('ReportWorkflowService – transaction lock trigger', () => {
         businessNumber: '999',
         vatReportingDate: '3/2024',
       });
-      expect(patch).toEqual({ vatReportingDate: null });
+      // Unlock only flips isLocked off — vatReportingDate stays as the period
+      // stamp so the period still renders in the תזרים table.
+      expect(patch).toEqual({ isLocked: false });
     });
 
     it('is a no-op for ADVANCE_TAX workflows', async () => {

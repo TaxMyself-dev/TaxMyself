@@ -151,7 +151,7 @@ export class TransactionsPage implements OnInit {
   );
 
   fieldsNamesIncome = computed<IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[]>(() =>
-    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer() })
+    buildTransactionColumns({ businessStatus: this.businessStatus(), isOnlyEmployer: this.isOnlyEmployer(), incomeTable: true })
   );
 
 

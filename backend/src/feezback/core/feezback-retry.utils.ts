@@ -29,11 +29,16 @@
  * anything else          │  NO     │ Conservative default
  */
 
+// Transport-level retry for transient Feezback conditions (429/5xx + network
+// faults; see RETRYABLE_STATUS_CODES). 2 retries = up to 3 attempts per call,
+// with exponential backoff + jitter. Important for the per-account sync model,
+// where many account calls fire and a brief 429/503 shouldn't fail a source.
+// Non-retryable codes (400/401/403/404/...) still fail immediately.
 export const FEEZBACK_RETRY = {
-  maxRetries: 0,
-  baseDelayMs: 10,
-  maxDelayMs: 10,
-  jitterMs: 0,
+  maxRetries: 2,
+  baseDelayMs: 500,
+  maxDelayMs: 4000,
+  jitterMs: 250,
 } as const;
 
 // ── Internal status-code sets ──────────────────────────────────────────────────

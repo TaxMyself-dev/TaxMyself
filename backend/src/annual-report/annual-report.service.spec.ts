@@ -128,7 +128,7 @@ describe('AnnualReportService – transaction lock trigger', () => {
       const [filter, patch] = slimRepo.update.mock.calls[0];
       expect(filter.userId).toBe('client-uid');
       expect(filter.externalTransactionId._value).toEqual(['ext-1', 'ext-2']);
-      expect(patch).toEqual({ vatReportingDate: '2024' });
+      expect(patch).toEqual({ vatReportingDate: '2024', isLocked: true });
     });
 
     it('locks ALL transactions (no vatPercent filter) when business is EXEMPT', async () => {
@@ -141,7 +141,7 @@ describe('AnnualReportService – transaction lock trigger', () => {
 
       expect(slimRepo.qb.andWhere).not.toHaveBeenCalledWith('slim.vatPercent = 0');
       const [, patch] = slimRepo.update.mock.calls[0];
-      expect(patch).toEqual({ vatReportingDate: '2024' });
+      expect(patch).toEqual({ vatReportingDate: '2024', isLocked: true });
     });
 
     it('filters by tax year boundaries on the cache date column', async () => {
@@ -177,7 +177,7 @@ describe('AnnualReportService – transaction lock trigger', () => {
   });
 
   describe('unlockAnnualTransactions', () => {
-    it('clears vatReportingDate scoped to the tax year label', async () => {
+    it('clears the isLocked flag scoped to the tax year label', async () => {
       const { service, slimRepo } = buildService();
 
       await (service as any).unlockAnnualTransactions(makeReport({ taxYear: 2024 }));
@@ -189,7 +189,8 @@ describe('AnnualReportService – transaction lock trigger', () => {
         businessNumber: '999',
         vatReportingDate: '2024',
       });
-      expect(patch).toEqual({ vatReportingDate: null });
+      // Unlock only flips isLocked off — the year stamp stays put.
+      expect(patch).toEqual({ isLocked: false });
     });
   });
 });
