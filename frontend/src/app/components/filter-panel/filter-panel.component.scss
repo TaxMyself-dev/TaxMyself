@@ -77,6 +77,22 @@
   width: 98%;
   display: flex;
   justify-content: end;
+
+  // Nudge the "סנן" button larger than the shared AUTO size.
+  // ::ng-deep reaches the PrimeNG button inside <app-p-button>; scoped to
+  // .apply-filters-button so nothing else is affected. PrimeNG v19 puts
+  // the text-variant font-size on the label span via layered/token styles,
+  // so we override both the button and its label with !important to beat
+  // the @layer primeng rules.
+  ::ng-deep .p-button {
+    padding: 0.55rem 1.5rem !important;
+
+    .p-button-label,
+    &.p-button-label {
+      font-size: 1.15rem !important;
+      font-weight: 600 !important;
+    }
+  }
 }
 
 // ─── Mobile layout ────────────────────────────────────────────────────────────

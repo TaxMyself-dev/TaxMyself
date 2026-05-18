@@ -1,4 +1,5 @@
-import { Body, Controller, ForbiddenException, Get, Logger, Param, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger, Param, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
+import type { SourceResult } from '../transactions/user-source-sync-state.entity';
 import { FeezbackService } from './feezback.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
@@ -277,6 +278,45 @@ export class FeezbackController {
 
     await this.feezbackService.refreshUserSources(targetFirebaseId, 'admin');
     return { status: 'ok' };
+  }
+
+  /**
+   * Admin: pull transactions for ONE specific source (bank account / card) of
+   * a client. Reuses retrySource (bank → pullOneSource, card → card fetch) and
+   * its success-side gate promotion. If the per-source row hasn't been
+   * discovered yet, run discovery once and retry — so the admin can pull
+   * straight from the "הצגת חשבונות" dialog without a separate refresh step.
+   */
+  @Post('admin/pull-source/:firebaseId')
+  @UseGuards(FirebaseAuthGuard)
+  async adminPullSource(
+    @Req() req: AuthenticatedRequest,
+    @Param('firebaseId') targetFirebaseId: string,
+    @Body() body: { type: 'bank' | 'card'; sourceId: string },
+  ): Promise<SourceResult> {
+    const adminFirebaseId = req.user?.firebaseId;
+    const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
+    if (!isAdmin) throw new ForbiddenException('Admin access required');
+    if (!targetFirebaseId) throw new ForbiddenException('firebaseId path parameter is required');
+    if (!body?.type || !body?.sourceId) throw new BadRequestException('type and sourceId are required');
+
+    const targetMask = `${targetFirebaseId.substring(0, 8)}...`;
+    // pullOneSource/retrySource fail with these when discovery hasn't populated
+    // the per-source row yet (no consentId/resourceId stored).
+    const NEEDS_DISCOVERY = /run discovery|not found in DB|not found in user_source_sync_state|no consentId|no resourceId/i;
+
+    let result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
+    if (result.status === 'failed' && result.error && NEEDS_DISCOVERY.test(result.error)) {
+      this.logger.log(
+        `[Admin][PullSource] source not discovered — running discovery then retrying | target=${targetMask} | sourceId=${body.sourceId}`,
+      );
+      await this.feezbackService.refreshUserSources(targetFirebaseId, 'admin');
+      result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
+    }
+    this.logger.log(
+      `[Admin][PullSource] Done | target=${targetMask} | type=${body.type} | sourceId=${body.sourceId} | status=${result.status} | count=${result.transactionCount}`,
+    );
+    return result;
   }
 
   /**

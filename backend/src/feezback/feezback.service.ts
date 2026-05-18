@@ -2109,6 +2109,15 @@ export class FeezbackService {
    * getUserAccounts — discovery is the only place that refreshes the stored
    * href/consentId. Uses the full one-year sync window.
    */
+  /** Human-readable label for sync logs: "First Last" or masked firebaseId. */
+  private async resolveUserLabel(firebaseId: string): Promise<string> {
+    const masked = firebaseId?.length >= 8 ? firebaseId.substring(0, 8) + '...' : (firebaseId ?? '?');
+    const user = await this.userRepository
+      .findOne({ where: { firebaseId }, select: ['fName', 'lName'] })
+      .catch(() => null);
+    return [user?.fName, user?.lName].filter(Boolean).join(' ') || masked;
+  }
+
   async pullOneSource(
     firebaseId: string,
     type: 'bank' | 'card',
@@ -2121,6 +2130,8 @@ export class FeezbackService {
     if (type === 'card') {
       return this.retrySource(firebaseId, 'card', sourceId);
     }
+
+    const userName = await this.resolveUserLabel(firebaseId);
 
     const rows = await this.userSyncStateService.getSourceResults(firebaseId);
     const row = rows.find(r => r.sourceId === sourceId && r.type === 'bank');
@@ -2135,7 +2146,7 @@ export class FeezbackService {
     if (!row.consentId) return fail('no consentId stored — run discovery (getUserAccounts) first');
     if (!row.resourceId) return fail('no resourceId stored — run discovery (getUserAccounts) first');
 
-    console.log(`\n[PullOneSource] Bank | sourceId=${sourceId} | dates=${dateFrom}→${dateTo}`);
+    console.log(`\n[PullOneSource] Bank | user=${userName} | sourceId=${sourceId} | dates=${dateFrom}→${dateTo}`);
     try {
       // Reconstruct the per-account URL from sub + consentId + resourceId
       // (same shape Feezback returns in _links.transactions.href; mirrors how
@@ -2173,10 +2184,10 @@ export class FeezbackService {
         transactionCount: normalized.length,
       };
       await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
-      console.log(`  ✓ Bank ${sourceId} — success | count=${normalized.length}`);
+      console.log(`  ✓ Bank ${sourceId} (${userName}) — success | count=${normalized.length}`);
       return result;
     } catch (err: any) {
-      console.log(`  ✗ Bank ${sourceId} — failed | error=${err?.message ?? err}`);
+      console.log(`  ✗ Bank ${sourceId} (${userName}) — failed | error=${err?.message ?? err}`);
       return fail(err?.message ?? 'unknown');
     }
   }
@@ -2194,6 +2205,7 @@ export class FeezbackService {
     const { from: dateFrom, to: dateTo } = this.getSyncWindow();
 
     if (type === 'card') {
+      const userName = await this.resolveUserLabel(firebaseId);
       const dbSources = await this.userSyncStateService.getSourceResults(firebaseId);
       const dbSource = dbSources.find(s => s.sourceId === sourceId && s.type === 'card');
       const cardResourceId = dbSource?.resourceId;
@@ -2203,7 +2215,7 @@ export class FeezbackService {
         return result;
       }
 
-      console.log(`\n[RetrySource] Card | sourceId=${sourceId} | resourceId=${cardResourceId} | dates=${dateFrom}→${dateTo}`);
+      console.log(`\n[RetrySource] Card | user=${userName} | sourceId=${sourceId} | resourceId=${cardResourceId} | dates=${dateFrom}→${dateTo}`);
       try {
         const cardRes = await this.getAndSaveUserCardTransactionsInternal(
           firebaseId, sub, 'booked', dateFrom, dateTo, cardResourceId,
@@ -2215,7 +2227,7 @@ export class FeezbackService {
           ? { type: 'card', sourceId, resourceId: cardResourceId, status: 'success', transactionCount: succeeded.transactions?.length ?? 0 }
           : { type: 'card', sourceId, resourceId: cardResourceId, status: 'failed', transactionCount: 0, error: failed?.message };
 
-        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} — ${result.status} | count=${result.transactionCount}`);
+        console.log(`  ${result.status === 'success' ? '✓' : '✗'} Card *${sourceId} (${userName}) — ${result.status} | count=${result.transactionCount}`);
 
         if (result.status === 'success' && cardRes.normalizedTransactions?.length > 0) {
           await this.processingService.process(firebaseId, cardRes.normalizedTransactions);

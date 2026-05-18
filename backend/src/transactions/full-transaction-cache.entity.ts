@@ -35,7 +35,10 @@ export class FullTransactionCache {
   @Column({ type: 'varchar' })
   merchantName: string;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
+  // TEXT (not varchar/255): Feezback card transactionDetails / bank
+  // remittanceInformationUnstructured can exceed 255 chars. MySQL TEXT
+  // columns cannot have an explicit DEFAULT, so only `nullable` is set.
+  @Column({ type: 'text', nullable: true })
   note: string | null;
 
   @Column('date')

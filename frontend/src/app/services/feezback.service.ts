@@ -54,4 +54,27 @@ export class FeezbackService {
       {},
     );
   }
+
+  /**
+   * Admin: pull transactions for one specific source (bank account / card) of
+   * a client. Returns the per-source result (status + transactionCount/error).
+   */
+  adminPullSource(
+    firebaseId: string,
+    type: 'bank' | 'card',
+    sourceId: string,
+  ): Observable<AdminPullSourceResult> {
+    return this.http.post<AdminPullSourceResult>(
+      `${environment.apiUrl}feezback/admin/pull-source/${firebaseId}`,
+      { type, sourceId },
+    );
+  }
+}
+
+export interface AdminPullSourceResult {
+  type: 'bank' | 'card';
+  sourceId: string;
+  status: 'not_synced' | 'success' | 'failed';
+  transactionCount: number;
+  error?: string;
 }
