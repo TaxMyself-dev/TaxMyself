@@ -67,7 +67,10 @@
             <i [class]="src.type === 'bank' ? 'pi pi-building' : 'pi pi-credit-card'" style="font-size: 1.1rem; color: #475569;"></i>
             <span style="font-weight: 600; min-width: 90px; font-family: monospace;">{{ src.paymentIdentifier }}</span>
             <span style="color: #6b7280; min-width: 50px;">{{ src.type === 'bank' ? 'בנק' : 'אשראי' }}</span>
-            <span [style.color]="consentStatusColor(src.consentStatus)" style="font-weight: 500;">{{ src.consentStatus }}</span>
+            <i [class]="src.consentStatus === 'valid' ? 'pi pi-check-circle' : 'pi pi-times-circle'"
+               [style.color]="consentStatusColor(src.consentStatus)"
+               [title]="src.consentStatus"
+               style="font-size: 1.1rem;"></i>
             <span *ngIf="src.ownerName" style="color: #6b7280; flex: 1; text-align: start;">{{ src.ownerName }}</span>
             <span *ngIf="!src.ownerName" style="flex: 1;"></span>
 
@@ -86,6 +89,10 @@
               [disabled]="pullingSourceKey() !== null && pullingSourceKey() !== sourceKey(src)"
               (onButtonClicked)="onPullSource(src)">
             </app-p-button>
+          </div>
+
+          <div style="margin-top: 4px; font-size: 11px; color: #6b7280; font-family: monospace; direction: ltr; text-align: left; word-break: break-all;">
+            consentId: {{ src.consentId ?? '—' }}&nbsp; | &nbsp;resourceId: {{ src.resourceId ?? '—' }}
           </div>
 
           <pre *ngIf="pullResultByKey()[sourceKey(src)] as res"

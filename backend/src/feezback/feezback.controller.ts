@@ -283,9 +283,12 @@ export class FeezbackController {
   /**
    * Admin: pull transactions for ONE specific source (bank account / card) of
    * a client. Reuses retrySource (bank → pullOneSource, card → card fetch) and
-   * its success-side gate promotion. If the per-source row hasn't been
-   * discovered yet, run discovery once and retry — so the admin can pull
-   * straight from the "הצגת חשבונות" dialog without a separate refresh step.
+   * its success-side gate promotion.
+   *
+   * No discovery/refresh fallback: in practice the consentId/resourceId are
+   * already in user_source_sync_state. If they aren't, retrySource returns a
+   * clear "no valid ID" failure and we surface it as-is — the admin can run
+   * "רענון מקורות" explicitly rather than this endpoint doing it implicitly.
    */
   @Post('admin/pull-source/:firebaseId')
   @UseGuards(FirebaseAuthGuard)
@@ -301,18 +304,7 @@ export class FeezbackController {
     if (!body?.type || !body?.sourceId) throw new BadRequestException('type and sourceId are required');
 
     const targetMask = `${targetFirebaseId.substring(0, 8)}...`;
-    // pullOneSource/retrySource fail with these when discovery hasn't populated
-    // the per-source row yet (no consentId/resourceId stored).
-    const NEEDS_DISCOVERY = /run discovery|not found in DB|not found in user_source_sync_state|no consentId|no resourceId/i;
-
-    let result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
-    if (result.status === 'failed' && result.error && NEEDS_DISCOVERY.test(result.error)) {
-      this.logger.log(
-        `[Admin][PullSource] source not discovered — running discovery then retrying | target=${targetMask} | sourceId=${body.sourceId}`,
-      );
-      await this.feezbackService.refreshUserSources(targetFirebaseId, 'admin');
-      result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
-    }
+    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
     this.logger.log(
       `[Admin][PullSource] Done | target=${targetMask} | type=${body.type} | sourceId=${body.sourceId} | status=${result.status} | count=${result.transactionCount}`,
     );

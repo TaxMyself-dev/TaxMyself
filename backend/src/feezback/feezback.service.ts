@@ -272,13 +272,19 @@ export class FeezbackService {
     if (moduleAccessUpdated) console.log(`  ✓ Module access enabled`);
     console.log(`════════════════════════════════════\n`);
 
-    void this.prePopulateSourceResults(firebaseId, accounts, cards)
+    // Awaited (not fire-and-forget): callers that await refreshUserSources —
+    // notably the admin pull-source self-heal — read user_source_sync_state
+    // immediately after. If this stayed `void`, refreshUserSources would
+    // resolve before resourceId/consentId are written, and the follow-up
+    // retrySource would wrongly see "resourceId not found in DB" (a race).
+    // .catch keeps a write failure non-fatal, same as before.
+    await this.prePopulateSourceResults(firebaseId, accounts, cards)
       .catch(err => this.logger.warn(`${prefix} prePopulateSourceResults failed | ${err?.message}`));
 
     // Stamp the freshness marker — at least one of bank/card succeeded, so the
     // login path can trust the Source rows for the next 24h.
     if (!bankError || !cardError) {
-      void this.userSyncStateService.markSourcesRefreshed(firebaseId)
+      await this.userSyncStateService.markSourcesRefreshed(firebaseId)
         .catch(err => this.logger.warn(`${prefix} markSourcesRefreshed failed | ${err?.message}`));
     }
   }
@@ -2210,7 +2216,15 @@ export class FeezbackService {
       const dbSource = dbSources.find(s => s.sourceId === sourceId && s.type === 'card');
       const cardResourceId = dbSource?.resourceId;
       if (!cardResourceId) {
-        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error: 'resourceId not found in DB' };
+        // Disambiguate the failure so the cause is unmistakable in logs/JSON:
+        //  - no row at all for this sourceId (sourceId mismatch or never discovered)
+        //  - row exists but resourceId is still null (discovery hasn't filled it)
+        const knownCardIds = dbSources.filter(s => s.type === 'card').map(s => s.sourceId);
+        const error = !dbSource
+          ? `no card row for sourceId='${sourceId}' (known card sourceIds: [${knownCardIds.join(', ')}]) — sourceId mismatch or not discovered`
+          : `card row exists for sourceId='${sourceId}' but resourceId is null — discovery has not populated it yet`;
+        console.log(`  ✗ Card *${sourceId} (${userName}) — failed | ${error}`);
+        const result: SourceResult = { type: 'card', sourceId, status: 'failed', transactionCount: 0, error };
         await this.userSyncStateService.updateSourceResults(firebaseId, [result]).catch(() => {});
         return result;
       }

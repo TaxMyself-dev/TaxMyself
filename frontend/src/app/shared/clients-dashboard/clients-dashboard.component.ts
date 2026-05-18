@@ -13,6 +13,8 @@ interface AdminSourceRow {
   consentStatus: string;
   ownerName: string | null;
   product: string | null;
+  consentId: string | null;
+  resourceId: string | null;
 }
 
 @Component({
@@ -83,6 +85,8 @@ export class ClientsDashboardComponent implements OnInit {
         consentStatus: acc?.consentStatus ?? '—',
         ownerName: acc?.ownerName ?? acc?.name ?? null,
         product: acc?.product ?? null,
+        consentId: acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? null,
+        resourceId: acc?.resourceId ?? null,
       });
     }
     const cards = data.cards?.cards ?? [];
@@ -96,6 +100,8 @@ export class ClientsDashboardComponent implements OnInit {
         consentStatus: card?.consentStatus ?? '—',
         ownerName: card?.ownerName ?? card?.name ?? null,
         product: card?.product ?? null,
+        consentId: card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? null,
+        resourceId: card?.resourceId ?? null,
       });
     }
     return rows;
