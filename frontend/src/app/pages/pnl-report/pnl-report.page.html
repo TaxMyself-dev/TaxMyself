@@ -7,7 +7,7 @@
   [modal]="true"
   [closable]="true"
   [draggable]="false"
-  [style]="{ width: '440px' }">
+  [style]="{ width: '370px' }">
   <div class="redirect-prompt-body">
     <i class="pi pi-exclamation-triangle redirect-prompt-icon"></i>
     <span>יש לך {{ arrayLength() }} הוצאות שעוד לא אושרו. עליך לאשרן לפני הפקת דו"ח רווח והפסד.</span>
@@ -16,13 +16,13 @@
     <app-p-button
       buttonText="ביטול"
       [buttonColor]="buttonColor.WHITE_BORDER"
-      [buttonSize]="buttonSize.BETWEEN"
+      [buttonSize]="buttonSize.SMALL"
       (onButtonClicked)="onRedirectPromptCancel()">
     </app-p-button>
     <app-p-button
       buttonText="מעבר לאישור הוצאות"
       [buttonColor]="buttonColor.BLACK"
-      [buttonSize]="buttonSize.BETWEEN"
+      [buttonSize]="buttonSize.AUTO"
       (onButtonClicked)="onRedirectPromptAccept()">
     </app-p-button>
   </ng-template>
