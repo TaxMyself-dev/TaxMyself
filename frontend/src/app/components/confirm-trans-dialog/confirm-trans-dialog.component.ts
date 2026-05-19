@@ -4,7 +4,7 @@ import { catchError, EMPTY, map, tap } from 'rxjs';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IRowDataTable, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import { GenericTableComponent } from "../generic-table/generic-table.component";
 import { AsyncPipe, NgStyle } from '@angular/common';
 import { ICellRenderer, TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns } from 'src/app/shared/enums';
@@ -42,6 +42,29 @@ export class ConfirmTransDialogComponent implements OnInit {
 
   buttonColor = ButtonColor;
   buttonSize = ButtonSize;
+
+  readonly isMobile = computed(() => this.genericService.isMobile());
+
+  readonly footerButtonSize = computed(() =>
+    this.isMobile() ? ButtonSize.SMALL : ButtonSize.BETWEEN
+  );
+
+  readonly dialogStyle = computed(() => ({
+    width: this.isMobile() ? '95vw' : '90vw',
+    height: '90dvh',
+    'max-height': '90dvh',
+  }));
+
+  readonly mobileCardConfig: IMobileCardConfig = {
+    primaryFields: [TransactionsOutcomesColumns.NAME],
+    highlightedField: TransactionsOutcomesColumns.SUM,
+    dateField: TransactionsOutcomesColumns.BILL_DATE,
+    hiddenFields: [
+      TransactionsOutcomesColumns.TOTAL_VAT,
+      TransactionsOutcomesColumns.TOTAL_TAX,
+      TransactionsOutcomesColumns.MONTH_REPORT,
+    ],
+  };
 
     fieldsNamesExpenses: IColumnDataTable<TransactionsOutcomesColumns, TransactionsOutcomesHebrewColumns>[] = [
       { name: TransactionsOutcomesColumns.NAME, value: TransactionsOutcomesHebrewColumns.name},
