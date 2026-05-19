@@ -196,6 +196,9 @@ export class ClassifyTranComponent implements OnInit {
       businessNumber: raw.businessNumber ?? null,
     };
 
+    // Report scope comes from the chosen subcategory (P&L vs annual-only).
+    const reportScope = this.selectedSubCategory()?.reportScope ?? 'pnl';
+
     if (isSingle) {
       Object.assign(formData, {
         isRecognized: !!raw.isRecognized,
@@ -204,6 +207,7 @@ export class ClassifyTranComponent implements OnInit {
         isEquipment: !!raw.isEquipment,
         reductionPercent: +(raw.reductionPercent ?? 0),
         isExpense: !!raw.isExpense,
+        reportScope,
       });
     } else {
       Object.assign(formData, {
@@ -219,6 +223,7 @@ export class ClassifyTranComponent implements OnInit {
         isEquipment: !!raw.isEquipment,
         reductionPercent: +(raw.reductionPercent ?? 0),
         isExpense: !!raw.isExpense,
+        reportScope,
       });
     }
 

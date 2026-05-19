@@ -67,7 +67,9 @@ export enum ExpenseFormHebrewColumns {
   reductionPercent = 'פחת',
   checkbox = 'בחר',
   actions = 'פעולות',
-  businessNumber = 'שייך לעסק'
+  businessNumber = 'שייך לעסק',
+  reportScope = 'סוג דוח',
+  pnlCategory = 'קטגוריה לדוח רווח והפסד'
 
 }
 
@@ -90,7 +92,9 @@ export enum ExpenseFormColumns {
   REDUCTION_PERCENT = 'reductionPercent',
   LOADING_DATE = 'loadingDate',
   ACTIONS = 'actions',
-  CHECKBOX = 'checkbox'
+  CHECKBOX = 'checkbox',
+  REPORT_SCOPE = 'reportScope',
+  PNL_CATEGORY = 'pnlCategory'
 }
 
 export enum ClientsTableColumns {

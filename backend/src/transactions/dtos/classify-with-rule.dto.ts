@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -9,6 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { ExpenseReportScope } from 'src/enum';
 
 /**
  * DTO for classifyWithRule() — rule-based classification.
@@ -54,6 +56,11 @@ export class ClassifyWithRuleDto {
 
   @IsBoolean()
   isRecognized: boolean;
+
+  /** P&L vs annual-report-only scope, taken from the chosen subcategory. */
+  @IsOptional()
+  @IsEnum(ExpenseReportScope)
+  reportScope?: ExpenseReportScope;
 
   // -- Rule metadata --
 

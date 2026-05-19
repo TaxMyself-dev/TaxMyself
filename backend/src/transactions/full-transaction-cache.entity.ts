@@ -4,7 +4,7 @@ import {
   PrimaryGeneratedColumn,
   Index,
 } from 'typeorm';
-import { ReportPeriodLabel } from 'src/enum';
+import { ReportPeriodLabel, ExpenseReportScope } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
 @Entity('full_transactions_cache')
@@ -112,4 +112,8 @@ export class FullTransactionCache {
     default: null,
   })
   classificationType: ClassificationType | null;
+
+  /** Mirror of the slim/rule report scope — surfaced for the read path. */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
 }

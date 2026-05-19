@@ -1,4 +1,4 @@
-import { ExpenseNecessity } from 'src/enum';
+import { ExpenseNecessity, ExpenseReportScope } from 'src/enum';
 import {
     Entity,
     Column,
@@ -64,6 +64,10 @@ export class ClassifiedTransactions {
 
   @Column()
   reductionPercent: number;
+
+  /** Carried onto slim/cache/Expense so rule-classified txs get the right scope. */
+  @Column({ type: 'enum', enum: ExpenseReportScope, default: ExpenseReportScope.PNL })
+  reportScope: ExpenseReportScope;
 
   @Column({ type: 'date', nullable: true, default: null })
   startDate: Date | null;

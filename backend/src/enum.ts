@@ -222,6 +222,17 @@ export enum ExpenseNecessity {
   OPTIONAL = 'OPTIONAL', // רשות (למשל: בילויים, מותרות)
 }
 
+/**
+ * Whether an expense participates in the P&L (רווח והפסד) report or is
+ * relevant only to the annual report (e.g. תרומות מוכרות, מקדמות מס הכנסה,
+ * מקדמות ביטוח לאומי). ANNUAL items are excluded from P&L totals and shown
+ * in a separate bookkeeping section. Extensible — more scopes may be added.
+ */
+export enum ExpenseReportScope {
+  PNL = 'pnl',       // רווח והפסד (ברירת מחדל)
+  ANNUAL = 'annual', // דוח שנתי בלבד
+}
+
 
 // ************ Uniform file ************ // 
 

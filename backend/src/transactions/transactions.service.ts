@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import * as XLSX from 'xlsx';
 import { Express } from 'express';
-import { SourceType, VATReportingType, BusinessType } from 'src/enum';
+import { SourceType, VATReportingType, BusinessType, ExpenseReportScope } from 'src/enum';
 
 //Entities
 // TODO_FINTAX_REMOVE_LEGACY_TRANSACTIONS: import kept while legacy flows (file upload, Finsite ingest, classifyTransaction, quickClassify, report reads) still write/read the transactions table.
@@ -1679,6 +1679,11 @@ export class TransactionsService {
       expense.reductionPercent = row.reductionPercent;
       expense.businessNumber = row.businessNumber;
       expense.vatReportingDate = (slim?.vatReportingDate ?? row.vatReportingDate ?? null) as any;
+      // Snapshot the report scope (slim wins, then cache, default PNL).
+      // pnlCategory is intentionally NOT set here — it stays NULL and is
+      // resolved live from the subcategory (with an optional per-expense
+      // override set later via the Edit dialog).
+      expense.reportScope = slim?.reportScope ?? row.reportScope ?? ExpenseReportScope.PNL;
 
       const vatRate = this.sharedService.getVatRateByYear(new Date(expense.date));
       expense.totalVatPayable = (expense.sum / (1 + vatRate)) * vatRate * (expense.vatPercent / 100);
@@ -1721,6 +1726,7 @@ export class TransactionsService {
           reductionPercent: r.reductionPercent,
           isEquipment: r.isEquipment,
           isRecognized: r.isRecognized,
+          reportScope: r.reportScope,
           businessNumber: r.businessNumber,
           confirmed: true,
           // Prefer the period label already on the slim row (set at classify).

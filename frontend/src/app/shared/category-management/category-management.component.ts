@@ -17,6 +17,16 @@ const NECESSITY_OPTIONS = [
   { label: 'רשות', value: 'OPTIONAL' },
 ];
 
+const REPORT_SCOPE_LABELS: Record<string, string> = {
+  pnl: 'רווח והפסד',
+  annual: 'דוח שנתי בלבד',
+};
+
+const REPORT_SCOPE_OPTIONS = [
+  { label: 'רווח והפסד', value: 'pnl' },
+  { label: 'דוח שנתי בלבד', value: 'annual' },
+];
+
 @Component({
   selector: 'app-category-management',
   templateUrl: './category-management.component.html',
@@ -31,6 +41,7 @@ export class CategoryManagementComponent implements OnInit {
   readonly buttonSize = ButtonSize;
   readonly ButtonColor = ButtonColor;
   necessityOptions = NECESSITY_OPTIONS;
+  reportScopeOptions = REPORT_SCOPE_OPTIONS;
   readonly NEW_CATEGORY_VALUE = '__NEW__';
 
   subCategories = signal<any[]>([]);
@@ -47,6 +58,8 @@ export class CategoryManagementComponent implements OnInit {
     isRecognized: boolean;
     isExpense: boolean;
     necessity: string;
+    reportScope: string;
+    pnlCategory: string | null;
   }> = {};
 
   /** רשימת קטגוריות קיימות + "קטגוריה חדשה" לבחירה בדיאלוג הוספה */
@@ -88,6 +101,10 @@ export class CategoryManagementComponent implements OnInit {
     return NECESSITY_LABELS[necessity] ?? necessity ?? '';
   }
 
+  reportScopeLabel(scope: string): string {
+    return REPORT_SCOPE_LABELS[scope] ?? 'רווח והפסד';
+  }
+
   editRow = signal<any | null>(null);
   showEditDialog = signal<boolean>(false);
   editForm: Record<string, any> = {};
@@ -104,6 +121,8 @@ export class CategoryManagementComponent implements OnInit {
       isRecognized: row.isRecognized,
       isExpense: row.isExpense,
       necessity: row.necessity,
+      reportScope: row.reportScope ?? 'pnl',
+      pnlCategory: row.pnlCategory ?? null,
     };
     this.showEditDialog.set(true);
   }
@@ -155,6 +174,8 @@ export class CategoryManagementComponent implements OnInit {
       isRecognized: false,
       isExpense: true,
       necessity: 'IMPORTANT',
+      reportScope: 'pnl',
+      pnlCategory: null,
     };
     this.showAddDialog.set(true);
   }

@@ -2,8 +2,10 @@ import {
     IsString,
     IsNumber,
     IsBoolean,
+    IsEnum,
     IsOptional
 } from 'class-validator'
+import { ExpenseReportScope } from 'src/enum';
 
 export class UpdateExpenseDto {
 
@@ -53,6 +55,16 @@ export class UpdateExpenseDto {
     @IsOptional()
     @IsBoolean()
     isEquipment: boolean;
+
+    /** Per-expense report scope (edited from the bookkeeping Edit dialog). */
+    @IsOptional()
+    @IsEnum(ExpenseReportScope)
+    reportScope?: ExpenseReportScope;
+
+    /** Optional per-expense P&L-category override (rare). null clears it. */
+    @IsOptional()
+    @IsString()
+    pnlCategory?: string | null;
 
     @IsNumber()
     taxSumRec: number;
