@@ -1,15 +1,13 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { AdvanceIncomeTaxReportService } from './advance-income-tax-report.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
-import { ReportingPeriodType } from 'src/app/shared/enums';
-import { IUserData } from 'src/app/shared/interface';
+import { ReportingPeriodType, inputsSize } from 'src/app/shared/enums';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
 import { EMPTY, finalize, map, catchError } from 'rxjs';
-import { signal } from '@angular/core';
-import { inputsSize } from 'src/app/shared/enums';
-import { IAdvanceIncomeTaxReportData } from 'src/app/shared/interface';
+import { IAdvanceIncomeTaxReportData, IUserData } from 'src/app/shared/interface';
 
 @Component({
   selector: 'app-advance-income-tax-report',
@@ -21,6 +19,7 @@ export class AdvanceIncomeTaxReportPage implements OnInit {
 
   private gs = inject(GenericService);
   private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
 
   form: FormGroup = this.fb.group({});
   filterConfig: FilterField[] = [];
@@ -116,6 +115,13 @@ export class AdvanceIncomeTaxReportPage implements OnInit {
         })
       },
     ];
+
+    // Clear the displayed report whenever any filter field changes so the user
+    // is never looking at stale data for a different period or business.
+    // API calls only happen when the user explicitly clicks "הצג".
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reportData.set(null));
   }
 
   onSubmit(formValues: unknown): void {

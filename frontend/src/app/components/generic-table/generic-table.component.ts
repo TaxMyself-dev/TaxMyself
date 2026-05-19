@@ -102,6 +102,35 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   isHovering = signal<number>(null);
   selectedTrans: IRowDataTable[] = [];
 
+  // ─── Mobile checkbox selection (parallel to selectedTrans for desktop) ────
+  mobileSelectedRows = signal<IRowDataTable[]>([]);
+
+  mobileAllChecked = computed(() => {
+    const total = this.dataTable().length;
+    return total > 0 && this.mobileSelectedRows().length === total;
+  });
+
+  isMobileRowChecked(row: IRowDataTable): boolean {
+    return this.mobileSelectedRows().some(r => r['id'] === row['id']);
+  }
+
+  onMobileRowChecked(row: IRowDataTable, checked: boolean): void {
+    this.mobileSelectedRows.update(rows =>
+      checked
+        ? rows.some(r => r['id'] === row['id']) ? rows : [...rows, row]
+        : rows.filter(r => r['id'] !== row['id'])
+    );
+    this.isAllChecked.emit(this.mobileAllChecked());
+    this.rowsChecked.emit(this.mobileSelectedRows());
+  }
+
+  onMobileSelectAll(checked: boolean): void {
+    const rows = checked ? [...this.dataTable()] : [];
+    this.mobileSelectedRows.set(rows);
+    this.isAllChecked.emit(checked && rows.length > 0);
+    this.rowsChecked.emit(rows);
+  }
+
 
 
 
@@ -244,10 +273,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   ngOnInit() {
-
     if (this.defaultSelectedValue()) {
-      this.selectedTrans = [...this.dataTable()];
-      this.rowsChecked.emit(this.selectedTrans);
+      const allRows = [...this.dataTable()];
+      this.selectedTrans = allRows;
+      this.mobileSelectedRows.set(allRows);
+      this.rowsChecked.emit(allRows);
     }
   }
 

@@ -48,6 +48,7 @@ export class RegisterPage implements OnInit, OnDestroy {
   readonly inputsSize = inputsSize;
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
+  readonly isMobile = computed(() => this.genericService.isMobile());
   readonly registerFormModules = RegisterFormModules;
   readonly registerFormControls = RegisterFormControls;
   readonly formTypes = FormTypes;

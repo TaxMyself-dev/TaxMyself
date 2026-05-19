@@ -20,7 +20,8 @@
            PERIOD FIELD
       ======================== -->
       @if (field.type === 'period') {
-      <app-period-select [parentForm]="parentForm()" [allowedPeriodModes]="field.allowedPeriodModes" [periodDefaults]="field.periodDefaults">
+      <app-period-select [parentForm]="parentForm()" [allowedPeriodModes]="field.allowedPeriodModes" [periodDefaults]="field.periodDefaults"
+        [size]="isMobile() ? inputSize.MOBILE : inputSize.MEDIUM">
       </app-period-select>
       }
 
