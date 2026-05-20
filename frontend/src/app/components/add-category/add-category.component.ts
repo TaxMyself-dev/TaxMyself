@@ -124,6 +124,9 @@ export class AddCategoryComponent implements OnInit {
       taxPercent: [0, [Validators.pattern(/^\d+$/)]],
       vatPercent: [0, [Validators.pattern(/^\d+$/)]],
       reductionPercent: [0, [Validators.pattern(/^\d+$/)]],
+      // Optional P&L presentation category — only shown when isRecognized
+      // (an unrecognized expense never reaches the P&L anyway).
+      pnlCategory: [null as string | null],
     });
   }
 
