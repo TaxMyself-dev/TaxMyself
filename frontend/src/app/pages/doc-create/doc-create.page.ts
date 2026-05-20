@@ -461,7 +461,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     const allowedTypes: DocumentType[] =
       this.selectedBusinessType() === BusinessType.EXEMPT
-        ? [DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE]
+        ? [DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.PRICE_QUOTE, DocumentType.WORK_ORDER]
         : (Object.values(DocumentType) as DocumentType[]);
 
     docTypeField.enumValues = Object.entries(DocTypeDisplayName)
@@ -2387,7 +2387,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     // Try to load draft for all possible document types if fileSelected is not set
     const docTypesToTry = savedDocType || this.fileSelected()
       ? [savedDocType || this.fileSelected()].filter(Boolean) as DocumentType[]
-      : [DocumentType.TAX_INVOICE, DocumentType.TAX_INVOICE_RECEIPT, DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.CREDIT_INVOICE];
+      : [DocumentType.TAX_INVOICE, DocumentType.TAX_INVOICE_RECEIPT, DocumentType.RECEIPT, DocumentType.TRANSACTION_INVOICE, DocumentType.CREDIT_INVOICE, DocumentType.PRICE_QUOTE, DocumentType.WORK_ORDER];
 
     console.log('Document types to try:', docTypesToTry);
 

@@ -12,7 +12,8 @@
       @if (field.type === 'select' && !(field.controlName === 'businessNumber' && resolveOptions(field)?.length === 1)) {
       <app-input-select [parentForm]="parentForm()" [controlName]="field.controlName"
         [size]="isMobile() ? inputSize.MOBILE : inputSize.MEDIUM"
-        [placeholder]="field.label || field.placeholder" [items]="resolveOptions(field)">
+        [labelText]="field.label || ''"
+        [placeholder]="field.placeholder || field.label || ''" [items]="resolveOptions(field)">
       </app-input-select>
       }
 

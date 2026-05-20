@@ -163,6 +163,6 @@
 
 <div class="wrap-add-button">
   <app-p-button [disabled]="mannualExpenseForm.invalid" (onButtonClicked)="addExpense()"
-    [isLoading]="isLoadingAddExpense()" [buttonText]="'הוסף'" [buttonSize]="buttonSize.SMALL"
+    [isLoading]="isLoadingAddExpense()" [buttonText]="editMode ? 'עדכן' : 'הוסף'" [buttonSize]="buttonSize.SMALL"
     [buttonColor]="buttonColor.BLACK"></app-p-button>
 </div>

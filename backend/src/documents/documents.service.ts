@@ -460,17 +460,21 @@ export class DocumentsService {
         const envFids = isProduction ? fidMap.prod : fidMap.dev;
         if (['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType)) {
           fid = envFids.receipt;
-        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE'].includes(docType)) {
+        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE', 'PRICE_QUOTE', 'WORK_ORDER'].includes(docType)) {
+          // PRICE_QUOTE and WORK_ORDER share the invoice template — same
+          // layout, no payment section.
           fid = envFids.invoice;
         } else {
           fid = 'UNKNOWN FID';
         }
 
-        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' : 
+        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' :
                               data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
                               data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
                               data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
-                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' : '';
+                              data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
+                              data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
+                              data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
         prefill_data = {
           recipientName: data.docData.recipientName,
           recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
@@ -635,7 +639,7 @@ export class DocumentsService {
       // For LICENSED (עוסק מורשה) or COMPANY (חברה)
       // For TAX_INVOICE and TAX_INVOICE_RECEIPT
       
-      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE) {
+      if (docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT || docType === DocumentType.TRANSACTION_INVOICE || docType === DocumentType.PRICE_QUOTE || docType === DocumentType.WORK_ORDER) {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
@@ -1159,6 +1163,8 @@ export class DocumentsService {
                 [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
                 [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
                 [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+                [DocumentType.PRICE_QUOTE]: 'הצעת מחיר',
+                [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
                 [DocumentType.GENERAL]: 'מסמך כללי',
               };
               const docTypeName = docTypeNames[data.docData.docType] || data.docData.docType;
@@ -1728,6 +1734,8 @@ ${finalOwnerName}`;
       DocumentType.TAX_INVOICE_RECEIPT,
       DocumentType.TRANSACTION_INVOICE,
       DocumentType.CREDIT_INVOICE,
+      DocumentType.PRICE_QUOTE,
+      DocumentType.WORK_ORDER,
       DocumentType.GENERAL,
       DocumentType.JOURNAL_ENTRY,
     ];
@@ -1738,6 +1746,8 @@ ${finalOwnerName}`;
       [DocumentType.TAX_INVOICE_RECEIPT]: 30000,
       [DocumentType.TRANSACTION_INVOICE]: 40000,
       [DocumentType.CREDIT_INVOICE]: 50000,
+      [DocumentType.PRICE_QUOTE]: 60000,
+      [DocumentType.WORK_ORDER]: 70000,
       [DocumentType.GENERAL]: 1000000,
       [DocumentType.JOURNAL_ENTRY]: 10000000,
     };

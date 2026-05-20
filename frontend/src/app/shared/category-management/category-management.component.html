@@ -12,6 +12,12 @@
         (onButtonClicked)="openAddSubCategory()"></app-p-button>
       <p class="table-title">תתי קטגוריות</p>
     </div>
+
+    <!-- Shared filter component (same one used in "מסמכים שהפקתי" etc.) -->
+    <app-filter-tab [config]="filterConfig" [parentForm]="filterForm" (apply)="onApplyFilter($event)"></app-filter-tab>
+    <div style="color: #6b7280; font-size: 12px; padding: 4px 0;">
+      מציג {{ filteredSubCategories().length }} מתוך {{ subCategories().length }}
+    </div>
     <div class="table-container-inner">
       @if (loading()) {
         <div class="table-loading">
@@ -38,16 +44,18 @@
             </tr>
           </thead>
           <tbody>
-            @if (subCategories().length === 0) {
+            @if (filteredSubCategories().length === 0) {
               <tr>
                 <td colspan="13" class="empty-message">
                   <div class="empty-data-container">
-                    <p class="empty-data-text">אין תתי קטגוריות</p>
+                    <p class="empty-data-text">
+                      {{ subCategories().length === 0 ? 'אין תתי קטגוריות' : 'אין תתי קטגוריות התואמות לסינון' }}
+                    </p>
                   </div>
                 </td>
               </tr>
             } @else {
-              @for (row of subCategories(); track row.id) {
+              @for (row of filteredSubCategories(); track row.id) {
                 <tr class="table-row">
                   <td>{{ row.id }}</td>
                   <td>{{ row.subCategoryName }}</td>

@@ -161,7 +161,11 @@ export class IncomesPage implements OnInit {
         options: [
           { name: 'חשבונית מס', value: DocumentType.TAX_INVOICE },
           { name: 'קבלה', value: DocumentType.RECEIPT },
-          { name: 'חשבונית זיכוי', value: DocumentType.CREDIT_INVOICE }
+          { name: 'חשבונית זיכוי', value: DocumentType.CREDIT_INVOICE },
+          { name: 'חשבון עסקה', value: DocumentType.TRANSACTION_INVOICE },
+          { name: 'חשבונית מס קבלה', value: DocumentType.TAX_INVOICE_RECEIPT },
+          { name: 'הצעת מחיר', value: DocumentType.PRICE_QUOTE },
+          { name: 'הזמנת עבודה', value: DocumentType.WORK_ORDER },
         ]
       }
     ];

@@ -868,7 +868,14 @@ export class ReportsService {
     private async generateDataFileContent(userId: string, businessNumber: string, startDate: string, endDate: string, uniqueId: string): Promise<{ content: string; summary: any[] }> {
 
       let content = "";
-      const documents = await this.fetchDocuments(businessNumber, startDate, endDate);
+      const allDocuments = await this.fetchDocuments(businessNumber, startDate, endDate);
+      // Filter out doc types that don't participate in the uniform file
+      // (e.g. PRICE_QUOTE — no code in UniformFileTypeCodeMap). Filtering here
+      // keeps C100/D110/D120 consistent: a doc, its lines, and its payments
+      // are all dropped together — no orphan D110/D120 rows.
+      const documents = allDocuments.filter(
+        (d) => d.docType != null && (d.docType as string) in UniformFileTypeCodeMap,
+      );
       const journalEntries = await this.fetchJournalEntries(userId, businessNumber, startDate, endDate);
     
       // Add A100 section first

@@ -51,6 +51,7 @@ export class AppComponent implements OnInit {
     // { label: 'פרופיל אישי' },
     { label: 'תזרים', routerLink: '/transactions' },
     { label: 'דוחות', routerLink: '/reports' },
+    { label: 'הנהלת חשבונות', routerLink: '/book-keeping' },
     { label: 'ניתוח הוצאות', routerLink: '/flow-analysis' },
     // { label: 'צור קשר' },
   ]
@@ -219,10 +220,10 @@ export class AppComponent implements OnInit {
             this.getRoleUser();
           }
         });
-        this.genericService.loadBusinessesFromServer();
+        this.genericService.loadBusinessesFromServer().then(() => this.updateAdminMenuItems());
       } else {
         this.authService.clearViewAsUserData();
-        this.genericService.loadBusinessesFromServer();
+        this.genericService.loadBusinessesFromServer().then(() => this.updateAdminMenuItems());
         this.userData = this.authService.getUserDataFromLocalStorage();
         this.updateAdminMenuItems();
         this.getRoleUser();
@@ -261,10 +262,26 @@ export class AppComponent implements OnInit {
   updateAdminMenuItems(): void {
     const role = this.userData?.role;
 
-    // Remove role-based items so we can re-add according to current user
+    // Remove role-based items so we can re-add according to current user.
+    // Also drop "הנהלת חשבונות" — it's re-added below only when the user
+    // has at least one business (no business → hide the tab).
     this.menuItems = this.menuItems.filter(
-      (item) => item.label !== 'פאנל ניהול' && item.label !== 'משרד',
+      (item) => item.label !== 'פאנל ניהול'
+             && item.label !== 'משרד'
+             && item.label !== 'הנהלת חשבונות',
     );
+
+    // "הנהלת חשבונות" — visible only when the user has ≥1 business.
+    // Insert between "דוחות" and "ניתוח הוצאות" to preserve the menu order.
+    if (this.genericService.businesses().length > 0) {
+      const flowAnalysisIdx = this.menuItems.findIndex((i) => i.label === 'ניתוח הוצאות');
+      const bookKeepingItem = { label: 'הנהלת חשבונות', routerLink: '/book-keeping' };
+      if (flowAnalysisIdx >= 0) {
+        this.menuItems.splice(flowAnalysisIdx, 0, bookKeepingItem);
+      } else {
+        this.menuItems.push(bookKeepingItem);
+      }
+    }
 
     if (role && (role[0] === 'ADMIN' || role.includes('ADMIN'))) {
       if (!this.menuItems.some((item) => item.label === 'פאנל ניהול')) {

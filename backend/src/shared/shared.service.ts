@@ -133,11 +133,9 @@ export class SharedService {
                 12: `11-12/${year}`,
             };
             result = dualMonthPairs[month] as DualMonthReport;
-            console.log("DualMonthReport - result is ", result);
         }
         else {
             result = null;
-            console.log("null - result is ", result);
         }
 
         return result;
