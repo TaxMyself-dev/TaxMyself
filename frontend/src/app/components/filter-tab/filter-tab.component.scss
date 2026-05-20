@@ -1,15 +1,25 @@
 .filter-tab {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-end;   // align by the input bottoms so labels above
+                            // (variable height) don't break the inline row
   gap: 1rem;
   padding: 8px 0;
+
+  // The Apply button has no label above it, so flex-end aligns its bottom
+  // with the fields' bottoms — which sits slightly LOWER than the visible
+  // input box because PrimeNG selects render a small line-height/padding
+  // below their text. Nudge the button up so its visual baseline matches
+  // the input boxes' baselines.
+  > app-p-button {
+    margin-bottom: 2px;
+  }
 }
 
 .filter-tab__fields {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-end;   // same here — keep input bottoms on one line
   gap: 1rem;
   flex-wrap: wrap;
   // flex: 1;
