@@ -554,10 +554,30 @@ export const TaxReportingTypeLabels: Record<string, string> = {
 };
 
 /**
- * Threshold amount (in NIS) above which an allocation number is required for tax invoices
- * When a tax invoice amount exceeds this threshold, the system must request an allocation number from SHAAM
+ * Israeli VAT-reform allocation-number thresholds (sum before VAT, in ILS).
+ * A tax invoice / tax-invoice-receipt above the threshold *for its doc date*
+ * needs an allocation number from the Tax Authority so the recipient can
+ * reclaim VAT. The threshold steps down over time per the reform schedule —
+ * add a new entry at the top of the list each time a future range is published.
+ *
+ * Entries must be kept sorted by `from` DESC (newest first); the lookup
+ * picks the first range whose `from` is ≤ the doc date.
  */
-export const ALLOCATION_NUMBER_THRESHOLD = 10000;
+const ALLOCATION_NUMBER_THRESHOLDS: ReadonlyArray<{ from: string; threshold: number }> = [
+  { from: '2026-06-01', threshold: 5000 },
+  { from: '2026-01-01', threshold: 10000 },
+];
+
+/** Threshold (ILS, before VAT) above which an allocation number is required for the given doc date. */
+export function getAllocationNumberThreshold(docDate?: Date | string | null): number {
+  const date = docDate ?? new Date();
+  const iso = typeof date === 'string'
+    ? (date.length >= 10 ? date.slice(0, 10) : date)
+    : date.toISOString().slice(0, 10);
+  const match = ALLOCATION_NUMBER_THRESHOLDS.find(r => r.from <= iso);
+  // Pre-reform date → no allocation requirement.
+  return match?.threshold ?? Infinity;
+}
 
 /** סוג משימה ברשימת המשימות של רואה החשבון */
 export enum AccountantTaskType {

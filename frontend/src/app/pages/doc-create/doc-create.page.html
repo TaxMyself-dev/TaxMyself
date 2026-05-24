@@ -584,6 +584,33 @@
     </div>
   </p-dialog>
 
+  <!-- Allocation-number decision dialog: 3 options when sum requires an allocation # -->
+  <p-dialog header="נדרש מספר הקצאה" [visible]="showAllocationDecisionDialog()" [modal]="true" [rtl]="true"
+    [style]="{ width: '480px' }" [closable]="false" [dismissableMask]="false">
+    <div class="p-fluid">
+      <p>
+        המסמך בסכום של ₪{{ documentTotals().sumAftDisBefVat | number:'1.0-2' }} (לפני מע״מ)
+        מחייב מספר הקצאה מרשות המיסים.
+      </p>
+      <p>
+        אם תפיק את המסמך ללא מספר הקצאה, הלקוח שלך לא יוכל לקזז את המע״מ.
+      </p>
+      <p style="margin-top: 0.75rem;">כיצד תרצה להמשיך?</p>
+
+      <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <app-p-button [buttonText]="'קבל מספר הקצאה מרשות המיסים'" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.BLACK" (onButtonClicked)="onGetAllocationFromTaxAuthority()">
+        </app-p-button>
+        <app-p-button [buttonText]="'הפק ללא מספר הקצאה'" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.WHITE" (onButtonClicked)="onCreateWithoutAllocation()">
+        </app-p-button>
+        <app-p-button [buttonText]="'ביטול (שמור והשלם מאוחר יותר)'" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.WHITE" (onButtonClicked)="onCancelAllocationDecision()">
+        </app-p-button>
+      </div>
+    </div>
+  </p-dialog>
+
   <!-- Manual Allocation Number Input Dialog -->
   <p-dialog header="הזנת מספר הקצאה ידנית" [visible]="showAllocationNumberInput()" [modal]="true" [rtl]="true"
     [style]="{ width: '400px' }" (onHide)="cancelAllocationNumberInput()">

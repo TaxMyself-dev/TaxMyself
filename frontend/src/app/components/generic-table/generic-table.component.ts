@@ -552,8 +552,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   shouldShowAction(action: ITableRowAction): boolean {
     if (!action.alwaysShow) return false;
+    const row = this.hoveredRowInfo()?.row;
+    if (action.showWhen && row && !action.showWhen(row)) return false;
     if (action.name === 'close') {
-      const row = this.hoveredRowInfo()?.row;
       if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
         return false;
       }
@@ -563,8 +564,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   shouldShowFileAction(action: ITableRowAction): boolean {
     if (action.alwaysShow) return false;
+    const row = this.hoveredRowInfo()?.row;
+    if (action.showWhen && row && !action.showWhen(row)) return false;
     if (action.name === 'close') {
-      const row = this.hoveredRowInfo()?.row;
       if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
         return false;
       }

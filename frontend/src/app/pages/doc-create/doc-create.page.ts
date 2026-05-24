@@ -13,7 +13,7 @@ import { DocumentsService } from 'src/app/services/documents.service';
 import { FilesService } from 'src/app/services/files.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { ShaamService } from 'src/app/services/shaam.service';
-import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, inputsSize, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
+import { BusinessStatus, BusinessType, fieldLineDocName, fieldLineDocValue, FieldsCreateDocName, FieldsCreateDocValue, FormTypes, getAllocationNumberThreshold, inputsSize, paymentMethodOptions, vatOptions, VatType } from 'src/app/shared/enums';
 import { Business, ICreateDocField, IDocIndexes, ISettingDoc, IShaamApprovalRequest, IShaamApprovalResponse, ITotals, IUserData } from 'src/app/shared/interface';
 import { SelectClientComponent } from 'src/app/shared/select-client/select-client.component';
 import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayName, DocumentSummary, DocumentTotals, DocumentTotalsLabels, DocumentType, PartialLineItem } from './doc-cerate.enum';
@@ -21,8 +21,9 @@ import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { DocCreateService } from './doc-create.service';
 
-// Constant for allocation number threshold
-const ALLOCATION_NUMBER_THRESHOLD = 10000;
+// Israeli Tax Authority page where the user manually requests an allocation number.
+// SHAAM auto-flow is intentionally disabled for now — only manual flow is used.
+const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
 
 interface DocPayload {
   docData: any[];
@@ -131,6 +132,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   allocationNumber = signal<string | null>(null);
   showAllocationNumberInput = signal<boolean>(false);
   showShaamDialog = signal<boolean>(false);
+  showAllocationDecisionDialog = signal<boolean>(false); // 3-button manual flow
   manualAllocationNumber: string = '';
   // selectedBankBeneficiary: string;
   // selectedBankName: string;
@@ -222,7 +224,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
     return this.totalAmount() - this.totalPayments();
   })
 
-  // Check if allocation number is required
+  // Check if allocation number is required. Threshold depends on the doc's
+  // date — the VAT reform steps it down over time (see getAllocationNumberThreshold).
   requiresAllocationNumber = computed(() => {
     const docType = this.fileSelected();
     const isTaxInvoice = docType === DocumentType.TAX_INVOICE || docType === DocumentType.TAX_INVOICE_RECEIPT;
@@ -231,9 +234,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
       return false;
     }
 
-    // Sum before VAT after discount
     const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
-    return sumBeforeVat > ALLOCATION_NUMBER_THRESHOLD;
+    const docDate = this.generalDetailsForm?.get(FieldsCreateDocValue.DOC_DATE)?.value;
+    return sumBeforeVat > getAllocationNumberThreshold(docDate);
   });
 
   createDocIsValid = computed(() => {
@@ -542,51 +545,56 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   confirmCreateDoc(): void {
 
-    // Check if allocation number is required
     const requiresAlloc = this.requiresAllocationNumber();
     const hasAllocNumber = this.allocationNumber();
 
     if (requiresAlloc) {
-      // Always check recipientId when allocation number is required
+      // Above-threshold docs legally require the recipient's tax ID — both for
+      // requesting an allocation # from the Tax Authority and for the invoice
+      // itself. Block the create flow here and tell the user what to add.
       const recipientId = this.userDetailsForm.get(FieldsCreateDocValue.RECIPIENT_ID)?.value;
-      if (!recipientId || !recipientId.trim()) {
-        // Show confirmation dialog instead of toast
+      if (!recipientId || !String(recipientId).trim()) {
         this.confirmationService.confirm({
-          message: 'לא ניתן להפיק מספר הקצאה ללא מספר עוסק של הלקוח.\n\nאנא מלא את מספר הת.ז/ח.פ של הלקוח תחילה.',
-          header: 'מספר עוסק של הלקוח נדרש',
+          message: 'מסמך זה מחייב מספר הקצאה ולכן חובה למלא את מספר ת.ז / ח.פ של הלקוח.',
+          header: 'נדרש מספר עוסק של הלקוח',
           icon: 'pi pi-exclamation-triangle',
           acceptLabel: 'אישור',
           acceptVisible: true,
           rejectVisible: false,
+          // Match the project's design system (BLACK button).
+          acceptButtonStyleClass: 'p-button-contrast',
         });
         return;
       }
 
       if (!hasAllocNumber) {
-        // No allocation number yet, show dialog
-        console.log("✅ Showing allocation number dialog");
+        // Manual allocation flow. SHAAM auto-flow infrastructure exists
+        // (openShaamDialog/sendAllocationNumberRequest) but is intentionally
+        // bypassed for now — every above-threshold doc goes through the
+        // 3-button manual decision dialog.
         this.showAllocationNumberDialog();
         return;
       }
-      // Has allocation number, show confirmation dialog
-      this.showDocumentCreationConfirmation();
-      return;
     }
 
-    // No allocation number required - show confirmation dialog
+    // No allocation required, or one was already supplied — proceed normally.
     this.showDocumentCreationConfirmation();
   }
 
   // Show confirmation dialog before creating document
   private showDocumentCreationConfirmation(): void {
     this.confirmationService.confirm({
-      message: 'האם אתה בטוח שברצונך להפיק את המסמך?\nהמסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
+      message: 'האם אתה בטוח שברצונך להפיק את המסמך?<br>המסמך שיופק הוא מסמך רשמי המחייב על-פי חוק, ולא ניתן לעריכה לאחר ההפקה.',
       header: 'אישור הפקת מסמך',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: 'הפק',
       rejectLabel: 'ביטול',
       acceptVisible: true,
       rejectVisible: true,
+      // Match the project's design system (BLACK buttons) instead of PrimeNG's
+      // default green/danger.
+      acceptButtonStyleClass: 'p-button-contrast',
+      rejectButtonStyleClass: 'p-button-contrast',
       accept: () => {
         this.proceedWithDocumentCreation();
       },
@@ -1193,43 +1201,53 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   updateDocumentTotalsFromLines(): void {
 
-    this.documentSummary.set({
+    // Build a fresh summary object — mutating the existing signal value in
+    // place doesn't trigger reactivity (computeds like `requiresAllocationNumber`
+    // depend on identity, not deep changes).
+    const summary: DocumentSummary = {
       totalVatApplicable: 0,
       totalWithoutVat: 0,
       totalDiscount: 0,
       totalVat: 0,
-    });
+    };
 
-    const lines = this.lineItemsDraft();
-
-    for (const line of lines) {
+    for (const line of this.lineItemsDraft()) {
+      const lineSum = Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
       if (line.vatOpts === 'WITHOUT') {
-        this.documentSummary().totalWithoutVat += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
+        summary.totalWithoutVat += lineSum;
+      } else {
+        summary.totalVatApplicable += lineSum;
+        summary.totalVat += Number(line.vatPerLine ?? 0);
       }
-      else {
-        this.documentSummary().totalVatApplicable += Number((line.sumBefVatPerUnit ?? 0) * (line.unitQuantity ?? 1));
-        this.documentSummary().totalVat += Number(line.vatPerLine ?? 0);
-      }
-      this.documentSummary().totalDiscount += Number(line.discount ?? 0);
+      summary.totalDiscount += Number(line.discount ?? 0);
     }
 
-    console.log("🚀 ~ updateDocumentTotalsFromLines ~ this.documentSummary():", this.documentSummary());
+    this.documentSummary.set(summary);
+    console.log("🚀 ~ updateDocumentTotalsFromLines ~ this.documentSummary():", summary);
 
-    if (this.isExemptBusiness()) {
-      this.documentTotals().sumBefDisBefVat = this.documentSummary().totalWithoutVat;
-      this.documentTotals().disSum = this.documentSummary().totalDiscount;
-      this.documentTotals().sumAftDisBefVat = this.documentSummary().totalWithoutVat - this.documentSummary().totalDiscount;
-      this.documentTotals().vatSum = 0;
-      this.documentTotals().sumAftDisWithVat = this.documentTotals().sumAftDisBefVat;
-    }
-    else {
-      this.documentTotals().sumBefDisBefVat = this.documentSummary().totalVatApplicable + this.documentSummary().totalWithoutVat;
-      this.documentTotals().disSum = this.documentSummary().totalDiscount;
-      this.documentTotals().sumAftDisBefVat = this.documentTotals().sumBefDisBefVat - this.documentTotals().disSum;
-      this.documentTotals().vatSum = this.documentSummary().totalVat;
-      this.documentTotals().sumAftDisWithVat = this.documentTotals().sumAftDisBefVat + this.documentTotals().vatSum;
-    }
+    // Same here: assemble a new totals object and `.set()` it so computeds
+    // (including requiresAllocationNumber) actually re-evaluate.
+    const totals: DocumentTotals = this.isExemptBusiness()
+      ? {
+          sumBefDisBefVat: summary.totalWithoutVat,
+          disSum: summary.totalDiscount,
+          sumAftDisBefVat: summary.totalWithoutVat - summary.totalDiscount,
+          vatSum: 0,
+          sumAftDisWithVat: summary.totalWithoutVat - summary.totalDiscount,
+        }
+      : (() => {
+          const sumBefDisBefVat = summary.totalVatApplicable + summary.totalWithoutVat;
+          const sumAftDisBefVat = sumBefDisBefVat - summary.totalDiscount;
+          return {
+            sumBefDisBefVat,
+            disSum: summary.totalDiscount,
+            sumAftDisBefVat,
+            vatSum: summary.totalVat,
+            sumAftDisWithVat: sumAftDisBefVat + summary.totalVat,
+          };
+        })();
 
+    this.documentTotals.set(totals);
   }
 
 
@@ -2093,30 +2111,128 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
-  // Show dialog asking user how to get allocation number
+  // Manual allocation-number dialog: 3 buttons (Cancel / Get number / Create without).
+  // Opens a signal-controlled <p-dialog> in the template since PrimeNG's
+  // ConfirmDialog only supports 2 buttons.
   showAllocationNumberDialog(): void {
-    const sumBeforeVat = this.documentTotals().sumAftDisBefVat;
+    this.showAllocationDecisionDialog.set(true);
+  }
 
-    console.log("🔍 showAllocationNumberDialog - sumBeforeVat:", sumBeforeVat);
-    console.log("🔍 showAllocationNumberDialog - confirmationService:", this.confirmationService);
+  /**
+   * Button 1: Cancel — save the document with status PENDING_ALLOCATION (no PDF
+   * yet). The user will see a "needs action" indicator on the incomes page and
+   * can later either enter an allocation number or finalize without one.
+   */
+  onCancelAllocationDecision(): void {
+    this.showAllocationDecisionDialog.set(false);
+    this.createPendingAllocationDoc({ openAllocationDialog: false });
+  }
 
-    this.confirmationService.confirm({
-      message: `על מנת להפיק חשבונית בסכום של ₪${sumBeforeVat.toLocaleString('he-IL')} (לפני מע״מ), נדרש מספר הקצאה משעמ.\n\nכיצד תרצה להמשיך?`,
-      header: 'מספר הקצאה נדרש',
-      icon: 'pi pi-info-circle',
-      acceptLabel: 'הפק באמצעות התוכנה',
-      rejectLabel: 'הזן ידנית',
-      acceptVisible: true,
-      rejectVisible: true,
-      accept: () => {
-        // Wait for the current dialog to close before opening the next one
-        setTimeout(() => {
-          this.openShaamDialog();
-        }, 100);
-      },
-      reject: () => {
-        this.showAllocationNumberInput.set(true);
+  /**
+   * Button 2: Get allocation number — save as pending and navigate to the
+   * incomes page where the allocation-input dialog auto-opens with the doc's
+   * details and a link to the Tax Authority site (no auto-redirect).
+   */
+  onGetAllocationFromTaxAuthority(): void {
+    this.showAllocationDecisionDialog.set(false);
+    this.createPendingAllocationDoc({ openAllocationDialog: true });
+  }
+
+  /**
+   * Button 3: Create without allocation number — confirm, then issue the doc
+   * normally (full PDF, journal entry, etc.) without an allocation #.
+   */
+  onCreateWithoutAllocation(): void {
+    this.showAllocationDecisionDialog.set(false);
+    setTimeout(() => {
+      this.confirmationService.confirm({
+        message:
+          'האם אתה בטוח שברצונך להפיק את המסמך ללא מספר הקצאה?<br>' +
+          'הלקוח שלך לא יוכל לקזז את המע״מ על מסמך זה.',
+        header: 'אישור הפקה ללא מספר הקצאה',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'כן, הפק ללא מספר הקצאה',
+        rejectLabel: 'ביטול',
+        acceptVisible: true,
+        rejectVisible: true,
+        // Match the project's design system (BLACK buttons).
+        acceptButtonStyleClass: 'p-button-contrast',
+        rejectButtonStyleClass: 'p-button-contrast',
+        accept: () => {
+          this.allocationNumber.set(null);
+          this.proceedWithDocumentCreation();
+        },
+      });
+    }, 150);
+  }
+
+  /**
+   * Sends the doc to the backend with docStatus=PENDING_ALLOCATION so the
+   * server skips PDF generation / journal entry. After success, navigates to
+   * the incomes page. If `openAllocationDialog` is true, the dialog will
+   * auto-open there for this freshly-saved doc (no auto-redirect to the Tax
+   * Authority — the link lives inside the dialog).
+   */
+  private createPendingAllocationDoc(opts: { openAllocationDialog: boolean }): void {
+    this.createPDFIsLoading.set(true);
+
+    const payload = this.buildDocPayload() as any;
+    payload.docData.docStatus = 'PENDING_ALLOCATION';
+    payload.docData.allocationNum = null;
+
+    // Snapshot the form fields we need for the allocation-input dialog
+    // BEFORE resetting the form on success.
+    const dialogRowSnapshot = {
+      issuerBusinessNumber: payload.docData.issuerBusinessNumber,
+      docNumber: String(payload.docData.docNumber),
+      docTypeOriginal: payload.docData.docType,
+      docType: this.getHebrewNameDoc(payload.docData.docType),
+      recipientId: payload.docData.recipientId,
+      sumAftDisBefVAT: payload.docData.totalVatApplicable + payload.docData.totalWithoutVat - payload.docData.totalDiscount,
+      docDate: payload.docData.docDate,
+      docStatusOriginal: 'PENDING_ALLOCATION',
+    };
+
+    this.docCreateService.createDoc(payload).pipe(
+      finalize(() => this.createPDFIsLoading.set(false)),
+      catchError((err) => {
+        console.error('Error saving pending-allocation doc:', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'שגיאה',
+          detail: 'שמירת המסמך נכשלה. נסה שנית.',
+          life: 5000,
+          key: 'br',
+        });
+        return EMPTY;
+      }),
+    ).subscribe((response) => {
+      if (!response?.docNumber) return;
+
+      // Best-effort: delete any draft (matches the normal createDoc path).
+      if (this.selectedBusinessNumber && this.fileSelected()) {
+        this.docCreateService.deleteDraft(this.selectedBusinessNumber, this.fileSelected())
+          .subscribe({ error: () => {/* non-fatal */} });
       }
+
+      this.messageService.add({
+        severity: 'info',
+        summary: 'המסמך נשמר',
+        detail: 'המסמך נשמר וממתין למספר הקצאה.',
+        life: 5000,
+        key: 'br',
+      });
+
+      this.resetDocFormsAndDrafts();
+
+      // For the "get number from tax authority" path, navigate with state so
+      // the incomes page auto-opens the input dialog populated with this
+      // doc's details (and a link to the Tax Authority site).
+      this.router.navigate(['/book-keeping/incomes'], {
+        state: opts.openAllocationDialog
+          ? { autoOpenAllocationFor: dialogRowSnapshot }
+          : undefined,
+      });
     });
   }
 

@@ -122,10 +122,11 @@ export enum DocumentType {
 }
 
 export enum DocumentStatusType {
-  OPEN = 'OPEN', 
+  OPEN = 'OPEN',
   CLOSE = 'CLOSE',
   DRAFT = 'DRAFT',
   CANCELLED = 'CANCELLED',
+  PENDING_ALLOCATION = 'PENDING_ALLOCATION', // doc saved, PDF deferred until allocation-number decision
 }
 
 export enum JournalReferenceType {
