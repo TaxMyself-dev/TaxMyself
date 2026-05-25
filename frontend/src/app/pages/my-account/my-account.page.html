@@ -303,16 +303,12 @@
                 @if (userData?.previousLoginAt) {
                 <span class="last-login">כניסתך האחרונה היתה בתאריך {{ userData.previousLoginAt | date: 'd/M/yyyy' }}</span>
                 }
-                @if (!hasOpenBanking()) {
-                <app-p-button [buttonText]="'הוסף הרשאה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.BETWEEN"
-                    (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
-                </app-p-button>
-                }
                 @if (hasOpenBanking()) {
                 <app-p-button [buttonText]="'+ חבר חשבון נוסף'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                     (onButtonClicked)="connectToOpenBanking()" [isLoading]="isLoadingFeezback()">
                 </app-p-button>
                 }
+                <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
         </div>
         <app-p-button class="vat-report-payment-button" [buttonText]="'+ הוספת הוצאה'" [buttonColor]="buttonColor.BLACK"
